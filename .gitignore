@@ -89,3 +89,7 @@ src/backend/.env
 backup/
 *.bak
 *~
+
+venv/
+venv/*
+.venv/
