@@ -1,0 +1,37 @@
+# Known Bugs and Issues
+
+## Critical
+None currently.
+
+## High Priority
+1. Linter Issues
+   - Multiple spacing violations in app.py
+   - Line length violations in app.py
+   - Missing type stubs for imports
+
+2. Error Handling
+   - Limited validation for file types
+   - Generic error messages in some cases
+   - Missing specific exception handling
+
+## Medium Priority
+1. Code Quality
+   - Long functions need refactoring
+   - Hardcoded values need to be moved to config
+   - Missing type hints
+
+2. Documentation
+   - Missing API documentation
+   - Incomplete function docstrings
+   - Missing setup instructions
+
+## Low Priority
+1. Test Coverage
+   - Missing edge case tests
+   - Missing database failure tests
+   - Missing stress tests
+
+2. Performance
+   - No caching implemented
+   - Synchronous image processing
+   - No request rate limiting 
