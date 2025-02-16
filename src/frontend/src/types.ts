@@ -6,12 +6,13 @@ export interface TimeSlot {
 
 // Employee related types
 export interface Employee {
-    id: string;
+    id: number;
+    employee_id: string;
     first_name: string;
     last_name: string;
-    employee_type: string;
-    target_hours: number;
-    max_hours: number;
+    employee_group: string;
+    contracted_hours: number;
+    is_keyholder: boolean;
     email?: string;
     phone?: string;
 }
