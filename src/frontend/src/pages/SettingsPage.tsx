@@ -144,7 +144,7 @@ const SettingsPage: React.FC<SettingsPageProps> = () => {
   const handleSaveItem = async (formData: any) => {
     try {
       const category = editingCategory;
-      const items = [...(settings[category] || [])];
+      const items = [...((settings[category]?.[category]) || [])];
 
       if (editingItem) {
         const index = items.findIndex((item: any) => item.id === editingItem.id);
@@ -251,29 +251,31 @@ const SettingsPage: React.FC<SettingsPageProps> = () => {
         Add Shift Type
       </Button>
       <Grid container spacing={2}>
-        {settings.shift_types?.map((shift: any) => (
-          <Grid item xs={12} md={4} key={shift.id}>
+        {(settings.shift_types?.shift_types || []).map((type: any) => (
+          <Grid item xs={12} md={4} key={type.id}>
             <Card>
               <CardContent>
-                <Typography variant="h6">{shift.name}</Typography>
+                <Typography variant="h6">{type.name}</Typography>
                 <Typography color="textSecondary">
-                  {shift.start_time} - {shift.end_time}
+                  {type.start_time} - {type.end_time}
                 </Typography>
                 <Box sx={{ mt: 1 }}>
-                  <div style={{
-                    width: 20,
-                    height: 20,
-                    backgroundColor: shift.color,
-                    borderRadius: '50%',
-                    display: 'inline-block'
-                  }} />
+                  <div
+                    style={{
+                      width: 20,
+                      height: 20,
+                      backgroundColor: type.color,
+                      borderRadius: '50%',
+                      display: 'inline-block',
+                    }}
+                  />
                 </Box>
               </CardContent>
               <CardActions>
-                <IconButton onClick={() => handleEditItem('shift_types', shift)}>
+                <IconButton onClick={() => handleEditItem('shift_types', type)}>
                   <EditIcon />
                 </IconButton>
-                <IconButton onClick={() => handleDeleteItem('shift_types', shift.id)}>
+                <IconButton onClick={() => handleDeleteItem('shift_types', type.id)}>
                   <DeleteIcon />
                 </IconButton>
               </CardActions>
@@ -295,13 +297,13 @@ const SettingsPage: React.FC<SettingsPageProps> = () => {
         Add Employee Type
       </Button>
       <Grid container spacing={2}>
-        {settings.employee_types?.map((type: any) => (
+        {(settings.employee_types?.employee_types || []).map((type: any) => (
           <Grid item xs={12} md={4} key={type.id}>
             <Card>
               <CardContent>
                 <Typography variant="h6">{type.name}</Typography>
                 <Typography color="textSecondary">
-                  {type.min_hours} - {type.max_hours} hours/week
+                  {type.min_hours} - {type.max_hours} hours
                 </Typography>
               </CardContent>
               <CardActions>
@@ -330,22 +332,29 @@ const SettingsPage: React.FC<SettingsPageProps> = () => {
         Add Absence Type
       </Button>
       <Grid container spacing={2}>
-        {settings.absence_types?.map((type: any) => (
+        {(settings.absence_types?.absence_types || []).map((type: any) => (
           <Grid item xs={12} md={4} key={type.id}>
             <Card>
               <CardContent>
                 <Typography variant="h6">{type.name}</Typography>
-                <Typography color="textSecondary">
-                  {type.paid ? 'Paid' : 'Unpaid'}
-                </Typography>
                 <Box sx={{ mt: 1 }}>
-                  <div style={{
-                    width: 20,
-                    height: 20,
-                    backgroundColor: type.color,
-                    borderRadius: '50%',
-                    display: 'inline-block'
-                  }} />
+                  <div
+                    style={{
+                      width: 20,
+                      height: 20,
+                      backgroundColor: type.color,
+                      borderRadius: '50%',
+                      display: 'inline-block',
+                      marginRight: 8,
+                    }}
+                  />
+                  <Typography
+                    variant="body2"
+                    color="textSecondary"
+                    component="span"
+                  >
+                    {type.paid ? 'Paid' : 'Unpaid'}
+                  </Typography>
                 </Box>
               </CardContent>
               <CardActions>

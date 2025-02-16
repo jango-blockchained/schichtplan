@@ -8,10 +8,10 @@ import { SnackbarProvider } from 'notistack';
 import { theme } from './theme';
 import { MainLayout } from './layouts/MainLayout';
 import { SchedulePage } from './pages/SchedulePage';
-import { ShiftsPage } from './pages/ShiftsPage';
+import ShiftsPage from './pages/ShiftsPage';
 import { EmployeesPage } from './pages/EmployeesPage';
 import SettingsPage from './pages/SettingsPage';
-import { ShiftTemplatesPage } from './pages/ShiftTemplatesPage';
+import ShiftTemplatesPage from './pages/ShiftTemplatesPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {

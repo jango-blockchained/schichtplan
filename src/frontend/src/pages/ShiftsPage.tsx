@@ -55,7 +55,7 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
     try {
       const response = await fetch('/api/settings');
       const data = await response.json();
-      setShiftTypes(data.shift_types || []);
+      setShiftTypes(data.shift_types.shift_types || []);
     } catch (error) {
       enqueueSnackbar('Error loading shift types', { variant: 'error' });
     }

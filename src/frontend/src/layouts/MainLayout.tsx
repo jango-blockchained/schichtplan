@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, AppBar, Toolbar, Typography, Button, Container, useTheme, useMediaQuery, CssBaseline, Drawer, IconButton, List, ListItem, ListItemIcon, ListItemText } from '@mui/material';
+import { Box, AppBar, Toolbar, Typography, Container, useTheme, useMediaQuery, CssBaseline, Drawer, IconButton, List, ListItem, ListItemIcon, ListItemText } from '@mui/material';
 import { Link as RouterLink, useLocation, Outlet } from 'react-router-dom';
 import TediLogo from '../assets/tedi-seeklogo.svg';
 import {
@@ -57,13 +57,18 @@ export const MainLayout = () => {
   );
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{
+      display: 'flex',
+      flexDirection: 'column',
+      minHeight: '100vh'
+    }}>
       <CssBaseline />
       <AppBar
         position="fixed"
         sx={{
           width: { sm: `calc(100% - ${drawerWidth}px)` },
           ml: { sm: `${drawerWidth}px` },
+          zIndex: (theme) => theme.zIndex.drawer + 1,
         }}
       >
         <Toolbar>
@@ -81,6 +86,7 @@ export const MainLayout = () => {
           </Typography>
         </Toolbar>
       </AppBar>
+
       <Box
         component="nav"
         sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
@@ -116,26 +122,28 @@ export const MainLayout = () => {
           {drawer}
         </Drawer>
       </Box>
+
       <Box
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
+          width: '100%',
+          ml: { sm: `${drawerWidth}px` },
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: '100vh',
         }}
       >
         <Toolbar />
-        <Container
-          maxWidth="xl"
-          sx={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
+        <Box sx={{
+          flex: 1,
+          width: '100%',
+          p: 3,
+        }}>
           <Outlet />
-        </Container>
+        </Box>
       </Box>
+
       <Box
         component="footer"
         sx={{
@@ -145,7 +153,11 @@ export const MainLayout = () => {
           borderTop: '1px solid',
           borderColor: 'divider',
           backgroundColor: 'background.paper',
-          mt: 'auto',
+          width: '100%',
+          position: 'sticky',
+          bottom: 0,
+          ml: { sm: `${drawerWidth}px` },
+          boxSizing: 'border-box',
         }}
       >
         <Typography

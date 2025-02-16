@@ -13,9 +13,15 @@ def get_settings():
     if not settings:
         defaults = Settings.get_default_settings()
         for category, values in defaults.items():
-            for key, value in values.items() if isinstance(values, dict) else [(None, values)]:
-                setting = Settings(category=category, key=key, value=value)
+            if isinstance(values, list):
+                # Handle array-type settings
+                setting = Settings(category=category, key=category, value=values)
                 db.session.add(setting)
+            else:
+                # Handle dictionary-type settings
+                for key, value in values.items():
+                    setting = Settings(category=category, key=key, value=value)
+                    db.session.add(setting)
         db.session.commit()
         settings = Settings.query.all()
     
@@ -48,9 +54,15 @@ def reset_settings():
     
     defaults = Settings.get_default_settings()
     for category, values in defaults.items():
-        for key, value in values.items() if isinstance(values, dict) else [(None, values)]:
-            setting = Settings(category=category, key=key, value=value)
+        if isinstance(values, list):
+            # Handle array-type settings
+            setting = Settings(category=category, key=category, value=values)
             db.session.add(setting)
+        else:
+            # Handle dictionary-type settings
+            for key, value in values.items():
+                setting = Settings(category=category, key=key, value=value)
+                db.session.add(setting)
     db.session.commit()
     
     return jsonify({'message': 'Settings reset to defaults'})
