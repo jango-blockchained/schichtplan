@@ -28,6 +28,10 @@ import {
 import { Delete as DeleteIcon, Add as AddIcon, Edit as EditIcon } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import { ColorPicker } from '../components/ColorPicker';
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getSettings, updateSettings } from "@/services/api";
+import { Settings } from "@/types";
+import { useToast } from "@/components/ui/use-toast";
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -53,6 +57,8 @@ function TabPanel(props: TabPanelProps) {
 interface SettingsPageProps { }
 
 const SettingsPage: React.FC<SettingsPageProps> = () => {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState(0);
   const [settings, setSettings] = useState<any>({});
   const [loading, setLoading] = useState(true);
@@ -62,9 +68,28 @@ const SettingsPage: React.FC<SettingsPageProps> = () => {
   const { enqueueSnackbar } = useSnackbar();
   const [formData, setFormData] = useState<any>({});
 
-  useEffect(() => {
-    fetchSettings();
-  }, []);
+  const { data: settingsData, isLoading } = useQuery<Settings>({
+    queryKey: ["settings"],
+    queryFn: getSettings,
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (data: Settings) => updateSettings(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["settings"] });
+      toast({
+        title: "Settings updated",
+        description: "Your settings have been successfully updated.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to update settings. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
 
   useEffect(() => {
     if (editingItem) {
@@ -73,17 +98,6 @@ const SettingsPage: React.FC<SettingsPageProps> = () => {
       setFormData({});
     }
   }, [editingItem]);
-
-  const fetchSettings = async () => {
-    try {
-      const response = await fetch('/api/settings');
-      const data = await response.json();
-      setSettings(data);
-      setLoading(false);
-    } catch (error) {
-      enqueueSnackbar('Error loading settings', { variant: 'error' });
-    }
-  };
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
@@ -158,6 +172,10 @@ const SettingsPage: React.FC<SettingsPageProps> = () => {
     } catch (error) {
       enqueueSnackbar('Error saving item', { variant: 'error' });
     }
+  };
+
+  const handleSave = (newSettings: Settings) => {
+    updateMutation.mutate(newSettings);
   };
 
   const renderGeneralSettings = () => (
@@ -413,7 +431,7 @@ const SettingsPage: React.FC<SettingsPageProps> = () => {
     </Grid>
   );
 
-  if (loading) {
+  if (loading || !settingsData) {
     return <Typography>Loading...</Typography>;
   }
 

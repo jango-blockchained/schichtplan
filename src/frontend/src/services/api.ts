@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import { Employee, Shift, Schedule, StoreConfig, ShiftTemplate } from '../types';
+import { Employee, Shift, Schedule, StoreConfig, ShiftTemplate, Settings } from '../types';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
@@ -293,4 +293,15 @@ export const applyShiftTemplate = async (id: number) => {
         }
         throw error;
     }
+};
+
+// Settings
+export const getSettings = async (): Promise<Settings> => {
+    const response = await api.get('/settings');
+    return response.data;
+};
+
+export const updateSettings = async (data: Settings): Promise<Settings> => {
+    const response = await api.put('/settings', data);
+    return response.data;
 }; 
