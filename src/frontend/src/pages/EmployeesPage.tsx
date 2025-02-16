@@ -1,45 +1,38 @@
 import { useState } from 'react';
-import {
-  Box,
-  Paper,
-  Typography,
-  Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  FormControlLabel,
-  Switch,
-  CircularProgress,
-  Alert,
-  IconButton,
-  Tooltip,
-} from '@mui/material';
-import { Settings as SettingsIcon } from '@mui/icons-material';
+import { Settings, Plus, Pencil, Trash2 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getEmployees, createEmployee, updateEmployee, deleteEmployee } from '../services/api';
 import { Employee } from '../types';
 import { useEmployeeGroups, EmployeeGroup } from '../hooks/useEmployeeGroups';
 import EmployeeSettingsEditor from '../components/EmployeeSettingsEditor';
+import { Button } from '@/components/ui/button';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
-interface EmployeeFormData {
-  first_name: string;
-  last_name: string;
-  employee_group: string;
-  contracted_hours: number;
-  is_keyholder: boolean;
-}
+type EmployeeFormData = Omit<Employee, 'id' | 'employee_id'>;
 
 const initialFormData: EmployeeFormData = {
   first_name: '',
@@ -47,6 +40,8 @@ const initialFormData: EmployeeFormData = {
   employee_group: 'VL',
   contracted_hours: 40,
   is_keyholder: false,
+  email: '',
+  phone: '',
 };
 
 export const EmployeesPage = () => {
@@ -63,7 +58,7 @@ export const EmployeesPage = () => {
   });
 
   const createMutation = useMutation({
-    mutationFn: createEmployee,
+    mutationFn: (data: EmployeeFormData) => createEmployee(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
       handleCloseDialog();
@@ -71,8 +66,8 @@ export const EmployeesPage = () => {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<Employee> }) =>
-      updateEmployee(id, data),
+    mutationFn: (params: { id: number; data: EmployeeFormData }) =>
+      updateEmployee(params.id, params.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
       handleCloseDialog();
@@ -80,7 +75,7 @@ export const EmployeesPage = () => {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteEmployee,
+    mutationFn: (id: number) => deleteEmployee(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
     },
@@ -95,6 +90,8 @@ export const EmployeesPage = () => {
         employee_group: employee.employee_group,
         contracted_hours: employee.contracted_hours,
         is_keyholder: employee.is_keyholder,
+        email: employee.email,
+        phone: employee.phone,
       });
     } else {
       setEditingEmployee(null);
@@ -126,7 +123,7 @@ export const EmployeesPage = () => {
       setFormData({
         ...formData,
         employee_group: groupId,
-        contracted_hours: group.minHours,
+        contracted_hours: Number(group.minHours),
       });
     }
   };
@@ -148,40 +145,46 @@ export const EmployeesPage = () => {
   };
 
   return (
-    <Box>
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Typography variant="h4">Mitarbeiter</Typography>
-          <Tooltip title="Mitarbeitergruppen verwalten">
-            <IconButton onClick={() => setIsSettingsDialogOpen(true)} size="small">
-              <SettingsIcon />
-            </IconButton>
-          </Tooltip>
-        </Box>
-        <Button variant="contained" onClick={() => handleOpenDialog()}>
+    <div className="p-6">
+      <div className="mb-6 flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <h1 className="text-3xl font-bold">Mitarbeiter</h1>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsSettingsDialogOpen(true)}
+            className="ml-2"
+          >
+            <Settings className="h-5 w-5" />
+          </Button>
+        </div>
+        <Button onClick={() => handleOpenDialog()}>
+          <Plus className="mr-2 h-4 w-4" />
           Mitarbeiter hinzufügen
         </Button>
-      </Box>
+      </div>
 
       {error ? (
-        <Alert severity="error">Fehler beim Laden der Mitarbeiter</Alert>
+        <div className="rounded-md bg-destructive/15 p-4 text-destructive">
+          Fehler beim Laden der Mitarbeiter
+        </div>
       ) : isLoading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-          <CircularProgress />
-        </Box>
+        <div className="flex justify-center p-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
       ) : (
-        <TableContainer component={Paper}>
+        <div className="rounded-md border">
           <Table>
-            <TableHead>
+            <TableHeader>
               <TableRow>
-                <TableCell>Kürzel</TableCell>
-                <TableCell>Name</TableCell>
-                <TableCell>Gruppe</TableCell>
-                <TableCell>Stunden</TableCell>
-                <TableCell>Schlüssel</TableCell>
-                <TableCell>Aktionen</TableCell>
+                <TableHead>Kürzel</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Gruppe</TableHead>
+                <TableHead>Stunden</TableHead>
+                <TableHead>Schlüssel</TableHead>
+                <TableHead>Aktionen</TableHead>
               </TableRow>
-            </TableHead>
+            </TableHeader>
             <TableBody>
               {employees?.map((employee) => (
                 <TableRow key={employee.id}>
@@ -191,119 +194,137 @@ export const EmployeesPage = () => {
                   <TableCell>{employee.contracted_hours}</TableCell>
                   <TableCell>{employee.is_keyholder ? 'Ja' : 'Nein'}</TableCell>
                   <TableCell>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
+                    <div className="flex gap-2">
                       <Button
-                        size="small"
-                        variant="outlined"
+                        variant="outline"
+                        size="sm"
                         onClick={() => handleOpenDialog(employee)}
                       >
+                        <Pencil className="mr-2 h-4 w-4" />
                         Bearbeiten
                       </Button>
                       <Button
-                        size="small"
-                        variant="outlined"
-                        color="error"
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive"
                         onClick={() => deleteMutation.mutate(employee.id)}
                       >
+                        <Trash2 className="mr-2 h-4 w-4" />
                         Löschen
                       </Button>
-                    </Box>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-        </TableContainer>
+        </div>
       )}
 
       {/* Employee Settings Dialog */}
-      <Dialog
-        open={isSettingsDialogOpen}
-        onClose={() => setIsSettingsDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>Mitarbeitergruppen verwalten</DialogTitle>
-        <DialogContent>
-          <Box sx={{ mt: 2 }}>
+      <Dialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Mitarbeitergruppen verwalten</DialogTitle>
+          </DialogHeader>
+          <div className="mt-4">
             <EmployeeSettingsEditor
               groups={employeeGroups}
               onChange={handleEmployeeGroupsChange}
             />
-          </Box>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSettingsDialogOpen(false)}>
+              Schließen
+            </Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setIsSettingsDialogOpen(false)}>Schließen</Button>
-        </DialogActions>
       </Dialog>
 
-      <Dialog open={isDialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>{editingEmployee ? 'Mitarbeiter bearbeiten' : 'Neuer Mitarbeiter'}</DialogTitle>
+      {/* Employee Edit/Create Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-            <TextField
-              label="Vorname"
-              value={formData.first_name}
-              onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-              fullWidth
-            />
-            <TextField
-              label="Nachname"
-              value={formData.last_name}
-              onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-              fullWidth
-            />
-            <FormControl fullWidth>
-              <InputLabel>Mitarbeitergruppe</InputLabel>
+          <DialogHeader>
+            <DialogTitle>
+              {editingEmployee ? 'Mitarbeiter bearbeiten' : 'Neuer Mitarbeiter'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="firstName">Vorname</Label>
+              <Input
+                id="firstName"
+                value={formData.first_name}
+                onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="lastName">Nachname</Label>
+              <Input
+                id="lastName"
+                value={formData.last_name}
+                onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="employeeGroup">Mitarbeitergruppe</Label>
               <Select
                 value={formData.employee_group}
-                onChange={(e) => handleEmployeeGroupChange(e.target.value)}
-                label="Mitarbeitergruppe"
-                aria-label="Mitarbeitergruppe"
+                onValueChange={handleEmployeeGroupChange}
               >
-                {employeeGroups.map((group) => (
-                  <MenuItem key={group.id} value={group.id}>
-                    {group.name} ({group.minHours === group.maxHours
-                      ? `${group.minHours}h`
-                      : `${group.minHours}-${group.maxHours}h`})
-                  </MenuItem>
-                ))}
+                <SelectTrigger>
+                  <SelectValue placeholder="Gruppe auswählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employeeGroups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
-            </FormControl>
-            <FormControl fullWidth>
-              <InputLabel>Vertragsstunden</InputLabel>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="hours">Stunden</Label>
               <Select
-                value={formData.contracted_hours}
-                onChange={(e) => setFormData({ ...formData, contracted_hours: Number(e.target.value) })}
-                label="Vertragsstunden"
+                value={formData.contracted_hours.toString()}
+                onValueChange={(value: string) =>
+                  setFormData({ ...formData, contracted_hours: Number(value) })
+                }
               >
-                {getAvailableHours(formData.employee_group).map((hours) => (
-                  <MenuItem key={hours} value={hours}>
-                    {hours} Stunden {getGroup(formData.employee_group)?.isFullTime ? '/ Woche' : '/ Monat'}
-                  </MenuItem>
-                ))}
+                <SelectTrigger>
+                  <SelectValue placeholder="Stunden auswählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {getAvailableHours(formData.employee_group).map((hours) => (
+                    <SelectItem key={hours} value={hours.toString()}>
+                      {hours}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
-            </FormControl>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={formData.is_keyholder}
-                  onChange={(e) =>
-                    setFormData({ ...formData, is_keyholder: e.target.checked })
-                  }
-                />
-              }
-              label="Schlüsselträger"
-            />
-          </Box>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="isKeyholder"
+                checked={formData.is_keyholder}
+                onCheckedChange={(checked: boolean) =>
+                  setFormData({ ...formData, is_keyholder: checked })
+                }
+              />
+              <Label htmlFor="isKeyholder">Schlüsselträger</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCloseDialog}>
+              Abbrechen
+            </Button>
+            <Button onClick={handleSubmit}>
+              {editingEmployee ? 'Speichern' : 'Erstellen'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>Abbrechen</Button>
-          <Button onClick={handleSubmit} variant="contained">
-            {editingEmployee ? 'Speichern' : 'Erstellen'}
-          </Button>
-        </DialogActions>
       </Dialog>
-    </Box>
+    </div>
   );
 }; 
