@@ -1,67 +1,42 @@
-import React, { ChangeEvent } from 'react';
-import {
-    FormControl,
-    FormLabel,
-    TextField,
-    Stack,
-    Paper
-} from '@mui/material';
+import React from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { DateRange } from "react-day-picker";
 
 interface DateRangeSelectorProps {
-    startDate: string;
-    setStartDate: (date: string) => void;
-    endDate: string;
-    setEndDate: (date: string) => void;
+    startDate: Date | null;
+    endDate: Date | null;
+    setStartDate: (date: Date | null) => void;
+    setEndDate: (date: Date | null) => void;
 }
 
 const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
     startDate,
-    setStartDate,
     endDate,
-    setEndDate
+    setStartDate,
+    setEndDate,
 }) => {
-    const handleStartDateChange = (e: ChangeEvent<HTMLInputElement>) => {
-        setStartDate(e.target.value);
-    };
-
-    const handleEndDateChange = (e: ChangeEvent<HTMLInputElement>) => {
-        setEndDate(e.target.value);
+    const handleDateRangeChange = (range: DateRange | undefined) => {
+        setStartDate(range?.from || null);
+        setEndDate(range?.to || null);
     };
 
     return (
-        <Paper elevation={0} sx={{ p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-            <Stack direction="row" spacing={2}>
-                <FormControl fullWidth>
-                    <FormLabel>Start Date</FormLabel>
-                    <TextField
-                        type="date"
-                        value={startDate}
-                        onChange={handleStartDateChange}
-                        placeholder="Select start date"
-                        inputProps={{
-                            'aria-label': 'Start Date'
-                        }}
-                        size="small"
-                        fullWidth
-                    />
-                </FormControl>
-
-                <FormControl fullWidth>
-                    <FormLabel>End Date</FormLabel>
-                    <TextField
-                        type="date"
-                        value={endDate}
-                        onChange={handleEndDateChange}
-                        placeholder="Select end date"
-                        inputProps={{
-                            'aria-label': 'End Date'
-                        }}
-                        size="small"
-                        fullWidth
-                    />
-                </FormControl>
-            </Stack>
-        </Paper>
+        <Card>
+            <CardHeader>
+                <CardTitle>Date Range</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <DateRangePicker
+                    dateRange={
+                        startDate && endDate
+                            ? { from: startDate, to: endDate }
+                            : undefined
+                    }
+                    onChange={handleDateRangeChange}
+                />
+            </CardContent>
+        </Card>
     );
 };
 

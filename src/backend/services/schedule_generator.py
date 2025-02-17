@@ -2,6 +2,9 @@ from datetime import datetime, timedelta, date
 from typing import List, Dict, Any, Optional, Tuple
 from models import Employee, Shift, Schedule, StoreConfig, EmployeeGroup, EmployeeAvailability
 from models.availability import AvailabilityType
+from flask_sqlalchemy import SQLAlchemy
+
+db = SQLAlchemy()
 
 class ScheduleGenerationError(Exception):
     pass
@@ -74,6 +77,67 @@ class ScheduleGenerator:
                 
         return True
     
+    def _assign_breaks(self, schedule: Schedule, shift: Shift) -> Tuple[Optional[str], Optional[str]]:
+        """Assign break times for a shift based on German labor law"""
+        if not shift.requires_break:
+            return None, None
+            
+        shift_duration = shift.duration_hours
+        start_time = datetime.strptime(shift.start_time, '%H:%M')
+        
+        # Break rules based on shift duration
+        if shift_duration > 9:
+            # 45 minutes break for shifts > 9 hours
+            break_duration = timedelta(minutes=45)
+        elif shift_duration > 6:
+            # 30 minutes break for shifts 6-9 hours
+            break_duration = timedelta(minutes=30)
+        else:
+            return None, None
+            
+        # Calculate optimal break time (in the middle of the shift)
+        shift_midpoint = start_time + timedelta(hours=shift_duration/2)
+        break_start = shift_midpoint - timedelta(minutes=break_duration.seconds//120)  # Start break before midpoint
+        break_end = break_start + break_duration
+        
+        return break_start.strftime('%H:%M'), break_end.strftime('%H:%M')
+    
+    def _check_daily_hours(self, employee: Employee, day: date, shift: Shift) -> bool:
+        """Check if adding this shift would exceed daily hour limits"""
+        # Get all shifts for this day
+        existing_shifts = Schedule.query.filter(
+            Schedule.employee_id == employee.id,
+            Schedule.date == day
+        ).all()
+        
+        total_hours = sum(s.shift.duration_hours for s in existing_shifts) + shift.duration_hours
+        return total_hours <= 10  # Max 10 hours per day
+    
+    def _check_weekly_hours(self, employee: Employee, week_start: date, shift: Shift) -> bool:
+        """Check if adding this shift would exceed weekly hour limits"""
+        week_hours = self._get_employee_hours(employee, week_start)
+        
+        # Different limits based on employee group
+        if employee.employee_group in [EmployeeGroup.VL.value, EmployeeGroup.TL.value]:
+            return week_hours + shift.duration_hours <= 48  # Max 48 hours per week
+        elif employee.employee_group == EmployeeGroup.TZ.value:
+            return week_hours + shift.duration_hours <= employee.contracted_hours
+        else:  # GFB
+            # Check monthly hours for minijobs
+            month_start = date(day.year, day.month, 1)
+            month_hours = Schedule.query.filter(
+                Schedule.employee_id == employee.id,
+                Schedule.date >= month_start,
+                Schedule.date <= day
+            ).join(Shift).with_entities(
+                db.func.sum(Shift.duration_hours)
+            ).scalar() or 0
+            
+            # Calculate approximate monthly limit based on 556 EUR limit and minimum wage
+            # Assuming minimum wage of 12.41 EUR in 2025
+            max_monthly_hours = 556 / 12.41
+            return month_hours + shift.duration_hours <= max_monthly_hours
+    
     def _can_assign_shift(self, employee: Employee, shift: Shift, day: date) -> bool:
         """Check if an employee can be assigned to a shift on a given day"""
         # First check availability
@@ -81,26 +145,17 @@ class ScheduleGenerator:
             return False
             
         # Check if employee is already assigned on this day
-        existing = Schedule.query.filter(
+        if Schedule.query.filter(
             Schedule.employee_id == employee.id,
             Schedule.date == day
-        ).first()
-        if existing:
+        ).first():
             return False
             
-        # Get week's total hours
+        # Check daily and weekly hour limits
         week_start = day - timedelta(days=day.weekday())
-        week_hours = self._get_employee_hours(employee, week_start)
-        
-        # Check weekly hour limits based on employee group
-        max_weekly_hours = {
-            EmployeeGroup.VL.value: 40,
-            EmployeeGroup.TZ.value: 30,
-            EmployeeGroup.GFB.value: 10,
-            EmployeeGroup.TL.value: 40
-        }.get(employee.employee_group, 40)
-        
-        if week_hours + shift.duration_hours > max_weekly_hours:
+        if not self._check_daily_hours(employee, day, shift):
+            return False
+        if not self._check_weekly_hours(employee, week_start, shift):
             return False
             
         # Check keyholder constraints
@@ -116,21 +171,6 @@ class ScheduleGenerator:
                 return False
                 
         return True
-    
-    def _assign_breaks(self, schedule: Schedule, shift: Shift) -> Tuple[Optional[str], Optional[str]]:
-        """Assign break times for a shift if required"""
-        if not shift.requires_break:
-            return None, None
-            
-        # For shifts > 6 hours, assign 60-minute break
-        if shift.duration_hours > 6:
-            # Calculate middle of shift for break
-            start_time = datetime.strptime(shift.start_time, '%H:%M')
-            break_start = start_time + timedelta(hours=3)
-            break_end = break_start + timedelta(hours=1)
-            return break_start.strftime('%H:%M'), break_end.strftime('%H:%M')
-            
-        return None, None
     
     def generate(self) -> List[Schedule]:
         """Generate schedule for the given date range"""

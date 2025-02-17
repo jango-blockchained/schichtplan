@@ -1,12 +1,7 @@
 import React from 'react';
-import {
-    Box,
-    FormControl,
-    FormLabel,
-    TextField,
-    Stack,
-    Paper
-} from '@mui/material';
+import { Card } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { LayoutConfig } from '../types/LayoutConfig';
 
 interface MarginEditorProps {
@@ -20,73 +15,65 @@ const MarginEditor: React.FC<MarginEditorProps> = ({ margins, onChange }) => {
     };
 
     return (
-        <Paper elevation={0} sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
-            <Stack spacing={2}>
-                <Stack direction="row" spacing={2}>
-                    <FormControl fullWidth>
-                        <FormLabel>Top Margin (mm)</FormLabel>
-                        <TextField
+        <Card className="p-4 border">
+            <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="top-margin">Top Margin (mm)</Label>
+                        <Input
+                            id="top-margin"
                             type="number"
                             value={margins.top}
                             onChange={(e) => handleMarginChange('top', Number(e.target.value))}
-                            inputProps={{
-                                min: 0,
-                                max: 50,
-                                'aria-label': 'Top Margin'
-                            }}
-                            size="small"
+                            min={0}
+                            max={50}
+                            aria-label="Top Margin"
                         />
-                    </FormControl>
+                    </div>
 
-                    <FormControl fullWidth>
-                        <FormLabel>Right Margin (mm)</FormLabel>
-                        <TextField
+                    <div className="space-y-2">
+                        <Label htmlFor="right-margin">Right Margin (mm)</Label>
+                        <Input
+                            id="right-margin"
                             type="number"
                             value={margins.right}
                             onChange={(e) => handleMarginChange('right', Number(e.target.value))}
-                            inputProps={{
-                                min: 0,
-                                max: 50,
-                                'aria-label': 'Right Margin'
-                            }}
-                            size="small"
+                            min={0}
+                            max={50}
+                            aria-label="Right Margin"
                         />
-                    </FormControl>
-                </Stack>
+                    </div>
+                </div>
 
-                <Stack direction="row" spacing={2}>
-                    <FormControl fullWidth>
-                        <FormLabel>Bottom Margin (mm)</FormLabel>
-                        <TextField
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="bottom-margin">Bottom Margin (mm)</Label>
+                        <Input
+                            id="bottom-margin"
                             type="number"
                             value={margins.bottom}
                             onChange={(e) => handleMarginChange('bottom', Number(e.target.value))}
-                            inputProps={{
-                                min: 0,
-                                max: 50,
-                                'aria-label': 'Bottom Margin'
-                            }}
-                            size="small"
+                            min={0}
+                            max={50}
+                            aria-label="Bottom Margin"
                         />
-                    </FormControl>
+                    </div>
 
-                    <FormControl fullWidth>
-                        <FormLabel>Left Margin (mm)</FormLabel>
-                        <TextField
+                    <div className="space-y-2">
+                        <Label htmlFor="left-margin">Left Margin (mm)</Label>
+                        <Input
+                            id="left-margin"
                             type="number"
                             value={margins.left}
                             onChange={(e) => handleMarginChange('left', Number(e.target.value))}
-                            inputProps={{
-                                min: 0,
-                                max: 50,
-                                'aria-label': 'Left Margin'
-                            }}
-                            size="small"
+                            min={0}
+                            max={50}
+                            aria-label="Left Margin"
                         />
-                    </FormControl>
-                </Stack>
-            </Stack>
-        </Paper>
+                    </div>
+                </div>
+            </div>
+        </Card>
     );
 };
 

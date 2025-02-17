@@ -1,23 +1,21 @@
 from datetime import datetime, date, timedelta
-from typing import List, Dict
+from typing import List, Dict, Any
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from models import Schedule, Employee, Shift, StoreConfig
-from services.layout_manager import LayoutManager
+from reportlab.lib.colors import HexColor
+from models import Schedule, Employee, Shift, StoreConfig, Settings
 import io
 
 class PDFGenerator:
-    def __init__(self, start_date: date, end_date: date, layout_manager: LayoutManager = None):
+    def __init__(self, start_date: date, end_date: date, layout_config: Dict[str, Any] = None):
         self.start_date = start_date
         self.end_date = end_date
         self.store_config = self._get_store_config()
         self.styles = getSampleStyleSheet()
-        
-        # Use provided LayoutManager or create a default one
-        self.layout_manager = layout_manager or LayoutManager()
+        self.layout_config = layout_config or Settings.get_pdf_layout_config()
         
     def _get_store_config(self) -> StoreConfig:
         config = StoreConfig.query.first()
@@ -70,18 +68,52 @@ class PDFGenerator:
                 row.append(self._format_shift(schedule) if schedule else '')
             data.append(row)
             
-        # Create table with custom column widths and style
-        table = Table(data, colWidths=self.layout_manager.get_column_widths())
-        table.setStyle(self.layout_manager.create_table_style())
+        # Get table style configuration
+        style_config = self.layout_config['table']['style']
+        column_widths = [w * inch for w in self.layout_config['table']['column_widths']]
+        
+        # Create table with custom column widths
+        table = Table(data, colWidths=column_widths)
+        
+        # Apply table style
+        style = [
+            ('ALIGN', (0,0), (-1,-1), style_config['alignment']),
+            ('VALIGN', (0,0), (-1,-1), style_config['valign']),
+            ('FONTNAME', (0,0), (-1,0), style_config['header_font']),
+            ('FONTSIZE', (0,0), (-1,0), style_config['header_font_size']),
+            ('FONTNAME', (0,1), (-1,-1), style_config['row_font']),
+            ('FONTSIZE', (0,1), (-1,-1), style_config['row_font_size']),
+            ('LEADING', (0,0), (-1,-1), style_config['leading']),
+        ]
+        
+        # Add grid if enabled
+        if style_config['grid']:
+            style.append(('GRID', (0,0), (-1,-1), 1, colors.black))
+            
+        # Add header background
+        style.append(('BACKGROUND', (0,0), (-1,0), HexColor(style_config['header_background'])))
+        style.append(('TEXTCOLOR', (0,0), (-1,0), HexColor(style_config['header_text_color'])))
+        
+        # Add alternating row colors if specified
+        if 'alternating_row_color' in style_config:
+            for i in range(1, len(data), 2):
+                style.append(('BACKGROUND', (0,i), (-1,i), HexColor(style_config['alternating_row_color'])))
+                
+        table.setStyle(TableStyle(style))
         return table
         
     def generate(self) -> bytes:
         """Generate PDF schedule for the date range"""
         buffer = io.BytesIO()
-        margins = self.layout_manager.get_margins()
+        
+        # Get page configuration
+        page_config = self.layout_config['page']
+        margins = self.layout_config['margins']
+        
+        # Create document with custom margins
         doc = SimpleDocTemplate(
             buffer,
-            pagesize=landscape(A4),
+            pagesize=landscape(A4) if page_config['orientation'] == 'landscape' else A4,
             rightMargin=margins['right'],
             leftMargin=margins['left'],
             topMargin=margins['top'],
@@ -91,16 +123,18 @@ class PDFGenerator:
         # Create document elements
         elements = []
         
-        # Add title
+        # Add title with custom style
+        title_config = self.layout_config['title']
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=self.styles['Heading1'],
-            fontName=self.layout_manager.get_title_style()['font'],
-            fontSize=self.layout_manager.get_title_style()['size'],
-            textColor=self.layout_manager.get_title_style()['color'],
-            alignment=self.layout_manager.get_title_style()['alignment'],
-            spaceAfter=30
+            fontName=title_config['font'],
+            fontSize=title_config['size'],
+            textColor=HexColor(title_config['color']),
+            alignment=title_config['alignment'],
+            spaceAfter=title_config['spacing']
         )
+        
         title = Paragraph(
             f"Schedule: {self.start_date.strftime('%d.%m.%Y')} - {self.end_date.strftime('%d.%m.%Y')}",
             title_style

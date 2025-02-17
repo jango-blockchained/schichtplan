@@ -1,29 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import {
-    Box,
-    Button,
-    Typography,
-    Modal,
-    TextField,
-    Select,
-    MenuItem,
-    SelectChangeEvent,
-    IconButton,
-    Tooltip,
-    Stack,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    Snackbar,
-    Alert
-} from '@mui/material';
-import {
-    Delete as DeleteIcon,
-    Download as DownloadIcon,
-    Upload as UploadIcon,
-    CopyAll as CopyIcon
-} from '@mui/icons-material';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useToast } from "@/components/ui/use-toast";
+import { Trash, Download, Upload, Copy } from "lucide-react";
 import DateRangeSelector from './DateRangeSelector';
 import TableStyleEditor from './TableStyleEditor';
 import FontEditor from './FontEditor';
@@ -232,14 +215,11 @@ const LayoutCustomizer: React.FC = () => {
     const [isPresetModalOpen, setIsPresetModalOpen] = useState(false);
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    const [toast, setToast] = useState<{
-        open: boolean,
-        message: string,
-        severity: 'success' | 'error' | 'warning'
-    }>({ open: false, message: '', severity: 'success' });
+    const { toast } = useToast();
 
     const [newPresetName, setNewPresetName] = useState('');
     const [selectedPreset, setSelectedPreset] = useState('');
+    const [employeeGroups, setEmployeeGroups] = useState<EmployeeGroup[]>([]);
 
     // Save configurations to local storage
     useEffect(() => {
@@ -250,17 +230,20 @@ const LayoutCustomizer: React.FC = () => {
         localStorage.setItem('layoutPresets', JSON.stringify(presets));
     }, [presets]);
 
-    const showToast = (message: string, severity: 'success' | 'error' | 'warning' = 'success') => {
-        setToast({ open: true, message, severity });
+    const showToast = (message: string, variant: 'default' | 'destructive' = 'default') => {
+        toast({
+            description: message,
+            variant: variant,
+        });
     };
 
     const handleCloseToast = () => {
-        setToast(prev => ({ ...prev, open: false }));
+        // Implementation needed
     };
 
     const handleSavePreset = () => {
         if (!newPresetName.trim()) {
-            showToast('Preset name cannot be empty', 'error');
+            showToast('Preset name cannot be empty', 'destructive');
             return;
         }
 
@@ -290,7 +273,7 @@ const LayoutCustomizer: React.FC = () => {
         try {
             // Validate dates
             if (!startDate || !endDate) {
-                showToast('Please select both start and end dates', 'error');
+                showToast('Please select both start and end dates', 'destructive');
                 return;
             }
 
@@ -298,7 +281,7 @@ const LayoutCustomizer: React.FC = () => {
             showToast('PDF exported successfully');
         } catch (error) {
             console.error('Export error:', error);
-            showToast('Failed to export PDF', 'error');
+            showToast('Failed to export PDF', 'destructive');
         }
     };
 
@@ -310,125 +293,92 @@ const LayoutCustomizer: React.FC = () => {
     };
 
     return (
-        <Box sx={{ p: 3, maxWidth: 800, margin: 'auto' }}>
-            <Typography variant="h4" gutterBottom>
-                PDF Layout Customizer
-            </Typography>
-
-            <Stack spacing={3}>
-                <DateRangeSelector
-                    startDate={startDate}
-                    setStartDate={setStartDate}
-                    endDate={endDate}
-                    setEndDate={setEndDate}
-                />
-
-                <TableStyleEditor
-                    tableStyle={layoutConfig.table_style}
-                    onChange={(newStyle) => setLayoutConfig(prev => ({ ...prev, table_style: newStyle }))}
-                />
-
-                <FontEditor
-                    titleStyle={layoutConfig.title_style}
-                    onChange={(newStyle) => setLayoutConfig(prev => ({ ...prev, title_style: newStyle }))}
-                />
-
-                <MarginEditor
-                    margins={layoutConfig.margins}
-                    onChange={(newMargins) => setLayoutConfig(prev => ({ ...prev, margins: newMargins }))}
-                />
-
-                <EmployeeSettingsEditor
-                    groups={layoutConfig.employee_groups}
-                    onChange={handleEmployeeGroupsChange}
-                />
-
-                <Preview layoutConfig={layoutConfig} />
-
-                <Stack direction="row" spacing={2}>
-                    <Button
-                        variant="outlined"
-                        onClick={() => setIsPresetModalOpen(true)}
-                        startIcon={<CopyIcon />}
-                    >
-                        Save Preset
-                    </Button>
-
-                    <Select
-                        value={selectedPreset}
-                        onChange={(e: SelectChangeEvent) => setSelectedPreset(e.target.value)}
-                        displayEmpty
-                        fullWidth
-                    >
-                        <MenuItem value="" disabled>Load Preset</MenuItem>
-                        {Object.keys(presets).map(presetName => (
-                            <MenuItem key={presetName} value={presetName}>
-                                {presetName}
-                            </MenuItem>
-                        ))}
-                    </Select>
-
-                    <Button
-                        variant="contained"
-                        onClick={handleLoadPreset}
-                        disabled={!selectedPreset}
-                    >
-                        Load Preset
-                    </Button>
-                </Stack>
-
-                <Button
-                    variant="contained"
-                    color="primary"
-                    onClick={handleExport}
-                    disabled={!startDate || !endDate}
-                >
-                    Export to PDF
-                </Button>
-            </Stack>
-
-            {/* Preset Management Modal */}
-            <Dialog
-                open={isPresetModalOpen}
-                onClose={() => setIsPresetModalOpen(false)}
-            >
-                <DialogTitle>Save Preset</DialogTitle>
-                <DialogContent>
-                    <TextField
-                        fullWidth
-                        label="Preset Name"
+        <div className="space-y-4">
+            <div className="flex justify-between items-center">
+                <div className="space-x-2">
+                    <Input
+                        placeholder="Preset name"
                         value={newPresetName}
                         onChange={(e) => setNewPresetName(e.target.value)}
-                        sx={{ mt: 2 }}
                     />
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setIsPresetModalOpen(false)}>Cancel</Button>
-                    <Button
-                        onClick={handleSavePreset}
-                        disabled={!newPresetName.trim()}
-                    >
-                        Save
-                    </Button>
-                </DialogActions>
-            </Dialog>
+                    <Button onClick={handleSavePreset}>Save Preset</Button>
+                </div>
+                <div className="space-x-2">
+                    <Select value={selectedPreset} onValueChange={setSelectedPreset}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Load preset" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {Object.keys(presets).map((preset) => (
+                                <SelectItem key={preset} value={preset}>
+                                    {preset}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <Button onClick={handleLoadPreset}>Load</Button>
+                </div>
+                <div className="space-x-2">
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button variant="outline" size="icon" onClick={handleExport}>
+                                    <Download className="h-4 w-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Export configuration</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button variant="outline" size="icon">
+                                    <Upload className="h-4 w-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Import configuration</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button variant="outline" size="icon">
+                                    <Copy className="h-4 w-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Copy configuration</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                </div>
+            </div>
 
-            {/* Toast Notification */}
-            <Snackbar
-                open={toast.open}
-                autoHideDuration={3000}
-                onClose={handleCloseToast}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-            >
-                <Alert
-                    onClose={handleCloseToast}
-                    severity={toast.severity}
-                    sx={{ width: '100%' }}
-                >
-                    {toast.message}
-                </Alert>
-            </Snackbar>
-        </Box>
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-4">
+                    <TableStyleEditor />
+                    <FontEditor />
+                    <MarginEditor />
+                    <EmployeeSettingsEditor
+                        groups={employeeGroups}
+                        onChange={handleEmployeeGroupsChange}
+                    />
+                </div>
+                <div>
+                    <Preview layoutConfig={layoutConfig} />
+                </div>
+            </div>
+
+            {/* Preset Management Modal */}
+            <Dialog open={isPresetModalOpen} onOpenChange={setIsPresetModalOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Save Preset</DialogTitle>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button type="submit" onClick={handleSavePreset}>Save</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
     );
 };
 

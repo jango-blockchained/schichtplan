@@ -13,7 +13,7 @@ from flask_migrate import Migrate
 from models import db
 from config import Config
 from routes import employees
-from api import shifts, schedules, store, shift_templates
+from api import shifts, schedules, store, shift_templates, pdf_settings
 from routes.settings import settings_bp
 
 def create_app(config_class=Config):
@@ -52,6 +52,7 @@ def create_app(config_class=Config):
     app.register_blueprint(store.bp)
     app.register_blueprint(shift_templates.bp)
     app.register_blueprint(settings_bp)
+    app.register_blueprint(pdf_settings.bp)
     
     @app.route('/health')
     def health_check():
