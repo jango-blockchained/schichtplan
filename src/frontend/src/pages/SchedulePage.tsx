@@ -1,23 +1,19 @@
 import { useState } from 'react';
-import { Box, Button, Container, Typography, Dialog, DialogTitle, DialogContent } from '@mui/material';
-import { DatePicker } from '@mui/x-date-pickers';
 import { useMutation } from '@tanstack/react-query';
+import { addDays, startOfWeek } from 'date-fns';
 import { generateSchedule, exportSchedule } from '../services/api';
 import { ShiftTable } from '../components/ShiftTable';
 import LayoutCustomizer from '../components/LayoutCustomizer';
-import { addDays, startOfWeek } from 'date-fns';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DatePicker } from '@/components/ui/date-picker';
 
 export const SchedulePage = () => {
-  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isLayoutCustomizerOpen, setIsLayoutCustomizerOpen] = useState(false);
-
-  const handleDateChange = (newValue: Date | null) => {
-    setSelectedDate(newValue);
-  };
 
   const generateMutation = useMutation({
     mutationFn: () => {
-      if (!selectedDate) return Promise.reject('No date selected');
       const start = startOfWeek(selectedDate);
       const end = addDays(start, 6);
       return generateSchedule(start.toISOString().split('T')[0], end.toISOString().split('T')[0]);
@@ -26,7 +22,6 @@ export const SchedulePage = () => {
 
   const exportMutation = useMutation({
     mutationFn: () => {
-      if (!selectedDate) return Promise.reject('No date selected');
       const start = startOfWeek(selectedDate);
       const end = addDays(start, 6);
       return exportSchedule(start.toISOString().split('T')[0], end.toISOString().split('T')[0]);
@@ -56,47 +51,41 @@ export const SchedulePage = () => {
   ];
 
   return (
-    <Container maxWidth="xl">
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h4">Schichtplan</Typography>
-        <Box sx={{ display: 'flex', gap: 2 }}>
+    <div className="container mx-auto p-4">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Schichtplan</h1>
+        <div className="flex gap-4">
           <DatePicker
-            label="Woche auswählen"
-            value={selectedDate}
-            onChange={handleDateChange}
+            date={selectedDate}
+            onChange={(date: Date | null) => date && setSelectedDate(date)}
           />
           <Button
-            variant="contained"
             onClick={() => generateMutation.mutate()}
-            disabled={!selectedDate || generateMutation.isPending}
+            disabled={generateMutation.isLoading}
           >
             Schichtplan generieren
           </Button>
           <Button
-            variant="outlined"
+            variant="outline"
             onClick={() => exportMutation.mutate()}
-            disabled={!selectedDate || exportMutation.isPending}
+            disabled={exportMutation.isLoading}
           >
             Als PDF exportieren
           </Button>
           <Button
-            variant="outlined"
-            color="secondary"
+            variant="secondary"
             onClick={() => setIsLayoutCustomizerOpen(true)}
           >
             Layout anpassen
           </Button>
-        </Box>
-      </Box>
+        </div>
+      </div>
 
-      <Dialog
-        open={isLayoutCustomizerOpen}
-        onClose={() => setIsLayoutCustomizerOpen(false)}
-        maxWidth="lg"
-        fullWidth
-      >
-        <DialogTitle>PDF Layout Anpassen</DialogTitle>
+      <Dialog open={isLayoutCustomizerOpen} onOpenChange={setIsLayoutCustomizerOpen}>
         <DialogContent>
+          <DialogHeader>
+            <DialogTitle>PDF Layout Anpassen</DialogTitle>
+          </DialogHeader>
           <LayoutCustomizer />
         </DialogContent>
       </Dialog>
@@ -108,6 +97,6 @@ export const SchedulePage = () => {
           employees={sampleEmployees}
         />
       )}
-    </Container>
+    </div>
   );
 }; 

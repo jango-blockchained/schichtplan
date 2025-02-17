@@ -1,30 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import {
-    Box,
-    Container,
-    Typography,
-    Paper,
-    Grid,
-    Card,
-    CardContent,
-    CardActions,
-    Button,
-    IconButton,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    TextField,
-    FormControl,
-    InputLabel,
-    Select,
-    MenuItem,
-    Chip,
-} from '@mui/material';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
-import { useSnackbar } from 'notistack';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
 import type { ShiftTemplate, ShiftType } from '../types';
-import { ColorPicker } from '../components/ColorPicker';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/components/ui/use-toast';
 
 interface ShiftTemplatesPageProps { }
 
@@ -34,7 +17,7 @@ const ShiftTemplatesPage: React.FC<ShiftTemplatesPageProps> = () => {
     const [loading, setLoading] = useState(true);
     const [editDialogOpen, setEditDialogOpen] = useState(false);
     const [editingTemplate, setEditingTemplate] = useState<ShiftTemplate | null>(null);
-    const { enqueueSnackbar } = useSnackbar();
+    const { toast } = useToast();
 
     useEffect(() => {
         fetchTemplates();
@@ -48,7 +31,11 @@ const ShiftTemplatesPage: React.FC<ShiftTemplatesPageProps> = () => {
             setTemplates(data);
             setLoading(false);
         } catch (error) {
-            enqueueSnackbar('Error loading templates', { variant: 'error' });
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Error loading templates"
+            });
         }
     };
 
@@ -58,7 +45,11 @@ const ShiftTemplatesPage: React.FC<ShiftTemplatesPageProps> = () => {
             const data = await response.json();
             setShiftTypes(data.shift_types.shift_types || []);
         } catch (error) {
-            enqueueSnackbar('Error loading shift types', { variant: 'error' });
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Error loading shift types"
+            });
         }
     };
 
@@ -79,10 +70,17 @@ const ShiftTemplatesPage: React.FC<ShiftTemplatesPageProps> = () => {
             });
             if (response.ok) {
                 fetchTemplates();
-                enqueueSnackbar('Template deleted successfully', { variant: 'success' });
+                toast({
+                    title: "Success",
+                    description: "Template deleted successfully"
+                });
             }
         } catch (error) {
-            enqueueSnackbar('Error deleting template', { variant: 'error' });
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Error deleting template"
+            });
         }
     };
 
@@ -102,148 +100,154 @@ const ShiftTemplatesPage: React.FC<ShiftTemplatesPageProps> = () => {
             if (response.ok) {
                 fetchTemplates();
                 setEditDialogOpen(false);
-                enqueueSnackbar(`Template ${editingTemplate ? 'updated' : 'created'} successfully`, {
-                    variant: 'success',
+                toast({
+                    title: "Success",
+                    description: `Template ${editingTemplate ? 'updated' : 'created'} successfully`
                 });
             }
         } catch (error) {
-            enqueueSnackbar('Error saving template', { variant: 'error' });
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Error saving template"
+            });
         }
     };
 
     if (loading) {
-        return <Typography>Loading...</Typography>;
+        return (
+            <div className="flex justify-center items-center h-64">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+        );
     }
 
     return (
-        <Container maxWidth="lg">
-            <Box sx={{ mb: 4 }}>
-                <Typography variant="h4" component="h1" gutterBottom>
-                    Shift Templates
-                </Typography>
-                <Button
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    onClick={handleAddTemplate}
-                    sx={{ mb: 2 }}
-                >
+        <div className="container mx-auto p-4">
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-2xl font-bold">Shift Templates</h1>
+                <Button onClick={handleAddTemplate}>
+                    <Plus className="mr-2 h-4 w-4" />
                     Add Template
                 </Button>
-            </Box>
+            </div>
 
-            <Grid container spacing={2}>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {templates.map((template) => {
                     const shiftType = shiftTypes.find((type) => type.id === template.shift_type_id);
                     return (
-                        <Grid item xs={12} md={4} key={template.id}>
-                            <Card>
-                                <CardContent>
-                                    <Typography variant="h6">{template.name}</Typography>
-                                    <Typography color="textSecondary">
-                                        {shiftType?.name || 'Unknown Shift Type'}
-                                    </Typography>
-                                    <Box sx={{ mt: 1 }}>
-                                        <Typography variant="body2" color="textSecondary">
-                                            {template.start_time} - {template.end_time}
-                                        </Typography>
-                                        <Chip
-                                            label={`Break: ${template.break_duration} min`}
-                                            size="small"
-                                            sx={{ mt: 1 }}
-                                        />
-                                    </Box>
-                                </CardContent>
-                                <CardActions>
-                                    <IconButton onClick={() => handleEditTemplate(template)}>
-                                        <EditIcon />
-                                    </IconButton>
-                                    <IconButton onClick={() => handleDeleteTemplate(template.id)}>
-                                        <DeleteIcon />
-                                    </IconButton>
-                                </CardActions>
-                            </Card>
-                        </Grid>
+                        <Card key={template.id}>
+                            <CardContent className="pt-6">
+                                <h3 className="text-lg font-semibold mb-2">{template.name}</h3>
+                                <p className="text-sm text-muted-foreground mb-2">
+                                    Type: {shiftType?.name || 'Unknown'}
+                                </p>
+                                <p className="text-sm text-muted-foreground mb-2">
+                                    Time: {template.start_time} - {template.end_time}
+                                </p>
+                                <Badge variant="secondary">
+                                    Break: {template.break_duration} min
+                                </Badge>
+                            </CardContent>
+                            <CardFooter className="flex justify-end space-x-2">
+                                <Button variant="outline" size="sm" onClick={() => handleEditTemplate(template)}>
+                                    <Pencil className="h-4 w-4 mr-1" />
+                                    Edit
+                                </Button>
+                                <Button variant="destructive" size="sm" onClick={() => handleDeleteTemplate(template.id)}>
+                                    <Trash2 className="h-4 w-4 mr-1" />
+                                    Delete
+                                </Button>
+                            </CardFooter>
+                        </Card>
                     );
                 })}
-            </Grid>
+            </div>
 
-            <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)}>
-                <DialogTitle>
-                    {editingTemplate ? 'Edit Template' : 'Add New Template'}
-                </DialogTitle>
+            <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
                 <DialogContent>
-                    <Box sx={{ pt: 2 }}>
-                        <TextField
-                            fullWidth
-                            label="Name"
-                            value={editingTemplate?.name || ''}
-                            onChange={(e) =>
-                                setEditingTemplate({ ...editingTemplate!, name: e.target.value })
-                            }
-                            sx={{ mb: 2 }}
-                        />
-                        <FormControl fullWidth sx={{ mb: 2 }}>
-                            <InputLabel>Shift Type</InputLabel>
-                            <Select
-                                value={editingTemplate?.shift_type_id || ''}
-                                onChange={(e) =>
-                                    setEditingTemplate({ ...editingTemplate!, shift_type_id: e.target.value })
-                                }
-                            >
-                                {shiftTypes.map((type) => (
-                                    <MenuItem key={type.id} value={type.id}>
-                                        {type.name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                        <TextField
-                            fullWidth
-                            label="Start Time"
-                            type="time"
-                            value={editingTemplate?.start_time || ''}
-                            onChange={(e) =>
-                                setEditingTemplate({ ...editingTemplate!, start_time: e.target.value })
-                            }
-                            sx={{ mb: 2 }}
-                        />
-                        <TextField
-                            fullWidth
-                            label="End Time"
-                            type="time"
-                            value={editingTemplate?.end_time || ''}
-                            onChange={(e) =>
-                                setEditingTemplate({ ...editingTemplate!, end_time: e.target.value })
-                            }
-                            sx={{ mb: 2 }}
-                        />
-                        <TextField
-                            fullWidth
-                            label="Break Duration (minutes)"
-                            type="number"
-                            value={editingTemplate?.break_duration || 0}
-                            onChange={(e) =>
-                                setEditingTemplate({
-                                    ...editingTemplate!,
-                                    break_duration: parseInt(e.target.value, 10),
-                                })
-                            }
-                            sx={{ mb: 2 }}
-                        />
-                    </Box>
+                    <DialogHeader>
+                        <DialogTitle>{editingTemplate ? 'Edit Template' : 'Add Template'}</DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={(e: React.FormEvent<HTMLFormElement>) => {
+                        e.preventDefault();
+                        const formData = new FormData(e.currentTarget);
+                        handleSaveTemplate({
+                            name: formData.get('name'),
+                            shift_type_id: formData.get('shift_type_id'),
+                            start_time: formData.get('start_time'),
+                            end_time: formData.get('end_time'),
+                            break_duration: parseInt(formData.get('break_duration') as string, 10),
+                        });
+                    }}>
+                        <div className="grid gap-4 py-4">
+                            <div className="grid gap-2">
+                                <label htmlFor="name" className="text-sm font-medium">Name</label>
+                                <Input
+                                    id="name"
+                                    name="name"
+                                    defaultValue={editingTemplate?.name || ''}
+                                    required
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <label htmlFor="shift_type_id" className="text-sm font-medium">Shift Type</label>
+                                <Select name="shift_type_id" defaultValue={editingTemplate?.shift_type_id || ''} required>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select a type" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {shiftTypes.map((type) => (
+                                            <SelectItem key={type.id} value={type.id}>
+                                                {type.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="grid gap-2">
+                                <label htmlFor="start_time" className="text-sm font-medium">Start Time</label>
+                                <Input
+                                    id="start_time"
+                                    name="start_time"
+                                    type="time"
+                                    defaultValue={editingTemplate?.start_time || ''}
+                                    required
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <label htmlFor="end_time" className="text-sm font-medium">End Time</label>
+                                <Input
+                                    id="end_time"
+                                    name="end_time"
+                                    type="time"
+                                    defaultValue={editingTemplate?.end_time || ''}
+                                    required
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <label htmlFor="break_duration" className="text-sm font-medium">Break Duration (minutes)</label>
+                                <Input
+                                    id="break_duration"
+                                    name="break_duration"
+                                    type="number"
+                                    defaultValue={editingTemplate?.break_duration || 0}
+                                    required
+                                />
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button type="submit">
+                                {editingTemplate ? 'Save Changes' : 'Create Template'}
+                            </Button>
+                        </DialogFooter>
+                    </form>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-                    <Button
-                        onClick={() => handleSaveTemplate(editingTemplate)}
-                        variant="contained"
-                        color="primary"
-                    >
-                        Save
-                    </Button>
-                </DialogActions>
             </Dialog>
-        </Container>
+        </div>
     );
 };
 

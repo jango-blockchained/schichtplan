@@ -1,11 +1,7 @@
 import React from 'react';
-import {
-    FormControl,
-    FormLabel,
-    TextField,
-    Stack,
-    Paper
-} from '@mui/material';
+import { Card } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { LayoutConfig } from '../types/LayoutConfig';
 
 interface TableStyleEditorProps {
@@ -32,24 +28,16 @@ const TableStyleEditor: React.FC<TableStyleEditorProps> = ({ tableStyle, onChang
         onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
         ariaLabel: string;
     }) => (
-        <FormControl fullWidth>
-            <FormLabel>{label}</FormLabel>
-            <TextField
+        <div className="grid gap-2">
+            <Label>{label}</Label>
+            <Input
                 type="color"
                 value={value}
                 onChange={onChange}
-                inputProps={{
-                    'aria-label': ariaLabel
-                }}
-                size="small"
-                sx={{
-                    '& input': {
-                        padding: '8px',
-                        height: '40px'
-                    }
-                }}
+                aria-label={ariaLabel}
+                className="h-10 p-1"
             />
-        </FormControl>
+        </div>
     );
 
     const NumberInput = ({ label, value, onChange, min, max, ariaLabel }: {
@@ -60,25 +48,22 @@ const TableStyleEditor: React.FC<TableStyleEditorProps> = ({ tableStyle, onChang
         max: number;
         ariaLabel: string;
     }) => (
-        <FormControl fullWidth>
-            <FormLabel>{label}</FormLabel>
-            <TextField
+        <div className="grid gap-2">
+            <Label>{label}</Label>
+            <Input
                 type="number"
                 value={value}
                 onChange={onChange}
-                inputProps={{
-                    min,
-                    max,
-                    'aria-label': ariaLabel
-                }}
-                size="small"
+                min={min}
+                max={max}
+                aria-label={ariaLabel}
             />
-        </FormControl>
+        </div>
     );
 
     return (
-        <Paper elevation={0} sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
-            <Stack spacing={2}>
+        <Card className="p-4 border">
+            <div className="space-y-4">
                 <ColorInput
                     label="Border Color"
                     value={tableStyle.border_color}
@@ -86,7 +71,7 @@ const TableStyleEditor: React.FC<TableStyleEditorProps> = ({ tableStyle, onChang
                     ariaLabel="Border Color"
                 />
 
-                <Stack direction="row" spacing={2}>
+                <div className="grid grid-cols-2 gap-4">
                     <NumberInput
                         label="Border Width"
                         value={tableStyle.border_width}
@@ -104,9 +89,9 @@ const TableStyleEditor: React.FC<TableStyleEditorProps> = ({ tableStyle, onChang
                         max={20}
                         ariaLabel="Cell Padding"
                     />
-                </Stack>
+                </div>
 
-                <Stack direction="row" spacing={2}>
+                <div className="grid grid-cols-2 gap-4">
                     <ColorInput
                         label="Header Background"
                         value={tableStyle.header_background}
@@ -120,9 +105,9 @@ const TableStyleEditor: React.FC<TableStyleEditorProps> = ({ tableStyle, onChang
                         onChange={(e) => handleColorChange(e, 'header_text_color')}
                         ariaLabel="Header Text Color"
                     />
-                </Stack>
+                </div>
 
-                <Stack direction="row" spacing={2}>
+                <div className="grid grid-cols-2 gap-4">
                     <ColorInput
                         label="Body Background"
                         value={tableStyle.body_background}
@@ -136,7 +121,7 @@ const TableStyleEditor: React.FC<TableStyleEditorProps> = ({ tableStyle, onChang
                         onChange={(e) => handleColorChange(e, 'body_text_color')}
                         ariaLabel="Body Text Color"
                     />
-                </Stack>
+                </div>
 
                 <ColorInput
                     label="Alternating Row Background"
@@ -144,8 +129,8 @@ const TableStyleEditor: React.FC<TableStyleEditorProps> = ({ tableStyle, onChang
                     onChange={(e) => handleColorChange(e, 'alternating_row_background')}
                     ariaLabel="Alternating Row Background Color"
                 />
-            </Stack>
-        </Paper>
+            </div>
+        </Card>
     );
 };
 

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
-import { useSnackbar } from 'notistack';
 import type { Shift, ShiftType } from '../types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useToast } from '@/components/ui/use-toast';
 
 interface ShiftsPageProps { }
 
@@ -16,7 +16,7 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
   const [loading, setLoading] = useState(true);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
-  const { enqueueSnackbar } = useSnackbar();
+  const { toast } = useToast();
 
   useEffect(() => {
     fetchShifts();
@@ -30,7 +30,11 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
       setShifts(data);
       setLoading(false);
     } catch (error) {
-      enqueueSnackbar('Error loading shifts', { variant: 'error' });
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Error loading shifts"
+      });
     }
   };
 
@@ -40,7 +44,11 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
       const data = await response.json();
       setShiftTypes(data.shift_types.shift_types || []);
     } catch (error) {
-      enqueueSnackbar('Error loading shift types', { variant: 'error' });
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Error loading shift types"
+      });
     }
   };
 
@@ -61,10 +69,17 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
       });
       if (response.ok) {
         fetchShifts();
-        enqueueSnackbar('Shift deleted successfully', { variant: 'success' });
+        toast({
+          title: "Success",
+          description: "Shift deleted successfully"
+        });
       }
     } catch (error) {
-      enqueueSnackbar('Error deleting shift', { variant: 'error' });
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Error deleting shift"
+      });
     }
   };
 
@@ -82,12 +97,17 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
       if (response.ok) {
         fetchShifts();
         setEditDialogOpen(false);
-        enqueueSnackbar(`Shift ${editingShift ? 'updated' : 'created'} successfully`, {
-          variant: 'success',
+        toast({
+          title: "Success",
+          description: `Shift ${editingShift ? 'updated' : 'created'} successfully`
         });
       }
     } catch (error) {
-      enqueueSnackbar('Error saving shift', { variant: 'error' });
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Error saving shift"
+      });
     }
   };
 
@@ -96,116 +116,117 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
   }
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-4">Shifts</h1>
-        <Button onClick={handleAddShift} className="mb-4">
+    <div className="container mx-auto p-4">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Shifts</h1>
+        <Button onClick={handleAddShift}>
           <Plus className="mr-2 h-4 w-4" />
           Add Shift
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {shifts.map((shift) => {
-          const shiftType = shiftTypes.find((type) => type.id === shift.shift_type_id);
-          return (
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {shifts.map((shift) => (
             <Card key={shift.id}>
               <CardContent className="pt-6">
-                <h3 className="text-lg font-semibold">{shiftType?.name || 'Unknown Shift Type'}</h3>
-                <p className="text-sm text-muted-foreground">
-                  {shift.start_time} - {shift.end_time}
+                <h3 className="text-lg font-semibold mb-2">{shift.name}</h3>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Type: {shiftTypes.find(t => t.id === shift.type_id)?.name || 'Unknown'}
                 </p>
-                {shiftType && (
-                  <div className="mt-2">
-                    <div
-                      className="w-5 h-5 rounded-full inline-block"
-                      style={{ backgroundColor: shiftType.color }}
-                    />
-                  </div>
-                )}
+                <p className="text-sm text-muted-foreground">
+                  Time: {shift.start_time} - {shift.end_time}
+                </p>
               </CardContent>
               <CardFooter className="flex justify-end space-x-2">
-                <Button variant="ghost" size="icon" onClick={() => handleEditShift(shift)}>
-                  <Pencil className="h-4 w-4" />
+                <Button variant="outline" size="sm" onClick={() => handleEditShift(shift)}>
+                  <Pencil className="h-4 w-4 mr-1" />
+                  Edit
                 </Button>
-                <Button variant="ghost" size="icon" onClick={() => handleDeleteShift(shift.id)}>
-                  <Trash2 className="h-4 w-4" />
+                <Button variant="destructive" size="sm" onClick={() => handleDeleteShift(shift.id)}>
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Delete
                 </Button>
               </CardFooter>
             </Card>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
 
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingShift ? 'Edit Shift' : 'Add New Shift'}</DialogTitle>
+            <DialogTitle>{editingShift ? 'Edit Shift' : 'Add Shift'}</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <label htmlFor="shiftType">Shift Type</label>
-              <Select
-                value={editingShift?.shift_type_id || ''}
-                onValueChange={(value) => setEditingShift({ ...editingShift!, shift_type_id: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select shift type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {shiftTypes.map((type) => (
-                    <SelectItem key={type.id} value={type.id}>
-                      {type.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            handleSaveShift({
+              name: formData.get('name'),
+              type_id: formData.get('type_id'),
+              start_time: formData.get('start_time'),
+              end_time: formData.get('end_time'),
+            });
+          }}>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <label htmlFor="name" className="text-sm font-medium">Name</label>
+                <Input
+                  id="name"
+                  name="name"
+                  defaultValue={editingShift?.name || ''}
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <label htmlFor="type_id" className="text-sm font-medium">Type</label>
+                <Select name="type_id" defaultValue={editingShift?.type_id || ''} required>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {shiftTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.id}>
+                        {type.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <label htmlFor="start_time" className="text-sm font-medium">Start Time</label>
+                <Input
+                  id="start_time"
+                  name="start_time"
+                  type="time"
+                  defaultValue={editingShift?.start_time || ''}
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <label htmlFor="end_time" className="text-sm font-medium">End Time</label>
+                <Input
+                  id="end_time"
+                  name="end_time"
+                  type="time"
+                  defaultValue={editingShift?.end_time || ''}
+                  required
+                />
+              </div>
             </div>
-            <div className="grid gap-2">
-              <label htmlFor="startTime">Start Time</label>
-              <Input
-                id="startTime"
-                type="time"
-                value={editingShift?.start_time || ''}
-                onChange={(e) =>
-                  setEditingShift({ ...editingShift!, start_time: e.target.value })
-                }
-              />
-            </div>
-            <div className="grid gap-2">
-              <label htmlFor="endTime">End Time</label>
-              <Input
-                id="endTime"
-                type="time"
-                value={editingShift?.end_time || ''}
-                onChange={(e) =>
-                  setEditingShift({ ...editingShift!, end_time: e.target.value })
-                }
-              />
-            </div>
-            <div className="grid gap-2">
-              <label htmlFor="breakDuration">Break Duration (minutes)</label>
-              <Input
-                id="breakDuration"
-                type="number"
-                value={editingShift?.break_duration || 0}
-                onChange={(e) =>
-                  setEditingShift({
-                    ...editingShift!,
-                    break_duration: parseInt(e.target.value, 10),
-                  })
-                }
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => handleSaveShift(editingShift)}>
-              Save
-            </Button>
-          </DialogFooter>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">
+                {editingShift ? 'Save Changes' : 'Create Shift'}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
