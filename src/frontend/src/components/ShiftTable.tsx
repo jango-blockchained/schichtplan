@@ -21,8 +21,12 @@ interface ShiftTableProps {
   onShiftUpdate?: (employeeId: number, fromDay: number, toDay: number) => Promise<void>;
 }
 
-const SubRow = ({ children }: { children: React.ReactNode }) => (
-  <div className="flex flex-col border-t border-border first:border-t-0">
+interface SubRowProps extends React.HTMLAttributes<HTMLDivElement> {
+  children: React.ReactNode;
+}
+
+const SubRow = ({ children, className, ...props }: SubRowProps) => (
+  <div className={cn("flex flex-col border-t border-border first:border-t-0", className)} {...props}>
     {children}
   </div>
 );
@@ -138,7 +142,7 @@ const ShiftCell = ({ shift, showValidation = true }: {
                 <AlertCircle className="h-4 w-4 text-destructive" />
               </TooltipTrigger>
               <TooltipContent>
-                {hasBreakViolation && <p>Pause erforderlich für Schichten > 6 Stunden</p>}
+                {hasBreakViolation && <p>Pause erforderlich für Schichten &gt; 6 Stunden</p>}
                 {hasHoursViolation && <p>Maximale Arbeitszeit von 10 Stunden überschritten</p>}
               </TooltipContent>
             </Tooltip>

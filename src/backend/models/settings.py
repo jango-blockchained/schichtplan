@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, JSON, DateTime
+from sqlalchemy import Column, Integer, String, JSON, DateTime, Float, Boolean
 from . import db
 from typing import Dict, Any, Optional
 import json
@@ -14,6 +14,36 @@ class Settings(db.Model):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # PDF Layout Settings
+    page_size = Column(String(10), nullable=False, default='A4')
+    orientation = Column(String(10), nullable=False, default='portrait')
+    margin_top = Column(Float, nullable=False, default=20.0)
+    margin_right = Column(Float, nullable=False, default=20.0)
+    margin_bottom = Column(Float, nullable=False, default=20.0)
+    margin_left = Column(Float, nullable=False, default=20.0)
+    
+    # Table Style Settings
+    table_header_bg_color = Column(String(7), nullable=False, default='#f3f4f6')
+    table_border_color = Column(String(7), nullable=False, default='#e5e7eb')
+    table_text_color = Column(String(7), nullable=False, default='#111827')
+    table_header_text_color = Column(String(7), nullable=False, default='#111827')
+    
+    # Font Settings
+    font_family = Column(String(50), nullable=False, default='Helvetica')
+    font_size = Column(Float, nullable=False, default=10.0)
+    header_font_size = Column(Float, nullable=False, default=12.0)
+    
+    # Content Settings
+    show_employee_id = Column(Boolean, nullable=False, default=True)
+    show_position = Column(Boolean, nullable=False, default=True)
+    show_breaks = Column(Boolean, nullable=False, default=True)
+    show_total_hours = Column(Boolean, nullable=False, default=True)
+    
+    # Store Info
+    store_name = Column(String(100))
+    store_address = Column(String(200))
+    store_contact = Column(String(100))
+
     __table_args__ = (db.UniqueConstraint('category', 'key', name='uix_category_key'),)
 
     def to_dict(self):
@@ -23,7 +53,37 @@ class Settings(db.Model):
             'key': self.key,
             'value': self.value,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'page_size': self.page_size,
+            'orientation': self.orientation,
+            'margins': {
+                'top': self.margin_top,
+                'right': self.margin_right,
+                'bottom': self.margin_bottom,
+                'left': self.margin_left
+            },
+            'table_style': {
+                'header_bg_color': self.table_header_bg_color,
+                'border_color': self.table_border_color,
+                'text_color': self.table_text_color,
+                'header_text_color': self.table_header_text_color
+            },
+            'fonts': {
+                'family': self.font_family,
+                'size': self.font_size,
+                'header_size': self.header_font_size
+            },
+            'content': {
+                'show_employee_id': self.show_employee_id,
+                'show_position': self.show_position,
+                'show_breaks': self.show_breaks,
+                'show_total_hours': self.show_total_hours
+            },
+            'store_info': {
+                'name': self.store_name,
+                'address': self.store_address,
+                'contact': self.store_contact
+            }
         }
 
     @staticmethod
