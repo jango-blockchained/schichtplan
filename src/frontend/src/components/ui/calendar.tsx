@@ -11,6 +11,11 @@ export type CalendarProps = Omit<React.ComponentProps<typeof DayPicker>, "mode" 
     onSelect?: (date: Date | Date[] | DateRange | undefined) => void
 }
 
+export interface DateRange {
+    from: Date | undefined;
+    to: Date | undefined;
+}
+
 function Calendar({
     className,
     classNames,
