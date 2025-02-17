@@ -178,16 +178,51 @@ export const createDefaultShifts = async () => {
 };
 
 // Schedules
-export const getSchedules = async (startDate?: string, endDate?: string) => {
+export interface ScheduleData {
+    id: number;
+    date: string;
+    employee: {
+        id: number;
+        name: string;
+    };
+    shift: {
+        id: number;
+        type: string;
+        start_time: string;
+        end_time: string;
+    };
+    break_start: string | null;
+    break_end: string | null;
+}
+
+export interface WeeklySchedule {
+    employee_id: number;
+    name: string;
+    position: string;
+    contracted_hours: string;
+    shifts: Array<{
+        day: number;
+        start?: string;
+        end?: string;
+        break?: {
+            start: string;
+            end: string;
+        };
+    }>;
+}
+
+export const getSchedules = async (startDate: string, endDate: string): Promise<ScheduleData[]> => {
     try {
-        const params = new URLSearchParams();
-        if (startDate) params.append('start_date', startDate);
-        if (endDate) params.append('end_date', endDate);
-        const response = await api.get<Schedule[]>('/schedules/?' + params.toString());
+        const response = await api.get<ScheduleData[]>('/schedules/', {
+            params: {
+                start_date: startDate,
+                end_date: endDate,
+            },
+        });
         return response.data;
     } catch (error) {
         if (error instanceof Error) {
-            throw new Error(`Fehler beim Laden des Schichtplans: ${error.message}`);
+            throw new Error(`Failed to fetch schedules: ${error.message}`);
         }
         throw error;
     }
@@ -202,22 +237,24 @@ export const generateSchedule = async (startDate: string, endDate: string) => {
         return response.data;
     } catch (error) {
         if (error instanceof Error) {
-            throw new Error(`Fehler bei der Schichtplanerstellung: ${error.message}`);
+            throw new Error(`Schedule generation failed: ${error.message}`);
         }
-        throw error;
     }
 };
 
-export const exportSchedule = async (startDate: string, endDate: string) => {
+export const exportSchedule = async (startDate: string, endDate: string, layoutConfig?: any): Promise<Blob> => {
     try {
         const response = await api.post('/schedules/export/', {
             start_date: startDate,
             end_date: endDate,
-        }, { responseType: 'blob' });
+            layout_config: layoutConfig
+        }, {
+            responseType: 'blob'
+        });
         return response.data;
     } catch (error) {
         if (error instanceof Error) {
-            throw new Error(`Fehler beim Exportieren des Schichtplans: ${error.message}`);
+            throw new Error(`Failed to export schedule: ${error.message}`);
         }
         throw error;
     }
@@ -304,4 +341,19 @@ export const getSettings = async (): Promise<Settings> => {
 export const updateSettings = async (data: Settings): Promise<Settings> => {
     const response = await api.put('/settings', data);
     return response.data;
+};
+
+export const updateShiftDay = async (employeeId: number, fromDate: string, toDate: string): Promise<void> => {
+    try {
+        await api.put('/schedules/update-day/', {
+            employee_id: employeeId,
+            from_date: fromDate,
+            to_date: toDate,
+        });
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to update shift: ${error.message}`);
+        }
+        throw error;
+    }
 }; 

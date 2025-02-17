@@ -8,6 +8,7 @@ import { EmployeesPage } from './pages/EmployeesPage';
 import SettingsPage from './pages/SettingsPage';
 import ShiftTemplatesPage from './pages/ShiftTemplatesPage';
 import { Toaster } from '@/components/ui/toaster';
+import PDFSettings from '@/pages/PDFSettings';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,6 +31,7 @@ const App: React.FC = () => {
             <Route path="settings" element={<SettingsPage />} />
             <Route path="shift-templates" element={<ShiftTemplatesPage />} />
           </Route>
+          <Route path="/pdf-settings" element={<PDFSettings />} />
         </Routes>
         <Toaster />
       </BrowserRouter>

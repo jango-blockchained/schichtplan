@@ -1,6 +1,9 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 from models import Settings
+from services.pdf_generator import PDFGenerator
 from http import HTTPStatus
+from datetime import date, timedelta
+import io
 
 bp = Blueprint('pdf_settings', __name__, url_prefix='/api/pdf-settings')
 
@@ -23,6 +26,31 @@ def update_layout():
             
         Settings.save_pdf_layout_config(config)
         return jsonify({'message': 'Layout configuration updated successfully'}), HTTPStatus.OK
+    except Exception as e:
+        return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+@bp.route('/preview', methods=['POST'])
+def preview_layout():
+    """Generate a preview PDF with the current layout settings"""
+    try:
+        config = request.get_json()
+        if not config:
+            return jsonify({'error': 'No configuration provided'}), HTTPStatus.BAD_REQUEST
+
+        # Generate a sample PDF for the current week
+        today = date.today()
+        start_date = today - timedelta(days=today.weekday())  # Get Monday
+        end_date = start_date + timedelta(days=6)  # Get Sunday
+
+        pdf_generator = PDFGenerator(start_date, end_date, config)
+        pdf_data = pdf_generator.generate()
+
+        return send_file(
+            io.BytesIO(pdf_data),
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f'schedule_preview_{start_date.strftime("%Y%m%d")}.pdf'
+        )
     except Exception as e:
         return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
