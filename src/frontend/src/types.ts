@@ -37,6 +37,8 @@ export interface Shift {
     type_id: string;
     start_time: string;
     end_time: string;
+    duration_hours: number;
+    requires_break: boolean;
 }
 
 export interface ShiftTemplate {
@@ -55,6 +57,8 @@ export interface Schedule {
     employee_id: number;
     shift_id: number;
     date: string;
+    break_start?: string;
+    break_end?: string;
 }
 
 // Store configuration types

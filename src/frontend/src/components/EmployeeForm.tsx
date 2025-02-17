@@ -1,130 +1,82 @@
-import * as React from 'react';
-import {
-  Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Select,
-  TextField,
-} from '@mui/material';
-import { Employee, EmployeeGroup, TimeSlot } from '../types';
-import { AvailabilityCalendar } from './AvailabilityCalendar';
+import React from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-interface Props {
-  open: boolean;
-  onClose: () => void;
-  onSubmit: (employee: Omit<Employee, 'id'>) => void;
-  employee?: Employee;
+interface EmployeeFormProps {
+  onSubmit: (employee: {
+    name: string;
+    position: string;
+    contractedHours: string;
+  }) => void;
 }
 
-export const EmployeeForm: React.FC<Props> = ({ open, onClose, onSubmit, employee }) => {
-  const [formData, setFormData] = React.useState<Omit<Employee, 'id'>>({
-    employee_id: '',
-    first_name: '',
-    last_name: '',
-    employee_group: EmployeeGroup.TZ,
-    contracted_hours: 20,
-    availability: [],
-  });
+const EmployeeForm: React.FC<EmployeeFormProps> = ({ onSubmit }) => {
+  const [name, setName] = React.useState('');
+  const [position, setPosition] = React.useState('');
+  const [contractedHours, setContractedHours] = React.useState('');
 
-  React.useEffect(() => {
-    if (employee) {
-      setFormData({
-        employee_id: employee.employee_id,
-        first_name: employee.first_name,
-        last_name: employee.last_name,
-        employee_group: employee.employee_group,
-        contracted_hours: employee.contracted_hours,
-        availability: employee.availability || [],
-      });
-    }
-  }, [employee]);
-
-  const handleChange = (field: keyof Omit<Employee, 'id'>) => (
-    event: React.ChangeEvent<HTMLInputElement | { value: unknown }>
-  ) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: event.target.value,
-    }));
-  };
-
-  const handleAvailabilityChange = (newAvailability: TimeSlot[]) => {
-    setFormData((prev) => ({
-      ...prev,
-      availability: newAvailability,
-    }));
-  };
-
-  const handleSubmit = (event: React.FormEvent) => {
-    event.preventDefault();
-    onSubmit(formData);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit({ name, position, contractedHours });
+    setName('');
+    setPosition('');
+    setContractedHours('');
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>{employee ? 'Mitarbeiter bearbeiten' : 'Neuer Mitarbeiter'}</DialogTitle>
+    <Card>
       <form onSubmit={handleSubmit}>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <TextField
-              label="Mitarbeiter-ID"
-              value={formData.employee_id}
-              onChange={handleChange('employee_id')}
+        <CardHeader>
+          <CardTitle>Add Employee</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Name</Label>
+            <Input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Enter employee name"
               required
             />
-            <TextField
-              label="Vorname"
-              value={formData.first_name}
-              onChange={handleChange('first_name')}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="position">Position</Label>
+            <Select value={position} onValueChange={setPosition}>
+              <SelectTrigger id="position">
+                <SelectValue placeholder="Select position" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="TZ">TZ</SelectItem>
+                <SelectItem value="VZ">VZ</SelectItem>
+                <SelectItem value="AZ">AZ</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="hours">Contracted Hours</Label>
+            <Input
+              id="hours"
+              type="text"
+              value={contractedHours}
+              onChange={(e) => setContractedHours(e.target.value)}
+              placeholder="Enter contracted hours (e.g. 40:00)"
+              pattern="\d{1,2}:\d{2}"
               required
             />
-            <TextField
-              label="Nachname"
-              value={formData.last_name}
-              onChange={handleChange('last_name')}
-              required
-            />
-            <FormControl fullWidth>
-              <InputLabel>Mitarbeitergruppe</InputLabel>
-              <Select
-                value={formData.employee_group}
-                onChange={handleChange('employee_group')}
-                label="Mitarbeitergruppe"
-                required
-              >
-                <MenuItem value={EmployeeGroup.VL}>Vollzeit</MenuItem>
-                <MenuItem value={EmployeeGroup.TZ}>Teilzeit</MenuItem>
-                <MenuItem value={EmployeeGroup.GFB}>Geringfügig Beschäftigt</MenuItem>
-                <MenuItem value={EmployeeGroup.TL}>Teamleiter</MenuItem>
-              </Select>
-            </FormControl>
-            <TextField
-              label="Vertragsstunden"
-              type="number"
-              value={formData.contracted_hours}
-              onChange={handleChange('contracted_hours')}
-              required
-              inputProps={{ min: 0, max: 40, step: 0.5 }}
-            />
-            <AvailabilityCalendar
-              availability={formData.availability}
-              onChange={handleAvailabilityChange}
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={onClose}>Abbrechen</Button>
-          <Button type="submit" variant="contained">
-            Speichern
-          </Button>
-        </DialogActions>
+          </div>
+        </CardContent>
+        <CardFooter>
+          <Button type="submit">Add Employee</Button>
+        </CardFooter>
       </form>
-    </Dialog>
+    </Card>
   );
-}; 
+};
+
+export default EmployeeForm; 

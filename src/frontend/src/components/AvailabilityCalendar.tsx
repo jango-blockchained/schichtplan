@@ -1,94 +1,85 @@
-import * as React from 'react';
-import { Box, Paper, Typography, Grid, ToggleButton } from '@mui/material';
-import { styled } from '@mui/material/styles';
-import { TimeSlot } from '../types';
+import React from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
-const DAYS = ['MO', 'DI', 'MI', 'DO', 'FR', 'SA'] as const;
-const HOURS = Array.from({ length: 14 }, (_, i) => i + 8); // 8:00 - 21:00
-
-const StyledToggleButton = styled(ToggleButton)(({ theme }) => ({
-  width: '100%',
-  height: '40px',
-  padding: 0,
-  border: `1px solid ${theme.palette.divider}`,
-  '&.Mui-selected': {
-    backgroundColor: theme.palette.primary.main,
-    color: theme.palette.primary.contrastText,
-    '&:hover': {
-      backgroundColor: theme.palette.primary.dark,
-    },
-  },
-}));
-
-interface Props {
-  availability: TimeSlot[];
-  onChange: (newAvailability: TimeSlot[]) => void;
+interface TimeSlot {
+  day: number;
+  start: string;
+  end: string;
 }
 
-export const AvailabilityCalendar: React.FC<Props> = ({ availability, onChange }: Props) => {
-  const handleToggle = (day: string, hour: number) => {
-    const existingSlot = availability.find(
-      (slot: TimeSlot) => slot.day === day && slot.hour === hour
-    );
+interface AvailabilityCalendarProps {
+  availability: TimeSlot[];
+  onChange: (availability: TimeSlot[]) => void;
+}
 
-    if (existingSlot) {
-      const newAvailability = availability.map((slot: TimeSlot) =>
-        slot.day === day && slot.hour === hour
-          ? { ...slot, available: !slot.available }
-          : slot
-      );
-      onChange(newAvailability);
-    } else {
-      onChange([...availability, { day: day as TimeSlot['day'], hour, available: true }]);
-    }
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const TIME_SLOTS = [
+  { label: 'Morning', value: 'morning', start: '06:00', end: '14:00' },
+  { label: 'Afternoon', value: 'afternoon', start: '14:00', end: '22:00' },
+  { label: 'Night', value: 'night', start: '22:00', end: '06:00' },
+];
+
+export const AvailabilityCalendar: React.FC<AvailabilityCalendarProps> = ({
+  availability,
+  onChange,
+}) => {
+  const isSlotSelected = (day: number, start: string, end: string) => {
+    return availability.some(
+      (slot) => slot.day === day && slot.start === start && slot.end === end
+    );
   };
 
-  const isAvailable = (day: string, hour: number) => {
-    return availability.some(
-      (slot: TimeSlot) => slot.day === day && slot.hour === hour && slot.available
-    );
+  const handleToggle = (day: number, start: string, end: string) => {
+    const isSelected = isSlotSelected(day, start, end);
+    let newAvailability: TimeSlot[];
+
+    if (isSelected) {
+      newAvailability = availability.filter(
+        (slot) => !(slot.day === day && slot.start === start && slot.end === end)
+      );
+    } else {
+      newAvailability = [...availability, { day, start, end }];
+    }
+
+    onChange(newAvailability);
   };
 
   return (
-    <Paper elevation={0} sx={{ p: 2, width: '100%' }}>
-      <Typography variant="h6" gutterBottom>
-        Verfügbarkeit
-      </Typography>
-      <Box sx={{ width: '100%', overflowX: 'auto' }}>
-        <Grid container spacing={1}>
-          <Grid item xs={1}>
-            <Box sx={{ height: 40 }} /> {/* Spacer for hours column */}
-          </Grid>
-          {DAYS.map((day) => (
-            <Grid item xs={2} key={day}>
-              <Typography align="center" sx={{ fontWeight: 'bold' }}>
-                {day}
-              </Typography>
-            </Grid>
+    <Card>
+      <CardHeader>
+        <CardTitle>Availability</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-6">
+          {DAYS.map((dayLabel, dayIndex) => (
+            <div key={dayLabel} className="space-y-2">
+              <Label>{dayLabel}</Label>
+              <ToggleGroup type="multiple" className="justify-start">
+                {TIME_SLOTS.map((slot) => {
+                  const selected = isSlotSelected(dayIndex, slot.start, slot.end);
+                  return (
+                    <ToggleGroupItem
+                      key={slot.value}
+                      value={`${dayIndex}-${slot.value}`}
+                      aria-label={`${dayLabel} ${slot.label}`}
+                      className={cn(
+                        "data-[state=on]:bg-primary data-[state=on]:text-primary-foreground",
+                        selected && "bg-primary text-primary-foreground"
+                      )}
+                      onClick={() => handleToggle(dayIndex, slot.start, slot.end)}
+                    >
+                      {slot.label}
+                    </ToggleGroupItem>
+                  );
+                })}
+              </ToggleGroup>
+            </div>
           ))}
-          {HOURS.map((hour) => (
-            <React.Fragment key={hour}>
-              <Grid item xs={1}>
-                <Typography align="right" sx={{ lineHeight: '40px' }}>
-                  {`${hour}:00`}
-                </Typography>
-              </Grid>
-              {DAYS.map((day) => (
-                <Grid item xs={2} key={`${day}-${hour}`}>
-                  <StyledToggleButton
-                    value={`${day}-${hour}`}
-                    selected={isAvailable(day, hour)}
-                    onChange={() => handleToggle(day, hour)}
-                    sx={{ minWidth: 0 }}
-                  >
-                    {isAvailable(day, hour) ? '✓' : ''}
-                  </StyledToggleButton>
-                </Grid>
-              ))}
-            </React.Fragment>
-          ))}
-        </Grid>
-      </Box>
-    </Paper>
+        </div>
+      </CardContent>
+    </Card>
   );
 }; 

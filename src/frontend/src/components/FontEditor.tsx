@@ -1,128 +1,109 @@
 import React from 'react';
-import {
-    FormControl,
-    FormLabel,
-    TextField,
-    Select,
-    MenuItem,
-    Stack,
-    Paper,
-    SelectChangeEvent
-} from '@mui/material';
-import { LayoutConfig } from '../types/LayoutConfig';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import ColorPicker from './ColorPicker';
+
+interface FontStyle {
+    font: string;
+    size: number;
+    color: string;
+    alignment: 'left' | 'center' | 'right';
+}
 
 interface FontEditorProps {
-    titleStyle: LayoutConfig['title_style'];
-    onChange: (newStyle: LayoutConfig['title_style']) => void;
+    titleStyle: FontStyle;
+    onChange: (style: FontStyle) => void;
 }
 
 const FONT_OPTIONS = [
-    'Helvetica',
     'Arial',
+    'Helvetica',
     'Times New Roman',
-    'Courier',
+    'Courier New',
+    'Georgia',
     'Verdana',
-    'Georgia'
 ];
 
 const ALIGNMENT_OPTIONS = [
     { value: 'left', label: 'Left' },
     { value: 'center', label: 'Center' },
-    { value: 'right', label: 'Right' }
+    { value: 'right', label: 'Right' },
 ];
 
 const FontEditor: React.FC<FontEditorProps> = ({ titleStyle, onChange }) => {
-    const handleStyleChange = <K extends keyof LayoutConfig['title_style']>(
-        key: K,
-        value: LayoutConfig['title_style'][K]
-    ) => {
-        onChange({ ...titleStyle, [key]: value });
-    };
-
-    const handleFontChange = (e: SelectChangeEvent) => {
-        handleStyleChange('font', e.target.value);
-    };
-
-    const handleSizeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        handleStyleChange('size', Number(e.target.value));
-    };
-
-    const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        handleStyleChange('color', e.target.value);
-    };
-
-    const handleAlignmentChange = (e: SelectChangeEvent) => {
-        handleStyleChange('alignment', e.target.value);
+    const handleChange = (field: keyof FontStyle, value: string | number) => {
+        onChange({
+            ...titleStyle,
+            [field]: value,
+        });
     };
 
     return (
-        <Paper elevation={0} sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
-            <Stack spacing={2}>
-                <FormControl fullWidth>
-                    <FormLabel>Font Family</FormLabel>
+        <Card>
+            <CardHeader>
+                <CardTitle>Font Settings</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="space-y-2">
+                    <Label>Font Family</Label>
                     <Select
                         value={titleStyle.font}
-                        onChange={handleFontChange}
-                        size="small"
+                        onValueChange={(value) => handleChange('font', value)}
                     >
-                        {FONT_OPTIONS.map(font => (
-                            <MenuItem key={font} value={font}>{font}</MenuItem>
-                        ))}
+                        <SelectTrigger>
+                            <SelectValue placeholder="Select font" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {FONT_OPTIONS.map((font) => (
+                                <SelectItem key={font} value={font}>
+                                    {font}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
                     </Select>
-                </FormControl>
+                </div>
 
-                <Stack direction="row" spacing={2}>
-                    <FormControl fullWidth>
-                        <FormLabel>Font Size</FormLabel>
-                        <TextField
-                            type="number"
-                            value={titleStyle.size}
-                            onChange={handleSizeChange}
-                            inputProps={{
-                                min: 10,
-                                max: 50,
-                                'aria-label': 'Font Size'
-                            }}
-                            size="small"
-                        />
-                    </FormControl>
+                <div className="space-y-2">
+                    <Label>Font Size</Label>
+                    <Input
+                        type="number"
+                        value={titleStyle.size}
+                        onChange={(e) => handleChange('size', parseInt(e.target.value, 10))}
+                        min={8}
+                        max={72}
+                    />
+                </div>
 
-                    <FormControl fullWidth>
-                        <FormLabel>Font Color</FormLabel>
-                        <TextField
-                            type="color"
-                            value={titleStyle.color}
-                            onChange={handleColorChange}
-                            inputProps={{
-                                'aria-label': 'Font Color'
-                            }}
-                            size="small"
-                            sx={{
-                                '& input': {
-                                    padding: '8px',
-                                    height: '40px'
-                                }
-                            }}
-                        />
-                    </FormControl>
-                </Stack>
+                <div className="space-y-2">
+                    <Label>Text Color</Label>
+                    <ColorPicker
+                        color={titleStyle.color}
+                        onChange={(color: string) => handleChange('color', color)}
+                    />
+                </div>
 
-                <FormControl fullWidth>
-                    <FormLabel>Text Alignment</FormLabel>
+                <div className="space-y-2">
+                    <Label>Alignment</Label>
                     <Select
                         value={titleStyle.alignment}
-                        onChange={handleAlignmentChange}
-                        size="small"
+                        onValueChange={(value) => handleChange('alignment', value)}
                     >
-                        {ALIGNMENT_OPTIONS.map(option => (
-                            <MenuItem key={option.value} value={option.value}>
-                                {option.label}
-                            </MenuItem>
-                        ))}
+                        <SelectTrigger>
+                            <SelectValue placeholder="Select alignment" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {ALIGNMENT_OPTIONS.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
                     </Select>
-                </FormControl>
-            </Stack>
-        </Paper>
+                </div>
+            </CardContent>
+        </Card>
     );
 };
 
