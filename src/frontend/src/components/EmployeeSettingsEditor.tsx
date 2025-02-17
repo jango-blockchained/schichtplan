@@ -1,27 +1,12 @@
 import React, { useState } from 'react';
-import {
-    Paper,
-    Stack,
-    Typography,
-    TextField,
-    Select,
-    MenuItem,
-    FormControl,
-    FormLabel,
-    Button,
-    IconButton,
-    List,
-    ListItem,
-    ListItemText,
-    ListItemSecondaryAction,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    Alert,
-    SelectChangeEvent
-} from '@mui/material';
-import { Delete as DeleteIcon, Add as AddIcon } from '@mui/icons-material';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Trash2, Plus } from 'lucide-react';
 
 export interface EmployeeGroup {
     id: string;
@@ -141,190 +126,195 @@ const EmployeeSettingsEditor: React.FC<EmployeeSettingsEditorProps> = ({
     };
 
     return (
-        <Paper elevation={0} sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
-            <Stack spacing={2}>
-                <Typography variant="h6">Employee Groups</Typography>
+        <Card className="p-4 border">
+            <div className="space-y-4">
+                <h2 className="text-lg font-semibold">Employee Groups</h2>
 
-                <List>
+                <div className="space-y-4">
                     {employeeGroups.map((group, index) => (
-                        <ListItem key={group.id} divider>
-                            <Stack spacing={2} sx={{ width: '100%' }}>
-                                <Stack direction="row" spacing={2}>
-                                    <FormControl fullWidth>
-                                        <FormLabel>ID</FormLabel>
-                                        <TextField
-                                            value={group.id}
-                                            onChange={(e) => handleUpdateGroup(index, 'id', e.target.value)}
-                                            size="small"
-                                            disabled
-                                        />
-                                    </FormControl>
-
-                                    <FormControl fullWidth>
-                                        <FormLabel>Name</FormLabel>
-                                        <TextField
-                                            value={group.name}
-                                            onChange={(e) => handleUpdateGroup(index, 'name', e.target.value)}
-                                            size="small"
-                                        />
-                                    </FormControl>
-                                </Stack>
-
-                                <FormControl fullWidth>
-                                    <FormLabel>Description</FormLabel>
-                                    <TextField
-                                        value={group.description}
-                                        onChange={(e) => handleUpdateGroup(index, 'description', e.target.value)}
-                                        size="small"
+                        <div key={group.id} className="p-4 border rounded-lg space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>ID</Label>
+                                    <Input
+                                        value={group.id}
+                                        onChange={(e) => handleUpdateGroup(index, 'id', e.target.value)}
+                                        disabled
                                     />
-                                </FormControl>
+                                </div>
 
-                                <Stack direction="row" spacing={2}>
-                                    <FormControl fullWidth>
-                                        <FormLabel>Min Hours</FormLabel>
-                                        <TextField
-                                            type="number"
-                                            value={group.minHours}
-                                            onChange={(e) => handleUpdateGroup(index, 'minHours', Number(e.target.value))}
-                                            size="small"
-                                            inputProps={{ min: 0, max: 168 }}
-                                        />
-                                    </FormControl>
+                                <div className="space-y-2">
+                                    <Label>Name</Label>
+                                    <Input
+                                        value={group.name}
+                                        onChange={(e) => handleUpdateGroup(index, 'name', e.target.value)}
+                                    />
+                                </div>
+                            </div>
 
-                                    <FormControl fullWidth>
-                                        <FormLabel>Max Hours</FormLabel>
-                                        <TextField
-                                            type="number"
-                                            value={group.maxHours}
-                                            onChange={(e) => handleUpdateGroup(index, 'maxHours', Number(e.target.value))}
-                                            size="small"
-                                            inputProps={{ min: 0, max: 168 }}
-                                        />
-                                    </FormControl>
+                            <div className="space-y-2">
+                                <Label>Description</Label>
+                                <Input
+                                    value={group.description}
+                                    onChange={(e) => handleUpdateGroup(index, 'description', e.target.value)}
+                                />
+                            </div>
 
-                                    <FormControl fullWidth>
-                                        <FormLabel>Full Time</FormLabel>
-                                        <Select
-                                            value={group.isFullTime.toString()}
-                                            onChange={(e: SelectChangeEvent) =>
-                                                handleUpdateGroup(index, 'isFullTime', e.target.value === 'true')}
-                                            size="small"
-                                        >
-                                            <MenuItem value="true">Yes</MenuItem>
-                                            <MenuItem value="false">No</MenuItem>
-                                        </Select>
-                                    </FormControl>
-                                </Stack>
-                            </Stack>
+                            <div className="grid grid-cols-3 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Min Hours</Label>
+                                    <Input
+                                        type="number"
+                                        value={group.minHours}
+                                        onChange={(e) => handleUpdateGroup(index, 'minHours', Number(e.target.value))}
+                                        min={0}
+                                        max={168}
+                                    />
+                                </div>
 
-                            <ListItemSecondaryAction>
-                                <IconButton
-                                    edge="end"
-                                    aria-label="delete"
+                                <div className="space-y-2">
+                                    <Label>Max Hours</Label>
+                                    <Input
+                                        type="number"
+                                        value={group.maxHours}
+                                        onChange={(e) => handleUpdateGroup(index, 'maxHours', Number(e.target.value))}
+                                        min={0}
+                                        max={168}
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label>Full Time</Label>
+                                    <Select
+                                        value={group.isFullTime.toString()}
+                                        onValueChange={(value) =>
+                                            handleUpdateGroup(index, 'isFullTime', value === 'true')}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="true">Yes</SelectItem>
+                                            <SelectItem value="false">No</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end">
+                                <Button
+                                    variant="destructive"
+                                    size="sm"
                                     onClick={() => handleDeleteGroup(group.id)}
                                     disabled={employeeGroups.length <= 1}
                                 >
-                                    <DeleteIcon />
-                                </IconButton>
-                            </ListItemSecondaryAction>
-                        </ListItem>
+                                    <Trash2 className="h-4 w-4 mr-1" />
+                                    Delete
+                                </Button>
+                            </div>
+                        </div>
                     ))}
-                </List>
+                </div>
 
                 <Button
-                    startIcon={<AddIcon />}
+                    variant="outline"
                     onClick={() => setIsAddDialogOpen(true)}
-                    variant="outlined"
                 >
+                    <Plus className="h-4 w-4 mr-1" />
                     Add Employee Group
                 </Button>
-            </Stack>
+            </div>
 
-            <Dialog open={isAddDialogOpen} onClose={() => setIsAddDialogOpen(false)} maxWidth="md" fullWidth>
-                <DialogTitle>Add Employee Group</DialogTitle>
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                 <DialogContent>
-                    <Stack spacing={2} sx={{ mt: 2 }}>
+                    <DialogHeader>
+                        <DialogTitle>Add Employee Group</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
                         {error && (
-                            <Alert severity="error" onClose={() => setError(null)}>
-                                {error}
+                            <Alert variant="destructive">
+                                <AlertDescription>{error}</AlertDescription>
                             </Alert>
                         )}
 
-                        <Stack direction="row" spacing={2}>
-                            <FormControl fullWidth>
-                                <FormLabel>ID</FormLabel>
-                                <TextField
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>ID</Label>
+                                <Input
                                     value={newGroup.id}
                                     onChange={(e) => setNewGroup({ ...newGroup, id: e.target.value })}
-                                    size="small"
-                                    required
                                 />
-                            </FormControl>
+                            </div>
 
-                            <FormControl fullWidth>
-                                <FormLabel>Name</FormLabel>
-                                <TextField
+                            <div className="space-y-2">
+                                <Label>Name</Label>
+                                <Input
                                     value={newGroup.name}
                                     onChange={(e) => setNewGroup({ ...newGroup, name: e.target.value })}
-                                    size="small"
-                                    required
                                 />
-                            </FormControl>
-                        </Stack>
+                            </div>
+                        </div>
 
-                        <FormControl fullWidth>
-                            <FormLabel>Description</FormLabel>
-                            <TextField
+                        <div className="space-y-2">
+                            <Label>Description</Label>
+                            <Input
                                 value={newGroup.description}
                                 onChange={(e) => setNewGroup({ ...newGroup, description: e.target.value })}
-                                size="small"
                             />
-                        </FormControl>
+                        </div>
 
-                        <Stack direction="row" spacing={2}>
-                            <FormControl fullWidth>
-                                <FormLabel>Min Hours</FormLabel>
-                                <TextField
+                        <div className="grid grid-cols-3 gap-4">
+                            <div className="space-y-2">
+                                <Label>Min Hours</Label>
+                                <Input
                                     type="number"
                                     value={newGroup.minHours}
                                     onChange={(e) => setNewGroup({ ...newGroup, minHours: Number(e.target.value) })}
-                                    size="small"
-                                    inputProps={{ min: 0, max: 168 }}
+                                    min={0}
+                                    max={168}
                                 />
-                            </FormControl>
+                            </div>
 
-                            <FormControl fullWidth>
-                                <FormLabel>Max Hours</FormLabel>
-                                <TextField
+                            <div className="space-y-2">
+                                <Label>Max Hours</Label>
+                                <Input
                                     type="number"
                                     value={newGroup.maxHours}
                                     onChange={(e) => setNewGroup({ ...newGroup, maxHours: Number(e.target.value) })}
-                                    size="small"
-                                    inputProps={{ min: 0, max: 168 }}
+                                    min={0}
+                                    max={168}
                                 />
-                            </FormControl>
+                            </div>
 
-                            <FormControl fullWidth>
-                                <FormLabel>Full Time</FormLabel>
+                            <div className="space-y-2">
+                                <Label>Full Time</Label>
                                 <Select
                                     value={newGroup.isFullTime.toString()}
-                                    onChange={(e: SelectChangeEvent) =>
-                                        setNewGroup({ ...newGroup, isFullTime: e.target.value === 'true' })}
-                                    size="small"
+                                    onValueChange={(value) =>
+                                        setNewGroup({ ...newGroup, isFullTime: value === 'true' })}
                                 >
-                                    <MenuItem value="true">Yes</MenuItem>
-                                    <MenuItem value="false">No</MenuItem>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="true">Yes</SelectItem>
+                                        <SelectItem value="false">No</SelectItem>
+                                    </SelectContent>
                                 </Select>
-                            </FormControl>
-                        </Stack>
-                    </Stack>
+                            </div>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button onClick={handleAddGroup}>
+                            Create Group
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
-                    <Button onClick={handleAddGroup} variant="contained">Add</Button>
-                </DialogActions>
             </Dialog>
-        </Paper>
+        </Card>
     );
 };
 

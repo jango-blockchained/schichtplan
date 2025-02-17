@@ -7,15 +7,8 @@ export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
     include: [
-      'notistack',
-      'react-color',
-      '@mui/x-date-pickers',
       '@tanstack/react-query',
       'date-fns',
-      '@emotion/react',
-      '@emotion/styled',
-      '@mui/material',
-      '@mui/icons-material',
       'react-router-dom'
     ],
   },

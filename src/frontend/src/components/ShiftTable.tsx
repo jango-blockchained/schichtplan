@@ -1,33 +1,6 @@
-import { Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material';
-import { styled } from '@mui/material/styles';
-
-const StyledTableCell = styled(TableCell)(({ theme }) => ({
-  padding: '4px 8px',
-  fontSize: '0.875rem',
-  border: '1px solid rgba(224, 224, 224, 1)',
-  '&.header': {
-    backgroundColor: theme.palette.grey[100],
-    fontWeight: 'bold',
-  },
-}));
-
-const StyledTableRow = styled(TableRow)({
-  '&:nth-of-type(odd)': {
-    backgroundColor: '#fff',
-  },
-  '&:nth-of-type(even)': {
-    backgroundColor: '#fafafa',
-  },
-});
-
-const SubRow = styled('div')({
-  display: 'flex',
-  flexDirection: 'column',
-  borderTop: '1px solid rgba(224, 224, 224, 0.5)',
-  '&:first-of-type': {
-    borderTop: 'none',
-  },
-});
+import { Card } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { cn } from '@/lib/utils';
 
 interface ShiftTableProps {
   weekStart: Date;
@@ -48,38 +21,44 @@ interface ShiftTableProps {
   }>;
 }
 
+const SubRow = ({ children }: { children: React.ReactNode }) => (
+  <div className="flex flex-col border-t border-border first:border-t-0">
+    {children}
+  </div>
+);
+
 export const ShiftTable = ({ weekStart, weekEnd, employees }: ShiftTableProps) => {
   const days = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 
   return (
-    <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
-      <Table size="small" sx={{ minWidth: 1000 }}>
-        <TableHead>
+    <Card className="overflow-x-auto">
+      <Table>
+        <TableHeader>
           <TableRow>
-            <StyledTableCell className="header" sx={{ minWidth: 150 }}>Name, Vorname</StyledTableCell>
-            <StyledTableCell className="header" sx={{ width: 80 }}>Position</StyledTableCell>
-            <StyledTableCell className="header" sx={{ width: 80 }}>Plan / Woche</StyledTableCell>
+            <TableCell className="font-medium min-w-[150px]">Name, Vorname</TableCell>
+            <TableCell className="font-medium w-20">Position</TableCell>
+            <TableCell className="font-medium w-20">Plan / Woche</TableCell>
             {days.map((day) => (
-              <StyledTableCell key={day} className="header" sx={{ minWidth: 100 }}>
+              <TableCell key={day} className="font-medium min-w-[100px]">
                 {day}
-              </StyledTableCell>
+              </TableCell>
             ))}
-            <StyledTableCell className="header" sx={{ width: 80 }}>Summe / Woche</StyledTableCell>
-            <StyledTableCell className="header" sx={{ width: 80 }}>Summe / Monat</StyledTableCell>
+            <TableCell className="font-medium w-20">Summe / Woche</TableCell>
+            <TableCell className="font-medium w-20">Summe / Monat</TableCell>
           </TableRow>
-        </TableHead>
+        </TableHeader>
         <TableBody>
           {employees.map((employee, index) => (
-            <StyledTableRow key={employee.name}>
-              <StyledTableCell>
-                <Typography variant="body2">{employee.name}</Typography>
-              </StyledTableCell>
-              <StyledTableCell>{employee.position}</StyledTableCell>
-              <StyledTableCell>{employee.contractedHours}</StyledTableCell>
+            <TableRow key={employee.name} className={cn(index % 2 === 0 ? 'bg-background' : 'bg-muted/50')}>
+              <TableCell className="align-top">
+                <span className="text-sm">{employee.name}</span>
+              </TableCell>
+              <TableCell className="align-top">{employee.position}</TableCell>
+              <TableCell className="align-top">{employee.contractedHours}</TableCell>
               {days.map((_, dayIndex) => {
                 const shift = employee.shifts.find((s) => s.day === dayIndex);
                 return (
-                  <StyledTableCell key={dayIndex}>
+                  <TableCell key={dayIndex} className="align-top">
                     <SubRow>Beginn: {shift?.start || ''}</SubRow>
                     {shift?.break && (
                       <>
@@ -89,26 +68,26 @@ export const ShiftTable = ({ weekStart, weekEnd, employees }: ShiftTableProps) =
                     )}
                     <SubRow>Ende: {shift?.end || ''}</SubRow>
                     <SubRow>Summe / Tag: {shift ? calculateHours(shift) : ''}</SubRow>
-                  </StyledTableCell>
+                  </TableCell>
                 );
               })}
-              <StyledTableCell>{calculateWeeklyHours(employee.shifts)}</StyledTableCell>
-              <StyledTableCell>{calculateMonthlyHours(employee.shifts)}</StyledTableCell>
-            </StyledTableRow>
+              <TableCell className="align-top">{calculateWeeklyHours(employee.shifts)}</TableCell>
+              <TableCell className="align-top">{calculateMonthlyHours(employee.shifts)}</TableCell>
+            </TableRow>
           ))}
         </TableBody>
       </Table>
-      <Typography variant="caption" sx={{ mt: 2, display: 'block', padding: 1 }}>
-        h : 60 Minuten
-      </Typography>
-      <Typography variant="caption" sx={{ display: 'block', padding: 1 }}>
-        Anwesenheiten: Arbeitszeitbeginn bis Arbeitszeitende inkl. Pausenzeiten und die Tagesstunden eintragen.
-        Am Ende der Woche: wöchentliche und monatliche Summe eintragen.
-      </Typography>
-      <Typography variant="caption" sx={{ display: 'block', padding: 1 }}>
-        Abwesenheiten: Feiertag, Krankheit (AU-Bescheinigung), Freizeit, Schule (Führungsnachweis), Urlaub
-      </Typography>
-    </TableContainer>
+      <div className="p-4 space-y-2 text-sm text-muted-foreground">
+        <p>h : 60 Minuten</p>
+        <p>
+          Anwesenheiten: Arbeitszeitbeginn bis Arbeitszeitende inkl. Pausenzeiten und die Tagesstunden eintragen.
+          Am Ende der Woche: wöchentliche und monatliche Summe eintragen.
+        </p>
+        <p>
+          Abwesenheiten: Feiertag, Krankheit (AU-Bescheinigung), Freizeit, Schule (Führungsnachweis), Urlaub
+        </p>
+      </div>
+    </Card>
   );
 };
 
@@ -127,4 +106,4 @@ const calculateWeeklyHours = (shifts: Array<{ day: number; start?: string; end?:
 const calculateMonthlyHours = (shifts: Array<{ day: number; start?: string; end?: string }>) => {
   // Implement monthly hours calculation
   return '160:00';
-}; 
+};

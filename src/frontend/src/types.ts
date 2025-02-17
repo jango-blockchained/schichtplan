@@ -28,19 +28,15 @@ export interface EmployeeType {
 export interface ShiftType {
     id: string;
     name: string;
-    start_time: string;
-    end_time: string;
     color: string;
 }
 
 export interface Shift {
     id: string;
-    date: string;
-    employee_id: string;
-    shift_type_id: string;
+    name: string;
+    type_id: string;
     start_time: string;
     end_time: string;
-    break_duration: number;
 }
 
 export interface ShiftTemplate {
@@ -83,31 +79,9 @@ export interface AbsenceType {
 
 // Settings types
 export interface Settings {
-    general: {
-        company_name: string;
-        store_name: string;
-        timezone: string;
-        language: string;
-        date_format: string;
-        time_format: string;
-    };
-    scheduling: {
-        default_shift_duration: number;
-        min_break_duration: number;
-        max_daily_hours: number;
-        max_weekly_hours: number;
-        min_rest_between_shifts: number;
-        scheduling_period_weeks: number;
-        auto_schedule_preferences: boolean;
-    };
-    shift_types: ShiftType[];
-    employee_types: EmployeeType[];
-    absence_types: AbsenceType[];
-    display: {
-        theme: 'light' | 'dark' | 'system';
-        primary_color: string;
-        secondary_color: string;
-        show_weekends: boolean;
-        start_of_week: 0 | 1;
-    };
+    store_name: string;
+    store_address: string;
+    min_employees_per_shift: number;
+    max_employees_per_shift: number;
+    min_keyholders_per_shift: number;
 } 
