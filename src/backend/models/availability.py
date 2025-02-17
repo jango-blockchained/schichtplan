@@ -23,7 +23,7 @@ class EmployeeAvailability(db.Model):
     recurrence_day = db.Column(db.Integer, nullable=True)  # 0-6 for Monday-Sunday if recurring
 
     # Relationships
-    employee = db.relationship('Employee', backref='availabilities')
+    employee = db.relationship('Employee', back_populates='availabilities')
 
     def __init__(self, employee_id, start_date, end_date, availability_type=AvailabilityType.UNAVAILABLE,
                  start_time=None, end_time=None, reason=None, is_recurring=False, recurrence_day=None):

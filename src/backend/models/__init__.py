@@ -8,6 +8,7 @@ from .schedule import Schedule
 from .store_config import StoreConfig
 from .shift_template import ShiftTemplate, ShiftTemplateEntry
 from .availability import EmployeeAvailability, AvailabilityType
+from .settings import Settings
 
 __all__ = [
     'db',
@@ -18,6 +19,8 @@ __all__ = [
     'Schedule',
     'StoreConfig',
     'ShiftTemplate',
+    'ShiftTemplateEntry',
     'EmployeeAvailability',
-    'AvailabilityType'
+    'AvailabilityType',
+    'Settings'
 ] 
