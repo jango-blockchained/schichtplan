@@ -84,6 +84,28 @@ export interface AbsenceType {
 }
 
 // Settings types
+export type BaseShiftType = {
+    id: string;
+    name: string;
+    start_time: string;
+    end_time: string;
+    color: string;
+};
+
+export type BaseEmployeeType = {
+    id: string;
+    name: string;
+    min_hours: number;
+    max_hours: number;
+};
+
+export type BaseAbsenceType = {
+    id: string;
+    name: string;
+    color: string;
+    paid: boolean;
+};
+
 export interface Settings {
     // General Settings
     store_name: string;
@@ -136,25 +158,7 @@ export interface Settings {
     show_total_hours: boolean;
 
     // Employee Group Settings
-    shift_types: Array<{
-        id: string;
-        name: string;
-        start_time: string;
-        end_time: string;
-        color: string;
-    }>;
-
-    employee_types: Array<{
-        id: string;
-        name: string;
-        min_hours: number;
-        max_hours: number;
-    }>;
-
-    absence_types: Array<{
-        id: string;
-        name: string;
-        color: string;
-        paid: boolean;
-    }>;
+    shift_types: BaseShiftType[];
+    employee_types: BaseEmployeeType[];
+    absence_types: BaseAbsenceType[];
 } 

@@ -11,16 +11,20 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ColorPicker } from "@/components/ui/color-picker";
 import { PDFLayoutEditor } from "@/components/PDFLayoutEditor";
-import { EmployeeSettingsEditor } from "@/components/EmployeeSettingsEditor";
+import EmployeeSettingsEditor, { ShiftType, EmployeeType, AbsenceType } from "@/components/EmployeeSettingsEditor";
+import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function SettingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [currentTab, setCurrentTab] = React.useState("general");
 
-  const { data: settings, isLoading } = useQuery<Settings>({
+  const { data: settings, isLoading, error } = useQuery<Settings>({
     queryKey: ["settings"],
     queryFn: getSettings,
+    retry: 3,
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
   const updateMutation = useMutation({
@@ -42,11 +46,60 @@ export default function SettingsPage() {
   });
 
   const handleSave = (category: string, updates: Partial<Settings>) => {
-    updateMutation.mutate({ ...settings, ...updates });
+    const updatedSettings = { ...settings };
+    if (category === 'shift_types') {
+      updatedSettings.shift_types = (updates.shift_types as ShiftType[]).map(({ type, ...rest }) => rest);
+    } else if (category === 'employee_types') {
+      updatedSettings.employee_types = (updates.employee_types as EmployeeType[]).map(({ type, ...rest }) => rest);
+    } else if (category === 'absence_types') {
+      updatedSettings.absence_types = (updates.absence_types as AbsenceType[]).map(({ type, ...rest }) => rest);
+    } else {
+      Object.assign(updatedSettings, updates);
+    }
+    updateMutation.mutate(updatedSettings);
   };
 
-  if (isLoading || !settings) {
-    return <div>Loading...</div>;
+  const renderTypeList = (types: Array<{ id: string; name: string }>) => {
+    return types.map((type) => (
+      <SelectItem key={type.id} value={type.id}>
+        {type.name}
+      </SelectItem>
+    ));
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Loading settings...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+        <div className="flex flex-col items-center gap-2">
+          <p className="text-sm text-destructive">Failed to load settings.</p>
+          <Button
+            variant="outline"
+            onClick={() => queryClient.invalidateQueries({ queryKey: ["settings"] })}
+          >
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!settings) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+        <p className="text-sm text-muted-foreground">No settings found.</p>
+      </div>
+    );
   }
 
   return (
@@ -64,6 +117,9 @@ export default function SettingsPage() {
               <TabsTrigger value="notifications">Notifications</TabsTrigger>
               <TabsTrigger value="pdf">PDF Layout</TabsTrigger>
               <TabsTrigger value="groups">Employee Groups</TabsTrigger>
+              <TabsTrigger value="shifts">Shift Types</TabsTrigger>
+              <TabsTrigger value="employees">Employee Types</TabsTrigger>
+              <TabsTrigger value="absences">Absence Types</TabsTrigger>
             </TabsList>
 
             <TabsContent value="general" className="space-y-6">
@@ -478,30 +534,51 @@ export default function SettingsPage() {
                 <div>
                   <h3 className="text-lg font-semibold mb-4">Shift Types</h3>
                   <EmployeeSettingsEditor
-                    groups={settings.shift_types}
-                    onChange={(types) =>
-                      handleSave("employee_groups", { shift_types: types })
-                    }
+                    type="shift"
+                    groups={settings.shift_types.map(group => ({
+                      ...group,
+                      type: 'shift' as const
+                    }))}
+                    onChange={(types) => {
+                      const shiftTypes = types
+                        .filter((t): t is ShiftType => t.type === 'shift')
+                        .map(({ type, ...rest }) => rest);
+                      handleSave("shift_types", { shift_types: shiftTypes });
+                    }}
                   />
                 </div>
 
                 <div>
                   <h3 className="text-lg font-semibold mb-4">Employee Types</h3>
                   <EmployeeSettingsEditor
-                    groups={settings.employee_types}
-                    onChange={(types) =>
-                      handleSave("employee_groups", { employee_types: types })
-                    }
+                    type="employee"
+                    groups={settings.employee_types.map(group => ({
+                      ...group,
+                      type: 'employee' as const
+                    }))}
+                    onChange={(types) => {
+                      const employeeTypes = types
+                        .filter((t): t is EmployeeType => t.type === 'employee')
+                        .map(({ type, ...rest }) => rest);
+                      handleSave("employee_types", { employee_types: employeeTypes });
+                    }}
                   />
                 </div>
 
                 <div>
                   <h3 className="text-lg font-semibold mb-4">Absence Types</h3>
                   <EmployeeSettingsEditor
-                    groups={settings.absence_types}
-                    onChange={(types) =>
-                      handleSave("employee_groups", { absence_types: types })
-                    }
+                    type="absence"
+                    groups={settings.absence_types.map(group => ({
+                      ...group,
+                      type: 'absence' as const
+                    }))}
+                    onChange={(types) => {
+                      const absenceTypes = types
+                        .filter((t): t is AbsenceType => t.type === 'absence')
+                        .map(({ type, ...rest }) => rest);
+                      handleSave("absence_types", { absence_types: absenceTypes });
+                    }}
                   />
                 </div>
               </div>
