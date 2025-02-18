@@ -103,3 +103,43 @@ def test_employee_keyholder(session):
     
     employee.is_keyholder = False
     assert not employee.is_keyholder 
+
+def test_employee_weekly_hours(session):
+    """Test weekly hour limits for different employee groups"""
+    # Test VL employee
+    vl_employee = Employee(
+        first_name="VL",
+        last_name="Employee",
+        employee_group=EmployeeGroup.VL,
+        contracted_hours=40
+    )
+    assert vl_employee.get_max_weekly_hours() == 48.0
+    
+    # Test TL employee
+    tl_employee = Employee(
+        first_name="TL",
+        last_name="Employee",
+        employee_group=EmployeeGroup.TL,
+        contracted_hours=40
+    )
+    assert tl_employee.get_max_weekly_hours() == 48.0
+    
+    # Test TZ employee
+    tz_employee = Employee(
+        first_name="TZ",
+        last_name="Employee",
+        employee_group=EmployeeGroup.TZ,
+        contracted_hours=20
+    )
+    assert tz_employee.get_max_weekly_hours() == 20.0
+    
+    # Test GfB employee
+    gfb_employee = Employee(
+        first_name="GfB",
+        last_name="Employee",
+        employee_group=EmployeeGroup.GFB,
+        contracted_hours=40
+    )
+    # GfB weekly hours should be monthly limit divided by 4.33
+    expected_weekly = (556 / 12.41) / 4.33
+    assert abs(gfb_employee.get_max_weekly_hours() - expected_weekly) < 0.01 

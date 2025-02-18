@@ -109,8 +109,44 @@ export function SchedulePage() {
     },
   });
 
+  const updateBreakNotesMutation = useMutation({
+    mutationFn: async ({ employeeId, day, notes }: { employeeId: number; day: number; notes: string }) => {
+      if (!dateRange?.from) return;
+      const date = addDays(dateRange.from, day);
+      return fetch('/api/schedules/update-break-notes/', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          employee_id: employeeId,
+          date: date.toISOString().split('T')[0],
+          notes,
+        }),
+      });
+    },
+    onSuccess: () => {
+      refetch();
+      toast({
+        title: "Erfolg",
+        description: "Pausennotizen wurden aktualisiert.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Fehler",
+        description: error instanceof Error ? error.message : "Ein Fehler ist aufgetreten",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleShiftUpdate = async (employeeId: number, fromDay: number, toDay: number) => {
     await updateShiftMutation.mutateAsync({ employeeId, fromDay, toDay });
+  };
+
+  const handleBreakNotesUpdate = async (employeeId: number, day: number, notes: string) => {
+    await updateBreakNotesMutation.mutateAsync({ employeeId, day, notes });
   };
 
   return (
@@ -166,6 +202,7 @@ export function SchedulePage() {
           error={error}
           data={scheduleData}
           onShiftUpdate={handleShiftUpdate}
+          onBreakNotesUpdate={handleBreakNotesUpdate}
         />
       ) : (
         <div className="text-center text-muted-foreground">

@@ -79,6 +79,7 @@ class Schedule(db.Model):
     shift_id = db.Column(db.Integer, db.ForeignKey('shifts.id'), nullable=False)
     break_start = db.Column(db.String(5), nullable=True)  # Format: "HH:MM"
     break_end = db.Column(db.String(5), nullable=True)    # Format: "HH:MM"
+    notes = db.Column(db.String(200), nullable=True)      # For additional break info and other notes
     
     employee = db.relationship('Employee', backref='schedules')
     shift = db.relationship('Shift', backref='schedules')
@@ -98,7 +99,8 @@ class Schedule(db.Model):
                 'end_time': self.shift.end_time
             },
             'break_start': self.break_start,
-            'break_end': self.break_end
+            'break_end': self.break_end,
+            'notes': self.notes
         }
 
 class StoreConfig(db.Model):

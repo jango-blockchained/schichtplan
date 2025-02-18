@@ -79,28 +79,65 @@ class ScheduleGenerator:
     
     def _assign_breaks(self, schedule: Schedule, shift: Shift) -> Tuple[Optional[str], Optional[str]]:
         """Assign break times for a shift based on German labor law"""
-        if not shift.requires_break:
+        if not shift.requires_break():
             return None, None
             
         shift_duration = shift.duration_hours
         start_time = datetime.strptime(shift.start_time, '%H:%M')
         
-        # Break rules based on shift duration
+        # Break rules based on shift duration according to German labor law
         if shift_duration > 9:
-            # 45 minutes break for shifts > 9 hours
-            break_duration = timedelta(minutes=45)
-        elif shift_duration > 6:
-            # 30 minutes break for shifts 6-9 hours
-            break_duration = timedelta(minutes=30)
-        else:
-            return None, None
+            # For shifts > 9 hours: 45 minutes total break
+            # Split into two breaks: 30 minutes + 15 minutes
+            first_break_start = start_time + timedelta(hours=2)  # First break after 2 hours
+            first_break_end = first_break_start + timedelta(minutes=30)
             
-        # Calculate optimal break time (in the middle of the shift)
-        shift_midpoint = start_time + timedelta(hours=shift_duration/2)
-        break_start = shift_midpoint - timedelta(minutes=break_duration.seconds//120)  # Start break before midpoint
-        break_end = break_start + break_duration
+            second_break_start = start_time + timedelta(hours=6)  # Second break after 6 hours
+            second_break_end = second_break_start + timedelta(minutes=15)
+            
+            # Return the first break only in the break fields
+            # The second break will be stored in the schedule notes
+            schedule.notes = f"Second break: {second_break_start.strftime('%H:%M')}-{second_break_end.strftime('%H:%M')}"
+            return first_break_start.strftime('%H:%M'), first_break_end.strftime('%H:%M')
+            
+        elif shift_duration > 6:
+            # For shifts 6-9 hours: 30 minutes break
+            # Must be taken after 2-6 hours of work
+            break_start = start_time + timedelta(hours=3)  # Take break after 3 hours (middle of the allowed window)
+            break_end = break_start + timedelta(minutes=30)
+            return break_start.strftime('%H:%M'), break_end.strftime('%H:%M')
+            
+        return None, None
+
+    def _validate_break_rules(self, shift: Shift, break_start: Optional[str], break_end: Optional[str]) -> bool:
+        """Validate that break times comply with German labor law"""
+        if not shift.requires_break():
+            return True
+            
+        if not break_start or not break_end:
+            return False
+            
+        shift_start = datetime.strptime(shift.start_time, '%H:%M')
+        shift_end = datetime.strptime(shift.end_time, '%H:%M')
+        break_start_time = datetime.strptime(break_start, '%H:%M')
+        break_end_time = datetime.strptime(break_end, '%H:%M')
         
-        return break_start.strftime('%H:%M'), break_end.strftime('%H:%M')
+        # Break must be within shift hours
+        if break_start_time < shift_start or break_end_time > shift_end:
+            return False
+            
+        # Calculate hours worked before break
+        hours_before_break = (break_start_time - shift_start).total_seconds() / 3600
+        
+        # Break must be taken after at least 2 hours of work
+        if hours_before_break < 2:
+            return False
+            
+        # For shifts > 6 hours, break must be taken before 6 hours of work
+        if shift.duration_hours > 6 and hours_before_break > 6:
+            return False
+            
+        return True
     
     def _check_daily_hours(self, employee: Employee, day: date, shift: Shift) -> bool:
         """Check if adding this shift would exceed daily hour limits"""
@@ -118,12 +155,14 @@ class ScheduleGenerator:
         week_hours = self._get_employee_hours(employee, week_start)
         
         # Different limits based on employee group
-        if employee.employee_group in [EmployeeGroup.VL.value, EmployeeGroup.TL.value]:
-            return week_hours + shift.duration_hours <= 48  # Max 48 hours per week
-        elif employee.employee_group == EmployeeGroup.TZ.value:
+        if employee.employee_group in [EmployeeGroup.VL, EmployeeGroup.TL]:
+            # For VL and TL: max 48 hours per week
+            return week_hours + shift.duration_hours <= 48
+        elif employee.employee_group == EmployeeGroup.TZ:
+            # For TZ: respect contracted hours
             return week_hours + shift.duration_hours <= employee.contracted_hours
         else:  # GFB
-            # Check monthly hours for minijobs
+            # For GFB: Check monthly hours for minijobs
             month_start = date(week_start.year, week_start.month, 1)
             month_hours = Schedule.query.filter(
                 Schedule.employee_id == employee.id,
@@ -173,10 +212,10 @@ class ScheduleGenerator:
         """Check if shift distribution is fair and follows employee group rules"""
         # Team Leaders and Full-time employees should have priority for Tuesday/Thursday shifts
         if day.weekday() in [1, 3]:  # Tuesday or Thursday
-            if employee.employee_group not in [EmployeeGroup.TL.value, EmployeeGroup.VL.value]:
+            if employee.employee_group not in [EmployeeGroup.TL, EmployeeGroup.VL]:
                 # Check if any TL/VL employees are available and not yet scheduled
                 available_priority = Employee.query.filter(
-                    Employee.employee_group.in_([EmployeeGroup.TL.value, EmployeeGroup.VL.value]),
+                    Employee.employee_group.in_([EmployeeGroup.TL, EmployeeGroup.VL]),
                     ~Employee.schedules.any(Schedule.date == day)
                 ).all()
                 if available_priority:
@@ -194,10 +233,24 @@ class ScheduleGenerator:
             ).count()
             
             # Maximum 2 weekend shifts per 4 weeks for part-time and minijob employees
-            if employee.employee_group in [EmployeeGroup.TZ.value, EmployeeGroup.GFB.value] and weekend_shifts >= 2:
+            if employee.employee_group in [EmployeeGroup.TZ, EmployeeGroup.GFB] and weekend_shifts >= 2:
                 return False
 
         return True
+
+    def _check_keyholder_coverage(self, shift: Shift, day: date, current_schedules: List[Schedule]) -> bool:
+        """Check if keyholder coverage requirements are met for early/late shifts"""
+        if shift.shift_type not in [ShiftType.EARLY, ShiftType.LATE]:
+            return True
+            
+        # Check if any keyholder is already assigned to this shift
+        for schedule in current_schedules:
+            if schedule.date == day and schedule.shift_id == shift.id:
+                employee = next(e for e in self.employees if e.id == schedule.employee_id)
+                if employee.is_keyholder:
+                    return True
+                    
+        return False
 
     def _can_assign_shift(self, employee: Employee, shift: Shift, day: date) -> bool:
         """Check if an employee can be assigned to a shift on a given day"""
@@ -231,23 +284,30 @@ class ScheduleGenerator:
         if not self._check_shift_distribution(employee, day, shift):
             return False
             
-        # Check keyholder constraints
-        if shift.shift_type == ShiftType.LATE and employee.is_keyholder:
-            # Check if assigned to early shift next day
-            next_day = day + timedelta(days=1)
-            next_day_schedule = Schedule.query.filter(
-                Schedule.employee_id == employee.id,
-                Schedule.date == next_day,
-                Schedule.shift.has(shift_type=ShiftType.EARLY)
-            ).first()
-            if next_day_schedule:
-                return False
-                
+        # Enhanced keyholder constraints
+        if shift.shift_type in [ShiftType.EARLY, ShiftType.LATE]:
+            # If this is an early/late shift and employee is not a keyholder,
+            # only allow assignment if we already have a keyholder assigned
+            if not employee.is_keyholder:
+                current_schedules = [s for s in self.generated_schedules if s.date == day]
+                if not self._check_keyholder_coverage(shift, day, current_schedules):
+                    return False
+            # For keyholders, check next day early shift constraint
+            elif shift.shift_type == ShiftType.LATE:
+                next_day = day + timedelta(days=1)
+                next_day_schedule = Schedule.query.filter(
+                    Schedule.employee_id == employee.id,
+                    Schedule.date == next_day,
+                    Schedule.shift.has(shift_type=ShiftType.EARLY)
+                ).first()
+                if next_day_schedule:
+                    return False
+                    
         return True
     
     def generate(self) -> List[Schedule]:
         """Generate schedule for the given date range"""
-        generated_schedules = []
+        self.generated_schedules = []  # Make generated_schedules an instance variable
         current_date = self.start_date
         
         while current_date <= self.end_date:
@@ -271,11 +331,11 @@ class ScheduleGenerator:
                             # Keyholders first for early/late shifts
                             0 if e.is_keyholder and shift.shift_type in [ShiftType.EARLY, ShiftType.LATE] else 1,
                             # TL/VL employees priority for Tuesday/Thursday
-                            0 if e.employee_group in [EmployeeGroup.TL.value, EmployeeGroup.VL.value] and current_date.weekday() in [1, 3] else 1,
+                            0 if e.employee_group in [EmployeeGroup.TL, EmployeeGroup.VL] and current_date.weekday() in [1, 3] else 1,
                             # Full-time employees next
-                            0 if e.employee_group in [EmployeeGroup.VL.value, EmployeeGroup.TL.value] else 1,
+                            0 if e.employee_group in [EmployeeGroup.VL, EmployeeGroup.TL] else 1,
                             # Part-time employees next
-                            1 if e.employee_group == EmployeeGroup.TZ.value else 2,
+                            1 if e.employee_group == EmployeeGroup.TZ else 2,
                             # Sort by contracted hours (higher first)
                             -e.contracted_hours,
                             # Preferred work time
@@ -298,7 +358,7 @@ class ScheduleGenerator:
                                     break_start=break_start,
                                     break_end=break_end
                                 )
-                                generated_schedules.append(schedule)
+                                self.generated_schedules.append(schedule)
                                 assigned_count += 1
                                 keyholder_assigned = True
                                 break
@@ -309,7 +369,7 @@ class ScheduleGenerator:
                             break
                             
                         # Skip if we already assigned this employee
-                        if any(s.employee_id == employee.id and s.date == current_date for s in generated_schedules):
+                        if any(s.employee_id == employee.id and s.date == current_date for s in self.generated_schedules):
                             continue
                             
                         if self._can_assign_shift(employee, shift, current_date):
@@ -321,21 +381,21 @@ class ScheduleGenerator:
                                 break_start=break_start,
                                 break_end=break_end
                             )
-                            generated_schedules.append(schedule)
+                            self.generated_schedules.append(schedule)
                             assigned_count += 1
                             
-                    # Check minimum requirements
+                    # Check minimum requirements with improved error messages
                     if assigned_count < shift.min_employees or (shift.shift_type in [ShiftType.EARLY, ShiftType.LATE] and not keyholder_assigned):
                         error_msg = []
                         if assigned_count < shift.min_employees:
                             error_msg.append(f"minimum number of employees ({shift.min_employees})")
                         if shift.shift_type in [ShiftType.EARLY, ShiftType.LATE] and not keyholder_assigned:
-                            error_msg.append("keyholder requirement")
+                            error_msg.append("keyholder requirement (early/late shifts must have at least one keyholder)")
                         
                         raise ScheduleGenerationError(
-                            f"Could not satisfy {' and '.join(error_msg)} for {shift.shift_type.value} on {current_date}"
+                            f"Could not satisfy {' and '.join(error_msg)} for {shift.shift_type.value} shift on {current_date.strftime('%Y-%m-%d')}"
                         )
                             
             current_date += timedelta(days=1)
             
-        return generated_schedules 
+        return self.generated_schedules 
