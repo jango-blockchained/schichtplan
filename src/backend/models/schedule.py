@@ -8,8 +8,9 @@ class Schedule(db.Model):
     date = db.Column(db.Date, nullable=False)
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
     shift_id = db.Column(db.Integer, db.ForeignKey('shifts.id'), nullable=False)
-    break_start = db.Column(db.Time, nullable=True)
-    break_end = db.Column(db.Time, nullable=True)
+    break_start = db.Column(db.String(5), nullable=True)  # Format: "HH:MM"
+    break_end = db.Column(db.String(5), nullable=True)    # Format: "HH:MM"
+    notes = db.Column(db.String(200), nullable=True)      # For additional break info and other notes
     
     # Relationships
     employee = db.relationship('Employee', back_populates='shifts')
@@ -47,4 +48,23 @@ class Schedule(db.Model):
         return break_end_minutes - break_start_minutes
 
     def __repr__(self):
-        return f"<Schedule {self.date}: Employee {self.employee_id} - Shift {self.shift_id}>" 
+        return f"<Schedule {self.date}: Employee {self.employee_id} - Shift {self.shift_id}>"
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'date': self.date.strftime('%Y-%m-%d'),
+            'employee': {
+                'id': self.employee.id,
+                'name': f"{self.employee.first_name} {self.employee.last_name}"
+            },
+            'shift': {
+                'id': self.shift.id,
+                'type': self.shift.shift_type.value,
+                'start_time': self.shift.start_time,
+                'end_time': self.shift.end_time
+            },
+            'break_start': self.break_start,
+            'break_end': self.break_end,
+            'notes': self.notes
+        } 

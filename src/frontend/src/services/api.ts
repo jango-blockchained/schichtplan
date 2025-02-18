@@ -193,6 +193,7 @@ export interface ScheduleData {
     };
     break_start: string | null;
     break_end: string | null;
+    notes: string | null;
 }
 
 export interface WeeklySchedule {
@@ -207,6 +208,7 @@ export interface WeeklySchedule {
         break?: {
             start: string;
             end: string;
+            notes?: string;
         };
     }>;
 }

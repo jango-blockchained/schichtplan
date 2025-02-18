@@ -159,4 +159,29 @@ def export_schedule():
     except (KeyError, ValueError) as e:
         return jsonify({'error': str(e)}), 400
     except Exception as e:
-        return jsonify({'error': 'An unexpected error occurred while generating the PDF'}), 500 
+        return jsonify({'error': 'An unexpected error occurred while generating the PDF'}), 500
+
+@bp.route('/update-break-notes/', methods=['PUT'])
+def update_break_notes():
+    data = request.get_json()
+    
+    try:
+        employee_id = int(data['employee_id'])
+        date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+        notes = data.get('notes')
+        
+        schedule = Schedule.query.filter_by(
+            employee_id=employee_id,
+            date=date
+        ).first_or_404()
+        
+        schedule.notes = notes
+        db.session.commit()
+        
+        return jsonify(schedule.to_dict())
+        
+    except (KeyError, ValueError) as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'An unexpected error occurred'}), 500 

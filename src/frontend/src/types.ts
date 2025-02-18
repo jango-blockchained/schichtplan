@@ -37,6 +37,8 @@ export interface Shift {
     type_id: string;
     start_time: string;
     end_time: string;
+    min_employees: number;
+    max_employees: number;
     duration_hours: number;
     requires_break: boolean;
 }

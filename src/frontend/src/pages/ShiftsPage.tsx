@@ -42,7 +42,7 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
     try {
       const response = await fetch('/api/settings');
       const data = await response.json();
-      setShiftTypes(data.shift_types.shift_types || []);
+      setShiftTypes(data.shift_types || []);
     } catch (error) {
       toast({
         variant: "destructive",
@@ -170,6 +170,8 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
               type_id: formData.get('type_id'),
               start_time: formData.get('start_time'),
               end_time: formData.get('end_time'),
+              min_employees: parseInt(formData.get('min_employees') as string) || 1,
+              max_employees: parseInt(formData.get('max_employees') as string) || 5,
             });
           }}>
             <div className="grid gap-4 py-4">
@@ -216,6 +218,30 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
                   defaultValue={editingShift?.end_time || ''}
                   required
                 />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <label htmlFor="min_employees" className="text-sm font-medium">Min Employees</label>
+                  <Input
+                    id="min_employees"
+                    name="min_employees"
+                    type="number"
+                    min="1"
+                    defaultValue={editingShift?.min_employees || 1}
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label htmlFor="max_employees" className="text-sm font-medium">Max Employees</label>
+                  <Input
+                    id="max_employees"
+                    name="max_employees"
+                    type="number"
+                    min="1"
+                    defaultValue={editingShift?.max_employees || 5}
+                    required
+                  />
+                </div>
               </div>
             </div>
             <DialogFooter>

@@ -10,7 +10,9 @@ import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautif
 import { useState, useCallback } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Edit2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 interface ShiftTableProps {
   weekStart: Date;
@@ -19,6 +21,7 @@ interface ShiftTableProps {
   error?: string | null;
   data: WeeklySchedule[];
   onShiftUpdate?: (employeeId: number, fromDay: number, toDay: number) => Promise<void>;
+  onBreakNotesUpdate?: (employeeId: number, day: number, notes: string) => Promise<void>;
 }
 
 interface SubRowProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -110,15 +113,31 @@ const calculateMonthlyHours = (shifts: Array<{ start?: string; end?: string; bre
   return formatHours(monthlyHours);
 };
 
-const ShiftCell = ({ shift, showValidation = true }: {
+const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeId }: {
   shift: WeeklySchedule['shifts'][0] | undefined;
   showValidation?: boolean;
+  onBreakNotesUpdate?: (employeeId: number, day: number, notes: string) => Promise<void>;
+  employeeId?: number;
 }) => {
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [notes, setNotes] = useState(shift?.break?.notes || '');
+
   if (!shift) return null;
 
   const dailyHours = calculateDailyHours(shift);
   const hasBreakViolation = parseFloat(dailyHours) > 6 && !shift.break;
   const hasHoursViolation = parseFloat(dailyHours) > 10;
+
+  const handleNotesUpdate = async () => {
+    if (onBreakNotesUpdate && employeeId && shift.day !== undefined) {
+      try {
+        await onBreakNotesUpdate(employeeId, shift.day, notes);
+        setIsEditingNotes(false);
+      } catch (error) {
+        console.error('Failed to update break notes:', error);
+      }
+    }
+  };
 
   return (
     <div className={cn(
@@ -130,6 +149,55 @@ const ShiftCell = ({ shift, showValidation = true }: {
         <>
           <SubRow>Pause: {shift.break.start}</SubRow>
           <SubRow>Ende: {shift.break.end}</SubRow>
+          <SubRow className="flex items-center gap-2">
+            {isEditingNotes ? (
+              <>
+                <Input
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Pausennotizen..."
+                  className="h-8 text-sm"
+                />
+                <div className="flex gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleNotesUpdate}
+                    className="h-8 px-2"
+                  >
+                    Speichern
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setNotes(shift.break?.notes || '');
+                      setIsEditingNotes(false);
+                    }}
+                    className="h-8 px-2"
+                  >
+                    Abbrechen
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center gap-2 w-full">
+                <span className="text-sm text-muted-foreground flex-1">
+                  {shift.break.notes || 'Keine Pausennotizen'}
+                </span>
+                {onBreakNotesUpdate && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setIsEditingNotes(true)}
+                    className="h-6 w-6 p-0"
+                  >
+                    <Edit2 className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+            )}
+          </SubRow>
         </>
       )}
       <SubRow>Ende: {shift.end}</SubRow>
@@ -153,7 +221,7 @@ const ShiftCell = ({ shift, showValidation = true }: {
   );
 };
 
-export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShiftUpdate }: ShiftTableProps) => {
+export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShiftUpdate, onBreakNotesUpdate }: ShiftTableProps) => {
   const [localData, setLocalData] = useState(data);
   const dates = Array.from({ length: 6 }, (_, i) => addDays(weekStart, i));
 
@@ -271,7 +339,11 @@ export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShift
                                       snapshot.isDragging && "opacity-50"
                                     )}
                                   >
-                                    <ShiftCell shift={shift} />
+                                    <ShiftCell
+                                      shift={shift}
+                                      employeeId={employee.employee_id}
+                                      onBreakNotesUpdate={onBreakNotesUpdate}
+                                    />
                                   </div>
                                 )}
                               </Draggable>
