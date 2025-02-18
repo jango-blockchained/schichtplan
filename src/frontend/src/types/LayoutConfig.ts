@@ -16,7 +16,7 @@ export interface LayoutConfig {
         font: string;
         size: number;
         color: string;
-        alignment: string;
+        alignment: 'left' | 'center' | 'right';
     };
     margins: {
         top: number;

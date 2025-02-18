@@ -8,12 +8,38 @@ class Settings(db.Model):
     __tablename__ = 'settings'
 
     id = Column(Integer, primary_key=True)
-    category = Column(String(50), nullable=False)
-    key = Column(String(100), nullable=False)
-    value = Column(JSON, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
+    
+    # General Settings
+    store_name = Column(String(100), nullable=False, default='ShiftWise Store')
+    store_address = Column(String(200))
+    store_contact = Column(String(100))
+    timezone = Column(String(50), nullable=False, default='Europe/Berlin')
+    language = Column(String(10), nullable=False, default='de')
+    date_format = Column(String(20), nullable=False, default='DD.MM.YYYY')
+    time_format = Column(String(10), nullable=False, default='24h')
+    
+    # Scheduling Settings
+    default_shift_duration = Column(Float, nullable=False, default=8.0)
+    min_break_duration = Column(Integer, nullable=False, default=30)
+    max_daily_hours = Column(Float, nullable=False, default=10.0)
+    max_weekly_hours = Column(Float, nullable=False, default=40.0)
+    min_rest_between_shifts = Column(Float, nullable=False, default=11.0)
+    scheduling_period_weeks = Column(Integer, nullable=False, default=4)
+    auto_schedule_preferences = Column(Boolean, nullable=False, default=True)
+    
+    # Display Settings
+    theme = Column(String(20), nullable=False, default='light')
+    primary_color = Column(String(7), nullable=False, default='#1976D2')
+    secondary_color = Column(String(7), nullable=False, default='#424242')
+    show_weekends = Column(Boolean, nullable=False, default=True)
+    start_of_week = Column(Integer, nullable=False, default=1)  # 1 = Monday
+    
+    # Notification Settings
+    email_notifications = Column(Boolean, nullable=False, default=True)
+    schedule_published_notify = Column(Boolean, nullable=False, default=True)
+    shift_changes_notify = Column(Boolean, nullable=False, default=True)
+    time_off_requests_notify = Column(Boolean, nullable=False, default=True)
+    
     # PDF Layout Settings
     page_size = Column(String(10), nullable=False, default='A4')
     orientation = Column(String(10), nullable=False, default='portrait')
@@ -21,70 +47,163 @@ class Settings(db.Model):
     margin_right = Column(Float, nullable=False, default=20.0)
     margin_bottom = Column(Float, nullable=False, default=20.0)
     margin_left = Column(Float, nullable=False, default=20.0)
-    
-    # Table Style Settings
     table_header_bg_color = Column(String(7), nullable=False, default='#f3f4f6')
     table_border_color = Column(String(7), nullable=False, default='#e5e7eb')
     table_text_color = Column(String(7), nullable=False, default='#111827')
     table_header_text_color = Column(String(7), nullable=False, default='#111827')
-    
-    # Font Settings
     font_family = Column(String(50), nullable=False, default='Helvetica')
     font_size = Column(Float, nullable=False, default=10.0)
     header_font_size = Column(Float, nullable=False, default=12.0)
-    
-    # Content Settings
     show_employee_id = Column(Boolean, nullable=False, default=True)
     show_position = Column(Boolean, nullable=False, default=True)
     show_breaks = Column(Boolean, nullable=False, default=True)
     show_total_hours = Column(Boolean, nullable=False, default=True)
     
-    # Store Info
-    store_name = Column(String(100))
-    store_address = Column(String(200))
-    store_contact = Column(String(100))
+    # Employee Group Settings
+    shift_types = Column(JSON, nullable=False, default=lambda: [
+        {'id': 'early', 'name': 'Früh', 'start_time': '06:00', 'end_time': '14:00', 'color': '#4CAF50'},
+        {'id': 'middle', 'name': 'Mittel', 'start_time': '10:00', 'end_time': '18:00', 'color': '#2196F3'},
+        {'id': 'late', 'name': 'Spät', 'start_time': '14:00', 'end_time': '22:00', 'color': '#9C27B0'}
+    ])
+    
+    employee_types = Column(JSON, nullable=False, default=lambda: [
+        {'id': 'full_time', 'name': 'Vollzeit', 'min_hours': 35, 'max_hours': 40},
+        {'id': 'part_time', 'name': 'Teilzeit', 'min_hours': 15, 'max_hours': 34},
+        {'id': 'mini_job', 'name': 'Minijob', 'min_hours': 0, 'max_hours': 14}
+    ])
+    
+    absence_types = Column(JSON, nullable=False, default=lambda: [
+        {'id': 'vacation', 'name': 'Urlaub', 'color': '#FF9800', 'paid': True},
+        {'id': 'sick', 'name': 'Krank', 'color': '#F44336', 'paid': True},
+        {'id': 'unpaid', 'name': 'Unbezahlt', 'color': '#9E9E9E', 'paid': False}
+    ])
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    __table_args__ = (db.UniqueConstraint('category', 'key', name='uix_category_key'),)
-
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert settings to dictionary format"""
         return {
-            'id': self.id,
-            'category': self.category,
-            'key': self.key,
-            'value': self.value,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'page_size': self.page_size,
-            'orientation': self.orientation,
-            'margins': {
-                'top': self.margin_top,
-                'right': self.margin_right,
-                'bottom': self.margin_bottom,
-                'left': self.margin_left
+            'general': {
+                'store_name': self.store_name,
+                'store_address': self.store_address,
+                'store_contact': self.store_contact,
+                'timezone': self.timezone,
+                'language': self.language,
+                'date_format': self.date_format,
+                'time_format': self.time_format
             },
-            'table_style': {
-                'header_bg_color': self.table_header_bg_color,
-                'border_color': self.table_border_color,
-                'text_color': self.table_text_color,
-                'header_text_color': self.table_header_text_color
+            'scheduling': {
+                'default_shift_duration': self.default_shift_duration,
+                'min_break_duration': self.min_break_duration,
+                'max_daily_hours': self.max_daily_hours,
+                'max_weekly_hours': self.max_weekly_hours,
+                'min_rest_between_shifts': self.min_rest_between_shifts,
+                'scheduling_period_weeks': self.scheduling_period_weeks,
+                'auto_schedule_preferences': self.auto_schedule_preferences
             },
-            'fonts': {
-                'family': self.font_family,
-                'size': self.font_size,
-                'header_size': self.header_font_size
+            'display': {
+                'theme': self.theme,
+                'primary_color': self.primary_color,
+                'secondary_color': self.secondary_color,
+                'show_weekends': self.show_weekends,
+                'start_of_week': self.start_of_week
             },
-            'content': {
-                'show_employee_id': self.show_employee_id,
-                'show_position': self.show_position,
-                'show_breaks': self.show_breaks,
-                'show_total_hours': self.show_total_hours
+            'notifications': {
+                'email_notifications': self.email_notifications,
+                'schedule_published': self.schedule_published_notify,
+                'shift_changes': self.shift_changes_notify,
+                'time_off_requests': self.time_off_requests_notify
             },
-            'store_info': {
-                'name': self.store_name,
-                'address': self.store_address,
-                'contact': self.store_contact
+            'pdf_layout': {
+                'page_size': self.page_size,
+                'orientation': self.orientation,
+                'margins': {
+                    'top': self.margin_top,
+                    'right': self.margin_right,
+                    'bottom': self.margin_bottom,
+                    'left': self.margin_left
+                },
+                'table_style': {
+                    'header_bg_color': self.table_header_bg_color,
+                    'border_color': self.table_border_color,
+                    'text_color': self.table_text_color,
+                    'header_text_color': self.table_header_text_color
+                },
+                'fonts': {
+                    'family': self.font_family,
+                    'size': self.font_size,
+                    'header_size': self.header_font_size
+                },
+                'content': {
+                    'show_employee_id': self.show_employee_id,
+                    'show_position': self.show_position,
+                    'show_breaks': self.show_breaks,
+                    'show_total_hours': self.show_total_hours
+                }
+            },
+            'employee_groups': {
+                'shift_types': self.shift_types,
+                'employee_types': self.employee_types,
+                'absence_types': self.absence_types
             }
         }
+
+    @classmethod
+    def get_default_settings(cls) -> 'Settings':
+        """Create and return default settings"""
+        return cls()
+
+    def update_from_dict(self, data: Dict[str, Any]) -> None:
+        """Update settings from dictionary data"""
+        for category, values in data.items():
+            if category == 'general':
+                for key, value in values.items():
+                    if hasattr(self, key):
+                        setattr(self, key, value)
+            elif category == 'scheduling':
+                for key, value in values.items():
+                    if hasattr(self, key):
+                        setattr(self, key, value)
+            elif category == 'display':
+                for key, value in values.items():
+                    if hasattr(self, key):
+                        setattr(self, key, value)
+            elif category == 'notifications':
+                for key, value in values.items():
+                    attr_name = f"{key}_notify" if key != 'email_notifications' else key
+                    if hasattr(self, attr_name):
+                        setattr(self, attr_name, value)
+            elif category == 'pdf_layout':
+                if 'margins' in values:
+                    for key, value in values['margins'].items():
+                        attr_name = f"margin_{key}"
+                        if hasattr(self, attr_name):
+                            setattr(self, attr_name, value)
+                if 'table_style' in values:
+                    for key, value in values['table_style'].items():
+                        attr_name = f"table_{key}"
+                        if hasattr(self, attr_name):
+                            setattr(self, attr_name, value)
+                if 'fonts' in values:
+                    for key, value in values['fonts'].items():
+                        if key == 'family':
+                            self.font_family = value
+                        elif key == 'size':
+                            self.font_size = value
+                        elif key == 'header_size':
+                            self.header_font_size = value
+                if 'content' in values:
+                    for key, value in values['content'].items():
+                        if hasattr(self, f"show_{key}"):
+                            setattr(self, f"show_{key}", value)
+            elif category == 'employee_groups':
+                for key, value in values.items():
+                    if hasattr(self, key):
+                        setattr(self, key, value)
+
+    def __repr__(self):
+        return f"<Settings {self.store_name}>"
 
     @staticmethod
     def get_default_settings():

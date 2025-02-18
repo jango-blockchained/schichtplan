@@ -262,6 +262,22 @@ export const exportSchedule = async (startDate: string, endDate: string, layoutC
     }
 };
 
+export const updateBreakNotes = async (employeeId: number, date: string, notes: string): Promise<ScheduleData> => {
+    try {
+        const response = await api.put<{ message: string; schedule: ScheduleData }>('/schedules/update-break-notes/', {
+            employee_id: employeeId,
+            date,
+            notes
+        });
+        return response.data.schedule;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to update break notes: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
 // Shift Templates
 export const getShiftTemplates = async () => {
     try {

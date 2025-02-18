@@ -52,15 +52,16 @@ class Employee(db.Model):
     def validate_hours(self) -> bool:
         """Validate contracted hours based on employee group"""
         if self.employee_group == EmployeeGroup.VL or self.employee_group == EmployeeGroup.TL:
-            # Full-time employees must work exactly 40 hours
-            return self.contracted_hours == 40
+            # Full-time employees must work between 35 and 48 hours
+            return 35 <= self.contracted_hours <= 48
         elif self.employee_group == EmployeeGroup.TZ:
-            # Part-time employees can work 10, 20, or 30 hours
-            return self.contracted_hours in [10, 20, 30]
+            # Part-time employees can work between 10 and 35 hours
+            return 10 <= self.contracted_hours <= 35
         elif self.employee_group == EmployeeGroup.GFB:
             # Minijob employees must stay under the monthly limit (556 EUR / 12.41 EUR minimum wage)
             max_monthly_hours = 556 / 12.41  # ~44.8 hours per month
-            return 0 < self.contracted_hours <= max_monthly_hours
+            max_weekly_hours = max_monthly_hours / 4.33  # Convert to weekly hours
+            return 0 <= self.contracted_hours <= max_weekly_hours
         return False
 
     def get_max_daily_hours(self) -> float:

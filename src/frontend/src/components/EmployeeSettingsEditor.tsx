@@ -1,77 +1,75 @@
 import React, { useState } from 'react';
-import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Card, CardContent } from './ui/card';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Button } from './ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
+import { Alert, AlertDescription } from './ui/alert';
 import { Trash2, Plus } from 'lucide-react';
+import { ColorPicker } from './ui/color-picker';
 
-export interface EmployeeGroup {
+export interface ShiftType {
     id: string;
     name: string;
-    description: string;
-    minHours: number;
-    maxHours: number;
-    isFullTime: boolean;
+    start_time: string;
+    end_time: string;
+    color: string;
 }
+
+export interface EmployeeType {
+    id: string;
+    name: string;
+    min_hours: number;
+    max_hours: number;
+}
+
+export interface AbsenceType {
+    id: string;
+    name: string;
+    color: string;
+    paid: boolean;
+}
+
+type GroupType = ShiftType | EmployeeType | AbsenceType;
 
 interface EmployeeSettingsEditorProps {
-    groups: EmployeeGroup[];
-    onChange: (groups: EmployeeGroup[]) => void;
+    groups: GroupType[];
+    onChange: (groups: GroupType[]) => void;
+    type: 'shift' | 'employee' | 'absence';
 }
 
-const DEFAULT_GROUPS: EmployeeGroup[] = [
-    {
-        id: 'VL',
-        name: 'Vollzeit',
-        description: 'Full-time employee',
-        minHours: 40,
-        maxHours: 40,
-        isFullTime: true
-    },
-    {
-        id: 'TZ',
-        name: 'Teilzeit',
-        description: 'Part-time employee',
-        minHours: 10,
-        maxHours: 30,
-        isFullTime: false
-    },
-    {
-        id: 'GFB',
-        name: 'Geringfügig Beschäftigt',
-        description: 'Mini-job employee',
-        minHours: 0,
-        maxHours: 40,
-        isFullTime: false
-    },
-    {
-        id: 'TL',
-        name: 'Team Leader',
-        description: 'Team leader (full-time)',
-        minHours: 40,
-        maxHours: 40,
-        isFullTime: true
-    }
-];
-
-const EmployeeSettingsEditor: React.FC<EmployeeSettingsEditorProps> = ({
-    groups = DEFAULT_GROUPS,
-    onChange
-}) => {
-    const [employeeGroups, setEmployeeGroups] = useState<EmployeeGroup[]>(groups);
+export default function EmployeeSettingsEditor({ groups, onChange, type }: EmployeeSettingsEditorProps) {
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-    const [newGroup, setNewGroup] = useState<EmployeeGroup>({
-        id: '',
-        name: '',
-        description: '',
-        minHours: 0,
-        maxHours: 40,
-        isFullTime: false
-    });
+    const [newGroup, setNewGroup] = useState<GroupType>(getDefaultGroup());
     const [error, setError] = useState<string | null>(null);
+
+    function getDefaultGroup(): GroupType {
+        switch (type) {
+            case 'shift':
+                return {
+                    id: '',
+                    name: '',
+                    start_time: '09:00',
+                    end_time: '17:00',
+                    color: '#4CAF50'
+                };
+            case 'employee':
+                return {
+                    id: '',
+                    name: '',
+                    min_hours: 0,
+                    max_hours: 40
+                };
+            case 'absence':
+                return {
+                    id: '',
+                    name: '',
+                    color: '#FF9800',
+                    paid: true
+                };
+        }
+    }
 
     const handleAddGroup = () => {
         if (!newGroup.id || !newGroup.name) {
@@ -79,59 +77,39 @@ const EmployeeSettingsEditor: React.FC<EmployeeSettingsEditorProps> = ({
             return;
         }
 
-        if (employeeGroups.some(group => group.id === newGroup.id)) {
+        if (groups.some(group => group.id === newGroup.id)) {
             setError('Group ID must be unique');
             return;
         }
 
-        if (newGroup.minHours < 0 || newGroup.maxHours > 168) {
-            setError('Hours must be between 0 and 168');
-            return;
-        }
-
-        if (newGroup.minHours > newGroup.maxHours) {
-            setError('Minimum hours cannot be greater than maximum hours');
-            return;
-        }
-
-        const updatedGroups = [...employeeGroups, newGroup];
-        setEmployeeGroups(updatedGroups);
+        const updatedGroups = [...groups, newGroup];
         onChange(updatedGroups);
         setIsAddDialogOpen(false);
-        setNewGroup({
-            id: '',
-            name: '',
-            description: '',
-            minHours: 0,
-            maxHours: 40,
-            isFullTime: false
-        });
+        setNewGroup(getDefaultGroup());
         setError(null);
     };
 
     const handleDeleteGroup = (groupId: string) => {
-        const updatedGroups = employeeGroups.filter(group => group.id !== groupId);
-        setEmployeeGroups(updatedGroups);
+        const updatedGroups = groups.filter(group => group.id !== groupId);
         onChange(updatedGroups);
     };
 
-    const handleUpdateGroup = (index: number, field: keyof EmployeeGroup, value: any) => {
-        const updatedGroups = [...employeeGroups];
-        updatedGroups[index] = {
+    const handleUpdateGroup = (index: number, field: keyof GroupType, value: any) => {
+        const updatedGroups = [...groups];
+        const updatedGroup = {
             ...updatedGroups[index],
             [field]: value
         };
-        setEmployeeGroups(updatedGroups);
+
+        updatedGroups[index] = updatedGroup;
         onChange(updatedGroups);
     };
 
     return (
-        <Card className="p-4 border">
-            <div className="space-y-4">
-                <h2 className="text-lg font-semibold">Employee Groups</h2>
-
+        <Card>
+            <CardContent className="pt-6">
                 <div className="space-y-4">
-                    {employeeGroups.map((group, index) => (
+                    {groups.map((group, index) => (
                         <div key={group.id} className="p-4 border rounded-lg space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
@@ -139,7 +117,6 @@ const EmployeeSettingsEditor: React.FC<EmployeeSettingsEditorProps> = ({
                                     <Input
                                         value={group.id}
                                         onChange={(e) => handleUpdateGroup(index, 'id', e.target.value)}
-                                        disabled
                                     />
                                 </div>
 
@@ -152,61 +129,93 @@ const EmployeeSettingsEditor: React.FC<EmployeeSettingsEditorProps> = ({
                                 </div>
                             </div>
 
-                            <div className="space-y-2">
-                                <Label>Description</Label>
-                                <Input
-                                    value={group.description}
-                                    onChange={(e) => handleUpdateGroup(index, 'description', e.target.value)}
-                                />
-                            </div>
+                            {type === 'shift' && 'start_time' in group && (
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>Start Time</Label>
+                                        <Input
+                                            type="time"
+                                            value={group.start_time}
+                                            onChange={(e) => handleUpdateGroup(index, 'start_time', e.target.value)}
+                                        />
+                                    </div>
 
-                            <div className="grid grid-cols-3 gap-4">
-                                <div className="space-y-2">
-                                    <Label>Min Hours</Label>
-                                    <Input
-                                        type="number"
-                                        value={group.minHours}
-                                        onChange={(e) => handleUpdateGroup(index, 'minHours', Number(e.target.value))}
-                                        min={0}
-                                        max={168}
-                                    />
-                                </div>
+                                    <div className="space-y-2">
+                                        <Label>End Time</Label>
+                                        <Input
+                                            type="time"
+                                            value={group.end_time}
+                                            onChange={(e) => handleUpdateGroup(index, 'end_time', e.target.value)}
+                                        />
+                                    </div>
 
-                                <div className="space-y-2">
-                                    <Label>Max Hours</Label>
-                                    <Input
-                                        type="number"
-                                        value={group.maxHours}
-                                        onChange={(e) => handleUpdateGroup(index, 'maxHours', Number(e.target.value))}
-                                        min={0}
-                                        max={168}
-                                    />
+                                    <div className="space-y-2">
+                                        <Label>Color</Label>
+                                        <ColorPicker
+                                            color={group.color}
+                                            onChange={(color) => handleUpdateGroup(index, 'color', color)}
+                                        />
+                                    </div>
                                 </div>
+                            )}
 
-                                <div className="space-y-2">
-                                    <Label>Full Time</Label>
-                                    <Select
-                                        value={group.isFullTime.toString()}
-                                        onValueChange={(value) =>
-                                            handleUpdateGroup(index, 'isFullTime', value === 'true')}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="true">Yes</SelectItem>
-                                            <SelectItem value="false">No</SelectItem>
-                                        </SelectContent>
-                                    </Select>
+                            {type === 'employee' && 'min_hours' in group && (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>Min Hours</Label>
+                                        <Input
+                                            type="number"
+                                            value={group.min_hours}
+                                            onChange={(e) => handleUpdateGroup(index, 'min_hours', Number(e.target.value))}
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>Max Hours</Label>
+                                        <Input
+                                            type="number"
+                                            value={group.max_hours}
+                                            onChange={(e) => handleUpdateGroup(index, 'max_hours', Number(e.target.value))}
+                                        />
+                                    </div>
                                 </div>
-                            </div>
+                            )}
+
+                            {type === 'absence' && 'paid' in group && (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>Color</Label>
+                                        <ColorPicker
+                                            color={group.color}
+                                            onChange={(color) => handleUpdateGroup(index, 'color', color)}
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>Paid</Label>
+                                        <Select
+                                            value={group.paid.toString()}
+                                            onValueChange={(value) =>
+                                                handleUpdateGroup(index, 'paid', value === 'true')}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="true">Yes</SelectItem>
+                                                <SelectItem value="false">No</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="flex justify-end">
                                 <Button
                                     variant="destructive"
                                     size="sm"
                                     onClick={() => handleDeleteGroup(group.id)}
-                                    disabled={employeeGroups.length <= 1}
+                                    disabled={groups.length <= 1}
                                 >
                                     <Trash2 className="h-4 w-4 mr-1" />
                                     Delete
@@ -218,25 +227,29 @@ const EmployeeSettingsEditor: React.FC<EmployeeSettingsEditorProps> = ({
 
                 <Button
                     variant="outline"
+                    className="mt-4"
                     onClick={() => setIsAddDialogOpen(true)}
                 >
                     <Plus className="h-4 w-4 mr-1" />
-                    Add Employee Group
+                    Add {type === 'shift' ? 'Shift Type' : type === 'employee' ? 'Employee Type' : 'Absence Type'}
                 </Button>
-            </div>
+            </CardContent>
 
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Add Employee Group</DialogTitle>
+                        <DialogTitle>
+                            Add {type === 'shift' ? 'Shift Type' : type === 'employee' ? 'Employee Type' : 'Absence Type'}
+                        </DialogTitle>
                     </DialogHeader>
-                    <div className="space-y-4">
-                        {error && (
-                            <Alert variant="destructive">
-                                <AlertDescription>{error}</AlertDescription>
-                            </Alert>
-                        )}
 
+                    {error && (
+                        <Alert variant="destructive">
+                            <AlertDescription>{error}</AlertDescription>
+                        </Alert>
+                    )}
+
+                    <div className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label>ID</Label>
@@ -255,67 +268,109 @@ const EmployeeSettingsEditor: React.FC<EmployeeSettingsEditorProps> = ({
                             </div>
                         </div>
 
-                        <div className="space-y-2">
-                            <Label>Description</Label>
-                            <Input
-                                value={newGroup.description}
-                                onChange={(e) => setNewGroup({ ...newGroup, description: e.target.value })}
-                            />
-                        </div>
+                        {type === 'shift' && 'start_time' in newGroup && (
+                            <div className="grid grid-cols-3 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Start Time</Label>
+                                    <Input
+                                        type="time"
+                                        value={newGroup.start_time}
+                                        onChange={(e) =>
+                                            setNewGroup({ ...newGroup, start_time: e.target.value })
+                                        }
+                                    />
+                                </div>
 
-                        <div className="grid grid-cols-3 gap-4">
-                            <div className="space-y-2">
-                                <Label>Min Hours</Label>
-                                <Input
-                                    type="number"
-                                    value={newGroup.minHours}
-                                    onChange={(e) => setNewGroup({ ...newGroup, minHours: Number(e.target.value) })}
-                                    min={0}
-                                    max={168}
-                                />
-                            </div>
+                                <div className="space-y-2">
+                                    <Label>End Time</Label>
+                                    <Input
+                                        type="time"
+                                        value={newGroup.end_time}
+                                        onChange={(e) =>
+                                            setNewGroup({ ...newGroup, end_time: e.target.value })
+                                        }
+                                    />
+                                </div>
 
-                            <div className="space-y-2">
-                                <Label>Max Hours</Label>
-                                <Input
-                                    type="number"
-                                    value={newGroup.maxHours}
-                                    onChange={(e) => setNewGroup({ ...newGroup, maxHours: Number(e.target.value) })}
-                                    min={0}
-                                    max={168}
-                                />
+                                <div className="space-y-2">
+                                    <Label>Color</Label>
+                                    <ColorPicker
+                                        color={newGroup.color}
+                                        onChange={(color) =>
+                                            setNewGroup({ ...newGroup, color })
+                                        }
+                                    />
+                                </div>
                             </div>
+                        )}
 
-                            <div className="space-y-2">
-                                <Label>Full Time</Label>
-                                <Select
-                                    value={newGroup.isFullTime.toString()}
-                                    onValueChange={(value) =>
-                                        setNewGroup({ ...newGroup, isFullTime: value === 'true' })}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="true">Yes</SelectItem>
-                                        <SelectItem value="false">No</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                        {type === 'employee' && 'min_hours' in newGroup && (
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Min Hours</Label>
+                                    <Input
+                                        type="number"
+                                        value={newGroup.min_hours}
+                                        onChange={(e) =>
+                                            setNewGroup({ ...newGroup, min_hours: Number(e.target.value) })
+                                        }
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label>Max Hours</Label>
+                                    <Input
+                                        type="number"
+                                        value={newGroup.max_hours}
+                                        onChange={(e) =>
+                                            setNewGroup({ ...newGroup, max_hours: Number(e.target.value) })
+                                        }
+                                    />
+                                </div>
                             </div>
-                        </div>
+                        )}
+
+                        {type === 'absence' && 'paid' in newGroup && (
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Color</Label>
+                                    <ColorPicker
+                                        color={newGroup.color}
+                                        onChange={(color) =>
+                                            setNewGroup({ ...newGroup, color })
+                                        }
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label>Paid</Label>
+                                    <Select
+                                        value={newGroup.paid.toString()}
+                                        onValueChange={(value) =>
+                                            setNewGroup({ ...newGroup, paid: value === 'true' })
+                                        }
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="true">Yes</SelectItem>
+                                            <SelectItem value="false">No</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                        )}
                     </div>
+
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                             Cancel
                         </Button>
-                        <Button onClick={handleAddGroup}>
-                            Create Group
-                        </Button>
+                        <Button onClick={handleAddGroup}>Create</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
         </Card>
     );
-};
-
-export default EmployeeSettingsEditor; 
+} 

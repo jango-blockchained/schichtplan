@@ -5,13 +5,17 @@ import { useScheduleData } from '@/hooks/useScheduleData';
 import { addDays, startOfWeek, endOfWeek } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { useMutation } from '@tanstack/react-query';
-import { generateSchedule, exportSchedule, updateShiftDay } from '@/services/api';
+import { generateSchedule, exportSchedule, updateShiftDay, updateBreakNotes } from '@/services/api';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PDFLayoutEditor } from '@/components/PDFLayoutEditor';
 import { usePDFConfig } from '@/hooks/usePDFConfig';
 import { DateRange } from 'react-day-picker';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Card } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableHeader, TableBody, TableCell, TableRow } from '@/components/ui/table';
 
 export function SchedulePage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -26,7 +30,7 @@ export function SchedulePage() {
   const {
     scheduleData,
     loading: isLoading,
-    error,
+    error: fetchError,
     refetch
   } = useScheduleData(
     dateRange?.from || new Date(),
@@ -35,23 +39,25 @@ export function SchedulePage() {
 
   const generateMutation = useMutation({
     mutationFn: async () => {
-      if (!dateRange?.from || !dateRange?.to) return;
+      if (!dateRange?.from || !dateRange?.to) {
+        throw new Error("Bitte wählen Sie einen Zeitraum aus");
+      }
       return generateSchedule(
         dateRange.from.toISOString().split('T')[0],
         dateRange.to.toISOString().split('T')[0]
       );
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       refetch();
       toast({
         title: "Erfolg",
-        description: "Schichtplan wurde erfolgreich generiert.",
+        description: `Schichtplan wurde erfolgreich generiert. ${data?.total_shifts || 0} Schichten wurden erstellt.`,
       });
     },
     onError: (error) => {
       toast({
-        title: "Fehler",
-        description: error instanceof Error ? error.message : "Ein Fehler ist aufgetreten",
+        title: "Fehler bei der Generierung",
+        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
         variant: "destructive",
       });
     },
@@ -59,13 +65,14 @@ export function SchedulePage() {
 
   const exportMutation = useMutation({
     mutationFn: async () => {
-      if (!dateRange?.from || !dateRange?.to) return;
+      if (!dateRange?.from || !dateRange?.to) {
+        throw new Error("Bitte wählen Sie einen Zeitraum aus");
+      }
       const response = await exportSchedule(
         dateRange.from.toISOString().split('T')[0],
         dateRange.to.toISOString().split('T')[0],
         pdfConfig
       );
-      // Create a blob URL and trigger download
       const blob = new Blob([response], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -79,7 +86,7 @@ export function SchedulePage() {
     onError: (error) => {
       toast({
         title: "Fehler beim Export",
-        description: error instanceof Error ? error.message : "Ein Fehler ist aufgetreten",
+        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
         variant: "destructive",
       });
     },
@@ -87,7 +94,9 @@ export function SchedulePage() {
 
   const updateShiftMutation = useMutation({
     mutationFn: async ({ employeeId, fromDay, toDay }: { employeeId: number; fromDay: number; toDay: number }) => {
-      if (!dateRange?.from) return;
+      if (!dateRange?.from) {
+        throw new Error("Kein Zeitraum ausgewählt");
+      }
       const baseDate = dateRange.from;
       const fromDate = addDays(baseDate, fromDay);
       const toDate = addDays(baseDate, toDay);
@@ -103,7 +112,7 @@ export function SchedulePage() {
     onError: (error) => {
       toast({
         title: "Fehler",
-        description: error instanceof Error ? error.message : "Ein Fehler ist aufgetreten",
+        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
         variant: "destructive",
       });
     },
@@ -111,19 +120,11 @@ export function SchedulePage() {
 
   const updateBreakNotesMutation = useMutation({
     mutationFn: async ({ employeeId, day, notes }: { employeeId: number; day: number; notes: string }) => {
-      if (!dateRange?.from) return;
+      if (!dateRange?.from) {
+        throw new Error("Kein Zeitraum ausgewählt");
+      }
       const date = addDays(dateRange.from, day);
-      return fetch('/api/schedules/update-break-notes/', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          employee_id: employeeId,
-          date: date.toISOString().split('T')[0],
-          notes,
-        }),
-      });
+      return updateBreakNotes(employeeId, date.toISOString().split('T')[0], notes);
     },
     onSuccess: () => {
       refetch();
@@ -135,7 +136,7 @@ export function SchedulePage() {
     onError: (error) => {
       toast({
         title: "Fehler",
-        description: error instanceof Error ? error.message : "Ein Fehler ist aufgetreten",
+        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
         variant: "destructive",
       });
     },
@@ -149,6 +150,96 @@ export function SchedulePage() {
     await updateBreakNotesMutation.mutateAsync({ employeeId, day, notes });
   };
 
+  // Show loading skeleton for initial data fetch
+  if (isLoading && !scheduleData) {
+    return (
+      <div className="container mx-auto py-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-10 w-48" />
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-10 w-64" />
+            <Skeleton className="h-10 w-40" />
+            <Skeleton className="h-10 w-40" />
+            <Skeleton className="h-10 w-32" />
+          </div>
+        </div>
+        <Card className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableCell>
+                  <Skeleton className="h-6 w-32" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-6 w-20" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-6 w-24" />
+                </TableCell>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <TableCell key={i}>
+                    <Skeleton className="h-6 w-24" />
+                  </TableCell>
+                ))}
+                <TableCell>
+                  <Skeleton className="h-6 w-24" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-6 w-24" />
+                </TableCell>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell>
+                    <Skeleton className="h-24 w-32" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-24 w-20" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-24 w-24" />
+                  </TableCell>
+                  {Array.from({ length: 6 }).map((_, j) => (
+                    <TableCell key={j}>
+                      <Skeleton className="h-24 w-24" />
+                    </TableCell>
+                  ))}
+                  <TableCell>
+                    <Skeleton className="h-24 w-24" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-24 w-24" />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (fetchError || generateMutation.error) {
+    const error = (fetchError || generateMutation.error) as Error;
+    return (
+      <div className="container mx-auto py-6">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Fehler</AlertTitle>
+          <AlertDescription>
+            {error.message || "Ein unerwarteter Fehler ist aufgetreten"}
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  // Show loading overlay for subsequent data fetches
+  const isUpdating = isLoading || updateShiftMutation.isLoading || generateMutation.isLoading || exportMutation.isLoading;
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex justify-between items-center">
@@ -160,7 +251,7 @@ export function SchedulePage() {
           />
           <Button
             onClick={() => generateMutation.mutate()}
-            disabled={generateMutation.isLoading || !dateRange?.from || !dateRange?.to}
+            disabled={isUpdating || !dateRange?.from || !dateRange?.to}
           >
             {generateMutation.isLoading ? (
               <>
@@ -174,7 +265,7 @@ export function SchedulePage() {
           <Button
             variant="outline"
             onClick={() => exportMutation.mutate()}
-            disabled={exportMutation.isLoading || !dateRange?.from || !dateRange?.to}
+            disabled={isUpdating || !dateRange?.from || !dateRange?.to}
           >
             {exportMutation.isLoading ? (
               <>
@@ -188,6 +279,7 @@ export function SchedulePage() {
           <Button
             variant="secondary"
             onClick={() => setIsLayoutCustomizerOpen(true)}
+            disabled={isUpdating}
           >
             Layout anpassen
           </Button>
@@ -195,15 +287,29 @@ export function SchedulePage() {
       </div>
 
       {dateRange?.from && dateRange?.to ? (
-        <ShiftTable
-          weekStart={dateRange.from}
-          weekEnd={dateRange.to}
-          isLoading={isLoading || updateShiftMutation.isLoading}
-          error={error}
-          data={scheduleData}
-          onShiftUpdate={handleShiftUpdate}
-          onBreakNotesUpdate={handleBreakNotesUpdate}
-        />
+        <div className="relative">
+          {isUpdating && (
+            <div className="absolute inset-0 bg-background/50 backdrop-blur-sm flex items-center justify-center z-50">
+              <div className="flex flex-col items-center gap-2">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <span className="text-sm text-muted-foreground">
+                  {generateMutation.isLoading ? "Generiere Schichtplan..." :
+                    exportMutation.isLoading ? "Exportiere PDF..." :
+                      "Aktualisiere Daten..."}
+                </span>
+              </div>
+            </div>
+          )}
+          <ShiftTable
+            weekStart={dateRange.from}
+            weekEnd={dateRange.to}
+            isLoading={isLoading}
+            error={fetchError}
+            data={scheduleData}
+            onShiftUpdate={handleShiftUpdate}
+            onBreakNotesUpdate={handleBreakNotesUpdate}
+          />
+        </div>
       ) : (
         <div className="text-center text-muted-foreground">
           Bitte wählen Sie einen Zeitraum aus

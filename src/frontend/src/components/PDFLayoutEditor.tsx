@@ -13,49 +13,36 @@ import { Loader2 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 
 export interface PDFLayoutConfig {
+    page_size: string;
+    orientation: string;
     margins: {
         top: number;
         right: number;
         bottom: number;
         left: number;
     };
-    table: {
-        style: {
-            fontSize: number;
-            rowHeight: number;
-            headerBackground: string;
-            alternateRowColors: boolean;
-            alternateRowBackground: string;
-            gridLines: boolean;
-            font: string;
-        };
-        column_widths: {
-            name: number;
-            monday: number;
-            tuesday: number;
-            wednesday: number;
-            thursday: number;
-            friday: number;
-            saturday: number;
-            sunday: number;
-            total: number;
-        };
+    table_style: {
+        header_bg_color: string;
+        border_color: string;
+        text_color: string;
+        header_text_color: string;
     };
-    title: {
-        fontSize: number;
-        alignment: 'left' | 'center' | 'right';
-        fontStyle: 'normal' | 'bold' | 'italic';
-        font: string;
+    fonts: {
+        family: string;
+        size: number;
+        header_size: number;
     };
-    page: {
-        size: 'A4' | 'Letter' | 'Legal';
-        orientation: 'portrait' | 'landscape';
+    content: {
+        show_employee_id: boolean;
+        show_position: boolean;
+        show_breaks: boolean;
+        show_total_hours: boolean;
     };
 }
 
 interface PDFLayoutEditorProps {
     config: PDFLayoutConfig;
-    onConfigChange: (path: ConfigPath, value: any) => void;
+    onChange: (config: PDFLayoutConfig) => void;
 }
 
 const AVAILABLE_FONTS = ['Helvetica', 'Helvetica-Bold', 'Times-Roman', 'Times-Bold'];
@@ -70,7 +57,7 @@ type ConfigPath =
     ['margins', keyof PDFLayoutConfig['margins']] |
     ['page', keyof PDFLayoutConfig['page']];
 
-export function PDFLayoutEditor({ config, onConfigChange }: PDFLayoutEditorProps) {
+export function PDFLayoutEditor({ config, onChange }: PDFLayoutEditorProps) {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState<'save' | 'preview' | null>(null);
 
@@ -79,26 +66,26 @@ export function PDFLayoutEditor({ config, onConfigChange }: PDFLayoutEditorProps
             setIsLoading('save');
             // Save each section of the config separately
             await Promise.all([
-                onConfigChange(['margins', 'top'], config.margins.top),
-                onConfigChange(['margins', 'right'], config.margins.right),
-                onConfigChange(['margins', 'bottom'], config.margins.bottom),
-                onConfigChange(['margins', 'left'], config.margins.left),
-                onConfigChange(['table', 'style', 'fontSize'], config.table.style.fontSize),
-                onConfigChange(['table', 'style', 'rowHeight'], config.table.style.rowHeight),
-                onConfigChange(['table', 'style', 'headerBackground'], config.table.style.headerBackground),
-                onConfigChange(['table', 'style', 'alternateRowColors'], config.table.style.alternateRowColors),
-                onConfigChange(['table', 'style', 'alternateRowBackground'], config.table.style.alternateRowBackground),
-                onConfigChange(['table', 'style', 'gridLines'], config.table.style.gridLines),
-                onConfigChange(['table', 'style', 'font'], config.table.style.font),
+                onChange(['margins', 'top'], config.margins.top),
+                onChange(['margins', 'right'], config.margins.right),
+                onChange(['margins', 'bottom'], config.margins.bottom),
+                onChange(['margins', 'left'], config.margins.left),
+                onChange(['table', 'style', 'fontSize'], config.table.style.fontSize),
+                onChange(['table', 'style', 'rowHeight'], config.table.style.rowHeight),
+                onChange(['table', 'style', 'headerBackground'], config.table.style.headerBackground),
+                onChange(['table', 'style', 'alternateRowColors'], config.table.style.alternateRowColors),
+                onChange(['table', 'style', 'alternateRowBackground'], config.table.style.alternateRowBackground),
+                onChange(['table', 'style', 'gridLines'], config.table.style.gridLines),
+                onChange(['table', 'style', 'font'], config.table.style.font),
                 ...Object.entries(config.table.column_widths).map(([key, value]) =>
-                    onConfigChange(['table', 'column_widths', key as keyof PDFLayoutConfig['table']['column_widths']], value)
+                    onChange(['table', 'column_widths', key as keyof PDFLayoutConfig['table']['column_widths']], value)
                 ),
-                onConfigChange(['title', 'fontSize'], config.title.fontSize),
-                onConfigChange(['title', 'alignment'], config.title.alignment),
-                onConfigChange(['title', 'fontStyle'], config.title.fontStyle),
-                onConfigChange(['title', 'font'], config.title.font),
-                onConfigChange(['page', 'size'], config.page.size),
-                onConfigChange(['page', 'orientation'], config.page.orientation),
+                onChange(['title', 'fontSize'], config.title.fontSize),
+                onChange(['title', 'alignment'], config.title.alignment),
+                onChange(['title', 'fontStyle'], config.title.fontStyle),
+                onChange(['title', 'font'], config.title.font),
+                onChange(['page', 'size'], config.page_size),
+                onChange(['page', 'orientation'], config.orientation),
             ]);
             toast({
                 description: 'Layout settings saved successfully.',
@@ -145,8 +132,18 @@ export function PDFLayoutEditor({ config, onConfigChange }: PDFLayoutEditorProps
         }
     };
 
-    const updateConfig = (path: ConfigPath, value: any) => {
-        onConfigChange(path, value);
+    const handleChange = (path: string[], value: any) => {
+        const newConfig = { ...config };
+        let current: any = newConfig;
+
+        // Navigate to the nested property
+        for (let i = 0; i < path.length - 1; i++) {
+            current = current[path[i]];
+        }
+
+        // Update the value
+        current[path[path.length - 1]] = value;
+        onChange(newConfig);
     };
 
     return (
@@ -160,8 +157,8 @@ export function PDFLayoutEditor({ config, onConfigChange }: PDFLayoutEditorProps
                         <div className="space-y-2">
                             <Label>Page Size</Label>
                             <Select
-                                value={config.page.size}
-                                onValueChange={(value) => updateConfig(['page', 'size'], value)}
+                                value={config.page_size}
+                                onValueChange={(value) => handleChange(['page_size'], value)}
                             >
                                 <SelectTrigger>
                                     <SelectValue />
@@ -176,8 +173,8 @@ export function PDFLayoutEditor({ config, onConfigChange }: PDFLayoutEditorProps
                         <div className="space-y-2">
                             <Label>Orientation</Label>
                             <Select
-                                value={config.page.orientation}
-                                onValueChange={(value) => updateConfig(['page', 'orientation'], value)}
+                                value={config.orientation}
+                                onValueChange={(value) => handleChange(['orientation'], value)}
                             >
                                 <SelectTrigger>
                                     <SelectValue />
@@ -208,7 +205,7 @@ export function PDFLayoutEditor({ config, onConfigChange }: PDFLayoutEditorProps
                             <Slider
                                 value={[width]}
                                 onValueChange={([value]) =>
-                                    updateConfig(['table', 'column_widths', column as keyof PDFLayoutConfig['table']['column_widths']], value)
+                                    handleChange(['table', 'column_widths', column as keyof PDFLayoutConfig['table']['column_widths']], value)
                                 }
                                 min={40}
                                 max={200}
@@ -231,7 +228,7 @@ export function PDFLayoutEditor({ config, onConfigChange }: PDFLayoutEditorProps
                                 <Input
                                     type="number"
                                     value={value}
-                                    onChange={(e) => updateConfig(['margins', side], Number(e.target.value))}
+                                    onChange={(e) => handleChange(['margins', side], Number(e.target.value))}
                                     min={0}
                                     max={50}
                                 />
@@ -250,7 +247,7 @@ export function PDFLayoutEditor({ config, onConfigChange }: PDFLayoutEditorProps
                         <Label>Font</Label>
                         <Select
                             value={config.table.style.font}
-                            onValueChange={(value) => updateConfig(['table', 'style', 'font'], value)}
+                            onValueChange={(value) => handleChange(['table', 'style', 'font'], value)}
                         >
                             <SelectTrigger>
                                 <SelectValue />
@@ -268,7 +265,7 @@ export function PDFLayoutEditor({ config, onConfigChange }: PDFLayoutEditorProps
                         <Label>Font Size (pt)</Label>
                         <Slider
                             value={[config.table.style.fontSize]}
-                            onValueChange={([value]) => updateConfig(['table', 'style', 'fontSize'], value)}
+                            onValueChange={([value]) => handleChange(['table', 'style', 'fontSize'], value)}
                             min={8}
                             max={16}
                             step={1}
@@ -278,7 +275,7 @@ export function PDFLayoutEditor({ config, onConfigChange }: PDFLayoutEditorProps
                         <Label>Row Height (mm)</Label>
                         <Slider
                             value={[config.table.style.rowHeight]}
-                            onValueChange={([value]) => updateConfig(['table', 'style', 'rowHeight'], value)}
+                            onValueChange={([value]) => handleChange(['table', 'style', 'rowHeight'], value)}
                             min={5}
                             max={20}
                             step={1}
@@ -288,7 +285,7 @@ export function PDFLayoutEditor({ config, onConfigChange }: PDFLayoutEditorProps
                         <Label>Header Background Color</Label>
                         <ColorPicker
                             color={config.table.style.headerBackground}
-                            onChange={(color) => updateConfig(['table', 'style', 'headerBackground'], color)}
+                            onChange={(color) => handleChange(['table', 'style', 'headerBackground'], color)}
                         />
                     </div>
                     <div className="flex items-center justify-between">
@@ -296,7 +293,7 @@ export function PDFLayoutEditor({ config, onConfigChange }: PDFLayoutEditorProps
                         <Switch
                             checked={config.table.style.alternateRowColors}
                             onCheckedChange={(checked) =>
-                                updateConfig(['table', 'style', 'alternateRowColors'], checked)
+                                handleChange(['table', 'style', 'alternateRowColors'], checked)
                             }
                         />
                     </div>
@@ -305,7 +302,7 @@ export function PDFLayoutEditor({ config, onConfigChange }: PDFLayoutEditorProps
                             <Label>Alternate Row Background</Label>
                             <ColorPicker
                                 color={config.table.style.alternateRowBackground}
-                                onChange={(color) => updateConfig(['table', 'style', 'alternateRowBackground'], color)}
+                                onChange={(color) => handleChange(['table', 'style', 'alternateRowBackground'], color)}
                             />
                         </div>
                     )}
@@ -314,7 +311,7 @@ export function PDFLayoutEditor({ config, onConfigChange }: PDFLayoutEditorProps
                         <Switch
                             checked={config.table.style.gridLines}
                             onCheckedChange={(checked) =>
-                                updateConfig(['table', 'style', 'gridLines'], checked)
+                                handleChange(['table', 'style', 'gridLines'], checked)
                             }
                         />
                     </div>
@@ -330,7 +327,7 @@ export function PDFLayoutEditor({ config, onConfigChange }: PDFLayoutEditorProps
                         <Label>Font</Label>
                         <Select
                             value={config.title.font}
-                            onValueChange={(value) => updateConfig(['title', 'font'], value)}
+                            onValueChange={(value) => handleChange(['title', 'font'], value)}
                         >
                             <SelectTrigger>
                                 <SelectValue />
@@ -348,7 +345,7 @@ export function PDFLayoutEditor({ config, onConfigChange }: PDFLayoutEditorProps
                         <Label>Font Size (pt)</Label>
                         <Slider
                             value={[config.title.fontSize]}
-                            onValueChange={([value]) => updateConfig(['title', 'fontSize'], value)}
+                            onValueChange={([value]) => handleChange(['title', 'fontSize'], value)}
                             min={12}
                             max={24}
                             step={1}
@@ -358,7 +355,7 @@ export function PDFLayoutEditor({ config, onConfigChange }: PDFLayoutEditorProps
                         <Label>Alignment</Label>
                         <Select
                             value={config.title.alignment}
-                            onValueChange={(value) => updateConfig(['title', 'alignment'], value)}
+                            onValueChange={(value) => handleChange(['title', 'alignment'], value)}
                         >
                             <SelectTrigger>
                                 <SelectValue />
@@ -374,7 +371,7 @@ export function PDFLayoutEditor({ config, onConfigChange }: PDFLayoutEditorProps
                         <Label>Font Style</Label>
                         <Select
                             value={config.title.fontStyle}
-                            onValueChange={(value) => updateConfig(['title', 'fontStyle'], value)}
+                            onValueChange={(value) => handleChange(['title', 'fontStyle'], value)}
                         >
                             <SelectTrigger>
                                 <SelectValue />
@@ -385,6 +382,50 @@ export function PDFLayoutEditor({ config, onConfigChange }: PDFLayoutEditorProps
                                 <SelectItem value="italic">Italic</SelectItem>
                             </SelectContent>
                         </Select>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Content Display</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                        <Label>Show Employee ID</Label>
+                        <Switch
+                            checked={config.content.show_employee_id}
+                            onCheckedChange={(checked) =>
+                                handleChange(['content', 'show_employee_id'], checked)
+                            }
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Show Position</Label>
+                        <Switch
+                            checked={config.content.show_position}
+                            onCheckedChange={(checked) =>
+                                handleChange(['content', 'show_position'], checked)
+                            }
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Show Breaks</Label>
+                        <Switch
+                            checked={config.content.show_breaks}
+                            onCheckedChange={(checked) =>
+                                handleChange(['content', 'show_breaks'], checked)
+                            }
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Show Total Hours</Label>
+                        <Switch
+                            checked={config.content.show_total_hours}
+                            onCheckedChange={(checked) =>
+                                handleChange(['content', 'show_total_hours'], checked)
+                            }
+                        />
                     </div>
                 </CardContent>
             </Card>
