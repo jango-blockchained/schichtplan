@@ -85,9 +85,76 @@ export interface AbsenceType {
 
 // Settings types
 export interface Settings {
+    // General Settings
     store_name: string;
     store_address: string;
-    min_employees_per_shift: number;
-    max_employees_per_shift: number;
-    min_keyholders_per_shift: number;
+    store_contact: string;
+    timezone: string;
+    language: string;
+    date_format: string;
+    time_format: string;
+
+    // Scheduling Settings
+    default_shift_duration: number;
+    min_break_duration: number;
+    max_daily_hours: number;
+    max_weekly_hours: number;
+    min_rest_between_shifts: number;
+    scheduling_period_weeks: number;
+    auto_schedule_preferences: boolean;
+
+    // Display Settings
+    theme: string;
+    primary_color: string;
+    secondary_color: string;
+    show_weekends: boolean;
+    start_of_week: number;
+
+    // Notification Settings
+    email_notifications: boolean;
+    schedule_published_notify: boolean;
+    shift_changes_notify: boolean;
+    time_off_requests_notify: boolean;
+
+    // PDF Layout Settings
+    page_size: string;
+    orientation: string;
+    margin_top: number;
+    margin_right: number;
+    margin_bottom: number;
+    margin_left: number;
+    table_header_bg_color: string;
+    table_border_color: string;
+    table_text_color: string;
+    table_header_text_color: string;
+    font_family: string;
+    font_size: number;
+    header_font_size: number;
+    show_employee_id: boolean;
+    show_position: boolean;
+    show_breaks: boolean;
+    show_total_hours: boolean;
+
+    // Employee Group Settings
+    shift_types: Array<{
+        id: string;
+        name: string;
+        start_time: string;
+        end_time: string;
+        color: string;
+    }>;
+
+    employee_types: Array<{
+        id: string;
+        name: string;
+        min_hours: number;
+        max_hours: number;
+    }>;
+
+    absence_types: Array<{
+        id: string;
+        name: string;
+        color: string;
+        paid: boolean;
+    }>;
 } 

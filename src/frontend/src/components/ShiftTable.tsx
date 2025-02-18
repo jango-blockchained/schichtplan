@@ -10,9 +10,10 @@ import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautif
 import { useState, useCallback } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { AlertCircle, Edit2 } from 'lucide-react';
+import { AlertCircle, Edit2, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/use-toast';
 
 interface ShiftTableProps {
   weekStart: Date;
@@ -70,12 +71,15 @@ const parseTime = (timeStr: string): number => {
 };
 
 const formatHours = (totalHours: number): string => {
+  // Round to nearest quarter hour (15 minutes)
+  totalHours = Math.round(totalHours * 4) / 4;
+
   const hours = Math.floor(totalHours);
   const minutes = Math.round((totalHours - hours) * 60);
   return `${hours}:${minutes.toString().padStart(2, '0')}`;
 };
 
-const calculateShiftHours = (shift: { start?: string; end?: string; break?: { start: string; end: string } }): number => {
+const calculateShiftHours = (shift: { start?: string; end?: string; break?: { start: string; end: string; notes?: string } }): number => {
   if (!shift.start || !shift.end) return 0;
 
   let totalHours = parseTime(shift.end) - parseTime(shift.start);
@@ -91,23 +95,38 @@ const calculateShiftHours = (shift: { start?: string; end?: string; break?: { st
     if (breakDuration < 0) {
       breakDuration += 24;
     }
+
+    // Handle second break from notes if present (for shifts > 9 hours)
+    if (shift.break.notes?.includes('Second break:')) {
+      const secondBreakMatch = shift.break.notes.match(/Second break: (\d{2}:\d{2})-(\d{2}:\d{2})/);
+      if (secondBreakMatch) {
+        const [_, secondBreakStart, secondBreakEnd] = secondBreakMatch;
+        let secondBreakDuration = parseTime(secondBreakEnd) - parseTime(secondBreakStart);
+        if (secondBreakDuration < 0) {
+          secondBreakDuration += 24;
+        }
+        breakDuration += secondBreakDuration;
+      }
+    }
+
     totalHours -= breakDuration;
   }
 
   return totalHours;
 };
 
-const calculateDailyHours = (shift: { start?: string; end?: string; break?: { start: string; end: string } }): string => {
+const calculateDailyHours = (shift: { start?: string; end?: string; break?: { start: string; end: string; notes?: string } }): string => {
   return formatHours(calculateShiftHours(shift));
 };
 
-const calculateWeeklyHours = (shifts: Array<{ start?: string; end?: string; break?: { start: string; end: string } }>): string => {
+const calculateWeeklyHours = (shifts: Array<{ start?: string; end?: string; break?: { start: string; end: string; notes?: string } }>): string => {
   const totalHours = shifts.reduce((acc, shift) => acc + calculateShiftHours(shift), 0);
   return formatHours(totalHours);
 };
 
-const calculateMonthlyHours = (shifts: Array<{ start?: string; end?: string; break?: { start: string; end: string } }>): string => {
+const calculateMonthlyHours = (shifts: Array<{ start?: string; end?: string; break?: { start: string; end: string; notes?: string } }>): string => {
   // Calculate weekly hours and multiply by average weeks per month (4.33)
+  // This provides a more accurate projection of monthly hours
   const weeklyHours = shifts.reduce((acc, shift) => acc + calculateShiftHours(shift), 0);
   const monthlyHours = weeklyHours * 4.33;
   return formatHours(monthlyHours);
@@ -121,28 +140,51 @@ const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeI
 }) => {
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notes, setNotes] = useState(shift?.break?.notes || '');
+  const [isUpdating, setIsUpdating] = useState(false);
+  const { toast } = useToast();
 
   if (!shift) return null;
 
   const dailyHours = calculateDailyHours(shift);
-  const hasBreakViolation = parseFloat(dailyHours) > 6 && !shift.break;
-  const hasHoursViolation = parseFloat(dailyHours) > 10;
+  const shiftHours = parseFloat(dailyHours.split(':')[0]) + parseFloat(dailyHours.split(':')[1]) / 60;
+
+  // Enhanced validation checks
+  const hasBreakViolation = shiftHours > 6 && !shift.break;
+  const hasLongBreakViolation = shiftHours > 9 && (!shift.break?.notes?.includes('Second break:'));
+  const hasHoursViolation = shiftHours > 10;
 
   const handleNotesUpdate = async () => {
-    if (onBreakNotesUpdate && employeeId && shift.day !== undefined) {
-      try {
-        await onBreakNotesUpdate(employeeId, shift.day, notes);
-        setIsEditingNotes(false);
-      } catch (error) {
-        console.error('Failed to update break notes:', error);
-      }
+    if (!onBreakNotesUpdate || !employeeId || shift.day === undefined || !shift.break) {
+      return;
     }
+
+    try {
+      setIsUpdating(true);
+      await onBreakNotesUpdate(employeeId, shift.day, notes.trim());
+      setIsEditingNotes(false);
+      toast({
+        description: "Pausennotizen wurden gespeichert.",
+      });
+    } catch (error) {
+      toast({
+        title: "Fehler",
+        description: error instanceof Error ? error.message : "Fehler beim Speichern der Notizen",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setNotes(shift.break?.notes || '');
+    setIsEditingNotes(false);
   };
 
   return (
     <div className={cn(
       "p-2 rounded border border-border",
-      hasBreakViolation || hasHoursViolation ? "border-destructive" : "hover:border-primary"
+      (hasBreakViolation || hasLongBreakViolation || hasHoursViolation) ? "border-destructive" : "hover:border-primary"
     )}>
       <SubRow>Beginn: {shift.start}</SubRow>
       {shift.break && (
@@ -157,6 +199,7 @@ const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeI
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Pausennotizen..."
                   className="h-8 text-sm"
+                  disabled={isUpdating}
                 />
                 <div className="flex gap-1">
                   <Button
@@ -164,17 +207,20 @@ const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeI
                     variant="outline"
                     onClick={handleNotesUpdate}
                     className="h-8 px-2"
+                    disabled={isUpdating}
                   >
-                    Speichern
+                    {isUpdating ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      "Speichern"
+                    )}
                   </Button>
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => {
-                      setNotes(shift.break?.notes || '');
-                      setIsEditingNotes(false);
-                    }}
+                    onClick={handleCancel}
                     className="h-8 px-2"
+                    disabled={isUpdating}
                   >
                     Abbrechen
                   </Button>
@@ -203,7 +249,7 @@ const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeI
       <SubRow>Ende: {shift.end}</SubRow>
       <SubRow className="flex justify-between items-center">
         <span>Summe / Tag: {dailyHours}</span>
-        {showValidation && (hasBreakViolation || hasHoursViolation) && (
+        {showValidation && (hasBreakViolation || hasLongBreakViolation || hasHoursViolation) && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger>
@@ -211,6 +257,7 @@ const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeI
               </TooltipTrigger>
               <TooltipContent>
                 {hasBreakViolation && <p>Pause erforderlich für Schichten &gt; 6 Stunden</p>}
+                {hasLongBreakViolation && <p>Zweite Pause erforderlich für Schichten &gt; 9 Stunden</p>}
                 {hasHoursViolation && <p>Maximale Arbeitszeit von 10 Stunden überschritten</p>}
               </TooltipContent>
             </Tooltip>

@@ -32,7 +32,13 @@ def test_employee_hours_validation(session):
     )
     assert vl_employee.validate_hours()
     
-    vl_employee.contracted_hours = 30
+    vl_employee.contracted_hours = 48  # Maximum allowed
+    assert vl_employee.validate_hours()
+    
+    vl_employee.contracted_hours = 30  # Below minimum
+    assert not vl_employee.validate_hours()
+    
+    vl_employee.contracted_hours = 50  # Above maximum
     assert not vl_employee.validate_hours()
     
     # Test TZ employee
@@ -44,20 +50,45 @@ def test_employee_hours_validation(session):
     )
     assert tz_employee.validate_hours()
     
-    tz_employee.contracted_hours = 25
+    tz_employee.contracted_hours = 35  # Maximum allowed
+    assert tz_employee.validate_hours()
+    
+    tz_employee.contracted_hours = 8  # Below minimum
+    assert not tz_employee.validate_hours()
+    
+    tz_employee.contracted_hours = 36  # Above maximum
     assert not tz_employee.validate_hours()
     
     # Test GfB employee
+    max_weekly_hours = (556 / 12.41) / 4.33  # Maximum weekly hours for mini-job
     gfb_employee = Employee(
         first_name="GfB",
         last_name="Employee",
         employee_group=EmployeeGroup.GFB,
-        contracted_hours=40
+        contracted_hours=max_weekly_hours
     )
     assert gfb_employee.validate_hours()
     
-    gfb_employee.contracted_hours = 45
+    gfb_employee.contracted_hours = max_weekly_hours + 1  # Above maximum
     assert not gfb_employee.validate_hours()
+    
+    # Test TL employee (same rules as VL)
+    tl_employee = Employee(
+        first_name="TL",
+        last_name="Employee",
+        employee_group=EmployeeGroup.TL,
+        contracted_hours=40
+    )
+    assert tl_employee.validate_hours()
+    
+    tl_employee.contracted_hours = 48  # Maximum allowed
+    assert tl_employee.validate_hours()
+    
+    tl_employee.contracted_hours = 30  # Below minimum
+    assert not tl_employee.validate_hours()
+    
+    tl_employee.contracted_hours = 50  # Above maximum
+    assert not tl_employee.validate_hours()
 
 def test_employee_id_generation(session):
     """Test employee ID generation"""

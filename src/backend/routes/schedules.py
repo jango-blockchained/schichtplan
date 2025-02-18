@@ -163,25 +163,37 @@ def export_schedule():
 
 @bp.route('/update-break-notes/', methods=['PUT'])
 def update_break_notes():
+    """Update break notes for a specific schedule"""
     data = request.get_json()
     
     try:
         employee_id = int(data['employee_id'])
         date = datetime.strptime(data['date'], '%Y-%m-%d').date()
-        notes = data.get('notes')
+        notes = data.get('notes', '').strip()
         
+        # Find the schedule for this employee and date
         schedule = Schedule.query.filter_by(
             employee_id=employee_id,
             date=date
-        ).first_or_404()
+        ).first_or_404("No schedule found for this employee on the specified date")
         
-        schedule.notes = notes
+        # Only update notes if the schedule has a break
+        if not schedule.break_start or not schedule.break_end:
+            return jsonify({
+                'error': 'Cannot add break notes to a schedule without breaks'
+            }), 400
+        
+        # Update the notes
+        schedule.notes = notes if notes else None
         db.session.commit()
         
-        return jsonify(schedule.to_dict())
+        return jsonify({
+            'message': 'Break notes updated successfully',
+            'schedule': schedule.to_dict()
+        })
         
-    except (KeyError, ValueError) as e:
-        return jsonify({'error': str(e)}), 400
+    except ValueError as e:
+        return jsonify({'error': f'Invalid data format: {str(e)}'}), 400
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': 'An unexpected error occurred'}), 500 
+        return jsonify({'error': f'Failed to update break notes: {str(e)}'}), 500 

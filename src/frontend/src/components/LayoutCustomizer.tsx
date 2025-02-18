@@ -33,7 +33,7 @@ const DEFAULT_PRESETS = {
             font: "Helvetica",
             size: 24,
             color: "#000000",
-            alignment: "center"
+            alignment: "center" as 'center'
         },
         margins: {
             top: 20,
@@ -45,33 +45,33 @@ const DEFAULT_PRESETS = {
             {
                 id: 'VL',
                 name: 'Vollzeit',
-                description: 'Full-time employee',
-                minHours: 40,
-                maxHours: 40,
+                description: 'Full-time employee (35-48h/week)',
+                minHours: 35,
+                maxHours: 48,
                 isFullTime: true
             },
             {
                 id: 'TZ',
                 name: 'Teilzeit',
-                description: 'Part-time employee',
+                description: 'Part-time employee (10-35h/week)',
                 minHours: 10,
-                maxHours: 30,
+                maxHours: 35,
                 isFullTime: false
             },
             {
                 id: 'GFB',
                 name: 'Geringfügig Beschäftigt',
-                description: 'Mini-job employee',
+                description: `Mini-job employee (max 556 EUR/month, ~${Math.floor((556 / 12.41) / 4.33)}h/week)`,
                 minHours: 0,
-                maxHours: 40,
+                maxHours: Math.floor((556 / 12.41) / 4.33),
                 isFullTime: false
             },
             {
                 id: 'TL',
                 name: 'Team Leader',
-                description: 'Team leader (full-time)',
-                minHours: 40,
-                maxHours: 40,
+                description: 'Team leader (35-48h/week)',
+                minHours: 35,
+                maxHours: 48,
                 isFullTime: true
             }
         ]
@@ -92,7 +92,7 @@ const DEFAULT_PRESETS = {
             font: "Arial",
             size: 28,
             color: "#2C5282",
-            alignment: "center"
+            alignment: "center" as 'center'
         },
         margins: {
             top: 25,
@@ -104,33 +104,33 @@ const DEFAULT_PRESETS = {
             {
                 id: 'VL',
                 name: 'Vollzeit',
-                description: 'Full-time employee',
-                minHours: 40,
-                maxHours: 40,
+                description: 'Full-time employee (35-48h/week)',
+                minHours: 35,
+                maxHours: 48,
                 isFullTime: true
             },
             {
                 id: 'TZ',
                 name: 'Teilzeit',
-                description: 'Part-time employee',
+                description: 'Part-time employee (10-35h/week)',
                 minHours: 10,
-                maxHours: 30,
+                maxHours: 35,
                 isFullTime: false
             },
             {
                 id: 'GFB',
                 name: 'Geringfügig Beschäftigt',
-                description: 'Mini-job employee',
+                description: `Mini-job employee (max 556 EUR/month, ~${Math.floor((556 / 12.41) / 4.33)}h/week)`,
                 minHours: 0,
-                maxHours: 40,
+                maxHours: Math.floor((556 / 12.41) / 4.33),
                 isFullTime: false
             },
             {
                 id: 'TL',
                 name: 'Team Leader',
-                description: 'Team leader (full-time)',
-                minHours: 40,
-                maxHours: 40,
+                description: 'Team leader (35-48h/week)',
+                minHours: 35,
+                maxHours: 48,
                 isFullTime: true
             }
         ]
@@ -151,7 +151,7 @@ const DEFAULT_PRESETS = {
             font: "Verdana",
             size: 20,
             color: "#000000",
-            alignment: "center"
+            alignment: "center" as 'center'
         },
         margins: {
             top: 15,
@@ -163,52 +163,89 @@ const DEFAULT_PRESETS = {
             {
                 id: 'VL',
                 name: 'Vollzeit',
-                description: 'Full-time employee',
-                minHours: 40,
-                maxHours: 40,
+                description: 'Full-time employee (35-48h/week)',
+                minHours: 35,
+                maxHours: 48,
                 isFullTime: true
             },
             {
                 id: 'TZ',
                 name: 'Teilzeit',
-                description: 'Part-time employee',
+                description: 'Part-time employee (10-35h/week)',
                 minHours: 10,
-                maxHours: 30,
+                maxHours: 35,
                 isFullTime: false
             },
             {
                 id: 'GFB',
                 name: 'Geringfügig Beschäftigt',
-                description: 'Mini-job employee',
+                description: `Mini-job employee (max 556 EUR/month, ~${Math.floor((556 / 12.41) / 4.33)}h/week)`,
                 minHours: 0,
-                maxHours: 40,
+                maxHours: Math.floor((556 / 12.41) / 4.33),
                 isFullTime: false
             },
             {
                 id: 'TL',
                 name: 'Team Leader',
-                description: 'Team leader (full-time)',
-                minHours: 40,
-                maxHours: 40,
+                description: 'Team leader (35-48h/week)',
+                minHours: 35,
+                maxHours: 48,
                 isFullTime: true
             }
         ]
     }
 };
 
+// Add validation function for employee groups
+const validateEmployeeGroups = (groups: EmployeeGroup[]): string | null => {
+    for (const group of groups) {
+        if (group.minHours < 0 || group.maxHours > 48) {
+            return `${group.name}: Hours must be between 0 and 48 (German labor law maximum)`;
+        }
+
+        if (group.minHours > group.maxHours) {
+            return `${group.name}: Minimum hours cannot be greater than maximum hours`;
+        }
+
+        switch (group.id) {
+            case 'VL':
+            case 'TL':
+                if (group.minHours < 35) {
+                    return `${group.name}: Full-time employees must work at least 35 hours per week`;
+                }
+                if (group.maxHours !== 48) {
+                    return `${group.name}: Full-time employees are limited to 48 hours per week`;
+                }
+                break;
+            case 'TZ':
+                if (group.maxHours > 35) {
+                    return `${group.name}: Part-time employees cannot exceed 35 hours per week`;
+                }
+                break;
+            case 'GFB':
+                const maxGfbHours = Math.floor((556 / 12.41) / 4.33);
+                if (group.maxHours > maxGfbHours) {
+                    return `${group.name}: Mini-job employees cannot exceed ${maxGfbHours} hours per week (556 EUR limit)`;
+                }
+                break;
+        }
+    }
+    return null;
+};
+
 const LayoutCustomizer: React.FC = () => {
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
+    const [employeeGroups, setEmployeeGroups] = useState<EmployeeGroup[]>([]);
+    const [layoutConfig, setLayoutConfig] = useState<LayoutConfig>(() => {
+        const storedConfig = localStorage.getItem('lastLayoutConfig');
+        return storedConfig ? JSON.parse(storedConfig) : DEFAULT_PRESETS['Classic'];
+    });
 
     // State for managing presets
     const [presets, setPresets] = useState<Record<string, LayoutConfig>>(() => {
         const storedPresets = localStorage.getItem('layoutPresets');
         return storedPresets ? JSON.parse(storedPresets) : DEFAULT_PRESETS;
-    });
-
-    const [layoutConfig, setLayoutConfig] = useState<LayoutConfig>(() => {
-        const storedConfig = localStorage.getItem('lastLayoutConfig');
-        return storedConfig ? JSON.parse(storedConfig) : DEFAULT_PRESETS['Classic'];
     });
 
     // Modal and toast states
@@ -219,7 +256,6 @@ const LayoutCustomizer: React.FC = () => {
 
     const [newPresetName, setNewPresetName] = useState('');
     const [selectedPreset, setSelectedPreset] = useState('');
-    const [employeeGroups, setEmployeeGroups] = useState<EmployeeGroup[]>([]);
 
     // Save configurations to local storage
     useEffect(() => {
@@ -247,18 +283,25 @@ const LayoutCustomizer: React.FC = () => {
             return;
         }
 
-        if (presets[newPresetName]) {
-            showToast('A preset with this name already exists', 'warning');
+        const error = validateEmployeeGroups(layoutConfig.employee_groups);
+        if (error) {
+            showToast(error, 'destructive');
             return;
         }
 
-        setPresets(prev => ({
-            ...prev,
+        if (presets[newPresetName]) {
+            showToast('A preset with this name already exists', 'destructive');
+            return;
+        }
+
+        const updatedPresets = {
+            ...presets,
             [newPresetName]: layoutConfig
-        }));
+        };
+        setPresets(updatedPresets);
         setIsPresetModalOpen(false);
         setNewPresetName('');
-        showToast(`Preset "${newPresetName}" saved successfully`);
+        showToast('Preset saved successfully');
     };
 
     const handleLoadPreset = () => {
@@ -286,6 +329,13 @@ const LayoutCustomizer: React.FC = () => {
     };
 
     const handleEmployeeGroupsChange = (newGroups: EmployeeGroup[]) => {
+        const error = validateEmployeeGroups(newGroups);
+        if (error) {
+            showToast(error, 'destructive');
+            return;
+        }
+
+        setEmployeeGroups(newGroups);
         setLayoutConfig(prev => ({
             ...prev,
             employee_groups: newGroups
@@ -354,9 +404,18 @@ const LayoutCustomizer: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-4">
-                    <TableStyleEditor />
-                    <FontEditor />
-                    <MarginEditor />
+                    <TableStyleEditor
+                        tableStyle={layoutConfig.table_style}
+                        onChange={(style) => setLayoutConfig(prev => ({ ...prev, table_style: style }))}
+                    />
+                    <FontEditor
+                        titleStyle={layoutConfig.title_style}
+                        onChange={(style) => setLayoutConfig(prev => ({ ...prev, title_style: style }))}
+                    />
+                    <MarginEditor
+                        margins={layoutConfig.margins}
+                        onChange={(margins) => setLayoutConfig(prev => ({ ...prev, margins }))}
+                    />
                     <EmployeeSettingsEditor
                         groups={employeeGroups}
                         onChange={handleEmployeeGroupsChange}
