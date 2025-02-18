@@ -8,38 +8,29 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Alert, AlertDescription } from './ui/alert';
 import { Trash2, Plus } from 'lucide-react';
 import { ColorPicker } from './ui/color-picker';
+import { BaseShiftType, BaseEmployeeType, BaseAbsenceType } from '@/types';
 
-export interface ShiftType {
-    id: string;
-    name: string;
-    start_time: string;
-    end_time: string;
-    color: string;
+export interface ShiftType extends BaseShiftType {
+    type: 'shift';
 }
 
-export interface EmployeeType {
-    id: string;
-    name: string;
-    min_hours: number;
-    max_hours: number;
+export interface EmployeeType extends BaseEmployeeType {
+    type: 'employee';
 }
 
-export interface AbsenceType {
-    id: string;
-    name: string;
-    color: string;
-    paid: boolean;
+export interface AbsenceType extends BaseAbsenceType {
+    type: 'absence';
 }
 
 type GroupType = ShiftType | EmployeeType | AbsenceType;
 
 interface EmployeeSettingsEditorProps {
+    type: GroupType['type'];
     groups: GroupType[];
     onChange: (groups: GroupType[]) => void;
-    type: 'shift' | 'employee' | 'absence';
 }
 
-export default function EmployeeSettingsEditor({ groups, onChange, type }: EmployeeSettingsEditorProps) {
+export default function EmployeeSettingsEditor<T extends keyof GroupType>({ groups, onChange, type }: EmployeeSettingsEditorProps) {
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [newGroup, setNewGroup] = useState<GroupType>(getDefaultGroup());
     const [error, setError] = useState<string | null>(null);
@@ -48,6 +39,7 @@ export default function EmployeeSettingsEditor({ groups, onChange, type }: Emplo
         switch (type) {
             case 'shift':
                 return {
+                    type: 'shift',
                     id: '',
                     name: '',
                     start_time: '09:00',
@@ -56,6 +48,7 @@ export default function EmployeeSettingsEditor({ groups, onChange, type }: Emplo
                 };
             case 'employee':
                 return {
+                    type: 'employee',
                     id: '',
                     name: '',
                     min_hours: 0,
@@ -63,6 +56,7 @@ export default function EmployeeSettingsEditor({ groups, onChange, type }: Emplo
                 };
             case 'absence':
                 return {
+                    type: 'absence',
                     id: '',
                     name: '',
                     color: '#FF9800',
@@ -94,13 +88,32 @@ export default function EmployeeSettingsEditor({ groups, onChange, type }: Emplo
         onChange(updatedGroups);
     };
 
-    const handleUpdateGroup = (index: number, field: keyof GroupType, value: any) => {
+    const handleUpdateShiftGroup = (index: number, field: keyof ShiftType, value: string) => {
         const updatedGroups = [...groups];
         const updatedGroup = {
             ...updatedGroups[index],
             [field]: value
         };
+        updatedGroups[index] = updatedGroup;
+        onChange(updatedGroups);
+    };
 
+    const handleUpdateEmployeeGroup = (index: number, field: keyof EmployeeType, value: string | number) => {
+        const updatedGroups = [...groups];
+        const updatedGroup = {
+            ...updatedGroups[index],
+            [field]: value
+        };
+        updatedGroups[index] = updatedGroup;
+        onChange(updatedGroups);
+    };
+
+    const handleUpdateAbsenceGroup = (index: number, field: keyof AbsenceType, value: string | boolean) => {
+        const updatedGroups = [...groups];
+        const updatedGroup = {
+            ...updatedGroups[index],
+            [field]: value
+        };
         updatedGroups[index] = updatedGroup;
         onChange(updatedGroups);
     };
@@ -116,7 +129,15 @@ export default function EmployeeSettingsEditor({ groups, onChange, type }: Emplo
                                     <Label>ID</Label>
                                     <Input
                                         value={group.id}
-                                        onChange={(e) => handleUpdateGroup(index, 'id', e.target.value)}
+                                        onChange={(e) => {
+                                            if (type === 'shift') {
+                                                handleUpdateShiftGroup(index, 'id', e.target.value);
+                                            } else if (type === 'employee') {
+                                                handleUpdateEmployeeGroup(index, 'id', e.target.value);
+                                            } else {
+                                                handleUpdateAbsenceGroup(index, 'id', e.target.value);
+                                            }
+                                        }}
                                     />
                                 </div>
 
@@ -124,7 +145,15 @@ export default function EmployeeSettingsEditor({ groups, onChange, type }: Emplo
                                     <Label>Name</Label>
                                     <Input
                                         value={group.name}
-                                        onChange={(e) => handleUpdateGroup(index, 'name', e.target.value)}
+                                        onChange={(e) => {
+                                            if (type === 'shift') {
+                                                handleUpdateShiftGroup(index, 'name', e.target.value);
+                                            } else if (type === 'employee') {
+                                                handleUpdateEmployeeGroup(index, 'name', e.target.value);
+                                            } else {
+                                                handleUpdateAbsenceGroup(index, 'name', e.target.value);
+                                            }
+                                        }}
                                     />
                                 </div>
                             </div>
@@ -136,7 +165,7 @@ export default function EmployeeSettingsEditor({ groups, onChange, type }: Emplo
                                         <Input
                                             type="time"
                                             value={group.start_time}
-                                            onChange={(e) => handleUpdateGroup(index, 'start_time', e.target.value)}
+                                            onChange={(e) => handleUpdateShiftGroup(index, 'start_time', e.target.value)}
                                         />
                                     </div>
 
@@ -145,15 +174,16 @@ export default function EmployeeSettingsEditor({ groups, onChange, type }: Emplo
                                         <Input
                                             type="time"
                                             value={group.end_time}
-                                            onChange={(e) => handleUpdateGroup(index, 'end_time', e.target.value)}
+                                            onChange={(e) => handleUpdateShiftGroup(index, 'end_time', e.target.value)}
                                         />
                                     </div>
 
                                     <div className="space-y-2">
                                         <Label>Color</Label>
                                         <ColorPicker
+                                            id={`shift-color-${group.id}`}
                                             color={group.color}
-                                            onChange={(color) => handleUpdateGroup(index, 'color', color)}
+                                            onChange={(color) => handleUpdateShiftGroup(index, 'color', color)}
                                         />
                                     </div>
                                 </div>
@@ -166,7 +196,7 @@ export default function EmployeeSettingsEditor({ groups, onChange, type }: Emplo
                                         <Input
                                             type="number"
                                             value={group.min_hours}
-                                            onChange={(e) => handleUpdateGroup(index, 'min_hours', Number(e.target.value))}
+                                            onChange={(e) => handleUpdateEmployeeGroup(index, 'min_hours', Number(e.target.value))}
                                         />
                                     </div>
 
@@ -175,7 +205,7 @@ export default function EmployeeSettingsEditor({ groups, onChange, type }: Emplo
                                         <Input
                                             type="number"
                                             value={group.max_hours}
-                                            onChange={(e) => handleUpdateGroup(index, 'max_hours', Number(e.target.value))}
+                                            onChange={(e) => handleUpdateEmployeeGroup(index, 'max_hours', Number(e.target.value))}
                                         />
                                     </div>
                                 </div>
@@ -186,8 +216,9 @@ export default function EmployeeSettingsEditor({ groups, onChange, type }: Emplo
                                     <div className="space-y-2">
                                         <Label>Color</Label>
                                         <ColorPicker
+                                            id={`absence-color-${group.id}`}
                                             color={group.color}
-                                            onChange={(color) => handleUpdateGroup(index, 'color', color)}
+                                            onChange={(color) => handleUpdateAbsenceGroup(index, 'color', color)}
                                         />
                                     </div>
 
@@ -196,7 +227,7 @@ export default function EmployeeSettingsEditor({ groups, onChange, type }: Emplo
                                         <Select
                                             value={group.paid.toString()}
                                             onValueChange={(value) =>
-                                                handleUpdateGroup(index, 'paid', value === 'true')}
+                                                handleUpdateAbsenceGroup(index, 'paid', value === 'true')}
                                         >
                                             <SelectTrigger>
                                                 <SelectValue />
@@ -255,7 +286,7 @@ export default function EmployeeSettingsEditor({ groups, onChange, type }: Emplo
                                 <Label>ID</Label>
                                 <Input
                                     value={newGroup.id}
-                                    onChange={(e) => setNewGroup({ ...newGroup, id: e.target.value })}
+                                    onChange={(e) => setNewGroup({ ...newGroup, id: e.target.value } as GroupType)}
                                 />
                             </div>
 
@@ -263,7 +294,7 @@ export default function EmployeeSettingsEditor({ groups, onChange, type }: Emplo
                                 <Label>Name</Label>
                                 <Input
                                     value={newGroup.name}
-                                    onChange={(e) => setNewGroup({ ...newGroup, name: e.target.value })}
+                                    onChange={(e) => setNewGroup({ ...newGroup, name: e.target.value } as GroupType)}
                                 />
                             </div>
                         </div>
@@ -276,7 +307,7 @@ export default function EmployeeSettingsEditor({ groups, onChange, type }: Emplo
                                         type="time"
                                         value={newGroup.start_time}
                                         onChange={(e) =>
-                                            setNewGroup({ ...newGroup, start_time: e.target.value })
+                                            setNewGroup({ ...newGroup, start_time: e.target.value } as ShiftType)
                                         }
                                     />
                                 </div>
@@ -287,7 +318,7 @@ export default function EmployeeSettingsEditor({ groups, onChange, type }: Emplo
                                         type="time"
                                         value={newGroup.end_time}
                                         onChange={(e) =>
-                                            setNewGroup({ ...newGroup, end_time: e.target.value })
+                                            setNewGroup({ ...newGroup, end_time: e.target.value } as ShiftType)
                                         }
                                     />
                                 </div>
@@ -295,9 +326,10 @@ export default function EmployeeSettingsEditor({ groups, onChange, type }: Emplo
                                 <div className="space-y-2">
                                     <Label>Color</Label>
                                     <ColorPicker
+                                        id={`new-shift-color`}
                                         color={newGroup.color}
                                         onChange={(color) =>
-                                            setNewGroup({ ...newGroup, color })
+                                            setNewGroup({ ...newGroup, color } as ShiftType)
                                         }
                                     />
                                 </div>
@@ -312,7 +344,7 @@ export default function EmployeeSettingsEditor({ groups, onChange, type }: Emplo
                                         type="number"
                                         value={newGroup.min_hours}
                                         onChange={(e) =>
-                                            setNewGroup({ ...newGroup, min_hours: Number(e.target.value) })
+                                            setNewGroup({ ...newGroup, min_hours: Number(e.target.value) } as EmployeeType)
                                         }
                                     />
                                 </div>
@@ -323,7 +355,7 @@ export default function EmployeeSettingsEditor({ groups, onChange, type }: Emplo
                                         type="number"
                                         value={newGroup.max_hours}
                                         onChange={(e) =>
-                                            setNewGroup({ ...newGroup, max_hours: Number(e.target.value) })
+                                            setNewGroup({ ...newGroup, max_hours: Number(e.target.value) } as EmployeeType)
                                         }
                                     />
                                 </div>
@@ -335,9 +367,10 @@ export default function EmployeeSettingsEditor({ groups, onChange, type }: Emplo
                                 <div className="space-y-2">
                                     <Label>Color</Label>
                                     <ColorPicker
+                                        id={`new-absence-color`}
                                         color={newGroup.color}
                                         onChange={(color) =>
-                                            setNewGroup({ ...newGroup, color })
+                                            setNewGroup({ ...newGroup, color } as AbsenceType)
                                         }
                                     />
                                 </div>
@@ -347,7 +380,7 @@ export default function EmployeeSettingsEditor({ groups, onChange, type }: Emplo
                                     <Select
                                         value={newGroup.paid.toString()}
                                         onValueChange={(value) =>
-                                            setNewGroup({ ...newGroup, paid: value === 'true' })
+                                            setNewGroup({ ...newGroup, paid: value === 'true' } as AbsenceType)
                                         }
                                     >
                                         <SelectTrigger>

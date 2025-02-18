@@ -352,12 +352,27 @@ export const applyShiftTemplate = async (id: number) => {
 
 // Settings
 export const getSettings = async (): Promise<Settings> => {
-    const response = await api.get('/settings');
+    const response = await api.get('/api/settings');
     return response.data;
 };
 
-export const updateSettings = async (data: Settings): Promise<Settings> => {
-    const response = await api.put('/settings', data);
+export const updateSettings = async (data: Partial<Settings>): Promise<Settings> => {
+    const response = await api.put('/api/settings', data);
+    return response.data;
+};
+
+export const resetSettings = async (): Promise<Settings> => {
+    const response = await api.post('/api/settings/reset');
+    return response.data;
+};
+
+export const getCategorySettings = async (category: string): Promise<any> => {
+    const response = await api.get(`/api/settings/${category}`);
+    return response.data;
+};
+
+export const updateCategorySettings = async (category: string, data: any): Promise<any> => {
+    const response = await api.put(`/api/settings/${category}`, data);
     return response.data;
 };
 
