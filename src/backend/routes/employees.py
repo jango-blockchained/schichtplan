@@ -25,16 +25,20 @@ def create_employee():
     data = request.get_json()
     
     try:
+        # Create employee without employee_id first
         employee = Employee(
-            employee_id=data['employee_id'],
             first_name=data['first_name'],
             last_name=data['last_name'],
-            email=data.get('email'),
-            phone=data.get('phone'),
+            employee_group=data['employee_group'],
             contracted_hours=data.get('contracted_hours', 0),
-            is_active=data.get('is_active', True),
             is_keyholder=data.get('is_keyholder', False)
         )
+        
+        # Optional fields
+        if 'email' in data:
+            employee.email = data['email']
+        if 'phone' in data:
+            employee.phone = data['phone']
         
         db.session.add(employee)
         db.session.commit()
@@ -43,6 +47,8 @@ def create_employee():
         
     except KeyError as e:
         return jsonify({'error': f'Missing required field: {str(e)}'}), HTTPStatus.BAD_REQUEST
+    except ValueError as e:
+        return jsonify({'error': str(e)}), HTTPStatus.BAD_REQUEST
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
