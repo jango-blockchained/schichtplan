@@ -8,11 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Alert, AlertDescription } from './ui/alert';
 import { Trash2, Plus } from 'lucide-react';
 import { ColorPicker } from './ui/color-picker';
-import { BaseShiftType, BaseEmployeeType, BaseAbsenceType } from '@/types';
-
-export interface ShiftType extends BaseShiftType {
-    type: 'shift';
-}
+import { BaseEmployeeType, BaseAbsenceType } from '@/types';
 
 export interface EmployeeType extends BaseEmployeeType {
     type: 'employee';
@@ -22,7 +18,7 @@ export interface AbsenceType extends BaseAbsenceType {
     type: 'absence';
 }
 
-type GroupType = ShiftType | EmployeeType | AbsenceType;
+type GroupType = EmployeeType | AbsenceType;
 
 interface EmployeeSettingsEditorProps {
     type: GroupType['type'];
@@ -37,15 +33,6 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
 
     function getDefaultGroup(): GroupType {
         switch (type) {
-            case 'shift':
-                return {
-                    type: 'shift',
-                    id: '',
-                    name: '',
-                    start_time: '09:00',
-                    end_time: '17:00',
-                    color: '#4CAF50'
-                } as ShiftType;
             case 'employee':
                 return {
                     type: 'employee',
@@ -93,16 +80,6 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
         onChange(updatedGroups);
     };
 
-    const handleUpdateShiftGroup = (index: number, field: keyof ShiftType, value: string) => {
-        const updatedGroups = [...groups];
-        const updatedGroup = {
-            ...updatedGroups[index],
-            [field]: value
-        };
-        updatedGroups[index] = updatedGroup;
-        onChange(updatedGroups);
-    };
-
     const handleUpdateEmployeeGroup = (index: number, field: keyof EmployeeType, value: string | number) => {
         const updatedGroups = [...groups];
         const updatedGroup = {
@@ -135,9 +112,7 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                                     <Input
                                         value={group.id}
                                         onChange={(e) => {
-                                            if (type === 'shift') {
-                                                handleUpdateShiftGroup(index, 'id', e.target.value);
-                                            } else if (type === 'employee') {
+                                            if (type === 'employee') {
                                                 handleUpdateEmployeeGroup(index, 'id', e.target.value);
                                             } else {
                                                 handleUpdateAbsenceGroup(index, 'id', e.target.value);
@@ -151,9 +126,7 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                                     <Input
                                         value={group.name}
                                         onChange={(e) => {
-                                            if (type === 'shift') {
-                                                handleUpdateShiftGroup(index, 'name', e.target.value);
-                                            } else if (type === 'employee') {
+                                            if (type === 'employee') {
                                                 handleUpdateEmployeeGroup(index, 'name', e.target.value);
                                             } else {
                                                 handleUpdateAbsenceGroup(index, 'name', e.target.value);
@@ -162,37 +135,6 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                                     />
                                 </div>
                             </div>
-
-                            {type === 'shift' && 'start_time' in group && (
-                                <div className="grid grid-cols-3 gap-4">
-                                    <div className="space-y-2">
-                                        <Label>Start Time</Label>
-                                        <Input
-                                            type="time"
-                                            value={group.start_time}
-                                            onChange={(e) => handleUpdateShiftGroup(index, 'start_time', e.target.value)}
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label>End Time</Label>
-                                        <Input
-                                            type="time"
-                                            value={group.end_time}
-                                            onChange={(e) => handleUpdateShiftGroup(index, 'end_time', e.target.value)}
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label>Color</Label>
-                                        <ColorPicker
-                                            id={`shift-color-${group.id}`}
-                                            color={group.color}
-                                            onChange={(color) => handleUpdateShiftGroup(index, 'color', color)}
-                                        />
-                                    </div>
-                                </div>
-                            )}
 
                             {type === 'employee' && 'min_hours' in group && (
                                 <div className="grid grid-cols-2 gap-4">
@@ -267,7 +209,7 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                     onClick={() => setIsAddDialogOpen(true)}
                 >
                     <Plus className="h-4 w-4 mr-1" />
-                    Add {type === 'shift' ? 'Shift Type' : type === 'employee' ? 'Employee Type' : 'Absence Type'}
+                    Add {type === 'employee' ? 'Employee Type' : 'Absence Type'}
                 </Button>
             </CardContent>
 
@@ -275,7 +217,7 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>
-                            Add {type === 'shift' ? 'Shift Type' : type === 'employee' ? 'Employee Type' : 'Absence Type'}
+                            Add {type === 'employee' ? 'Employee Type' : 'Absence Type'}
                         </DialogTitle>
                     </DialogHeader>
 
@@ -303,43 +245,6 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                                 />
                             </div>
                         </div>
-
-                        {type === 'shift' && 'start_time' in newGroup && (
-                            <div className="grid grid-cols-3 gap-4">
-                                <div className="space-y-2">
-                                    <Label>Start Time</Label>
-                                    <Input
-                                        type="time"
-                                        value={newGroup.start_time}
-                                        onChange={(e) =>
-                                            setNewGroup({ ...newGroup, start_time: e.target.value } as ShiftType)
-                                        }
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label>End Time</Label>
-                                    <Input
-                                        type="time"
-                                        value={newGroup.end_time}
-                                        onChange={(e) =>
-                                            setNewGroup({ ...newGroup, end_time: e.target.value } as ShiftType)
-                                        }
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label>Color</Label>
-                                    <ColorPicker
-                                        id={`new-shift-color`}
-                                        color={newGroup.color}
-                                        onChange={(color) =>
-                                            setNewGroup({ ...newGroup, color } as ShiftType)
-                                        }
-                                    />
-                                </div>
-                            </div>
-                        )}
 
                         {type === 'employee' && 'min_hours' in newGroup && (
                             <div className="grid grid-cols-2 gap-4">

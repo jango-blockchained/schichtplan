@@ -1,33 +1,39 @@
 from datetime import datetime, timedelta, date
 from typing import List, Dict, Any, Optional, Tuple
-from models import Employee, Shift, Schedule, StoreConfig, EmployeeGroup, EmployeeAvailability
+from models import Employee, Shift, Schedule, Settings, Availability
 from models.availability import AvailabilityType
 from flask_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
 
 class ScheduleGenerationError(Exception):
+    """Custom exception for schedule generation errors"""
     pass
 
 class ScheduleGenerator:
-    def __init__(self, start_date: date, end_date: date):
-        self.start_date = start_date
-        self.end_date = end_date
+    """Service for generating work schedules"""
+    
+    def __init__(self):
+        self.settings = Settings.query.first()
+        if not self.settings:
+            self.settings = Settings.get_default_settings()
+        self.start_date = self.settings.start_date
+        self.end_date = self.settings.end_date
         self.store_config = self._get_store_config()
         self.employees = self._get_employees()
         self.shifts = self._get_shifts()
         self.schedule_cache: Dict[str, List[Schedule]] = {}
         
-    def _get_store_config(self) -> StoreConfig:
-        config = StoreConfig.query.first()
+    def _get_store_config(self) -> Settings:
+        config = Settings.query.first()
         if not config:
             raise ScheduleGenerationError("Store configuration not found")
         return config
     
     def _get_employees(self) -> List[Employee]:
-        employees = Employee.query.all()
+        employees = Employee.query.filter_by(is_active=True).all()
         if not employees:
-            raise ScheduleGenerationError("No employees found")
+            raise ScheduleGenerationError("No active employees found")
         return employees
     
     def _get_shifts(self) -> List[Shift]:
@@ -57,13 +63,13 @@ class ScheduleGenerator:
     def _check_availability(self, employee: Employee, day: date, shift: Shift) -> bool:
         """Check if employee is available for the given shift"""
         # Get all relevant availability records
-        availabilities = EmployeeAvailability.query.filter(
-            EmployeeAvailability.employee_id == employee.id,
+        availabilities = Availability.query.filter(
+            Availability.employee_id == employee.id,
             (
-                (EmployeeAvailability.start_date <= day) &
-                (EmployeeAvailability.end_date >= day)
+                (Availability.start_date <= day) &
+                (Availability.end_date >= day)
             ) |
-            EmployeeAvailability.is_recurring == True
+            Availability.is_recurring == True
         ).all()
         
         # If no availability records exist, employee is considered available
@@ -399,3 +405,104 @@ class ScheduleGenerator:
             current_date += timedelta(days=1)
             
         return self.generated_schedules 
+
+    def generate_schedule(self, start_date: datetime, end_date: datetime) -> List[Schedule]:
+        """Generate a schedule for the given date range"""
+        try:
+            # Get all active employees and shifts
+            employees = Employee.query.filter_by(is_active=True).all()
+            shifts = Shift.query.all()
+            
+            if not employees:
+                raise ScheduleGenerationError("No active employees found")
+            if not shifts:
+                raise ScheduleGenerationError("No shifts defined")
+            
+            # Get employee availabilities for the period
+            availabilities = Availability.query.filter(
+                Availability.start_date <= end_date,
+                Availability.end_date >= start_date
+            ).all()
+            
+            # Create availability lookup
+            availability_lookup = self._create_availability_lookup(availabilities)
+            
+            # Generate schedule
+            schedules = []
+            current_date = start_date
+            while current_date <= end_date:
+                # Skip if store is closed
+                if not self._is_store_open(current_date):
+                    current_date += timedelta(days=1)
+                    continue
+                
+                # Sort shifts by start time
+                sorted_shifts = sorted(shifts, key=lambda s: s.start_time)
+                
+                # Generate schedule for each shift on this day
+                for shift in sorted_shifts:
+                    assigned_employees = self._assign_employees_to_shift(
+                        shift, employees, current_date, availability_lookup
+                    )
+                    
+                    for employee in assigned_employees:
+                        schedule = Schedule(
+                            employee_id=employee.id,
+                            shift_id=shift.id,
+                            date=current_date
+                        )
+                        schedules.append(schedule)
+                
+                current_date += timedelta(days=1)
+            
+            return schedules
+            
+        except Exception as e:
+            raise ScheduleGenerationError(f"Error generating schedule: {str(e)}")
+    
+    def _is_store_open(self, date: datetime) -> bool:
+        """Check if the store is open on the given date"""
+        # For now, assume store is open Monday-Saturday
+        return date.weekday() < 6  # 0-5 = Monday-Saturday
+    
+    def _create_availability_lookup(self, availabilities: List[Availability]) -> Dict[str, List[Availability]]:
+        """Create a lookup dictionary for employee availabilities"""
+        lookup = {}
+        for availability in availabilities:
+            key = f"{availability.employee_id}_{availability.start_date.strftime('%Y-%m-%d')}"
+            if key not in lookup:
+                lookup[key] = []
+            lookup[key].append(availability)
+        return lookup
+    
+    def _assign_employees_to_shift(
+        self,
+        shift: Shift,
+        employees: List[Employee],
+        date: datetime,
+        availability_lookup: Dict[str, List[Availability]]
+    ) -> List[Employee]:
+        """Assign employees to a shift based on availability and constraints"""
+        available_employees = []
+        
+        for employee in employees:
+            # Check employee availability
+            key = f"{employee.id}_{date.strftime('%Y-%m-%d')}"
+            if key in availability_lookup:
+                availabilities = availability_lookup[key]
+                if any(a.availability_type != AvailabilityType.UNAVAILABLE and 
+                      a.is_available_for_date(date.date(), shift.start_time, shift.end_time) 
+                      for a in availabilities):
+                    available_employees.append(employee)
+        
+        # Ensure minimum staffing requirements
+        if len(available_employees) < shift.min_employees:
+            raise ScheduleGenerationError(
+                f"Not enough available employees for shift on {date.strftime('%Y-%m-%d')}"
+            )
+        
+        # Sort employees by contracted hours (higher first)
+        available_employees.sort(key=lambda e: e.contracted_hours or 0, reverse=True)
+        
+        # For now, just assign the minimum required number of employees
+        return available_employees[:shift.min_employees] 

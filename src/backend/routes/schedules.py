@@ -1,199 +1,132 @@
 from flask import Blueprint, jsonify, request, send_file
-from models import db, Schedule, Employee, Shift
 from datetime import datetime, timedelta
-from typing import Dict, Any
+from models import db, Schedule, Employee, Shift
 from services.schedule_generator import ScheduleGenerator, ScheduleGenerationError
 from services.pdf_generator import PDFGenerator
-from services.layout_manager import LayoutManager
-import io
+from http import HTTPStatus
 
-bp = Blueprint('schedules', __name__, url_prefix='/api/schedules')
+schedules = Blueprint('schedules', __name__)
 
-@bp.route('/', methods=['GET'])
+@schedules.route('/api/schedules', methods=['GET'])
+@schedules.route('/api/schedules/', methods=['GET'])
 def get_schedules():
-    schedules = Schedule.query.all()
-    return jsonify([schedule.to_dict() for schedule in schedules])
-
-@bp.route('/<int:id>', methods=['GET'])
-def get_schedule(id: int):
-    schedule = Schedule.query.get_or_404(id)
-    return jsonify(schedule.to_dict())
-
-@bp.route('/', methods=['POST'])
-def create_schedule():
-    data = request.get_json()
-    
+    """Get all schedules within a date range"""
     try:
-        schedule = Schedule(
-            date=datetime.strptime(data['date'], '%Y-%m-%d').date(),
-            employee_id=int(data['employee_id']),
-            shift_id=int(data['shift_id']),
-            break_start=data.get('break_start'),
-            break_end=data.get('break_end')
-        )
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
         
-        db.session.add(schedule)
-        db.session.commit()
+        if not start_date or not end_date:
+            return jsonify({'error': 'start_date and end_date are required'}), HTTPStatus.BAD_REQUEST
+            
+        start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
         
-        return jsonify(schedule.to_dict()), 201
-        
-    except (KeyError, ValueError) as e:
-        return jsonify({'error': str(e)}), 400
-
-@bp.route('/<int:id>', methods=['PUT'])
-def update_schedule(id: int):
-    schedule = Schedule.query.get_or_404(id)
-    data = request.get_json()
-    
-    try:
-        schedule.date = datetime.strptime(data['date'], '%Y-%m-%d').date()
-        schedule.employee_id = int(data['employee_id'])
-        schedule.shift_id = int(data['shift_id'])
-        schedule.break_start = data.get('break_start')
-        schedule.break_end = data.get('break_end')
-        
-        db.session.commit()
-        
-        return jsonify(schedule.to_dict())
-        
-    except (KeyError, ValueError) as e:
-        return jsonify({'error': str(e)}), 400
-
-@bp.route('/<int:id>', methods=['DELETE'])
-def delete_schedule(id: int):
-    schedule = Schedule.query.get_or_404(id)
-    db.session.delete(schedule)
-    db.session.commit()
-    return '', 204
-
-@bp.route('/generate', methods=['POST'])
-def generate_schedule():
-    data = request.get_json()
-    try:
-        start_date = datetime.strptime(data['start_date'], '%Y-%m-%d').date()
-        end_date = datetime.strptime(data['end_date'], '%Y-%m-%d').date()
-        
-        # Delete existing schedules for the period
-        Schedule.query.filter(
+        schedules = Schedule.query.filter(
             Schedule.date >= start_date,
             Schedule.date <= end_date
-        ).delete()
+        ).all()
         
-        # Generate new schedule
-        generator = ScheduleGenerator(start_date, end_date)
-        schedules = generator.generate()
+        return jsonify([schedule.to_dict() for schedule in schedules])
         
-        # Save generated schedules
-        for schedule in schedules:
-            db.session.add(schedule)
-        db.session.commit()
-        
-        return jsonify({
-            'message': 'Schedule generated successfully',
-            'start_date': start_date.strftime('%Y-%m-%d'),
-            'end_date': end_date.strftime('%Y-%m-%d'),
-            'total_shifts': len(schedules)
-        }), 201
-        
-    except ScheduleGenerationError as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 400
-    except (KeyError, ValueError) as e:
-        return jsonify({'error': str(e)}), 400
+    except ValueError as e:
+        return jsonify({'error': str(e)}), HTTPStatus.BAD_REQUEST
     except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': 'An unexpected error occurred'}), 500
+        return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
-@bp.route('/export', methods=['POST'])
-def export_schedule():
-    data = request.get_json()
+@schedules.route('/api/schedules/generate', methods=['POST'])
+@schedules.route('/api/schedules/generate/', methods=['POST'])
+def generate_schedule():
+    """Generate a schedule for a date range"""
     try:
+        data = request.get_json()
         start_date = datetime.strptime(data['start_date'], '%Y-%m-%d').date()
         end_date = datetime.strptime(data['end_date'], '%Y-%m-%d').date()
         
-        # Optional layout configuration
-        layout_config = data.get('layout', {})
-        layout_manager = LayoutManager()
+        generator = ScheduleGenerator()
+        schedules = generator.generate_schedule(start_date, end_date)
         
-        # Customize layout if configuration is provided
-        if layout_config:
-            if 'column_widths' in layout_config:
-                layout_manager.set_column_widths(layout_config['column_widths'])
-            
-            if 'table_style' in layout_config:
-                layout_manager.set_table_style(layout_config['table_style'])
-            
-            if 'title_style' in layout_config:
-                title_style = layout_config['title_style']
-                layout_manager.set_title_style(
-                    font=title_style.get('font'),
-                    size=title_style.get('size'),
-                    color=title_style.get('color'),
-                    alignment=title_style.get('alignment')
-                )
-            
-            if 'margins' in layout_config:
-                margins = layout_config['margins']
-                layout_manager.set_margins(
-                    right=margins.get('right'),
-                    left=margins.get('left'),
-                    top=margins.get('top'),
-                    bottom=margins.get('bottom')
-                )
+        return jsonify([schedule.to_dict() for schedule in schedules]), HTTPStatus.CREATED
+        
+    except KeyError as e:
+        return jsonify({'error': f'Missing required field: {str(e)}'}), HTTPStatus.BAD_REQUEST
+    except ValueError as e:
+        return jsonify({'error': str(e)}), HTTPStatus.BAD_REQUEST
+    except Exception as e:
+        return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+@schedules.route('/api/schedules/pdf', methods=['GET'])
+def get_schedule_pdf():
+    """Get schedule as PDF"""
+    try:
+        start_date = datetime.strptime(request.args.get('start_date'), '%Y-%m-%d')
+        end_date = datetime.strptime(request.args.get('end_date'), '%Y-%m-%d')
+        
+        # Get schedules for the date range
+        schedules = Schedule.query.filter(
+            Schedule.date >= start_date.date(),
+            Schedule.date <= end_date.date()
+        ).all()
         
         # Generate PDF
-        generator = PDFGenerator(start_date, end_date, layout_manager)
-        pdf_data = generator.generate()
-        
-        # Create response
-        pdf_buffer = io.BytesIO(pdf_data)
-        pdf_buffer.seek(0)
+        generator = PDFGenerator()
+        pdf_buffer = generator.generate_schedule_pdf(schedules, start_date, end_date)
         
         return send_file(
             pdf_buffer,
             mimetype='application/pdf',
             as_attachment=True,
-            download_name=f'schedule_{start_date}_{end_date}.pdf'
+            download_name=f'schedule_{start_date.strftime("%Y%m%d")}_{end_date.strftime("%Y%m%d")}.pdf'
         )
         
     except (KeyError, ValueError) as e:
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'error': f'Invalid input: {str(e)}'}), HTTPStatus.BAD_REQUEST
     except Exception as e:
-        return jsonify({'error': 'An unexpected error occurred while generating the PDF'}), 500
+        return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
-@bp.route('/update-break-notes/', methods=['PUT'])
-def update_break_notes():
-    """Update break notes for a specific schedule"""
+@schedules.route('/api/schedules/<int:schedule_id>', methods=['GET'])
+@schedules.route('/api/schedules/<int:schedule_id>/', methods=['GET'])
+def get_schedule(schedule_id):
+    """Get a specific schedule"""
+    schedule = Schedule.query.get_or_404(schedule_id)
+    return jsonify(schedule.to_dict())
+
+@schedules.route('/api/schedules/<int:schedule_id>', methods=['PUT'])
+@schedules.route('/api/schedules/<int:schedule_id>/', methods=['PUT'])
+def update_schedule(schedule_id):
+    """Update a schedule"""
+    schedule = Schedule.query.get_or_404(schedule_id)
     data = request.get_json()
     
     try:
-        employee_id = int(data['employee_id'])
-        date = datetime.strptime(data['date'], '%Y-%m-%d').date()
-        notes = data.get('notes', '').strip()
+        if 'date' in data:
+            schedule.date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+        if 'employee_id' in data:
+            schedule.employee_id = data['employee_id']
+        if 'shift_id' in data:
+            schedule.shift_id = data['shift_id']
+        if 'notes' in data:
+            schedule.notes = data['notes']
         
-        # Find the schedule for this employee and date
-        schedule = Schedule.query.filter_by(
-            employee_id=employee_id,
-            date=date
-        ).first_or_404("No schedule found for this employee on the specified date")
-        
-        # Only update notes if the schedule has a break
-        if not schedule.break_start or not schedule.break_end:
-            return jsonify({
-                'error': 'Cannot add break notes to a schedule without breaks'
-            }), 400
-        
-        # Update the notes
-        schedule.notes = notes if notes else None
         db.session.commit()
-        
-        return jsonify({
-            'message': 'Break notes updated successfully',
-            'schedule': schedule.to_dict()
-        })
+        return jsonify(schedule.to_dict())
         
     except ValueError as e:
-        return jsonify({'error': f'Invalid data format: {str(e)}'}), 400
+        return jsonify({'error': str(e)}), HTTPStatus.BAD_REQUEST
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': f'Failed to update break notes: {str(e)}'}), 500 
+        return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+@schedules.route('/api/schedules/<int:schedule_id>', methods=['DELETE'])
+@schedules.route('/api/schedules/<int:schedule_id>/', methods=['DELETE'])
+def delete_schedule(schedule_id):
+    """Delete a schedule"""
+    schedule = Schedule.query.get_or_404(schedule_id)
+    
+    try:
+        db.session.delete(schedule)
+        db.session.commit()
+        return '', HTTPStatus.NO_CONTENT
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR 

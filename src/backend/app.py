@@ -9,54 +9,34 @@ if str(current_dir) not in sys.path:
 
 from flask import Flask
 from flask_cors import CORS
-from flask_migrate import Migrate
 from models import db
-from config import Config
-from routes import employees
-from api import shifts, schedules, store, shift_templates, pdf_settings
-from routes.settings import settings_bp
+from routes.shifts import shifts
+from routes.settings import settings
+from routes.schedules import schedules
+from routes.employees import employees
+from routes.availability import availability
 
-def create_app(config_class=Config):
-    """Application factory function"""
+def create_app():
     app = Flask(__name__)
+    CORS(app)
     
-    # Configure SQLite database
-    basedir = os.path.abspath(os.path.dirname(__file__))
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'app.db')
+    # Configure SQLAlchemy
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///schichtplan.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
-    # Disable trailing slash enforcement
-    app.url_map.strict_slashes = False
-    
-    # Initialize extensions with proper CORS configuration
-    CORS(app, 
-         resources={
-             r"/*": {  # Allow CORS for all routes
-                 "origins": ["http://localhost:5173", "http://127.0.0.1:5173", "*"],
-                 "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-                 "allow_headers": ["Content-Type", "Authorization", "Accept", "X-Requested-With"],
-                 "expose_headers": ["Content-Type", "Authorization"],
-                 "supports_credentials": True,  # Explicitly set credentials support
-                 "max_age": 3600
-             }
-         }
-    )
-    
+    # Initialize extensions
     db.init_app(app)
-    Migrate(app, db)
     
     # Register blueprints
-    app.register_blueprint(employees.bp)
-    app.register_blueprint(shifts.bp)
-    app.register_blueprint(schedules.bp)
-    app.register_blueprint(store.bp)
-    app.register_blueprint(shift_templates.bp)
-    app.register_blueprint(settings_bp, url_prefix='/api')
-    app.register_blueprint(pdf_settings.bp)
+    app.register_blueprint(shifts)
+    app.register_blueprint(settings)
+    app.register_blueprint(schedules)
+    app.register_blueprint(employees)
+    app.register_blueprint(availability)
     
-    @app.route('/health')
-    def health_check():
-        return {'status': 'healthy'}, 200
+    # Create database tables
+    with app.app_context():
+        db.create_all()
     
     return app
 

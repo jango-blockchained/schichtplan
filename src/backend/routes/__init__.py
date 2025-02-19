@@ -1,10 +1,13 @@
-from . import employees, shifts, schedules, store_config, shift_templates, availability
+from .shifts import shifts
+from .settings import settings
+from .schedules import schedules
+from .employees import employees
+from .availability import availability
 
 __all__ = [
-    'employees',
     'shifts',
+    'settings',
     'schedules',
-    'store_config',
-    'shift_templates',
+    'employees',
     'availability'
 ] 

@@ -1,114 +1,95 @@
-from flask import Blueprint, jsonify, request, current_app
-from models import db, Employee, EmployeeGroup
-from typing import Dict, Any
-from sqlalchemy.exc import SQLAlchemyError
-import traceback
+from flask import Blueprint, jsonify, request
+from models import db, Employee
+from http import HTTPStatus
 
-bp = Blueprint('employees', __name__, url_prefix='/api/employees')
+employees = Blueprint('employees', __name__)
 
-@bp.route('/', methods=['GET'])
+@employees.route('/api/employees', methods=['GET'])
+@employees.route('/api/employees/', methods=['GET'])
 def get_employees():
     """Get all employees"""
-    try:
-        current_app.logger.info("Fetching all employees")
-        employees = Employee.query.all()
-        current_app.logger.info(f"Found {len(employees)} employees")
-        
-        employee_list = []
-        for employee in employees:
-            try:
-                employee_dict = employee.to_dict()
-                employee_list.append(employee_dict)
-            except Exception as e:
-                current_app.logger.error(f"Error converting employee {employee.id} to dict: {str(e)}")
-                current_app.logger.error(traceback.format_exc())
-                continue
-        
-        current_app.logger.info("Successfully serialized all employees")
-        return jsonify(employee_list)
-        
-    except SQLAlchemyError as e:
-        current_app.logger.error(f"Database error in get_employees: {str(e)}")
-        current_app.logger.error(traceback.format_exc())
-        return jsonify({'error': 'Database error occurred'}), 500
-    except Exception as e:
-        current_app.logger.error(f"Unexpected error in get_employees: {str(e)}")
-        current_app.logger.error(traceback.format_exc())
-        return jsonify({'error': 'An unexpected error occurred'}), 500
+    employees = Employee.query.all()
+    return jsonify([employee.to_dict() for employee in employees])
 
-@bp.route('/<int:id>', methods=['GET'])
-def get_employee(id: int):
-    """Get a specific employee by ID"""
-    try:
-        current_app.logger.info(f"Fetching employee with ID {id}")
-        employee = Employee.query.get_or_404(id)
-        return jsonify(employee.to_dict())
-    except Exception as e:
-        current_app.logger.error(f"Error fetching employee {id}: {str(e)}")
-        current_app.logger.error(traceback.format_exc())
-        return jsonify({'error': f'Error fetching employee: {str(e)}'}), 500
+@employees.route('/api/employees/<int:employee_id>', methods=['GET'])
+@employees.route('/api/employees/<int:employee_id>/', methods=['GET'])
+def get_employee(employee_id):
+    """Get a specific employee"""
+    employee = Employee.query.get_or_404(employee_id)
+    return jsonify(employee.to_dict())
 
-@bp.route('/', methods=['POST'])
+@employees.route('/api/employees', methods=['POST'])
+@employees.route('/api/employees/', methods=['POST'])
 def create_employee():
+    """Create a new employee"""
     data = request.get_json()
     
     try:
-        # Validate required fields
-        required_fields = ['first_name', 'last_name', 'employee_group', 'contracted_hours']
-        missing_fields = [field for field in required_fields if field not in data]
-        if missing_fields:
-            return jsonify({'error': f'Missing required fields: {", ".join(missing_fields)}'}), 400
-
         employee = Employee(
+            employee_id=data['employee_id'],
             first_name=data['first_name'],
             last_name=data['last_name'],
-            employee_group=EmployeeGroup(data['employee_group']),
-            contracted_hours=float(data['contracted_hours']),
-            is_keyholder=bool(data.get('is_keyholder', False))
+            email=data.get('email'),
+            phone=data.get('phone'),
+            contracted_hours=data.get('contracted_hours', 0),
+            is_active=data.get('is_active', True),
+            is_keyholder=data.get('is_keyholder', False)
         )
         
         db.session.add(employee)
         db.session.commit()
         
-        return jsonify(employee.to_dict()), 201
+        return jsonify(employee.to_dict()), HTTPStatus.CREATED
         
-    except ValueError as e:
-        return jsonify({'error': str(e)}), 400
+    except KeyError as e:
+        return jsonify({'error': f'Missing required field: {str(e)}'}), HTTPStatus.BAD_REQUEST
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': f'Failed to create employee: {str(e)}'}), 400
+        return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
-@bp.route('/<int:id>', methods=['PUT'])
-def update_employee(id: int):
-    employee = Employee.query.get_or_404(id)
+@employees.route('/api/employees/<int:employee_id>', methods=['PUT'])
+@employees.route('/api/employees/<int:employee_id>/', methods=['PUT'])
+def update_employee(employee_id):
+    """Update an employee"""
+    employee = Employee.query.get_or_404(employee_id)
     data = request.get_json()
     
     try:
+        if 'employee_id' in data:
+            employee.employee_id = data['employee_id']
         if 'first_name' in data:
             employee.first_name = data['first_name']
         if 'last_name' in data:
             employee.last_name = data['last_name']
-        
-        # If either name is updated, regenerate employee_id
-        if 'first_name' in data or 'last_name' in data:
-            employee.employee_id = employee._generate_employee_id(employee.first_name, employee.last_name)
-            
-        if 'employee_group' in data:
-            employee.employee_group = EmployeeGroup(data['employee_group'])
+        if 'email' in data:
+            employee.email = data['email']
+        if 'phone' in data:
+            employee.phone = data['phone']
         if 'contracted_hours' in data:
-            employee.contracted_hours = float(data['contracted_hours'])
+            employee.contracted_hours = data['contracted_hours']
+        if 'is_active' in data:
+            employee.is_active = data['is_active']
         if 'is_keyholder' in data:
-            employee.is_keyholder = bool(data['is_keyholder'])
+            employee.is_keyholder = data['is_keyholder']
         
         db.session.commit()
         return jsonify(employee.to_dict())
         
-    except (KeyError, ValueError) as e:
-        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
-@bp.route('/<int:id>', methods=['DELETE'])
-def delete_employee(id: int):
-    employee = Employee.query.get_or_404(id)
-    db.session.delete(employee)
-    db.session.commit()
-    return '', 204 
+@employees.route('/api/employees/<int:employee_id>', methods=['DELETE'])
+@employees.route('/api/employees/<int:employee_id>/', methods=['DELETE'])
+def delete_employee(employee_id):
+    """Delete an employee"""
+    employee = Employee.query.get_or_404(employee_id)
+    
+    try:
+        db.session.delete(employee)
+        db.session.commit()
+        return '', HTTPStatus.NO_CONTENT
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR 

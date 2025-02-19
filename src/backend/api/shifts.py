@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, Shift, ShiftType
+from models import db, Shift
 from sqlalchemy.exc import IntegrityError
 from http import HTTPStatus
 from datetime import datetime
@@ -12,13 +12,12 @@ def get_shifts():
     shifts = Shift.query.all()
     return jsonify([{
         'id': shift.id,
-        'shift_type': shift.shift_type.value,
-        'start_time': shift.start_time.strftime('%H:%M'),
-        'end_time': shift.end_time.strftime('%H:%M'),
+        'start_time': shift.start_time,
+        'end_time': shift.end_time,
         'min_employees': shift.min_employees,
         'max_employees': shift.max_employees,
         'duration_hours': shift.duration_hours,
-        'requires_break': shift.requires_break()
+        'requires_break': shift.requires_break
     } for shift in shifts]), HTTPStatus.OK
 
 @bp.route('/<int:shift_id>', methods=['GET'])
@@ -27,13 +26,12 @@ def get_shift(shift_id):
     shift = Shift.query.get_or_404(shift_id)
     return jsonify({
         'id': shift.id,
-        'shift_type': shift.shift_type.value,
-        'start_time': shift.start_time.strftime('%H:%M'),
-        'end_time': shift.end_time.strftime('%H:%M'),
+        'start_time': shift.start_time,
+        'end_time': shift.end_time,
         'min_employees': shift.min_employees,
         'max_employees': shift.max_employees,
         'duration_hours': shift.duration_hours,
-        'requires_break': shift.requires_break()
+        'requires_break': shift.requires_break
     }), HTTPStatus.OK
 
 @bp.route('/', methods=['POST'])
@@ -47,7 +45,6 @@ def create_shift():
         end_time = datetime.strptime(data['end_time'], '%H:%M').time()
         
         shift = Shift(
-            shift_type=ShiftType(data['shift_type']),
             start_time=start_time,
             end_time=end_time,
             min_employees=int(data.get('min_employees', 1)),
@@ -80,8 +77,6 @@ def update_shift(shift_id):
     data = request.get_json()
     
     try:
-        if 'shift_type' in data:
-            shift.shift_type = ShiftType(data['shift_type'])
         if 'start_time' in data:
             shift.start_time = datetime.strptime(data['start_time'], '%H:%M').time()
         if 'end_time' in data:
