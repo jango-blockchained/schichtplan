@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getSettings, updateSettings } from "@/services/api";
-import { Settings, BaseShiftType, BaseEmployeeType, BaseAbsenceType } from "@/types";
+import { Settings } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,11 +16,16 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useDebouncedCallback } from 'use-debounce';
+import { Trash2 } from "lucide-react";
+
+type GroupType = EmployeeType | AbsenceType;
 
 export default function SettingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [currentTab, setCurrentTab] = React.useState("general");
+  const [localSettings, setLocalSettings] = useState<Settings | null>(null);
 
   const { data: settings, isLoading, error } = useQuery<Settings>({
     queryKey: ["settings"],
@@ -28,6 +33,12 @@ export default function SettingsPage() {
     retry: 3,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
+
+  useEffect(() => {
+    if (settings) {
+      setLocalSettings(settings);
+    }
+  }, [settings]);
 
   const updateMutation = useMutation({
     mutationFn: (data: Partial<Settings>) => updateSettings(data),
@@ -47,10 +58,17 @@ export default function SettingsPage() {
     },
   });
 
-  const handleSave = <T extends keyof Settings>(category: T, updates: Partial<Settings[T]>) => {
-    if (!settings) return;
+  const debouncedUpdate = useDebouncedCallback(
+    (updatedSettings: Settings) => {
+      updateMutation.mutate(updatedSettings);
+    },
+    1000 // 1 second delay
+  );
 
-    const updatedSettings = { ...settings };
+  const handleSave = <T extends keyof Settings>(category: T, updates: Partial<Settings[T]>) => {
+    if (!localSettings) return;
+
+    const updatedSettings = { ...localSettings };
     if (category === 'employee_groups') {
       const employeeGroups = updates as Partial<Settings['employee_groups']>;
       updatedSettings.employee_groups = {
@@ -63,7 +81,30 @@ export default function SettingsPage() {
         ...updates
       } as Settings[T];
     }
-    updateMutation.mutate(updatedSettings);
+
+    setLocalSettings(updatedSettings);
+    debouncedUpdate(updatedSettings);
+  };
+
+  const handleImmediateUpdate = () => {
+    if (localSettings) {
+      updateMutation.mutate(localSettings);
+      debouncedUpdate.cancel();
+    }
+  };
+
+  const handleEmployeeGroupChange = (groups: GroupType[]) => {
+    const employeeTypes = groups
+      .filter((group): group is EmployeeType => group.type === 'employee')
+      .map(({ type, ...rest }) => rest);
+    handleSave("employee_groups", { employee_types: employeeTypes });
+  };
+
+  const handleAbsenceGroupChange = (groups: GroupType[]) => {
+    const absenceTypes = groups
+      .filter((group): group is AbsenceType => group.type === 'absence')
+      .map(({ type, ...rest }) => rest);
+    handleSave("employee_groups", { absence_types: absenceTypes });
   };
 
   const renderTypeList = (types: Array<{ id: string; name: string }>) => {
@@ -76,36 +117,17 @@ export default function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
-        <div className="flex flex-col items-center gap-2">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Loading settings...</p>
-        </div>
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
-        <div className="flex flex-col items-center gap-2">
-          <p className="text-sm text-destructive">Failed to load settings.</p>
-          <Button
-            variant="outline"
-            onClick={() => queryClient.invalidateQueries({ queryKey: ["settings"] })}
-          >
-            Try Again
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!settings) {
-    return (
-      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
-        <p className="text-sm text-muted-foreground">No settings found.</p>
-      </div>
+      <Alert variant="destructive">
+        <AlertDescription>Failed to load settings</AlertDescription>
+      </Alert>
     );
   }
 
@@ -133,10 +155,11 @@ export default function SettingsPage() {
                     <Label htmlFor="storeName">Store Name</Label>
                     <Input
                       id="storeName"
-                      value={settings.general.store_name}
+                      value={localSettings?.general.store_name ?? ''}
                       onChange={(e) =>
                         handleSave("general", { store_name: e.target.value })
                       }
+                      onBlur={handleImmediateUpdate}
                     />
                   </div>
 
@@ -144,10 +167,11 @@ export default function SettingsPage() {
                     <Label htmlFor="storeAddress">Store Address</Label>
                     <Input
                       id="storeAddress"
-                      value={settings.general.store_address}
+                      value={localSettings?.general.store_address ?? ''}
                       onChange={(e) =>
                         handleSave("general", { store_address: e.target.value })
                       }
+                      onBlur={handleImmediateUpdate}
                     />
                   </div>
 
@@ -155,11 +179,159 @@ export default function SettingsPage() {
                     <Label htmlFor="storeContact">Store Contact</Label>
                     <Input
                       id="storeContact"
-                      value={settings.general.store_contact}
+                      value={localSettings?.general.store_contact ?? ''}
                       onChange={(e) =>
                         handleSave("general", { store_contact: e.target.value })
                       }
+                      onBlur={handleImmediateUpdate}
                     />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="storeOpening">Opening Time</Label>
+                      <Input
+                        id="storeOpening"
+                        type="time"
+                        value={localSettings?.general.store_opening ?? '09:00'}
+                        onChange={(e) =>
+                          handleSave("general", { store_opening: e.target.value })
+                        }
+                        onBlur={handleImmediateUpdate}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="storeClosing">Closing Time</Label>
+                      <Input
+                        id="storeClosing"
+                        type="time"
+                        value={localSettings?.general.store_closing ?? '20:00'}
+                        onChange={(e) =>
+                          handleSave("general", { store_closing: e.target.value })
+                        }
+                        onBlur={handleImmediateUpdate}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <Label>Opening Days</Label>
+                    <div className="grid grid-cols-7 gap-2">
+                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => (
+                        <div key={day} className="flex flex-col items-center">
+                          <Label className="text-xs mb-1">{day}</Label>
+                          <Switch
+                            checked={localSettings?.general.opening_days?.[index.toString()] ?? false}
+                            onCheckedChange={(checked) => {
+                              const newOpeningDays = {
+                                ...localSettings?.general.opening_days,
+                                [index.toString()]: checked
+                              };
+                              handleSave("general", { opening_days: newOpeningDays });
+                              handleImmediateUpdate();
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <Label>Special Opening Hours</Label>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const date = prompt('Enter date (YYYY-MM-DD):');
+                          if (!date) return;
+
+                          const newSpecialHours = {
+                            ...localSettings?.general.special_hours,
+                            [date]: {
+                              is_closed: false,
+                              opening: localSettings?.general.store_opening,
+                              closing: localSettings?.general.store_closing
+                            }
+                          };
+                          handleSave("general", { special_hours: newSpecialHours });
+                          handleImmediateUpdate();
+                        }}
+                      >
+                        Add Special Hours
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {Object.entries(localSettings?.general.special_hours ?? {}).map(([date, hours]) => (
+                        <Card key={date} className="p-4">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="font-medium">{date}</span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                const newSpecialHours = { ...localSettings?.general.special_hours };
+                                delete newSpecialHours[date];
+                                handleSave("general", { special_hours: newSpecialHours });
+                                handleImmediateUpdate();
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex items-center space-x-2">
+                              <Switch
+                                checked={hours.is_closed}
+                                onCheckedChange={(checked) => {
+                                  const newSpecialHours = {
+                                    ...localSettings?.general.special_hours,
+                                    [date]: { ...hours, is_closed: checked }
+                                  };
+                                  handleSave("general", { special_hours: newSpecialHours });
+                                  handleImmediateUpdate();
+                                }}
+                              />
+                              <Label>Closed</Label>
+                            </div>
+                            {!hours.is_closed && (
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <Label className="text-xs">Opening</Label>
+                                  <Input
+                                    type="time"
+                                    value={hours.opening ?? localSettings?.general.store_opening}
+                                    onChange={(e) => {
+                                      const newSpecialHours = {
+                                        ...localSettings?.general.special_hours,
+                                        [date]: { ...hours, opening: e.target.value }
+                                      };
+                                      handleSave("general", { special_hours: newSpecialHours });
+                                      handleImmediateUpdate();
+                                    }}
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Closing</Label>
+                                  <Input
+                                    type="time"
+                                    value={hours.closing ?? localSettings?.general.store_closing}
+                                    onChange={(e) => {
+                                      const newSpecialHours = {
+                                        ...localSettings?.general.special_hours,
+                                        [date]: { ...hours, closing: e.target.value }
+                                      };
+                                      handleSave("general", { special_hours: newSpecialHours });
+                                      handleImmediateUpdate();
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
@@ -167,10 +339,11 @@ export default function SettingsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="timezone">Timezone</Label>
                     <Select
-                      value={settings.general.timezone}
-                      onValueChange={(value) =>
-                        handleSave("general", { timezone: value })
-                      }
+                      value={localSettings?.general.timezone ?? ''}
+                      onValueChange={(value) => {
+                        handleSave("general", { timezone: value });
+                        handleImmediateUpdate();
+                      }}
                     >
                       <SelectTrigger id="timezone">
                         <SelectValue />
@@ -178,7 +351,7 @@ export default function SettingsPage() {
                       <SelectContent>
                         <SelectItem value="Europe/Berlin">Europe/Berlin</SelectItem>
                         <SelectItem value="Europe/London">Europe/London</SelectItem>
-                        <SelectItem value="Europe/Paris">Europe/Paris</SelectItem>
+                        <SelectItem value="America/New_York">America/New_York</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -186,10 +359,11 @@ export default function SettingsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="language">Language</Label>
                     <Select
-                      value={settings.general.language}
-                      onValueChange={(value) =>
-                        handleSave("general", { language: value })
-                      }
+                      value={localSettings?.general.language ?? ''}
+                      onValueChange={(value) => {
+                        handleSave("general", { language: value });
+                        handleImmediateUpdate();
+                      }}
                     >
                       <SelectTrigger id="language">
                         <SelectValue />
@@ -204,10 +378,11 @@ export default function SettingsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="dateFormat">Date Format</Label>
                     <Select
-                      value={settings.general.date_format}
-                      onValueChange={(value) =>
-                        handleSave("general", { date_format: value })
-                      }
+                      value={localSettings?.general.date_format ?? ''}
+                      onValueChange={(value) => {
+                        handleSave("general", { date_format: value });
+                        handleImmediateUpdate();
+                      }}
                     >
                       <SelectTrigger id="dateFormat">
                         <SelectValue />
@@ -223,10 +398,11 @@ export default function SettingsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="timeFormat">Time Format</Label>
                     <Select
-                      value={settings.general.time_format}
-                      onValueChange={(value) =>
-                        handleSave("general", { time_format: value })
-                      }
+                      value={localSettings?.general.time_format ?? ''}
+                      onValueChange={(value) => {
+                        handleSave("general", { time_format: value });
+                        handleImmediateUpdate();
+                      }}
                     >
                       <SelectTrigger id="timeFormat">
                         <SelectValue />
@@ -251,12 +427,13 @@ export default function SettingsPage() {
                     <Input
                       type="number"
                       id="defaultShiftDuration"
-                      value={settings.scheduling.default_shift_duration}
+                      value={localSettings?.scheduling.default_shift_duration ?? ''}
                       onChange={(e) =>
                         handleSave("scheduling", {
                           default_shift_duration: parseFloat(e.target.value),
                         })
                       }
+                      onBlur={handleImmediateUpdate}
                     />
                   </div>
 
@@ -267,12 +444,13 @@ export default function SettingsPage() {
                     <Input
                       type="number"
                       id="minBreakDuration"
-                      value={settings.scheduling.min_break_duration}
+                      value={localSettings?.scheduling.min_break_duration ?? ''}
                       onChange={(e) =>
                         handleSave("scheduling", {
                           min_break_duration: Number(e.target.value),
                         })
                       }
+                      onBlur={handleImmediateUpdate}
                     />
                   </div>
 
@@ -283,12 +461,13 @@ export default function SettingsPage() {
                     <Input
                       type="number"
                       id="maxDailyHours"
-                      value={settings.scheduling.max_daily_hours}
+                      value={localSettings?.scheduling.max_daily_hours ?? ''}
                       onChange={(e) =>
                         handleSave("scheduling", {
                           max_daily_hours: Number(e.target.value),
                         })
                       }
+                      onBlur={handleImmediateUpdate}
                     />
                   </div>
                 </div>
@@ -301,12 +480,13 @@ export default function SettingsPage() {
                     <Input
                       type="number"
                       id="maxWeeklyHours"
-                      value={settings.scheduling.max_weekly_hours}
+                      value={localSettings?.scheduling.max_weekly_hours ?? ''}
                       onChange={(e) =>
                         handleSave("scheduling", {
                           max_weekly_hours: Number(e.target.value),
                         })
                       }
+                      onBlur={handleImmediateUpdate}
                     />
                   </div>
 
@@ -317,12 +497,13 @@ export default function SettingsPage() {
                     <Input
                       type="number"
                       id="minRestBetweenShifts"
-                      value={settings.scheduling.min_rest_between_shifts}
+                      value={localSettings?.scheduling.min_rest_between_shifts ?? ''}
                       onChange={(e) =>
                         handleSave("scheduling", {
                           min_rest_between_shifts: Number(e.target.value),
                         })
                       }
+                      onBlur={handleImmediateUpdate}
                     />
                   </div>
 
@@ -333,24 +514,26 @@ export default function SettingsPage() {
                     <Input
                       type="number"
                       id="schedulingPeriodWeeks"
-                      value={settings.scheduling.scheduling_period_weeks}
+                      value={localSettings?.scheduling.scheduling_period_weeks ?? ''}
                       onChange={(e) =>
                         handleSave("scheduling", {
                           scheduling_period_weeks: Number(e.target.value),
                         })
                       }
+                      onBlur={handleImmediateUpdate}
                     />
                   </div>
 
                   <div className="flex items-center space-x-2">
                     <Switch
                       id="autoSchedulePreferences"
-                      checked={settings.scheduling.auto_schedule_preferences}
+                      checked={localSettings?.scheduling.auto_schedule_preferences ?? false}
                       onCheckedChange={(checked) =>
                         handleSave("scheduling", {
                           auto_schedule_preferences: checked,
                         })
                       }
+                      onBlur={handleImmediateUpdate}
                     />
                     <Label htmlFor="autoSchedulePreferences">
                       Auto-schedule based on preferences
@@ -366,10 +549,11 @@ export default function SettingsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="theme">Theme</Label>
                     <Select
-                      value={settings.display.theme}
-                      onValueChange={(value) =>
-                        handleSave("display", { theme: value })
-                      }
+                      value={localSettings?.display.theme ?? ''}
+                      onValueChange={(value) => {
+                        handleSave("display", { theme: value });
+                        handleImmediateUpdate();
+                      }}
                     >
                       <SelectTrigger id="theme">
                         <SelectValue />
@@ -386,10 +570,11 @@ export default function SettingsPage() {
                     <Label htmlFor="primaryColor">Primary Color</Label>
                     <ColorPicker
                       id="primaryColor"
-                      color={settings.display.primary_color}
-                      onChange={(color) =>
-                        handleSave("display", { primary_color: color })
-                      }
+                      color={localSettings?.display.primary_color ?? '#000000'}
+                      onChange={(color) => {
+                        handleSave("display", { primary_color: color });
+                        handleImmediateUpdate();
+                      }}
                     />
                   </div>
 
@@ -397,22 +582,22 @@ export default function SettingsPage() {
                     <Label htmlFor="secondaryColor">Secondary Color</Label>
                     <ColorPicker
                       id="secondaryColor"
-                      color={settings.display.secondary_color}
-                      onChange={(color) =>
-                        handleSave("display", { secondary_color: color })
-                      }
+                      color={localSettings?.display.secondary_color ?? '#000000'}
+                      onChange={(color) => {
+                        handleSave("display", { secondary_color: color });
+                        handleImmediateUpdate();
+                      }}
                     />
                   </div>
-                </div>
 
-                <div className="space-y-4">
                   <div className="flex items-center space-x-2">
                     <Switch
                       id="showWeekends"
-                      checked={settings.display.show_weekends}
-                      onCheckedChange={(checked) =>
-                        handleSave("display", { show_weekends: checked })
-                      }
+                      checked={localSettings?.display.show_weekends ?? false}
+                      onCheckedChange={(checked) => {
+                        handleSave("display", { show_weekends: checked });
+                        handleImmediateUpdate();
+                      }}
                     />
                     <Label htmlFor="showWeekends">Show Weekends</Label>
                   </div>
@@ -420,19 +605,18 @@ export default function SettingsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="startOfWeek">Start of Week</Label>
                     <Select
-                      value={settings.display.start_of_week.toString()}
-                      onValueChange={(value) =>
-                        handleSave("display", {
-                          start_of_week: Number(value),
-                        })
-                      }
+                      value={localSettings?.display.start_of_week?.toString() ?? ''}
+                      onValueChange={(value) => {
+                        handleSave("display", { start_of_week: Number(value) });
+                        handleImmediateUpdate();
+                      }}
                     >
                       <SelectTrigger id="startOfWeek">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="1">Monday</SelectItem>
                         <SelectItem value="0">Sunday</SelectItem>
+                        <SelectItem value="1">Monday</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -445,12 +629,13 @@ export default function SettingsPage() {
                 <div className="flex items-center space-x-2">
                   <Switch
                     id="emailNotifications"
-                    checked={settings.notifications.email_notifications}
+                    checked={localSettings?.notifications.email_notifications ?? false}
                     onCheckedChange={(checked) =>
                       handleSave("notifications", {
                         email_notifications: checked,
                       })
                     }
+                    onBlur={handleImmediateUpdate}
                   />
                   <Label htmlFor="emailNotifications">Email Notifications</Label>
                 </div>
@@ -458,12 +643,13 @@ export default function SettingsPage() {
                 <div className="flex items-center space-x-2">
                   <Switch
                     id="schedulePublished"
-                    checked={settings.notifications.schedule_published}
+                    checked={localSettings?.notifications.schedule_published ?? false}
                     onCheckedChange={(checked) =>
                       handleSave("notifications", {
                         schedule_published: checked,
                       })
                     }
+                    onBlur={handleImmediateUpdate}
                   />
                   <Label htmlFor="schedulePublished">
                     Schedule Published Notifications
@@ -473,12 +659,13 @@ export default function SettingsPage() {
                 <div className="flex items-center space-x-2">
                   <Switch
                     id="shiftChanges"
-                    checked={settings.notifications.shift_changes}
+                    checked={localSettings?.notifications.shift_changes ?? false}
                     onCheckedChange={(checked) =>
                       handleSave("notifications", {
                         shift_changes: checked,
                       })
                     }
+                    onBlur={handleImmediateUpdate}
                   />
                   <Label htmlFor="shiftChanges">Shift Changes Notifications</Label>
                 </div>
@@ -486,12 +673,13 @@ export default function SettingsPage() {
                 <div className="flex items-center space-x-2">
                   <Switch
                     id="timeOffRequests"
-                    checked={settings.notifications.time_off_requests}
+                    checked={localSettings?.notifications.time_off_requests ?? false}
                     onCheckedChange={(checked) =>
                       handleSave("notifications", {
                         time_off_requests: checked,
                       })
                     }
+                    onBlur={handleImmediateUpdate}
                   />
                   <Label htmlFor="timeOffRequests">
                     Time Off Request Notifications
@@ -503,64 +691,59 @@ export default function SettingsPage() {
             <TabsContent value="pdf" className="space-y-6">
               <PDFLayoutEditor
                 config={{
-                  page_size: settings.pdf_layout.page_size,
-                  orientation: settings.pdf_layout.orientation,
-                  margins: settings.pdf_layout.margins,
-                  table_style: settings.pdf_layout.table_style,
-                  fonts: settings.pdf_layout.fonts,
-                  content: settings.pdf_layout.content,
+                  page_size: localSettings?.pdf_layout.page_size ?? 'A4',
+                  orientation: localSettings?.pdf_layout.orientation ?? 'portrait',
+                  margins: localSettings?.pdf_layout.margins ?? { top: 20, right: 20, bottom: 20, left: 20 },
+                  table_style: localSettings?.pdf_layout.table_style ?? {
+                    header_bg_color: '#f5f5f5',
+                    border_color: '#e0e0e0',
+                    text_color: '#000000',
+                    header_text_color: '#000000'
+                  },
+                  fonts: localSettings?.pdf_layout.fonts ?? {
+                    family: 'Arial',
+                    size: 12,
+                    header_size: 14
+                  },
+                  content: localSettings?.pdf_layout.content ?? {
+                    show_employee_id: true,
+                    show_position: true,
+                    show_breaks: true,
+                    show_total_hours: true
+                  }
                 }}
-                onChange={(config) => handleSave("pdf_layout", config)}
+                onChange={(config) => {
+                  handleSave("pdf_layout", config);
+                  handleImmediateUpdate();
+                }}
               />
             </TabsContent>
 
             <TabsContent value="employee_groups" className="space-y-6">
-              <div className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Employee Types</CardTitle>
-                    <CardDescription>
-                      Configure different employee types and their working hour limits
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <EmployeeSettingsEditor
-                      type="employee"
-                      groups={settings.employee_groups.employee_types.map(type => ({
-                        ...type,
-                        type: 'employee'
-                      }))}
-                      onChange={(groups) =>
-                        handleSave("employee_groups", {
-                          employee_types: groups.map(({ type, ...rest }) => rest as BaseEmployeeType)
-                        })
-                      }
-                    />
-                  </CardContent>
-                </Card>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Employee Types</Label>
+                  <EmployeeSettingsEditor
+                    type="employee"
+                    groups={localSettings?.employee_groups.employee_types.map(type => ({
+                      ...type,
+                      type: 'employee'
+                    })) ?? []}
+                    onChange={handleEmployeeGroupChange}
+                  />
+                </div>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Absence Types</CardTitle>
-                    <CardDescription>
-                      Configure different types of absences and their properties
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <EmployeeSettingsEditor
-                      type="absence"
-                      groups={settings.employee_groups.absence_types.map(type => ({
-                        ...type,
-                        type: 'absence'
-                      }))}
-                      onChange={(groups) =>
-                        handleSave("employee_groups", {
-                          absence_types: groups.map(({ type, ...rest }) => rest as BaseAbsenceType)
-                        })
-                      }
-                    />
-                  </CardContent>
-                </Card>
+                <div className="space-y-2">
+                  <Label>Absence Types</Label>
+                  <EmployeeSettingsEditor
+                    type="absence"
+                    groups={localSettings?.employee_groups.absence_types.map(type => ({
+                      ...type,
+                      type: 'absence'
+                    })) ?? []}
+                    onChange={handleAbsenceGroupChange}
+                  />
+                </div>
               </div>
             </TabsContent>
           </Tabs>

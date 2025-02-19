@@ -1,5 +1,10 @@
 from . import db
 from datetime import datetime
+from models import Settings
+
+class ShiftValidationError(Exception):
+    """Custom validation error for shifts"""
+    pass
 
 class Shift(db.Model):
     __tablename__ = 'shifts'
@@ -24,6 +29,7 @@ class Shift(db.Model):
         self.max_employees = max_employees
         self.requires_break = requires_break
         self._calculate_duration()
+        self._validate_store_hours()
 
     def _calculate_duration(self):
         """Calculate shift duration in hours"""
@@ -31,6 +37,26 @@ class Shift(db.Model):
         end_hour, end_min = map(int, self.end_time.split(':'))
         duration_minutes = (end_hour * 60 + end_min) - (start_hour * 60 + start_min)
         self.duration_hours = duration_minutes / 60.0
+
+    def _validate_store_hours(self):
+        """Validate that shift times are within store hours"""
+        settings = Settings.query.first()
+        if not settings:
+            settings = Settings.get_default_settings()
+
+        def time_to_minutes(time_str: str) -> int:
+            hours, minutes = map(int, time_str.split(':'))
+            return hours * 60 + minutes
+
+        shift_start = time_to_minutes(self.start_time)
+        shift_end = time_to_minutes(self.end_time)
+        store_open = time_to_minutes(settings.store_opening)
+        store_close = time_to_minutes(settings.store_closing)
+
+        if shift_start < store_open:
+            raise ShiftValidationError(f"Shift cannot start before store opening time ({settings.store_opening})")
+        if shift_end > store_close:
+            raise ShiftValidationError(f"Shift cannot end after store closing time ({settings.store_closing})")
 
     def to_dict(self):
         """Convert shift to dictionary"""

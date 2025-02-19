@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, time
 from sqlalchemy import Column, Integer, String, JSON, DateTime, Float, Boolean
 from . import db
 from typing import Dict, Any, Optional
@@ -19,6 +19,21 @@ class Settings(db.Model):
     time_format = Column(String(10), nullable=False, default='24h')
     store_opening = Column(String(5), nullable=False, default='09:00')
     store_closing = Column(String(5), nullable=False, default='20:00')
+    
+    # Store Opening Days and Hours
+    opening_days = Column(JSON, nullable=False, default=lambda: {
+        "0": False,  # Sunday
+        "1": True,   # Monday
+        "2": True,   # Tuesday
+        "3": True,   # Wednesday
+        "4": True,   # Thursday
+        "5": True,   # Friday
+        "6": True    # Saturday
+    })
+    
+    # Special Opening Hours (overrides default hours)
+    # Format: {"YYYY-MM-DD": {"is_closed": bool, "opening": "HH:MM", "closing": "HH:MM"}}
+    special_hours = Column(JSON, nullable=False, default=dict)
     
     # Scheduling Settings
     default_shift_duration = Column(Float, nullable=False, default=8.0)
@@ -77,6 +92,29 @@ class Settings(db.Model):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    def is_store_open(self, date: datetime) -> bool:
+        """Check if store is open on a specific date"""
+        date_str = date.strftime('%Y-%m-%d')
+        
+        # Check special hours first
+        if date_str in self.special_hours:
+            return not self.special_hours[date_str].get('is_closed', False)
+            
+        # Check regular opening days
+        weekday = str(date.weekday())
+        return self.opening_days.get(weekday, False)
+
+    def get_store_hours(self, date: datetime) -> tuple[str, str]:
+        """Get store opening and closing hours for a specific date"""
+        date_str = date.strftime('%Y-%m-%d')
+        
+        # Check special hours first
+        if date_str in self.special_hours and not self.special_hours[date_str].get('is_closed', False):
+            special = self.special_hours[date_str]
+            return special.get('opening', self.store_opening), special.get('closing', self.store_closing)
+            
+        return self.store_opening, self.store_closing
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert settings to dictionary format"""
         return {
@@ -87,7 +125,11 @@ class Settings(db.Model):
                 'timezone': self.timezone,
                 'language': self.language,
                 'date_format': self.date_format,
-                'time_format': self.time_format
+                'time_format': self.time_format,
+                'store_opening': self.store_opening,
+                'store_closing': self.store_closing,
+                'opening_days': self.opening_days,
+                'special_hours': self.special_hours
             },
             'scheduling': {
                 'default_shift_duration': self.default_shift_duration,
