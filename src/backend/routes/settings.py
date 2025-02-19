@@ -5,7 +5,7 @@ from http import HTTPStatus
 
 settings_bp = Blueprint('settings', __name__)
 
-@settings_bp.route('/api/settings', methods=['GET'])
+@settings_bp.route('/settings', methods=['GET'])
 def get_settings():
     """Get all settings or initialize with defaults if none exist"""
     settings = Settings.query.first()
@@ -22,7 +22,7 @@ def get_settings():
     
     return jsonify(settings.to_dict())
 
-@settings_bp.route('/api/settings', methods=['PUT'])
+@settings_bp.route('/settings', methods=['PUT'])
 def update_settings():
     """Update settings"""
     data = request.get_json()
@@ -40,7 +40,7 @@ def update_settings():
         db.session.rollback()
         return jsonify({'error': str(e)}), HTTPStatus.BAD_REQUEST
 
-@settings_bp.route('/api/settings/reset', methods=['POST'])
+@settings_bp.route('/settings/reset', methods=['POST'])
 def reset_settings():
     """Reset settings to defaults"""
     Settings.query.delete()
@@ -52,7 +52,7 @@ def reset_settings():
     
     return jsonify(settings.to_dict())
 
-@settings_bp.route('/api/settings/<category>', methods=['GET'])
+@settings_bp.route('/settings/<category>', methods=['GET'])
 def get_category_settings(category):
     """Get settings for a specific category"""
     settings = Settings.query.first()
@@ -67,7 +67,7 @@ def get_category_settings(category):
     
     return jsonify(settings_dict[category])
 
-@settings_bp.route('/api/settings/<category>', methods=['PUT'])
+@settings_bp.route('/settings/<category>', methods=['PUT'])
 def update_category_settings(category):
     """Update settings for a specific category"""
     data = request.get_json()
@@ -85,30 +85,56 @@ def update_category_settings(category):
         db.session.rollback()
         return jsonify({'error': str(e)}), HTTPStatus.BAD_REQUEST
 
-@settings_bp.route('/api/settings/<category>/<key>', methods=['PUT'])
+@settings_bp.route('/settings/<category>/<key>', methods=['PUT'])
 def update_setting(category, key):
+    """Update a specific setting"""
     data = request.get_json()
-    setting = Settings.query.filter_by(category=category, key=key).first()
+    settings = Settings.query.first()
     
-    if not setting:
-        setting = Settings(category=category, key=key)
+    if not settings:
+        settings = Settings.get_default_settings()
+        db.session.add(settings)
     
-    # Handle special case for store name and other string values
-    value = data.get('value')
-    if key in ['store_name', 'company_name', 'timezone', 'language']:
-        value = str(value) if value is not None else ''
-    
-    setting.value = value
-    db.session.add(setting)
-    db.session.commit()
-    
-    return jsonify(setting.to_dict())
-
-@settings_bp.route('/api/settings/<category>/<key>', methods=['DELETE'])
-def delete_setting(category, key):
-    setting = Settings.query.filter_by(category=category, key=key).first()
-    if setting:
-        db.session.delete(setting)
+    try:
+        value = data.get('value')
+        settings_dict = settings.to_dict()
+        
+        if category not in settings_dict:
+            return jsonify({'error': f'Category {category} not found'}), HTTPStatus.NOT_FOUND
+            
+        category_dict = settings_dict[category]
+        if key not in category_dict:
+            return jsonify({'error': f'Key {key} not found in category {category}'}), HTTPStatus.NOT_FOUND
+            
+        settings.update_from_dict({category: {key: value}})
         db.session.commit()
-        return jsonify({'message': f'Setting {category}.{key} deleted'})
-    return jsonify({'message': 'Setting not found'}), 404 
+        return jsonify({key: value})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), HTTPStatus.BAD_REQUEST
+
+@settings_bp.route('/settings/<category>/<key>', methods=['DELETE'])
+def delete_setting(category, key):
+    """Delete a specific setting (reset to default)"""
+    settings = Settings.query.first()
+    if not settings:
+        return jsonify({'error': 'Settings not found'}), HTTPStatus.NOT_FOUND
+        
+    try:
+        default_settings = Settings.get_default_settings()
+        settings_dict = default_settings.to_dict()
+        
+        if category not in settings_dict:
+            return jsonify({'error': f'Category {category} not found'}), HTTPStatus.NOT_FOUND
+            
+        category_dict = settings_dict[category]
+        if key not in category_dict:
+            return jsonify({'error': f'Key {key} not found in category {category}'}), HTTPStatus.NOT_FOUND
+            
+        # Reset the specific setting to its default value
+        settings.update_from_dict({category: {key: category_dict[key]}})
+        db.session.commit()
+        return jsonify({'message': f'Setting {category}.{key} reset to default'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), HTTPStatus.BAD_REQUEST 

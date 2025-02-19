@@ -45,7 +45,7 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                     start_time: '09:00',
                     end_time: '17:00',
                     color: '#4CAF50'
-                };
+                } as ShiftType;
             case 'employee':
                 return {
                     type: 'employee',
@@ -53,7 +53,7 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                     name: '',
                     min_hours: 0,
                     max_hours: 40
-                };
+                } as EmployeeType;
             case 'absence':
                 return {
                     type: 'absence',
@@ -61,7 +61,7 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                     name: '',
                     color: '#FF9800',
                     paid: true
-                };
+                } as AbsenceType;
         }
     }
 
@@ -76,7 +76,12 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
             return;
         }
 
-        const updatedGroups = [...groups, newGroup];
+        const groupToAdd = {
+            ...newGroup,
+            type: type
+        } as GroupType;
+
+        const updatedGroups = [...groups, groupToAdd];
         onChange(updatedGroups);
         setIsAddDialogOpen(false);
         setNewGroup(getDefaultGroup());

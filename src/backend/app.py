@@ -51,7 +51,7 @@ def create_app(config_class=Config):
     app.register_blueprint(schedules.bp)
     app.register_blueprint(store.bp)
     app.register_blueprint(shift_templates.bp)
-    app.register_blueprint(settings_bp)
+    app.register_blueprint(settings_bp, url_prefix='/api')
     app.register_blueprint(pdf_settings.bp)
     
     @app.route('/health')
