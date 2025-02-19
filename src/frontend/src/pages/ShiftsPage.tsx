@@ -7,6 +7,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
+import { useQuery } from '@tanstack/react-query';
+import { getSettings } from '@/services/api';
+import { Label } from '@/components/ui/label';
 
 interface ShiftsPageProps { }
 
@@ -16,6 +19,12 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
   const { toast } = useToast();
+
+  // Fetch store settings for opening hours
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: getSettings,
+  });
 
   useEffect(() => {
     fetchShifts();
@@ -86,9 +95,14 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
         body: JSON.stringify(payload),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to save shift');
+        // Check if it's a validation error (400)
+        if (response.status === 400) {
+          throw new Error(data.error || 'Invalid shift times. Please check store opening hours.');
+        }
+        throw new Error(data.error || 'Failed to save shift');
       }
 
       fetchShifts();
@@ -165,18 +179,23 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
             });
           }}>
             <div className="grid gap-4 py-4">
+              {settings && (
+                <p className="text-sm text-muted-foreground">
+                  Store hours: {settings.general.store_opening} - {settings.general.store_closing}
+                </p>
+              )}
               <div className="grid gap-2">
-                <label htmlFor="start_time" className="text-sm font-medium">Start Time</label>
+                <Label htmlFor="start_time" className="text-sm font-medium">Start Time</Label>
                 <Input
                   id="start_time"
                   name="start_time"
                   type="time"
-                  defaultValue={editingShift?.start_time || '09:00'}
+                  defaultValue={editingShift?.start_time || settings?.general.store_opening || '09:00'}
                   required
                 />
               </div>
               <div className="grid gap-2">
-                <label htmlFor="end_time" className="text-sm font-medium">End Time</label>
+                <Label htmlFor="end_time" className="text-sm font-medium">End Time</Label>
                 <Input
                   id="end_time"
                   name="end_time"
@@ -186,7 +205,7 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
                 />
               </div>
               <div className="grid gap-2">
-                <label htmlFor="min_employees" className="text-sm font-medium">Minimum Employees</label>
+                <Label htmlFor="min_employees" className="text-sm font-medium">Minimum Employees</Label>
                 <Input
                   id="min_employees"
                   name="min_employees"
@@ -197,7 +216,7 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
                 />
               </div>
               <div className="grid gap-2">
-                <label htmlFor="max_employees" className="text-sm font-medium">Maximum Employees</label>
+                <Label htmlFor="max_employees" className="text-sm font-medium">Maximum Employees</Label>
                 <Input
                   id="max_employees"
                   name="max_employees"

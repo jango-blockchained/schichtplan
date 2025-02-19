@@ -92,6 +92,18 @@ export interface Settings {
         language: string;
         date_format: string;
         time_format: string;
+        store_opening: string;  // Format: "HH:MM"
+        store_closing: string;  // Format: "HH:MM"
+        opening_days: {
+            [key: string]: boolean;  // key: 0-6 (Sunday-Saturday)
+        };
+        special_hours: {
+            [key: string]: {  // key: "YYYY-MM-DD"
+                is_closed: boolean;
+                opening?: string;  // Format: "HH:MM"
+                closing?: string;  // Format: "HH:MM"
+            };
+        };
     };
     scheduling: {
         default_shift_duration: number;

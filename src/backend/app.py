@@ -9,6 +9,7 @@ if str(current_dir) not in sys.path:
 
 from flask import Flask
 from flask_cors import CORS
+from flask_migrate import Migrate
 from models import db
 from routes.shifts import shifts
 from routes.settings import settings
@@ -26,6 +27,7 @@ def create_app():
     
     # Initialize extensions
     db.init_app(app)
+    migrate = Migrate(app, db)
     
     # Register blueprints
     app.register_blueprint(shifts)
