@@ -277,3 +277,74 @@ export const updateShiftDay = async (employeeId: number, fromDate: string, toDat
         throw error;
     }
 };
+
+export interface TimeSlot {
+    day: number;
+    start: string;
+    end: string;
+}
+
+export interface Availability {
+    id?: number;
+    employee_id: number;
+    start_date: string;
+    end_date: string;
+    start_time?: string;
+    end_time?: string;
+    availability_type: 'unavailable' | 'preferred_off' | 'preferred_work' | 'available';
+    reason?: string;
+    is_recurring: boolean;
+    recurrence_day?: number;
+}
+
+export interface AvailabilityCheck {
+    is_available: boolean;
+    reason?: string;
+}
+
+// Availability endpoints
+export const getEmployeeAvailabilities = async (employeeId: number): Promise<EmployeeAvailability[]> => {
+    const response = await api.get(`/api/employees/${employeeId}/availabilities`);
+    return response.data;
+};
+
+export const createAvailability = async (availability: Omit<Availability, 'id'>): Promise<Availability> => {
+    const response = await api.post<Availability>('/api/availability', availability);
+    return response.data;
+};
+
+export const updateAvailability = async (id: number, availability: Partial<Availability>): Promise<Availability> => {
+    const response = await api.put<Availability>(`/api/availability/${id}`, availability);
+    return response.data;
+};
+
+export const deleteAvailability = async (id: number): Promise<void> => {
+    await api.delete(`/api/availability/${id}`);
+};
+
+export const checkAvailability = async (
+    employeeId: number,
+    date: string,
+    startTime?: string,
+    endTime?: string
+): Promise<AvailabilityCheck> => {
+    const response = await api.post<AvailabilityCheck>('/api/availability/check', {
+        employee_id: employeeId,
+        date,
+        start_time: startTime,
+        end_time: endTime,
+    });
+    return response.data;
+};
+
+export interface EmployeeAvailability {
+    employee_id: number;
+    day_of_week: number;
+    hour: number;
+    is_available: boolean;
+}
+
+export const updateEmployeeAvailability = async (employeeId: number, availabilities: Omit<EmployeeAvailability, 'id'>[]) => {
+    const response = await api.put(`/api/employees/${employeeId}/availabilities`, availabilities);
+    return response.data;
+};
