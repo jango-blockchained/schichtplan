@@ -1,7 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import { Employee, Shift, Schedule, StoreConfig, ShiftTemplate, Settings } from '../types';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = '/api';
 
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -352,27 +352,27 @@ export const applyShiftTemplate = async (id: number) => {
 
 // Settings
 export const getSettings = async (): Promise<Settings> => {
-    const response = await api.get('/api/settings');
+    const response = await api.get('/settings');
     return response.data;
 };
 
 export const updateSettings = async (data: Partial<Settings>): Promise<Settings> => {
-    const response = await api.put('/api/settings', data);
+    const response = await api.put('/settings', data);
     return response.data;
 };
 
 export const resetSettings = async (): Promise<Settings> => {
-    const response = await api.post('/api/settings/reset');
+    const response = await api.post('/settings/reset');
     return response.data;
 };
 
 export const getCategorySettings = async (category: string): Promise<any> => {
-    const response = await api.get(`/api/settings/${category}`);
+    const response = await api.get(`/settings/${category}`);
     return response.data;
 };
 
 export const updateCategorySettings = async (category: string, data: any): Promise<any> => {
-    const response = await api.put(`/api/settings/${category}`, data);
+    const response = await api.put(`/settings/${category}`, data);
     return response.data;
 };
 

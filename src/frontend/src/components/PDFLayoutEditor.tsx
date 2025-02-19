@@ -47,15 +47,6 @@ interface PDFLayoutEditorProps {
 
 const AVAILABLE_FONTS = ['Helvetica', 'Helvetica-Bold', 'Times-Roman', 'Times-Bold'];
 const PAGE_SIZES = ['A4', 'Letter', 'Legal'];
-const ALIGNMENTS = ['left', 'center', 'right'];
-const VALIGNMENTS = ['top', 'middle', 'bottom'];
-
-type ConfigPath =
-    ['table', 'style', keyof PDFLayoutConfig['table']['style']] |
-    ['table', 'column_widths', keyof PDFLayoutConfig['table']['column_widths']] |
-    ['title', keyof PDFLayoutConfig['title']] |
-    ['margins', keyof PDFLayoutConfig['margins']] |
-    ['page', keyof PDFLayoutConfig['page']];
 
 export function PDFLayoutEditor({ config, onChange }: PDFLayoutEditorProps) {
     const { toast } = useToast();
@@ -64,29 +55,7 @@ export function PDFLayoutEditor({ config, onChange }: PDFLayoutEditorProps) {
     const handleSave = async () => {
         try {
             setIsLoading('save');
-            // Save each section of the config separately
-            await Promise.all([
-                onChange(['margins', 'top'], config.margins.top),
-                onChange(['margins', 'right'], config.margins.right),
-                onChange(['margins', 'bottom'], config.margins.bottom),
-                onChange(['margins', 'left'], config.margins.left),
-                onChange(['table', 'style', 'fontSize'], config.table.style.fontSize),
-                onChange(['table', 'style', 'rowHeight'], config.table.style.rowHeight),
-                onChange(['table', 'style', 'headerBackground'], config.table.style.headerBackground),
-                onChange(['table', 'style', 'alternateRowColors'], config.table.style.alternateRowColors),
-                onChange(['table', 'style', 'alternateRowBackground'], config.table.style.alternateRowBackground),
-                onChange(['table', 'style', 'gridLines'], config.table.style.gridLines),
-                onChange(['table', 'style', 'font'], config.table.style.font),
-                ...Object.entries(config.table.column_widths).map(([key, value]) =>
-                    onChange(['table', 'column_widths', key as keyof PDFLayoutConfig['table']['column_widths']], value)
-                ),
-                onChange(['title', 'fontSize'], config.title.fontSize),
-                onChange(['title', 'alignment'], config.title.alignment),
-                onChange(['title', 'fontStyle'], config.title.fontStyle),
-                onChange(['title', 'font'], config.title.font),
-                onChange(['page', 'size'], config.page_size),
-                onChange(['page', 'orientation'], config.orientation),
-            ]);
+            onChange(config);
             toast({
                 description: 'Layout settings saved successfully.',
             });
@@ -113,14 +82,9 @@ export function PDFLayoutEditor({ config, onChange }: PDFLayoutEditorProps) {
                 throw new Error('Failed to generate preview');
             }
 
-            // Get the PDF blob and create a URL for it
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
-
-            // Open the PDF in a new tab
             window.open(url, '_blank');
-
-            // Clean up the URL object
             window.URL.revokeObjectURL(url);
         } catch (error) {
             toast({
@@ -132,17 +96,19 @@ export function PDFLayoutEditor({ config, onChange }: PDFLayoutEditorProps) {
         }
     };
 
-    const handleChange = (path: string[], value: any) => {
+    const handleChange = (field: keyof PDFLayoutConfig | [string, string], value: any) => {
         const newConfig = { ...config };
-        let current: any = newConfig;
 
-        // Navigate to the nested property
-        for (let i = 0; i < path.length - 1; i++) {
-            current = current[path[i]];
+        if (Array.isArray(field)) {
+            const [category, key] = field;
+            (newConfig as any)[category] = {
+                ...(newConfig as any)[category],
+                [key]: value
+            };
+        } else {
+            newConfig[field] = value;
         }
 
-        // Update the value
-        current[path[path.length - 1]] = value;
         onChange(newConfig);
     };
 
@@ -158,15 +124,17 @@ export function PDFLayoutEditor({ config, onChange }: PDFLayoutEditorProps) {
                             <Label>Page Size</Label>
                             <Select
                                 value={config.page_size}
-                                onValueChange={(value) => handleChange(['page_size'], value)}
+                                onValueChange={(value) => handleChange('page_size', value)}
                             >
                                 <SelectTrigger>
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="A4">A4</SelectItem>
-                                    <SelectItem value="Letter">Letter</SelectItem>
-                                    <SelectItem value="Legal">Legal</SelectItem>
+                                    {PAGE_SIZES.map((size) => (
+                                        <SelectItem key={size} value={size}>
+                                            {size}
+                                        </SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -174,7 +142,7 @@ export function PDFLayoutEditor({ config, onChange }: PDFLayoutEditorProps) {
                             <Label>Orientation</Label>
                             <Select
                                 value={config.orientation}
-                                onValueChange={(value) => handleChange(['orientation'], value)}
+                                onValueChange={(value) => handleChange('orientation', value)}
                             >
                                 <SelectTrigger>
                                     <SelectValue />
@@ -191,38 +159,11 @@ export function PDFLayoutEditor({ config, onChange }: PDFLayoutEditorProps) {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Column Widths</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    {Object.entries(config.table.column_widths).map(([column, width]) => (
-                        <div key={column} className="space-y-2">
-                            <div className="flex items-center justify-between">
-                                <Label className="capitalize">
-                                    {column === 'name' ? 'Employee Name' : column}
-                                </Label>
-                                <span className="text-sm text-muted-foreground">{width}px</span>
-                            </div>
-                            <Slider
-                                value={[width]}
-                                onValueChange={([value]) =>
-                                    handleChange(['table', 'column_widths', column as keyof PDFLayoutConfig['table']['column_widths']], value)
-                                }
-                                min={40}
-                                max={200}
-                                step={10}
-                            />
-                        </div>
-                    ))}
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
                     <CardTitle>Margins (mm)</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4">
                     <div className="grid grid-cols-2 gap-4">
-                        {(Object.entries(config.margins) as [keyof PDFLayoutConfig['margins'], number][]).map(([side, value]) => (
+                        {Object.entries(config.margins).map(([side, value]) => (
                             <div key={side} className="space-y-2">
                                 <Label className="capitalize">{side}</Label>
                                 <Input
@@ -244,10 +185,10 @@ export function PDFLayoutEditor({ config, onChange }: PDFLayoutEditorProps) {
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <div className="space-y-2">
-                        <Label>Font</Label>
+                        <Label>Font Family</Label>
                         <Select
-                            value={config.table.style.font}
-                            onValueChange={(value) => handleChange(['table', 'style', 'font'], value)}
+                            value={config.fonts.family}
+                            onValueChange={(value) => handleChange(['fonts', 'family'], value)}
                         >
                             <SelectTrigger>
                                 <SelectValue />
@@ -261,127 +202,59 @@ export function PDFLayoutEditor({ config, onChange }: PDFLayoutEditorProps) {
                             </SelectContent>
                         </Select>
                     </div>
+
                     <div className="space-y-2">
-                        <Label>Font Size (pt)</Label>
-                        <Slider
-                            value={[config.table.style.fontSize]}
-                            onValueChange={([value]) => handleChange(['table', 'style', 'fontSize'], value)}
+                        <Label>Font Size</Label>
+                        <Input
+                            type="number"
+                            value={config.fonts.size}
+                            onChange={(e) => handleChange(['fonts', 'size'], Number(e.target.value))}
                             min={8}
                             max={16}
-                            step={1}
                         />
                     </div>
+
                     <div className="space-y-2">
-                        <Label>Row Height (mm)</Label>
-                        <Slider
-                            value={[config.table.style.rowHeight]}
-                            onValueChange={([value]) => handleChange(['table', 'style', 'rowHeight'], value)}
-                            min={5}
+                        <Label>Header Font Size</Label>
+                        <Input
+                            type="number"
+                            value={config.fonts.header_size}
+                            onChange={(e) => handleChange(['fonts', 'header_size'], Number(e.target.value))}
+                            min={10}
                             max={20}
-                            step={1}
                         />
                     </div>
+
                     <div className="space-y-2">
                         <Label>Header Background Color</Label>
                         <ColorPicker
-                            color={config.table.style.headerBackground}
-                            onChange={(color) => handleChange(['table', 'style', 'headerBackground'], color)}
+                            color={config.table_style.header_bg_color}
+                            onChange={(color) => handleChange(['table_style', 'header_bg_color'], color)}
                         />
                     </div>
-                    <div className="flex items-center justify-between">
-                        <Label>Alternate Row Colors</Label>
-                        <Switch
-                            checked={config.table.style.alternateRowColors}
-                            onCheckedChange={(checked) =>
-                                handleChange(['table', 'style', 'alternateRowColors'], checked)
-                            }
-                        />
-                    </div>
-                    {config.table.style.alternateRowColors && (
-                        <div className="space-y-2">
-                            <Label>Alternate Row Background</Label>
-                            <ColorPicker
-                                color={config.table.style.alternateRowBackground}
-                                onChange={(color) => handleChange(['table', 'style', 'alternateRowBackground'], color)}
-                            />
-                        </div>
-                    )}
-                    <div className="flex items-center justify-between">
-                        <Label>Grid Lines</Label>
-                        <Switch
-                            checked={config.table.style.gridLines}
-                            onCheckedChange={(checked) =>
-                                handleChange(['table', 'style', 'gridLines'], checked)
-                            }
-                        />
-                    </div>
-                </CardContent>
-            </Card>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Title Style</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
                     <div className="space-y-2">
-                        <Label>Font</Label>
-                        <Select
-                            value={config.title.font}
-                            onValueChange={(value) => handleChange(['title', 'font'], value)}
-                        >
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {AVAILABLE_FONTS.map((font) => (
-                                    <SelectItem key={font} value={font}>
-                                        {font}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Font Size (pt)</Label>
-                        <Slider
-                            value={[config.title.fontSize]}
-                            onValueChange={([value]) => handleChange(['title', 'fontSize'], value)}
-                            min={12}
-                            max={24}
-                            step={1}
+                        <Label>Border Color</Label>
+                        <ColorPicker
+                            color={config.table_style.border_color}
+                            onChange={(color) => handleChange(['table_style', 'border_color'], color)}
                         />
                     </div>
+
                     <div className="space-y-2">
-                        <Label>Alignment</Label>
-                        <Select
-                            value={config.title.alignment}
-                            onValueChange={(value) => handleChange(['title', 'alignment'], value)}
-                        >
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="left">Left</SelectItem>
-                                <SelectItem value="center">Center</SelectItem>
-                                <SelectItem value="right">Right</SelectItem>
-                            </SelectContent>
-                        </Select>
+                        <Label>Text Color</Label>
+                        <ColorPicker
+                            color={config.table_style.text_color}
+                            onChange={(color) => handleChange(['table_style', 'text_color'], color)}
+                        />
                     </div>
+
                     <div className="space-y-2">
-                        <Label>Font Style</Label>
-                        <Select
-                            value={config.title.fontStyle}
-                            onValueChange={(value) => handleChange(['title', 'fontStyle'], value)}
-                        >
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="normal">Normal</SelectItem>
-                                <SelectItem value="bold">Bold</SelectItem>
-                                <SelectItem value="italic">Italic</SelectItem>
-                            </SelectContent>
-                        </Select>
+                        <Label>Header Text Color</Label>
+                        <ColorPicker
+                            color={config.table_style.header_text_color}
+                            onChange={(color) => handleChange(['table_style', 'header_text_color'], color)}
+                        />
                     </div>
                 </CardContent>
             </Card>
@@ -391,40 +264,35 @@ export function PDFLayoutEditor({ config, onChange }: PDFLayoutEditorProps) {
                     <CardTitle>Content Display</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="space-y-2">
+                    <div className="flex items-center justify-between">
                         <Label>Show Employee ID</Label>
                         <Switch
                             checked={config.content.show_employee_id}
-                            onCheckedChange={(checked) =>
-                                handleChange(['content', 'show_employee_id'], checked)
-                            }
+                            onCheckedChange={(checked) => handleChange(['content', 'show_employee_id'], checked)}
                         />
                     </div>
-                    <div className="space-y-2">
+
+                    <div className="flex items-center justify-between">
                         <Label>Show Position</Label>
                         <Switch
                             checked={config.content.show_position}
-                            onCheckedChange={(checked) =>
-                                handleChange(['content', 'show_position'], checked)
-                            }
+                            onCheckedChange={(checked) => handleChange(['content', 'show_position'], checked)}
                         />
                     </div>
-                    <div className="space-y-2">
+
+                    <div className="flex items-center justify-between">
                         <Label>Show Breaks</Label>
                         <Switch
                             checked={config.content.show_breaks}
-                            onCheckedChange={(checked) =>
-                                handleChange(['content', 'show_breaks'], checked)
-                            }
+                            onCheckedChange={(checked) => handleChange(['content', 'show_breaks'], checked)}
                         />
                     </div>
-                    <div className="space-y-2">
+
+                    <div className="flex items-center justify-between">
                         <Label>Show Total Hours</Label>
                         <Switch
                             checked={config.content.show_total_hours}
-                            onCheckedChange={(checked) =>
-                                handleChange(['content', 'show_total_hours'], checked)
-                            }
+                            onCheckedChange={(checked) => handleChange(['content', 'show_total_hours'], checked)}
                         />
                     </div>
                 </CardContent>

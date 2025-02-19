@@ -42,7 +42,7 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
     try {
       const response = await fetch('/api/settings');
       const data = await response.json();
-      setShiftTypes(data.shift_types || []);
+      setShiftTypes(data.employee_groups.shift_types || []);
     } catch (error) {
       toast({
         variant: "destructive",
@@ -88,25 +88,42 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
       const method = editingShift ? 'PUT' : 'POST';
       const url = editingShift ? `/api/shifts/${editingShift.id}` : '/api/shifts';
 
+      // Find the shift type name from the ID
+      const shiftType = shiftTypes.find(t => t.id === formData.type_id);
+      if (!shiftType) {
+        throw new Error('Invalid shift type selected');
+      }
+
+      const payload = {
+        shift_type: shiftType.name,
+        start_time: formData.start_time,
+        end_time: formData.end_time,
+        min_employees: parseInt(formData.min_employees),
+        max_employees: parseInt(formData.max_employees)
+      };
+
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
-      if (response.ok) {
-        fetchShifts();
-        setEditDialogOpen(false);
-        toast({
-          title: "Success",
-          description: `Shift ${editingShift ? 'updated' : 'created'} successfully`
-        });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to save shift');
       }
+
+      fetchShifts();
+      setEditDialogOpen(false);
+      toast({
+        title: "Success",
+        description: `Shift ${editingShift ? 'updated' : 'created'} successfully`
+      });
     } catch (error) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Error saving shift"
+        description: error instanceof Error ? error.message : "Error saving shift"
       });
     }
   };

@@ -152,7 +152,76 @@ class Settings(db.Model):
     @classmethod
     def get_default_settings(cls) -> 'Settings':
         """Create and return default settings"""
-        return cls()
+        settings = cls()
+        settings.store_name = 'ShiftWise Store'
+        settings.store_address = ''
+        settings.store_contact = ''
+        settings.timezone = 'Europe/Berlin'
+        settings.language = 'de'
+        settings.date_format = 'DD.MM.YYYY'
+        settings.time_format = '24h'
+        
+        # Scheduling Settings
+        settings.default_shift_duration = 8.0
+        settings.min_break_duration = 30
+        settings.max_daily_hours = 10.0
+        settings.max_weekly_hours = 40.0
+        settings.min_rest_between_shifts = 11.0
+        settings.scheduling_period_weeks = 4
+        settings.auto_schedule_preferences = True
+        
+        # Display Settings
+        settings.theme = 'light'
+        settings.primary_color = '#1976D2'
+        settings.secondary_color = '#424242'
+        settings.show_weekends = True
+        settings.start_of_week = 1
+        
+        # Notification Settings
+        settings.email_notifications = True
+        settings.schedule_published_notify = True
+        settings.shift_changes_notify = True
+        settings.time_off_requests_notify = True
+        
+        # PDF Layout Settings
+        settings.page_size = 'A4'
+        settings.orientation = 'portrait'
+        settings.margin_top = 20.0
+        settings.margin_right = 20.0
+        settings.margin_bottom = 20.0
+        settings.margin_left = 20.0
+        settings.table_header_bg_color = '#f3f4f6'
+        settings.table_border_color = '#e5e7eb'
+        settings.table_text_color = '#111827'
+        settings.table_header_text_color = '#111827'
+        settings.font_family = 'Helvetica'
+        settings.font_size = 10.0
+        settings.header_font_size = 12.0
+        settings.show_employee_id = True
+        settings.show_position = True
+        settings.show_breaks = True
+        settings.show_total_hours = True
+        
+        # Employee Group Settings
+        settings.shift_types = [
+            {'id': 'early', 'name': 'Früh', 'start_time': '06:00', 'end_time': '14:00', 'color': '#4CAF50'},
+            {'id': 'middle', 'name': 'Mittel', 'start_time': '10:00', 'end_time': '18:00', 'color': '#2196F3'},
+            {'id': 'late', 'name': 'Spät', 'start_time': '14:00', 'end_time': '22:00', 'color': '#9C27B0'}
+        ]
+        
+        settings.employee_types = [
+            {'id': 'full_time', 'name': 'Vollzeit', 'min_hours': 35, 'max_hours': 40},
+            {'id': 'part_time', 'name': 'Teilzeit', 'min_hours': 15, 'max_hours': 34},
+            {'id': 'mini_job', 'name': 'Minijob', 'min_hours': 0, 'max_hours': 14}
+        ]
+        
+        settings.absence_types = [
+            {'id': 'vacation', 'name': 'Urlaub', 'color': '#FF9800', 'paid': True},
+            {'id': 'sick', 'name': 'Krank', 'color': '#F44336', 'paid': True},
+            {'id': 'unpaid', 'name': 'Unbezahlt', 'color': '#9E9E9E', 'paid': False}
+        ]
+        
+        return settings
 
     def update_from_dict(self, data: Dict[str, Any]) -> None:
         """Update settings from dictionary data"""
@@ -175,28 +244,53 @@ class Settings(db.Model):
                     if hasattr(self, attr_name):
                         setattr(self, attr_name, value)
             elif category == 'pdf_layout':
+                # Handle page size and orientation directly
+                if 'page_size' in values:
+                    self.page_size = values['page_size']
+                if 'orientation' in values:
+                    self.orientation = values['orientation']
+                
+                # Handle margins
                 if 'margins' in values:
                     for key, value in values['margins'].items():
                         attr_name = f"margin_{key}"
                         if hasattr(self, attr_name):
                             setattr(self, attr_name, value)
+                
+                # Handle table style
                 if 'table_style' in values:
-                    for key, value in values['table_style'].items():
-                        attr_name = f"table_{key}"
-                        if hasattr(self, attr_name):
-                            setattr(self, attr_name, value)
+                    table_style = values['table_style']
+                    if 'header_bg_color' in table_style:
+                        self.table_header_bg_color = table_style['header_bg_color']
+                    if 'border_color' in table_style:
+                        self.table_border_color = table_style['border_color']
+                    if 'text_color' in table_style:
+                        self.table_text_color = table_style['text_color']
+                    if 'header_text_color' in table_style:
+                        self.table_header_text_color = table_style['header_text_color']
+                
+                # Handle fonts
                 if 'fonts' in values:
-                    for key, value in values['fonts'].items():
-                        if key == 'family':
-                            self.font_family = value
-                        elif key == 'size':
-                            self.font_size = value
-                        elif key == 'header_size':
-                            self.header_font_size = value
+                    fonts = values['fonts']
+                    if 'family' in fonts:
+                        self.font_family = fonts['family']
+                    if 'size' in fonts:
+                        self.font_size = fonts['size']
+                    if 'header_size' in fonts:
+                        self.header_font_size = fonts['header_size']
+                
+                # Handle content visibility
                 if 'content' in values:
-                    for key, value in values['content'].items():
-                        if hasattr(self, f"show_{key}"):
-                            setattr(self, f"show_{key}", value)
+                    content = values['content']
+                    if 'show_employee_id' in content:
+                        self.show_employee_id = content['show_employee_id']
+                    if 'show_position' in content:
+                        self.show_position = content['show_position']
+                    if 'show_breaks' in content:
+                        self.show_breaks = content['show_breaks']
+                    if 'show_total_hours' in content:
+                        self.show_total_hours = content['show_total_hours']
+            
             elif category == 'employee_groups':
                 for key, value in values.items():
                     if hasattr(self, key):
@@ -204,56 +298,6 @@ class Settings(db.Model):
 
     def __repr__(self):
         return f"<Settings {self.store_name}>"
-
-    @staticmethod
-    def get_default_settings():
-        return {
-            'general': {
-                'company_name': '',
-                'store_name': '',
-                'timezone': 'Europe/Berlin',
-                'language': 'de',
-                'date_format': 'DD.MM.YYYY',
-                'time_format': '24h'
-            },
-            'scheduling': {
-                'default_shift_duration': 8,
-                'min_break_duration': 30,
-                'max_daily_hours': 10,
-                'max_weekly_hours': 40,
-                'min_rest_between_shifts': 11,
-                'scheduling_period_weeks': 4,
-                'auto_schedule_preferences': True
-            },
-            'notifications': {
-                'email_notifications': True,
-                'schedule_published': True,
-                'shift_changes': True,
-                'time_off_requests': True
-            },
-            'shift_types': [
-                {'id': 'early', 'name': 'Früh', 'start_time': '06:00', 'end_time': '14:00', 'color': '#4CAF50'},
-                {'id': 'middle', 'name': 'Mittel', 'start_time': '10:00', 'end_time': '18:00', 'color': '#2196F3'},
-                {'id': 'late', 'name': 'Spät', 'start_time': '14:00', 'end_time': '22:00', 'color': '#9C27B0'}
-            ],
-            'employee_types': [
-                {'id': 'full_time', 'name': 'Vollzeit', 'min_hours': 35, 'max_hours': 40},
-                {'id': 'part_time', 'name': 'Teilzeit', 'min_hours': 15, 'max_hours': 34},
-                {'id': 'mini_job', 'name': 'Minijob', 'min_hours': 0, 'max_hours': 14}
-            ],
-            'absence_types': [
-                {'id': 'vacation', 'name': 'Urlaub', 'color': '#FF9800', 'paid': True},
-                {'id': 'sick', 'name': 'Krank', 'color': '#F44336', 'paid': True},
-                {'id': 'unpaid', 'name': 'Unbezahlt', 'color': '#9E9E9E', 'paid': False}
-            ],
-            'display': {
-                'theme': 'light',
-                'primary_color': '#1976D2',
-                'secondary_color': '#424242',
-                'show_weekends': True,
-                'start_of_week': 1
-            }
-        }
 
     @classmethod
     def get_pdf_layout_config(cls) -> Dict[str, Any]:

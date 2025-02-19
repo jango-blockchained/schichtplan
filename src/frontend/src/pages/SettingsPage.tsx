@@ -1,7 +1,7 @@
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getSettings, updateSettings } from "@/services/api";
-import { Settings } from "@/types";
+import { Settings, BaseShiftType, BaseEmployeeType, BaseAbsenceType } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,16 +45,21 @@ export default function SettingsPage() {
     },
   });
 
-  const handleSave = (category: string, updates: Partial<Settings>) => {
+  const handleSave = <T extends keyof Settings>(category: T, updates: Partial<Settings[T]>) => {
+    if (!settings) return;
+
     const updatedSettings = { ...settings };
-    if (category === 'shift_types') {
-      updatedSettings.shift_types = (updates.shift_types as ShiftType[]).map(({ type, ...rest }) => rest);
-    } else if (category === 'employee_types') {
-      updatedSettings.employee_types = (updates.employee_types as EmployeeType[]).map(({ type, ...rest }) => rest);
-    } else if (category === 'absence_types') {
-      updatedSettings.absence_types = (updates.absence_types as AbsenceType[]).map(({ type, ...rest }) => rest);
+    if (category === 'employee_groups') {
+      const employeeGroups = updates as Partial<Settings['employee_groups']>;
+      updatedSettings.employee_groups = {
+        ...updatedSettings.employee_groups,
+        ...employeeGroups
+      };
     } else {
-      Object.assign(updatedSettings, updates);
+      updatedSettings[category] = {
+        ...updatedSettings[category],
+        ...updates
+      } as Settings[T];
     }
     updateMutation.mutate(updatedSettings);
   };
@@ -110,16 +115,13 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent>
           <Tabs value={currentTab} onValueChange={setCurrentTab}>
-            <TabsList className="grid grid-cols-6 w-full">
+            <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6">
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="scheduling">Scheduling</TabsTrigger>
               <TabsTrigger value="display">Display</TabsTrigger>
               <TabsTrigger value="notifications">Notifications</TabsTrigger>
               <TabsTrigger value="pdf">PDF Layout</TabsTrigger>
-              <TabsTrigger value="groups">Employee Groups</TabsTrigger>
-              <TabsTrigger value="shifts">Shift Types</TabsTrigger>
-              <TabsTrigger value="employees">Employee Types</TabsTrigger>
-              <TabsTrigger value="absences">Absence Types</TabsTrigger>
+              <TabsTrigger value="employee_groups">Groups</TabsTrigger>
             </TabsList>
 
             <TabsContent value="general" className="space-y-6">
@@ -129,7 +131,7 @@ export default function SettingsPage() {
                     <Label htmlFor="storeName">Store Name</Label>
                     <Input
                       id="storeName"
-                      value={settings.store_name}
+                      value={settings.general.store_name}
                       onChange={(e) =>
                         handleSave("general", { store_name: e.target.value })
                       }
@@ -140,7 +142,7 @@ export default function SettingsPage() {
                     <Label htmlFor="storeAddress">Store Address</Label>
                     <Input
                       id="storeAddress"
-                      value={settings.store_address}
+                      value={settings.general.store_address}
                       onChange={(e) =>
                         handleSave("general", { store_address: e.target.value })
                       }
@@ -151,7 +153,7 @@ export default function SettingsPage() {
                     <Label htmlFor="storeContact">Store Contact</Label>
                     <Input
                       id="storeContact"
-                      value={settings.store_contact}
+                      value={settings.general.store_contact}
                       onChange={(e) =>
                         handleSave("general", { store_contact: e.target.value })
                       }
@@ -163,7 +165,7 @@ export default function SettingsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="timezone">Timezone</Label>
                     <Select
-                      value={settings.timezone}
+                      value={settings.general.timezone}
                       onValueChange={(value) =>
                         handleSave("general", { timezone: value })
                       }
@@ -182,7 +184,7 @@ export default function SettingsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="language">Language</Label>
                     <Select
-                      value={settings.language}
+                      value={settings.general.language}
                       onValueChange={(value) =>
                         handleSave("general", { language: value })
                       }
@@ -200,7 +202,7 @@ export default function SettingsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="dateFormat">Date Format</Label>
                     <Select
-                      value={settings.date_format}
+                      value={settings.general.date_format}
                       onValueChange={(value) =>
                         handleSave("general", { date_format: value })
                       }
@@ -219,7 +221,7 @@ export default function SettingsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="timeFormat">Time Format</Label>
                     <Select
-                      value={settings.time_format}
+                      value={settings.general.time_format}
                       onValueChange={(value) =>
                         handleSave("general", { time_format: value })
                       }
@@ -247,10 +249,10 @@ export default function SettingsPage() {
                     <Input
                       type="number"
                       id="defaultShiftDuration"
-                      value={settings.default_shift_duration}
+                      value={settings.scheduling.default_shift_duration}
                       onChange={(e) =>
                         handleSave("scheduling", {
-                          default_shift_duration: Number(e.target.value),
+                          default_shift_duration: parseFloat(e.target.value),
                         })
                       }
                     />
@@ -263,7 +265,7 @@ export default function SettingsPage() {
                     <Input
                       type="number"
                       id="minBreakDuration"
-                      value={settings.min_break_duration}
+                      value={settings.scheduling.min_break_duration}
                       onChange={(e) =>
                         handleSave("scheduling", {
                           min_break_duration: Number(e.target.value),
@@ -279,7 +281,7 @@ export default function SettingsPage() {
                     <Input
                       type="number"
                       id="maxDailyHours"
-                      value={settings.max_daily_hours}
+                      value={settings.scheduling.max_daily_hours}
                       onChange={(e) =>
                         handleSave("scheduling", {
                           max_daily_hours: Number(e.target.value),
@@ -297,7 +299,7 @@ export default function SettingsPage() {
                     <Input
                       type="number"
                       id="maxWeeklyHours"
-                      value={settings.max_weekly_hours}
+                      value={settings.scheduling.max_weekly_hours}
                       onChange={(e) =>
                         handleSave("scheduling", {
                           max_weekly_hours: Number(e.target.value),
@@ -313,7 +315,7 @@ export default function SettingsPage() {
                     <Input
                       type="number"
                       id="minRestBetweenShifts"
-                      value={settings.min_rest_between_shifts}
+                      value={settings.scheduling.min_rest_between_shifts}
                       onChange={(e) =>
                         handleSave("scheduling", {
                           min_rest_between_shifts: Number(e.target.value),
@@ -329,7 +331,7 @@ export default function SettingsPage() {
                     <Input
                       type="number"
                       id="schedulingPeriodWeeks"
-                      value={settings.scheduling_period_weeks}
+                      value={settings.scheduling.scheduling_period_weeks}
                       onChange={(e) =>
                         handleSave("scheduling", {
                           scheduling_period_weeks: Number(e.target.value),
@@ -341,7 +343,7 @@ export default function SettingsPage() {
                   <div className="flex items-center space-x-2">
                     <Switch
                       id="autoSchedulePreferences"
-                      checked={settings.auto_schedule_preferences}
+                      checked={settings.scheduling.auto_schedule_preferences}
                       onCheckedChange={(checked) =>
                         handleSave("scheduling", {
                           auto_schedule_preferences: checked,
@@ -362,7 +364,7 @@ export default function SettingsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="theme">Theme</Label>
                     <Select
-                      value={settings.theme}
+                      value={settings.display.theme}
                       onValueChange={(value) =>
                         handleSave("display", { theme: value })
                       }
@@ -382,7 +384,7 @@ export default function SettingsPage() {
                     <Label htmlFor="primaryColor">Primary Color</Label>
                     <ColorPicker
                       id="primaryColor"
-                      color={settings.primary_color}
+                      color={settings.display.primary_color}
                       onChange={(color) =>
                         handleSave("display", { primary_color: color })
                       }
@@ -393,7 +395,7 @@ export default function SettingsPage() {
                     <Label htmlFor="secondaryColor">Secondary Color</Label>
                     <ColorPicker
                       id="secondaryColor"
-                      color={settings.secondary_color}
+                      color={settings.display.secondary_color}
                       onChange={(color) =>
                         handleSave("display", { secondary_color: color })
                       }
@@ -405,7 +407,7 @@ export default function SettingsPage() {
                   <div className="flex items-center space-x-2">
                     <Switch
                       id="showWeekends"
-                      checked={settings.show_weekends}
+                      checked={settings.display.show_weekends}
                       onCheckedChange={(checked) =>
                         handleSave("display", { show_weekends: checked })
                       }
@@ -416,7 +418,7 @@ export default function SettingsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="startOfWeek">Start of Week</Label>
                     <Select
-                      value={settings.start_of_week.toString()}
+                      value={settings.display.start_of_week.toString()}
                       onValueChange={(value) =>
                         handleSave("display", {
                           start_of_week: Number(value),
@@ -441,7 +443,7 @@ export default function SettingsPage() {
                 <div className="flex items-center space-x-2">
                   <Switch
                     id="emailNotifications"
-                    checked={settings.email_notifications}
+                    checked={settings.notifications.email_notifications}
                     onCheckedChange={(checked) =>
                       handleSave("notifications", {
                         email_notifications: checked,
@@ -454,10 +456,10 @@ export default function SettingsPage() {
                 <div className="flex items-center space-x-2">
                   <Switch
                     id="schedulePublished"
-                    checked={settings.schedule_published_notify}
+                    checked={settings.notifications.schedule_published}
                     onCheckedChange={(checked) =>
                       handleSave("notifications", {
-                        schedule_published_notify: checked,
+                        schedule_published: checked,
                       })
                     }
                   />
@@ -469,10 +471,10 @@ export default function SettingsPage() {
                 <div className="flex items-center space-x-2">
                   <Switch
                     id="shiftChanges"
-                    checked={settings.shift_changes_notify}
+                    checked={settings.notifications.shift_changes}
                     onCheckedChange={(checked) =>
                       handleSave("notifications", {
-                        shift_changes_notify: checked,
+                        shift_changes: checked,
                       })
                     }
                   />
@@ -482,10 +484,10 @@ export default function SettingsPage() {
                 <div className="flex items-center space-x-2">
                   <Switch
                     id="timeOffRequests"
-                    checked={settings.time_off_requests_notify}
+                    checked={settings.notifications.time_off_requests}
                     onCheckedChange={(checked) =>
                       handleSave("notifications", {
-                        time_off_requests_notify: checked,
+                        time_off_requests: checked,
                       })
                     }
                   />
@@ -499,87 +501,79 @@ export default function SettingsPage() {
             <TabsContent value="pdf" className="space-y-6">
               <PDFLayoutEditor
                 config={{
-                  page_size: settings.page_size,
-                  orientation: settings.orientation,
-                  margins: {
-                    top: settings.margin_top,
-                    right: settings.margin_right,
-                    bottom: settings.margin_bottom,
-                    left: settings.margin_left,
-                  },
-                  table_style: {
-                    header_bg_color: settings.table_header_bg_color,
-                    border_color: settings.table_border_color,
-                    text_color: settings.table_text_color,
-                    header_text_color: settings.table_header_text_color,
-                  },
-                  fonts: {
-                    family: settings.font_family,
-                    size: settings.font_size,
-                    header_size: settings.header_font_size,
-                  },
-                  content: {
-                    show_employee_id: settings.show_employee_id,
-                    show_position: settings.show_position,
-                    show_breaks: settings.show_breaks,
-                    show_total_hours: settings.show_total_hours,
-                  },
+                  page_size: settings.pdf_layout.page_size,
+                  orientation: settings.pdf_layout.orientation,
+                  margins: settings.pdf_layout.margins,
+                  table_style: settings.pdf_layout.table_style,
+                  fonts: settings.pdf_layout.fonts,
+                  content: settings.pdf_layout.content,
                 }}
                 onChange={(config) => handleSave("pdf_layout", config)}
               />
             </TabsContent>
 
-            <TabsContent value="groups" className="space-y-6">
-              <div className="space-y-8">
-                <div>
-                  <h3 className="text-lg font-semibold mb-4">Shift Types</h3>
-                  <EmployeeSettingsEditor
-                    type="shift"
-                    groups={settings.shift_types.map(group => ({
-                      ...group,
-                      type: 'shift' as const
-                    }))}
-                    onChange={(types) => {
-                      const shiftTypes = types
-                        .filter((t): t is ShiftType => t.type === 'shift')
-                        .map(({ type, ...rest }) => rest);
-                      handleSave("shift_types", { shift_types: shiftTypes });
-                    }}
-                  />
-                </div>
+            <TabsContent value="employee_groups" className="space-y-6">
+              <div className="grid grid-cols-1 gap-6">
+                <div className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Shift Types</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <EmployeeSettingsEditor
+                        groups={settings.employee_groups.shift_types.map(type => ({
+                          ...type,
+                          type: 'shift' as const
+                        }))}
+                        type="shift"
+                        onChange={(groups) =>
+                          handleSave("employee_groups", {
+                            shift_types: groups.map(({ type, ...rest }) => rest as BaseShiftType)
+                          })
+                        }
+                      />
+                    </CardContent>
+                  </Card>
 
-                <div>
-                  <h3 className="text-lg font-semibold mb-4">Employee Types</h3>
-                  <EmployeeSettingsEditor
-                    type="employee"
-                    groups={settings.employee_types.map(group => ({
-                      ...group,
-                      type: 'employee' as const
-                    }))}
-                    onChange={(types) => {
-                      const employeeTypes = types
-                        .filter((t): t is EmployeeType => t.type === 'employee')
-                        .map(({ type, ...rest }) => rest);
-                      handleSave("employee_types", { employee_types: employeeTypes });
-                    }}
-                  />
-                </div>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Employee Types</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <EmployeeSettingsEditor
+                        groups={settings.employee_groups.employee_types.map(type => ({
+                          ...type,
+                          type: 'employee' as const
+                        }))}
+                        type="employee"
+                        onChange={(groups) =>
+                          handleSave("employee_groups", {
+                            employee_types: groups.map(({ type, ...rest }) => rest as BaseEmployeeType)
+                          })
+                        }
+                      />
+                    </CardContent>
+                  </Card>
 
-                <div>
-                  <h3 className="text-lg font-semibold mb-4">Absence Types</h3>
-                  <EmployeeSettingsEditor
-                    type="absence"
-                    groups={settings.absence_types.map(group => ({
-                      ...group,
-                      type: 'absence' as const
-                    }))}
-                    onChange={(types) => {
-                      const absenceTypes = types
-                        .filter((t): t is AbsenceType => t.type === 'absence')
-                        .map(({ type, ...rest }) => rest);
-                      handleSave("absence_types", { absence_types: absenceTypes });
-                    }}
-                  />
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Absence Types</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <EmployeeSettingsEditor
+                        groups={settings.employee_groups.absence_types.map(type => ({
+                          ...type,
+                          type: 'absence' as const
+                        }))}
+                        type="absence"
+                        onChange={(groups) =>
+                          handleSave("employee_groups", {
+                            absence_types: groups.map(({ type, ...rest }) => rest as BaseAbsenceType)
+                          })
+                        }
+                      />
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
             </TabsContent>
