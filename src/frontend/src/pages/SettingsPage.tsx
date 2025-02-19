@@ -18,6 +18,7 @@ import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useDebouncedCallback } from 'use-debounce';
 import { Trash2 } from "lucide-react";
+import { EmployeeAvailabilityManager } from "@/components/EmployeeAvailabilityManager";
 
 type GroupType = EmployeeType | AbsenceType;
 
@@ -139,13 +140,14 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent>
           <Tabs value={currentTab} onValueChange={setCurrentTab}>
-            <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6">
+            <TabsList className="grid w-full grid-cols-3 lg:grid-cols-7">
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="scheduling">Scheduling</TabsTrigger>
               <TabsTrigger value="display">Display</TabsTrigger>
               <TabsTrigger value="notifications">Notifications</TabsTrigger>
               <TabsTrigger value="pdf">PDF Layout</TabsTrigger>
               <TabsTrigger value="employee_groups">Groups</TabsTrigger>
+              <TabsTrigger value="availability">Availability</TabsTrigger>
             </TabsList>
 
             <TabsContent value="general" className="space-y-6">
@@ -223,12 +225,25 @@ export default function SettingsPage() {
                           <Switch
                             checked={localSettings?.general.opening_days?.[index.toString()] ?? false}
                             onCheckedChange={(checked) => {
-                              const newOpeningDays = {
-                                ...localSettings?.general.opening_days,
-                                [index.toString()]: checked
+                              if (!localSettings) return;
+
+                              // Create new settings object with updated opening days
+                              const updatedSettings = {
+                                ...localSettings,
+                                general: {
+                                  ...localSettings.general,
+                                  opening_days: {
+                                    ...localSettings.general.opening_days,
+                                    [index.toString()]: checked
+                                  }
+                                }
                               };
-                              handleSave("general", { opening_days: newOpeningDays });
-                              handleImmediateUpdate();
+
+                              // Update local state immediately
+                              setLocalSettings(updatedSettings);
+
+                              // Send update to server
+                              updateMutation.mutate(updatedSettings);
                             }}
                           />
                         </div>
@@ -745,6 +760,23 @@ export default function SettingsPage() {
                   />
                 </div>
               </div>
+            </TabsContent>
+
+            <TabsContent value="availability" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Employee Availability</CardTitle>
+                  <CardDescription>Manage employee availability and scheduling preferences</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {localSettings?.employee_groups.employee_types.map((employeeType) => (
+                    <div key={employeeType.id} className="mb-8">
+                      <h3 className="text-lg font-semibold mb-4">{employeeType.name}</h3>
+                      <EmployeeAvailabilityManager employeeId={parseInt(employeeType.id)} />
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         </CardContent>
