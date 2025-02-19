@@ -73,12 +73,6 @@ export interface BaseGroup {
     name: string;
 }
 
-export interface BaseShiftType extends BaseGroup {
-    start_time: string;
-    end_time: string;
-    color: string;
-}
-
 export interface BaseEmployeeType extends BaseGroup {
     min_hours: number;
     max_hours: number;
@@ -149,7 +143,6 @@ export interface Settings {
         };
     };
     employee_groups: {
-        shift_types: BaseShiftType[];
         employee_types: BaseEmployeeType[];
         absence_types: BaseAbsenceType[];
     };

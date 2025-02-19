@@ -1,8 +1,8 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getSettings, updateSettings } from "@/services/api";
 import { Settings, BaseShiftType, BaseEmployeeType, BaseAbsenceType } from "@/types";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -11,9 +11,11 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ColorPicker } from "@/components/ui/color-picker";
 import { PDFLayoutEditor } from "@/components/PDFLayoutEditor";
-import EmployeeSettingsEditor, { ShiftType, EmployeeType, AbsenceType } from "@/components/EmployeeSettingsEditor";
+import EmployeeSettingsEditor, { EmployeeType, AbsenceType } from "@/components/EmployeeSettingsEditor";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -513,68 +515,52 @@ export default function SettingsPage() {
             </TabsContent>
 
             <TabsContent value="employee_groups" className="space-y-6">
-              <div className="grid grid-cols-1 gap-6">
-                <div className="space-y-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Shift Types</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <EmployeeSettingsEditor
-                        groups={settings.employee_groups.shift_types.map(type => ({
-                          ...type,
-                          type: 'shift' as const
-                        }))}
-                        type="shift"
-                        onChange={(groups) =>
-                          handleSave("employee_groups", {
-                            shift_types: groups.map(({ type, ...rest }) => rest as BaseShiftType)
-                          })
-                        }
-                      />
-                    </CardContent>
-                  </Card>
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Employee Types</CardTitle>
+                    <CardDescription>
+                      Configure different employee types and their working hour limits
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <EmployeeSettingsEditor
+                      type="employee"
+                      groups={settings.employee_groups.employee_types.map(type => ({
+                        ...type,
+                        type: 'employee'
+                      }))}
+                      onChange={(groups) =>
+                        handleSave("employee_groups", {
+                          employee_types: groups.map(({ type, ...rest }) => rest as BaseEmployeeType)
+                        })
+                      }
+                    />
+                  </CardContent>
+                </Card>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Employee Types</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <EmployeeSettingsEditor
-                        groups={settings.employee_groups.employee_types.map(type => ({
-                          ...type,
-                          type: 'employee' as const
-                        }))}
-                        type="employee"
-                        onChange={(groups) =>
-                          handleSave("employee_groups", {
-                            employee_types: groups.map(({ type, ...rest }) => rest as BaseEmployeeType)
-                          })
-                        }
-                      />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Absence Types</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <EmployeeSettingsEditor
-                        groups={settings.employee_groups.absence_types.map(type => ({
-                          ...type,
-                          type: 'absence' as const
-                        }))}
-                        type="absence"
-                        onChange={(groups) =>
-                          handleSave("employee_groups", {
-                            absence_types: groups.map(({ type, ...rest }) => rest as BaseAbsenceType)
-                          })
-                        }
-                      />
-                    </CardContent>
-                  </Card>
-                </div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Absence Types</CardTitle>
+                    <CardDescription>
+                      Configure different types of absences and their properties
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <EmployeeSettingsEditor
+                      type="absence"
+                      groups={settings.employee_groups.absence_types.map(type => ({
+                        ...type,
+                        type: 'absence'
+                      }))}
+                      onChange={(groups) =>
+                        handleSave("employee_groups", {
+                          absence_types: groups.map(({ type, ...rest }) => rest as BaseAbsenceType)
+                        })
+                      }
+                    />
+                  </CardContent>
+                </Card>
               </div>
             </TabsContent>
           </Tabs>

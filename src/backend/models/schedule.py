@@ -51,6 +51,7 @@ class Schedule(db.Model):
         return f"<Schedule {self.date}: Employee {self.employee_id} - Shift {self.shift_id}>"
 
     def to_dict(self):
+        """Convert schedule to dictionary"""
         return {
             'id': self.id,
             'date': self.date.strftime('%Y-%m-%d'),
@@ -60,11 +61,9 @@ class Schedule(db.Model):
             },
             'shift': {
                 'id': self.shift.id,
-                'type': self.shift.shift_type.value,
                 'start_time': self.shift.start_time,
                 'end_time': self.shift.end_time
             },
-            'break_start': self.break_start,
-            'break_end': self.break_end,
-            'notes': self.notes
+            'break_start': self.break_start.strftime('%H:%M') if self.break_start else None,
+            'break_end': self.break_end.strftime('%H:%M') if self.break_end else None
         } 
