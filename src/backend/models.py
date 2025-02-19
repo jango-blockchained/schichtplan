@@ -2,6 +2,8 @@ from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Enum, JSON
 from enum import Enum as PyEnum
+from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean, ForeignKey
+from sqlalchemy.orm import relationship
 
 db = SQLAlchemy()
 
@@ -10,11 +12,6 @@ class EmployeeGroup(PyEnum):
     TZ = "TZ"  # Teilzeit
     GFB = "GfB"  # Geringfügig Beschäftigt
     TL = "TL"  # Teamleiter
-
-class ShiftType(PyEnum):
-    EARLY = "Frühschicht"
-    MIDDLE = "Mittelschicht"
-    LATE = "Spätschicht"
 
 class Employee(db.Model):
     __tablename__ = 'employees'
@@ -49,19 +46,22 @@ class Employee(db.Model):
 class Shift(db.Model):
     __tablename__ = 'shifts'
     
-    id = db.Column(db.Integer, primary_key=True)
-    shift_type = db.Column(Enum(ShiftType), nullable=False)
-    start_time = db.Column(db.String(5), nullable=False)  # Format: "HH:MM"
-    end_time = db.Column(db.String(5), nullable=False)    # Format: "HH:MM"
-    min_employees = db.Column(db.Integer, nullable=False)
-    max_employees = db.Column(db.Integer, nullable=False)
-    duration_hours = db.Column(db.Float, nullable=False)
-    requires_break = db.Column(db.Boolean, nullable=False, default=True)
+    id = Column(Integer, primary_key=True)
+    start_time = Column(String(5), nullable=False)  # Format: "HH:MM"
+    end_time = Column(String(5), nullable=False)    # Format: "HH:MM"
+    min_employees = Column(Integer, nullable=False)
+    max_employees = Column(Integer, nullable=False)
+    duration_hours = Column(Float, nullable=False)
+    requires_break = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    schedules = relationship('Schedule', back_populates='shift')
 
     def to_dict(self):
         return {
             'id': self.id,
-            'shift_type': self.shift_type.value,
             'start_time': self.start_time,
             'end_time': self.end_time,
             'min_employees': self.min_employees,
@@ -94,7 +94,6 @@ class Schedule(db.Model):
             },
             'shift': {
                 'id': self.shift.id,
-                'type': self.shift.shift_type.value,
                 'start_time': self.shift.start_time,
                 'end_time': self.shift.end_time
             },

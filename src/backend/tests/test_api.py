@@ -1,6 +1,7 @@
 import pytest
 from models import Employee, EmployeeGroup, Shift, ShiftType, StoreConfig, Schedule
 from datetime import datetime, date, time, timedelta
+from tests.conftest import client, app
 
 def test_get_employees_empty(client, session):
     """Test getting employees when none exist"""
@@ -46,19 +47,80 @@ def test_get_shifts_empty(client, session):
     assert response.status_code == 200
     assert response.json == []
 
-def test_create_shift(client, session):
-    """Test shift creation via API"""
+def test_create_shift(client):
+    """Test creating a new shift"""
     data = {
-        'shift_type': 'Frühschicht',
-        'start_time': '09:00',
-        'end_time': '17:00',
+        'start_time': '08:00',
+        'end_time': '16:00',
         'min_employees': 2,
-        'max_employees': 5
+        'max_employees': 5,
+        'requires_break': True
     }
-    
     response = client.post('/api/shifts/', json=data)
     assert response.status_code == 201
-    assert 'id' in response.json
+    assert response.json['start_time'] == '08:00'
+    assert response.json['end_time'] == '16:00'
+
+def test_get_shifts(client, app):
+    """Test getting all shifts"""
+    with app.app_context():
+        shift = Shift(
+            start_time='08:00',
+            end_time='16:00',
+            min_employees=2,
+            max_employees=5,
+            requires_break=True
+        )
+        db.session.add(shift)
+        db.session.commit()
+
+    response = client.get('/api/shifts/')
+    assert response.status_code == 200
+    assert len(response.json) > 0
+    assert response.json[0]['start_time'] == '08:00'
+
+def test_update_shift(client, app):
+    """Test updating a shift"""
+    with app.app_context():
+        shift = Shift(
+            start_time='08:00',
+            end_time='16:00',
+            min_employees=2,
+            max_employees=5,
+            requires_break=True
+        )
+        db.session.add(shift)
+        db.session.commit()
+        shift_id = shift.id
+
+    data = {
+        'start_time': '09:00',
+        'end_time': '17:00'
+    }
+    response = client.put(f'/api/shifts/{shift_id}', json=data)
+    assert response.status_code == 200
+    assert response.json['start_time'] == '09:00'
+    assert response.json['end_time'] == '17:00'
+
+def test_delete_shift(client, app):
+    """Test deleting a shift"""
+    with app.app_context():
+        shift = Shift(
+            start_time='08:00',
+            end_time='16:00',
+            min_employees=2,
+            max_employees=5,
+            requires_break=True
+        )
+        db.session.add(shift)
+        db.session.commit()
+        shift_id = shift.id
+
+    response = client.delete(f'/api/shifts/{shift_id}')
+    assert response.status_code == 204
+
+    with app.app_context():
+        assert Shift.query.get(shift_id) is None
 
 def test_create_default_shifts(client, session):
     """Test creating default shifts"""
@@ -428,4 +490,71 @@ def test_break_time_requirements(client, session):
             second_break_start = datetime.strptime(start, '%H:%M')
             second_break_end = datetime.strptime(end, '%H:%M')
             second_break_duration = (second_break_end - second_break_start).total_seconds() / 60
-            assert second_break_duration == 15 
+            assert second_break_duration == 15
+
+def test_schedule_shift(client, app):
+    """Test scheduling a shift"""
+    with app.app_context():
+        employee = Employee(
+            first_name="Test",
+            last_name="User",
+            employee_group=EmployeeGroup.VL,
+            contracted_hours=40.0,
+            is_keyholder=True
+        )
+        shift = Shift(
+            start_time='08:00',
+            end_time='16:00',
+            min_employees=2,
+            max_employees=5,
+            requires_break=True
+        )
+        db.session.add(employee)
+        db.session.add(shift)
+        db.session.commit()
+
+        data = {
+            'employee_id': employee.id,
+            'shift_id': shift.id,
+            'date': '2024-03-01'
+        }
+        response = client.post('/api/schedules/', json=data)
+        assert response.status_code == 201
+        assert response.json['employee']['id'] == employee.id
+        assert response.json['shift']['id'] == shift.id
+
+def test_update_schedule(client, app):
+    """Test updating a schedule"""
+    with app.app_context():
+        employee = Employee(
+            first_name="Test",
+            last_name="User",
+            employee_group=EmployeeGroup.VL,
+            contracted_hours=40.0,
+            is_keyholder=True
+        )
+        shift = Shift(
+            start_time='08:00',
+            end_time='16:00',
+            min_employees=2,
+            max_employees=5,
+            requires_break=True
+        )
+        schedule = Schedule(
+            employee=employee,
+            shift=shift,
+            date=datetime.strptime('2024-03-01', '%Y-%m-%d').date()
+        )
+        db.session.add(employee)
+        db.session.add(shift)
+        db.session.add(schedule)
+        db.session.commit()
+
+        data = {
+            'break_start': '12:00',
+            'break_end': '12:30'
+        }
+        response = client.put(f'/api/schedules/{schedule.id}', json=data)
+        assert response.status_code == 200
+        assert response.json['break_start'] == '12:00'
+        assert response.json['break_end'] == '12:30' 

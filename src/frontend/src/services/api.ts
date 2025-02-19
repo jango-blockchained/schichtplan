@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import type { Settings, Employee, Shift, Schedule, Availability, EmployeeGroup } from '../types';
+import type { Settings, Employee, Shift, Schedule } from '../types';
 
 const API_BASE_URL = '/api';
 
@@ -34,38 +34,38 @@ api.interceptors.response.use(
     }
 );
 
-// Store Configuration
-export const getStoreConfig = async () => {
+// Settings
+export const getSettings = async (): Promise<Settings> => {
     try {
-        const response = await api.get<StoreConfig>('/store/config');
+        const response = await api.get<Settings>('/settings');
         return response.data;
     } catch (error) {
         if (error instanceof Error) {
-            throw new Error(`Fehler beim Laden der Filialeinstellungen: ${error.message}`);
+            throw new Error(`Failed to fetch settings: ${error.message}`);
         }
         throw error;
     }
 };
 
-export const updateStoreConfig = async (config: Partial<StoreConfig>) => {
+export const updateSettings = async (data: Partial<Settings>): Promise<Settings> => {
     try {
-        const response = await api.put<StoreConfig>('/store/config', config);
+        const response = await api.put<Settings>('/settings', data);
         return response.data;
     } catch (error) {
         if (error instanceof Error) {
-            throw new Error(`Fehler beim Aktualisieren der Filialeinstellungen: ${error.message}`);
+            throw new Error(`Failed to update settings: ${error.message}`);
         }
         throw error;
     }
 };
 
-export const resetStoreConfig = async () => {
+export const resetSettings = async (): Promise<Settings> => {
     try {
-        const response = await api.post<StoreConfig>('/store/config/reset');
+        const response = await api.post<Settings>('/settings/reset');
         return response.data;
     } catch (error) {
         if (error instanceof Error) {
-            throw new Error(`Fehler beim Zurücksetzen der Filialeinstellungen: ${error.message}`);
+            throw new Error(`Failed to reset settings: ${error.message}`);
         }
         throw error;
     }
@@ -73,105 +73,107 @@ export const resetStoreConfig = async () => {
 
 // Employees
 export const getEmployees = async (): Promise<Employee[]> => {
-    const response = await fetch(`${API_BASE_URL}/employees/`);
-    if (!response.ok) {
-        throw new Error('Fehler beim Laden der Mitarbeiter');
+    try {
+        const response = await api.get<Employee[]>('/employees/');
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to fetch employees: ${error.message}`);
+        }
+        throw error;
     }
-    return response.json();
 };
 
 export const createEmployee = async (data: Omit<Employee, 'id' | 'employee_id'>): Promise<Employee> => {
-    const response = await fetch(`${API_BASE_URL}/employees/`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-        throw new Error('Fehler beim Erstellen des Mitarbeiters');
+    try {
+        const response = await api.post<Employee>('/employees/', data);
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to create employee: ${error.message}`);
+        }
+        throw error;
     }
-    return response.json();
 };
 
 export const updateEmployee = async (id: number, data: Partial<Employee>): Promise<Employee> => {
-    const response = await fetch(`${API_BASE_URL}/employees/${id}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-        throw new Error('Fehler beim Aktualisieren des Mitarbeiters');
+    try {
+        const response = await api.put<Employee>(`/employees/${id}`, data);
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to update employee: ${error.message}`);
+        }
+        throw error;
     }
-    return response.json();
 };
 
 export const deleteEmployee = async (id: number): Promise<void> => {
-    const response = await fetch(`${API_BASE_URL}/employees/${id}`, {
-        method: 'DELETE',
-    });
-    if (!response.ok) {
-        throw new Error('Fehler beim Löschen des Mitarbeiters');
+    try {
+        await api.delete(`/employees/${id}`);
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to delete employee: ${error.message}`);
+        }
+        throw error;
     }
 };
 
 // Shifts
-export const getShifts = async () => {
+export const getShifts = async (): Promise<Shift[]> => {
     try {
         const response = await api.get<Shift[]>('/shifts/');
         return response.data;
     } catch (error) {
         if (error instanceof Error) {
-            throw new Error(`Fehler beim Laden der Schichten: ${error.message}`);
+            throw new Error(`Failed to fetch shifts: ${error.message}`);
         }
         throw error;
     }
 };
 
-export const createShift = async (shift: Omit<Shift, 'id' | 'duration_hours' | 'requires_break'>) => {
+export const createShift = async (shift: Omit<Shift, 'id' | 'duration_hours' | 'requires_break'>): Promise<Shift> => {
     try {
         const response = await api.post<Shift>('/shifts/', shift);
         return response.data;
     } catch (error) {
         if (error instanceof Error) {
-            throw new Error(`Fehler beim Erstellen der Schicht: ${error.message}`);
+            throw new Error(`Failed to create shift: ${error.message}`);
         }
         throw error;
     }
 };
 
-export const updateShift = async (id: number, shift: Partial<Shift>) => {
+export const updateShift = async (id: number, shift: Partial<Shift>): Promise<Shift> => {
     try {
-        const response = await api.put<Shift>(`/shifts/${id}/`, shift);
+        const response = await api.put<Shift>(`/shifts/${id}`, shift);
         return response.data;
     } catch (error) {
         if (error instanceof Error) {
-            throw new Error(`Fehler beim Aktualisieren der Schicht: ${error.message}`);
+            throw new Error(`Failed to update shift: ${error.message}`);
         }
         throw error;
     }
 };
 
-export const deleteShift = async (id: number) => {
+export const deleteShift = async (id: number): Promise<void> => {
     try {
-        await api.delete(`/shifts/${id}/`);
+        await api.delete(`/shifts/${id}`);
     } catch (error) {
         if (error instanceof Error) {
-            throw new Error(`Fehler beim Löschen der Schicht: ${error.message}`);
+            throw new Error(`Failed to delete shift: ${error.message}`);
         }
         throw error;
     }
 };
 
-export const createDefaultShifts = async () => {
+export const createDefaultShifts = async (): Promise<{ count: number }> => {
     try {
         const response = await api.post<{ count: number }>('/shifts/defaults/');
         return response.data;
     } catch (error) {
         if (error instanceof Error) {
-            throw new Error(`Fehler beim Erstellen der Standardschichten: ${error.message}`);
+            throw new Error(`Failed to create default shifts: ${error.message}`);
         }
         throw error;
     }
@@ -187,30 +189,12 @@ export interface ScheduleData {
     };
     shift: {
         id: number;
-        type: string;
         start_time: string;
         end_time: string;
     };
     break_start: string | null;
     break_end: string | null;
     notes: string | null;
-}
-
-export interface WeeklySchedule {
-    employee_id: number;
-    name: string;
-    position: string;
-    contracted_hours: string;
-    shifts: Array<{
-        day: number;
-        start?: string;
-        end?: string;
-        break?: {
-            start: string;
-            end: string;
-            notes?: string;
-        };
-    }>;
 }
 
 export const getSchedules = async (startDate: string, endDate: string): Promise<ScheduleData[]> => {
@@ -230,7 +214,7 @@ export const getSchedules = async (startDate: string, endDate: string): Promise<
     }
 };
 
-export const generateSchedule = async (startDate: string, endDate: string) => {
+export const generateSchedule = async (startDate: string, endDate: string): Promise<{ message: string; total_shifts: number }> => {
     try {
         const response = await api.post<{ message: string; total_shifts: number }>('/schedules/generate/', {
             start_date: startDate,
@@ -241,6 +225,7 @@ export const generateSchedule = async (startDate: string, endDate: string) => {
         if (error instanceof Error) {
             throw new Error(`Schedule generation failed: ${error.message}`);
         }
+        throw error;
     }
 };
 
@@ -273,6 +258,21 @@ export const updateBreakNotes = async (employeeId: number, date: string, notes: 
     } catch (error) {
         if (error instanceof Error) {
             throw new Error(`Failed to update break notes: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export const updateShiftDay = async (employeeId: number, fromDate: string, toDate: string): Promise<void> => {
+    try {
+        await api.put('/schedules/update-day/', {
+            employee_id: employeeId,
+            from_date: fromDate,
+            to_date: toDate,
+        });
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to update shift: ${error.message}`);
         }
         throw error;
     }

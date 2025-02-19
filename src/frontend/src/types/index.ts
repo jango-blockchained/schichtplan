@@ -46,7 +46,6 @@ export interface Schedule {
     };
     shift: {
         id: number;
-        type: string;
         start_time: string;
         end_time: string;
     };

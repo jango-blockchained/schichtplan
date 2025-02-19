@@ -10,6 +10,20 @@ class ScheduleGenerationError(Exception):
     """Custom exception for schedule generation errors"""
     pass
 
+def is_early_shift(shift):
+    """Check if a shift starts early in the morning (before 8:00)"""
+    start_hour = int(shift.start_time.split(':')[0])
+    return start_hour < 8
+
+def is_late_shift(shift):
+    """Check if a shift ends late in the evening (after 18:00)"""
+    end_hour = int(shift.end_time.split(':')[0])
+    return end_hour >= 18
+
+def requires_keyholder(shift):
+    """Check if a shift requires a keyholder (early or late shifts)"""
+    return is_early_shift(shift) or is_late_shift(shift)
+
 class ScheduleGenerator:
     """Service for generating work schedules"""
     
@@ -323,7 +337,7 @@ class ScheduleGenerator:
                     self.shifts,
                     key=lambda s: (
                         # Early/Late shifts first (need keyholders)
-                        0 if s.shift_type in [ShiftType.EARLY, ShiftType.LATE] else 1,
+                        0 if requires_keyholder(s) else 1,
                         # Sort by start time for equal priority shifts
                         s.start_time
                     )
@@ -335,7 +349,7 @@ class ScheduleGenerator:
                         [emp for emp in self.employees if self._check_availability(emp, current_date, shift)],
                         key=lambda e: (
                             # Keyholders first for early/late shifts
-                            0 if e.is_keyholder and shift.shift_type in [ShiftType.EARLY, ShiftType.LATE] else 1,
+                            0 if e.is_keyholder and requires_keyholder(shift) else 1,
                             # TL/VL employees priority for Tuesday/Thursday
                             0 if e.employee_group in [EmployeeGroup.TL, EmployeeGroup.VL] and current_date.weekday() in [1, 3] else 1,
                             # Full-time employees next
@@ -353,7 +367,7 @@ class ScheduleGenerator:
                     keyholder_assigned = False
                     
                     # First pass: Try to assign a keyholder for early/late shifts
-                    if shift.shift_type in [ShiftType.EARLY, ShiftType.LATE]:
+                    if requires_keyholder(shift):
                         for employee in [e for e in prioritized_employees if e.is_keyholder]:
                             if self._can_assign_shift(employee, shift, current_date):
                                 break_start, break_end = self._assign_breaks(None, shift)
@@ -391,15 +405,15 @@ class ScheduleGenerator:
                             assigned_count += 1
                             
                     # Check minimum requirements with improved error messages
-                    if assigned_count < shift.min_employees or (shift.shift_type in [ShiftType.EARLY, ShiftType.LATE] and not keyholder_assigned):
+                    if assigned_count < shift.min_employees or (requires_keyholder(shift) and not keyholder_assigned):
                         error_msg = []
                         if assigned_count < shift.min_employees:
                             error_msg.append(f"minimum number of employees ({shift.min_employees})")
-                        if shift.shift_type in [ShiftType.EARLY, ShiftType.LATE] and not keyholder_assigned:
+                        if requires_keyholder(shift) and not keyholder_assigned:
                             error_msg.append("keyholder requirement (early/late shifts must have at least one keyholder)")
                         
                         raise ScheduleGenerationError(
-                            f"Could not satisfy {' and '.join(error_msg)} for {shift.shift_type.value} shift on {current_date.strftime('%Y-%m-%d')}"
+                            f"Could not satisfy {' and '.join(error_msg)} for {shift.start_time}-{shift.end_time} shift on {current_date.strftime('%Y-%m-%d')}"
                         )
                             
             current_date += timedelta(days=1)
@@ -506,3 +520,68 @@ class ScheduleGenerator:
         
         # For now, just assign the minimum required number of employees
         return available_employees[:shift.min_employees] 
+
+    def _validate_shift_requirements(self, shift, current_date, assigned_employees):
+        """Validate shift-specific requirements"""
+        if requires_keyholder(shift):
+            keyholder_assigned = any(e.is_keyholder for e in assigned_employees)
+            if not keyholder_assigned:
+                return False
+        return True
+
+    def _get_shift_priority(self, shift):
+        """Get priority for shift scheduling (early/late shifts first)"""
+        if requires_keyholder(shift):
+            return 0
+        return 1
+
+    def _get_employee_priority(self, employee, shift):
+        """Get priority for employee assignment"""
+        if requires_keyholder(shift) and employee.is_keyholder:
+            return 0
+        return 1
+
+    def _check_early_late_conflict(self, employee, shift, date):
+        """Check for conflicts between early and late shifts"""
+        if is_late_shift(shift):
+            # Check if employee has early shift next day
+            next_day = date + timedelta(days=1)
+            early_next_day = Schedule.query.join(Shift).filter(
+                Schedule.employee_id == employee.id,
+                Schedule.date == next_day,
+                Schedule.shift.has(Shift.start_time < '08:00')
+            ).first()
+            if early_next_day:
+                return True
+
+        if is_early_shift(shift):
+            # Check if employee had late shift previous day
+            prev_day = date - timedelta(days=1)
+            late_prev_day = Schedule.query.join(Shift).filter(
+                Schedule.employee_id == employee.id,
+                Schedule.date == prev_day,
+                Schedule.shift.has(Shift.end_time >= '18:00')
+            ).first()
+            if late_prev_day:
+                return True
+
+        return False
+
+    def _validate_schedule(self, schedule, current_date):
+        """Validate the generated schedule"""
+        for shift in schedule:
+            assigned_count = len(shift.assigned_employees)
+            keyholder_assigned = any(e.is_keyholder for e in shift.assigned_employees)
+            
+            error_msg = []
+            if assigned_count < shift.min_employees:
+                error_msg.append(f"minimum {shift.min_employees} employees")
+            
+            if requires_keyholder(shift) and not keyholder_assigned:
+                error_msg.append("keyholder")
+            
+            if error_msg:
+                shift_time = f"{shift.start_time}-{shift.end_time}"
+                raise ScheduleGenerationError(
+                    f"Could not satisfy {' and '.join(error_msg)} for {shift_time} shift on {current_date.strftime('%Y-%m-%d')}"
+                ) 
