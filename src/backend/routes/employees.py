@@ -1,6 +1,8 @@
 from flask import Blueprint, jsonify, request
-from models import db, Employee
+from models import db, Employee, EmployeeAvailability
 from http import HTTPStatus
+from sqlalchemy.exc import IntegrityError
+from datetime import datetime
 
 employees = Blueprint('employees', __name__)
 
@@ -98,4 +100,34 @@ def delete_employee(employee_id):
         
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR 
+        return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+@employees.route('/api/employees/<int:employee_id>/availabilities', methods=['GET'])
+def get_employee_availabilities(employee_id):
+    """Get all availabilities for an employee"""
+    availabilities = EmployeeAvailability.query.filter_by(employee_id=employee_id).all()
+    return jsonify([availability.to_dict() for availability in availabilities])
+
+@employees.route('/api/employees/<int:employee_id>/availabilities', methods=['PUT'])
+def update_employee_availabilities(employee_id):
+    """Update availabilities for an employee"""
+    try:
+        # Delete existing availabilities
+        EmployeeAvailability.query.filter_by(employee_id=employee_id).delete()
+        
+        # Add new availabilities
+        availabilities_data = request.json
+        for data in availabilities_data:
+            availability = EmployeeAvailability(
+                employee_id=employee_id,
+                day_of_week=data['day_of_week'],
+                hour=data['hour'],
+                is_available=data.get('is_available', True)
+            )
+            db.session.add(availability)
+        
+        db.session.commit()
+        return jsonify({'message': 'Availabilities updated successfully'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400 

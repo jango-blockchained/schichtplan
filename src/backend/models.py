@@ -20,16 +20,20 @@ class Employee(db.Model):
     employee_id = db.Column(db.String(3), unique=True, nullable=True)
     first_name = db.Column(db.String(50), nullable=True)
     last_name = db.Column(db.String(50), nullable=True)
+    email = db.Column(db.String(100), nullable=True)
+    phone = db.Column(db.String(20), nullable=True)
     employee_group = db.Column(Enum(EmployeeGroup), nullable=True)
     contracted_hours = db.Column(db.Float, nullable=True)
     is_keyholder = db.Column(db.Boolean, nullable=True, default=False)
 
-    def __init__(self, first_name=None, last_name=None, employee_group=None, contracted_hours=None, is_keyholder=False):
+    def __init__(self, first_name=None, last_name=None, employee_group=None, contracted_hours=None, is_keyholder=False, email=None, phone=None):
         self.first_name = first_name
         self.last_name = last_name
         self.employee_group = employee_group
         self.contracted_hours = contracted_hours
         self.is_keyholder = is_keyholder
+        self.email = email
+        self.phone = phone
 
     def to_dict(self):
         """Convert employee object to dictionary for JSON serialization"""
@@ -38,6 +42,8 @@ class Employee(db.Model):
             'employee_id': self.employee_id,
             'first_name': self.first_name,
             'last_name': self.last_name,
+            'email': self.email,
+            'phone': self.phone,
             'employee_group': self.employee_group.value if self.employee_group else None,
             'contracted_hours': self.contracted_hours,
             'is_keyholder': self.is_keyholder
