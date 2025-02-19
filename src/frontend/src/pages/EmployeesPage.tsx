@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Settings, Plus, Pencil, Trash2 } from 'lucide-react';
+import { Settings, Plus, Pencil, Trash2, Clock } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getEmployees, createEmployee, updateEmployee, deleteEmployee } from '../services/api';
 import { Employee } from '../types';
-import { useEmployeeGroups, EmployeeGroup } from '../hooks/useEmployeeGroups';
-import EmployeeSettingsEditor from '../components/EmployeeSettingsEditor';
+import { useEmployeeGroups } from '../hooks/useEmployeeGroups';
+import { EmployeeAvailabilityModal } from '@/components/EmployeeAvailabilityModal';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -46,8 +46,8 @@ const initialFormData: EmployeeFormData = {
 
 export const EmployeesPage = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [selectedEmployeeForAvailability, setSelectedEmployeeForAvailability] = useState<Employee | null>(null);
   const [formData, setFormData] = useState<EmployeeFormData>(initialFormData);
   const queryClient = useQueryClient();
   const { employeeGroups, getGroup, getHoursRange } = useEmployeeGroups();
@@ -90,8 +90,8 @@ export const EmployeesPage = () => {
         employee_group: employee.employee_group,
         contracted_hours: employee.contracted_hours,
         is_keyholder: employee.is_keyholder,
-        email: employee.email,
-        phone: employee.phone,
+        email: employee.email || '',
+        phone: employee.phone || '',
       });
     } else {
       setEditingEmployee(null);
@@ -123,13 +123,9 @@ export const EmployeesPage = () => {
       setFormData({
         ...formData,
         employee_group: groupId,
-        contracted_hours: Number(group.minHours),
+        contracted_hours: group.minHours,
       });
     }
-  };
-
-  const handleEmployeeGroupsChange = (newGroups: EmployeeGroup[]) => {
-    queryClient.invalidateQueries({ queryKey: ['employees'] });
   };
 
   const getAvailableHours = (groupId: string): number[] => {
@@ -147,17 +143,7 @@ export const EmployeesPage = () => {
   return (
     <div className="p-6">
       <div className="mb-6 flex justify-between items-center">
-        <div className="flex items-center gap-2">
-          <h1 className="text-3xl font-bold">Mitarbeiter</h1>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsSettingsDialogOpen(true)}
-            className="ml-2"
-          >
-            <Settings className="h-5 w-5" />
-          </Button>
-        </div>
+        <h1 className="text-3xl font-bold">Mitarbeiter</h1>
         <Button onClick={() => handleOpenDialog()}>
           <Plus className="mr-2 h-4 w-4" />
           Mitarbeiter hinzufügen
@@ -206,6 +192,14 @@ export const EmployeesPage = () => {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => setSelectedEmployeeForAvailability(employee)}
+                      >
+                        <Clock className="mr-2 h-4 w-4" />
+                        Verfügbarkeit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         className="text-destructive"
                         onClick={() => deleteMutation.mutate(employee.id)}
                       >
@@ -221,26 +215,6 @@ export const EmployeesPage = () => {
         </div>
       )}
 
-      {/* Employee Settings Dialog */}
-      <Dialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Mitarbeitergruppen verwalten</DialogTitle>
-          </DialogHeader>
-          <div className="mt-4">
-            <EmployeeSettingsEditor
-              groups={employeeGroups}
-              onChange={handleEmployeeGroupsChange}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsSettingsDialogOpen(false)}>
-              Schließen
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Employee Edit/Create Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
@@ -250,66 +224,87 @@ export const EmployeesPage = () => {
             </DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="firstName">Vorname</Label>
-              <Input
-                id="firstName"
-                value={formData.first_name}
-                onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Vorname</Label>
+                <Input
+                  value={formData.first_name}
+                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Nachname</Label>
+                <Input
+                  value={formData.last_name}
+                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                />
+              </div>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="lastName">Nachname</Label>
-              <Input
-                id="lastName"
-                value={formData.last_name}
-                onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-              />
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Gruppe</Label>
+                <Select
+                  value={formData.employee_group}
+                  onValueChange={handleEmployeeGroupChange}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employeeGroups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Stunden</Label>
+                <Select
+                  value={formData.contracted_hours.toString()}
+                  onValueChange={(value) => setFormData({ ...formData, contracted_hours: Number(value) })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {getAvailableHours(formData.employee_group).map((hours) => (
+                      <SelectItem key={hours} value={hours.toString()}>
+                        {hours}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="employeeGroup">Mitarbeitergruppe</Label>
-              <Select
-                value={formData.employee_group}
-                onValueChange={handleEmployeeGroupChange}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Gruppe auswählen" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employeeGroups.map((group) => (
-                    <SelectItem key={group.id} value={group.id}>
-                      {group.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <Input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Telefon</Label>
+                <Input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                />
+              </div>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="hours">Stunden</Label>
-              <Input
-                id="hours"
-                type="number"
-                min={0}
-                max={48}
-                step={0.5}
-                value={formData.contracted_hours}
-                onChange={(e) =>
-                  setFormData({ ...formData, contracted_hours: Number(e.target.value) })
-                }
-              />
-              <p className="text-sm text-muted-foreground">
-                {getGroup(formData.employee_group)?.description || ''}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
+
+            <div className="flex items-center space-x-2">
               <Switch
-                id="isKeyholder"
                 checked={formData.is_keyholder}
-                onCheckedChange={(checked: boolean) =>
-                  setFormData({ ...formData, is_keyholder: checked })
-                }
+                onCheckedChange={(checked) => setFormData({ ...formData, is_keyholder: checked })}
               />
-              <Label htmlFor="isKeyholder">Schlüsselträger</Label>
+              <Label>Schlüsselträger</Label>
             </div>
           </div>
           <DialogFooter>
@@ -322,6 +317,16 @@ export const EmployeesPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Employee Availability Modal */}
+      {selectedEmployeeForAvailability && (
+        <EmployeeAvailabilityModal
+          employeeId={selectedEmployeeForAvailability.id}
+          employeeName={`${selectedEmployeeForAvailability.first_name} ${selectedEmployeeForAvailability.last_name}`}
+          isOpen={!!selectedEmployeeForAvailability}
+          onClose={() => setSelectedEmployeeForAvailability(null)}
+        />
+      )}
     </div>
   );
 }; 

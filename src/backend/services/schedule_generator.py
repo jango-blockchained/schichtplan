@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, date
 from typing import List, Dict, Any, Optional, Tuple
-from models import Employee, Shift, Schedule, Settings, Availability
-from models.availability import AvailabilityType
+from models import Employee, Shift, Schedule, Settings, EmployeeAvailability
+from models.employee import AvailabilityType
 from flask_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
@@ -77,13 +77,13 @@ class ScheduleGenerator:
     def _check_availability(self, employee: Employee, day: date, shift: Shift) -> bool:
         """Check if employee is available for the given shift"""
         # Get all relevant availability records
-        availabilities = Availability.query.filter(
-            Availability.employee_id == employee.id,
+        availabilities = EmployeeAvailability.query.filter(
+            EmployeeAvailability.employee_id == employee.id,
             (
-                (Availability.start_date <= day) &
-                (Availability.end_date >= day)
+                (EmployeeAvailability.start_date <= day) &
+                (EmployeeAvailability.end_date >= day)
             ) |
-            Availability.is_recurring == True
+            EmployeeAvailability.is_recurring == True
         ).all()
         
         # If no availability records exist, employee is considered available
@@ -464,9 +464,9 @@ class ScheduleGenerator:
                 raise ScheduleGenerationError("No shifts defined")
             
             # Get employee availabilities for the period
-            availabilities = Availability.query.filter(
-                Availability.start_date <= end_date,
-                Availability.end_date >= start_date
+            availabilities = EmployeeAvailability.query.filter(
+                EmployeeAvailability.start_date <= end_date,
+                EmployeeAvailability.end_date >= start_date
             ).all()
             
             # Create availability lookup
@@ -510,7 +510,7 @@ class ScheduleGenerator:
         # For now, assume store is open Monday-Saturday
         return date.weekday() < 6  # 0-5 = Monday-Saturday
     
-    def _create_availability_lookup(self, availabilities: List[Availability]) -> Dict[str, List[Availability]]:
+    def _create_availability_lookup(self, availabilities: List[EmployeeAvailability]) -> Dict[str, List[EmployeeAvailability]]:
         """Create a lookup dictionary for employee availabilities"""
         lookup = {}
         for availability in availabilities:
@@ -525,7 +525,7 @@ class ScheduleGenerator:
         shift: Shift,
         employees: List[Employee],
         date: datetime,
-        availability_lookup: Dict[str, List[Availability]]
+        availability_lookup: Dict[str, List[EmployeeAvailability]]
     ) -> List[Employee]:
         """Assign employees to a shift based on availability and constraints"""
         available_employees = []

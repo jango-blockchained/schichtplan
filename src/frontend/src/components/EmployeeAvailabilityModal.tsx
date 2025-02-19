@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useQuery } from '@tanstack/react-query';
-import { getSettings, updateEmployeeAvailability, getEmployeeAvailabilities } from '@/services/api';
+import { getSettings, updateEmployeeAvailability, getEmployeeAvailabilities, EmployeeAvailability } from '@/services/api';
 import { cn } from '@/lib/utils';
 
 interface EmployeeAvailabilityModalProps {
@@ -70,8 +70,8 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
         if (availabilities) {
             const newSelectedCells = new Set<string>();
             availabilities.forEach(availability => {
-                const day = DAYS[new Date(availability.date).getDay()];
-                const time = format(new Date(availability.date).setHours(availability.hour), TIME_FORMAT);
+                const day = DAYS[availability.day_of_week];
+                const time = format(new Date().setHours(availability.hour), TIME_FORMAT);
                 newSelectedCells.add(`${day}-${time}`);
             });
             setSelectedCells(newSelectedCells);

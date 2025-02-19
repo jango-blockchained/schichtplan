@@ -1,5 +1,13 @@
 from . import db
 from enum import Enum
+from datetime import datetime
+from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey
+from sqlalchemy.orm import relationship
+
+class AvailabilityType(str, Enum):
+    UNAVAILABLE = "unavailable"
+    AVAILABLE = "available"
+    PREFERRED_WORK = "preferred_work"
 
 class EmployeeGroup(str, Enum):
     VL = "VL"  # Vollzeit
@@ -10,17 +18,21 @@ class EmployeeGroup(str, Enum):
 class Employee(db.Model):
     __tablename__ = 'employees'
 
-    id = db.Column(db.Integer, primary_key=True)
-    employee_id = db.Column(db.String(3), unique=True, nullable=False)  # 3-letter identifier
-    first_name = db.Column(db.String(50), nullable=False)
-    last_name = db.Column(db.String(50), nullable=False)
-    employee_group = db.Column(db.Enum(EmployeeGroup), nullable=False)
-    contracted_hours = db.Column(db.Float, nullable=False)
-    is_keyholder = db.Column(db.Boolean, default=False)
+    id = Column(Integer, primary_key=True)
+    employee_id = Column(String(10), unique=True)
+    first_name = Column(String(50), nullable=False)
+    last_name = Column(String(50), nullable=False)
+    employee_group = Column(String(10), nullable=False)
+    contracted_hours = Column(Float, nullable=False)
+    is_keyholder = Column(Boolean, default=False)
+    email = Column(String(100))
+    phone = Column(String(20))
+    created_at = Column(db.DateTime, default=datetime.utcnow)
+    updated_at = Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
-    shifts = db.relationship('Schedule', back_populates='employee')
-    availabilities = db.relationship('EmployeeAvailability', back_populates='employee')
+    shifts = relationship('Schedule', back_populates='employee')
+    availabilities = relationship("EmployeeAvailability", back_populates="employee", cascade="all, delete-orphan")
 
     def __init__(self, first_name, last_name, employee_group, contracted_hours, is_keyholder=False):
         self.employee_id = self._generate_employee_id(first_name, last_name)
@@ -89,12 +101,40 @@ class Employee(db.Model):
             'employee_id': self.employee_id,
             'first_name': self.first_name,
             'last_name': self.last_name,
-            'employee_group': self.employee_group.value,
+            'employee_group': self.employee_group,
             'contracted_hours': self.contracted_hours,
             'is_keyholder': self.is_keyholder,
+            'email': self.email,
+            'phone': self.phone,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'max_daily_hours': self.get_max_daily_hours(),
             'max_weekly_hours': self.get_max_weekly_hours()
         }
 
     def __repr__(self):
-        return f"<Employee {self.employee_id}: {self.first_name} {self.last_name}>" 
+        return f"<Employee {self.employee_id}: {self.first_name} {self.last_name}>"
+
+class EmployeeAvailability(db.Model):
+    __tablename__ = 'employee_availabilities'
+
+    id = Column(Integer, primary_key=True)
+    employee_id = Column(Integer, ForeignKey('employees.id', ondelete='CASCADE'), nullable=False)
+    day_of_week = Column(Integer, nullable=False)  # 0 = Monday, 6 = Sunday
+    hour = Column(Integer, nullable=False)  # 0-23
+    is_available = Column(Boolean, default=True)
+    created_at = Column(db.DateTime, default=datetime.utcnow)
+    updated_at = Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    employee = relationship("Employee", back_populates="availabilities")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'employee_id': self.employee_id,
+            'day_of_week': self.day_of_week,
+            'hour': self.hour,
+            'is_available': self.is_available,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        } 

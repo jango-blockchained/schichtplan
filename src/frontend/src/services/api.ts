@@ -1,7 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import type { Settings, Employee, Shift, Schedule } from '../types';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -303,8 +303,18 @@ export interface AvailabilityCheck {
 }
 
 // Availability endpoints
+export interface EmployeeAvailability {
+    id?: number;
+    employee_id: number;
+    day_of_week: number;
+    hour: number;
+    is_available: boolean;
+    created_at?: string;
+    updated_at?: string;
+}
+
 export const getEmployeeAvailabilities = async (employeeId: number): Promise<EmployeeAvailability[]> => {
-    const response = await api.get(`/api/employees/${employeeId}/availabilities`);
+    const response = await api.get<EmployeeAvailability[]>(`/api/employees/${employeeId}/availabilities`);
     return response.data;
 };
 
@@ -337,14 +347,7 @@ export const checkAvailability = async (
     return response.data;
 };
 
-export interface EmployeeAvailability {
-    employee_id: number;
-    day_of_week: number;
-    hour: number;
-    is_available: boolean;
-}
-
-export const updateEmployeeAvailability = async (employeeId: number, availabilities: Omit<EmployeeAvailability, 'id'>[]) => {
+export const updateEmployeeAvailability = async (employeeId: number, availabilities: Omit<EmployeeAvailability, 'id' | 'created_at' | 'updated_at'>[]) => {
     const response = await api.put(`/api/employees/${employeeId}/availabilities`, availabilities);
     return response.data;
 };

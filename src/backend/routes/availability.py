@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
-from models import db, Availability, Employee
-from models.availability import AvailabilityType
+from models import db, EmployeeAvailability, Employee
+from models.employee import AvailabilityType
 from datetime import datetime, time
 from http import HTTPStatus
 
@@ -9,7 +9,7 @@ availability = Blueprint('availability', __name__)
 @availability.route('/api/availability', methods=['GET'])
 def get_availabilities():
     """Get all availabilities"""
-    availabilities = Availability.query.all()
+    availabilities = EmployeeAvailability.query.all()
     return jsonify([availability.to_dict() for availability in availabilities])
 
 @availability.route('/api/availability', methods=['POST'])
@@ -18,20 +18,12 @@ def create_availability():
     data = request.get_json()
     
     try:
-        availability = Availability(
+        availability = EmployeeAvailability(
             employee_id=data['employee_id'],
-            start_date=datetime.strptime(data['start_date'], '%Y-%m-%d').date(),
-            end_date=datetime.strptime(data['end_date'], '%Y-%m-%d').date(),
-            availability_type=AvailabilityType(data.get('availability_type', 'unavailable')),
-            reason=data.get('reason'),
-            is_recurring=data.get('is_recurring', False),
-            recurrence_day=data.get('recurrence_day')
+            day_of_week=data['day_of_week'],
+            hour=data['hour'],
+            is_available=data.get('is_available', True)
         )
-        
-        if 'start_time' in data:
-            availability.start_time = datetime.strptime(data['start_time'], '%H:%M').time()
-        if 'end_time' in data:
-            availability.end_time = datetime.strptime(data['end_time'], '%H:%M').time()
         
         db.session.add(availability)
         db.session.commit()
@@ -49,34 +41,24 @@ def create_availability():
 @availability.route('/api/availability/<int:availability_id>', methods=['GET'])
 def get_availability(availability_id):
     """Get a specific availability"""
-    availability = Availability.query.get_or_404(availability_id)
+    availability = EmployeeAvailability.query.get_or_404(availability_id)
     return jsonify(availability.to_dict())
 
 @availability.route('/api/availability/<int:availability_id>', methods=['PUT'])
 def update_availability(availability_id):
     """Update an availability"""
-    availability = Availability.query.get_or_404(availability_id)
+    availability = EmployeeAvailability.query.get_or_404(availability_id)
     data = request.get_json()
     
     try:
         if 'employee_id' in data:
             availability.employee_id = data['employee_id']
-        if 'start_date' in data:
-            availability.start_date = datetime.strptime(data['start_date'], '%Y-%m-%d').date()
-        if 'end_date' in data:
-            availability.end_date = datetime.strptime(data['end_date'], '%Y-%m-%d').date()
-        if 'start_time' in data:
-            availability.start_time = datetime.strptime(data['start_time'], '%H:%M').time() if data['start_time'] else None
-        if 'end_time' in data:
-            availability.end_time = datetime.strptime(data['end_time'], '%H:%M').time() if data['end_time'] else None
-        if 'availability_type' in data:
-            availability.availability_type = AvailabilityType(data['availability_type'])
-        if 'reason' in data:
-            availability.reason = data['reason']
-        if 'is_recurring' in data:
-            availability.is_recurring = data['is_recurring']
-        if 'recurrence_day' in data:
-            availability.recurrence_day = data['recurrence_day']
+        if 'day_of_week' in data:
+            availability.day_of_week = data['day_of_week']
+        if 'hour' in data:
+            availability.hour = data['hour']
+        if 'is_available' in data:
+            availability.is_available = data['is_available']
         
         db.session.commit()
         return jsonify(availability.to_dict())
@@ -90,7 +72,7 @@ def update_availability(availability_id):
 @availability.route('/api/availability/<int:availability_id>', methods=['DELETE'])
 def delete_availability(availability_id):
     """Delete an availability"""
-    availability = Availability.query.get_or_404(availability_id)
+    availability = EmployeeAvailability.query.get_or_404(availability_id)
     
     try:
         db.session.delete(availability)
@@ -114,32 +96,28 @@ def check_availability():
         employee = Employee.query.get_or_404(employee_id)
         
         # Get all relevant availability records
-        availabilities = Availability.query.filter(
-            Availability.employee_id == employee_id,
-            (
-                (Availability.start_date <= check_date) &
-                (Availability.end_date >= check_date)
-            ) |
-            Availability.is_recurring == True
+        availabilities = EmployeeAvailability.query.filter(
+            EmployeeAvailability.employee_id == employee_id,
+            EmployeeAvailability.day_of_week == check_date.weekday()
         ).all()
         
         # Check time range if provided
-        start_time = None
-        end_time = None
-        if 'start_time' in data:
-            start_time = datetime.strptime(data['start_time'], '%H:%M').time()
-        if 'end_time' in data:
-            end_time = datetime.strptime(data['end_time'], '%H:%M').time()
+        hour = None
+        if 'hour' in data:
+            hour = data['hour']
+            availabilities = [a for a in availabilities if a.hour == hour]
         
-        # Check each availability record
-        for availability in availabilities:
-            if not availability.is_available_for_date(check_date, start_time, end_time):
-                return jsonify({
-                    'is_available': False,
-                    'reason': availability.reason or 'Unavailable during this period'
-                })
+        # If no availability records exist for this time, employee is considered available
+        if not availabilities:
+            return jsonify({'is_available': True})
+            
+        # Check if any availability record indicates the employee is available
+        is_available = any(a.is_available for a in availabilities)
         
-        return jsonify({'is_available': True})
+        return jsonify({
+            'is_available': is_available,
+            'reason': None if is_available else 'Marked as unavailable for this time'
+        })
         
     except KeyError as e:
         return jsonify({'error': f'Missing required field: {str(e)}'}), HTTPStatus.BAD_REQUEST
