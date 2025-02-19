@@ -286,23 +286,20 @@ export const EmployeesPage = () => {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="hours">Stunden</Label>
-              <Select
-                value={formData.contracted_hours.toString()}
-                onValueChange={(value: string) =>
-                  setFormData({ ...formData, contracted_hours: Number(value) })
+              <Input
+                id="hours"
+                type="number"
+                min={0}
+                max={48}
+                step={0.5}
+                value={formData.contracted_hours}
+                onChange={(e) =>
+                  setFormData({ ...formData, contracted_hours: Number(e.target.value) })
                 }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Stunden auswählen" />
-                </SelectTrigger>
-                <SelectContent>
-                  {getAvailableHours(formData.employee_group).map((hours) => (
-                    <SelectItem key={hours} value={hours.toString()}>
-                      {hours}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
+              <p className="text-sm text-muted-foreground">
+                {getGroup(formData.employee_group)?.description || ''}
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <Switch

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Card, CardContent } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from './ui/alert';
 import { Trash2, Plus } from 'lucide-react';
 import { ColorPicker } from './ui/color-picker';
 import { BaseEmployeeType, BaseAbsenceType } from '@/types';
+import { useDebouncedCallback } from 'use-debounce';
 
 export interface EmployeeType extends BaseEmployeeType {
     type: 'employee';
@@ -30,6 +31,15 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [newGroup, setNewGroup] = useState<GroupType>(getDefaultGroup());
     const [error, setError] = useState<string | null>(null);
+    const [localGroups, setLocalGroups] = useState<GroupType[]>(groups);
+
+    // Debounced update function
+    const debouncedOnChange = useDebouncedCallback(
+        (updatedGroups: GroupType[]) => {
+            onChange(updatedGroups);
+        },
+        1000 // 1 second delay
+    );
 
     function getDefaultGroup(): GroupType {
         switch (type) {
@@ -81,30 +91,38 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
     };
 
     const handleUpdateEmployeeGroup = (index: number, field: keyof EmployeeType, value: string | number) => {
-        const updatedGroups = [...groups];
+        const updatedGroups = [...localGroups];
         const updatedGroup = {
             ...updatedGroups[index],
             [field]: value
         };
         updatedGroups[index] = updatedGroup;
-        onChange(updatedGroups);
+        setLocalGroups(updatedGroups);
+        debouncedOnChange(updatedGroups);
     };
 
     const handleUpdateAbsenceGroup = (index: number, field: keyof AbsenceType, value: string | boolean) => {
-        const updatedGroups = [...groups];
+        const updatedGroups = [...localGroups];
         const updatedGroup = {
             ...updatedGroups[index],
             [field]: value
         };
         updatedGroups[index] = updatedGroup;
-        onChange(updatedGroups);
+        setLocalGroups(updatedGroups);
+        debouncedOnChange(updatedGroups);
+    };
+
+    const handleBlur = () => {
+        // Immediate update on blur
+        onChange(localGroups);
+        debouncedOnChange.cancel(); // Cancel any pending debounced updates
     };
 
     return (
         <Card>
             <CardContent className="pt-6">
                 <div className="space-y-4">
-                    {groups.map((group, index) => (
+                    {localGroups.map((group, index) => (
                         <div key={group.id} className="p-4 border rounded-lg space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
@@ -118,6 +136,7 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                                                 handleUpdateAbsenceGroup(index, 'id', e.target.value);
                                             }
                                         }}
+                                        onBlur={handleBlur}
                                     />
                                 </div>
 
@@ -132,6 +151,7 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                                                 handleUpdateAbsenceGroup(index, 'name', e.target.value);
                                             }
                                         }}
+                                        onBlur={handleBlur}
                                     />
                                 </div>
                             </div>
@@ -144,6 +164,7 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                                             type="number"
                                             value={group.min_hours}
                                             onChange={(e) => handleUpdateEmployeeGroup(index, 'min_hours', Number(e.target.value))}
+                                            onBlur={handleBlur}
                                         />
                                     </div>
 
@@ -153,6 +174,7 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                                             type="number"
                                             value={group.max_hours}
                                             onChange={(e) => handleUpdateEmployeeGroup(index, 'max_hours', Number(e.target.value))}
+                                            onBlur={handleBlur}
                                         />
                                     </div>
                                 </div>
@@ -165,7 +187,10 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                                         <ColorPicker
                                             id={`absence-color-${group.id}`}
                                             color={group.color}
-                                            onChange={(color) => handleUpdateAbsenceGroup(index, 'color', color)}
+                                            onChange={(color) => {
+                                                handleUpdateAbsenceGroup(index, 'color', color);
+                                                handleBlur(); // Immediate update for color changes
+                                            }}
                                         />
                                     </div>
 
@@ -173,8 +198,10 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                                         <Label>Paid</Label>
                                         <Select
                                             value={group.paid.toString()}
-                                            onValueChange={(value) =>
-                                                handleUpdateAbsenceGroup(index, 'paid', value === 'true')}
+                                            onValueChange={(value) => {
+                                                handleUpdateAbsenceGroup(index, 'paid', value === 'true');
+                                                handleBlur(); // Immediate update for select changes
+                                            }}
                                         >
                                             <SelectTrigger>
                                                 <SelectValue />
@@ -192,8 +219,12 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                                 <Button
                                     variant="destructive"
                                     size="sm"
-                                    onClick={() => handleDeleteGroup(group.id)}
-                                    disabled={groups.length <= 1}
+                                    onClick={() => {
+                                        const updatedGroups = localGroups.filter(g => g.id !== group.id);
+                                        setLocalGroups(updatedGroups);
+                                        onChange(updatedGroups); // Immediate update for deletions
+                                    }}
+                                    disabled={localGroups.length <= 1}
                                 >
                                     <Trash2 className="h-4 w-4 mr-1" />
                                     Delete

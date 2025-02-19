@@ -50,13 +50,16 @@ class Employee(db.Model):
         return temp_id
 
     def validate_hours(self) -> bool:
-        """Validate contracted hours based on employee group"""
+        """Validate contracted hours based on employee group and legal limits"""
+        if not 0 <= self.contracted_hours <= 48:  # German labor law maximum
+            return False
+            
         if self.employee_group == EmployeeGroup.VL or self.employee_group == EmployeeGroup.TL:
-            # Full-time employees must work between 35 and 48 hours
+            # Full-time employees should work between 35 and 48 hours
             return 35 <= self.contracted_hours <= 48
         elif self.employee_group == EmployeeGroup.TZ:
-            # Part-time employees can work between 10 and 35 hours
-            return 10 <= self.contracted_hours <= 35
+            # Part-time employees can work up to 35 hours
+            return 0 < self.contracted_hours < 35
         elif self.employee_group == EmployeeGroup.GFB:
             # Minijob employees must stay under the monthly limit (556 EUR / 12.41 EUR minimum wage)
             max_monthly_hours = 556 / 12.41  # ~44.8 hours per month

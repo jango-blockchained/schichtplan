@@ -277,6 +277,3 @@ export const updateShiftDay = async (employeeId: number, fromDate: string, toDat
         throw error;
     }
 };
-
-// Employee Groups
-// ... existing code ... 
