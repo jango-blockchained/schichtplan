@@ -17,6 +17,8 @@ class Settings(db.Model):
     language = Column(String(10), nullable=False, default='de')
     date_format = Column(String(20), nullable=False, default='DD.MM.YYYY')
     time_format = Column(String(10), nullable=False, default='24h')
+    store_opening = Column(String(5), nullable=False, default='09:00')
+    store_closing = Column(String(5), nullable=False, default='20:00')
     
     # Scheduling Settings
     default_shift_duration = Column(Float, nullable=False, default=8.0)
@@ -60,12 +62,6 @@ class Settings(db.Model):
     show_total_hours = Column(Boolean, nullable=False, default=True)
     
     # Employee Group Settings
-    shift_types = Column(JSON, nullable=False, default=lambda: [
-        {'id': 'early', 'name': 'Früh', 'start_time': '06:00', 'end_time': '14:00', 'color': '#4CAF50'},
-        {'id': 'middle', 'name': 'Mittel', 'start_time': '10:00', 'end_time': '18:00', 'color': '#2196F3'},
-        {'id': 'late', 'name': 'Spät', 'start_time': '14:00', 'end_time': '22:00', 'color': '#9C27B0'}
-    ])
-    
     employee_types = Column(JSON, nullable=False, default=lambda: [
         {'id': 'full_time', 'name': 'Vollzeit', 'min_hours': 35, 'max_hours': 40},
         {'id': 'part_time', 'name': 'Teilzeit', 'min_hours': 15, 'max_hours': 34},
@@ -143,7 +139,6 @@ class Settings(db.Model):
                 }
             },
             'employee_groups': {
-                'shift_types': self.shift_types,
                 'employee_types': self.employee_types,
                 'absence_types': self.absence_types
             }
@@ -203,12 +198,6 @@ class Settings(db.Model):
         settings.show_total_hours = True
         
         # Employee Group Settings
-        settings.shift_types = [
-            {'id': 'early', 'name': 'Früh', 'start_time': '06:00', 'end_time': '14:00', 'color': '#4CAF50'},
-            {'id': 'middle', 'name': 'Mittel', 'start_time': '10:00', 'end_time': '18:00', 'color': '#2196F3'},
-            {'id': 'late', 'name': 'Spät', 'start_time': '14:00', 'end_time': '22:00', 'color': '#9C27B0'}
-        ]
-        
         settings.employee_types = [
             {'id': 'full_time', 'name': 'Vollzeit', 'min_hours': 35, 'max_hours': 40},
             {'id': 'part_time', 'name': 'Teilzeit', 'min_hours': 15, 'max_hours': 34},

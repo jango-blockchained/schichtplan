@@ -6,7 +6,6 @@ import { SchedulePage } from './pages/SchedulePage';
 import ShiftsPage from './pages/ShiftsPage';
 import { EmployeesPage } from './pages/EmployeesPage';
 import SettingsPage from './pages/SettingsPage';
-import ShiftTemplatesPage from './pages/ShiftTemplatesPage';
 import { Toaster } from '@/components/ui/toaster';
 import PDFSettings from '@/pages/PDFSettings';
 
@@ -29,7 +28,6 @@ const App: React.FC = () => {
             <Route path="shifts" element={<ShiftsPage />} />
             <Route path="employees" element={<EmployeesPage />} />
             <Route path="settings" element={<SettingsPage />} />
-            <Route path="shift-templates" element={<ShiftTemplatesPage />} />
           </Route>
           <Route path="/pdf-settings" element={<PDFSettings />} />
         </Routes>

@@ -29,7 +29,6 @@ export interface Employee {
 
 export interface Shift {
     id: number;
-    shift_type: ShiftType;
     start_time: string;
     end_time: string;
     min_employees: number;

@@ -11,7 +11,6 @@ const navItems = [
   { label: 'Schichtplan', path: '/', icon: LayoutDashboard },
   { label: 'Mitarbeiter', path: '/employees', icon: Users },
   { label: 'Schichten', path: '/shifts', icon: FileText },
-  { label: 'Vorlagen', path: '/shift-templates', icon: FileText },
   { label: 'Einstellungen', path: '/settings', icon: Settings },
 ];
 

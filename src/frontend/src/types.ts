@@ -25,32 +25,16 @@ export interface EmployeeType {
 }
 
 // Shift related types
-export interface ShiftType {
-    id: string;
-    name: string;
-    color: string;
-}
-
 export interface Shift {
     id: string;
-    name: string;
-    type_id: string;
     start_time: string;
     end_time: string;
     min_employees: number;
     max_employees: number;
     duration_hours: number;
     requires_break: boolean;
-}
-
-export interface ShiftTemplate {
-    id: string;
-    name: string;
-    shift_type_id: string;
-    weekday: number;
-    start_time: string;
-    end_time: string;
-    break_duration: number;
+    created_at?: string;
+    updated_at?: string;
 }
 
 // Schedule related types

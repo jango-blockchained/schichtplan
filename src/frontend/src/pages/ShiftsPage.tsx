@@ -1,18 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
-import type { Shift, ShiftType } from '../types';
+import type { Shift } from '../types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface ShiftsPageProps { }
 
 const ShiftsPage: React.FC<ShiftsPageProps> = () => {
   const [shifts, setShifts] = useState<Shift[]>([]);
-  const [shiftTypes, setShiftTypes] = useState<ShiftType[]>([]);
   const [loading, setLoading] = useState(true);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
@@ -20,7 +19,6 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
 
   useEffect(() => {
     fetchShifts();
-    fetchShiftTypes();
   }, []);
 
   const fetchShifts = async () => {
@@ -34,20 +32,6 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
         variant: "destructive",
         title: "Error",
         description: "Error loading shifts"
-      });
-    }
-  };
-
-  const fetchShiftTypes = async () => {
-    try {
-      const response = await fetch('/api/settings');
-      const data = await response.json();
-      setShiftTypes(data.employee_groups.shift_types || []);
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Error loading shift types"
       });
     }
   };
@@ -88,18 +72,12 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
       const method = editingShift ? 'PUT' : 'POST';
       const url = editingShift ? `/api/shifts/${editingShift.id}` : '/api/shifts';
 
-      // Find the shift type name from the ID
-      const shiftType = shiftTypes.find(t => t.id === formData.type_id);
-      if (!shiftType) {
-        throw new Error('Invalid shift type selected');
-      }
-
       const payload = {
-        shift_type: shiftType.name,
         start_time: formData.start_time,
         end_time: formData.end_time,
         min_employees: parseInt(formData.min_employees),
-        max_employees: parseInt(formData.max_employees)
+        max_employees: parseInt(formData.max_employees),
+        requires_break: formData.requires_break === 'on'
       };
 
       const response = await fetch(url, {
@@ -142,37 +120,33 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
         </Button>
       </div>
 
-      {loading ? (
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {shifts.map((shift) => (
-            <Card key={shift.id}>
-              <CardContent className="pt-6">
-                <h3 className="text-lg font-semibold mb-2">{shift.name}</h3>
-                <p className="text-sm text-muted-foreground mb-2">
-                  Type: {shiftTypes.find(t => t.id === shift.type_id)?.name || 'Unknown'}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Time: {shift.start_time} - {shift.end_time}
-                </p>
-              </CardContent>
-              <CardFooter className="flex justify-end space-x-2">
-                <Button variant="outline" size="sm" onClick={() => handleEditShift(shift)}>
-                  <Pencil className="h-4 w-4 mr-1" />
-                  Edit
-                </Button>
-                <Button variant="destructive" size="sm" onClick={() => handleDeleteShift(shift.id)}>
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  Delete
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {shifts.map((shift) => (
+          <Card key={shift.id}>
+            <CardContent className="pt-6">
+              <p className="text-sm text-muted-foreground mb-2">
+                Time: {shift.start_time} - {shift.end_time}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Employees: {shift.min_employees} - {shift.max_employees}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Break Required: {shift.requires_break ? 'Yes' : 'No'}
+              </p>
+            </CardContent>
+            <CardFooter className="flex justify-end space-x-2">
+              <Button variant="outline" size="sm" onClick={() => handleEditShift(shift)}>
+                <Pencil className="h-4 w-4 mr-1" />
+                Edit
+              </Button>
+              <Button variant="destructive" size="sm" onClick={() => handleDeleteShift(shift.id)}>
+                <Trash2 className="h-4 w-4 mr-1" />
+                Delete
+              </Button>
+            </CardFooter>
+          </Card>
+        ))}
+      </div>
 
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
@@ -183,46 +157,21 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
             e.preventDefault();
             const formData = new FormData(e.currentTarget);
             handleSaveShift({
-              name: formData.get('name'),
-              type_id: formData.get('type_id'),
               start_time: formData.get('start_time'),
               end_time: formData.get('end_time'),
-              min_employees: parseInt(formData.get('min_employees') as string) || 1,
-              max_employees: parseInt(formData.get('max_employees') as string) || 5,
+              min_employees: formData.get('min_employees'),
+              max_employees: formData.get('max_employees'),
+              requires_break: formData.get('requires_break')
             });
           }}>
             <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <label htmlFor="name" className="text-sm font-medium">Name</label>
-                <Input
-                  id="name"
-                  name="name"
-                  defaultValue={editingShift?.name || ''}
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <label htmlFor="type_id" className="text-sm font-medium">Type</label>
-                <Select name="type_id" defaultValue={editingShift?.type_id || ''} required>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {shiftTypes.map((type) => (
-                      <SelectItem key={type.id} value={type.id}>
-                        {type.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="grid gap-2">
                 <label htmlFor="start_time" className="text-sm font-medium">Start Time</label>
                 <Input
                   id="start_time"
                   name="start_time"
                   type="time"
-                  defaultValue={editingShift?.start_time || ''}
+                  defaultValue={editingShift?.start_time || '09:00'}
                   required
                 />
               </div>
@@ -232,33 +181,41 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
                   id="end_time"
                   name="end_time"
                   type="time"
-                  defaultValue={editingShift?.end_time || ''}
+                  defaultValue={editingShift?.end_time || '17:00'}
                   required
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <label htmlFor="min_employees" className="text-sm font-medium">Min Employees</label>
-                  <Input
-                    id="min_employees"
-                    name="min_employees"
-                    type="number"
-                    min="1"
-                    defaultValue={editingShift?.min_employees || 1}
-                    required
+              <div className="grid gap-2">
+                <label htmlFor="min_employees" className="text-sm font-medium">Minimum Employees</label>
+                <Input
+                  id="min_employees"
+                  name="min_employees"
+                  type="number"
+                  min="1"
+                  defaultValue={editingShift?.min_employees || 1}
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <label htmlFor="max_employees" className="text-sm font-medium">Maximum Employees</label>
+                <Input
+                  id="max_employees"
+                  name="max_employees"
+                  type="number"
+                  min="1"
+                  defaultValue={editingShift?.max_employees || 5}
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <label className="flex items-center space-x-2">
+                  <Checkbox
+                    id="requires_break"
+                    name="requires_break"
+                    defaultChecked={editingShift?.requires_break ?? true}
                   />
-                </div>
-                <div className="grid gap-2">
-                  <label htmlFor="max_employees" className="text-sm font-medium">Max Employees</label>
-                  <Input
-                    id="max_employees"
-                    name="max_employees"
-                    type="number"
-                    min="1"
-                    defaultValue={editingShift?.max_employees || 5}
-                    required
-                  />
-                </div>
+                  <span className="text-sm font-medium">Requires Break</span>
+                </label>
               </div>
             </div>
             <DialogFooter>

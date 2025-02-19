@@ -1,11 +1,10 @@
 from flask import Blueprint, jsonify, request
-from models.settings import Settings
-from models import db
+from models import db, Settings
 from http import HTTPStatus
 
-settings_bp = Blueprint('settings', __name__)
+settings = Blueprint('settings', __name__)
 
-@settings_bp.route('/settings', methods=['GET'])
+@settings.route('/api/settings', methods=['GET'])
 def get_settings():
     """Get all settings or initialize with defaults if none exist"""
     settings = Settings.query.first()
@@ -22,7 +21,7 @@ def get_settings():
     
     return jsonify(settings.to_dict())
 
-@settings_bp.route('/settings', methods=['PUT'])
+@settings.route('/api/settings', methods=['PUT'])
 def update_settings():
     """Update settings"""
     data = request.get_json()
@@ -40,7 +39,7 @@ def update_settings():
         db.session.rollback()
         return jsonify({'error': str(e)}), HTTPStatus.BAD_REQUEST
 
-@settings_bp.route('/settings/reset', methods=['POST'])
+@settings.route('/api/settings/reset', methods=['POST'])
 def reset_settings():
     """Reset settings to defaults"""
     Settings.query.delete()
@@ -52,7 +51,7 @@ def reset_settings():
     
     return jsonify(settings.to_dict())
 
-@settings_bp.route('/settings/<category>', methods=['GET'])
+@settings.route('/api/settings/<category>', methods=['GET'])
 def get_category_settings(category):
     """Get settings for a specific category"""
     settings = Settings.query.first()
@@ -67,7 +66,7 @@ def get_category_settings(category):
     
     return jsonify(settings_dict[category])
 
-@settings_bp.route('/settings/<category>', methods=['PUT'])
+@settings.route('/api/settings/<category>', methods=['PUT'])
 def update_category_settings(category):
     """Update settings for a specific category"""
     data = request.get_json()
@@ -85,7 +84,7 @@ def update_category_settings(category):
         db.session.rollback()
         return jsonify({'error': str(e)}), HTTPStatus.BAD_REQUEST
 
-@settings_bp.route('/settings/<category>/<key>', methods=['PUT'])
+@settings.route('/api/settings/<category>/<key>', methods=['PUT'])
 def update_setting(category, key):
     """Update a specific setting"""
     data = request.get_json()
@@ -113,7 +112,7 @@ def update_setting(category, key):
         db.session.rollback()
         return jsonify({'error': str(e)}), HTTPStatus.BAD_REQUEST
 
-@settings_bp.route('/settings/<category>/<key>', methods=['DELETE'])
+@settings.route('/api/settings/<category>/<key>', methods=['DELETE'])
 def delete_setting(category, key):
     """Delete a specific setting (reset to default)"""
     settings = Settings.query.first()
