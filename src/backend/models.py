@@ -98,9 +98,12 @@ class Schedule(db.Model):
     date = db.Column(db.Date, nullable=False)
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
     shift_id = db.Column(db.Integer, db.ForeignKey('shifts.id'), nullable=False)
+    version = db.Column(db.Integer, nullable=False, default=1)  # Add version field
     break_start = db.Column(db.String(5), nullable=True)  # Format: "HH:MM"
     break_end = db.Column(db.String(5), nullable=True)    # Format: "HH:MM"
-    notes = db.Column(db.String(200), nullable=True)      # For additional break info and other notes
+    notes = db.Column(db.Text, nullable=True)      # For additional break info and other notes
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     employee = db.relationship('Employee', backref='schedules')
     shift = db.relationship('Shift', backref='schedules')
@@ -118,9 +121,12 @@ class Schedule(db.Model):
                 'start_time': self.shift.start_time,
                 'end_time': self.shift.end_time
             },
+            'version': self.version,
             'break_start': self.break_start,
             'break_end': self.break_end,
-            'notes': self.notes
+            'notes': self.notes,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
 
 class StoreConfig(db.Model):

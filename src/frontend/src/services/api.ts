@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import type { Settings, Employee, Shift, Schedule } from '../types';
+import type { Settings, Employee, Shift, Schedule, ScheduleResponse, ScheduleUpdate } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -197,14 +197,16 @@ export interface ScheduleData {
     notes: string | null;
 }
 
-export const getSchedules = async (startDate: string, endDate: string): Promise<ScheduleData[]> => {
+export const getSchedules = async (startDate: string, endDate: string, version?: number): Promise<ScheduleResponse> => {
     try {
-        const response = await api.get<ScheduleData[]>('/schedules/', {
-            params: {
-                start_date: startDate,
-                end_date: endDate,
-            },
+        const params = new URLSearchParams({
+            start_date: startDate,
+            end_date: endDate,
         });
+        if (version !== undefined) {
+            params.append('version', version.toString());
+        }
+        const response = await api.get<ScheduleResponse>(`/schedules/?${params}`);
         return response.data;
     } catch (error) {
         if (error instanceof Error) {
@@ -214,9 +216,9 @@ export const getSchedules = async (startDate: string, endDate: string): Promise<
     }
 };
 
-export const generateSchedule = async (startDate: string, endDate: string): Promise<{ message: string; total_shifts: number }> => {
+export const generateSchedule = async (startDate: string, endDate: string): Promise<ScheduleResponse> => {
     try {
-        const response = await api.post<{ message: string; total_shifts: number }>('/schedules/generate/', {
+        const response = await api.post<ScheduleResponse>('/schedules/generate/', {
             start_date: startDate,
             end_date: endDate,
         });
@@ -350,4 +352,16 @@ export const checkAvailability = async (
 export const updateEmployeeAvailability = async (employeeId: number, availabilities: Omit<EmployeeAvailability, 'id' | 'created_at' | 'updated_at'>[]) => {
     const response = await api.put(`/employees/${employeeId}/availabilities`, availabilities);
     return response.data;
+};
+
+export const updateSchedule = async (scheduleId: number, update: ScheduleUpdate): Promise<Schedule> => {
+    try {
+        const response = await api.put<Schedule>(`/schedules/${scheduleId}/`, update);
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to update schedule: ${error.message}`);
+        }
+        throw error;
+    }
 };

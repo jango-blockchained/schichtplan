@@ -1,16 +1,20 @@
 from . import db
 from datetime import datetime, time
+from typing import Dict, Any
 
 class Schedule(db.Model):
     __tablename__ = 'schedules'
 
     id = db.Column(db.Integer, primary_key=True)
-    date = db.Column(db.Date, nullable=False)
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
     shift_id = db.Column(db.Integer, db.ForeignKey('shifts.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    version = db.Column(db.Integer, nullable=False, default=1)  # Add version field
     break_start = db.Column(db.String(5), nullable=True)  # Format: "HH:MM"
     break_end = db.Column(db.String(5), nullable=True)    # Format: "HH:MM"
-    notes = db.Column(db.String(200), nullable=True)      # For additional break info and other notes
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
     employee = db.relationship('Employee', back_populates='shifts')
@@ -50,20 +54,29 @@ class Schedule(db.Model):
     def __repr__(self):
         return f"<Schedule {self.date}: Employee {self.employee_id} - Shift {self.shift_id}>"
 
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
         """Convert schedule to dictionary"""
         return {
             'id': self.id,
+            'employee_id': self.employee_id,
+            'employee_name': f"{self.employee.first_name} {self.employee.last_name}" if self.employee else None,
+            'shift_id': self.shift_id,
+            'shift_start': self.shift.start_time if self.shift else None,
+            'shift_end': self.shift.end_time if self.shift else None,
             'date': self.date.strftime('%Y-%m-%d'),
-            'employee': {
-                'id': self.employee.id,
-                'name': f"{self.employee.first_name} {self.employee.last_name}"
-            },
-            'shift': {
-                'id': self.shift.id,
-                'start_time': self.shift.start_time,
-                'end_time': self.shift.end_time
-            },
-            'break_start': self.break_start.strftime('%H:%M') if self.break_start else None,
-            'break_end': self.break_end.strftime('%H:%M') if self.break_end else None
-        } 
+            'version': self.version,
+            'break_start': self.break_start,
+            'break_end': self.break_end,
+            'notes': self.notes,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+    @classmethod
+    def get_latest_version(cls, date_range_start: datetime.date, date_range_end: datetime.date) -> int:
+        """Get the latest version number for a date range"""
+        result = db.session.query(db.func.max(cls.version)).filter(
+            cls.date >= date_range_start,
+            cls.date <= date_range_end
+        ).scalar()
+        return result or 0 
