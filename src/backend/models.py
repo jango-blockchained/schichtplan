@@ -7,6 +7,21 @@ from sqlalchemy.orm import relationship
 
 db = SQLAlchemy()
 
+# Import models after db is defined to avoid circular imports
+from models.settings import Settings
+from models.shift import Shift
+from models.employee import Employee, EmployeeGroup, EmployeeAvailability
+from models.schedule import Schedule
+
+__all__ = [
+    'db',
+    'Settings',
+    'Shift',
+    'Employee',
+    'Schedule',
+    'EmployeeAvailability'
+]
+
 class EmployeeGroup(PyEnum):
     VL = "VL"  # Vollzeit
     TZ = "TZ"  # Teilzeit

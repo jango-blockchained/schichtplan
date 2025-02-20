@@ -1,15 +1,21 @@
 import React, { useState, useCallback } from 'react';
-import { Card, CardContent } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Button } from './ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
 import { Alert, AlertDescription } from './ui/alert';
-import { Trash2, Plus } from 'lucide-react';
+import { Trash2, Plus, Pencil } from 'lucide-react';
 import { ColorPicker } from './ui/color-picker';
 import { BaseEmployeeType, BaseAbsenceType } from '@/types';
 import { useDebouncedCallback } from 'use-debounce';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "./ui/table";
 
 export interface EmployeeType extends BaseEmployeeType {
     type: 'employee';
@@ -28,8 +34,8 @@ interface EmployeeSettingsEditorProps {
 }
 
 export default function EmployeeSettingsEditor<T extends keyof GroupType>({ groups, onChange, type }: EmployeeSettingsEditorProps) {
-    const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-    const [newGroup, setNewGroup] = useState<GroupType>(getDefaultGroup());
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingGroup, setEditingGroup] = useState<GroupType | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [localGroups, setLocalGroups] = useState<GroupType[]>(groups);
 
@@ -56,199 +62,207 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                     type: 'absence',
                     id: '',
                     name: '',
-                    color: '#FF9800',
-                    paid: true
+                    color: '#FF9800'
                 } as AbsenceType;
         }
     }
 
-    const handleAddGroup = () => {
-        if (!newGroup.id || !newGroup.name) {
+    const handleOpenModal = (group?: GroupType) => {
+        if (group) {
+            setEditingGroup({ ...group });
+        } else {
+            setEditingGroup(getDefaultGroup());
+        }
+        setIsModalOpen(true);
+        setError(null);
+    };
+
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setEditingGroup(null);
+        setError(null);
+    };
+
+    const handleSaveGroup = () => {
+        if (!editingGroup?.id || !editingGroup?.name) {
             setError('ID and Name are required');
             return;
         }
 
-        if (groups.some(group => group.id === newGroup.id)) {
+        const existingIndex = localGroups.findIndex(g => g.id === editingGroup.id);
+        let updatedGroups: GroupType[];
+
+        if (existingIndex >= 0 && editingGroup.id === localGroups[existingIndex].id) {
+            // Update existing group
+            updatedGroups = [...localGroups];
+            updatedGroups[existingIndex] = editingGroup;
+        } else if (localGroups.some(group => group.id === editingGroup.id)) {
             setError('Group ID must be unique');
             return;
+        } else {
+            // Add new group
+            updatedGroups = [...localGroups, editingGroup];
         }
 
-        const groupToAdd = {
-            ...newGroup,
-            type: type
-        } as GroupType;
-
-        const updatedGroups = [...groups, groupToAdd];
+        setLocalGroups(updatedGroups);
         onChange(updatedGroups);
-        setIsAddDialogOpen(false);
-        setNewGroup(getDefaultGroup());
-        setError(null);
+        handleCloseModal();
     };
 
     const handleDeleteGroup = (groupId: string) => {
-        const updatedGroups = groups.filter(group => group.id !== groupId);
+        const updatedGroups = localGroups.filter(g => g.id !== groupId);
+        setLocalGroups(updatedGroups);
         onChange(updatedGroups);
     };
 
-    const handleUpdateEmployeeGroup = (index: number, field: keyof EmployeeType, value: string | number) => {
-        const updatedGroups = [...localGroups];
-        const updatedGroup = {
-            ...updatedGroups[index],
-            [field]: value
-        };
-        updatedGroups[index] = updatedGroup;
-        setLocalGroups(updatedGroups);
-        debouncedOnChange(updatedGroups);
-    };
+    const renderModalContent = () => {
+        if (!editingGroup) return null;
 
-    const handleUpdateAbsenceGroup = (index: number, field: keyof AbsenceType, value: string | boolean) => {
-        const updatedGroups = [...localGroups];
-        const updatedGroup = {
-            ...updatedGroups[index],
-            [field]: value
-        };
-        updatedGroups[index] = updatedGroup;
-        setLocalGroups(updatedGroups);
-        debouncedOnChange(updatedGroups);
-    };
+        return (
+            <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label>ID</Label>
+                        <Input
+                            value={editingGroup.id}
+                            onChange={(e) => setEditingGroup({ ...editingGroup, id: e.target.value })}
+                        />
+                    </div>
 
-    const handleBlur = () => {
-        // Immediate update on blur
-        onChange(localGroups);
-        debouncedOnChange.cancel(); // Cancel any pending debounced updates
+                    <div className="space-y-2">
+                        <Label>Name</Label>
+                        <Input
+                            value={editingGroup.name}
+                            onChange={(e) => setEditingGroup({ ...editingGroup, name: e.target.value })}
+                        />
+                    </div>
+                </div>
+
+                {type === 'employee' && editingGroup.type === 'employee' && (
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label>Min Hours</Label>
+                            <Input
+                                type="number"
+                                value={editingGroup.min_hours}
+                                onChange={(e) => setEditingGroup({
+                                    ...editingGroup,
+                                    min_hours: Number(e.target.value)
+                                } as EmployeeType)}
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label>Max Hours</Label>
+                            <Input
+                                type="number"
+                                value={editingGroup.max_hours}
+                                onChange={(e) => setEditingGroup({
+                                    ...editingGroup,
+                                    max_hours: Number(e.target.value)
+                                } as EmployeeType)}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {type === 'absence' && editingGroup.type === 'absence' && (
+                    <div className="space-y-2">
+                        <Label>Color</Label>
+                        <ColorPicker
+                            id={`group-color-${editingGroup.id}`}
+                            color={editingGroup.color}
+                            onChange={(color) => setEditingGroup({
+                                ...editingGroup,
+                                color
+                            } as AbsenceType)}
+                        />
+                    </div>
+                )}
+            </div>
+        );
     };
 
     return (
-        <Card>
-            <CardContent className="pt-6">
-                <div className="space-y-4">
-                    {localGroups.map((group, index) => (
-                        <div key={group.id} className="p-4 border rounded-lg space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label>ID</Label>
-                                    <Input
-                                        value={group.id}
-                                        onChange={(e) => {
-                                            if (type === 'employee') {
-                                                handleUpdateEmployeeGroup(index, 'id', e.target.value);
-                                            } else {
-                                                handleUpdateAbsenceGroup(index, 'id', e.target.value);
-                                            }
-                                        }}
-                                        onBlur={handleBlur}
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label>Name</Label>
-                                    <Input
-                                        value={group.name}
-                                        onChange={(e) => {
-                                            if (type === 'employee') {
-                                                handleUpdateEmployeeGroup(index, 'name', e.target.value);
-                                            } else {
-                                                handleUpdateAbsenceGroup(index, 'name', e.target.value);
-                                            }
-                                        }}
-                                        onBlur={handleBlur}
-                                    />
-                                </div>
-                            </div>
-
-                            {type === 'employee' && 'min_hours' in group && (
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label>Min Hours</Label>
-                                        <Input
-                                            type="number"
-                                            value={group.min_hours}
-                                            onChange={(e) => handleUpdateEmployeeGroup(index, 'min_hours', Number(e.target.value))}
-                                            onBlur={handleBlur}
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label>Max Hours</Label>
-                                        <Input
-                                            type="number"
-                                            value={group.max_hours}
-                                            onChange={(e) => handleUpdateEmployeeGroup(index, 'max_hours', Number(e.target.value))}
-                                            onBlur={handleBlur}
-                                        />
-                                    </div>
-                                </div>
-                            )}
-
-                            {type === 'absence' && 'paid' in group && (
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label>Color</Label>
-                                        <ColorPicker
-                                            id={`absence-color-${group.id}`}
-                                            color={group.color}
-                                            onChange={(color) => {
-                                                handleUpdateAbsenceGroup(index, 'color', color);
-                                                handleBlur(); // Immediate update for color changes
-                                            }}
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label>Paid</Label>
-                                        <Select
-                                            value={group.paid.toString()}
-                                            onValueChange={(value) => {
-                                                handleUpdateAbsenceGroup(index, 'paid', value === 'true');
-                                                handleBlur(); // Immediate update for select changes
-                                            }}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="true">Yes</SelectItem>
-                                                <SelectItem value="false">No</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="flex justify-end">
-                                <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    onClick={() => {
-                                        const updatedGroups = localGroups.filter(g => g.id !== group.id);
-                                        setLocalGroups(updatedGroups);
-                                        onChange(updatedGroups); // Immediate update for deletions
-                                    }}
-                                    disabled={localGroups.length <= 1}
-                                >
-                                    <Trash2 className="h-4 w-4 mr-1" />
-                                    Delete
-                                </Button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
+        <div className="space-y-4">
+            <div className="flex justify-between items-center">
+                <h3 className="text-lg font-medium">
+                    {type === 'employee' ? 'Employee Types' : 'Absence Types'}
+                </h3>
                 <Button
-                    variant="outline"
-                    className="mt-4"
-                    onClick={() => setIsAddDialogOpen(true)}
+                    onClick={() => handleOpenModal()}
+                    size="sm"
                 >
                     <Plus className="h-4 w-4 mr-1" />
                     Add {type === 'employee' ? 'Employee Type' : 'Absence Type'}
                 </Button>
-            </CardContent>
+            </div>
 
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>ID</TableHead>
+                        <TableHead>Name</TableHead>
+                        {type === 'employee' && (
+                            <>
+                                <TableHead>Min Hours</TableHead>
+                                <TableHead>Max Hours</TableHead>
+                            </>
+                        )}
+                        {type === 'absence' && (
+                            <TableHead>Color</TableHead>
+                        )}
+                        <TableHead className="w-[100px]">Actions</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {localGroups.map((group) => (
+                        <TableRow key={group.id}>
+                            <TableCell>{group.id}</TableCell>
+                            <TableCell>{group.name}</TableCell>
+                            {type === 'employee' && group.type === 'employee' && (
+                                <>
+                                    <TableCell>{group.min_hours}</TableCell>
+                                    <TableCell>{group.max_hours}</TableCell>
+                                </>
+                            )}
+                            {type === 'absence' && group.type === 'absence' && (
+                                <TableCell>
+                                    <div
+                                        className="w-6 h-6 rounded-full"
+                                        style={{ backgroundColor: group.color }}
+                                    />
+                                </TableCell>
+                            )}
+                            <TableCell>
+                                <div className="flex space-x-2">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleOpenModal(group)}
+                                    >
+                                        <Pencil className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleDeleteGroup(group.id)}
+                                        disabled={localGroups.length <= 1}
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+
+            <Dialog open={isModalOpen} onOpenChange={handleCloseModal}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>
-                            Add {type === 'employee' ? 'Employee Type' : 'Absence Type'}
+                            {editingGroup?.id ? 'Edit' : 'Add'} {type === 'employee' ? 'Employee Type' : 'Absence Type'}
                         </DialogTitle>
                     </DialogHeader>
 
@@ -258,93 +272,18 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                         </Alert>
                     )}
 
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label>ID</Label>
-                                <Input
-                                    value={newGroup.id}
-                                    onChange={(e) => setNewGroup({ ...newGroup, id: e.target.value } as GroupType)}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label>Name</Label>
-                                <Input
-                                    value={newGroup.name}
-                                    onChange={(e) => setNewGroup({ ...newGroup, name: e.target.value } as GroupType)}
-                                />
-                            </div>
-                        </div>
-
-                        {type === 'employee' && 'min_hours' in newGroup && (
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label>Min Hours</Label>
-                                    <Input
-                                        type="number"
-                                        value={newGroup.min_hours}
-                                        onChange={(e) =>
-                                            setNewGroup({ ...newGroup, min_hours: Number(e.target.value) } as EmployeeType)
-                                        }
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label>Max Hours</Label>
-                                    <Input
-                                        type="number"
-                                        value={newGroup.max_hours}
-                                        onChange={(e) =>
-                                            setNewGroup({ ...newGroup, max_hours: Number(e.target.value) } as EmployeeType)
-                                        }
-                                    />
-                                </div>
-                            </div>
-                        )}
-
-                        {type === 'absence' && 'paid' in newGroup && (
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label>Color</Label>
-                                    <ColorPicker
-                                        id={`new-absence-color`}
-                                        color={newGroup.color}
-                                        onChange={(color) =>
-                                            setNewGroup({ ...newGroup, color } as AbsenceType)
-                                        }
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label>Paid</Label>
-                                    <Select
-                                        value={newGroup.paid.toString()}
-                                        onValueChange={(value) =>
-                                            setNewGroup({ ...newGroup, paid: value === 'true' } as AbsenceType)
-                                        }
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="true">Yes</SelectItem>
-                                            <SelectItem value="false">No</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                    {renderModalContent()}
 
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                        <Button variant="outline" onClick={handleCloseModal}>
                             Cancel
                         </Button>
-                        <Button onClick={handleAddGroup}>Create</Button>
+                        <Button onClick={handleSaveGroup}>
+                            {editingGroup?.id ? 'Save' : 'Create'}
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </Card>
+        </div>
     );
 } 

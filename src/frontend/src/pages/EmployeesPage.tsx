@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Settings, Plus, Pencil, Trash2, Clock } from 'lucide-react';
+import { Settings, Plus, Pencil, Trash2, Clock, Calendar } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getEmployees, createEmployee, updateEmployee, deleteEmployee } from '../services/api';
+import { getEmployees, createEmployee, updateEmployee, deleteEmployee, getSettings } from '../services/api';
 import { Employee } from '../types';
 import { useEmployeeGroups } from '../hooks/useEmployeeGroups';
 import { EmployeeAvailabilityModal } from '@/components/EmployeeAvailabilityModal';
+import AbsenceModal from '@/components/AbsenceModal';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -48,6 +49,7 @@ export const EmployeesPage = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [selectedEmployeeForAvailability, setSelectedEmployeeForAvailability] = useState<Employee | null>(null);
+  const [selectedEmployeeForAbsence, setSelectedEmployeeForAbsence] = useState<Employee | null>(null);
   const [formData, setFormData] = useState<EmployeeFormData>(initialFormData);
   const queryClient = useQueryClient();
   const { employeeGroups, getGroup, getHoursRange } = useEmployeeGroups();
@@ -55,6 +57,11 @@ export const EmployeesPage = () => {
   const { data: employees, isLoading, error } = useQuery({
     queryKey: ['employees'],
     queryFn: getEmployees,
+  });
+
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: getSettings,
   });
 
   const createMutation = useMutation({
@@ -200,6 +207,14 @@ export const EmployeesPage = () => {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => setSelectedEmployeeForAbsence(employee)}
+                      >
+                        <Calendar className="mr-2 h-4 w-4" />
+                        Abwesenheit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         className="text-destructive"
                         onClick={() => deleteMutation.mutate(employee.id)}
                       >
@@ -325,6 +340,16 @@ export const EmployeesPage = () => {
           employeeName={`${selectedEmployeeForAvailability.first_name} ${selectedEmployeeForAvailability.last_name}`}
           isOpen={!!selectedEmployeeForAvailability}
           onClose={() => setSelectedEmployeeForAvailability(null)}
+        />
+      )}
+
+      {/* Add AbsenceModal */}
+      {selectedEmployeeForAbsence && settings && (
+        <AbsenceModal
+          employeeId={selectedEmployeeForAbsence.id}
+          isOpen={!!selectedEmployeeForAbsence}
+          onClose={() => setSelectedEmployeeForAbsence(null)}
+          absenceTypes={settings.employee_groups.absence_types}
         />
       )}
     </div>

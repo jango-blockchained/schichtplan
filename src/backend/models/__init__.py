@@ -7,6 +7,7 @@ from .settings import Settings
 from .shift import Shift
 from .employee import Employee, EmployeeAvailability
 from .schedule import Schedule
+from .absence import Absence
 
 __all__ = [
     'db',
@@ -14,5 +15,6 @@ __all__ = [
     'Shift',
     'Employee',
     'Schedule',
-    'EmployeeAvailability'
+    'EmployeeAvailability',
+    'Absence'
 ] 

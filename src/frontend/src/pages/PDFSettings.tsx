@@ -63,7 +63,7 @@ export default function PDFSettings() {
 
     const fetchPresets = async () => {
         try {
-            const response = await fetch('/api/pdf-settings/presets');
+            const response = await fetch('/pdf-settings/presets');
             if (!response.ok) throw new Error('Failed to fetch presets');
             const data = await response.json();
             setPresets(data);
@@ -77,7 +77,7 @@ export default function PDFSettings() {
 
     const fetchCurrentConfig = async () => {
         try {
-            const response = await fetch('/api/pdf-settings/layout');
+            const response = await fetch('/pdf-settings/layout');
             if (!response.ok) throw new Error('Failed to fetch current config');
             const data = await response.json();
             setConfig(data);

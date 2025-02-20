@@ -1,7 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import type { Settings, Employee, Shift, Schedule } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -314,22 +314,22 @@ export interface EmployeeAvailability {
 }
 
 export const getEmployeeAvailabilities = async (employeeId: number): Promise<EmployeeAvailability[]> => {
-    const response = await api.get<EmployeeAvailability[]>(`/api/employees/${employeeId}/availabilities`);
+    const response = await api.get<EmployeeAvailability[]>(`/employees/${employeeId}/availabilities`);
     return response.data;
 };
 
 export const createAvailability = async (availability: Omit<Availability, 'id'>): Promise<Availability> => {
-    const response = await api.post<Availability>('/api/availability', availability);
+    const response = await api.post<Availability>('/availability', availability);
     return response.data;
 };
 
 export const updateAvailability = async (id: number, availability: Partial<Availability>): Promise<Availability> => {
-    const response = await api.put<Availability>(`/api/availability/${id}`, availability);
+    const response = await api.put<Availability>(`/availability/${id}`, availability);
     return response.data;
 };
 
 export const deleteAvailability = async (id: number): Promise<void> => {
-    await api.delete(`/api/availability/${id}`);
+    await api.delete(`/availability/${id}`);
 };
 
 export const checkAvailability = async (
@@ -338,7 +338,7 @@ export const checkAvailability = async (
     startTime?: string,
     endTime?: string
 ): Promise<AvailabilityCheck> => {
-    const response = await api.post<AvailabilityCheck>('/api/availability/check', {
+    const response = await api.post<AvailabilityCheck>('/availability/check', {
         employee_id: employeeId,
         date,
         start_time: startTime,
@@ -348,6 +348,6 @@ export const checkAvailability = async (
 };
 
 export const updateEmployeeAvailability = async (employeeId: number, availabilities: Omit<EmployeeAvailability, 'id' | 'created_at' | 'updated_at'>[]) => {
-    const response = await api.put(`/api/employees/${employeeId}/availabilities`, availabilities);
+    const response = await api.put(`/employees/${employeeId}/availabilities`, availabilities);
     return response.data;
 };

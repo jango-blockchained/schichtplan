@@ -1,7 +1,7 @@
 """add employee availability table
 
 Revision ID: add_employee_availability_table
-Revises: 460ec5407d2a
+Revises: None
 Create Date: 2024-03-19 12:00:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_employee_availability_table'
-down_revision = '460ec5407d2a'
+down_revision = None
 branch_labels = None
 depends_on = None
 
