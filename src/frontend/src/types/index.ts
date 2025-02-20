@@ -19,12 +19,9 @@ export interface TimeSlot {
 
 export interface Employee {
     id: number;
-    employee_id: string;
-    first_name: string;
-    last_name: string;
-    employee_group: EmployeeGroup;
-    contracted_hours: number;
+    name: string;
     is_keyholder: boolean;
+    contracted_hours: number;
 }
 
 export interface Shift {
@@ -33,24 +30,49 @@ export interface Shift {
     end_time: string;
     min_employees: number;
     max_employees: number;
-    duration_hours: number;
-    requires_break: boolean;
 }
 
 export interface Schedule {
     id: number;
+    employee_id: number;
+    employee_name: string;
+    shift_id: number;
+    shift_start: string;
+    shift_end: string;
     date: string;
-    employee: {
-        id: number;
-        name: string;
-    };
-    shift: {
-        id: number;
-        start_time: string;
-        end_time: string;
-    };
-    break_start: string | null;
-    break_end: string | null;
+    version: number;
+    break_start?: string;
+    break_end?: string;
+    notes?: string;
+}
+
+export interface ScheduleError {
+    type: 'critical' | 'error' | 'warning';
+    message: string;
+    date?: string;
+    shift?: string;
+}
+
+export interface ScheduleResponse {
+    schedules: Schedule[];
+    errors?: ScheduleError[];
+    version?: number;
+    total_shifts?: number;
+    versions?: number[];
+}
+
+export interface ScheduleUpdate {
+    employee_id?: number;
+    shift_id?: number;
+    date?: string;
+    break_start?: string;
+    break_end?: string;
+    notes?: string;
+}
+
+export interface DateRange {
+    from: Date;
+    to: Date;
 }
 
 export interface StoreConfig {

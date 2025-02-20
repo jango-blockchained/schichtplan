@@ -1,13 +1,18 @@
 from . import db
 from enum import Enum
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey, Date, Enum as SQLEnum
 from sqlalchemy.orm import relationship
+from datetime import date
 
 class AvailabilityType(str, Enum):
     UNAVAILABLE = "unavailable"
     AVAILABLE = "available"
     PREFERRED_WORK = "preferred_work"
+    REGULAR = "regular"
+    TEMPORARY = "temporary"
+    VACATION = "vacation"
+    SICK = "sick"
 
 class EmployeeGroup(str, Enum):
     VL = "VL"  # Vollzeit
@@ -122,13 +127,27 @@ class EmployeeAvailability(db.Model):
 
     id = Column(Integer, primary_key=True)
     employee_id = Column(Integer, ForeignKey('employees.id', ondelete='CASCADE'), nullable=False)
-    day_of_week = Column(Integer, nullable=False)  # 0 = Monday, 6 = Sunday
-    hour = Column(Integer, nullable=False)  # 0-23
-    is_available = Column(Boolean, default=True)
-    created_at = Column(db.DateTime, default=datetime.utcnow)
-    updated_at = Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    day_of_week = Column(Integer, nullable=False)
+    hour = Column(Integer, nullable=False)
+    is_available = Column(Boolean, nullable=False, default=True)
+    start_date = Column(Date, nullable=True)
+    end_date = Column(Date, nullable=True)
+    is_recurring = Column(Boolean, nullable=False, default=True)
+    availability_type = Column(SQLEnum(AvailabilityType), nullable=False, default=AvailabilityType.REGULAR)
+    created_at = Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     employee = relationship("Employee", back_populates="availabilities")
+
+    def __init__(self, employee_id, day_of_week, hour, is_available=True, start_date=None, end_date=None, is_recurring=True, availability_type=AvailabilityType.REGULAR):
+        self.employee_id = employee_id
+        self.day_of_week = day_of_week
+        self.hour = hour
+        self.is_available = is_available
+        self.start_date = start_date
+        self.end_date = end_date
+        self.is_recurring = is_recurring
+        self.availability_type = availability_type
 
     def to_dict(self):
         return {
@@ -137,6 +156,34 @@ class EmployeeAvailability(db.Model):
             'day_of_week': self.day_of_week,
             'hour': self.hour,
             'is_available': self.is_available,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
-        } 
+            'start_date': self.start_date.isoformat() if self.start_date else None,
+            'end_date': self.end_date.isoformat() if self.end_date else None,
+            'is_recurring': self.is_recurring,
+            'availability_type': self.availability_type.value,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }
+
+    def is_available_for_date(self, check_date: date, shift_start: str = None, shift_end: str = None) -> bool:
+        """Check if the availability applies for a given date and shift times."""
+        # First check if the availability applies to this date
+        if not self.is_recurring:
+            if not (self.start_date and self.end_date):
+                return False
+            if not (self.start_date <= check_date <= self.end_date):
+                return False
+
+        # Check if this availability applies to the given day of week
+        if self.day_of_week != check_date.weekday():
+            return False
+
+        # If no shift times provided, just check the date
+        if shift_start is None or shift_end is None:
+            return True
+
+        # Convert shift times to hours
+        start_hour = int(shift_start.split(':')[0])
+        end_hour = int(shift_end.split(':')[0])
+
+        # Check if the hour falls within the shift
+        return start_hour <= self.hour < end_hour and self.is_available 
