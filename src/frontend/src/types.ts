@@ -64,7 +64,6 @@ export interface AbsenceType {
     id: string;
     name: string;
     color: string;
-    paid: boolean;
 }
 
 // Settings types
@@ -80,7 +79,6 @@ export interface BaseEmployeeType extends BaseGroup {
 
 export interface BaseAbsenceType extends BaseGroup {
     color: string;
-    paid: boolean;
 }
 
 export interface Settings {

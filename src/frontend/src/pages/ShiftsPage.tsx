@@ -32,7 +32,7 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
 
   const fetchShifts = async () => {
     try {
-      const response = await fetch('/api/shifts');
+      const response = await fetch('/shifts');
       const data = await response.json();
       setShifts(data);
       setLoading(false);
@@ -57,7 +57,7 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
 
   const handleDeleteShift = async (shiftId: string) => {
     try {
-      const response = await fetch(`/api/shifts/${shiftId}`, {
+      const response = await fetch(`/shifts/${shiftId}`, {
         method: 'DELETE',
       });
       if (response.ok) {
@@ -79,7 +79,7 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
   const handleSaveShift = async (formData: any) => {
     try {
       const method = editingShift ? 'PUT' : 'POST';
-      const url = editingShift ? `/api/shifts/${editingShift.id}` : '/api/shifts';
+      const url = editingShift ? `/shifts/${editingShift.id}` : '/shifts';
 
       const payload = {
         start_time: formData.start_time,

@@ -16,13 +16,15 @@ from routes.settings import settings
 from routes.schedules import schedules
 from routes.employees import employees
 from routes.availability import availability
+from routes.absences import bp as absences_bp
 
 def create_app():
     app = Flask(__name__)
     CORS(app)
     
     # Configure SQLAlchemy
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///schichtplan.db'
+    db_path = os.path.join(current_dir, 'instance', 'schichtplan.db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
     # Initialize extensions
@@ -35,6 +37,7 @@ def create_app():
     app.register_blueprint(schedules)
     app.register_blueprint(employees)
     app.register_blueprint(availability)
+    app.register_blueprint(absences_bp)
     
     # Create database tables
     with app.app_context():

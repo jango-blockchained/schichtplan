@@ -56,9 +56,10 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
             const [endHour] = store_closing.split(':').map(Number);
 
             const slots: TimeSlot[] = [];
-            for (let hour = startHour; hour <= endHour; hour++) {
+            for (let hour = startHour; hour < endHour; hour++) {
+                const nextHour = hour + 1;
                 slots.push({
-                    time: format(new Date().setHours(hour, 0), TIME_FORMAT),
+                    time: `${format(new Date().setHours(hour, 0), TIME_FORMAT)} - ${format(new Date().setHours(nextHour, 0), TIME_FORMAT)}`,
                     days: DAYS.reduce((acc, day) => ({ ...acc, [day]: false }), {}),
                 });
             }
@@ -71,8 +72,9 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
             const newSelectedCells = new Set<string>();
             availabilities.forEach(availability => {
                 const day = DAYS[availability.day_of_week];
-                const time = format(new Date().setHours(availability.hour), TIME_FORMAT);
-                newSelectedCells.add(`${day}-${time}`);
+                const hour = format(new Date().setHours(availability.hour, 0), TIME_FORMAT);
+                const nextHour = format(new Date().setHours(availability.hour + 1, 0), TIME_FORMAT);
+                newSelectedCells.add(`${day}-${hour} - ${nextHour}`);
             });
             setSelectedCells(newSelectedCells);
         }
@@ -109,9 +111,10 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
 
     const handleSave = async () => {
         const availabilityData = Array.from(selectedCells).map(cellId => {
-            const [day, time] = cellId.split('-');
+            const [day, timeRange] = cellId.split('-');
             const dayIndex = DAYS.indexOf(day);
-            const [hour] = time.split(':').map(Number);
+            const [startTime] = timeRange.trim().split(' - ');
+            const [hour] = startTime.split(':').map(Number);
 
             return {
                 employee_id: employeeId,

@@ -72,7 +72,7 @@ export function PDFLayoutEditor({ config, onChange }: PDFLayoutEditorProps) {
     const handlePreview = async () => {
         try {
             setIsLoading('preview');
-            const response = await fetch('/api/pdf-settings/preview', {
+            const response = await fetch('/pdf-settings/preview', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(config),

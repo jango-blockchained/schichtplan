@@ -84,9 +84,9 @@ class Settings(db.Model):
     ])
     
     absence_types = Column(JSON, nullable=False, default=lambda: [
-        {'id': 'vacation', 'name': 'Urlaub', 'color': '#FF9800', 'paid': True},
-        {'id': 'sick', 'name': 'Krank', 'color': '#F44336', 'paid': True},
-        {'id': 'unpaid', 'name': 'Unbezahlt', 'color': '#9E9E9E', 'paid': False}
+        {'id': 'vacation', 'name': 'Urlaub', 'color': '#FF9800'},
+        {'id': 'sick', 'name': 'Krank', 'color': '#F44336'},
+        {'id': 'unpaid', 'name': 'Unbezahlt', 'color': '#9E9E9E'}
     ])
     
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -247,9 +247,9 @@ class Settings(db.Model):
         ]
         
         settings.absence_types = [
-            {'id': 'vacation', 'name': 'Urlaub', 'color': '#FF9800', 'paid': True},
-            {'id': 'sick', 'name': 'Krank', 'color': '#F44336', 'paid': True},
-            {'id': 'unpaid', 'name': 'Unbezahlt', 'color': '#9E9E9E', 'paid': False}
+            {'id': 'vacation', 'name': 'Urlaub', 'color': '#FF9800'},
+            {'id': 'sick', 'name': 'Krank', 'color': '#F44336'},
+            {'id': 'unpaid', 'name': 'Unbezahlt', 'color': '#9E9E9E'}
         ]
         
         return settings
