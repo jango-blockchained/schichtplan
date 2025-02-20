@@ -54,44 +54,32 @@ def get_schedules():
 
 @bp.route('/generate', methods=['POST'])
 def generate_schedule():
-    """Generate a new schedule for the next month"""
+    """Generate a new schedule for the given date range"""
     try:
-        start_date, end_date = get_next_month_dates()
         data = request.get_json()
-        if data and 'start_date' in data and 'end_date' in data:
+        if not data or 'start_date' not in data or 'end_date' not in data:
+            return jsonify({
+                'error': 'Missing required fields: start_date and end_date'
+            }), HTTPStatus.BAD_REQUEST
+
+        try:
             start_date = datetime.strptime(data['start_date'], '%Y-%m-%d').date()
             end_date = datetime.strptime(data['end_date'], '%Y-%m-%d').date()
-            
+        except ValueError:
+            return jsonify({
+                'error': 'Invalid date format. Use YYYY-MM-DD'
+            }), HTTPStatus.BAD_REQUEST
+
         # Delete existing schedules for the period
         Schedule.query.filter(
             Schedule.date >= start_date,
             Schedule.date <= end_date
         ).delete()
         
-        # Get all employees and shifts
-        employees = Employee.query.all()
-        shifts = Shift.query.all()
-        store_config = StoreConfig.query.first()
+        # Generate new schedules
+        generator = ScheduleGenerator()
+        schedules = generator.generate_schedule(start_date, end_date)
         
-        if not store_config:
-            store_config = StoreConfig.get_default_config()
-            db.session.add(store_config)
-            
-        # Generate schedule for each day
-        current_date = start_date
-        schedules = []
-        
-        while current_date <= end_date:
-            if current_date.weekday() < 6:  # Monday (0) to Saturday (5)
-                day_schedules = _generate_day_schedule(
-                    current_date,
-                    employees,
-                    shifts,
-                    store_config
-                )
-                schedules.extend(day_schedules)
-            current_date += timedelta(days=1)
-            
         # Save all schedules
         for schedule in schedules:
             db.session.add(schedule)
@@ -104,6 +92,12 @@ def generate_schedule():
             'end_date': end_date.strftime('%Y-%m-%d'),
             'total_shifts': len(schedules)
         }), HTTPStatus.CREATED
+        
+    except ScheduleGenerationError as e:
+        db.session.rollback()
+        return jsonify({
+            'error': str(e)
+        }), HTTPStatus.BAD_REQUEST
         
     except Exception as e:
         db.session.rollback()

@@ -7,18 +7,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useQuery } from '@tanstack/react-query';
-import { getSettings } from '@/services/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getSettings, getShifts, createShift, updateShift, deleteShift } from '@/services/api';
 import { Label } from '@/components/ui/label';
 
 interface ShiftsPageProps { }
 
 const ShiftsPage: React.FC<ShiftsPageProps> = () => {
-  const [shifts, setShifts] = useState<Shift[]>([]);
-  const [loading, setLoading] = useState(true);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   // Fetch store settings for opening hours
   const { data: settings } = useQuery({
@@ -26,24 +25,68 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
     queryFn: getSettings,
   });
 
-  useEffect(() => {
-    fetchShifts();
-  }, []);
+  // Fetch shifts
+  const { data: shifts, isLoading, error } = useQuery({
+    queryKey: ['shifts'],
+    queryFn: getShifts,
+  });
 
-  const fetchShifts = async () => {
-    try {
-      const response = await fetch('/shifts');
-      const data = await response.json();
-      setShifts(data);
-      setLoading(false);
-    } catch (error) {
+  // Mutations
+  const createMutation = useMutation({
+    mutationFn: createShift,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shifts'] });
+      setEditDialogOpen(false);
+      toast({
+        title: "Success",
+        description: "Shift created successfully"
+      });
+    },
+    onError: (error: Error) => {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Error loading shifts"
+        description: error.message
       });
     }
-  };
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (params: { id: number; data: Partial<Shift> }) => updateShift(params.id, params.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shifts'] });
+      setEditDialogOpen(false);
+      toast({
+        title: "Success",
+        description: "Shift updated successfully"
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message
+      });
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteShift,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shifts'] });
+      toast({
+        title: "Success",
+        description: "Shift deleted successfully"
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message
+      });
+    }
+  });
 
   const handleAddShift = () => {
     setEditingShift(null);
@@ -55,72 +98,31 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
     setEditDialogOpen(true);
   };
 
-  const handleDeleteShift = async (shiftId: string) => {
-    try {
-      const response = await fetch(`/shifts/${shiftId}`, {
-        method: 'DELETE',
-      });
-      if (response.ok) {
-        fetchShifts();
-        toast({
-          title: "Success",
-          description: "Shift deleted successfully"
-        });
-      }
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Error deleting shift"
-      });
-    }
-  };
-
   const handleSaveShift = async (formData: any) => {
-    try {
-      const method = editingShift ? 'PUT' : 'POST';
-      const url = editingShift ? `/shifts/${editingShift.id}` : '/shifts';
+    const payload = {
+      start_time: formData.start_time,
+      end_time: formData.end_time,
+      min_employees: parseInt(formData.min_employees),
+      max_employees: parseInt(formData.max_employees),
+      requires_break: formData.requires_break === 'on'
+    };
 
-      const payload = {
-        start_time: formData.start_time,
-        end_time: formData.end_time,
-        min_employees: parseInt(formData.min_employees),
-        max_employees: parseInt(formData.max_employees),
-        requires_break: formData.requires_break === 'on'
-      };
-
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        // Check if it's a validation error (400)
-        if (response.status === 400) {
-          throw new Error(data.error || 'Invalid shift times. Please check store opening hours.');
-        }
-        throw new Error(data.error || 'Failed to save shift');
-      }
-
-      fetchShifts();
-      setEditDialogOpen(false);
-      toast({
-        title: "Success",
-        description: `Shift ${editingShift ? 'updated' : 'created'} successfully`
-      });
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error instanceof Error ? error.message : "Error saving shift"
-      });
+    if (editingShift) {
+      updateMutation.mutate({ id: Number(editingShift.id), data: payload });
+    } else {
+      createMutation.mutate(payload);
     }
   };
 
-  if (loading) {
+  if (error) {
+    return (
+      <div className="p-4 text-destructive">
+        Error loading shifts
+      </div>
+    );
+  }
+
+  if (isLoading) {
     return <p className="text-lg">Loading...</p>;
   }
 
@@ -135,7 +137,7 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {shifts.map((shift) => (
+        {shifts?.map((shift) => (
           <Card key={shift.id}>
             <CardContent className="pt-6">
               <p className="text-sm text-muted-foreground mb-2">
@@ -153,7 +155,11 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
                 <Pencil className="h-4 w-4 mr-1" />
                 Edit
               </Button>
-              <Button variant="destructive" size="sm" onClick={() => handleDeleteShift(shift.id)}>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => deleteMutation.mutate(shift.id)}
+              >
                 <Trash2 className="h-4 w-4 mr-1" />
                 Delete
               </Button>
