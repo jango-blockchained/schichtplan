@@ -31,8 +31,6 @@ class ScheduleGenerator:
         self.settings = Settings.query.first()
         if not self.settings:
             self.settings = Settings.get_default_settings()
-        self.start_date = self.settings.start_date
-        self.end_date = self.settings.end_date
         self.store_config = self._get_store_config()
         self.employees = self._get_employees()
         self.shifts = self._get_shifts()
@@ -273,17 +271,16 @@ class ScheduleGenerator:
         return False
 
     def _validate_shift_against_store_hours(self, shift: Shift, store_opening: str, store_closing: str) -> bool:
-        """Check if a shift falls within store opening hours"""
+        """Validate that shift times are within store hours"""
         def time_to_minutes(time_str: str) -> int:
             hours, minutes = map(int, time_str.split(':'))
             return hours * 60 + minutes
-            
+
         shift_start = time_to_minutes(shift.start_time)
         shift_end = time_to_minutes(shift.end_time)
         store_open = time_to_minutes(store_opening)
         store_close = time_to_minutes(store_closing)
-        
-        # Shift must start after or at store opening and end before or at store closing
+
         return shift_start >= store_open and shift_end <= store_close
 
     def _can_assign_shift(self, employee: Employee, shift: Shift, day: date) -> bool:
@@ -481,11 +478,28 @@ class ScheduleGenerator:
                     current_date += timedelta(days=1)
                     continue
                 
-                # Sort shifts by start time
-                sorted_shifts = sorted(shifts, key=lambda s: s.start_time)
+                # Get store hours for this day
+                store_opening, store_closing = self.settings.get_store_hours(current_date)
+                
+                # Filter shifts that are within store hours
+                valid_shifts = [
+                    shift for shift in shifts
+                    if self._validate_shift_against_store_hours(shift, store_opening, store_closing)
+                ]
+                
+                # Sort shifts by priority (early/late shifts for keyholders)
+                prioritized_shifts = sorted(
+                    valid_shifts,
+                    key=lambda s: (
+                        # Early/Late shifts first (need keyholders)
+                        0 if requires_keyholder(s) else 1,
+                        # Sort by start time for equal priority shifts
+                        s.start_time
+                    )
+                )
                 
                 # Generate schedule for each shift on this day
-                for shift in sorted_shifts:
+                for shift in prioritized_shifts:
                     assigned_employees = self._assign_employees_to_shift(
                         shift, employees, current_date, availability_lookup
                     )

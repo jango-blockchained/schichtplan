@@ -5,19 +5,19 @@ from models.shift import ShiftValidationError
 
 shifts = Blueprint('shifts', __name__)
 
-@shifts.route('/api/shifts', methods=['GET'])
+@shifts.route('/api/shifts/', methods=['GET'])
 def get_shifts():
     """Get all shifts"""
     shifts = Shift.query.all()
     return jsonify([shift.to_dict() for shift in shifts])
 
-@shifts.route('/api/shifts/<int:shift_id>', methods=['GET'])
+@shifts.route('/api/shifts/<int:shift_id>/', methods=['GET'])
 def get_shift(shift_id):
     """Get a specific shift"""
     shift = Shift.query.get_or_404(shift_id)
     return jsonify(shift.to_dict())
 
-@shifts.route('/api/shifts', methods=['POST'])
+@shifts.route('/api/shifts/', methods=['POST'])
 def create_shift():
     """Create a new shift"""
     data = request.get_json()
@@ -45,7 +45,7 @@ def create_shift():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-@shifts.route('/api/shifts/<int:shift_id>', methods=['PUT'])
+@shifts.route('/api/shifts/<int:shift_id>/', methods=['PUT'])
 def update_shift(shift_id):
     """Update a shift"""
     shift = Shift.query.get_or_404(shift_id)
@@ -86,7 +86,7 @@ def update_shift(shift_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-@shifts.route('/api/shifts/<int:shift_id>', methods=['DELETE'])
+@shifts.route('/api/shifts/<int:shift_id>/', methods=['DELETE'])
 def delete_shift(shift_id):
     """Delete a shift"""
     shift = Shift.query.get_or_404(shift_id)

@@ -338,6 +338,8 @@ export const EmployeesPage = () => {
         <EmployeeAvailabilityModal
           employeeId={selectedEmployeeForAvailability.id}
           employeeName={`${selectedEmployeeForAvailability.first_name} ${selectedEmployeeForAvailability.last_name}`}
+          employeeGroup={getGroup(selectedEmployeeForAvailability.employee_group)?.name || selectedEmployeeForAvailability.employee_group}
+          contractedHours={selectedEmployeeForAvailability.contracted_hours}
           isOpen={!!selectedEmployeeForAvailability}
           onClose={() => setSelectedEmployeeForAvailability(null)}
         />

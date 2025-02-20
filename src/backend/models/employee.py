@@ -25,6 +25,7 @@ class Employee(db.Model):
     employee_group = Column(String(10), nullable=False)
     contracted_hours = Column(Float, nullable=False)
     is_keyholder = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=True)
     email = Column(String(100))
     phone = Column(String(20))
     created_at = Column(db.DateTime, default=datetime.utcnow)
@@ -34,13 +35,14 @@ class Employee(db.Model):
     shifts = relationship('Schedule', back_populates='employee')
     availabilities = relationship("EmployeeAvailability", back_populates="employee", cascade="all, delete-orphan")
 
-    def __init__(self, first_name, last_name, employee_group, contracted_hours, is_keyholder=False):
+    def __init__(self, first_name, last_name, employee_group, contracted_hours, is_keyholder=False, is_active=True):
         self.employee_id = self._generate_employee_id(first_name, last_name)
         self.first_name = first_name
         self.last_name = last_name
         self.employee_group = employee_group
         self.contracted_hours = contracted_hours
         self.is_keyholder = is_keyholder
+        self.is_active = is_active
         
         # Validate the employee data
         if not self.validate_hours():
