@@ -3,6 +3,7 @@ from models import db, Shift
 from sqlalchemy.exc import IntegrityError
 from http import HTTPStatus
 from datetime import datetime
+from models.shift import ShiftValidationError
 
 bp = Blueprint('shifts', __name__, url_prefix='/api/shifts')
 
@@ -10,29 +11,13 @@ bp = Blueprint('shifts', __name__, url_prefix='/api/shifts')
 def get_shifts():
     """Get all shifts"""
     shifts = Shift.query.all()
-    return jsonify([{
-        'id': shift.id,
-        'start_time': shift.start_time,
-        'end_time': shift.end_time,
-        'min_employees': shift.min_employees,
-        'max_employees': shift.max_employees,
-        'duration_hours': shift.duration_hours,
-        'requires_break': shift.requires_break
-    } for shift in shifts]), HTTPStatus.OK
+    return jsonify([shift.to_dict() for shift in shifts]), HTTPStatus.OK
 
 @bp.route('/<int:shift_id>', methods=['GET'])
 def get_shift(shift_id):
     """Get shift by ID"""
     shift = Shift.query.get_or_404(shift_id)
-    return jsonify({
-        'id': shift.id,
-        'start_time': shift.start_time,
-        'end_time': shift.end_time,
-        'min_employees': shift.min_employees,
-        'max_employees': shift.max_employees,
-        'duration_hours': shift.duration_hours,
-        'requires_break': shift.requires_break
-    }), HTTPStatus.OK
+    return jsonify(shift.to_dict()), HTTPStatus.OK
 
 @bp.route('/', methods=['POST'])
 def create_shift():
@@ -40,35 +25,37 @@ def create_shift():
     data = request.get_json()
     
     try:
-        # Parse time strings to time objects
-        start_time = datetime.strptime(data['start_time'], '%H:%M').time()
-        end_time = datetime.strptime(data['end_time'], '%H:%M').time()
-        
         shift = Shift(
-            start_time=start_time,
-            end_time=end_time,
-            min_employees=int(data.get('min_employees', 1)),
-            max_employees=int(data.get('max_employees', 5))
+            start_time=data['start_time'],
+            end_time=data['end_time'],
+            min_employees=int(data['min_employees']),
+            max_employees=int(data['max_employees']),
+            requires_break=bool(data.get('requires_break', True)),
+            active_days=data.get('active_days', {
+                "0": False,  # Sunday
+                "1": True,   # Monday
+                "2": True,   # Tuesday
+                "3": True,   # Wednesday
+                "4": True,   # Thursday
+                "5": True,   # Friday
+                "6": True    # Saturday
+            })
         )
         
         db.session.add(shift)
         db.session.commit()
         
-        return jsonify({
-            'id': shift.id,
-            'message': 'Shift created successfully'
-        }), HTTPStatus.CREATED
+        return jsonify(shift.to_dict()), HTTPStatus.CREATED
         
     except (KeyError, ValueError) as e:
         return jsonify({
             'error': 'Invalid data provided',
             'details': str(e)
         }), HTTPStatus.BAD_REQUEST
-    except IntegrityError:
-        db.session.rollback()
+    except ShiftValidationError as e:
         return jsonify({
-            'error': 'Shift already exists'
-        }), HTTPStatus.CONFLICT
+            'error': str(e)
+        }), HTTPStatus.BAD_REQUEST
 
 @bp.route('/<int:shift_id>', methods=['PUT'])
 def update_shift(shift_id):
@@ -78,24 +65,32 @@ def update_shift(shift_id):
     
     try:
         if 'start_time' in data:
-            shift.start_time = datetime.strptime(data['start_time'], '%H:%M').time()
+            shift.start_time = data['start_time']
         if 'end_time' in data:
-            shift.end_time = datetime.strptime(data['end_time'], '%H:%M').time()
+            shift.end_time = data['end_time']
         if 'min_employees' in data:
             shift.min_employees = int(data['min_employees'])
         if 'max_employees' in data:
             shift.max_employees = int(data['max_employees'])
+        if 'requires_break' in data:
+            shift.requires_break = bool(data['requires_break'])
+        if 'active_days' in data:
+            shift.active_days = data['active_days']
             
+        shift._calculate_duration()
+        shift._validate_store_hours()
         db.session.commit()
         
-        return jsonify({
-            'message': 'Shift updated successfully'
-        }), HTTPStatus.OK
+        return jsonify(shift.to_dict()), HTTPStatus.OK
         
     except (ValueError, KeyError) as e:
         return jsonify({
             'error': 'Invalid data provided',
             'details': str(e)
+        }), HTTPStatus.BAD_REQUEST
+    except ShiftValidationError as e:
+        return jsonify({
+            'error': str(e)
         }), HTTPStatus.BAD_REQUEST
 
 @bp.route('/<int:shift_id>', methods=['DELETE'])
@@ -106,13 +101,14 @@ def delete_shift(shift_id):
     try:
         db.session.delete(shift)
         db.session.commit()
+        
         return jsonify({
             'message': 'Shift deleted successfully'
         }), HTTPStatus.OK
+        
     except Exception as e:
-        db.session.rollback()
         return jsonify({
-            'error': 'Could not delete shift',
+            'error': 'Failed to delete shift',
             'details': str(e)
         }), HTTPStatus.INTERNAL_SERVER_ERROR
 

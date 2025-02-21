@@ -16,18 +16,36 @@ class Shift(db.Model):
     max_employees = db.Column(db.Integer, nullable=False)
     duration_hours = db.Column(db.Float, nullable=False)
     requires_break = db.Column(db.Boolean, nullable=False, default=True)
+    active_days = db.Column(db.JSON, nullable=False, default=lambda: {
+        "0": False,  # Sunday
+        "1": True,   # Monday
+        "2": True,   # Tuesday
+        "3": True,   # Wednesday
+        "4": True,   # Thursday
+        "5": True,   # Friday
+        "6": True    # Saturday
+    })
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
     schedules = db.relationship('Schedule', back_populates='shift')
 
-    def __init__(self, start_time, end_time, min_employees=1, max_employees=5, requires_break=True):
+    def __init__(self, start_time, end_time, min_employees=1, max_employees=5, requires_break=True, active_days=None):
         self.start_time = start_time
         self.end_time = end_time
         self.min_employees = min_employees
         self.max_employees = max_employees
         self.requires_break = requires_break
+        self.active_days = active_days or {
+            "0": False,  # Sunday
+            "1": True,   # Monday
+            "2": True,   # Tuesday
+            "3": True,   # Wednesday
+            "4": True,   # Thursday
+            "5": True,   # Friday
+            "6": True    # Saturday
+        }
         self._calculate_duration()
         self._validate_store_hours()
 
@@ -68,6 +86,7 @@ class Shift(db.Model):
             'max_employees': self.max_employees,
             'duration_hours': self.duration_hours,
             'requires_break': self.requires_break,
+            'active_days': self.active_days,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }

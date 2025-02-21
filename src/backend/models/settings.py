@@ -19,6 +19,8 @@ class Settings(db.Model):
     time_format = Column(String(10), nullable=False, default='24h')
     store_opening = Column(String(5), nullable=False, default='09:00')
     store_closing = Column(String(5), nullable=False, default='20:00')
+    keyholder_before_minutes = Column(Integer, nullable=False, default=30)  # Time before store opening
+    keyholder_after_minutes = Column(Integer, nullable=False, default=30)   # Time after store closing
     
     # Store Opening Days and Hours
     opening_days = Column(JSON, nullable=False, default=lambda: {
@@ -46,8 +48,18 @@ class Settings(db.Model):
     
     # Display Settings
     theme = Column(String(20), nullable=False, default='light')
-    primary_color = Column(String(7), nullable=False, default='#1976D2')
-    secondary_color = Column(String(7), nullable=False, default='#424242')
+    primary_color = Column(String(7), nullable=False, default='#1976D2')  # Blue
+    secondary_color = Column(String(7), nullable=False, default='#424242')  # Gray
+    accent_color = Column(String(7), nullable=False, default='#FF4081')  # Pink
+    background_color = Column(String(7), nullable=False, default='#FFFFFF')  # White
+    surface_color = Column(String(7), nullable=False, default='#F5F5F5')  # Light Gray
+    text_color = Column(String(7), nullable=False, default='#212121')  # Dark Gray
+    dark_theme_primary_color = Column(String(7), nullable=False, default='#90CAF9')  # Light Blue
+    dark_theme_secondary_color = Column(String(7), nullable=False, default='#757575')  # Light Gray
+    dark_theme_accent_color = Column(String(7), nullable=False, default='#FF80AB')  # Light Pink
+    dark_theme_background_color = Column(String(7), nullable=False, default='#121212')  # Dark Gray
+    dark_theme_surface_color = Column(String(7), nullable=False, default='#1E1E1E')  # Slightly lighter Dark Gray
+    dark_theme_text_color = Column(String(7), nullable=False, default='#FFFFFF')  # White
     show_weekends = Column(Boolean, nullable=False, default=True)
     start_of_week = Column(Integer, nullable=False, default=1)  # 1 = Monday
     
@@ -144,6 +156,18 @@ class Settings(db.Model):
                 'theme': self.theme,
                 'primary_color': self.primary_color,
                 'secondary_color': self.secondary_color,
+                'accent_color': self.accent_color,
+                'background_color': self.background_color,
+                'surface_color': self.surface_color,
+                'text_color': self.text_color,
+                'dark_theme': {
+                    'primary_color': self.dark_theme_primary_color,
+                    'secondary_color': self.dark_theme_secondary_color,
+                    'accent_color': self.dark_theme_accent_color,
+                    'background_color': self.dark_theme_background_color,
+                    'surface_color': self.dark_theme_surface_color,
+                    'text_color': self.dark_theme_text_color
+                },
                 'show_weekends': self.show_weekends,
                 'start_of_week': self.start_of_week
             },
@@ -209,8 +233,18 @@ class Settings(db.Model):
         
         # Display Settings
         settings.theme = 'light'
-        settings.primary_color = '#1976D2'
-        settings.secondary_color = '#424242'
+        settings.primary_color = '#1976D2'  # Blue
+        settings.secondary_color = '#424242'  # Gray
+        settings.accent_color = '#FF4081'  # Pink
+        settings.background_color = '#FFFFFF'  # White
+        settings.surface_color = '#F5F5F5'  # Light Gray
+        settings.text_color = '#212121'  # Dark Gray
+        settings.dark_theme_primary_color = '#90CAF9'  # Light Blue
+        settings.dark_theme_secondary_color = '#757575'  # Light Gray
+        settings.dark_theme_accent_color = '#FF80AB'  # Light Pink
+        settings.dark_theme_background_color = '#121212'  # Dark Gray
+        settings.dark_theme_surface_color = '#1E1E1E'  # Slightly lighter Dark Gray
+        settings.dark_theme_text_color = '#FFFFFF'  # White
         settings.show_weekends = True
         settings.start_of_week = 1
         

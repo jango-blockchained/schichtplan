@@ -17,37 +17,40 @@ class AvailabilityType(str, Enum):
 class EmployeeGroup(str, Enum):
     VL = "VL"  # Vollzeit
     TZ = "TZ"  # Teilzeit
-    GFB = "GfB"  # Geringfügig Beschäftigt
+    GFB = "GFB"  # Geringfügig Beschäftigt
     TL = "TL"  # Team Leader
 
 class Employee(db.Model):
     __tablename__ = 'employees'
 
     id = Column(Integer, primary_key=True)
-    employee_id = Column(String(10), unique=True)
-    first_name = Column(String(50), nullable=False)
-    last_name = Column(String(50), nullable=False)
-    employee_group = Column(String(10), nullable=False)
+    employee_id = Column(String(50), unique=True, nullable=False)
+    first_name = Column(String(100), nullable=False)
+    last_name = Column(String(100), nullable=False)
+    employee_group = Column(SQLEnum(EmployeeGroup), nullable=False)
     contracted_hours = Column(Float, nullable=False)
-    is_keyholder = Column(Boolean, default=False)
-    is_active = Column(Boolean, default=True)
-    email = Column(String(100))
-    phone = Column(String(20))
-    created_at = Column(db.DateTime, default=datetime.utcnow)
-    updated_at = Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_keyholder = Column(Boolean, nullable=False, default=False)
+    is_active = Column(Boolean, nullable=False, default=True)
+    email = Column(String(120), unique=True, nullable=True)
+    phone = Column(String(20), nullable=True)
+    created_at = Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
     shifts = relationship('Schedule', back_populates='employee')
     availabilities = relationship("EmployeeAvailability", back_populates="employee", cascade="all, delete-orphan")
 
-    def __init__(self, first_name, last_name, employee_group, contracted_hours, is_keyholder=False, is_active=True):
-        self.employee_id = self._generate_employee_id(first_name, last_name)
+    def __init__(self, employee_id, first_name, last_name, employee_group, contracted_hours, 
+                 is_keyholder=False, is_active=True, email=None, phone=None):
+        self.employee_id = employee_id
         self.first_name = first_name
         self.last_name = last_name
         self.employee_group = employee_group
         self.contracted_hours = contracted_hours
         self.is_keyholder = is_keyholder
         self.is_active = is_active
+        self.email = email
+        self.phone = phone
         
         # Validate the employee data
         if not self.validate_hours():
@@ -108,9 +111,10 @@ class Employee(db.Model):
             'employee_id': self.employee_id,
             'first_name': self.first_name,
             'last_name': self.last_name,
-            'employee_group': self.employee_group,
+            'employee_group': self.employee_group.value,
             'contracted_hours': self.contracted_hours,
             'is_keyholder': self.is_keyholder,
+            'is_active': self.is_active,
             'email': self.email,
             'phone': self.phone,
             'created_at': self.created_at.isoformat() if self.created_at else None,

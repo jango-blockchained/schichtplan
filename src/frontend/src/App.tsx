@@ -8,6 +8,7 @@ import { EmployeesPage } from './pages/EmployeesPage';
 import SettingsPage from './pages/SettingsPage';
 import { Toaster } from '@/components/ui/toaster';
 import PDFSettings from '@/pages/PDFSettings';
+import { ThemeProvider } from '@/providers/ThemeProvider';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,18 +22,20 @@ const queryClient = new QueryClient({
 const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<MainLayout />}>
-            <Route index element={<SchedulePage />} />
-            <Route path="shifts" element={<ShiftsPage />} />
-            <Route path="employees" element={<EmployeesPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-          </Route>
-          <Route path="/pdf-settings" element={<PDFSettings />} />
-        </Routes>
-        <Toaster />
-      </BrowserRouter>
+      <ThemeProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<MainLayout />}>
+              <Route index element={<SchedulePage />} />
+              <Route path="shifts" element={<ShiftsPage />} />
+              <Route path="employees" element={<EmployeesPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+            </Route>
+            <Route path="/pdf-settings" element={<PDFSettings />} />
+          </Routes>
+          <Toaster />
+        </BrowserRouter>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 };
