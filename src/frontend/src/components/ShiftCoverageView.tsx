@@ -161,23 +161,59 @@ const ShiftBlock: React.FC<{
     shift: Shift;
     day: string;
     position: { left: number; width: number; debug?: any };
-}> = ({ shift, day, position }) => {
+    onEmployeeCountChange: (id: number, minEmployees: number, maxEmployees: number) => void;
+}> = ({ shift, day, position, onEmployeeCountChange }) => {
     const [showDebug, setShowDebug] = useState(false);
+    const [minEmployees, setMinEmployees] = useState(shift.min_employees);
+    const [maxEmployees, setMaxEmployees] = useState(shift.max_employees);
+
+    const handleMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = Math.max(0, parseInt(e.target.value) || 0);
+        setMinEmployees(value);
+        onEmployeeCountChange(shift.id, value, maxEmployees);
+    };
+
+    const handleMaxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = Math.max(minEmployees, parseInt(e.target.value) || 0);
+        setMaxEmployees(value);
+        onEmployeeCountChange(shift.id, minEmployees, value);
+    };
 
     return (
         <div
             key={`${shift.id}-${day}`}
-            className="absolute h-8 top-1/2 -translate-y-1/2 bg-primary/20 border border-primary rounded-md overflow-hidden"
+            className="absolute h-8 top-1/2 -translate-y-1/2 bg-primary/20 border border-primary rounded-md overflow-hidden flex items-center"
             style={{
                 left: `${position.left}%`,
                 width: `${position.width}%`,
                 minWidth: '40px',
             }}
-            title={`${shift.start_time}-${shift.end_time} (${shift.min_employees}-${shift.max_employees} MA)`}
+            title={`${shift.start_time}-${shift.end_time}`}
             onClick={() => setShowDebug(!showDebug)}
         >
-            <div className="absolute inset-0 flex items-center justify-center text-xs font-medium truncate px-1">
-                {shift.min_employees}-{shift.max_employees} MA
+            <div className="flex items-center space-x-1 px-1 w-full">
+                <input
+                    type="number"
+                    min="0"
+                    value={minEmployees}
+                    onChange={handleMinChange}
+                    className="w-8 text-xs text-center border rounded bg-white/50 focus:outline-none focus:ring-1"
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label={`Minimum employees for shift from ${shift.start_time} to ${shift.end_time}`}
+                    placeholder="Min"
+                />
+                <span className="text-xs">-</span>
+                <input
+                    type="number"
+                    min={minEmployees}
+                    value={maxEmployees}
+                    onChange={handleMaxChange}
+                    className="w-8 text-xs text-center border rounded bg-white/50 focus:outline-none focus:ring-1"
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label={`Maximum employees for shift from ${shift.start_time} to ${shift.end_time}`}
+                    placeholder="Max"
+                />
+                <span className="text-xs ml-1">MA</span>
             </div>
             {showDebug && position.debug && (
                 <div className="absolute top-full left-0 bg-white border p-2 z-10 text-xs">
@@ -216,6 +252,20 @@ const Legend: React.FC = () => (
 );
 
 export const ShiftCoverageView: React.FC<ShiftCoverageViewProps> = ({ settings, shifts }) => {
+    const [shiftEmployees, setShiftEmployees] = useState<{ [key: number]: { min: number, max: number } }>(
+        shifts.reduce((acc, shift) => ({
+            ...acc,
+            [shift.id]: { min: shift.min_employees, max: shift.max_employees }
+        }), {})
+    );
+
+    const handleEmployeeCountChange = (shiftId: number, minEmployees: number, maxEmployees: number) => {
+        setShiftEmployees(prev => ({
+            ...prev,
+            [shiftId]: { min: minEmployees, max: maxEmployees }
+        }));
+    };
+
     const timeCalculator = useMemo(() => new TimeCalculator(settings), [settings]);
 
     const timeRange = useMemo(() => timeCalculator.calculateExtendedTimeRange(), [settings]);
@@ -253,6 +303,8 @@ export const ShiftCoverageView: React.FC<ShiftCoverageViewProps> = ({ settings, 
         const position = timeCalculator.calculateShiftPosition(shift, timeRange);
         return {
             ...shift,
+            min_employees: shiftEmployees[shift.id].min,
+            max_employees: shiftEmployees[shift.id].max,
             position
         };
     });
@@ -295,9 +347,14 @@ export const ShiftCoverageView: React.FC<ShiftCoverageViewProps> = ({ settings, 
                                                 return (
                                                     <ShiftBlock
                                                         key={shift.id}
-                                                        shift={shift}
+                                                        shift={{
+                                                            ...shift,
+                                                            min_employees: shiftEmployees[shift.id].min,
+                                                            max_employees: shiftEmployees[shift.id].max
+                                                        }}
                                                         day={day}
                                                         position={position}
+                                                        onEmployeeCountChange={handleEmployeeCountChange}
                                                     />
                                                 );
                                             })}
@@ -305,7 +362,11 @@ export const ShiftCoverageView: React.FC<ShiftCoverageViewProps> = ({ settings, 
                                     )}
                                 </div>
 
-                                {isStoreOpen && <EmployeeCounter shifts={dayShifts} />}
+                                {isStoreOpen && <EmployeeCounter shifts={dayShifts.map(shift => ({
+                                    ...shift,
+                                    min_employees: shiftEmployees[shift.id].min,
+                                    max_employees: shiftEmployees[shift.id].max
+                                }))} />}
                             </div>
                         );
                     })}
