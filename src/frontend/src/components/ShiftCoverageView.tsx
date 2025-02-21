@@ -1,157 +1,209 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Settings, Shift } from '@/types';
-import { addMinutes, format, subMinutes } from 'date-fns';
+import { parse, format } from 'date-fns';
+
+// Constants
+const DAYS = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'] as const;
+
+// Utility Functions
+const parseTime = (time: string): Date => parse(time, 'HH:mm', new Date());
+const formatHour = (date: Date): string => format(date, 'HH:mm');
+
+interface TimeRange {
+    start: Date;
+    end: Date;
+}
 
 interface ShiftCoverageViewProps {
     settings: Settings;
     shifts: Shift[];
 }
 
-const ALL_DAYS = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+// Time Utility Class
+class TimeCalculator {
+    private settings: Settings;
 
-const timeToMinutes = (time: string): number => {
-    const [hours, minutes] = time.split(':').map(Number);
-    return hours * 60 + minutes;
+    constructor(settings: Settings) {
+        this.settings = settings;
+    }
+
+    calculateExtendedTimeRange(): TimeRange {
+        const storeOpening = parseTime(this.settings.general.store_opening);
+        const storeClosing = parseTime(this.settings.general.store_closing);
+
+        const extendedStart = new Date(storeOpening.getTime());
+        extendedStart.setMinutes(storeOpening.getMinutes() - this.settings.general.keyholder_before_minutes);
+
+        const extendedEnd = new Date(storeClosing.getTime());
+        extendedEnd.setMinutes(storeClosing.getMinutes() + this.settings.general.keyholder_after_minutes);
+
+        return { start: extendedStart, end: extendedEnd };
+    }
+
+    calculateTimelineLabels(timeRange: TimeRange): string[] {
+        const labels: string[] = [];
+        const current = new Date(timeRange.start);
+
+        while (current <= timeRange.end) {
+            labels.push(formatHour(current));
+            current.setHours(current.getHours() + 1);
+        }
+
+        return labels;
+    }
+
+    calculateShiftPosition(shift: Shift, timeRange: TimeRange): { left: number; width: number } {
+        const totalDuration = timeRange.end.getTime() - timeRange.start.getTime();
+        const shiftStart = parseTime(shift.start_time);
+        const shiftEnd = parseTime(shift.end_time);
+
+        const left = ((shiftStart.getTime() - timeRange.start.getTime()) / totalDuration) * 100;
+        const width = ((shiftEnd.getTime() - shiftStart.getTime()) / totalDuration) * 100;
+
+        return { left, width };
+    }
+}
+
+// Subcomponents
+const TimelineLabels: React.FC<{ labels: string[] }> = ({ labels }) => (
+    <div className="flex w-full text-xs text-muted-foreground mb-2">
+        {labels.map((label) => (
+            <div key={label} className="flex-1 text-center">
+                {label}
+            </div>
+        ))}
+    </div>
+);
+
+const KeyholderTimeBlock: React.FC<{
+    isBefore: boolean;
+    widthPercentage: number;
+    minutes: number;
+}> = ({ isBefore, widthPercentage, minutes }) => (
+    <div
+        className={`absolute h-8 top-1/2 -translate-y-1/2 bg-yellow-100 border border-yellow-300 ${isBefore ? 'rounded-l-md' : 'rounded-r-md'}`}
+        style={{
+            [isBefore ? 'left' : 'right']: 0,
+            width: `${widthPercentage}%`,
+        }}
+        title={`Keyholder time ${isBefore ? 'before opening' : 'after closing'} (${minutes} min)`}
+    />
+);
+
+const ShiftBlock: React.FC<{
+    shift: Shift;
+    day: string;
+    position: { left: number; width: number };
+}> = ({ shift, day, position }) => (
+    <div
+        key={`${shift.id}-${day}`}
+        className="absolute h-8 top-1/2 -translate-y-1/2 bg-primary/20 border border-primary rounded-md overflow-hidden"
+        style={{
+            left: `${position.left}%`,
+            width: `${position.width}%`,
+            minWidth: '40px',
+        }}
+        title={`${shift.start_time}-${shift.end_time} (${shift.min_employees}-${shift.max_employees} MA)`}
+    >
+        <div className="absolute inset-0 flex items-center justify-center text-xs font-medium truncate px-1">
+            {shift.min_employees}-{shift.max_employees} MA
+        </div>
+    </div>
+);
+
+const EmployeeCounter: React.FC<{ shifts: Shift[] }> = ({ shifts }) => {
+    const totalMaxEmployees = shifts.reduce((acc, shift) => acc + shift.max_employees, 0);
+    return (
+        <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center space-x-2">
+            <span className="text-xs text-muted-foreground">
+                {totalMaxEmployees} MA max
+            </span>
+        </div>
+    );
 };
 
-const formatTime = (hours: number, minutes: number = 0): string => {
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-};
+const Legend: React.FC = () => (
+    <div className="mt-4 flex items-center space-x-4 text-xs text-muted-foreground">
+        {[
+            { color: 'bg-muted', label: 'Öffnungszeit' },
+            { color: 'bg-primary/20 border border-primary', label: 'Schicht' },
+            { color: 'bg-yellow-100 border border-yellow-300', label: 'Keyholder Zeit' },
+            { color: 'bg-muted/30', label: 'Geschlossen' }
+        ].map(({ color, label }) => (
+            <div key={label} className="flex items-center space-x-2">
+                <div className={`w-3 h-3 ${color} rounded-sm`}></div>
+                <span>{label}</span>
+            </div>
+        ))}
+    </div>
+);
 
 export const ShiftCoverageView: React.FC<ShiftCoverageViewProps> = ({ settings, shifts }) => {
-    // Calculate extended time range including keyholder times
-    const storeOpeningMinutes = timeToMinutes(settings.general.store_opening);
-    const storeClosingMinutes = timeToMinutes(settings.general.store_closing);
+    const timeCalculator = useMemo(() => new TimeCalculator(settings), [settings]);
 
-    const startMinutes = storeOpeningMinutes - settings.general.keyholder_before_minutes;
-    const endMinutes = storeClosingMinutes + settings.general.keyholder_after_minutes;
+    const timeRange = useMemo(() => timeCalculator.calculateExtendedTimeRange(), [settings]);
+    const timelineLabels = useMemo(() => timeCalculator.calculateTimelineLabels(timeRange), [timeRange]);
 
-    const startHour = Math.floor(startMinutes / 60);
-    const endHour = Math.ceil(endMinutes / 60);
-    const totalHours = endHour - startHour;
+    const keyholderBeforeWidth = useMemo(() =>
+        (settings.general.keyholder_before_minutes / ((timeRange.end.getTime() - timeRange.start.getTime()) / 60000)) * 100,
+        [settings, timeRange]
+    );
 
-    // Generate time labels for the timeline
-    const timeLabels = Array.from({ length: totalHours + 1 }, (_, i) => {
-        const hour = startHour + i;
-        return formatTime(hour);
-    });
+    const keyholderAfterWidth = useMemo(() =>
+        (settings.general.keyholder_after_minutes / ((timeRange.end.getTime() - timeRange.start.getTime()) / 60000)) * 100,
+        [settings, timeRange]
+    );
 
     return (
         <Card className="p-4 space-y-4">
-            <h3 className="font-semibold">Schichtabdeckung</h3>
-            <div className="relative">
-                {/* Time labels */}
-                <div className="grid grid-cols-12 text-xs text-muted-foreground mb-2">
-                    {timeLabels.map((label, index) => (
-                        <div
-                            key={label}
-                            className="text-center"
-                            style={{
-                                gridColumn: index === timeLabels.length - 1 ? 'span 1' : 'span 1',
-                            }}
-                        >
-                            {label}
-                        </div>
-                    ))}
-                </div>
+            <h3 className="font-semibold text-lg">Schichtabdeckung</h3>
+            <div className="relative w-full">
+                <TimelineLabels labels={timelineLabels} />
 
-                {/* Day rows */}
                 <div className="space-y-2">
-                    {ALL_DAYS.map((day, dayIndex) => {
+                    {DAYS.map((day, dayIndex) => {
                         const isStoreOpen = settings.general.opening_days[dayIndex.toString()];
                         const dayShifts = shifts.filter(shift => shift.active_days[dayIndex.toString()]);
 
                         return (
-                            <div key={day} className="relative h-12">
-                                {/* Day label */}
-                                <div className="absolute -left-20 top-1/2 -translate-y-1/2 w-16 text-sm">
+                            <div key={day} className="relative h-12 flex items-center">
+                                <div className="absolute -left-20 top-1/2 -translate-y-1/2 w-16 text-sm font-medium">
                                     {day}
                                 </div>
 
-                                {/* Store hours background */}
-                                <div className={`h-full rounded-md ${isStoreOpen ? 'bg-muted' : 'bg-muted/30'}`}>
-                                    {/* Keyholder time before opening */}
+                                <div className={`h-10 rounded-md flex-grow relative ${isStoreOpen ? 'bg-muted' : 'bg-muted/30'}`}>
                                     {isStoreOpen && (
-                                        <div
-                                            className="absolute h-8 top-2 bg-yellow-100 border border-yellow-300 rounded-l"
-                                            style={{
-                                                left: '0%',
-                                                width: `${(settings.general.keyholder_before_minutes / (totalHours * 60)) * 100}%`,
-                                            }}
-                                            title={`Keyholder time before opening (${settings.general.keyholder_before_minutes} min)`}
-                                        />
+                                        <>
+                                            <KeyholderTimeBlock
+                                                isBefore={true}
+                                                widthPercentage={keyholderBeforeWidth}
+                                                minutes={settings.general.keyholder_before_minutes}
+                                            />
+                                            <KeyholderTimeBlock
+                                                isBefore={false}
+                                                widthPercentage={keyholderAfterWidth}
+                                                minutes={settings.general.keyholder_after_minutes}
+                                            />
+                                            {dayShifts.map((shift) => (
+                                                <ShiftBlock
+                                                    key={shift.id}
+                                                    shift={shift}
+                                                    day={day}
+                                                    position={timeCalculator.calculateShiftPosition(shift, timeRange)}
+                                                />
+                                            ))}
+                                        </>
                                     )}
-
-                                    {/* Keyholder time after closing */}
-                                    {isStoreOpen && (
-                                        <div
-                                            className="absolute h-8 top-2 bg-yellow-100 border border-yellow-300 rounded-r"
-                                            style={{
-                                                right: '0%',
-                                                width: `${(settings.general.keyholder_after_minutes / (totalHours * 60)) * 100}%`,
-                                            }}
-                                            title={`Keyholder time after closing (${settings.general.keyholder_after_minutes} min)`}
-                                        />
-                                    )}
-
-                                    {/* Shift blocks */}
-                                    {isStoreOpen && dayShifts.map((shift) => {
-                                        const shiftStartMinutes = timeToMinutes(shift.start_time) - (startHour * 60);
-                                        const shiftEndMinutes = timeToMinutes(shift.end_time) - (startHour * 60);
-                                        const left = (shiftStartMinutes / (totalHours * 60)) * 100;
-                                        const width = ((shiftEndMinutes - shiftStartMinutes) / (totalHours * 60)) * 100;
-
-                                        return (
-                                            <div
-                                                key={`${shift.id}-${day}`}
-                                                className="absolute h-8 top-2 bg-primary/20 border border-primary rounded"
-                                                style={{
-                                                    left: `${left}%`,
-                                                    width: `${width}%`,
-                                                }}
-                                                title={`${shift.start_time}-${shift.end_time} (${shift.min_employees}-${shift.max_employees} MA)`}
-                                            >
-                                                <div className="absolute inset-0 flex items-center justify-center text-xs truncate px-1">
-                                                    {shift.min_employees}-{shift.max_employees} MA
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
                                 </div>
 
-                                {/* Employee count indicators */}
-                                {isStoreOpen && (
-                                    <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center space-x-2">
-                                        <span className="text-xs text-muted-foreground">
-                                            {dayShifts.reduce((acc, shift) => acc + shift.max_employees, 0)} MA max
-                                        </span>
-                                    </div>
-                                )}
+                                {isStoreOpen && <EmployeeCounter shifts={dayShifts} />}
                             </div>
                         );
                     })}
                 </div>
 
-                {/* Legend */}
-                <div className="mt-4 flex items-center space-x-4 text-xs text-muted-foreground">
-                    <div className="flex items-center space-x-2">
-                        <div className="w-3 h-3 bg-muted rounded"></div>
-                        <span>Öffnungszeit</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                        <div className="w-3 h-3 bg-primary/20 border border-primary rounded"></div>
-                        <span>Schicht</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                        <div className="w-3 h-3 bg-yellow-100 border border-yellow-300 rounded"></div>
-                        <span>Keyholder Zeit</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                        <div className="w-3 h-3 bg-muted/30 rounded"></div>
-                        <span>Geschlossen</span>
-                    </div>
-                </div>
+                <Legend />
             </div>
         </Card>
     );
