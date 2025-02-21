@@ -17,8 +17,12 @@ class Settings(db.Model):
     language = Column(String(10), nullable=False, default='de')
     date_format = Column(String(20), nullable=False, default='DD.MM.YYYY')
     time_format = Column(String(10), nullable=False, default='24h')
+    
+    # Store Hours
     store_opening = Column(String(5), nullable=False, default='09:00')
     store_closing = Column(String(5), nullable=False, default='20:00')
+    
+    # Keyholder Time Settings
     keyholder_before_minutes = Column(Integer, nullable=False, default=30)  # Time before store opening
     keyholder_after_minutes = Column(Integer, nullable=False, default=30)   # Time after store closing
     
@@ -140,6 +144,8 @@ class Settings(db.Model):
                 'time_format': self.time_format,
                 'store_opening': self.store_opening,
                 'store_closing': self.store_closing,
+                'keyholder_before_minutes': self.keyholder_before_minutes,
+                'keyholder_after_minutes': self.keyholder_after_minutes,
                 'opening_days': self.opening_days,
                 'special_hours': self.special_hours
             },
@@ -293,7 +299,12 @@ class Settings(db.Model):
         for category, values in data.items():
             if category == 'general':
                 for key, value in values.items():
-                    if hasattr(self, key):
+                    # Explicitly handle keyholder time settings
+                    if key == 'keyholder_before_minutes':
+                        self.keyholder_before_minutes = int(value)
+                    elif key == 'keyholder_after_minutes':
+                        self.keyholder_after_minutes = int(value)
+                    elif hasattr(self, key):
                         setattr(self, key, value)
             elif category == 'scheduling':
                 for key, value in values.items():
@@ -535,4 +546,14 @@ class Settings(db.Model):
                 setting.value = presets
                 db.session.commit()
             return True
-        return False 
+        return False
+
+    @classmethod
+    def get_or_create_default(cls):
+        """Get existing settings or create default settings"""
+        settings = cls.query.first()
+        if not settings:
+            settings = cls()
+            db.session.add(settings)
+            db.session.commit()
+        return settings 

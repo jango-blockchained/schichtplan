@@ -1,13 +1,18 @@
 import { useMemo } from 'react';
-import { format, addDays } from 'date-fns';
+import { format, addDays, parseISO } from 'date-fns';
 import { useDrag, useDrop } from 'react-dnd';
-import { Schedule, DateRange } from '@/types';
-import { Card, CardContent } from '@/components/ui/card';
+import { Schedule } from '@/types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 interface ScheduleTableProps {
     schedules: Schedule[];
-    dateRange: DateRange | undefined;
+    dateRange: {
+        from: Date;
+        to: Date;
+    } | undefined;
     onDrop: (scheduleId: number, newEmployeeId: number, newDate: Date, newShiftId: number) => Promise<void>;
     isLoading: boolean;
 }
@@ -45,7 +50,7 @@ const ScheduleCell = ({ schedule, onDrop }: {
                 onDrop(
                     item.scheduleId,
                     schedule.employee_id,
-                    new Date(schedule.date),
+                    parseISO(schedule.date),
                     schedule.shift_id
                 );
             }
@@ -55,34 +60,38 @@ const ScheduleCell = ({ schedule, onDrop }: {
         }),
     }), [schedule, onDrop]);
 
+    if (!schedule) return null;
+
     return (
         <div
             ref={(node) => {
                 drag(drop(node));
             }}
-            className={`p-2 rounded border ${isDragging ? 'opacity-50' : ''
-                } ${isOver ? 'bg-primary/10' : ''
-                } ${schedule ? 'cursor-move' : 'cursor-default'
-                }`}
-        >
-            {schedule && (
-                <div className="text-sm">
-                    <div className="font-medium">{schedule.employee_name}</div>
-                    <div className="text-muted-foreground">
-                        {schedule.shift_start}-{schedule.shift_end}
-                    </div>
-                    {schedule.break_start && schedule.break_end && (
-                        <div className="text-xs text-muted-foreground">
-                            Pause: {schedule.break_start}-{schedule.break_end}
-                        </div>
-                    )}
-                    {schedule.notes && (
-                        <div className="text-xs text-muted-foreground mt-1">
-                            {schedule.notes}
-                        </div>
-                    )}
-                </div>
+            className={cn(
+                'p-2 rounded border transition-all duration-200 group',
+                isDragging && 'opacity-50 bg-primary/10',
+                isOver && 'ring-2 ring-primary/50',
+                'cursor-move hover:bg-primary/5'
             )}
+        >
+            <div className="flex flex-col space-y-1">
+                <div className="flex justify-between items-center">
+                    <span className="font-semibold text-sm">{schedule.employee_name}</span>
+                    <Badge variant="secondary" className="text-xs">
+                        {schedule.shift_start} - {schedule.shift_end}
+                    </Badge>
+                </div>
+                {schedule.break_start && schedule.break_end && (
+                    <div className="text-xs text-muted-foreground">
+                        Pause: {schedule.break_start} - {schedule.break_end}
+                    </div>
+                )}
+                {schedule.notes && (
+                    <div className="text-xs text-muted-foreground italic">
+                        {schedule.notes}
+                    </div>
+                )}
+            </div>
         </div>
     );
 };
@@ -125,36 +134,31 @@ export function ScheduleTable({ schedules, dateRange, onDrop, isLoading }: Sched
 
     return (
         <Card>
-            <CardContent className="p-4">
-                <div className="grid grid-cols-[auto_repeat(auto-fill,minmax(200px,1fr))] gap-4">
-                    <div className="font-medium p-2">Datum</div>
+            <CardHeader>
+                <CardTitle>Schichtplan Details</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {days.map(day => (
-                        <div key={day.toISOString()} className="font-medium p-2">
-                            {format(day, 'EEEE, dd.MM.yyyy')}
-                        </div>
-                    ))}
-
-                    {Array.from({ length: 24 }).map((_, hour) => (
-                        <>
-                            <div key={`hour-${hour}`} className="p-2 font-medium">
-                                {hour.toString().padStart(2, '0')}:00
-                            </div>
-                            {days.map(day => {
-                                const daySchedules = schedulesByDay[format(day, 'yyyy-MM-dd')] || [];
-                                const schedule = daySchedules.find(s => {
-                                    const startHour = parseInt(s.shift_start.split(':')[0], 10);
-                                    return startHour === hour;
-                                });
-
-                                return (
+                        <div key={day.toISOString()} className="border rounded-lg p-4">
+                            <h3 className="text-lg font-semibold mb-3">
+                                {format(day, 'EEEE, dd.MM.yyyy')}
+                            </h3>
+                            <div className="space-y-2">
+                                {schedulesByDay[format(day, 'yyyy-MM-dd')]?.map(schedule => (
                                     <ScheduleCell
-                                        key={`${day.toISOString()}-${hour}`}
+                                        key={schedule.id}
                                         schedule={schedule}
                                         onDrop={onDrop}
                                     />
-                                );
-                            })}
-                        </>
+                                ))}
+                                {!schedulesByDay[format(day, 'yyyy-MM-dd')]?.length && (
+                                    <div className="text-sm text-muted-foreground text-center py-4">
+                                        Keine Schichten an diesem Tag
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     ))}
                 </div>
             </CardContent>
