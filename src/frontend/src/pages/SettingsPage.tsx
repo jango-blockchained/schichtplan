@@ -18,11 +18,13 @@ import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useDebouncedCallback } from 'use-debounce';
 import { Trash2 } from "lucide-react";
+import { useTheme } from '@/providers/ThemeProvider';
 
 type GroupType = EmployeeType | AbsenceType;
 
 export default function SettingsPage() {
   const { toast } = useToast();
+  const { setTheme } = useTheme();
   const queryClient = useQueryClient();
   const [currentTab, setCurrentTab] = React.useState("general");
   const [localSettings, setLocalSettings] = useState<Settings | null>(null);
@@ -208,6 +210,37 @@ export default function SettingsPage() {
                         value={localSettings?.general.store_closing ?? '20:00'}
                         onChange={(e) =>
                           handleSave("general", { store_closing: e.target.value })
+                        }
+                        onBlur={handleImmediateUpdate}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="keyholderBefore">Keyholder Time Before Opening (minutes)</Label>
+                      <Input
+                        id="keyholderBefore"
+                        type="number"
+                        min="0"
+                        max="120"
+                        value={localSettings?.general.keyholder_before_minutes ?? 30}
+                        onChange={(e) =>
+                          handleSave("general", { keyholder_before_minutes: parseInt(e.target.value) })
+                        }
+                        onBlur={handleImmediateUpdate}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="keyholderAfter">Keyholder Time After Closing (minutes)</Label>
+                      <Input
+                        id="keyholderAfter"
+                        type="number"
+                        min="0"
+                        max="120"
+                        value={localSettings?.general.keyholder_after_minutes ?? 30}
+                        onChange={(e) =>
+                          handleSave("general", { keyholder_after_minutes: parseInt(e.target.value) })
                         }
                         onBlur={handleImmediateUpdate}
                       />
@@ -564,8 +597,21 @@ export default function SettingsPage() {
                     <Select
                       value={localSettings?.display.theme ?? ''}
                       onValueChange={(value) => {
-                        handleSave("display", { theme: value });
-                        handleImmediateUpdate();
+                        if (!localSettings) return;
+                        const updatedSettings = {
+                          ...localSettings,
+                          display: {
+                            ...localSettings.display,
+                            theme: value
+                          }
+                        };
+                        setLocalSettings(updatedSettings);
+                        updateMutation.mutate(updatedSettings, {
+                          onSuccess: () => {
+                            setTheme(value as 'light' | 'dark' | 'system');
+                          }
+                        });
+                        debouncedUpdate.cancel(); // Cancel any pending debounced updates
                       }}
                     >
                       <SelectTrigger id="theme">

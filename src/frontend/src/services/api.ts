@@ -1,7 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import type { Settings, Employee, Shift, Schedule, ScheduleResponse, ScheduleUpdate } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -120,6 +120,19 @@ export const deleteEmployee = async (id: number): Promise<void> => {
 };
 
 // Shifts
+export interface Shift {
+    id: number;
+    start_time: string;
+    end_time: string;
+    min_employees: number;
+    max_employees: number;
+    duration_hours: number;
+    requires_break: boolean;
+    active_days: { [key: string]: boolean };
+    created_at?: string;
+    updated_at?: string;
+}
+
 export const getShifts = async (): Promise<Shift[]> => {
     try {
         const response = await api.get<Shift[]>('/shifts/');
@@ -132,28 +145,38 @@ export const getShifts = async (): Promise<Shift[]> => {
     }
 };
 
-export const createShift = async (shift: Omit<Shift, 'id' | 'duration_hours' | 'requires_break'>): Promise<Shift> => {
-    try {
-        const response = await api.post<Shift>('/shifts/', shift);
-        return response.data;
-    } catch (error) {
-        if (error instanceof Error) {
-            throw new Error(`Failed to create shift: ${error.message}`);
-        }
-        throw error;
+export const createShift = async (data: Omit<Shift, 'id' | 'duration_hours' | 'created_at' | 'updated_at'>): Promise<Shift> => {
+    const response = await fetch('/api/shifts', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to create shift');
     }
+
+    return response.json();
 };
 
-export const updateShift = async (id: number, shift: Partial<Shift>): Promise<Shift> => {
-    try {
-        const response = await api.put<Shift>(`/shifts/${id}`, shift);
-        return response.data;
-    } catch (error) {
-        if (error instanceof Error) {
-            throw new Error(`Failed to update shift: ${error.message}`);
-        }
-        throw error;
+export const updateShift = async ({ id, ...data }: Partial<Shift> & { id: number }): Promise<Shift> => {
+    const response = await fetch(`/api/shifts/${id}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update shift');
     }
+
+    return response.json();
 };
 
 export const deleteShift = async (id: number): Promise<void> => {

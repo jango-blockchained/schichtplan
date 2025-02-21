@@ -4,6 +4,8 @@ import { Menu, LayoutDashboard, Users, Settings, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
+import { getSettings } from '@/services/api';
 
 const drawerWidth = 240;
 
@@ -17,6 +19,7 @@ const navItems = [
 export const MainLayout = () => {
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const location = useLocation();
+  const { data: settings } = useQuery(['settings'], getSettings);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -25,7 +28,7 @@ export const MainLayout = () => {
   const NavContent = () => (
     <div className="h-full flex flex-col">
       <div className="h-16 flex items-center px-4 border-b">
-        <span className="font-semibold text-lg">ShiftWise</span>
+        <span className="font-semibold text-lg">{settings?.general.store_name || 'ShiftWise'}</span>
       </div>
       <nav className="flex-1 p-4">
         {navItems.map((item) => {

@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
-import type { Shift } from '../types';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardFooter } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { useToast } from '@/components/ui/use-toast';
-import { Checkbox } from '@/components/ui/checkbox';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getSettings, getShifts, createShift, updateShift, deleteShift } from '@/services/api';
-import { Label } from '@/components/ui/label';
+import { getShifts, createShift, updateShift, deleteShift } from '@/services/api';
+import { getSettings } from '@/services/api';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useToast } from '@/components/ui/use-toast';
+import { Card } from '@/components/ui/card';
+import { ShiftForm } from '@/components/ShiftForm';
+import { ShiftCoverageView } from '@/components/ShiftCoverageView';
+import { Shift } from '@/types';
+import { Pencil, Trash2, Plus } from 'lucide-react';
 
 interface ShiftsPageProps { }
 
@@ -19,55 +19,51 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch store settings for opening hours
-  const { data: settings } = useQuery({
-    queryKey: ['settings'],
-    queryFn: getSettings,
-  });
-
-  // Fetch shifts
-  const { data: shifts, isLoading, error } = useQuery({
+  const { data: shifts, isLoading: shiftsLoading } = useQuery({
     queryKey: ['shifts'],
     queryFn: getShifts,
   });
 
-  // Mutations
+  const { data: settings, isLoading: settingsLoading } = useQuery({
+    queryKey: ['settings'],
+    queryFn: getSettings,
+  });
+
   const createMutation = useMutation({
     mutationFn: createShift,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shifts'] });
       setEditDialogOpen(false);
       toast({
-        title: "Success",
-        description: "Shift created successfully"
+        description: 'Schicht erfolgreich erstellt',
       });
     },
-    onError: (error: Error) => {
+    onError: (error) => {
       toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message
+        variant: 'destructive',
+        title: 'Fehler',
+        description: error instanceof Error ? error.message : 'Fehler beim Erstellen der Schicht',
       });
-    }
+    },
   });
 
   const updateMutation = useMutation({
-    mutationFn: (params: { id: number; data: Partial<Shift> }) => updateShift(params.id, params.data),
+    mutationFn: updateShift,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shifts'] });
       setEditDialogOpen(false);
+      setEditingShift(null);
       toast({
-        title: "Success",
-        description: "Shift updated successfully"
+        description: 'Schicht erfolgreich aktualisiert',
       });
     },
-    onError: (error: Error) => {
+    onError: (error) => {
       toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message
+        variant: 'destructive',
+        title: 'Fehler',
+        description: error instanceof Error ? error.message : 'Fehler beim Aktualisieren der Schicht',
       });
-    }
+    },
   });
 
   const deleteMutation = useMutation({
@@ -75,17 +71,16 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shifts'] });
       toast({
-        title: "Success",
-        description: "Shift deleted successfully"
+        description: 'Schicht erfolgreich gelöscht',
       });
     },
-    onError: (error: Error) => {
+    onError: (error) => {
       toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message
+        variant: 'destructive',
+        title: 'Fehler',
+        description: error instanceof Error ? error.message : 'Fehler beim Löschen der Schicht',
       });
-    }
+    },
   });
 
   const handleAddShift = () => {
@@ -98,72 +93,70 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
     setEditDialogOpen(true);
   };
 
-  const handleSaveShift = async (formData: any) => {
-    const payload = {
-      start_time: formData.start_time,
-      end_time: formData.end_time,
-      min_employees: parseInt(formData.min_employees),
-      max_employees: parseInt(formData.max_employees),
-      requires_break: formData.requires_break === 'on'
-    };
-
-    if (editingShift) {
-      updateMutation.mutate({ id: Number(editingShift.id), data: payload });
-    } else {
-      createMutation.mutate(payload);
+  const handleDeleteShift = async (shiftId: number) => {
+    if (window.confirm('Möchten Sie diese Schicht wirklich löschen?')) {
+      await deleteMutation.mutateAsync(shiftId);
     }
   };
 
-  if (error) {
-    return (
-      <div className="p-4 text-destructive">
-        Error loading shifts
-      </div>
-    );
-  }
+  const handleSaveShift = async (data: any) => {
+    if (editingShift) {
+      await updateMutation.mutateAsync({ id: editingShift.id, ...data });
+    } else {
+      await createMutation.mutateAsync(data);
+    }
+  };
 
-  if (isLoading) {
-    return <p className="text-lg">Loading...</p>;
+  if (shiftsLoading || settingsLoading || !settings) {
+    return <div>Loading...</div>;
   }
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Shifts</h1>
+    <div className="container mx-auto py-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">Schichten</h1>
         <Button onClick={handleAddShift}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Shift
+          <Plus className="h-4 w-4 mr-2" />
+          Neue Schicht
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Shift Coverage View */}
+      {shifts && <ShiftCoverageView settings={settings} shifts={shifts} />}
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {shifts?.map((shift) => (
-          <Card key={shift.id}>
-            <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground mb-2">
-                Time: {shift.start_time} - {shift.end_time}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Employees: {shift.min_employees} - {shift.max_employees}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Break Required: {shift.requires_break ? 'Yes' : 'No'}
-              </p>
-            </CardContent>
-            <CardFooter className="flex justify-end space-x-2">
-              <Button variant="outline" size="sm" onClick={() => handleEditShift(shift)}>
-                <Pencil className="h-4 w-4 mr-1" />
-                Edit
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => deleteMutation.mutate(shift.id)}
-              >
-                <Trash2 className="h-4 w-4 mr-1" />
-                Delete
-              </Button>
-            </CardFooter>
+          <Card key={shift.id} className="p-4 space-y-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="font-semibold">
+                  {shift.start_time} - {shift.end_time}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {shift.duration_hours} Stunden
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleEditShift(shift)}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleDeleteShift(shift.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="text-sm">
+              <p>Mitarbeiter: {shift.min_employees} - {shift.max_employees}</p>
+              <p>Pause: {shift.requires_break ? 'Ja' : 'Nein'}</p>
+            </div>
           </Card>
         ))}
       </div>
@@ -171,87 +164,13 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingShift ? 'Edit Shift' : 'Add Shift'}</DialogTitle>
+            <DialogTitle>{editingShift ? 'Schicht bearbeiten' : 'Neue Schicht'}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            const formData = new FormData(e.currentTarget);
-            handleSaveShift({
-              start_time: formData.get('start_time'),
-              end_time: formData.get('end_time'),
-              min_employees: formData.get('min_employees'),
-              max_employees: formData.get('max_employees'),
-              requires_break: formData.get('requires_break')
-            });
-          }}>
-            <div className="grid gap-4 py-4">
-              {settings && (
-                <p className="text-sm text-muted-foreground">
-                  Store hours: {settings.general.store_opening} - {settings.general.store_closing}
-                </p>
-              )}
-              <div className="grid gap-2">
-                <Label htmlFor="start_time" className="text-sm font-medium">Start Time</Label>
-                <Input
-                  id="start_time"
-                  name="start_time"
-                  type="time"
-                  defaultValue={editingShift?.start_time || settings?.general.store_opening || '09:00'}
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="end_time" className="text-sm font-medium">End Time</Label>
-                <Input
-                  id="end_time"
-                  name="end_time"
-                  type="time"
-                  defaultValue={editingShift?.end_time || '17:00'}
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="min_employees" className="text-sm font-medium">Minimum Employees</Label>
-                <Input
-                  id="min_employees"
-                  name="min_employees"
-                  type="number"
-                  min="1"
-                  defaultValue={editingShift?.min_employees || 1}
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="max_employees" className="text-sm font-medium">Maximum Employees</Label>
-                <Input
-                  id="max_employees"
-                  name="max_employees"
-                  type="number"
-                  min="1"
-                  defaultValue={editingShift?.max_employees || 5}
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
-                <label className="flex items-center space-x-2">
-                  <Checkbox
-                    id="requires_break"
-                    name="requires_break"
-                    defaultChecked={editingShift?.requires_break ?? true}
-                  />
-                  <span className="text-sm font-medium">Requires Break</span>
-                </label>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit">
-                {editingShift ? 'Save Changes' : 'Create Shift'}
-              </Button>
-            </DialogFooter>
-          </form>
+          <ShiftForm
+            settings={settings}
+            initialData={editingShift || undefined}
+            onSave={handleSaveShift}
+          />
         </DialogContent>
       </Dialog>
     </div>

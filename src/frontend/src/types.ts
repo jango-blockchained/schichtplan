@@ -13,6 +13,7 @@ export interface Employee {
     employee_group: string;
     contracted_hours: number;
     is_keyholder: boolean;
+    is_active: boolean;
     email?: string;
     phone?: string;
 }
@@ -26,13 +27,14 @@ export interface EmployeeType {
 
 // Shift related types
 export interface Shift {
-    id: string;
+    id: number;
     start_time: string;
     end_time: string;
     min_employees: number;
     max_employees: number;
     duration_hours: number;
     requires_break: boolean;
+    active_days: { [key: string]: boolean };
     created_at?: string;
     updated_at?: string;
 }
@@ -45,6 +47,18 @@ export interface Schedule {
     date: string;
     break_start?: string;
     break_end?: string;
+    version?: number;
+}
+
+export interface ScheduleResponse {
+    schedules: Schedule[];
+    versions: number[];
+}
+
+export interface ScheduleUpdate {
+    break_start?: string;
+    break_end?: string;
+    notes?: string;
 }
 
 // Store configuration types
@@ -92,6 +106,8 @@ export interface Settings {
         time_format: string;
         store_opening: string;  // Format: "HH:MM"
         store_closing: string;  // Format: "HH:MM"
+        keyholder_before_minutes: number;  // Time before store opening
+        keyholder_after_minutes: number;   // Time after store closing
         opening_days: {
             [key: string]: boolean;  // key: 0-6 (Sunday-Saturday)
         };
