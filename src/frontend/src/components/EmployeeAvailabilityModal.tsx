@@ -71,6 +71,11 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
     });
 
     useEffect(() => {
+        // Initialize with empty selection and hours immediately
+        setSelectedCells(new Set());
+        setDailyHours({});
+        setWeeklyHours(0);
+
         if (settings) {
             // Convert opening days from backend format (0=Sunday) to frontend format (0=Monday)
             const activeWeekDays = ALL_DAYS.filter((_, frontendIndex) => {
@@ -98,6 +103,14 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
     }, [settings]);
 
     useEffect(() => {
+        if (!activeDays.length) return;
+
+        const dayHours: { [key: string]: number } = {};
+        activeDays.forEach(day => {
+            dayHours[day] = 0;
+        });
+        setDailyHours(dayHours);
+
         if (availabilities) {
             const newSelectedCells = new Set<string>();
             availabilities.forEach(availability => {
@@ -108,7 +121,8 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
                 if (activeDays.includes(day)) {
                     const hour = format(new Date().setHours(availability.hour, 0), TIME_FORMAT);
                     const nextHour = format(new Date().setHours(availability.hour + 1, 0), TIME_FORMAT);
-                    newSelectedCells.add(`${day}-${hour} - ${nextHour}`);
+                    const cellId = `${day}-${hour} - ${nextHour}`;
+                    newSelectedCells.add(cellId);
                 }
             });
             setSelectedCells(newSelectedCells);
@@ -117,14 +131,24 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
     }, [availabilities, activeDays]);
 
     const calculateHours = (cells: Set<string>) => {
-        const dayHours: { [key: string]: number } = {};
-        let totalHours = 0;
+        if (!activeDays.length) return;
 
-        cells.forEach(cellId => {
-            const [day] = cellId.split('-');
-            dayHours[day] = (dayHours[day] || 0) + 1;
-            totalHours += 1;
+        // Initialize daily hours with 0 for all active days
+        const dayHours: { [key: string]: number } = {};
+        activeDays.forEach(day => {
+            dayHours[day] = 0;
         });
+
+        // Count hours for each day
+        Array.from(cells).forEach(cellId => {
+            const dayMatch = cellId.match(/^([^-]+)-/);
+            if (dayMatch && dayMatch[1] && dayHours.hasOwnProperty(dayMatch[1])) {
+                dayHours[dayMatch[1]]++;
+            }
+        });
+
+        // Calculate total hours
+        const totalHours = Object.values(dayHours).reduce((sum, hours) => sum + hours, 0);
 
         setDailyHours(dayHours);
         setWeeklyHours(totalHours);
