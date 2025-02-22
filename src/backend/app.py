@@ -17,6 +17,7 @@ from routes.schedules import schedules
 from routes.employees import employees
 from routes.availability import availability
 from routes.absences import bp as absences_bp
+from api.coverage import bp as coverage_bp
 
 def create_app():
     app = Flask(__name__, instance_relative_config=True)
@@ -53,6 +54,7 @@ def create_app():
     app.register_blueprint(employees)
     app.register_blueprint(availability)
     app.register_blueprint(absences_bp)
+    app.register_blueprint(coverage_bp)
     
     # Create database tables
     with app.app_context():

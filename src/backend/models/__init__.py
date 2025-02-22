@@ -5,9 +5,10 @@ db = SQLAlchemy()
 # Import models after db is defined to avoid circular imports
 from .settings import Settings
 from .shift import Shift
-from .employee import Employee, EmployeeAvailability
+from .employee import Employee, EmployeeAvailability, EmployeeGroup
 from .schedule import Schedule
 from .absence import Absence
+from .coverage import Coverage
 
 __all__ = [
     'db',
@@ -16,5 +17,7 @@ __all__ = [
     'Employee',
     'Schedule',
     'EmployeeAvailability',
-    'Absence'
+    'EmployeeGroup',
+    'Absence',
+    'Coverage'
 ] 

@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, send_file
-from models import db, Schedule, Employee, Shift, ShiftType, StoreConfig, EmployeeGroup
+from models import db, Schedule, Employee, Shift, Settings, EmployeeGroup
 from sqlalchemy.exc import IntegrityError
 from http import HTTPStatus
 from datetime import datetime, timedelta, date
@@ -44,12 +44,11 @@ def get_schedules():
         },
         'shift': {
             'id': schedule.shift.id,
-            'type': schedule.shift.shift_type.value,
-            'start_time': schedule.shift.start_time.strftime('%H:%M'),
-            'end_time': schedule.shift.end_time.strftime('%H:%M')
+            'start_time': schedule.shift.start_time,
+            'end_time': schedule.shift.end_time
         },
-        'break_start': schedule.break_start.strftime('%H:%M') if schedule.break_start else None,
-        'break_end': schedule.break_end.strftime('%H:%M') if schedule.break_end else None
+        'break_start': schedule.break_start,
+        'break_end': schedule.break_end
     } for schedule in schedules]), HTTPStatus.OK
 
 @bp.route('/generate', methods=['POST'])
@@ -111,7 +110,7 @@ def _generate_day_schedule(
     current_date: date,
     employees: List[Employee],
     shifts: List[Shift],
-    store_config: StoreConfig
+    store_config: Settings
 ) -> List[Schedule]:
     """Generate schedule for a single day"""
     day_schedules = []
@@ -143,8 +142,13 @@ def _generate_day_schedule(
             if not available_employees:
                 break
                 
-            # Prioritize keyholders for early and late shifts
-            if shift.shift_type in [ShiftType.EARLY, ShiftType.LATE]:
+            # Prioritize keyholders for opening and closing shifts
+            start_hour = int(shift.start_time.split(':')[0])
+            end_hour = int(shift.end_time.split(':')[0])
+            is_opening = start_hour <= 9  # Opening shifts start at or before 9 AM
+            is_closing = end_hour >= 18   # Closing shifts end at or after 6 PM
+            
+            if is_opening or is_closing:
                 keyholder = next(
                     (emp for emp in available_employees if emp.is_keyholder),
                     None
@@ -164,13 +168,17 @@ def _generate_day_schedule(
             )
             
             # Add break if shift is long enough
-            if shift.requires_break():
-                mid_point = (
-                    datetime.combine(date.today(), shift.start_time) +
-                    (datetime.combine(date.today(), shift.end_time) -
-                     datetime.combine(date.today(), shift.start_time)) / 2
-                ).time()
-                schedule.set_break(mid_point, store_config.break_duration_minutes)
+            if shift.requires_break:
+                # Calculate break time (middle of shift)
+                start_hour, start_min = map(int, shift.start_time.split(':'))
+                end_hour, end_min = map(int, shift.end_time.split(':'))
+                total_minutes = (end_hour * 60 + end_min) - (start_hour * 60 + start_min)
+                mid_point_minutes = total_minutes // 2
+                break_hour = start_hour + (start_min + mid_point_minutes) // 60
+                break_minute = (start_min + mid_point_minutes) % 60
+                
+                schedule.break_start = f"{break_hour:02d}:{break_minute:02d}"
+                schedule.break_end = f"{(break_hour + 1):02d}:{break_minute:02d}"  # 1-hour break
                 
             day_schedules.append(schedule)
             
@@ -331,3 +339,111 @@ def export_schedule():
             'error': 'Could not export schedule',
             'details': str(e)
         }), HTTPStatus.INTERNAL_SERVER_ERROR 
+
+def test_schedule_generation(client, app):
+    """Test schedule generation"""
+    # Create test data
+    with app.app_context():
+        # Create store config
+        store_config = Settings(
+            store_opening="08:00",
+            store_closing="20:00",
+            break_duration_minutes=60
+        )
+        db.session.add(store_config)
+        
+        # Create shifts
+        opening_shift = Shift(
+            start_time="08:00",
+            end_time="16:00",
+            min_employees=2,
+            max_employees=3,
+            duration_hours=8,
+            requires_break=True,
+            active_days=[0, 1, 2, 3, 4, 5]  # Mon-Sat
+        )
+        
+        middle_shift = Shift(
+            start_time="10:00",
+            end_time="18:00",
+            min_employees=2,
+            max_employees=4,
+            duration_hours=8,
+            requires_break=True,
+            active_days=[0, 1, 2, 3, 4, 5]  # Mon-Sat
+        )
+        
+        closing_shift = Shift(
+            start_time="12:00",
+            end_time="20:00",
+            min_employees=2,
+            max_employees=3,
+            duration_hours=8,
+            requires_break=True,
+            active_days=[0, 1, 2, 3, 4, 5]  # Mon-Sat
+        )
+        
+        db.session.add_all([opening_shift, middle_shift, closing_shift])
+        
+        # Create employees
+        keyholder1 = Employee(
+            name="Key Holder 1",
+            group=EmployeeGroup.VL,
+            is_keyholder=True,
+            max_hours_per_week=40
+        )
+        
+        keyholder2 = Employee(
+            name="Key Holder 2",
+            group=EmployeeGroup.VL,
+            is_keyholder=True,
+            max_hours_per_week=40
+        )
+        
+        employee1 = Employee(
+            name="Employee 1",
+            group=EmployeeGroup.TZ,
+            is_keyholder=False,
+            max_hours_per_week=30
+        )
+        
+        employee2 = Employee(
+            name="Employee 2",
+            group=EmployeeGroup.TZ,
+            is_keyholder=False,
+            max_hours_per_week=30
+        )
+        
+        db.session.add_all([keyholder1, keyholder2, employee1, employee2])
+        db.session.commit()
+        
+        # Test schedule generation
+        response = client.post('/api/schedules/generate', json={
+            'start_date': '2024-01-01',  # Monday
+            'end_date': '2024-01-07'     # Sunday
+        })
+        
+        assert response.status_code == 200
+        schedules = response.json['schedules']
+        
+        # Verify schedules
+        for schedule in schedules:
+            shift = next(s for s in [opening_shift, middle_shift, closing_shift] 
+                        if s.id == schedule['shift_id'])
+            employee = next(e for e in [keyholder1, keyholder2, employee1, employee2] 
+                          if e.id == schedule['employee_id'])
+            
+            # Check opening/closing shift assignments
+            if shift.start_time <= "09:00":  # Opening shift
+                assert employee.is_keyholder
+            elif shift.end_time >= "18:00":  # Closing shift
+                assert employee.is_keyholder
+                
+            # Check break assignments for long shifts
+            if shift.requires_break:
+                assert 'break_start' in schedule
+                assert 'break_end' in schedule
+                
+            # Check shift hours against store hours
+            assert shift.start_time >= store_config.store_opening
+            assert shift.end_time <= store_config.store_closing 
