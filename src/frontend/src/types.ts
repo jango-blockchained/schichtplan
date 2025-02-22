@@ -40,22 +40,44 @@ export interface Shift {
 }
 
 // Schedule related types
+export interface DateRange {
+    from: Date | undefined;
+    to: Date | undefined;
+}
+
 export interface Schedule {
     id: number;
     employee_id: number;
+    employee_name: string;
     shift_id: number;
+    shift_start: string;
+    shift_end: string;
     date: string;
+    version: number;
     break_start?: string;
     break_end?: string;
-    version?: number;
+    notes?: string;
+}
+
+export interface ScheduleError {
+    type: 'critical' | 'error' | 'warning';
+    message: string;
+    date?: string;
+    shift?: string;
 }
 
 export interface ScheduleResponse {
     schedules: Schedule[];
     versions: number[];
+    errors?: ScheduleError[];
+    total_shifts: number;
+    warnings: string[];
 }
 
 export interface ScheduleUpdate {
+    employee_id?: number;
+    shift_id?: number;
+    date?: string;
     break_start?: string;
     break_end?: string;
     notes?: string;
@@ -132,7 +154,8 @@ export interface Settings {
         theme: string;
         primary_color: string;
         secondary_color: string;
-        show_weekends: boolean;
+        show_sunday: boolean;  // Show Sunday even if not an opening day
+        show_weekdays: boolean;  // Show weekdays even if not opening days
         start_of_week: number;
     };
     notifications: {
@@ -172,4 +195,21 @@ export interface Settings {
         employee_types: BaseEmployeeType[];
         absence_types: BaseAbsenceType[];
     };
+}
+
+export interface WeeklySchedule {
+    employee_id: number;
+    name: string;
+    position: string;
+    contracted_hours: number;
+    shifts: Array<{
+        day: number;
+        start?: string;
+        end?: string;
+        break?: {
+            start: string;
+            end: string;
+            notes?: string;
+        };
+    }>;
 } 

@@ -76,14 +76,12 @@ src/frontend/.env
 # Backend specific
 src/backend/__pycache__/
 src/backend/*.pyc
-src/backend/instance/
 src/backend/venv/
 src/backend/.env
 
 # Database
 *.db
-*.sqlite3
-*.sqlite
+*.db-journal
 
 # Backup files
 backup/

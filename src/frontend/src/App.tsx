@@ -9,6 +9,8 @@ import SettingsPage from './pages/SettingsPage';
 import { Toaster } from '@/components/ui/toaster';
 import PDFSettings from '@/pages/PDFSettings';
 import { ThemeProvider } from '@/providers/ThemeProvider';
+import FormularsPage from './pages/FormularsPage';
+import LogsPage from './pages/LogsPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,6 +32,8 @@ const App: React.FC = () => {
               <Route path="shifts" element={<ShiftsPage />} />
               <Route path="employees" element={<EmployeesPage />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="formulars" element={<FormularsPage />} />
+              <Route path="logs" element={<LogsPage />} />
             </Route>
             <Route path="/pdf-settings" element={<PDFSettings />} />
           </Routes>

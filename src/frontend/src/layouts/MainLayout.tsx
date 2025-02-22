@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link as RouterLink, useLocation, Outlet } from 'react-router-dom';
-import { Menu, LayoutDashboard, Users, Settings, FileText } from 'lucide-react';
+import { Menu, LayoutDashboard, Users, Settings, FileText, List } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
@@ -13,6 +13,8 @@ const navItems = [
   { label: 'Schichtplan', path: '/', icon: LayoutDashboard },
   { label: 'Mitarbeiter', path: '/employees', icon: Users },
   { label: 'Schichten', path: '/shifts', icon: FileText },
+  { label: 'Formulars', path: '/formulars', icon: FileText },
+  { label: 'Logs', path: '/logs', icon: List },
   { label: 'Einstellungen', path: '/settings', icon: Settings },
 ];
 

@@ -15,12 +15,14 @@ import {
 interface DateRangePickerProps {
     dateRange: DateRange | undefined
     onChange?: (range: DateRange | undefined) => void
+    selectWeek?: boolean
     className?: string
 }
 
 export function DateRangePicker({
     dateRange,
     onChange,
+    selectWeek,
     className,
 }: DateRangePickerProps) {
     return (

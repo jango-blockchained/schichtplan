@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShiftTable } from '@/components/ShiftTable';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { useScheduleData } from '@/hooks/useScheduleData';
@@ -21,6 +21,7 @@ import { HTML5Backend } from 'react-dnd-html5-backend';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScheduleTable } from '@/components/ScheduleTable';
 import { ScheduleError } from '@/types';
+import { cn } from '@/lib/utils';
 
 export function SchedulePage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -32,6 +33,12 @@ export function SchedulePage() {
   const [isLayoutCustomizerOpen, setIsLayoutCustomizerOpen] = useState(false);
   const { config: pdfConfig, updateConfig } = usePDFConfig();
   const { toast } = useToast();
+  const [generationLogs, setGenerationLogs] = useState<{
+    timestamp: Date;
+    type: 'info' | 'warning' | 'error';
+    message: string;
+    details?: string;
+  }[]>([]);
 
   const {
     scheduleData,
@@ -46,15 +53,49 @@ export function SchedulePage() {
     selectedVersion
   );
 
+  const addGenerationLog = (type: 'info' | 'warning' | 'error', message: string, details?: string) => {
+    setGenerationLogs(prev => [...prev, {
+      timestamp: new Date(),
+      type,
+      message,
+      details
+    }]);
+  };
+
+  const clearGenerationLogs = () => {
+    setGenerationLogs([]);
+  };
+
   const generateMutation = useMutation({
     mutationFn: async () => {
       if (!dateRange?.from || !dateRange?.to) {
         throw new Error("Bitte wählen Sie einen Zeitraum aus");
       }
-      return generateSchedule(
+
+      addGenerationLog('info', 'Starting schedule generation',
+        `Period: ${format(dateRange.from, 'dd.MM.yyyy')} to ${format(dateRange.to, 'dd.MM.yyyy')}`);
+
+      const result = await generateSchedule(
         dateRange.from.toISOString().split('T')[0],
         dateRange.to.toISOString().split('T')[0]
       );
+
+      if (result.errors && result.errors.length > 0) {
+        result.errors.forEach(error => {
+          const logType = error.type === 'critical' ? 'error' : error.type === 'warning' ? 'warning' : 'info';
+          const details = [
+            error.date && `Date: ${format(new Date(error.date), 'dd.MM.yyyy')}`,
+            error.shift && `Shift: ${error.shift}`
+          ].filter(Boolean).join(' | ');
+
+          addGenerationLog(logType, error.message, details);
+        });
+      }
+
+      addGenerationLog('info', 'Schedule generation completed',
+        `Generated ${result.total_shifts} shifts`);
+
+      return result;
     },
     onSuccess: (data) => {
       refetch();
@@ -64,6 +105,9 @@ export function SchedulePage() {
       });
     },
     onError: (error) => {
+      addGenerationLog('error', 'Schedule generation failed',
+        error instanceof Error ? error.message : "Unknown error");
+
       toast({
         title: "Fehler bei der Generierung",
         description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
@@ -77,11 +121,13 @@ export function SchedulePage() {
       if (!dateRange?.from || !dateRange?.to) {
         throw new Error("Bitte wählen Sie einen Zeitraum aus");
       }
+      addGenerationLog('info', 'Starting PDF export');
       const response = await exportSchedule(
         dateRange.from.toISOString().split('T')[0],
         dateRange.to.toISOString().split('T')[0],
         pdfConfig
       );
+      addGenerationLog('info', 'PDF export completed');
       const blob = new Blob([response], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -93,6 +139,8 @@ export function SchedulePage() {
       document.body.removeChild(a);
     },
     onError: (error) => {
+      addGenerationLog('error', 'PDF export failed',
+        error instanceof Error ? error.message : "Unknown error");
       toast({
         title: "Fehler beim Export",
         description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
@@ -159,11 +207,13 @@ export function SchedulePage() {
     await updateBreakNotesMutation.mutateAsync({ employeeId, day, notes });
   };
 
-  const handleWeekChange = (weekStart: Date) => {
-    setDateRange({
-      from: weekStart,
-      to: addDays(weekStart, (weeksAmount * 7) - 1)
-    });
+  const handleWeekChange = (range: DateRange | undefined) => {
+    if (range?.from) {
+      setDateRange({
+        from: range.from,
+        to: addDays(range.from, (weeksAmount * 7) - 1)
+      });
+    }
   };
 
   const handleWeeksAmountChange = (amount: string) => {
@@ -179,20 +229,30 @@ export function SchedulePage() {
 
   const handleDrop = async (scheduleId: number, newEmployeeId: number, newDate: Date, newShiftId: number) => {
     try {
+      addGenerationLog('info', 'Attempting to move schedule',
+        `Schedule ID: ${scheduleId}, Employee ID: ${newEmployeeId}, Date: ${format(newDate, 'dd.MM.yyyy')}, Shift ID: ${newShiftId}`);
+
       await updateSchedule(scheduleId, {
         employee_id: newEmployeeId,
         date: format(newDate, 'yyyy-MM-dd'),
         shift_id: newShiftId
       });
+
+      addGenerationLog('info', 'Successfully moved schedule',
+        `Schedule ID: ${scheduleId}`);
       refetch();
       toast({
         title: "Erfolg",
         description: "Schicht wurde erfolgreich verschoben",
       });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten";
+      addGenerationLog('error', 'Failed to move schedule',
+        errorMessage);
+
       toast({
         title: "Fehler beim Verschieben",
-        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -379,7 +439,11 @@ export function SchedulePage() {
             <CardContent>
               <div className="space-y-2">
                 {errors.map((error, index) => (
-                  <Alert key={index} variant={error.type === 'critical' ? 'destructive' : 'warning'}>
+                  <Alert
+                    key={index}
+                    variant={error.type === 'critical' ? 'destructive' : 'default'}
+                  >
+                    <AlertCircle className="h-4 w-4" />
                     <AlertTitle>
                       {error.type === 'critical' ? 'Kritischer Fehler' : 'Warnung'}
                       {error.date && ` - ${format(new Date(error.date), 'dd.MM.yyyy')}`}
@@ -400,6 +464,45 @@ export function SchedulePage() {
             onDrop={handleDrop}
             isLoading={isLoading}
           />
+        )}
+
+        {/* Generation Logs */}
+        {generationLogs.length > 0 && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Generierungsverlauf</CardTitle>
+              <Button variant="outline" size="sm" onClick={clearGenerationLogs}>
+                Verlauf löschen
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {generationLogs.map((log, index) => (
+                  <div
+                    key={index}
+                    className={cn(
+                      "p-3 rounded text-sm",
+                      log.type === 'error' && "bg-destructive/10 text-destructive",
+                      log.type === 'warning' && "bg-warning/10 text-warning",
+                      log.type === 'info' && "bg-muted"
+                    )}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="font-medium">{log.message}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {format(log.timestamp, 'HH:mm:ss')}
+                      </div>
+                    </div>
+                    {log.details && (
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {log.details}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         <Dialog open={isLayoutCustomizerOpen} onOpenChange={setIsLayoutCustomizerOpen}>

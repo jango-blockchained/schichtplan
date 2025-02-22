@@ -19,11 +19,26 @@ from routes.availability import availability
 from routes.absences import bp as absences_bp
 
 def create_app():
-    app = Flask(__name__)
-    CORS(app)
+    app = Flask(__name__, instance_relative_config=True)
+    
+    # Ensure the instance folder exists
+    try:
+        os.makedirs(app.instance_path)
+    except OSError:
+        pass
+        
+    CORS(app, 
+         resources={r"/api/*": {
+             "origins": ["http://localhost:5173"],
+             "allow_credentials": True,
+             "allow_headers": ["Content-Type", "Authorization"],
+             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+         }})
     
     # Configure SQLAlchemy
-    db_path = os.path.join(current_dir, 'instance', 'schichtplan.db')
+    # We use Flask's instance folder (src/backend/instance) for the database
+    # This follows Flask's best practices for instance-specific files
+    db_path = os.path.join(app.instance_path, 'schichtplan.db')
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
