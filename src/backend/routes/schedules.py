@@ -4,6 +4,10 @@ from models import db, Schedule, Employee, Shift
 from services.schedule_generator import ScheduleGenerator, ScheduleGenerationError
 from services.pdf_generator import PDFGenerator
 from http import HTTPStatus
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 schedules = Blueprint('schedules', __name__)
 
@@ -54,24 +58,41 @@ def get_schedules():
 @schedules.route('/api/schedules/generate/', methods=['POST'])
 def generate_schedule():
     """Generate a schedule for a date range"""
+    logger.info("Schedule generation request received")
     try:
         data = request.get_json()
         start_date = datetime.strptime(data['start_date'], '%Y-%m-%d').date()
         end_date = datetime.strptime(data['end_date'], '%Y-%m-%d').date()
         
+        logger.info(f"Generating schedule for period: {start_date} to {end_date}")
+        
         # Get the latest version for this date range
         latest_version = Schedule.get_latest_version(start_date, end_date)
         next_version = latest_version + 1
+        logger.debug(f"Creating schedule version {next_version}")
         
         generator = ScheduleGenerator()
+        logger.info("Starting schedule generation")
         schedules, errors = generator.generate_schedule(start_date, end_date)
         
         # Set version for all new schedules
+        logger.debug(f"Setting version {next_version} for {len(schedules)} schedules")
         for schedule in schedules:
             schedule.version = next_version
             db.session.add(schedule)
             
         db.session.commit()
+        logger.info(f"Schedule generation completed successfully. Created {len(schedules)} schedules")
+        
+        if errors:
+            logger.warning(f"Schedule generated with {len(errors)} warnings/errors")
+            for error in errors:
+                if error['type'] == 'critical':
+                    logger.error(f"Critical error: {error['message']}")
+                elif error['type'] == 'warning':
+                    logger.warning(f"Warning for {error.get('date', 'unknown date')}: {error['message']}")
+                else:
+                    logger.info(f"Note for {error.get('date', 'unknown date')}: {error['message']}")
         
         return jsonify({
             'schedules': [schedule.to_dict() for schedule in schedules],
@@ -81,11 +102,17 @@ def generate_schedule():
         }), HTTPStatus.CREATED
         
     except KeyError as e:
-        return jsonify({'error': f'Missing required field: {str(e)}'}), HTTPStatus.BAD_REQUEST
+        error_msg = f'Missing required field: {str(e)}'
+        logger.error(error_msg)
+        return jsonify({'error': error_msg}), HTTPStatus.BAD_REQUEST
     except ValueError as e:
-        return jsonify({'error': str(e)}), HTTPStatus.BAD_REQUEST
+        error_msg = str(e)
+        logger.error(f"Value error during schedule generation: {error_msg}")
+        return jsonify({'error': error_msg}), HTTPStatus.BAD_REQUEST
     except Exception as e:
-        return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+        error_msg = str(e)
+        logger.error(f"Unexpected error during schedule generation: {error_msg}")
+        return jsonify({'error': error_msg}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 @schedules.route('/api/schedules/pdf', methods=['GET'])
 def get_schedule_pdf():
@@ -164,4 +191,35 @@ def delete_schedule(schedule_id):
         
     except Exception as e:
         db.session.rollback()
+        return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+@schedules.route('/api/schedules/export', methods=['POST'])
+@schedules.route('/api/schedules/export/', methods=['POST'])
+def export_schedule():
+    """Export schedule as PDF"""
+    try:
+        data = request.get_json()
+        start_date = datetime.strptime(data['start_date'], '%Y-%m-%d')
+        end_date = datetime.strptime(data['end_date'], '%Y-%m-%d')
+        
+        # Get schedules for the date range
+        schedules = Schedule.query.filter(
+            Schedule.date >= start_date.date(),
+            Schedule.date <= end_date.date()
+        ).all()
+        
+        # Generate PDF
+        generator = PDFGenerator()
+        pdf_buffer = generator.generate_schedule_pdf(schedules, start_date, end_date)
+        
+        return send_file(
+            pdf_buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f'schedule_{start_date.strftime("%Y%m%d")}_{end_date.strftime("%Y%m%d")}.pdf'
+        )
+        
+    except (KeyError, ValueError) as e:
+        return jsonify({'error': f'Invalid input: {str(e)}'}), HTTPStatus.BAD_REQUEST
+    except Exception as e:
         return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR 

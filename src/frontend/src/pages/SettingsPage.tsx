@@ -651,18 +651,36 @@ export default function SettingsPage() {
 
                   <div className="flex items-center space-x-2">
                     <Switch
-                      id="showWeekends"
-                      checked={localSettings?.display.show_weekends ?? false}
+                      id="showSunday"
+                      checked={localSettings?.display.show_sunday ?? false}
                       onCheckedChange={(checked) => {
-                        handleSave("display", { show_weekends: checked });
+                        handleSave("display", { show_sunday: checked });
                         handleImmediateUpdate();
                       }}
                     />
-                    <Label htmlFor="showWeekends">Show Weekends</Label>
+                    <Label htmlFor="showSunday">Sonntag anzeigen</Label>
+                    <div className="text-xs text-muted-foreground ml-2">
+                      (Sonntag wird angezeigt, auch wenn er nicht als Öffnungstag markiert ist)
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="showWeekdays"
+                      checked={localSettings?.display.show_weekdays ?? false}
+                      onCheckedChange={(checked) => {
+                        handleSave("display", { show_weekdays: checked });
+                        handleImmediateUpdate();
+                      }}
+                    />
+                    <Label htmlFor="showWeekdays">Geschlossene Wochentage anzeigen</Label>
+                    <div className="text-xs text-muted-foreground ml-2">
+                      (Wochentage werden angezeigt, auch wenn sie nicht als Öffnungstage markiert sind)
+                    </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="startOfWeek">Start of Week</Label>
+                    <Label htmlFor="startOfWeek">Wochenbeginn</Label>
                     <Select
                       value={localSettings?.display.start_of_week?.toString() ?? ''}
                       onValueChange={(value) => {
@@ -674,8 +692,8 @@ export default function SettingsPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="0">Sunday</SelectItem>
-                        <SelectItem value="1">Monday</SelectItem>
+                        <SelectItem value="0">Sonntag</SelectItem>
+                        <SelectItem value="1">Montag</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

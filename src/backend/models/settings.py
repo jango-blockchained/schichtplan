@@ -64,7 +64,8 @@ class Settings(db.Model):
     dark_theme_background_color = Column(String(7), nullable=False, default='#121212')  # Dark Gray
     dark_theme_surface_color = Column(String(7), nullable=False, default='#1E1E1E')  # Slightly lighter Dark Gray
     dark_theme_text_color = Column(String(7), nullable=False, default='#FFFFFF')  # White
-    show_weekends = Column(Boolean, nullable=False, default=True)
+    show_sunday = Column(Boolean, nullable=False, default=False)  # Show Sunday even if not an opening day
+    show_weekdays = Column(Boolean, nullable=False, default=False)  # Show weekdays even if not opening days
     start_of_week = Column(Integer, nullable=False, default=1)  # 1 = Monday
     
     # Notification Settings
@@ -174,7 +175,8 @@ class Settings(db.Model):
                     'surface_color': self.dark_theme_surface_color,
                     'text_color': self.dark_theme_text_color
                 },
-                'show_weekends': self.show_weekends,
+                'show_sunday': self.show_sunday,
+                'show_weekdays': self.show_weekdays,
                 'start_of_week': self.start_of_week
             },
             'notifications': {
@@ -251,7 +253,8 @@ class Settings(db.Model):
         settings.dark_theme_background_color = '#121212'  # Dark Gray
         settings.dark_theme_surface_color = '#1E1E1E'  # Slightly lighter Dark Gray
         settings.dark_theme_text_color = '#FFFFFF'  # White
-        settings.show_weekends = True
+        settings.show_sunday = False
+        settings.show_weekdays = False
         settings.start_of_week = 1
         
         # Notification Settings
@@ -312,7 +315,17 @@ class Settings(db.Model):
                         setattr(self, key, value)
             elif category == 'display':
                 for key, value in values.items():
-                    if hasattr(self, key):
+                    if key == 'dark_theme':
+                        # Handle nested dark theme settings
+                        for theme_key, theme_value in value.items():
+                            attr_name = f"dark_theme_{theme_key}"
+                            if hasattr(self, attr_name):
+                                setattr(self, attr_name, theme_value)
+                    elif key == 'show_sunday':
+                        self.show_sunday = bool(value)
+                    elif key == 'show_weekdays':
+                        self.show_weekdays = bool(value)
+                    elif hasattr(self, key):
                         setattr(self, key, value)
             elif category == 'notifications':
                 for key, value in values.items():

@@ -1,18 +1,26 @@
 import { useMemo } from 'react';
-import { format, addDays, parseISO } from 'date-fns';
+import { format, addDays, parseISO, startOfWeek } from 'date-fns';
 import { useDrag, useDrop } from 'react-dnd';
 import { Schedule } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { DateRange } from 'react-day-picker';
+import { useQuery } from '@tanstack/react-query';
+import { getSettings } from '@/services/api';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 
 interface ScheduleTableProps {
     schedules: Schedule[];
-    dateRange: {
-        from: Date;
-        to: Date;
-    } | undefined;
+    dateRange: DateRange | undefined;
     onDrop: (scheduleId: number, newEmployeeId: number, newDate: Date, newShiftId: number) => Promise<void>;
     isLoading: boolean;
 }
@@ -60,7 +68,15 @@ const ScheduleCell = ({ schedule, onDrop }: {
         }),
     }), [schedule, onDrop]);
 
-    if (!schedule) return null;
+    if (!schedule) {
+        return (
+            <div className="h-full min-h-[100px] border border-dashed border-muted-foreground/20 rounded-md p-2">
+                <div className="text-xs text-muted-foreground text-center">
+                    Keine Schicht
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div
@@ -68,19 +84,16 @@ const ScheduleCell = ({ schedule, onDrop }: {
                 drag(drop(node));
             }}
             className={cn(
-                'p-2 rounded border transition-all duration-200 group',
+                'p-2 rounded border transition-all duration-200 group min-h-[100px]',
                 isDragging && 'opacity-50 bg-primary/10',
                 isOver && 'ring-2 ring-primary/50',
                 'cursor-move hover:bg-primary/5'
             )}
         >
             <div className="flex flex-col space-y-1">
-                <div className="flex justify-between items-center">
-                    <span className="font-semibold text-sm">{schedule.employee_name}</span>
-                    <Badge variant="secondary" className="text-xs">
-                        {schedule.shift_start} - {schedule.shift_end}
-                    </Badge>
-                </div>
+                <Badge variant="secondary" className="text-xs w-fit">
+                    {schedule.shift_start} - {schedule.shift_end}
+                </Badge>
                 {schedule.break_start && schedule.break_end && (
                     <div className="text-xs text-muted-foreground">
                         Pause: {schedule.break_start} - {schedule.break_end}
@@ -97,27 +110,89 @@ const ScheduleCell = ({ schedule, onDrop }: {
 };
 
 export function ScheduleTable({ schedules, dateRange, onDrop, isLoading }: ScheduleTableProps) {
+    // Fetch settings
+    const { data: settings } = useQuery({
+        queryKey: ['settings'],
+        queryFn: getSettings,
+    });
+
     const days = useMemo(() => {
-        if (!dateRange?.from) return [];
+        if (!dateRange?.from || !dateRange?.to || !settings) return [];
         const days = [];
         let currentDate = dateRange.from;
+
         while (currentDate <= dateRange.to) {
-            days.push(currentDate);
+            const dayIndex = currentDate.getDay().toString();
+            const isSunday = dayIndex === '0';
+            const isWeekday = dayIndex !== '0';  // Monday-Saturday
+            const isOpeningDay = settings.general.opening_days[dayIndex];
+
+            // Include the day if:
+            // 1. It's marked as an opening day, OR
+            // 2. It's Sunday and show_sunday is true, OR
+            // 3. It's a weekday and show_weekdays is true
+            if (isOpeningDay ||
+                (isSunday && settings.display.show_sunday) ||
+                (isWeekday && settings.display.show_weekdays)) {
+                days.push(currentDate);
+            }
             currentDate = addDays(currentDate, 1);
         }
-        return days;
-    }, [dateRange]);
 
-    const schedulesByDay = useMemo(() => {
-        const byDay: { [key: string]: Schedule[] } = {};
-        schedules.forEach(schedule => {
-            const day = schedule.date;
-            if (!byDay[day]) {
-                byDay[day] = [];
-            }
-            byDay[day].push(schedule);
+        // Sort days based on start_of_week setting
+        return days.sort((a, b) => {
+            // Convert settings.display.start_of_week to 0 | 1 | 2 | 3 | 4 | 5 | 6
+            const weekStart = (settings.display.start_of_week % 7) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
+            const startOfWeekA = startOfWeek(a, { weekStartsOn: weekStart });
+            const startOfWeekB = startOfWeek(b, { weekStartsOn: weekStart });
+            const dayDiffA = a.getTime() - startOfWeekA.getTime();
+            const dayDiffB = b.getTime() - startOfWeekB.getTime();
+            return dayDiffA - dayDiffB;
         });
-        return byDay;
+    }, [dateRange, settings]);
+
+    const employeeGroups = useMemo(() => {
+        const groups = new Map<string, Schedule[]>();
+        const employeeSchedules = new Map<number, Schedule[]>();
+
+        // Group schedules by employee
+        schedules.forEach(schedule => {
+            if (!employeeSchedules.has(schedule.employee_id)) {
+                employeeSchedules.set(schedule.employee_id, []);
+            }
+            employeeSchedules.get(schedule.employee_id)?.push(schedule);
+        });
+
+        // Sort employees by type (VL/TL -> TZ -> GFB)
+        const sortedEmployees = Array.from(employeeSchedules.entries()).sort((a, b) => {
+            const employeeA = a[1][0];
+            const employeeB = b[1][0];
+
+            // Extract employee type from employee_name (assuming format "Name (Type)")
+            const typeA = employeeA.employee_name.match(/\((.*?)\)/)?.[1] || '';
+            const typeB = employeeB.employee_name.match(/\((.*?)\)/)?.[1] || '';
+
+            // Define type priority
+            const typePriority: { [key: string]: number } = {
+                'VL': 0,
+                'TL': 0,
+                'TZ': 1,
+                'GFB': 2
+            };
+
+            return (typePriority[typeA] || 99) - (typePriority[typeB] || 99);
+        });
+
+        // Group by employee type
+        sortedEmployees.forEach(([_, employeeSchedules]) => {
+            const type = employeeSchedules[0].employee_name.match(/\((.*?)\)/)?.[1] || 'Other';
+            if (!groups.has(type)) {
+                groups.set(type, []);
+            }
+            groups.get(type)?.push(...employeeSchedules);
+        });
+
+        return groups;
     }, [schedules]);
 
     if (isLoading) {
@@ -135,31 +210,60 @@ export function ScheduleTable({ schedules, dateRange, onDrop, isLoading }: Sched
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Schichtplan Details</CardTitle>
+                <CardTitle>Schichtplan</CardTitle>
             </CardHeader>
             <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {days.map(day => (
-                        <div key={day.toISOString()} className="border rounded-lg p-4">
-                            <h3 className="text-lg font-semibold mb-3">
-                                {format(day, 'EEEE, dd.MM.yyyy')}
-                            </h3>
-                            <div className="space-y-2">
-                                {schedulesByDay[format(day, 'yyyy-MM-dd')]?.map(schedule => (
-                                    <ScheduleCell
-                                        key={schedule.id}
-                                        schedule={schedule}
-                                        onDrop={onDrop}
-                                    />
+                <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="w-[200px]">Mitarbeiter</TableHead>
+                                {days.map(day => (
+                                    <TableHead key={day.toISOString()} className="min-w-[150px]">
+                                        <div className="font-semibold">
+                                            {format(day, 'EEEE')}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                            {format(day, 'dd.MM.yyyy')}
+                                        </div>
+                                    </TableHead>
                                 ))}
-                                {!schedulesByDay[format(day, 'yyyy-MM-dd')]?.length && (
-                                    <div className="text-sm text-muted-foreground text-center py-4">
-                                        Keine Schichten an diesem Tag
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    ))}
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {Array.from(employeeGroups.entries()).map(([type, groupSchedules]) => {
+                                const uniqueEmployees = new Set(groupSchedules.map(s => s.employee_id));
+                                return Array.from(uniqueEmployees).map(employeeId => {
+                                    const employeeSchedules = groupSchedules.filter(s => s.employee_id === employeeId);
+                                    const employeeName = employeeSchedules[0]?.employee_name.split(' (')[0];
+
+                                    return (
+                                        <TableRow key={employeeId}>
+                                            <TableCell className="font-medium">
+                                                <div>{employeeName}</div>
+                                                <div className="text-xs text-muted-foreground">
+                                                    ({type})
+                                                </div>
+                                            </TableCell>
+                                            {days.map(day => {
+                                                const daySchedule = employeeSchedules.find(
+                                                    s => s.date === format(day, 'yyyy-MM-dd')
+                                                );
+                                                return (
+                                                    <TableCell key={day.toISOString()} className="p-2">
+                                                        <ScheduleCell
+                                                            schedule={daySchedule}
+                                                            onDrop={onDrop}
+                                                        />
+                                                    </TableCell>
+                                                );
+                                            })}
+                                        </TableRow>
+                                    );
+                                });
+                            })}
+                        </TableBody>
+                    </Table>
                 </div>
             </CardContent>
         </Card>

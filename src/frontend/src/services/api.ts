@@ -256,7 +256,7 @@ export const generateSchedule = async (startDate: string, endDate: string): Prom
 
 export const exportSchedule = async (startDate: string, endDate: string, layoutConfig?: any): Promise<Blob> => {
     try {
-        const response = await api.post('/schedules/export/', {
+        const response = await api.post('/schedules/export', {
             start_date: startDate,
             end_date: endDate,
             layout_config: layoutConfig

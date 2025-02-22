@@ -1,0 +1,119 @@
+{
+    "employee_types": [
+        {
+            "id": "full_time",
+            "name": "Vollzeit",
+            "min_hours": 35,
+            "max_hours": 40,
+            "color": "#4CAF50"
+        },
+        {
+            "id": "part_time",
+            "name": "Teilzeit",
+            "min_hours": 15,
+            "max_hours": 34,
+            "color": "#2196F3"
+        },
+        {
+            "id": "mini_job",
+            "name": "Minijob",
+            "min_hours": 0,
+            "max_hours": 14,
+            "color": "#9E9E9E"
+        },
+        {
+            "id": "team_leader",
+            "name": "Teamleiter",
+            "min_hours": 35,
+            "max_hours": 40,
+            "color": "#F44336"
+        }
+    ],
+    "absence_types": [
+        {
+            "id": "vacation",
+            "name": "Urlaub",
+            "color": "#FF9800",
+            "paid": true,
+            "requires_approval": true
+        },
+        {
+            "id": "sick",
+            "name": "Krank",
+            "color": "#F44336",
+            "paid": true,
+            "requires_approval": false
+        },
+        {
+            "id": "unpaid",
+            "name": "Unbezahlt",
+            "color": "#9E9E9E",
+            "paid": false,
+            "requires_approval": true
+        },
+        {
+            "id": "training",
+            "name": "Schulung",
+            "color": "#4CAF50",
+            "paid": true,
+            "requires_approval": true
+        }
+    ],
+    "employees": [
+        {
+            "employee_id": "JD1",
+            "first_name": "John",
+            "last_name": "Doe",
+            "employee_group": "TL",
+            "contracted_hours": 40.0,
+            "is_keyholder": true,
+            "is_active": true,
+            "email": "john.doe@example.com",
+            "phone": "+49123456789"
+        },
+        {
+            "employee_id": "JS1",
+            "first_name": "Jane",
+            "last_name": "Smith",
+            "employee_group": "VL",
+            "contracted_hours": 40.0,
+            "is_keyholder": true,
+            "is_active": true,
+            "email": "jane.smith@example.com",
+            "phone": "+49123456790"
+        },
+        {
+            "employee_id": "BJ1",
+            "first_name": "Bob",
+            "last_name": "Johnson",
+            "employee_group": "TZ",
+            "contracted_hours": 30.0,
+            "is_keyholder": false,
+            "is_active": true,
+            "email": "bob.johnson@example.com",
+            "phone": "+49123456791"
+        },
+        {
+            "employee_id": "AB1",
+            "first_name": "Alice",
+            "last_name": "Brown",
+            "employee_group": "TZ",
+            "contracted_hours": 20.0,
+            "is_keyholder": false,
+            "is_active": true,
+            "email": "alice.brown@example.com",
+            "phone": "+49123456792"
+        },
+        {
+            "employee_id": "CW1",
+            "first_name": "Charlie",
+            "last_name": "Wilson",
+            "employee_group": "GFB",
+            "contracted_hours": 10.0,
+            "is_keyholder": false,
+            "is_active": true,
+            "email": "charlie.wilson@example.com",
+            "phone": "+49123456793"
+        }
+    ]
+}

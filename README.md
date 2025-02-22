@@ -168,4 +168,20 @@ MIT License - see LICENSE file for details.
 2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
 3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
 4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request 
+5. Open a Pull Request
+
+## Database Management
+
+The application uses SQLite as its database, with the following setup:
+
+- Database file location: `src/backend/instance/schichtplan.db`
+- The `instance/` folder is automatically created by Flask
+- Database files are not tracked in version control
+- Database migrations are handled by Flask-Migrate
+
+To initialize the database:
+```bash
+cd src/backend
+flask db upgrade  # Apply all migrations
+python init_db.py  # Initialize with default data
+``` 

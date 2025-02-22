@@ -3,7 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { WeeklySchedule } from '@/services/api';
+import { WeeklySchedule } from '@/types';
 import { format, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
@@ -270,7 +270,7 @@ const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeI
 
 export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShiftUpdate, onBreakNotesUpdate }: ShiftTableProps) => {
   const [localData, setLocalData] = useState(data);
-  const dates = Array.from({ length: 6 }, (_, i) => addDays(weekStart, i));
+  const dates = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)); // Changed to 7 days to include Sunday
 
   const handleDragEnd = useCallback(async (result: DropResult) => {
     if (!result.destination || !onShiftUpdate) return;
@@ -328,6 +328,13 @@ export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShift
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
       <Card className="overflow-x-auto">
+        <div className="p-4 border-b border-border">
+          <h2 className="text-xl font-semibold">Mitarbeiter-Einsatz-Planung (MEP)</h2>
+          <div className="text-sm text-muted-foreground mt-2">
+            <span>Filiale: {/* Add filiale number */}</span>
+            <span className="ml-4">Woche vom: {format(weekStart, 'dd.MM.yy')} bis: {format(weekEnd, 'dd.MM.yy')}</span>
+          </div>
+        </div>
         <Table>
           <TableHeader>
             <TableRow>
@@ -354,8 +361,12 @@ export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShift
                     )}
                   </div>
                 </TableCell>
-                <TableCell className="align-top">{employee.position}</TableCell>
-                <TableCell className="align-top">{employee.contracted_hours}</TableCell>
+                <TableCell className="align-top text-center">
+                  {employee.position}
+                </TableCell>
+                <TableCell className="align-top text-center">
+                  {employee.contracted_hours}:00
+                </TableCell>
                 {dates.map((_, dayIndex) => (
                   <TableCell key={dayIndex} className="align-top p-0">
                     <Droppable droppableId={`drop-${dayIndex}`}>
@@ -401,13 +412,17 @@ export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShift
                     </Droppable>
                   </TableCell>
                 ))}
-                <TableCell className="align-top">{calculateWeeklyHours(employee.shifts)}</TableCell>
-                <TableCell className="align-top">{calculateMonthlyHours(employee.shifts)}</TableCell>
+                <TableCell className="align-top text-center">
+                  {calculateWeeklyHours(employee.shifts)}
+                </TableCell>
+                <TableCell className="align-top text-center">
+                  {calculateMonthlyHours(employee.shifts)}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
-        <div className="p-4 space-y-2 text-sm text-muted-foreground">
+        <div className="p-4 space-y-2 text-sm text-muted-foreground border-t border-border">
           <p>h : 60 Minuten</p>
           <p>
             Anwesenheiten: Arbeitszeitbeginn bis Arbeitszeitende inkl. Pausenzeiten und die Tagesstunden eintragen.
