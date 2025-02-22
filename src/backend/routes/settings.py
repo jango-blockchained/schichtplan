@@ -1,25 +1,43 @@
 from flask import Blueprint, jsonify, request
 from models import db, Settings
 from http import HTTPStatus
+import logging
 
 settings = Blueprint('settings', __name__)
 
 @settings.route('/api/settings', methods=['GET'])
 def get_settings():
     """Get all settings or initialize with defaults if none exist"""
-    settings = Settings.query.first()
-    
-    # If no settings exist, initialize with defaults
-    if not settings:
-        settings = Settings.get_default_settings()
-        db.session.add(settings)
+    try:
+        settings = Settings.query.first()
+        
+        # If no settings exist, initialize with defaults
+        if not settings:
+            settings = Settings.get_default_settings()
+            db.session.add(settings)
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                logging.error(f'Error initializing settings: {str(e)}')
+                return jsonify({'error': f'Error initializing settings: {str(e)}'}), HTTPStatus.INTERNAL_SERVER_ERROR
+        
+        return jsonify(settings.to_dict())
+    except Exception as e:
+        logging.error(f'Unexpected error retrieving settings: {str(e)}')
+        # If there's an unexpected error, try to reset and recreate settings
         try:
+            Settings.query.delete()
             db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            return jsonify({'error': f'Error initializing settings: {str(e)}'}), HTTPStatus.INTERNAL_SERVER_ERROR
-    
-    return jsonify(settings.to_dict())
+            
+            settings = Settings.get_default_settings()
+            db.session.add(settings)
+            db.session.commit()
+            
+            return jsonify(settings.to_dict())
+        except Exception as reset_error:
+            logging.error(f'Error resetting settings: {str(reset_error)}')
+            return jsonify({'error': f'Critical error retrieving settings: {str(reset_error)}'}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 @settings.route('/api/settings', methods=['PUT'])
 def update_settings():
