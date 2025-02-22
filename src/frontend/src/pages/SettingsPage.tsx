@@ -8,7 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ColorPicker } from "@/components/ui/color-picker";
 import { PDFLayoutEditor } from "@/components/PDFLayoutEditor";
 import EmployeeSettingsEditor, { EmployeeType, AbsenceType } from "@/components/EmployeeSettingsEditor";
@@ -467,9 +473,25 @@ export default function SettingsPage() {
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="defaultShiftDuration">
-                      Default Shift Duration (hours)
-                    </Label>
+                    <Label htmlFor="resourceType">Resource Type</Label>
+                    <Select
+                      value={localSettings?.scheduling.scheduling_resource_type}
+                      onValueChange={(value: 'shifts' | 'coverage') =>
+                        handleSave("scheduling", { scheduling_resource_type: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select resource type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="shifts">Shifts</SelectItem>
+                        <SelectItem value="coverage">Coverage</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="defaultShiftDuration">Default Shift Duration (hours)</Label>
                     <Input
                       type="number"
                       id="defaultShiftDuration"

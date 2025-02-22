@@ -15,10 +15,10 @@ class AvailabilityType(str, Enum):
     SICK = "sick"
 
 class EmployeeGroup(str, Enum):
-    VL = "VL"  # Vollzeit
-    TZ = "TZ"  # Teilzeit
-    GFB = "GFB"  # Geringfügig Beschäftigt
-    TL = "TL"  # Team Leader
+    VL = "VL"   # Vollzeit
+    TZ = "TZ"   # Teilzeit
+    GFB = "GFB" # Geringfügig Beschäftigt
+    TL = "TL"   # Team Leader
 
 class Employee(db.Model):
     __tablename__ = 'employees'
@@ -76,7 +76,7 @@ class Employee(db.Model):
         if not 0 <= self.contracted_hours <= 48:  # German labor law maximum
             return False
             
-        if self.employee_group == EmployeeGroup.VL or self.employee_group == EmployeeGroup.TL:
+        if self.employee_group in [EmployeeGroup.VL, EmployeeGroup.TL]:
             # Full-time employees should work between 35 and 48 hours
             return 35 <= self.contracted_hours <= 48
         elif self.employee_group == EmployeeGroup.TZ:

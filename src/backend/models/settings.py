@@ -42,6 +42,7 @@ class Settings(db.Model):
     special_hours = Column(JSON, nullable=False, default=dict)
     
     # Scheduling Settings
+    scheduling_resource_type = Column(String(20), nullable=False, default='shifts')  # 'shifts' or 'coverage'
     default_shift_duration = Column(Float, nullable=False, default=8.0)
     min_break_duration = Column(Integer, nullable=False, default=30)
     max_daily_hours = Column(Float, nullable=False, default=10.0)
@@ -49,6 +50,8 @@ class Settings(db.Model):
     min_rest_between_shifts = Column(Float, nullable=False, default=11.0)
     scheduling_period_weeks = Column(Integer, nullable=False, default=4)
     auto_schedule_preferences = Column(Boolean, nullable=False, default=True)
+    min_employees_per_shift = Column(Integer, nullable=False, default=1)
+    max_employees_per_shift = Column(Integer, nullable=False, default=3)
     
     # Display Settings
     theme = Column(String(20), nullable=False, default='light')
@@ -151,13 +154,16 @@ class Settings(db.Model):
                 'special_hours': self.special_hours
             },
             'scheduling': {
+                'scheduling_resource_type': self.scheduling_resource_type,
                 'default_shift_duration': self.default_shift_duration,
                 'min_break_duration': self.min_break_duration,
                 'max_daily_hours': self.max_daily_hours,
                 'max_weekly_hours': self.max_weekly_hours,
                 'min_rest_between_shifts': self.min_rest_between_shifts,
                 'scheduling_period_weeks': self.scheduling_period_weeks,
-                'auto_schedule_preferences': self.auto_schedule_preferences
+                'auto_schedule_preferences': self.auto_schedule_preferences,
+                'min_employees_per_shift': self.min_employees_per_shift,
+                'max_employees_per_shift': self.max_employees_per_shift
             },
             'display': {
                 'theme': self.theme,
@@ -231,6 +237,7 @@ class Settings(db.Model):
         settings.time_format = '24h'
         
         # Scheduling Settings
+        settings.scheduling_resource_type = 'shifts'
         settings.default_shift_duration = 8.0
         settings.min_break_duration = 30
         settings.max_daily_hours = 10.0
@@ -238,6 +245,8 @@ class Settings(db.Model):
         settings.min_rest_between_shifts = 11.0
         settings.scheduling_period_weeks = 4
         settings.auto_schedule_preferences = True
+        settings.min_employees_per_shift = 1
+        settings.max_employees_per_shift = 3
         
         # Display Settings
         settings.theme = 'light'

@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, StoreConfig
+from models import db, Settings
 from sqlalchemy.exc import IntegrityError
 from http import HTTPStatus
 from datetime import datetime
@@ -10,10 +10,10 @@ bp = Blueprint('store', __name__, url_prefix='/api/store')
 @bp.route('/config/', methods=['GET'])
 def get_config():
     """Get store configuration"""
-    config = StoreConfig.query.first()
+    config = Settings.query.first()
     
     if not config:
-        config = StoreConfig.get_default_config()
+        config = Settings.get_default_config()
         db.session.add(config)
         db.session.commit()
     
@@ -31,9 +31,9 @@ def get_config():
 @bp.route('/config/', methods=['PUT'])
 def update_config():
     """Update store configuration"""
-    config = StoreConfig.query.first()
+    config = Settings.query.first()
     if not config:
-        config = StoreConfig.get_default_config()
+        config = Settings.get_default_config()
         db.session.add(config)
     
     data = request.get_json()
@@ -75,10 +75,10 @@ def reset_config():
     """Reset store configuration to defaults"""
     try:
         # Delete existing config
-        StoreConfig.query.delete()
+        Settings.query.delete()
         
         # Create new default config
-        config = StoreConfig.get_default_config()
+        config = Settings.get_default_config()
         db.session.add(config)
         db.session.commit()
         

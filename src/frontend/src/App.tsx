@@ -11,6 +11,7 @@ import PDFSettings from '@/pages/PDFSettings';
 import { ThemeProvider } from '@/providers/ThemeProvider';
 import FormularsPage from './pages/FormularsPage';
 import LogsPage from './pages/LogsPage';
+import CoveragePage from './pages/CoveragePage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,6 +31,7 @@ const App: React.FC = () => {
             <Route path="/" element={<MainLayout />}>
               <Route index element={<SchedulePage />} />
               <Route path="shifts" element={<ShiftsPage />} />
+              <Route path="coverage" element={<CoveragePage />} />
               <Route path="employees" element={<EmployeesPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="formulars" element={<FormularsPage />} />

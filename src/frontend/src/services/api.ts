@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import type { Settings, Employee, Shift, Schedule, ScheduleResponse, ScheduleUpdate } from '../types';
+import type { Settings, Employee, Schedule, ScheduleResponse, ScheduleUpdate, DailyCoverage } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -36,27 +36,13 @@ api.interceptors.response.use(
 
 // Settings
 export const getSettings = async (): Promise<Settings> => {
-    try {
-        const response = await api.get<Settings>('/settings');
-        return response.data;
-    } catch (error) {
-        if (error instanceof Error) {
-            throw new Error(`Failed to fetch settings: ${error.message}`);
-        }
-        throw error;
-    }
+    const response = await api.get('/settings');
+    return response.data;
 };
 
-export const updateSettings = async (data: Partial<Settings>): Promise<Settings> => {
-    try {
-        const response = await api.put<Settings>('/settings', data);
-        return response.data;
-    } catch (error) {
-        if (error instanceof Error) {
-            throw new Error(`Failed to update settings: ${error.message}`);
-        }
-        throw error;
-    }
+export const updateSettings = async (settings: Partial<Settings>): Promise<Settings> => {
+    const response = await api.put('/settings', settings);
+    return response.data;
 };
 
 export const resetSettings = async (): Promise<Settings> => {
@@ -384,6 +370,42 @@ export const updateSchedule = async (scheduleId: number, update: ScheduleUpdate)
     } catch (error) {
         if (error instanceof Error) {
             throw new Error(`Failed to update schedule: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+// Coverage
+export const getAllCoverage = async (): Promise<DailyCoverage[]> => {
+    try {
+        const response = await api.get<DailyCoverage[]>('/coverage/');
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to fetch coverage: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export const getCoverageByDay = async (dayIndex: number): Promise<DailyCoverage> => {
+    try {
+        const response = await api.get<DailyCoverage>(`/coverage/${dayIndex}`);
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to fetch coverage for day ${dayIndex}: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export const updateCoverage = async (coverage: DailyCoverage[]): Promise<void> => {
+    try {
+        await api.post('/coverage/bulk', coverage);
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to update coverage: ${error.message}`);
         }
         throw error;
     }

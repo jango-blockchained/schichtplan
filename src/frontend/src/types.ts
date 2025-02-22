@@ -142,6 +142,7 @@ export interface Settings {
         };
     };
     scheduling: {
+        scheduling_resource_type: 'shifts' | 'coverage';
         default_shift_duration: number;
         min_break_duration: number;
         max_daily_hours: number;
@@ -212,4 +213,18 @@ export interface WeeklySchedule {
             notes?: string;
         };
     }>;
+}
+
+export interface DailyCoverage {
+    id?: number;
+    dayIndex: number;
+    timeSlots: CoverageTimeSlot[];
+}
+
+export interface CoverageTimeSlot {
+    id?: number;
+    startTime: string;
+    endTime: string;
+    minEmployees: number;
+    maxEmployees: number;
 } 

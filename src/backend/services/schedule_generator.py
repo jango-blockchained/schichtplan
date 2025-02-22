@@ -307,63 +307,76 @@ class ScheduleGenerator:
 
         return shift_start >= store_open and shift_end <= store_close
 
-    def _can_assign_shift(self, employee: Employee, shift: Shift, day: date) -> bool:
-        """Check if an employee can be assigned to a shift on a given day"""
-        # First validate against store hours
-        if not self._validate_shift_against_store_hours(shift, self.settings.store_opening, self.settings.store_closing):
+    def _can_assign_shift(self, employee: Employee, shift: Shift, date: date) -> bool:
+        """Check if an employee can be assigned to a shift on a given date"""
+        # Check if employee is available on this day
+        if not self._is_employee_available(employee, date):
             return False
-            
-        # First check availability
-        if not self._check_availability(employee, day, shift):
+        
+        # Get start and end hours
+        start_hour = int(shift.start_time.split(':')[0])
+        end_hour = int(shift.end_time.split(':')[0])
+        is_opening = start_hour <= 9  # Opening shifts start at or before 9 AM
+        is_closing = end_hour >= 18   # Closing shifts end at or after 6 PM
+        
+        # Check keyholder requirements for opening/closing shifts
+        if (is_opening or is_closing) and not employee.is_keyholder:
             return False
-            
-        # Check if employee is already assigned on this day
-        if Schedule.query.filter(
-            Schedule.employee_id == employee.id,
-            Schedule.date == day
-        ).first():
+        
+        # Check if employee has enough rest time between shifts
+        if not self._has_enough_rest_time(employee, shift, date):
             return False
-            
-        # Check daily and weekly hour limits
-        week_start = day - timedelta(days=day.weekday())
-        if not self._check_daily_hours(employee, day, shift):
+        
+        # Check if employee has not exceeded max shifts per week
+        if self._exceeds_max_shifts(employee, date):
             return False
-        if not self._check_weekly_hours(employee, week_start, shift):
-            return False
-            
-        # Check rest period between shifts
-        if not self._check_rest_period(employee, day, shift):
-            return False
-            
-        # Check consecutive working days
-        if not self._check_consecutive_days(employee, day):
-            return False
-            
-        # Check shift distribution rules
-        if not self._check_shift_distribution(employee, day, shift):
-            return False
-            
-        # Enhanced keyholder constraints
-        if shift.shift_type in [ShiftType.EARLY, ShiftType.LATE]:
-            # If this is an early/late shift and employee is not a keyholder,
-            # only allow assignment if we already have a keyholder assigned
-            if not employee.is_keyholder:
-                current_schedules = [s for s in self.generated_schedules if s.date == day]
-                if not self._check_keyholder_coverage(shift, day, current_schedules):
-                    return False
-            # For keyholders, check next day early shift constraint
-            elif shift.shift_type == ShiftType.LATE:
-                next_day = day + timedelta(days=1)
-                next_day_schedule = Schedule.query.filter(
-                    Schedule.employee_id == employee.id,
-                    Schedule.date == next_day,
-                    Schedule.shift.has(shift_type=ShiftType.EARLY)
-                ).first()
-                if next_day_schedule:
-                    return False
-                    
+        
         return True
-    
+
+    def _has_enough_rest_time(self, employee: Employee, shift: Shift, date: date) -> bool:
+        """Check if employee has enough rest time between shifts"""
+        # Get previous day's schedule
+        prev_date = date - timedelta(days=1)
+        prev_schedule = Schedule.query.filter_by(
+            employee_id=employee.id,
+            date=prev_date
+        ).first()
+        
+        if prev_schedule:
+            # Check if there's enough rest time between shifts
+            prev_end_hour = int(prev_schedule.shift.end_time.split(':')[0])
+            curr_start_hour = int(shift.start_time.split(':')[0])
+            
+            # Calculate hours between shifts (across days)
+            hours_between = (24 - prev_end_hour) + curr_start_hour
+            
+            # Require at least 11 hours rest between shifts
+            if hours_between < 11:
+                return False
+            
+        return True
+
+    def _exceeds_max_shifts(self, employee: Employee, date: date) -> bool:
+        """Check if employee has exceeded maximum shifts per week"""
+        # Get start of week (Monday)
+        week_start = date - timedelta(days=date.weekday())
+        week_end = week_start + timedelta(days=6)
+        
+        # Count shifts this week
+        week_shifts = Schedule.query.filter(
+            Schedule.employee_id == employee.id,
+            Schedule.date >= week_start,
+            Schedule.date <= week_end
+        ).count()
+        
+        # Maximum 5 shifts per week
+        return week_shifts >= 5
+
+    def _is_employee_available(self, employee: Employee, date: date) -> bool:
+        """Check if employee is available on the given date"""
+        # Check if the employee is available on the given date
+        return self._check_availability(employee, date, None)
+
     def generate(self) -> List[Schedule]:
         """Generate schedule for the given date range"""
         self.generated_schedules = []  # Make generated_schedules an instance variable

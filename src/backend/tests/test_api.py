@@ -1,5 +1,5 @@
 import pytest
-from models import Employee, EmployeeGroup, Shift, ShiftType, StoreConfig, Schedule
+from models import Employee, EmployeeGroup, Shift, ShiftType, Settings, Schedule
 from datetime import datetime, date, time, timedelta
 from tests.conftest import client, app
 
@@ -156,46 +156,118 @@ def test_update_store_config(client, session):
     assert response.json['opening_time'] == '08:00'
     assert response.json['closing_time'] == '20:00'
 
-def test_generate_schedule(client, session):
+def test_schedule_generation(client, app):
     """Test schedule generation"""
     # Create test data
-    employee = Employee(
-        first_name="Test",
-        last_name="User",
-        employee_group=EmployeeGroup.VL,
-        contracted_hours=40,
-        is_keyholder=True
-    )
-    session.add(employee)
-    
-    shift = Shift(
-        shift_type=ShiftType.EARLY,
-        start_time=time(9, 0),
-        end_time=time(17, 0),
-        min_employees=1,
-        max_employees=3
-    )
-    session.add(shift)
-    
-    config = StoreConfig.get_default_config()
-    session.add(config)
-    
-    session.commit()
-    
-    # Generate schedule
-    data = {
-        'start_date': date.today().strftime('%Y-%m-%d'),
-        'end_date': date.today().strftime('%Y-%m-%d')
-    }
-    
-    response = client.post('/api/schedules/generate', json=data)
-    assert response.status_code == 201
-    assert 'total_shifts' in response.json
+    with app.app_context():
+        # Create store config
+        store_config = Settings(
+            store_opening="08:00",
+            store_closing="20:00",
+            break_duration_minutes=60
+        )
+        db.session.add(store_config)
+        
+        # Create shifts
+        opening_shift = Shift(
+            start_time="08:00",
+            end_time="16:00",
+            min_employees=2,
+            max_employees=3,
+            duration_hours=8,
+            requires_break=True,
+            active_days=[0, 1, 2, 3, 4, 5]  # Mon-Sat
+        )
+        
+        middle_shift = Shift(
+            start_time="10:00",
+            end_time="18:00",
+            min_employees=2,
+            max_employees=4,
+            duration_hours=8,
+            requires_break=True,
+            active_days=[0, 1, 2, 3, 4, 5]  # Mon-Sat
+        )
+        
+        closing_shift = Shift(
+            start_time="12:00",
+            end_time="20:00",
+            min_employees=2,
+            max_employees=3,
+            duration_hours=8,
+            requires_break=True,
+            active_days=[0, 1, 2, 3, 4, 5]  # Mon-Sat
+        )
+        
+        db.session.add_all([opening_shift, middle_shift, closing_shift])
+        
+        # Create employees
+        keyholder1 = Employee(
+            name="Key Holder 1",
+            group=EmployeeGroup.VL,
+            is_keyholder=True,
+            max_hours_per_week=40
+        )
+        
+        keyholder2 = Employee(
+            name="Key Holder 2",
+            group=EmployeeGroup.VL,
+            is_keyholder=True,
+            max_hours_per_week=40
+        )
+        
+        employee1 = Employee(
+            name="Employee 1",
+            group=EmployeeGroup.TZ,
+            is_keyholder=False,
+            max_hours_per_week=30
+        )
+        
+        employee2 = Employee(
+            name="Employee 2",
+            group=EmployeeGroup.TZ,
+            is_keyholder=False,
+            max_hours_per_week=30
+        )
+        
+        db.session.add_all([keyholder1, keyholder2, employee1, employee2])
+        db.session.commit()
+        
+        # Test schedule generation
+        response = client.post('/api/schedules/generate', json={
+            'start_date': '2024-01-01',  # Monday
+            'end_date': '2024-01-07'     # Sunday
+        })
+        
+        assert response.status_code == 200
+        schedules = response.json['schedules']
+        
+        # Verify schedules
+        for schedule in schedules:
+            shift = next(s for s in [opening_shift, middle_shift, closing_shift] 
+                        if s.id == schedule['shift_id'])
+            employee = next(e for e in [keyholder1, keyholder2, employee1, employee2] 
+                          if e.id == schedule['employee_id'])
+            
+            # Check opening/closing shift assignments
+            if shift.start_time <= "09:00":  # Opening shift
+                assert employee.is_keyholder
+            elif shift.end_time >= "18:00":  # Closing shift
+                assert employee.is_keyholder
+                
+            # Check break assignments for long shifts
+            if shift.requires_break:
+                assert 'break_start' in schedule
+                assert 'break_end' in schedule
+                
+            # Check shift hours against store hours
+            assert shift.start_time >= store_config.store_opening
+            assert shift.end_time <= store_config.store_closing
 
 def test_get_schedule(client, session):
     """Test getting generated schedule"""
     # First generate a schedule
-    test_generate_schedule(client, session)
+    test_schedule_generation(client, session)
     
     # Get the schedule
     response = client.get('/api/schedules/')
@@ -205,7 +277,7 @@ def test_get_schedule(client, session):
 def test_export_schedule(client, session):
     """Test schedule export to PDF"""
     # First generate a schedule
-    test_generate_schedule(client, session)
+    test_schedule_generation(client, session)
     
     # Export the schedule
     data = {
@@ -242,7 +314,7 @@ def test_schedule_respects_weekly_limits(client, session):
         shifts.append(shift)
         session.add(shift)
     
-    config = StoreConfig.get_default_config()
+    config = Settings.get_default_config()
     session.add(config)
     
     session.commit()
@@ -291,7 +363,7 @@ def test_keyholder_requirements(client, session):
     )
     session.add(early_shift)
     
-    config = StoreConfig.get_default_config()
+    config = Settings.get_default_config()
     session.add(config)
     
     session.commit()
@@ -361,7 +433,7 @@ def test_late_early_shift_constraint(client, session):
     )
     session.add(early_shift)
     
-    config = StoreConfig.get_default_config()
+    config = Settings.get_default_config()
     session.add(config)
     
     session.commit()
@@ -427,7 +499,7 @@ def test_break_time_requirements(client, session):
     )
     session.add(long_shift)
     
-    config = StoreConfig.get_default_config()
+    config = Settings.get_default_config()
     session.add(config)
     
     session.commit()

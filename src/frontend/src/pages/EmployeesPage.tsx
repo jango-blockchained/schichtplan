@@ -38,9 +38,10 @@ type EmployeeFormData = Omit<Employee, 'id' | 'employee_id'>;
 const initialFormData: EmployeeFormData = {
   first_name: '',
   last_name: '',
-  employee_group: 'VL',
-  contracted_hours: 40,
+  employee_group: '',
+  contracted_hours: 0,
   is_keyholder: false,
+  is_active: true,
   email: '',
   phone: '',
 };
@@ -97,12 +98,18 @@ export const EmployeesPage = () => {
         employee_group: employee.employee_group,
         contracted_hours: employee.contracted_hours,
         is_keyholder: employee.is_keyholder,
+        is_active: employee.is_active,
         email: employee.email || '',
         phone: employee.phone || '',
       });
     } else {
+      const defaultGroup = employeeGroups[0];
       setEditingEmployee(null);
-      setFormData(initialFormData);
+      setFormData({
+        ...initialFormData,
+        employee_group: defaultGroup.id,
+        contracted_hours: defaultGroup.minHours,
+      });
     }
     setIsDialogOpen(true);
   };
@@ -147,6 +154,22 @@ export const EmployeesPage = () => {
     return hours;
   };
 
+  if (error) {
+    return (
+      <div className="rounded-md bg-destructive/15 p-4 text-destructive">
+        Fehler beim Laden der Mitarbeiter
+      </div>
+    );
+  }
+
+  if (isLoading || !employeeGroups.length) {
+    return (
+      <div className="flex justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
       <div className="mb-6 flex justify-between items-center">
@@ -157,78 +180,68 @@ export const EmployeesPage = () => {
         </Button>
       </div>
 
-      {error ? (
-        <div className="rounded-md bg-destructive/15 p-4 text-destructive">
-          Fehler beim Laden der Mitarbeiter
-        </div>
-      ) : isLoading ? (
-        <div className="flex justify-center p-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-      ) : (
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Kürzel</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Gruppe</TableHead>
-                <TableHead>Stunden</TableHead>
-                <TableHead>Schlüssel</TableHead>
-                <TableHead>Aktionen</TableHead>
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Kürzel</TableHead>
+              <TableHead>Name</TableHead>
+              <TableHead>Gruppe</TableHead>
+              <TableHead>Stunden</TableHead>
+              <TableHead>Schlüssel</TableHead>
+              <TableHead>Aktionen</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {employees?.map((employee) => (
+              <TableRow key={employee.id}>
+                <TableCell>{employee.employee_id}</TableCell>
+                <TableCell>{`${employee.first_name} ${employee.last_name}`}</TableCell>
+                <TableCell>{getGroup(employee.employee_group)?.name || employee.employee_group}</TableCell>
+                <TableCell>{employee.contracted_hours}</TableCell>
+                <TableCell>{employee.is_keyholder ? 'Ja' : 'Nein'}</TableCell>
+                <TableCell>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleOpenDialog(employee)}
+                    >
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Bearbeiten
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedEmployeeForAvailability(employee)}
+                    >
+                      <Clock className="mr-2 h-4 w-4" />
+                      Verfügbarkeit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedEmployeeForAbsence(employee)}
+                    >
+                      <Calendar className="mr-2 h-4 w-4" />
+                      Abwesenheit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive"
+                      onClick={() => deleteMutation.mutate(employee.id)}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Löschen
+                    </Button>
+                  </div>
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {employees?.map((employee) => (
-                <TableRow key={employee.id}>
-                  <TableCell>{employee.employee_id}</TableCell>
-                  <TableCell>{`${employee.first_name} ${employee.last_name}`}</TableCell>
-                  <TableCell>{getGroup(employee.employee_group)?.name || employee.employee_group}</TableCell>
-                  <TableCell>{employee.contracted_hours}</TableCell>
-                  <TableCell>{employee.is_keyholder ? 'Ja' : 'Nein'}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleOpenDialog(employee)}
-                      >
-                        <Pencil className="mr-2 h-4 w-4" />
-                        Bearbeiten
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelectedEmployeeForAvailability(employee)}
-                      >
-                        <Clock className="mr-2 h-4 w-4" />
-                        Verfügbarkeit
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelectedEmployeeForAbsence(employee)}
-                      >
-                        <Calendar className="mr-2 h-4 w-4" />
-                        Abwesenheit
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-destructive"
-                        onClick={() => deleteMutation.mutate(employee.id)}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Löschen
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+            ))}
+          </TableBody>
+        </Table>
+      </div>
 
       {/* Employee Edit/Create Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
