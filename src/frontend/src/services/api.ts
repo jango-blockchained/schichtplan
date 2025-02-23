@@ -412,9 +412,17 @@ export const updateCoverage = async (coverage: DailyCoverage[]): Promise<void> =
 };
 
 // Demo Data
-export const generateDemoData = async (module: string): Promise<void> => {
+export const generateDemoData = async (module: string): Promise<void | Settings> => {
     try {
-        await api.post('/demo_data/', { module });
+        const response = await api.post('/demo_data/', { module });
+
+        // If generating settings data, update the settings in the store
+        if (module === 'settings' || module === 'all') {
+            const settings = await getSettings();
+            return settings;
+        }
+
+        return;
     } catch (error) {
         if (error instanceof Error) {
             throw new Error(`Failed to generate demo data: ${error.message}`);

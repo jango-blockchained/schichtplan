@@ -1,21 +1,16 @@
 // Basic types
 export interface TimeSlot {
-    start: string;
-    end: string;
+    day: 'MO' | 'DI' | 'MI' | 'DO' | 'FR' | 'SA';
+    hour: number;
+    available: boolean;
 }
 
 // Employee related types
 export interface Employee {
     id: number;
-    employee_id: string;
-    first_name: string;
-    last_name: string;
-    employee_group: string;
-    contracted_hours: number;
+    name: string;
     is_keyholder: boolean;
-    is_active: boolean;
-    email?: string;
-    phone?: string;
+    contracted_hours: number;
 }
 
 export interface EmployeeType {
@@ -115,87 +110,6 @@ export interface BaseEmployeeType extends BaseGroup {
 
 export interface BaseAbsenceType extends BaseGroup {
     color: string;
-}
-
-export interface Settings {
-    general: {
-        store_name: string;
-        store_address: string;
-        store_contact: string;
-        timezone: string;
-        language: string;
-        date_format: string;
-        time_format: string;
-        store_opening: string;  // Format: "HH:MM"
-        store_closing: string;  // Format: "HH:MM"
-        keyholder_before_minutes: number;  // Time before store opening
-        keyholder_after_minutes: number;   // Time after store closing
-        opening_days: {
-            [key: string]: boolean;  // key: 0-6 (Sunday-Saturday)
-        };
-        special_hours: {
-            [key: string]: {  // key: "YYYY-MM-DD"
-                is_closed: boolean;
-                opening?: string;  // Format: "HH:MM"
-                closing?: string;  // Format: "HH:MM"
-            };
-        };
-    };
-    scheduling: {
-        scheduling_resource_type: 'shifts' | 'coverage';
-        default_shift_duration: number;
-        min_break_duration: number;
-        max_daily_hours: number;
-        max_weekly_hours: number;
-        min_rest_between_shifts: number;
-        scheduling_period_weeks: number;
-        auto_schedule_preferences: boolean;
-    };
-    display: {
-        theme: string;
-        primary_color: string;
-        secondary_color: string;
-        show_sunday: boolean;  // Show Sunday even if not an opening day
-        show_weekdays: boolean;  // Show weekdays even if not opening days
-        start_of_week: number;
-    };
-    notifications: {
-        email_notifications: boolean;
-        schedule_published: boolean;
-        shift_changes: boolean;
-        time_off_requests: boolean;
-    };
-    pdf_layout: {
-        page_size: string;
-        orientation: string;
-        margins: {
-            top: number;
-            right: number;
-            bottom: number;
-            left: number;
-        };
-        table_style: {
-            header_bg_color: string;
-            border_color: string;
-            text_color: string;
-            header_text_color: string;
-        };
-        fonts: {
-            family: string;
-            size: number;
-            header_size: number;
-        };
-        content: {
-            show_employee_id: boolean;
-            show_position: boolean;
-            show_breaks: boolean;
-            show_total_hours: boolean;
-        };
-    };
-    employee_groups: {
-        employee_types: BaseEmployeeType[];
-        absence_types: BaseAbsenceType[];
-    };
 }
 
 export interface WeeklySchedule {

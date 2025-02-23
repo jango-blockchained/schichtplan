@@ -98,15 +98,16 @@ class Settings(db.Model):
     
     # Employee Group Settings
     employee_types = Column(JSON, nullable=False, default=lambda: [
-        {'id': 'full_time', 'name': 'Vollzeit', 'min_hours': 35, 'max_hours': 40},
-        {'id': 'part_time', 'name': 'Teilzeit', 'min_hours': 15, 'max_hours': 34},
-        {'id': 'mini_job', 'name': 'Minijob', 'min_hours': 0, 'max_hours': 14}
+        {'id': 'VZ', 'name': 'Vollzeit', 'min_hours': 35, 'max_hours': 40, 'type': 'employee'},
+        {'id': 'TZ', 'name': 'Teilzeit', 'min_hours': 15, 'max_hours': 34, 'type': 'employee'},
+        {'id': 'GFB', 'name': 'Geringfügig Beschäftigt', 'min_hours': 0, 'max_hours': 14, 'type': 'employee'},
+        {'id': 'TL', 'name': 'Teamleiter', 'min_hours': 35, 'max_hours': 40, 'type': 'employee'}
     ])
     
     absence_types = Column(JSON, nullable=False, default=lambda: [
-        {'id': 'vacation', 'name': 'Urlaub', 'color': '#FF9800'},
-        {'id': 'sick', 'name': 'Krank', 'color': '#F44336'},
-        {'id': 'unpaid', 'name': 'Unbezahlt', 'color': '#9E9E9E'}
+        {'id': 'URL', 'name': 'Urlaub', 'color': '#FF9800', 'type': 'absence'},
+        {'id': 'ABW', 'name': 'Abwesend', 'color': '#F44336', 'type': 'absence'},
+        {'id': 'SLG', 'name': 'Schulung', 'color': '#4CAF50', 'type': 'absence'}
     ])
     
     # Actions Settings - deferred loading to prevent errors if column doesn't exist
@@ -315,15 +316,16 @@ class Settings(db.Model):
         
         # Employee Group Settings
         settings.employee_types = [
-            {'id': 'full_time', 'name': 'Vollzeit', 'min_hours': 35, 'max_hours': 40},
-            {'id': 'part_time', 'name': 'Teilzeit', 'min_hours': 15, 'max_hours': 34},
-            {'id': 'mini_job', 'name': 'Minijob', 'min_hours': 0, 'max_hours': 14}
+            {'id': 'VZ', 'name': 'Vollzeit', 'min_hours': 35, 'max_hours': 40, 'type': 'employee'},
+            {'id': 'TZ', 'name': 'Teilzeit', 'min_hours': 15, 'max_hours': 34, 'type': 'employee'},
+            {'id': 'GFB', 'name': 'Geringfügig Beschäftigt', 'min_hours': 0, 'max_hours': 14, 'type': 'employee'},
+            {'id': 'TL', 'name': 'Teamleiter', 'min_hours': 35, 'max_hours': 40, 'type': 'employee'}
         ]
         
         settings.absence_types = [
-            {'id': 'vacation', 'name': 'Urlaub', 'color': '#FF9800'},
-            {'id': 'sick', 'name': 'Krank', 'color': '#F44336'},
-            {'id': 'unpaid', 'name': 'Unbezahlt', 'color': '#9E9E9E'}
+            {'id': 'URL', 'name': 'Urlaub', 'color': '#FF9800', 'type': 'absence'},
+            {'id': 'ABW', 'name': 'Abwesend', 'color': '#F44336', 'type': 'absence'},
+            {'id': 'SLG', 'name': 'Schulung', 'color': '#4CAF50', 'type': 'absence'}
         ]
         
         try:

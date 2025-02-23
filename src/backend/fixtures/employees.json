@@ -1,22 +1,22 @@
 {
     "employee_types": [
         {
-            "id": "full_time",
+            "id": "VZ",
             "name": "Vollzeit",
             "min_hours": 35,
             "max_hours": 40,
             "color": "#4CAF50"
         },
         {
-            "id": "part_time",
+            "id": "TZ",
             "name": "Teilzeit",
             "min_hours": 15,
             "max_hours": 34,
             "color": "#2196F3"
         },
         {
-            "id": "mini_job",
-            "name": "Minijob",
+            "id": "GfB",
+            "name": "Geringfügig Beschäftigt",
             "min_hours": 0,
             "max_hours": 14,
             "color": "#9E9E9E"
@@ -75,7 +75,7 @@
             "employee_id": "JS1",
             "first_name": "Jane",
             "last_name": "Smith",
-            "employee_group": "VL",
+            "employee_group": "VZ",
             "contracted_hours": 40.0,
             "is_keyholder": true,
             "is_active": true,

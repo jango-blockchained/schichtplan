@@ -78,9 +78,9 @@ def load_availabilities():
     # Create availabilities for each employee based on their group
     for employee in Employee.query.all():
         group_key = {
-            EmployeeGroup.VL: 'full_time',
-            EmployeeGroup.TZ: 'part_time',
-            EmployeeGroup.GFB: 'mini_job',
+            EmployeeGroup.VZ: 'VZ',
+            EmployeeGroup.TZ: 'TZ',
+            EmployeeGroup.GFB: 'GfB',
             EmployeeGroup.TL: 'team_leader'
         }[employee.employee_group]
         

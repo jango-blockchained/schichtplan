@@ -4,7 +4,7 @@ A modern web application for automated shift scheduling in retail stores. The ap
 
 ## Features
 
-- Employee management with different employee groups (VL, TZ, GfB, TL)
+- Employee management with different employee groups (VZ, TZ, GfB, TL)
 - Automated 4-week schedule generation
 - Shift type definitions (Early, Middle, Late)
 - Break time management
