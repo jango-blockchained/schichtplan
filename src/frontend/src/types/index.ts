@@ -172,8 +172,6 @@ export interface Settings {
         show_sunday: boolean;
         show_weekdays: boolean;
         start_of_week: number;
-    };
-    notifications: {
         email_notifications: boolean;
         schedule_published: boolean;
         shift_changes: boolean;
@@ -219,6 +217,12 @@ export interface Settings {
             color: string;
         }>;
     };
+    actions: {
+        demo_data: {
+            selected_module: string;
+            last_execution: string | null;
+        };
+    };
 }
 
 export interface CoverageTimeSlot {
@@ -226,6 +230,7 @@ export interface CoverageTimeSlot {
     endTime: string;
     minEmployees: number;
     maxEmployees: number;
+    employeeTypes: string[];
 }
 
 export interface DailyCoverage {

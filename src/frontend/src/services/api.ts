@@ -410,3 +410,15 @@ export const updateCoverage = async (coverage: DailyCoverage[]): Promise<void> =
         throw error;
     }
 };
+
+// Demo Data
+export const generateDemoData = async (module: string): Promise<void> => {
+    try {
+        await api.post('/demo_data/', { module });
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to generate demo data: ${error.message}`);
+        }
+        throw error;
+    }
+};

@@ -12,6 +12,7 @@ class Coverage(db.Model):
     end_time = Column(String(5), nullable=False)  # Format: "HH:MM"
     min_employees = Column(Integer, nullable=False, default=1)
     max_employees = Column(Integer, nullable=False, default=3)
+    employee_types = Column(JSON, nullable=False, default=list)  # List of employee type IDs
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -25,6 +26,7 @@ class Coverage(db.Model):
             'end_time': self.end_time,
             'min_employees': self.min_employees,
             'max_employees': self.max_employees,
+            'employee_types': self.employee_types,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
