@@ -163,7 +163,13 @@ export function ScheduleTable({ schedules, dateRange, onDrop, isLoading }: Sched
             employeeSchedules.get(schedule.employee_id)?.push(schedule);
         });
 
-        // Sort employees by type (VL/TL -> TZ -> GFB)
+        // Sort employees by type (VZ/TL -> TZ -> GFB)
+        const employeeTypeOrder = {
+            'VZ': 0,
+            'TL': 0,
+            'TZ': 1,
+            'GFB': 2
+        };
         const sortedEmployees = Array.from(employeeSchedules.entries()).sort((a, b) => {
             const employeeA = a[1][0];
             const employeeB = b[1][0];
@@ -172,15 +178,7 @@ export function ScheduleTable({ schedules, dateRange, onDrop, isLoading }: Sched
             const typeA = employeeA.employee_name.match(/\((.*?)\)/)?.[1] || '';
             const typeB = employeeB.employee_name.match(/\((.*?)\)/)?.[1] || '';
 
-            // Define type priority
-            const typePriority: { [key: string]: number } = {
-                'VL': 0,
-                'TL': 0,
-                'TZ': 1,
-                'GFB': 2
-            };
-
-            return (typePriority[typeA] || 99) - (typePriority[typeB] || 99);
+            return (employeeTypeOrder[typeA] || 99) - (employeeTypeOrder[typeB] || 99);
         });
 
         // Group by employee type

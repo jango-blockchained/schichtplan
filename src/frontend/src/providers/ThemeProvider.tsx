@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { getSettings } from '@/services/api';
 
-type Theme = 'light' | 'dark' | 'system';
+type Theme = 'dark' | 'light';
 
 interface ThemeContextType {
     theme: Theme;
@@ -11,26 +10,24 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-    const [theme, setTheme] = useState<Theme>('system');
-
-    useEffect(() => {
-        // Load theme from settings on mount
-        getSettings().then((settings) => {
-            setTheme(settings.display.theme as Theme);
-        });
-    }, []);
-
-    useEffect(() => {
-        // Apply theme class to document
-        const root = window.document.documentElement;
-        root.classList.remove('light', 'dark');
-
-        if (theme === 'system') {
-            const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-            root.classList.add(systemTheme);
-        } else {
-            root.classList.add(theme);
+    const [theme, setTheme] = useState<Theme>(() => {
+        // Check for saved theme preference
+        const savedTheme = localStorage.getItem("theme");
+        if (savedTheme === "dark" || savedTheme === "light") {
+            return savedTheme;
         }
+        // Check system preference
+        if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+            return "dark";
+        }
+        return "light";
+    });
+
+    useEffect(() => {
+        const root = window.document.documentElement;
+        root.classList.remove("light", "dark");
+        root.classList.add(theme);
+        localStorage.setItem("theme", theme);
     }, [theme]);
 
     return (

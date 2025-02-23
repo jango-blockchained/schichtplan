@@ -78,7 +78,7 @@ def generate_employee_data():
     employee_types = [
         {'id': 'VZ', 'name': 'Vollzeit', 'min_hours': 35, 'max_hours': 40},
         {'id': 'TZ', 'name': 'Teilzeit', 'min_hours': 15, 'max_hours': 34},
-        {'id': 'GFB', 'name': 'Geringfügig Beschäftigt', 'min_hours': 0, 'max_hours': 14},
+        {'id': 'GFB', 'name': 'Geringfügig Beschäftigt', 'min_hours': 0, 'max_hours': 10},
         {'id': 'TL', 'name': 'Teamleiter', 'min_hours': 35, 'max_hours': 40}
     ]
     
@@ -99,12 +99,20 @@ def generate_employee_data():
             employee_id = f"{base_id}{counter:02d}"
             counter += 1
             
+        # Set contracted hours within valid range for employee type
+        if emp_type['id'] in ['VZ', 'TL']:
+            contracted_hours = 40.0  # Standard full-time hours
+        elif emp_type['id'] == 'TZ':
+            contracted_hours = random.randint(15, 34)  # Part-time range
+        else:  # GFB
+            contracted_hours = random.randint(5, 10)  # Mini-job range
+            
         employee = Employee(
             employee_id=employee_id,
             first_name=first_name,
             last_name=last_name,
             employee_group=emp_type['id'],
-            contracted_hours=random.randint(emp_type['min_hours'], emp_type['max_hours']),
+            contracted_hours=contracted_hours,
             is_keyholder=i < 3,  # First 3 employees are keyholders
             is_active=True,
             email=f"employee{i+1}@example.com",

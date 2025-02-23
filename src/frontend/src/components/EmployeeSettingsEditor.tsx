@@ -243,14 +243,6 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                                     >
                                         <Pencil className="h-4 w-4" />
                                     </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handleDeleteGroup(group.id)}
-                                        disabled={localGroups.length <= 1}
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
                                 </div>
                             </TableCell>
                         </TableRow>

@@ -320,6 +320,7 @@ export interface EmployeeAvailability {
     day_of_week: number;
     hour: number;
     is_available: boolean;
+    availability_type: string;
     created_at?: string;
     updated_at?: string;
 }

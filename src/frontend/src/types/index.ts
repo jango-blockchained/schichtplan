@@ -126,6 +126,30 @@ export interface ApiError {
 }
 
 export interface Settings {
+    id: number;
+    store_name: string;
+    store_address: string | null;
+    store_contact: string | null;
+    timezone: string;
+    language: string;
+    date_format: string;
+    time_format: string;
+    store_opening: string;
+    store_closing: string;
+    keyholder_before_minutes: number;
+    keyholder_after_minutes: number;
+    opening_days: { [key: string]: boolean };
+    special_hours: { [key: string]: { is_closed: boolean; opening: string; closing: string } };
+    availability_types: {
+        types: Array<{
+            id: string;
+            name: string;
+            description: string;
+            color: string;
+            priority: number;
+            is_available: boolean;
+        }>;
+    };
     general: {
         store_name: string;
         store_address: string;

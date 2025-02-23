@@ -43,6 +43,44 @@ class Settings(db.Model):
     # Format: {"YYYY-MM-DD": {"is_closed": bool, "opening": "HH:MM", "closing": "HH:MM"}}
     special_hours = Column(JSON, nullable=False, default=dict)
     
+    # Availability Types
+    availability_types = Column(JSON, nullable=True, default=lambda: {
+        'types': [
+            {
+                'id': 'AVL',
+                'name': 'Available',
+                'description': 'Available for work',
+                'color': '#22c55e',
+                'priority': 2,
+                'is_available': True
+            },
+            {
+                'id': 'FIX',
+                'name': 'Fixed',
+                'description': 'Fixed working hours',
+                'color': '#3b82f6',
+                'priority': 1,
+                'is_available': True
+            },
+            {
+                'id': 'PRM',
+                'name': 'Promised',
+                'description': 'Promised/preferred hours',
+                'color': '#f59e0b',
+                'priority': 3,
+                'is_available': True
+            },
+            {
+                'id': 'UNV',
+                'name': 'Unavailable',
+                'description': 'Not available',
+                'color': '#ef4444',
+                'priority': 4,
+                'is_available': False
+            }
+        ]
+    })
+    
     # Scheduling Settings
     scheduling_resource_type = Column(String(20), nullable=False, default='shifts')  # 'shifts' or 'coverage'
     default_shift_duration = Column(Float, nullable=False, default=8.0)
@@ -240,6 +278,42 @@ class Settings(db.Model):
             'employee_groups': {
                 'employee_types': self.employee_types,
                 'absence_types': self.absence_types
+            },
+            'availability_types': self.availability_types or {
+                'types': [
+                    {
+                        'id': 'AVL',
+                        'name': 'Available',
+                        'description': 'Available for work',
+                        'color': '#22c55e',
+                        'priority': 2,
+                        'is_available': True
+                    },
+                    {
+                        'id': 'FIX',
+                        'name': 'Fixed',
+                        'description': 'Fixed working hours',
+                        'color': '#3b82f6',
+                        'priority': 1,
+                        'is_available': True
+                    },
+                    {
+                        'id': 'PRM',
+                        'name': 'Promised',
+                        'description': 'Promised/preferred hours',
+                        'color': '#f59e0b',
+                        'priority': 3,
+                        'is_available': True
+                    },
+                    {
+                        'id': 'UNV',
+                        'name': 'Unavailable',
+                        'description': 'Not available',
+                        'color': '#ef4444',
+                        'priority': 4,
+                        'is_available': False
+                    }
+                ]
             },
             'actions': {
                 'demo_data': self.actions_demo_data

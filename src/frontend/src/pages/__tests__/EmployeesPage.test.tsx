@@ -28,7 +28,7 @@ describe('EmployeesPage', () => {
       employee_id: 'MM01',
       first_name: 'Maike',
       last_name: 'Mander',
-      employee_group: EmployeeGroup.VL,
+      employee_group: EmployeeGroup.VZ,
       contracted_hours: 40,
       is_keyholder: true,
       availability: [],
@@ -76,7 +76,7 @@ describe('EmployeesPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Maike Mander')).toBeInTheDocument();
       expect(screen.getByText('MM01')).toBeInTheDocument();
-      expect(screen.getByText('VL')).toBeInTheDocument();
+      expect(screen.getByText('VZ')).toBeInTheDocument();
       expect(screen.getByText('40')).toBeInTheDocument();
     });
   });
@@ -116,7 +116,7 @@ describe('EmployeesPage', () => {
       expect(createEmployee).toHaveBeenCalledWith({
         first_name: 'Max',
         last_name: 'Mustermann',
-        employee_group: EmployeeGroup.VL,
+        employee_group: EmployeeGroup.VZ,
         contracted_hours: 40,
         is_keyholder: false,
         availability: [],
