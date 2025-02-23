@@ -93,5 +93,9 @@ export default {
 			}
 		}
 	},
-	plugins: [animate, require("tailwindcss-animate")],
+	plugins: [
+		animate,
+		require("tailwindcss-animate"),
+		require('@tailwindcss/container-queries')
+	],
 } 

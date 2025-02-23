@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timedelta, date
 from typing import List, Dict, Any, Optional, Tuple
 from models import Employee, Shift, Schedule, Settings, EmployeeAvailability, Coverage
-from models.employee import AvailabilityType
+from models.employee import AvailabilityType, EmployeeGroup
 from flask_sqlalchemy import SQLAlchemy
 
 # Configure logging
@@ -495,8 +495,7 @@ class ScheduleGenerator:
                     start_time=coverage_slot.start_time,
                     end_time=coverage_slot.end_time,
                     min_employees=coverage_slot.min_employees,
-                    max_employees=coverage_slot.max_employees,
-                    duration_hours=self._calculate_duration(coverage_slot.start_time, coverage_slot.end_time)
+                    max_employees=coverage_slot.max_employees
                 )
 
                 # Assign employees
