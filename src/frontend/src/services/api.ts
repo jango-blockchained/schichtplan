@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import type { Settings, Employee, Schedule, ScheduleResponse, ScheduleUpdate, DailyCoverage } from '../types';
+import type { Settings, Employee, Schedule, ScheduleResponse, ScheduleUpdate, DailyCoverage, CoverageTimeSlot } from '@/types/index';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -402,8 +402,23 @@ export const getCoverageByDay = async (dayIndex: number): Promise<DailyCoverage>
 
 export const updateCoverage = async (coverage: DailyCoverage[]): Promise<void> => {
     try {
-        await api.post('/coverage/bulk', coverage);
+        // Ensure each coverage object has the required fields
+        const formattedCoverage = coverage.map(day => ({
+            dayIndex: day.dayIndex,
+            timeSlots: day.timeSlots.map(slot => ({
+                startTime: slot.startTime,
+                endTime: slot.endTime,
+                minEmployees: slot.minEmployees,
+                maxEmployees: slot.maxEmployees,
+                employeeTypes: (slot as CoverageTimeSlot).employeeTypes || []
+            }))
+        }));
+
+        console.log('Sending coverage data:', formattedCoverage);
+        const response = await api.post('/coverage/bulk', formattedCoverage);
+        console.log('Coverage update response:', response.data);
     } catch (error) {
+        console.error('Error updating coverage:', error);
         if (error instanceof Error) {
             throw new Error(`Failed to update coverage: ${error.message}`);
         }

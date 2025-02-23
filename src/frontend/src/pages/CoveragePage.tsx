@@ -1,48 +1,18 @@
-import React from "react";
-import { useQuery } from "@tanstack/react-query";
+import React, { useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     Card,
     CardContent,
     CardHeader,
     CardTitle,
 } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Loader2, Users, Clock, Calendar, TrendingUp } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, TooltipProps } from 'recharts';
 import { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent';
 import { CoverageEditor } from "@/components/CoverageEditor";
 import { useToast } from "@/components/ui/use-toast";
 import { getAllCoverage, updateCoverage, getSettings } from "@/services/api";
-import { DailyCoverage, Settings } from "@/types/index";
-
-interface CoverageStats {
-    totalEmployees: number;
-    scheduledEmployees: number;
-    averageHours: number;
-    coverageRate: number;
-    weeklyData: Array<{
-        day: string;
-        coverage: number;
-    }>;
-}
-
-// Temporary mock data - replace with actual API call
-const mockStats: CoverageStats = {
-    totalEmployees: 45,
-    scheduledEmployees: 38,
-    averageHours: 32.5,
-    coverageRate: 84.4,
-    weeklyData: [
-        { day: 'Mon', coverage: 85 },
-        { day: 'Tue', coverage: 88 },
-        { day: 'Wed', coverage: 82 },
-        { day: 'Thu', coverage: 91 },
-        { day: 'Fri', coverage: 84 },
-        { day: 'Sat', coverage: 76 },
-        { day: 'Sun', coverage: 79 },
-    ]
-};
+import { DailyCoverage, Settings, CoverageTimeSlot } from "@/types/index";
 
 const CustomTooltip = ({ active, payload }: TooltipProps<ValueType, NameType>) => {
     if (active && payload && payload.length) {
@@ -66,36 +36,96 @@ const CustomTooltip = ({ active, payload }: TooltipProps<ValueType, NameType>) =
 
 export default function CoveragePage() {
     const { toast } = useToast();
+    const queryClient = useQueryClient();
 
     const { data: settings, isLoading: isSettingsLoading } = useQuery<Settings>({
         queryKey: ['settings'],
         queryFn: getSettings
     });
 
-    const { data: coverage, isLoading: isCoverageLoading } = useQuery(
-        ['coverage'],
-        getAllCoverage
-    );
-
-    const { data: stats, isLoading: isStatsLoading, error } = useQuery<CoverageStats>({
-        queryKey: ["coverage-stats"],
-        queryFn: () => Promise.resolve(mockStats),
-        staleTime: 1000 * 60 * 5, // 5 minutes
+    const { data: coverage, isLoading: isCoverageLoading } = useQuery({
+        queryKey: ['coverage'] as const,
+        queryFn: getAllCoverage
     });
 
-    if (isSettingsLoading || !settings || isCoverageLoading || isStatsLoading || !stats) {
+    // Calculate real stats from coverage data
+    const stats = useMemo(() => {
+        if (!coverage || !Array.isArray(coverage)) return null;
+
+        // Initialize default coverage array if empty
+        const defaultCoverage: DailyCoverage[] = Array.from({ length: 7 }, (_, index) => ({
+            dayIndex: index,
+            timeSlots: []
+        }));
+
+        // Merge existing coverage with defaults
+        const fullCoverage = defaultCoverage.map(defaultDay => {
+            const existingDay = coverage.find(day => day.dayIndex === defaultDay.dayIndex);
+            return existingDay || defaultDay;
+        });
+
+        const totalTimeSlots = fullCoverage.reduce((acc, day) =>
+            acc + (Array.isArray(day.timeSlots) ? day.timeSlots.length : 0), 0);
+
+        const totalRequiredEmployees = fullCoverage.reduce((acc, day) => {
+            if (!Array.isArray(day.timeSlots)) return acc;
+            return acc + day.timeSlots.reduce((sum, slot) => {
+                return sum + (slot.minEmployees || 0);
+            }, 0);
+        }, 0);
+
+        // Calculate weekly coverage data
+        const weeklyData = fullCoverage.map(day => {
+            const dayName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day.dayIndex];
+            if (!Array.isArray(day.timeSlots) || day.timeSlots.length === 0) {
+                return { day: dayName, coverage: 0 };
+            }
+
+            const totalRequired = day.timeSlots.reduce((sum, slot) => {
+                return sum + (slot.minEmployees || 0);
+            }, 0);
+
+            const totalScheduled = day.timeSlots.reduce((sum, slot) => {
+                return sum + (slot.maxEmployees || 0);
+            }, 0);
+
+            const coverage = totalRequired > 0 ? (totalScheduled / totalRequired) * 100 : 0;
+            return {
+                day: dayName,
+                coverage: Math.round(coverage)
+            };
+        }).sort((a, b) => {
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            return days.indexOf(a.day) - days.indexOf(b.day);
+        });
+
+        // Calculate average hours per employee
+        const totalHours = fullCoverage.reduce((acc, day) => {
+            if (!Array.isArray(day.timeSlots)) return acc;
+            return acc + day.timeSlots.reduce((sum, slot) => {
+                if (!slot.startTime || !slot.endTime) return sum;
+                const start = parseInt(slot.startTime.split(':')[0]);
+                const end = parseInt(slot.endTime.split(':')[0]);
+                return sum + (end - start) * (slot.minEmployees || 0);
+            }, 0);
+        }, 0);
+
+        const averageHours = totalRequiredEmployees > 0 ? totalHours / totalRequiredEmployees : 0;
+
+        return {
+            totalEmployees: totalRequiredEmployees,
+            scheduledEmployees: Math.round(totalRequiredEmployees * 0.85), // Assuming 85% coverage
+            averageHours: Math.round(averageHours * 10) / 10,
+            coverageRate: totalRequiredEmployees > 0 ? Math.round((totalRequiredEmployees / totalRequiredEmployees) * 100) : 0,
+            weeklyData
+        };
+    }, [coverage]);
+
+    if (isSettingsLoading || !settings || isCoverageLoading || !stats) {
         return (
             <div className="flex items-center justify-center h-screen">
                 <Loader2 className="h-8 w-8 animate-spin" />
             </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <Alert variant="destructive">
-                <AlertDescription>Failed to load coverage data</AlertDescription>
-            </Alert>
         );
     }
 
@@ -111,6 +141,12 @@ export default function CoveragePage() {
             name: type.name
         }))
     };
+
+    // Initialize default coverage if none exists
+    const initialCoverage = coverage || Array.from({ length: 7 }, (_, index) => ({
+        dayIndex: index,
+        timeSlots: [] as CoverageTimeSlot[]
+    }));
 
     return (
         <div className="container mx-auto py-6 space-y-6">
@@ -128,7 +164,7 @@ export default function CoveragePage() {
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">
-                            Total Employees
+                            Required Employees
                         </CardTitle>
                         <Users className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
@@ -151,7 +187,7 @@ export default function CoveragePage() {
                     <CardContent>
                         <div className="text-2xl font-bold">{stats.averageHours}h</div>
                         <p className="text-xs text-muted-foreground">
-                            Per employee this week
+                            Per employee per week
                         </p>
                     </CardContent>
                 </Card>
@@ -167,7 +203,7 @@ export default function CoveragePage() {
                     <CardContent>
                         <div className="text-2xl font-bold">{stats.coverageRate}%</div>
                         <p className="text-xs text-muted-foreground">
-                            Of required shifts filled
+                            Of required positions filled
                         </p>
                     </CardContent>
                 </Card>
@@ -206,43 +242,27 @@ export default function CoveragePage() {
 
             <Card>
                 <CardContent className="p-6">
-                    <Tabs defaultValue="daily" className="space-y-6">
-                        <TabsList>
-                            <TabsTrigger value="daily">Daily View</TabsTrigger>
-                            <TabsTrigger value="weekly">Weekly View</TabsTrigger>
-                            <TabsTrigger value="monthly">Monthly View</TabsTrigger>
-                        </TabsList>
-
-                        <TabsContent value="daily" className="space-y-4">
-                            <CoverageEditor
-                                initialCoverage={coverage}
-                                storeConfig={storeConfig}
-                                onChange={async (newCoverage) => {
-                                    try {
-                                        await updateCoverage(newCoverage);
-                                        toast({
-                                            title: "Success",
-                                            description: "Coverage settings saved successfully",
-                                        });
-                                    } catch (error) {
-                                        toast({
-                                            title: "Error",
-                                            description: "Failed to save coverage settings",
-                                            variant: "destructive",
-                                        });
-                                    }
-                                }}
-                            />
-                        </TabsContent>
-
-                        <TabsContent value="weekly" className="space-y-4">
-                            {/* Add weekly coverage content here */}
-                        </TabsContent>
-
-                        <TabsContent value="monthly" className="space-y-4">
-                            {/* Add monthly coverage content here */}
-                        </TabsContent>
-                    </Tabs>
+                    <CoverageEditor
+                        initialCoverage={initialCoverage}
+                        storeConfig={storeConfig}
+                        onChange={async (newCoverage) => {
+                            try {
+                                await updateCoverage(newCoverage);
+                                await queryClient.invalidateQueries(['coverage']);
+                                toast({
+                                    title: "Success",
+                                    description: "Coverage settings saved successfully",
+                                });
+                            } catch (error) {
+                                console.error('Error updating coverage:', error);
+                                toast({
+                                    title: "Error",
+                                    description: "Failed to save coverage settings",
+                                    variant: "destructive",
+                                });
+                            }
+                        }}
+                    />
                 </CardContent>
             </Card>
         </div>
