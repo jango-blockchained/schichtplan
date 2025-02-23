@@ -9,27 +9,21 @@ import { getSettings } from '@/services/api';
 
 const drawerWidth = 240;
 
-const baseNavItems = [
-  { label: 'Schichtplan', path: '/', icon: LayoutDashboard },
-  {
-    label: 'Mitarbeiter',
-    path: '/employees',
-    icon: Users,
-    children: [
-      { label: 'Übersicht', path: '/employees', icon: Users },
-      { label: 'Schichten', path: '/shifts', icon: FileText },
-      { label: 'Coverage', path: '/coverage', icon: BarChart },
-    ]
-  },
-  { label: 'Formulars', path: '/formulars', icon: FileText },
-  { label: 'Logs', path: '/logs', icon: List },
-  { label: 'Einstellungen', path: '/settings', icon: Settings },
-];
-
 export const MainLayout = () => {
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const location = useLocation();
   const { data: settings } = useQuery(['settings'], getSettings);
+
+  const navItems = React.useMemo(() => [
+    { label: 'Schichtplan', path: '/', icon: LayoutDashboard },
+    { label: 'Mitarbeiter', path: '/employees', icon: Users },
+    settings?.scheduling.scheduling_resource_type === 'coverage'
+      ? { label: 'Coverage', path: '/coverage', icon: BarChart }
+      : { label: 'Schichten', path: '/shifts', icon: FileText },
+    { label: 'Formulars', path: '/formulars', icon: FileText },
+    { label: 'Logs', path: '/logs', icon: List },
+    { label: 'Einstellungen', path: '/settings', icon: Settings },
+  ], [settings?.scheduling.scheduling_resource_type]);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -41,11 +35,9 @@ export const MainLayout = () => {
         <span className="font-semibold text-lg">{settings?.general.store_name || 'ShiftWise'}</span>
       </div>
       <nav className="flex-1 p-4">
-        {baseNavItems.map((item) => {
+        {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = location.pathname === item.path ||
-            (item.children?.some(child => child.path === location.pathname));
-          const isParentActive = item.children?.some(child => location.pathname === child.path);
+          const isActive = location.pathname === item.path;
 
           return (
             <div key={item.path}>
@@ -53,7 +45,7 @@ export const MainLayout = () => {
                 variant="ghost"
                 className={cn(
                   'w-full justify-start gap-2 mb-1',
-                  (isActive || isParentActive) && 'bg-accent'
+                  isActive && 'bg-accent'
                 )}
                 asChild
               >
@@ -62,32 +54,6 @@ export const MainLayout = () => {
                   {item.label}
                 </RouterLink>
               </Button>
-
-              {item.children && (
-                <div className="ml-4 space-y-1">
-                  {item.children.map((child) => {
-                    const ChildIcon = child.icon;
-                    const isChildActive = location.pathname === child.path;
-
-                    return (
-                      <Button
-                        key={child.path}
-                        variant="ghost"
-                        className={cn(
-                          'w-full justify-start gap-2 mb-1',
-                          isChildActive && 'bg-accent'
-                        )}
-                        asChild
-                      >
-                        <RouterLink to={child.path}>
-                          <ChildIcon className="h-4 w-4" />
-                          {child.label}
-                        </RouterLink>
-                      </Button>
-                    );
-                  })}
-                </div>
-              )}
             </div>
           );
         })}

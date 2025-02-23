@@ -27,15 +27,10 @@ interface StoreConfigProps {
     opening_days: { [key: string]: boolean };
     min_employees_per_shift: number;
     max_employees_per_shift: number;
-    employee_types: { id: string; name: string; }[];
-}
-
-interface CoverageTimeSlot {
-    startTime: string;
-    endTime: string;
-    minEmployees: number;
-    maxEmployees: number;
-    employeeTypes: string[];  // Array of employee type IDs
+    employee_types: Array<{
+        id: string;
+        name: string;
+    }>;
 }
 
 interface BlockEditorProps {
@@ -50,7 +45,7 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ slot, onSave, onCancel, store
     const [endTime, setEndTime] = useState(slot.endTime);
     const [minEmployees, setMinEmployees] = useState(slot.minEmployees);
     const [maxEmployees, setMaxEmployees] = useState(slot.maxEmployees);
-    const [selectedTypes, setSelectedTypes] = useState<string[]>(slot.employeeTypes || []);
+    const [selectedTypes, setSelectedTypes] = useState<string[]>(slot.employeeTypes);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
     const validateForm = () => {
@@ -640,10 +635,37 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
                                 size="sm"
                                 className="gap-2"
                                 onClick={() => {
-                                    openingDays.forEach((_, index) => {
-                                        if (!coverage[index].timeSlots.length) {
-                                            handleAddSlot(index, 0);
+                                    // Add morning shift (09:00-14:00) and afternoon shift (14:00-20:00) for each day
+                                    const newCoverage = [...coverage];
+                                    openingDays.forEach((dayIndex) => {
+                                        if (dayIndex !== 0) { // Skip Sunday (index 0)
+                                            // Morning shift
+                                            const morningShift: CoverageTimeSlot = {
+                                                startTime: "09:00",
+                                                endTime: "14:00",
+                                                minEmployees: 1,
+                                                maxEmployees: 2,
+                                                employeeTypes: storeConfig.employee_types.map(t => t.id)
+                                            };
+                                            newCoverage[dayIndex].timeSlots.push(morningShift);
+
+                                            // Afternoon shift
+                                            const afternoonShift: CoverageTimeSlot = {
+                                                startTime: "14:00",
+                                                endTime: "20:00",
+                                                minEmployees: 1,
+                                                maxEmployees: 2,
+                                                employeeTypes: storeConfig.employee_types.map(t => t.id)
+                                            };
+                                            newCoverage[dayIndex].timeSlots.push(afternoonShift);
                                         }
+                                    });
+                                    setCoverage(newCoverage);
+                                    onChange?.(newCoverage);
+
+                                    toast({
+                                        title: "Default shifts added",
+                                        description: "Added shifts for Monday through Saturday",
                                     });
                                 }}
                             >

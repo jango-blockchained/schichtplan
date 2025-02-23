@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getSettings, updateSettings } from "@/services/api";
+import { getSettings, updateSettings, generateDemoData } from "@/services/api";
 import { Settings } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -40,13 +40,12 @@ export default function SettingsPage() {
     queryFn: getSettings,
     retry: 3,
     staleTime: 1000 * 60 * 5, // 5 minutes
+    onSuccess: (data) => {
+      if (!localSettings) {
+        setLocalSettings(data);
+      }
+    },
   });
-
-  useEffect(() => {
-    if (settings) {
-      setLocalSettings(settings);
-    }
-  }, [settings]);
 
   const updateMutation = useMutation({
     mutationFn: (data: Partial<Settings>) => updateSettings(data),
@@ -150,10 +149,10 @@ export default function SettingsPage() {
             <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6">
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="scheduling">Scheduling</TabsTrigger>
-              <TabsTrigger value="display">Display</TabsTrigger>
-              <TabsTrigger value="notifications">Notifications</TabsTrigger>
+              <TabsTrigger value="display">Display & Notifications</TabsTrigger>
               <TabsTrigger value="pdf">PDF Layout</TabsTrigger>
               <TabsTrigger value="employee_groups">Groups</TabsTrigger>
+              <TabsTrigger value="actions">Actions</TabsTrigger>
             </TabsList>
 
             <TabsContent value="general" className="space-y-6">
@@ -612,179 +611,177 @@ export default function SettingsPage() {
             </TabsContent>
 
             <TabsContent value="display" className="space-y-6">
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="theme">Theme</Label>
-                    <Select
-                      value={localSettings?.display.theme ?? ''}
-                      onValueChange={(value) => {
-                        if (!localSettings) return;
-                        const updatedSettings = {
-                          ...localSettings,
-                          display: {
-                            ...localSettings.display,
-                            theme: value
-                          }
-                        };
-                        setLocalSettings(updatedSettings);
-                        updateMutation.mutate(updatedSettings, {
-                          onSuccess: () => {
-                            setTheme(value as 'light' | 'dark' | 'system');
-                          }
-                        });
-                        debouncedUpdate.cancel(); // Cancel any pending debounced updates
-                      }}
-                    >
-                      <SelectTrigger id="theme">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="light">Light</SelectItem>
-                        <SelectItem value="dark">Dark</SelectItem>
-                        <SelectItem value="system">System</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Display Settings</CardTitle>
+                  <CardDescription>Customize the appearance and behavior of your schedule</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="theme">Theme</Label>
+                      <Select
+                        value={localSettings?.display.theme ?? ''}
+                        onValueChange={(value) => {
+                          if (!localSettings) return;
+                          const updatedSettings = {
+                            ...localSettings,
+                            display: {
+                              ...localSettings.display,
+                              theme: value
+                            }
+                          };
+                          setLocalSettings(updatedSettings);
+                          updateMutation.mutate(updatedSettings, {
+                            onSuccess: () => {
+                              setTheme(value as 'light' | 'dark' | 'system');
+                            }
+                          });
+                          debouncedUpdate.cancel(); // Cancel any pending debounced updates
+                        }}
+                      >
+                        <SelectTrigger id="theme" className="w-[180px]">
+                          <SelectValue placeholder="Select theme" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="light">Light</SelectItem>
+                          <SelectItem value="dark">Dark</SelectItem>
+                          <SelectItem value="system">System</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="primaryColor">Primary Color</Label>
-                    <ColorPicker
-                      id="primaryColor"
-                      color={localSettings?.display.primary_color ?? '#000000'}
-                      onChange={(color) => {
-                        handleSave("display", { primary_color: color });
-                        handleImmediateUpdate();
-                      }}
-                    />
-                  </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="primary-color">Primary Color</Label>
+                      <Input
+                        id="primary-color"
+                        type="color"
+                        value={localSettings?.display.primary_color ?? '#000000'}
+                        onChange={(e) => {
+                          handleSave("display", { primary_color: e.target.value });
+                          handleImmediateUpdate();
+                        }}
+                        className="w-[180px]"
+                      />
+                    </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="secondaryColor">Secondary Color</Label>
-                    <ColorPicker
-                      id="secondaryColor"
-                      color={localSettings?.display.secondary_color ?? '#000000'}
-                      onChange={(color) => {
-                        handleSave("display", { secondary_color: color });
-                        handleImmediateUpdate();
-                      }}
-                    />
-                  </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="secondary-color">Secondary Color</Label>
+                      <Input
+                        id="secondary-color"
+                        type="color"
+                        value={localSettings?.display.secondary_color ?? '#000000'}
+                        onChange={(e) => {
+                          handleSave("display", { secondary_color: e.target.value });
+                          handleImmediateUpdate();
+                        }}
+                        className="w-[180px]"
+                      />
+                    </div>
 
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="showSunday"
-                      checked={localSettings?.display.show_sunday ?? false}
-                      onCheckedChange={(checked) => {
-                        handleSave("display", { show_sunday: checked });
-                        handleImmediateUpdate();
-                      }}
-                    />
-                    <Label htmlFor="showSunday">Sonntag anzeigen</Label>
-                    <div className="text-xs text-muted-foreground ml-2">
-                      (Sonntag wird angezeigt, auch wenn er nicht als Öffnungstag markiert ist)
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="show-sunday">Show Sunday</Label>
+                      <Switch
+                        id="show-sunday"
+                        checked={localSettings?.display.show_sunday ?? false}
+                        onCheckedChange={(checked) => {
+                          handleSave("display", { show_sunday: checked });
+                          handleImmediateUpdate();
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="show-weekdays">Show Weekdays</Label>
+                      <Switch
+                        id="show-weekdays"
+                        checked={localSettings?.display.show_weekdays ?? false}
+                        onCheckedChange={(checked) => {
+                          handleSave("display", { show_weekdays: checked });
+                          handleImmediateUpdate();
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="start-of-week">Start of Week</Label>
+                      <Select
+                        value={localSettings?.display.start_of_week?.toString() ?? ''}
+                        onValueChange={(value) => {
+                          handleSave("display", { start_of_week: Number(value) });
+                          handleImmediateUpdate();
+                        }}
+                      >
+                        <SelectTrigger id="start-of-week" className="w-[180px]">
+                          <SelectValue placeholder="Select start day" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">Sunday</SelectItem>
+                          <SelectItem value="1">Monday</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="email-notifications">Email Notifications</Label>
+                      <Switch
+                        id="email-notifications"
+                        checked={localSettings?.display.email_notifications ?? false}
+                        onCheckedChange={(checked) => {
+                          handleSave("display", { email_notifications: checked });
+                          handleImmediateUpdate();
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="schedule-published">Schedule Published Notifications</Label>
+                      <Switch
+                        id="schedule-published"
+                        checked={localSettings?.display.schedule_published ?? false}
+                        onCheckedChange={(checked) => {
+                          handleSave("display", { schedule_published: checked });
+                          handleImmediateUpdate();
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="shift-changes">Shift Changes Notifications</Label>
+                      <Switch
+                        id="shift-changes"
+                        checked={localSettings?.display.shift_changes ?? false}
+                        onCheckedChange={(checked) => {
+                          handleSave("display", { shift_changes: checked });
+                          handleImmediateUpdate();
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="time-off-requests">Time Off Requests Notifications</Label>
+                      <Switch
+                        id="time-off-requests"
+                        checked={localSettings?.display.time_off_requests ?? false}
+                        onCheckedChange={(checked) => {
+                          handleSave("display", { time_off_requests: checked });
+                          handleImmediateUpdate();
+                        }}
+                      />
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="showWeekdays"
-                      checked={localSettings?.display.show_weekdays ?? false}
-                      onCheckedChange={(checked) => {
-                        handleSave("display", { show_weekdays: checked });
-                        handleImmediateUpdate();
-                      }}
-                    />
-                    <Label htmlFor="showWeekdays">Geschlossene Wochentage anzeigen</Label>
-                    <div className="text-xs text-muted-foreground ml-2">
-                      (Wochentage werden angezeigt, auch wenn sie nicht als Öffnungstage markiert sind)
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="startOfWeek">Wochenbeginn</Label>
-                    <Select
-                      value={localSettings?.display.start_of_week?.toString() ?? ''}
-                      onValueChange={(value) => {
-                        handleSave("display", { start_of_week: Number(value) });
-                        handleImmediateUpdate();
-                      }}
-                    >
-                      <SelectTrigger id="startOfWeek">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">Sonntag</SelectItem>
-                        <SelectItem value="1">Montag</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="notifications" className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="emailNotifications"
-                    checked={localSettings?.notifications.email_notifications ?? false}
-                    onCheckedChange={(checked) =>
-                      handleSave("notifications", {
-                        email_notifications: checked,
-                      })
-                    }
-                    onBlur={handleImmediateUpdate}
-                  />
-                  <Label htmlFor="emailNotifications">Email Notifications</Label>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="schedulePublished"
-                    checked={localSettings?.notifications.schedule_published ?? false}
-                    onCheckedChange={(checked) =>
-                      handleSave("notifications", {
-                        schedule_published: checked,
-                      })
-                    }
-                    onBlur={handleImmediateUpdate}
-                  />
-                  <Label htmlFor="schedulePublished">
-                    Schedule Published Notifications
-                  </Label>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="shiftChanges"
-                    checked={localSettings?.notifications.shift_changes ?? false}
-                    onCheckedChange={(checked) =>
-                      handleSave("notifications", {
-                        shift_changes: checked,
-                      })
-                    }
-                    onBlur={handleImmediateUpdate}
-                  />
-                  <Label htmlFor="shiftChanges">Shift Changes Notifications</Label>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="timeOffRequests"
-                    checked={localSettings?.notifications.time_off_requests ?? false}
-                    onCheckedChange={(checked) =>
-                      handleSave("notifications", {
-                        time_off_requests: checked,
-                      })
-                    }
-                    onBlur={handleImmediateUpdate}
-                  />
-                  <Label htmlFor="timeOffRequests">
-                    Time Off Request Notifications
-                  </Label>
-                </div>
-              </div>
+                  <Button
+                    onClick={() => {
+                      if (localSettings) {
+                        updateMutation.mutate(localSettings);
+                      }
+                    }}
+                  >
+                    Save Changes
+                  </Button>
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="pdf" className="space-y-6">
@@ -844,6 +841,79 @@ export default function SettingsPage() {
                   />
                 </div>
               </div>
+            </TabsContent>
+
+            <TabsContent value="actions" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Actions</CardTitle>
+                  <CardDescription>Perform various actions on your schedule data</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="demo-data-module">Demo Data Module</Label>
+                      <Select
+                        value={localSettings?.actions.demo_data.selected_module ?? ''}
+                        onValueChange={(value) => {
+                          handleSave("actions", {
+                            demo_data: {
+                              ...localSettings?.actions.demo_data,
+                              selected_module: value,
+                            },
+                          });
+                          handleImmediateUpdate();
+                        }}
+                      >
+                        <SelectTrigger id="demo-data-module" className="w-[180px]">
+                          <SelectValue placeholder="Select module" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="employees">Employees</SelectItem>
+                          <SelectItem value="shifts">Shifts</SelectItem>
+                          <SelectItem value="coverage">Coverage</SelectItem>
+                          <SelectItem value="availability">Availability</SelectItem>
+                          <SelectItem value="all">All</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <Label>Last Execution</Label>
+                      <span className="text-sm text-gray-500">
+                        {localSettings?.actions.demo_data.last_execution
+                          ? new Date(localSettings.actions.demo_data.last_execution).toLocaleString()
+                          : "Never"}
+                      </span>
+                    </div>
+
+                    <Button
+                      onClick={async () => {
+                        if (!localSettings?.actions.demo_data.selected_module) return;
+
+                        try {
+                          await generateDemoData(localSettings.actions.demo_data.selected_module);
+                          toast({
+                            title: "Success",
+                            description: `Demo data generated for ${localSettings.actions.demo_data.selected_module} module`,
+                          });
+                          // Refresh settings to update last_execution timestamp
+                          queryClient.invalidateQueries({ queryKey: ["settings"] });
+                        } catch (error) {
+                          toast({
+                            title: "Error",
+                            description: error instanceof Error ? error.message : "Failed to generate demo data",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                      disabled={!localSettings?.actions.demo_data.selected_module}
+                    >
+                      Generate Demo Data
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         </CardContent>

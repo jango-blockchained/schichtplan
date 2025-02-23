@@ -20,6 +20,7 @@ from routes.employees import employees
 from routes.availability import availability
 from routes.absences import bp as absences_bp
 from api.coverage import bp as coverage_bp
+from api.demo_data import bp as demo_data_bp
 
 def setup_logging(app):
     # Create logs directory if it doesn't exist
@@ -94,6 +95,7 @@ def create_app():
     app.register_blueprint(availability)
     app.register_blueprint(absences_bp)
     app.register_blueprint(coverage_bp)
+    app.register_blueprint(demo_data_bp)
     
     # Create database tables
     with app.app_context():

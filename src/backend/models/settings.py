@@ -1,5 +1,7 @@
 from datetime import datetime, time
 from sqlalchemy import Column, Integer, String, JSON, DateTime, Float, Boolean
+from sqlalchemy.orm import deferred
+from sqlalchemy.ext.hybrid import hybrid_property
 from . import db
 from typing import Dict, Any, Optional
 import json
@@ -53,7 +55,7 @@ class Settings(db.Model):
     min_employees_per_shift = Column(Integer, nullable=False, default=1)
     max_employees_per_shift = Column(Integer, nullable=False, default=3)
     
-    # Display Settings
+    # Display and Notification Settings
     theme = Column(String(20), nullable=False, default='light')
     primary_color = Column(String(7), nullable=False, default='#1976D2')  # Blue
     secondary_color = Column(String(7), nullable=False, default='#424242')  # Gray
@@ -69,9 +71,7 @@ class Settings(db.Model):
     dark_theme_text_color = Column(String(7), nullable=False, default='#FFFFFF')  # White
     show_sunday = Column(Boolean, nullable=False, default=False)  # Show Sunday even if not an opening day
     show_weekdays = Column(Boolean, nullable=False, default=False)  # Show weekdays even if not opening days
-    start_of_week = Column(Integer, nullable=False, default=1)  # 1 = Monday
-    
-    # Notification Settings
+    start_of_week = Column(Integer, nullable=False, default=1)
     email_notifications = Column(Boolean, nullable=False, default=True)
     schedule_published_notify = Column(Boolean, nullable=False, default=True)
     shift_changes_notify = Column(Boolean, nullable=False, default=True)
@@ -109,6 +109,26 @@ class Settings(db.Model):
         {'id': 'unpaid', 'name': 'Unbezahlt', 'color': '#9E9E9E'}
     ])
     
+    # Actions Settings - deferred loading to prevent errors if column doesn't exist
+    _actions_demo_data = deferred(Column('actions_demo_data', JSON, nullable=True))
+
+    @hybrid_property
+    def actions_demo_data(self):
+        try:
+            return self._actions_demo_data
+        except:
+            return {
+                'selected_module': '',
+                'last_execution': None
+            }
+
+    @actions_demo_data.setter
+    def actions_demo_data(self, value):
+        try:
+            self._actions_demo_data = value
+        except:
+            pass  # Silently fail if column doesn't exist
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -137,7 +157,7 @@ class Settings(db.Model):
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert settings to dictionary format"""
-        return {
+        result = {
             'general': {
                 'store_name': self.store_name,
                 'store_address': self.store_address,
@@ -183,9 +203,7 @@ class Settings(db.Model):
                 },
                 'show_sunday': self.show_sunday,
                 'show_weekdays': self.show_weekdays,
-                'start_of_week': self.start_of_week
-            },
-            'notifications': {
+                'start_of_week': self.start_of_week,
                 'email_notifications': self.email_notifications,
                 'schedule_published': self.schedule_published_notify,
                 'shift_changes': self.shift_changes_notify,
@@ -221,8 +239,12 @@ class Settings(db.Model):
             'employee_groups': {
                 'employee_types': self.employee_types,
                 'absence_types': self.absence_types
+            },
+            'actions': {
+                'demo_data': self.actions_demo_data
             }
         }
+        return result
 
     @classmethod
     def get_default_settings(cls) -> 'Settings':
@@ -303,6 +325,14 @@ class Settings(db.Model):
             {'id': 'sick', 'name': 'Krank', 'color': '#F44336'},
             {'id': 'unpaid', 'name': 'Unbezahlt', 'color': '#9E9E9E'}
         ]
+        
+        try:
+            settings.actions_demo_data = {
+                'selected_module': '',
+                'last_execution': None
+            }
+        except:
+            pass
         
         return settings
 
@@ -390,6 +420,10 @@ class Settings(db.Model):
                         self.show_total_hours = content['show_total_hours']
             
             elif category == 'employee_groups':
+                for key, value in values.items():
+                    if hasattr(self, key):
+                        setattr(self, key, value)
+            elif category == 'actions':
                 for key, value in values.items():
                     if hasattr(self, key):
                         setattr(self, key, value)

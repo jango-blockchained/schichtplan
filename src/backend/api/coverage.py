@@ -28,7 +28,8 @@ def create_coverage():
             start_time=data['start_time'],
             end_time=data['end_time'],
             min_employees=data['min_employees'],
-            max_employees=data['max_employees']
+            max_employees=data['max_employees'],
+            employee_types=data.get('employee_types', [])  # Default to empty list if not provided
         )
         
         db.session.add(coverage)
@@ -50,8 +51,8 @@ def create_coverage():
 @bp.route('/<int:coverage_id>', methods=['PUT'])
 def update_coverage(coverage_id):
     """Update a coverage requirement"""
-    coverage = Coverage.query.get_or_404(coverage_id)
     data = request.get_json()
+    coverage = Coverage.query.get_or_404(coverage_id)
     
     try:
         if 'day_index' in data:
@@ -64,12 +65,14 @@ def update_coverage(coverage_id):
             coverage.min_employees = data['min_employees']
         if 'max_employees' in data:
             coverage.max_employees = data['max_employees']
-            
-        db.session.commit()
+        if 'employee_types' in data:
+            coverage.employee_types = data['employee_types']
         
-        return jsonify(coverage.to_dict()), HTTPStatus.OK
+        db.session.commit()
+        return jsonify(coverage.to_dict())
         
     except (ValueError, KeyError) as e:
+        db.session.rollback()
         return jsonify({
             'error': 'Invalid data provided',
             'details': str(e)
@@ -89,11 +92,12 @@ def delete_coverage(coverage_id):
         db.session.delete(coverage)
         db.session.commit()
         return '', HTTPStatus.NO_CONTENT
-    except:
+    except Exception as e:
         db.session.rollback()
         return jsonify({
-            'error': 'Could not delete coverage requirement'
-        }), HTTPStatus.CONFLICT
+            'error': 'Could not delete coverage requirement',
+            'details': str(e)
+        }), HTTPStatus.INTERNAL_SERVER_ERROR
 
 @bp.route('/bulk', methods=['POST'])
 def bulk_update_coverage():
@@ -112,7 +116,8 @@ def bulk_update_coverage():
                     start_time=time_slot['startTime'],
                     end_time=time_slot['endTime'],
                     min_employees=time_slot['minEmployees'],
-                    max_employees=time_slot['maxEmployees']
+                    max_employees=time_slot['maxEmployees'],
+                    employee_types=time_slot.get('employeeTypes', [])  # Default to empty list if not provided
                 )
                 db.session.add(coverage)
         
