@@ -80,7 +80,7 @@ with app.app_context():
         show_breaks=True,
         show_total_hours=True,
         employee_types=json.dumps([
-            {'id': 'VL', 'name': 'Vollzeit'},
+            {'id': 'VZ', 'name': 'Vollzeit'},
             {'id': 'TL', 'name': 'Teilzeit'},
             {'id': 'TZ', 'name': 'Teilzeit'},
             {'id': 'GFB', 'name': 'Geringfügig Beschäftigt'}

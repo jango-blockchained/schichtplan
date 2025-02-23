@@ -14,7 +14,7 @@ def test_create_employee(client, session):
     data = {
         'first_name': 'Test',
         'last_name': 'User',
-        'employee_group': 'VL',
+        'employee_group': 'VZ',
         'contracted_hours': 40,
         'is_keyholder': True
     }
@@ -30,7 +30,7 @@ def test_get_employees(client, session):
     employee = Employee(
         first_name="Test",
         last_name="User",
-        employee_group=EmployeeGroup.VL,
+        employee_group=EmployeeGroup.VZ,
         contracted_hours=40
     )
     session.add(employee)
@@ -204,14 +204,14 @@ def test_schedule_generation(client, app):
         # Create employees
         keyholder1 = Employee(
             name="Key Holder 1",
-            group=EmployeeGroup.VL,
+            group=EmployeeGroup.VZ,
             is_keyholder=True,
             max_hours_per_week=40
         )
         
         keyholder2 = Employee(
             name="Key Holder 2",
-            group=EmployeeGroup.VL,
+            group=EmployeeGroup.VZ,
             is_keyholder=True,
             max_hours_per_week=40
         )
@@ -291,11 +291,11 @@ def test_export_schedule(client, session):
 
 def test_schedule_respects_weekly_limits(client, session):
     """Test that schedule generation respects weekly hour limits"""
-    # Create a VL employee
+    # Create a VZ employee
     vl_employee = Employee(
-        first_name="VL",
+        first_name="VZ",
         last_name="User",
-        employee_group=EmployeeGroup.VL,
+        employee_group=EmployeeGroup.VZ,
         contracted_hours=40,
         is_keyholder=True
     )
@@ -339,7 +339,7 @@ def test_schedule_respects_weekly_limits(client, session):
     ).all()
     
     total_hours = sum(s.shift.duration_hours for s in schedules)
-    assert total_hours <= 48, f"Weekly hours ({total_hours}) exceed limit of 48 for VL employee"
+    assert total_hours <= 48, f"Weekly hours ({total_hours}) exceed limit of 48 for VZ employee"
 
 def test_keyholder_requirements(client, session):
     """Test that early/late shifts require a keyholder"""
@@ -347,7 +347,7 @@ def test_keyholder_requirements(client, session):
     regular_employee = Employee(
         first_name="Regular",
         last_name="Employee",
-        employee_group=EmployeeGroup.VL,
+        employee_group=EmployeeGroup.VZ,
         contracted_hours=40,
         is_keyholder=False
     )
@@ -465,7 +465,7 @@ def test_break_time_requirements(client, session):
     employee = Employee(
         first_name="Test",
         last_name="User",
-        employee_group=EmployeeGroup.VL,
+        employee_group=EmployeeGroup.VZ,
         contracted_hours=40,
         is_keyholder=True
     )
@@ -570,7 +570,7 @@ def test_schedule_shift(client, app):
         employee = Employee(
             first_name="Test",
             last_name="User",
-            employee_group=EmployeeGroup.VL,
+            employee_group=EmployeeGroup.VZ,
             contracted_hours=40.0,
             is_keyholder=True
         )
@@ -601,7 +601,7 @@ def test_update_schedule(client, app):
         employee = Employee(
             first_name="Test",
             last_name="User",
-            employee_group=EmployeeGroup.VL,
+            employee_group=EmployeeGroup.VZ,
             contracted_hours=40.0,
             is_keyholder=True
         )

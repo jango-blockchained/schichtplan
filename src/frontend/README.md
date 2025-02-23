@@ -45,7 +45,7 @@ The frontend for the ShiftWise scheduling application, built with React and Mate
 ### Employee Group Management
 - Dynamic employee group configuration
 - Predefined employment models:
-  - VL (Vollzeit) - Full-time employees
+  - VZ (Vollzeit) - Full-time employees
   - TZ (Teilzeit) - Part-time employees
   - GFB (Geringfügig Beschäftigt) - Mini-job employees
   - TL (Team Leader) - Management positions

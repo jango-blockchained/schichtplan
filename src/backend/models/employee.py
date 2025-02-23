@@ -15,7 +15,7 @@ class AvailabilityType(str, Enum):
     SICK = "sick"
 
 class EmployeeGroup(str, Enum):
-    VL = "VL"   # Vollzeit
+    VZ = "VZ"   # Vollzeit
     TZ = "TZ"   # Teilzeit
     GFB = "GFB" # Geringfügig Beschäftigt
     TL = "TL"   # Team Leader
@@ -76,14 +76,14 @@ class Employee(db.Model):
         if not 0 <= self.contracted_hours <= 48:  # German labor law maximum
             return False
             
-        if self.employee_group in [EmployeeGroup.VL, EmployeeGroup.TL]:
+        if self.employee_group in [EmployeeGroup.VZ, EmployeeGroup.TL]:
             # Full-time employees should work between 35 and 48 hours
             return 35 <= self.contracted_hours <= 48
         elif self.employee_group == EmployeeGroup.TZ:
             # Part-time employees can work up to 35 hours
             return 0 < self.contracted_hours < 35
         elif self.employee_group == EmployeeGroup.GFB:
-            # Minijob employees must stay under the monthly limit (556 EUR / 12.41 EUR minimum wage)
+            # Geringfügig Beschäftigt employees must stay under the monthly limit (556 EUR / 12.41 EUR minimum wage)
             max_monthly_hours = 556 / 12.41  # ~44.8 hours per month
             max_weekly_hours = max_monthly_hours / 4.33  # Convert to weekly hours
             return 0 <= self.contracted_hours <= max_weekly_hours
@@ -95,7 +95,7 @@ class Employee(db.Model):
 
     def get_max_weekly_hours(self) -> float:
         """Get maximum allowed weekly hours based on employment type"""
-        if self.employee_group in [EmployeeGroup.VL, EmployeeGroup.TL]:
+        if self.employee_group in [EmployeeGroup.VZ, EmployeeGroup.TL]:
             return 48.0  # Maximum 48 hours per week for full-time
         elif self.employee_group == EmployeeGroup.TZ:
             return self.contracted_hours

@@ -1,8 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getSettings, updateSettings, generateDemoData } from "@/services/api";
-import { Settings } from "@/types";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import type { Settings } from "@/types/index";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -18,15 +25,30 @@ import {
 import { ColorPicker } from "@/components/ui/color-picker";
 import { PDFLayoutEditor } from "@/components/PDFLayoutEditor";
 import EmployeeSettingsEditor, { EmployeeType, AbsenceType } from "@/components/EmployeeSettingsEditor";
-import { Loader2 } from "lucide-react";
+import { Loader2, Save, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useDebouncedCallback } from 'use-debounce';
-import { Trash2 } from "lucide-react";
 import { useTheme } from '@/providers/ThemeProvider';
 
-type GroupType = EmployeeType | AbsenceType;
+export interface BaseGroup {
+  id: string;
+  name: string;
+}
+
+export interface BaseEmployeeType extends BaseGroup {
+  min_hours: number;
+  max_hours: number;
+  type: 'employee';
+}
+
+export interface BaseAbsenceType extends BaseGroup {
+  color: string;
+  type: 'absence';
+}
+
+type GroupType = BaseEmployeeType | BaseAbsenceType;
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -34,29 +56,39 @@ export default function SettingsPage() {
   const queryClient = useQueryClient();
   const [currentTab, setCurrentTab] = React.useState("general");
   const [localSettings, setLocalSettings] = useState<Settings | null>(null);
+  const [selectedDemoModule, setSelectedDemoModule] = useState<string>("");
 
   const { data: settings, isLoading, error } = useQuery<Settings>({
     queryKey: ["settings"],
     queryFn: getSettings,
     retry: 3,
     staleTime: 1000 * 60 * 5, // 5 minutes
-    onSuccess: (data) => {
-      if (!localSettings) {
-        setLocalSettings(data);
-      }
-    },
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
+
+  useEffect(() => {
+    if (settings) {
+      setLocalSettings(settings);
+      setSelectedDemoModule(settings.actions.demo_data.selected_module || "");
+    }
+  }, [settings]);
 
   const updateMutation = useMutation({
     mutationFn: (data: Partial<Settings>) => updateSettings(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["settings"] });
+    onSuccess: (updatedSettings) => {
+      queryClient.setQueryData(["settings"], updatedSettings);
+      setLocalSettings(updatedSettings);
       toast({
         title: "Settings updated",
         description: "Your settings have been successfully updated.",
       });
     },
     onError: (error) => {
+      const cachedSettings = queryClient.getQueryData<Settings>(["settings"]);
+      if (cachedSettings) {
+        setLocalSettings(cachedSettings);
+      }
       toast({
         title: "Error",
         description: "Failed to update settings. Please try again.",
@@ -95,23 +127,34 @@ export default function SettingsPage() {
 
   const handleImmediateUpdate = () => {
     if (localSettings) {
-      updateMutation.mutate(localSettings);
       debouncedUpdate.cancel();
+
+      updateMutation.mutate(localSettings);
     }
   };
 
   const handleEmployeeGroupChange = (groups: GroupType[]) => {
     const employeeTypes = groups
-      .filter((group): group is EmployeeType => group.type === 'employee')
+      .filter((group): group is BaseEmployeeType => group.type === 'employee')
       .map(({ type, ...rest }) => rest);
-    handleSave("employee_groups", { employee_types: employeeTypes });
+    handleSave("employee_groups", {
+      employee_types: employeeTypes.map(type => ({
+        ...type,
+        type: 'employee' as const
+      }))
+    });
   };
 
   const handleAbsenceGroupChange = (groups: GroupType[]) => {
     const absenceTypes = groups
-      .filter((group): group is AbsenceType => group.type === 'absence')
+      .filter((group): group is BaseAbsenceType => group.type === 'absence')
       .map(({ type, ...rest }) => rest);
-    handleSave("employee_groups", { absence_types: absenceTypes });
+    handleSave("employee_groups", {
+      absence_types: absenceTypes.map(type => ({
+        ...type,
+        type: 'absence' as const
+      }))
+    });
   };
 
   const renderTypeList = (types: Array<{ id: string; name: string }>) => {
@@ -139,765 +182,222 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="container mx-auto py-6">
+    <div className="container mx-auto py-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+          <p className="text-muted-foreground">
+            Manage your store settings and preferences
+          </p>
+        </div>
+      </div>
+
       <Card>
-        <CardHeader>
-          <CardTitle>Settings</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Tabs value={currentTab} onValueChange={setCurrentTab}>
-            <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6">
-              <TabsTrigger value="general">General</TabsTrigger>
-              <TabsTrigger value="scheduling">Scheduling</TabsTrigger>
-              <TabsTrigger value="display">Display & Notifications</TabsTrigger>
-              <TabsTrigger value="pdf">PDF Layout</TabsTrigger>
-              <TabsTrigger value="employee_groups">Groups</TabsTrigger>
-              <TabsTrigger value="actions">Actions</TabsTrigger>
+        <CardContent className="p-6">
+          <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-6">
+            <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 gap-4">
+              <TabsTrigger value="general" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                General
+              </TabsTrigger>
+              <TabsTrigger value="scheduling" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                Scheduling
+              </TabsTrigger>
+              <TabsTrigger value="display" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                Display
+              </TabsTrigger>
+              <TabsTrigger value="pdf" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                PDF Layout
+              </TabsTrigger>
+              <TabsTrigger value="employee_groups" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                Groups
+              </TabsTrigger>
+              <TabsTrigger value="actions" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                Actions
+              </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="general" className="space-y-6">
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="storeName">Store Name</Label>
-                    <Input
-                      id="storeName"
-                      value={localSettings?.general.store_name ?? ''}
-                      onChange={(e) =>
-                        handleSave("general", { store_name: e.target.value })
-                      }
-                      onBlur={handleImmediateUpdate}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="storeAddress">Store Address</Label>
-                    <Input
-                      id="storeAddress"
-                      value={localSettings?.general.store_address ?? ''}
-                      onChange={(e) =>
-                        handleSave("general", { store_address: e.target.value })
-                      }
-                      onBlur={handleImmediateUpdate}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="storeContact">Store Contact</Label>
-                    <Input
-                      id="storeContact"
-                      value={localSettings?.general.store_contact ?? ''}
-                      onChange={(e) =>
-                        handleSave("general", { store_contact: e.target.value })
-                      }
-                      onBlur={handleImmediateUpdate}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="storeOpening">Opening Time</Label>
-                      <Input
-                        id="storeOpening"
-                        type="time"
-                        value={localSettings?.general.store_opening ?? '09:00'}
-                        onChange={(e) =>
-                          handleSave("general", { store_opening: e.target.value })
-                        }
-                        onBlur={handleImmediateUpdate}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="storeClosing">Closing Time</Label>
-                      <Input
-                        id="storeClosing"
-                        type="time"
-                        value={localSettings?.general.store_closing ?? '20:00'}
-                        onChange={(e) =>
-                          handleSave("general", { store_closing: e.target.value })
-                        }
-                        onBlur={handleImmediateUpdate}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="keyholderBefore">Keyholder Time Before Opening (minutes)</Label>
-                      <Input
-                        id="keyholderBefore"
-                        type="number"
-                        min="0"
-                        max="120"
-                        value={localSettings?.general.keyholder_before_minutes ?? 30}
-                        onChange={(e) =>
-                          handleSave("general", { keyholder_before_minutes: parseInt(e.target.value) })
-                        }
-                        onBlur={handleImmediateUpdate}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="keyholderAfter">Keyholder Time After Closing (minutes)</Label>
-                      <Input
-                        id="keyholderAfter"
-                        type="number"
-                        min="0"
-                        max="120"
-                        value={localSettings?.general.keyholder_after_minutes ?? 30}
-                        onChange={(e) =>
-                          handleSave("general", { keyholder_after_minutes: parseInt(e.target.value) })
-                        }
-                        onBlur={handleImmediateUpdate}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <Label>Opening Days</Label>
-                    <div className="grid grid-cols-7 gap-2">
-                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => (
-                        <div key={day} className="flex flex-col items-center">
-                          <Label className="text-xs mb-1">{day}</Label>
-                          <Switch
-                            checked={localSettings?.general.opening_days?.[index.toString()] ?? false}
-                            onCheckedChange={(checked) => {
-                              if (!localSettings) return;
-
-                              // Create new settings object with updated opening days
-                              const updatedSettings = {
-                                ...localSettings,
-                                general: {
-                                  ...localSettings.general,
-                                  opening_days: {
-                                    ...localSettings.general.opening_days,
-                                    [index.toString()]: checked
-                                  }
-                                }
-                              };
-
-                              // Update local state immediately
-                              setLocalSettings(updatedSettings);
-
-                              // Send update to server
-                              updateMutation.mutate(updatedSettings);
-                            }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <Label>Special Opening Hours</Label>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const date = prompt('Enter date (YYYY-MM-DD):');
-                          if (!date) return;
-
-                          const newSpecialHours = {
-                            ...localSettings?.general.special_hours,
-                            [date]: {
-                              is_closed: false,
-                              opening: localSettings?.general.store_opening,
-                              closing: localSettings?.general.store_closing
-                            }
-                          };
-                          handleSave("general", { special_hours: newSpecialHours });
-                          handleImmediateUpdate();
-                        }}
-                      >
-                        Add Special Hours
-                      </Button>
-                    </div>
-                    <div className="space-y-2">
-                      {Object.entries(localSettings?.general.special_hours ?? {}).map(([date, hours]) => (
-                        <Card key={date} className="p-4">
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="font-medium">{date}</span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                const newSpecialHours = { ...localSettings?.general.special_hours };
-                                delete newSpecialHours[date];
-                                handleSave("general", { special_hours: newSpecialHours });
-                                handleImmediateUpdate();
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                          <div className="space-y-2">
-                            <div className="flex items-center space-x-2">
-                              <Switch
-                                checked={hours.is_closed}
-                                onCheckedChange={(checked) => {
-                                  const newSpecialHours = {
-                                    ...localSettings?.general.special_hours,
-                                    [date]: { ...hours, is_closed: checked }
-                                  };
-                                  handleSave("general", { special_hours: newSpecialHours });
-                                  handleImmediateUpdate();
-                                }}
-                              />
-                              <Label>Closed</Label>
-                            </div>
-                            {!hours.is_closed && (
-                              <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <Label className="text-xs">Opening</Label>
-                                  <Input
-                                    type="time"
-                                    value={hours.opening ?? localSettings?.general.store_opening}
-                                    onChange={(e) => {
-                                      const newSpecialHours = {
-                                        ...localSettings?.general.special_hours,
-                                        [date]: { ...hours, opening: e.target.value }
-                                      };
-                                      handleSave("general", { special_hours: newSpecialHours });
-                                      handleImmediateUpdate();
-                                    }}
-                                  />
-                                </div>
-                                <div>
-                                  <Label className="text-xs">Closing</Label>
-                                  <Input
-                                    type="time"
-                                    value={hours.closing ?? localSettings?.general.store_closing}
-                                    onChange={(e) => {
-                                      const newSpecialHours = {
-                                        ...localSettings?.general.special_hours,
-                                        [date]: { ...hours, closing: e.target.value }
-                                      };
-                                      handleSave("general", { special_hours: newSpecialHours });
-                                      handleImmediateUpdate();
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </Card>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="timezone">Timezone</Label>
-                    <Select
-                      value={localSettings?.general.timezone ?? ''}
-                      onValueChange={(value) => {
-                        handleSave("general", { timezone: value });
-                        handleImmediateUpdate();
-                      }}
-                    >
-                      <SelectTrigger id="timezone">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Europe/Berlin">Europe/Berlin</SelectItem>
-                        <SelectItem value="Europe/London">Europe/London</SelectItem>
-                        <SelectItem value="America/New_York">America/New_York</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="language">Language</Label>
-                    <Select
-                      value={localSettings?.general.language ?? ''}
-                      onValueChange={(value) => {
-                        handleSave("general", { language: value });
-                        handleImmediateUpdate();
-                      }}
-                    >
-                      <SelectTrigger id="language">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="de">Deutsch</SelectItem>
-                        <SelectItem value="en">English</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="dateFormat">Date Format</Label>
-                    <Select
-                      value={localSettings?.general.date_format ?? ''}
-                      onValueChange={(value) => {
-                        handleSave("general", { date_format: value });
-                        handleImmediateUpdate();
-                      }}
-                    >
-                      <SelectTrigger id="dateFormat">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="DD.MM.YYYY">DD.MM.YYYY</SelectItem>
-                        <SelectItem value="MM/DD/YYYY">MM/DD/YYYY</SelectItem>
-                        <SelectItem value="YYYY-MM-DD">YYYY-MM-DD</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="timeFormat">Time Format</Label>
-                    <Select
-                      value={localSettings?.general.time_format ?? ''}
-                      onValueChange={(value) => {
-                        handleSave("general", { time_format: value });
-                        handleImmediateUpdate();
-                      }}
-                    >
-                      <SelectTrigger id="timeFormat">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="24h">24h</SelectItem>
-                        <SelectItem value="12h">12h</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="scheduling" className="space-y-6">
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="resourceType">Resource Type</Label>
-                    <Select
-                      value={localSettings?.scheduling.scheduling_resource_type}
-                      onValueChange={(value: 'shifts' | 'coverage') =>
-                        handleSave("scheduling", { scheduling_resource_type: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select resource type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="shifts">Shifts</SelectItem>
-                        <SelectItem value="coverage">Coverage</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="defaultShiftDuration">Default Shift Duration (hours)</Label>
-                    <Input
-                      type="number"
-                      id="defaultShiftDuration"
-                      value={localSettings?.scheduling.default_shift_duration ?? ''}
-                      onChange={(e) =>
-                        handleSave("scheduling", {
-                          default_shift_duration: parseFloat(e.target.value),
-                        })
-                      }
-                      onBlur={handleImmediateUpdate}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="minBreakDuration">
-                      Minimum Break Duration (minutes)
-                    </Label>
-                    <Input
-                      type="number"
-                      id="minBreakDuration"
-                      value={localSettings?.scheduling.min_break_duration ?? ''}
-                      onChange={(e) =>
-                        handleSave("scheduling", {
-                          min_break_duration: Number(e.target.value),
-                        })
-                      }
-                      onBlur={handleImmediateUpdate}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="maxDailyHours">
-                      Maximum Daily Hours
-                    </Label>
-                    <Input
-                      type="number"
-                      id="maxDailyHours"
-                      value={localSettings?.scheduling.max_daily_hours ?? ''}
-                      onChange={(e) =>
-                        handleSave("scheduling", {
-                          max_daily_hours: Number(e.target.value),
-                        })
-                      }
-                      onBlur={handleImmediateUpdate}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="maxWeeklyHours">
-                      Maximum Weekly Hours
-                    </Label>
-                    <Input
-                      type="number"
-                      id="maxWeeklyHours"
-                      value={localSettings?.scheduling.max_weekly_hours ?? ''}
-                      onChange={(e) =>
-                        handleSave("scheduling", {
-                          max_weekly_hours: Number(e.target.value),
-                        })
-                      }
-                      onBlur={handleImmediateUpdate}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="minRestBetweenShifts">
-                      Minimum Rest Between Shifts (hours)
-                    </Label>
-                    <Input
-                      type="number"
-                      id="minRestBetweenShifts"
-                      value={localSettings?.scheduling.min_rest_between_shifts ?? ''}
-                      onChange={(e) =>
-                        handleSave("scheduling", {
-                          min_rest_between_shifts: Number(e.target.value),
-                        })
-                      }
-                      onBlur={handleImmediateUpdate}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="schedulingPeriodWeeks">
-                      Scheduling Period (weeks)
-                    </Label>
-                    <Input
-                      type="number"
-                      id="schedulingPeriodWeeks"
-                      value={localSettings?.scheduling.scheduling_period_weeks ?? ''}
-                      onChange={(e) =>
-                        handleSave("scheduling", {
-                          scheduling_period_weeks: Number(e.target.value),
-                        })
-                      }
-                      onBlur={handleImmediateUpdate}
-                    />
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="autoSchedulePreferences"
-                      checked={localSettings?.scheduling.auto_schedule_preferences ?? false}
-                      onCheckedChange={(checked) =>
-                        handleSave("scheduling", {
-                          auto_schedule_preferences: checked,
-                        })
-                      }
-                      onBlur={handleImmediateUpdate}
-                    />
-                    <Label htmlFor="autoSchedulePreferences">
-                      Auto-schedule based on preferences
-                    </Label>
-                  </div>
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="display" className="space-y-6">
+            <TabsContent value="general">
               <Card>
                 <CardHeader>
-                  <CardTitle>Display Settings</CardTitle>
-                  <CardDescription>Customize the appearance and behavior of your schedule</CardDescription>
+                  <CardTitle>General Settings</CardTitle>
+                  <CardDescription>
+                    Configure your store's basic information and operating hours
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="theme">Theme</Label>
-                      <Select
-                        value={localSettings?.display.theme ?? ''}
-                        onValueChange={(value) => {
-                          if (!localSettings) return;
-                          const updatedSettings = {
-                            ...localSettings,
-                            display: {
-                              ...localSettings.display,
-                              theme: value
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="storeName">Store Name</Label>
+                        <Input
+                          id="storeName"
+                          value={localSettings?.general.store_name ?? ''}
+                          onChange={(e) =>
+                            handleSave("general", { store_name: e.target.value })
+                          }
+                          onBlur={handleImmediateUpdate}
+                          className="w-full"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="storeAddress">Store Address</Label>
+                        <Input
+                          id="storeAddress"
+                          value={localSettings?.general.store_address ?? ''}
+                          onChange={(e) =>
+                            handleSave("general", { store_address: e.target.value })
+                          }
+                          onBlur={handleImmediateUpdate}
+                          className="w-full"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="storeContact">Store Contact</Label>
+                        <Input
+                          id="storeContact"
+                          value={localSettings?.general.store_contact ?? ''}
+                          onChange={(e) =>
+                            handleSave("general", { store_contact: e.target.value })
+                          }
+                          onBlur={handleImmediateUpdate}
+                          className="w-full"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="storeOpening">Opening Time</Label>
+                          <Input
+                            id="storeOpening"
+                            type="time"
+                            value={localSettings?.general.store_opening ?? '09:00'}
+                            onChange={(e) =>
+                              handleSave("general", { store_opening: e.target.value })
                             }
-                          };
-                          setLocalSettings(updatedSettings);
-                          updateMutation.mutate(updatedSettings, {
-                            onSuccess: () => {
-                              setTheme(value as 'light' | 'dark' | 'system');
+                            onBlur={handleImmediateUpdate}
+                            className="w-full"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="storeClosing">Closing Time</Label>
+                          <Input
+                            id="storeClosing"
+                            type="time"
+                            value={localSettings?.general.store_closing ?? '20:00'}
+                            onChange={(e) =>
+                              handleSave("general", { store_closing: e.target.value })
                             }
-                          });
-                          debouncedUpdate.cancel(); // Cancel any pending debounced updates
-                        }}
-                      >
-                        <SelectTrigger id="theme" className="w-[180px]">
-                          <SelectValue placeholder="Select theme" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="light">Light</SelectItem>
-                          <SelectItem value="dark">Dark</SelectItem>
-                          <SelectItem value="system">System</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                            onBlur={handleImmediateUpdate}
+                            className="w-full"
+                          />
+                        </div>
+                      </div>
 
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="primary-color">Primary Color</Label>
-                      <Input
-                        id="primary-color"
-                        type="color"
-                        value={localSettings?.display.primary_color ?? '#000000'}
-                        onChange={(e) => {
-                          handleSave("display", { primary_color: e.target.value });
-                          handleImmediateUpdate();
-                        }}
-                        className="w-[180px]"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="secondary-color">Secondary Color</Label>
-                      <Input
-                        id="secondary-color"
-                        type="color"
-                        value={localSettings?.display.secondary_color ?? '#000000'}
-                        onChange={(e) => {
-                          handleSave("display", { secondary_color: e.target.value });
-                          handleImmediateUpdate();
-                        }}
-                        className="w-[180px]"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="show-sunday">Show Sunday</Label>
-                      <Switch
-                        id="show-sunday"
-                        checked={localSettings?.display.show_sunday ?? false}
-                        onCheckedChange={(checked) => {
-                          handleSave("display", { show_sunday: checked });
-                          handleImmediateUpdate();
-                        }}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="show-weekdays">Show Weekdays</Label>
-                      <Switch
-                        id="show-weekdays"
-                        checked={localSettings?.display.show_weekdays ?? false}
-                        onCheckedChange={(checked) => {
-                          handleSave("display", { show_weekdays: checked });
-                          handleImmediateUpdate();
-                        }}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="start-of-week">Start of Week</Label>
-                      <Select
-                        value={localSettings?.display.start_of_week?.toString() ?? ''}
-                        onValueChange={(value) => {
-                          handleSave("display", { start_of_week: Number(value) });
-                          handleImmediateUpdate();
-                        }}
-                      >
-                        <SelectTrigger id="start-of-week" className="w-[180px]">
-                          <SelectValue placeholder="Select start day" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="0">Sunday</SelectItem>
-                          <SelectItem value="1">Monday</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="email-notifications">Email Notifications</Label>
-                      <Switch
-                        id="email-notifications"
-                        checked={localSettings?.display.email_notifications ?? false}
-                        onCheckedChange={(checked) => {
-                          handleSave("display", { email_notifications: checked });
-                          handleImmediateUpdate();
-                        }}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="schedule-published">Schedule Published Notifications</Label>
-                      <Switch
-                        id="schedule-published"
-                        checked={localSettings?.display.schedule_published ?? false}
-                        onCheckedChange={(checked) => {
-                          handleSave("display", { schedule_published: checked });
-                          handleImmediateUpdate();
-                        }}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="shift-changes">Shift Changes Notifications</Label>
-                      <Switch
-                        id="shift-changes"
-                        checked={localSettings?.display.shift_changes ?? false}
-                        onCheckedChange={(checked) => {
-                          handleSave("display", { shift_changes: checked });
-                          handleImmediateUpdate();
-                        }}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="time-off-requests">Time Off Requests Notifications</Label>
-                      <Switch
-                        id="time-off-requests"
-                        checked={localSettings?.display.time_off_requests ?? false}
-                        onCheckedChange={(checked) => {
-                          handleSave("display", { time_off_requests: checked });
-                          handleImmediateUpdate();
-                        }}
-                      />
+                      <div className="space-y-4">
+                        <Label>Opening Days</Label>
+                        <div className="grid grid-cols-7 gap-2">
+                          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => (
+                            <div key={day} className="flex flex-col items-center space-y-2">
+                              <Label className="text-sm">{day}</Label>
+                              <Switch
+                                checked={localSettings?.general.opening_days?.[index.toString()] ?? false}
+                                onCheckedChange={(checked) => {
+                                  if (!localSettings) return;
+                                  const updatedSettings = {
+                                    ...localSettings,
+                                    general: {
+                                      ...localSettings.general,
+                                      opening_days: {
+                                        ...localSettings.general.opening_days,
+                                        [index.toString()]: checked
+                                      }
+                                    }
+                                  };
+                                  setLocalSettings(updatedSettings);
+                                  updateMutation.mutate(updatedSettings);
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
-
+                </CardContent>
+                <CardFooter className="flex justify-end space-x-2">
                   <Button
+                    variant="outline"
                     onClick={() => {
                       if (localSettings) {
+                        debouncedUpdate.cancel();
                         updateMutation.mutate(localSettings);
                       }
                     }}
                   >
+                    <Save className="w-4 h-4 mr-2" />
                     Save Changes
                   </Button>
-                </CardContent>
+                </CardFooter>
               </Card>
             </TabsContent>
 
-            <TabsContent value="pdf" className="space-y-6">
-              <PDFLayoutEditor
-                config={{
-                  page_size: localSettings?.pdf_layout.page_size ?? 'A4',
-                  orientation: localSettings?.pdf_layout.orientation ?? 'portrait',
-                  margins: localSettings?.pdf_layout.margins ?? { top: 20, right: 20, bottom: 20, left: 20 },
-                  table_style: localSettings?.pdf_layout.table_style ?? {
-                    header_bg_color: '#f5f5f5',
-                    border_color: '#e0e0e0',
-                    text_color: '#000000',
-                    header_text_color: '#000000'
-                  },
-                  fonts: localSettings?.pdf_layout.fonts ?? {
-                    family: 'Arial',
-                    size: 12,
-                    header_size: 14
-                  },
-                  content: localSettings?.pdf_layout.content ?? {
-                    show_employee_id: true,
-                    show_position: true,
-                    show_breaks: true,
-                    show_total_hours: true
-                  }
-                }}
-                onChange={(config) => {
-                  handleSave("pdf_layout", config);
-                  handleImmediateUpdate();
-                }}
-              />
-            </TabsContent>
-
-            <TabsContent value="employee_groups" className="space-y-6">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Employee Types</Label>
-                  <EmployeeSettingsEditor
-                    type="employee"
-                    groups={localSettings?.employee_groups.employee_types.map(type => ({
-                      ...type,
-                      type: 'employee'
-                    })) ?? []}
-                    onChange={handleEmployeeGroupChange}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Absence Types</Label>
-                  <EmployeeSettingsEditor
-                    type="absence"
-                    groups={localSettings?.employee_groups.absence_types.map(type => ({
-                      ...type,
-                      type: 'absence'
-                    })) ?? []}
-                    onChange={handleAbsenceGroupChange}
-                  />
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="actions" className="space-y-6">
+            <TabsContent value="actions">
               <Card>
                 <CardHeader>
-                  <CardTitle>Actions</CardTitle>
-                  <CardDescription>Perform various actions on your schedule data</CardDescription>
+                  <CardTitle>Demo Data Generation</CardTitle>
+                  <CardDescription>
+                    Generate sample data for testing and development purposes
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <div className="space-y-4">
+                  <div className="grid gap-4">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="demo-data-module">Demo Data Module</Label>
+                      <Label htmlFor="demo-data-module">Select Module</Label>
                       <Select
-                        value={localSettings?.actions.demo_data.selected_module ?? ''}
-                        onValueChange={(value) => {
-                          handleSave("actions", {
-                            demo_data: {
-                              ...localSettings?.actions.demo_data,
-                              selected_module: value,
-                            },
-                          });
-                          handleImmediateUpdate();
-                        }}
+                        value={selectedDemoModule}
+                        onValueChange={setSelectedDemoModule}
                       >
-                        <SelectTrigger id="demo-data-module" className="w-[180px]">
-                          <SelectValue placeholder="Select module" />
+                        <SelectTrigger id="demo-data-module" className="w-[200px]">
+                          <SelectValue placeholder="Choose a module" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="settings">Settings</SelectItem>
                           <SelectItem value="employees">Employees</SelectItem>
                           <SelectItem value="shifts">Shifts</SelectItem>
                           <SelectItem value="coverage">Coverage</SelectItem>
                           <SelectItem value="availability">Availability</SelectItem>
-                          <SelectItem value="all">All</SelectItem>
+                          <SelectItem value="all">All Modules</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
 
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between py-2">
                       <Label>Last Execution</Label>
-                      <span className="text-sm text-gray-500">
+                      <span className="text-sm text-muted-foreground">
                         {localSettings?.actions.demo_data.last_execution
                           ? new Date(localSettings.actions.demo_data.last_execution).toLocaleString()
                           : "Never"}
                       </span>
                     </div>
 
+                    <Separator className="my-4" />
+
                     <Button
                       onClick={async () => {
-                        if (!localSettings?.actions.demo_data.selected_module) return;
-
+                        if (!selectedDemoModule) return;
                         try {
-                          await generateDemoData(localSettings.actions.demo_data.selected_module);
+                          await generateDemoData(selectedDemoModule);
+                          if (selectedDemoModule === 'settings' || selectedDemoModule === 'all') {
+                            await queryClient.invalidateQueries({ queryKey: ["settings"] });
+                          }
                           toast({
                             title: "Success",
-                            description: `Demo data generated for ${localSettings.actions.demo_data.selected_module} module`,
+                            description: `Demo data generated for ${selectedDemoModule} module`,
                           });
-                          // Refresh settings to update last_execution timestamp
                           queryClient.invalidateQueries({ queryKey: ["settings"] });
                         } catch (error) {
                           toast({
@@ -907,7 +407,8 @@ export default function SettingsPage() {
                           });
                         }
                       }}
-                      disabled={!localSettings?.actions.demo_data.selected_module}
+                      disabled={!selectedDemoModule}
+                      className="w-full"
                     >
                       Generate Demo Data
                     </Button>
@@ -915,6 +416,736 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            <TabsContent value="scheduling">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Scheduling Settings</CardTitle>
+                  <CardDescription>Configure scheduling rules and preferences</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="resourceType">Resource Type</Label>
+                        <Select
+                          value={localSettings?.scheduling.scheduling_resource_type}
+                          onValueChange={(value: 'shifts' | 'coverage') =>
+                            handleSave("scheduling", { scheduling_resource_type: value })
+                          }
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select resource type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="shifts">Shifts</SelectItem>
+                            <SelectItem value="coverage">Coverage</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="defaultShiftDuration">Default Shift Duration (hours)</Label>
+                        <Input
+                          type="number"
+                          id="defaultShiftDuration"
+                          value={localSettings?.scheduling.default_shift_duration ?? ''}
+                          onChange={(e) =>
+                            handleSave("scheduling", {
+                              default_shift_duration: parseFloat(e.target.value),
+                            })
+                          }
+                          onBlur={handleImmediateUpdate}
+                          className="w-full"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="minBreakDuration">Minimum Break Duration (minutes)</Label>
+                        <Input
+                          type="number"
+                          id="minBreakDuration"
+                          value={localSettings?.scheduling.min_break_duration ?? ''}
+                          onChange={(e) =>
+                            handleSave("scheduling", {
+                              min_break_duration: Number(e.target.value),
+                            })
+                          }
+                          onBlur={handleImmediateUpdate}
+                          className="w-full"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="maxDailyHours">Maximum Daily Hours</Label>
+                        <Input
+                          type="number"
+                          id="maxDailyHours"
+                          value={localSettings?.scheduling.max_daily_hours ?? ''}
+                          onChange={(e) =>
+                            handleSave("scheduling", {
+                              max_daily_hours: Number(e.target.value),
+                            })
+                          }
+                          onBlur={handleImmediateUpdate}
+                          className="w-full"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="maxWeeklyHours">Maximum Weekly Hours</Label>
+                        <Input
+                          type="number"
+                          id="maxWeeklyHours"
+                          value={localSettings?.scheduling.max_weekly_hours ?? ''}
+                          onChange={(e) =>
+                            handleSave("scheduling", {
+                              max_weekly_hours: Number(e.target.value),
+                            })
+                          }
+                          onBlur={handleImmediateUpdate}
+                          className="w-full"
+                        />
+                      </div>
+
+                      <div className="flex items-center space-x-2 pt-2">
+                        <Switch
+                          id="autoSchedulePreferences"
+                          checked={localSettings?.scheduling.auto_schedule_preferences ?? false}
+                          onCheckedChange={(checked) =>
+                            handleSave("scheduling", {
+                              auto_schedule_preferences: checked,
+                            })
+                          }
+                        />
+                        <Label htmlFor="autoSchedulePreferences">
+                          Auto-schedule based on preferences
+                        </Label>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter className="flex justify-end space-x-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleImmediateUpdate}
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Changes
+                  </Button>
+                </CardFooter>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="display">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Display Settings</CardTitle>
+                  <CardDescription>Customize the appearance and notifications</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="theme">Theme</Label>
+                        <Select
+                          value={localSettings?.display.theme ?? ''}
+                          onValueChange={(value) => {
+                            if (!localSettings) return;
+                            const updatedSettings = {
+                              ...localSettings,
+                              display: {
+                                ...localSettings.display,
+                                theme: value
+                              }
+                            };
+                            setLocalSettings(updatedSettings);
+                            updateMutation.mutate(updatedSettings, {
+                              onSuccess: () => {
+                                setTheme(value as 'light' | 'dark' | 'system');
+                              }
+                            });
+                            debouncedUpdate.cancel();
+                          }}
+                        >
+                          <SelectTrigger id="theme" className="w-full">
+                            <SelectValue placeholder="Select theme" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="light">Light</SelectItem>
+                            <SelectItem value="dark">Dark</SelectItem>
+                            <SelectItem value="system">System</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="primary-color">Primary Color</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id="primary-color"
+                            type="color"
+                            value={localSettings?.display.primary_color ?? '#000000'}
+                            onChange={(e) => {
+                              handleSave("display", { primary_color: e.target.value });
+                              handleImmediateUpdate();
+                            }}
+                            className="w-[100px]"
+                          />
+                          <Input
+                            value={localSettings?.display.primary_color ?? '#000000'}
+                            onChange={(e) => {
+                              handleSave("display", { primary_color: e.target.value });
+                              handleImmediateUpdate();
+                            }}
+                            className="flex-1"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="secondary-color">Secondary Color</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id="secondary-color"
+                            type="color"
+                            value={localSettings?.display.secondary_color ?? '#000000'}
+                            onChange={(e) => {
+                              handleSave("display", { secondary_color: e.target.value });
+                              handleImmediateUpdate();
+                            }}
+                            className="w-[100px]"
+                          />
+                          <Input
+                            value={localSettings?.display.secondary_color ?? '#000000'}
+                            onChange={(e) => {
+                              handleSave("display", { secondary_color: e.target.value });
+                              handleImmediateUpdate();
+                            }}
+                            className="flex-1"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Calendar Display</Label>
+                        <div className="rounded-lg border p-4 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor="show-sunday">Show Sunday</Label>
+                            <Switch
+                              id="show-sunday"
+                              checked={localSettings?.display.show_sunday ?? false}
+                              onCheckedChange={(checked) => {
+                                handleSave("display", { show_sunday: checked });
+                                handleImmediateUpdate();
+                              }}
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor="show-weekdays">Show Weekdays</Label>
+                            <Switch
+                              id="show-weekdays"
+                              checked={localSettings?.display.show_weekdays ?? false}
+                              onCheckedChange={(checked) => {
+                                handleSave("display", { show_weekdays: checked });
+                                handleImmediateUpdate();
+                              }}
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor="start-of-week">Start of Week</Label>
+                            <Select
+                              value={localSettings?.display.start_of_week?.toString() ?? ''}
+                              onValueChange={(value) => {
+                                handleSave("display", { start_of_week: Number(value) });
+                                handleImmediateUpdate();
+                              }}
+                            >
+                              <SelectTrigger id="start-of-week" className="w-[140px]">
+                                <SelectValue placeholder="Select day" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="0">Sunday</SelectItem>
+                                <SelectItem value="1">Monday</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Notifications</Label>
+                        <div className="rounded-lg border p-4 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor="email-notifications">Email Notifications</Label>
+                            <Switch
+                              id="email-notifications"
+                              checked={localSettings?.display.email_notifications ?? false}
+                              onCheckedChange={(checked) => {
+                                handleSave("display", { email_notifications: checked });
+                                handleImmediateUpdate();
+                              }}
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor="schedule-published">Schedule Published</Label>
+                            <Switch
+                              id="schedule-published"
+                              checked={localSettings?.display.schedule_published ?? false}
+                              onCheckedChange={(checked) => {
+                                handleSave("display", { schedule_published: checked });
+                                handleImmediateUpdate();
+                              }}
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor="shift-changes">Shift Changes</Label>
+                            <Switch
+                              id="shift-changes"
+                              checked={localSettings?.display.shift_changes ?? false}
+                              onCheckedChange={(checked) => {
+                                handleSave("display", { shift_changes: checked });
+                                handleImmediateUpdate();
+                              }}
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor="time-off-requests">Time Off Requests</Label>
+                            <Switch
+                              id="time-off-requests"
+                              checked={localSettings?.display.time_off_requests ?? false}
+                              onCheckedChange={(checked) => {
+                                handleSave("display", { time_off_requests: checked });
+                                handleImmediateUpdate();
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter className="flex justify-end space-x-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleImmediateUpdate}
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Changes
+                  </Button>
+                </CardFooter>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="employee_groups">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Employee Groups</CardTitle>
+                  <CardDescription>Manage employee and absence types</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-6">
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-lg font-semibold">Employee Types</Label>
+                        <Button variant="outline" size="sm">
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Type
+                        </Button>
+                      </div>
+                      <EmployeeSettingsEditor
+                        type="employee"
+                        groups={localSettings?.employee_groups.employee_types.map(type => ({
+                          ...type,
+                          type: 'employee'
+                        })) ?? []}
+                        onChange={handleEmployeeGroupChange}
+                      />
+                    </div>
+
+                    <Separator className="my-6" />
+
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-lg font-semibold">Absence Types</Label>
+                        <Button variant="outline" size="sm">
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Type
+                        </Button>
+                      </div>
+                      <EmployeeSettingsEditor
+                        type="absence"
+                        groups={localSettings?.employee_groups.absence_types.map(type => ({
+                          ...type,
+                          type: 'absence'
+                        })) ?? []}
+                        onChange={handleAbsenceGroupChange}
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter className="flex justify-end space-x-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleImmediateUpdate}
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Changes
+                  </Button>
+                </CardFooter>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="pdf">
+              <Card>
+                <CardHeader>
+                  <CardTitle>PDF Layout Settings</CardTitle>
+                  <CardDescription>Customize the appearance of exported PDF schedules</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label>Page Settings</Label>
+                          <div className="rounded-lg border p-4 space-y-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="page-size">Page Size</Label>
+                              <Select
+                                value={localSettings?.pdf_layout.page_size ?? 'A4'}
+                                onValueChange={(value) => {
+                                  handleSave("pdf_layout", { page_size: value });
+                                  handleImmediateUpdate();
+                                }}
+                              >
+                                <SelectTrigger id="page-size" className="w-full">
+                                  <SelectValue placeholder="Select size" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="A4">A4</SelectItem>
+                                  <SelectItem value="A3">A3</SelectItem>
+                                  <SelectItem value="Letter">Letter</SelectItem>
+                                  <SelectItem value="Legal">Legal</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="orientation">Orientation</Label>
+                              <Select
+                                value={localSettings?.pdf_layout.orientation ?? 'portrait'}
+                                onValueChange={(value) => {
+                                  handleSave("pdf_layout", { orientation: value });
+                                  handleImmediateUpdate();
+                                }}
+                              >
+                                <SelectTrigger id="orientation" className="w-full">
+                                  <SelectValue placeholder="Select orientation" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="portrait">Portrait</SelectItem>
+                                  <SelectItem value="landscape">Landscape</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Margins (mm)</Label>
+                          <div className="rounded-lg border p-4 grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="margin-top">Top</Label>
+                              <Input
+                                id="margin-top"
+                                type="number"
+                                value={localSettings?.pdf_layout.margins?.top ?? 20}
+                                onChange={(e) => {
+                                  handleSave("pdf_layout", {
+                                    margins: {
+                                      top: Number(e.target.value),
+                                      right: localSettings?.pdf_layout.margins?.right ?? 20,
+                                      bottom: localSettings?.pdf_layout.margins?.bottom ?? 20,
+                                      left: localSettings?.pdf_layout.margins?.left ?? 20
+                                    }
+                                  });
+                                  handleImmediateUpdate();
+                                }}
+                                className="w-full"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="margin-right">Right</Label>
+                              <Input
+                                id="margin-right"
+                                type="number"
+                                value={localSettings?.pdf_layout.margins?.right ?? 20}
+                                onChange={(e) => {
+                                  handleSave("pdf_layout", {
+                                    margins: {
+                                      top: localSettings?.pdf_layout.margins?.top ?? 20,
+                                      right: Number(e.target.value),
+                                      bottom: localSettings?.pdf_layout.margins?.bottom ?? 20,
+                                      left: localSettings?.pdf_layout.margins?.left ?? 20
+                                    }
+                                  });
+                                  handleImmediateUpdate();
+                                }}
+                                className="w-full"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="margin-bottom">Bottom</Label>
+                              <Input
+                                id="margin-bottom"
+                                type="number"
+                                value={localSettings?.pdf_layout.margins?.bottom ?? 20}
+                                onChange={(e) => {
+                                  handleSave("pdf_layout", {
+                                    margins: {
+                                      top: localSettings?.pdf_layout.margins?.top ?? 20,
+                                      right: localSettings?.pdf_layout.margins?.right ?? 20,
+                                      bottom: Number(e.target.value),
+                                      left: localSettings?.pdf_layout.margins?.left ?? 20
+                                    }
+                                  });
+                                  handleImmediateUpdate();
+                                }}
+                                className="w-full"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="margin-left">Left</Label>
+                              <Input
+                                id="margin-left"
+                                type="number"
+                                value={localSettings?.pdf_layout.margins?.left ?? 20}
+                                onChange={(e) => {
+                                  handleSave("pdf_layout", {
+                                    margins: {
+                                      top: localSettings?.pdf_layout.margins?.top ?? 20,
+                                      right: localSettings?.pdf_layout.margins?.right ?? 20,
+                                      bottom: localSettings?.pdf_layout.margins?.bottom ?? 20,
+                                      left: Number(e.target.value)
+                                    }
+                                  });
+                                  handleImmediateUpdate();
+                                }}
+                                className="w-full"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label>Content Settings</Label>
+                          <div className="rounded-lg border p-4 space-y-4">
+                            <div className="flex items-center justify-between">
+                              <Label htmlFor="show-employee-id">Show Employee ID</Label>
+                              <Switch
+                                id="show-employee-id"
+                                checked={localSettings?.pdf_layout.content?.show_employee_id ?? true}
+                                onCheckedChange={(checked) => {
+                                  handleSave("pdf_layout", {
+                                    content: {
+                                      show_employee_id: checked,
+                                      show_position: localSettings?.pdf_layout.content?.show_position ?? true,
+                                      show_breaks: localSettings?.pdf_layout.content?.show_breaks ?? true,
+                                      show_total_hours: localSettings?.pdf_layout.content?.show_total_hours ?? true
+                                    }
+                                  });
+                                  handleImmediateUpdate();
+                                }}
+                              />
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <Label htmlFor="show-position">Show Position</Label>
+                              <Switch
+                                id="show-position"
+                                checked={localSettings?.pdf_layout.content?.show_position ?? true}
+                                onCheckedChange={(checked) => {
+                                  handleSave("pdf_layout", {
+                                    content: {
+                                      show_employee_id: localSettings?.pdf_layout.content?.show_employee_id ?? true,
+                                      show_position: checked,
+                                      show_breaks: localSettings?.pdf_layout.content?.show_breaks ?? true,
+                                      show_total_hours: localSettings?.pdf_layout.content?.show_total_hours ?? true
+                                    }
+                                  });
+                                  handleImmediateUpdate();
+                                }}
+                              />
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <Label htmlFor="show-breaks">Show Breaks</Label>
+                              <Switch
+                                id="show-breaks"
+                                checked={localSettings?.pdf_layout.content?.show_breaks ?? true}
+                                onCheckedChange={(checked) => {
+                                  handleSave("pdf_layout", {
+                                    content: {
+                                      show_employee_id: localSettings?.pdf_layout.content?.show_employee_id ?? true,
+                                      show_position: localSettings?.pdf_layout.content?.show_position ?? true,
+                                      show_breaks: checked,
+                                      show_total_hours: localSettings?.pdf_layout.content?.show_total_hours ?? true
+                                    }
+                                  });
+                                  handleImmediateUpdate();
+                                }}
+                              />
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <Label htmlFor="show-total-hours">Show Total Hours</Label>
+                              <Switch
+                                id="show-total-hours"
+                                checked={localSettings?.pdf_layout.content?.show_total_hours ?? true}
+                                onCheckedChange={(checked) => {
+                                  handleSave("pdf_layout", {
+                                    content: {
+                                      show_employee_id: localSettings?.pdf_layout.content?.show_employee_id ?? true,
+                                      show_position: localSettings?.pdf_layout.content?.show_position ?? true,
+                                      show_breaks: localSettings?.pdf_layout.content?.show_breaks ?? true,
+                                      show_total_hours: checked
+                                    }
+                                  });
+                                  handleImmediateUpdate();
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Font Settings</Label>
+                          <div className="rounded-lg border p-4 space-y-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="font-family">Font Family</Label>
+                              <Select
+                                value={localSettings?.pdf_layout.fonts?.family ?? 'Arial'}
+                                onValueChange={(value) => {
+                                  handleSave("pdf_layout", {
+                                    fonts: {
+                                      family: value,
+                                      size: localSettings?.pdf_layout.fonts?.size ?? 12,
+                                      header_size: localSettings?.pdf_layout.fonts?.header_size ?? 14
+                                    }
+                                  });
+                                  handleImmediateUpdate();
+                                }}
+                              >
+                                <SelectTrigger id="font-family" className="w-full">
+                                  <SelectValue placeholder="Select font" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Arial">Arial</SelectItem>
+                                  <SelectItem value="Times New Roman">Times New Roman</SelectItem>
+                                  <SelectItem value="Helvetica">Helvetica</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="font-size">Base Size</Label>
+                                <Input
+                                  id="font-size"
+                                  type="number"
+                                  value={localSettings?.pdf_layout.fonts?.size ?? 12}
+                                  onChange={(e) => {
+                                    handleSave("pdf_layout", {
+                                      fonts: {
+                                        family: localSettings?.pdf_layout.fonts?.family ?? 'Arial',
+                                        size: Number(e.target.value),
+                                        header_size: localSettings?.pdf_layout.fonts?.header_size ?? 14
+                                      }
+                                    });
+                                    handleImmediateUpdate();
+                                  }}
+                                  className="w-full"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="header-size">Header Size</Label>
+                                <Input
+                                  id="header-size"
+                                  type="number"
+                                  value={localSettings?.pdf_layout.fonts?.header_size ?? 14}
+                                  onChange={(e) => {
+                                    handleSave("pdf_layout", {
+                                      fonts: {
+                                        family: localSettings?.pdf_layout.fonts?.family ?? 'Arial',
+                                        size: localSettings?.pdf_layout.fonts?.size ?? 12,
+                                        header_size: Number(e.target.value)
+                                      }
+                                    });
+                                    handleImmediateUpdate();
+                                  }}
+                                  className="w-full"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <PDFLayoutEditor
+                      config={{
+                        page_size: localSettings?.pdf_layout.page_size ?? 'A4',
+                        orientation: localSettings?.pdf_layout.orientation ?? 'portrait',
+                        margins: localSettings?.pdf_layout.margins ?? { top: 20, right: 20, bottom: 20, left: 20 },
+                        table_style: localSettings?.pdf_layout.table_style ?? {
+                          header_bg_color: '#f5f5f5',
+                          border_color: '#e0e0e0',
+                          text_color: '#000000',
+                          header_text_color: '#000000'
+                        },
+                        fonts: localSettings?.pdf_layout.fonts ?? {
+                          family: 'Arial',
+                          size: 12,
+                          header_size: 14
+                        },
+                        content: localSettings?.pdf_layout.content ?? {
+                          show_employee_id: true,
+                          show_position: true,
+                          show_breaks: true,
+                          show_total_hours: true
+                        }
+                      }}
+                      onChange={(config) => {
+                        handleSave("pdf_layout", config);
+                        handleImmediateUpdate();
+                      }}
+                    />
+                  </div>
+                </CardContent>
+                <CardFooter className="flex justify-end space-x-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleImmediateUpdate}
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Changes
+                  </Button>
+                </CardFooter>
+              </Card>
+            </TabsContent>
+
+            {/* End of tabs */}
           </Tabs>
         </CardContent>
       </Card>

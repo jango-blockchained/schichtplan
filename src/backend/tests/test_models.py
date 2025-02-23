@@ -6,7 +6,7 @@ def test_employee_creation(session):
     employee = Employee(
         first_name="Test",
         last_name="User",
-        employee_group=EmployeeGroup.VL,
+        employee_group=EmployeeGroup.VZ,
         contracted_hours=40
     )
     
@@ -17,17 +17,17 @@ def test_employee_creation(session):
     assert employee.employee_id == "TUS"
     assert employee.first_name == "Test"
     assert employee.last_name == "User"
-    assert employee.employee_group == EmployeeGroup.VL
+    assert employee.employee_group == EmployeeGroup.VZ
     assert employee.contracted_hours == 40
     assert not employee.is_keyholder
 
 def test_employee_hours_validation(session):
     """Test employee hours validation"""
-    # Test VL employee
+    # Test VZ employee
     vl_employee = Employee(
-        first_name="VL",
+        first_name="VZ",
         last_name="Employee",
-        employee_group=EmployeeGroup.VL,
+        employee_group=EmployeeGroup.VZ,
         contracted_hours=40
     )
     assert vl_employee.validate_hours()
@@ -72,7 +72,7 @@ def test_employee_hours_validation(session):
     gfb_employee.contracted_hours = max_weekly_hours + 1  # Above maximum
     assert not gfb_employee.validate_hours()
     
-    # Test TL employee (same rules as VL)
+    # Test TL employee (same rules as VZ)
     tl_employee = Employee(
         first_name="TL",
         last_name="Employee",
@@ -96,7 +96,7 @@ def test_employee_id_generation(session):
     employee1 = Employee(
         first_name="John",
         last_name="Doe",
-        employee_group=EmployeeGroup.VL,
+        employee_group=EmployeeGroup.VZ,
         contracted_hours=40
     )
     assert employee1.employee_id == "JDO"
@@ -105,7 +105,7 @@ def test_employee_id_generation(session):
     employee2 = Employee(
         first_name="A",
         last_name="B",
-        employee_group=EmployeeGroup.VL,
+        employee_group=EmployeeGroup.VZ,
         contracted_hours=40
     )
     assert len(employee2.employee_id) == 3
@@ -114,7 +114,7 @@ def test_employee_id_generation(session):
     employee3 = Employee(
         first_name="Christopher",
         last_name="Anderson",
-        employee_group=EmployeeGroup.VL,
+        employee_group=EmployeeGroup.VZ,
         contracted_hours=40
     )
     assert len(employee3.employee_id) == 3
@@ -137,11 +137,11 @@ def test_employee_keyholder(session):
 
 def test_employee_weekly_hours(session):
     """Test weekly hour limits for different employee groups"""
-    # Test VL employee
+    # Test VZ employee
     vl_employee = Employee(
-        first_name="VL",
+        first_name="VZ",
         last_name="Employee",
-        employee_group=EmployeeGroup.VL,
+        employee_group=EmployeeGroup.VZ,
         contracted_hours=40
     )
     assert vl_employee.get_max_weekly_hours() == 48.0

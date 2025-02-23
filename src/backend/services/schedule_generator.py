@@ -103,14 +103,14 @@ class ScheduleGenerator:
         # Get all relevant availability records
         availabilities = EmployeeAvailability.query.filter(
             EmployeeAvailability.employee_id == employee.id,
-            (
-                (
-                    EmployeeAvailability.start_date.is_(None) &  # Recurring availabilities
-                    EmployeeAvailability.end_date.is_(None) &
-                    EmployeeAvailability.is_recurring == True
-                ) |
-                (
-                    EmployeeAvailability.start_date <= day &  # Temporary availabilities
+            db.or_(
+                db.and_(
+                    EmployeeAvailability.start_date.is_(None),  # Recurring availabilities
+                    EmployeeAvailability.end_date.is_(None),
+                    EmployeeAvailability.is_recurring.is_(True)
+                ),
+                db.and_(
+                    EmployeeAvailability.start_date <= day,  # Temporary availabilities
                     EmployeeAvailability.end_date >= day
                 )
             )
@@ -122,7 +122,7 @@ class ScheduleGenerator:
             
         # Check each availability record
         for availability in availabilities:
-            if availability.is_available_for_date(day, shift.start_time, shift.end_time):
+            if availability.is_available_for_date(day, shift.start_time if shift else None, shift.end_time if shift else None):
                 return True
                 
         return False
@@ -205,8 +205,8 @@ class ScheduleGenerator:
         week_hours = self._get_employee_hours(employee, week_start)
         
         # Different limits based on employee group
-        if employee.employee_group in [EmployeeGroup.VL, EmployeeGroup.TL]:
-            # For VL and TL: max 48 hours per week
+        if employee.employee_group in [EmployeeGroup.VZ, EmployeeGroup.TL]:
+            # For VZ and TL: max 48 hours per week
             return week_hours + shift.duration_hours <= 48
         elif employee.employee_group == EmployeeGroup.TZ:
             # For TZ: respect contracted hours
@@ -262,10 +262,10 @@ class ScheduleGenerator:
         """Check if shift distribution is fair and follows employee group rules"""
         # Team Leaders and Full-time employees should have priority for Tuesday/Thursday shifts
         if day.weekday() in [1, 3]:  # Tuesday or Thursday
-            if employee.employee_group not in [EmployeeGroup.TL, EmployeeGroup.VL]:
-                # Check if any TL/VL employees are available and not yet scheduled
+            if employee.employee_group not in [EmployeeGroup.TL, EmployeeGroup.VZ]:
+                # Check if any TL/VZ employees are available and not yet scheduled
                 available_priority = Employee.query.filter(
-                    Employee.employee_group.in_([EmployeeGroup.TL, EmployeeGroup.VL]),
+                    Employee.employee_group.in_([EmployeeGroup.TL, EmployeeGroup.VZ]),
                     ~Employee.schedules.any(Schedule.date == day)
                 ).all()
                 if available_priority:
@@ -485,7 +485,7 @@ class ScheduleGenerator:
                     available_employees,
                     key=lambda e: (
                         0 if e.is_keyholder else 1,  # Keyholders first
-                        0 if e.employee_group in [EmployeeGroup.VL, EmployeeGroup.TL] else 1,  # Full-time next
+                        0 if e.employee_group in [EmployeeGroup.VZ, EmployeeGroup.TL] else 1,  # Full-time next
                         -e.contracted_hours  # Higher contracted hours first
                     )
                 )

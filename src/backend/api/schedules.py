@@ -215,7 +215,7 @@ def _can_work_shift(
     
     weekly_hours += employee_hours.get(employee.id, 0)
     
-    if employee.employee_group in [EmployeeGroup.VL, EmployeeGroup.TL]:
+    if employee.employee_group in [EmployeeGroup.VZ, EmployeeGroup.TL]:
         if weekly_hours + shift.duration_hours > 40:
             return False
     elif employee.employee_group == EmployeeGroup.TZ:
@@ -388,14 +388,14 @@ def test_schedule_generation(client, app):
         # Create employees
         keyholder1 = Employee(
             name="Key Holder 1",
-            group=EmployeeGroup.VL,
+            group=EmployeeGroup.VZ,
             is_keyholder=True,
             max_hours_per_week=40
         )
         
         keyholder2 = Employee(
             name="Key Holder 2",
-            group=EmployeeGroup.VL,
+            group=EmployeeGroup.VZ,
             is_keyholder=True,
             max_hours_per_week=40
         )

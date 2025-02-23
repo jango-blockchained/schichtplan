@@ -1,5 +1,5 @@
 export enum EmployeeGroup {
-    VL = "VL",
+    VZ = "VZ",
     TZ = "TZ",
     GFB = "GfB",
     TL = "TL"
@@ -142,7 +142,7 @@ export interface Settings {
         special_hours: { [key: string]: { is_closed: boolean, opening: string, closing: string } };
     };
     scheduling: {
-        scheduling_resource_type: string;
+        scheduling_resource_type: 'shifts' | 'coverage';
         default_shift_duration: number;
         min_break_duration: number;
         max_daily_hours: number;
@@ -210,11 +210,13 @@ export interface Settings {
             name: string;
             min_hours: number;
             max_hours: number;
+            type: 'employee';
         }>;
         absence_types: Array<{
             id: string;
             name: string;
             color: string;
+            type: 'absence';
         }>;
     };
     actions: {

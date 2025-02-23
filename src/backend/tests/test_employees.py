@@ -22,7 +22,7 @@ class TestEmployeeAPI(unittest.TestCase):
         test_employee = Employee(
             first_name="Test",
             last_name="User",
-            employee_group=EmployeeGroup.VL,
+            employee_group=EmployeeGroup.VZ,
             contracted_hours=40.0,
             is_keyholder=True
         )

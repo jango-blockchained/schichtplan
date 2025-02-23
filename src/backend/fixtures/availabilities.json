@@ -1,6 +1,6 @@
 {
     "availabilities": {
-        "full_time": {
+        "VZ": {
             "weekdays": {
                 "hours": [
                     7,
@@ -36,7 +36,7 @@
                 "type": "REGULAR"
             }
         },
-        "part_time": {
+        "TZ": {
             "weekdays": {
                 "hours": [
                     8,
@@ -67,7 +67,7 @@
                 "type": "REGULAR"
             }
         },
-        "mini_job": {
+        "GfB": {
             "weekdays": {
                 "hours": [
                     9,
