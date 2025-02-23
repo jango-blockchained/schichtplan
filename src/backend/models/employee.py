@@ -1,18 +1,31 @@
 from . import db
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, time
 from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey, Date, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from datetime import date
 
 class AvailabilityType(str, Enum):
-    UNAVAILABLE = "unavailable"
-    AVAILABLE = "available"
-    PREFERRED_WORK = "preferred_work"
-    REGULAR = "regular"
-    TEMPORARY = "temporary"
-    VACATION = "vacation"
-    SICK = "sick"
+    AVAILABLE = "AVL"  # Available for work
+    FIXED = "FIX"     # Fixed working hours
+    PROMISE = "PRM"   # Promised/preferred hours
+    UNAVAILABLE = "UNV"  # Not available
+
+    @property
+    def is_available(self):
+        """Check if this availability type counts as available for scheduling"""
+        return self in [self.AVAILABLE, self.FIXED, self.PROMISE]
+
+    @property
+    def priority(self):
+        """Get priority for scheduling (lower number = higher priority)"""
+        priorities = {
+            self.FIXED: 1,
+            self.AVAILABLE: 2,
+            self.PROMISE: 3,
+            self.UNAVAILABLE: 4
+        }
+        return priorities.get(self, 4)
 
 class EmployeeGroup(str, Enum):
     VZ = "VZ"   # Vollzeit
@@ -137,13 +150,13 @@ class EmployeeAvailability(db.Model):
     start_date = Column(Date, nullable=True)
     end_date = Column(Date, nullable=True)
     is_recurring = Column(Boolean, nullable=False, default=True)
-    availability_type = Column(SQLEnum(AvailabilityType), nullable=False, default=AvailabilityType.REGULAR)
+    availability_type = Column(SQLEnum(AvailabilityType), nullable=False, default=AvailabilityType.AVAILABLE)
     created_at = Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     employee = relationship("Employee", back_populates="availabilities")
 
-    def __init__(self, employee_id, day_of_week, hour, is_available=True, start_date=None, end_date=None, is_recurring=True, availability_type=AvailabilityType.REGULAR):
+    def __init__(self, employee_id, day_of_week, hour, is_available=True, start_date=None, end_date=None, is_recurring=True, availability_type=AvailabilityType.AVAILABLE):
         self.employee_id = employee_id
         self.day_of_week = day_of_week
         self.hour = hour

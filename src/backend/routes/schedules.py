@@ -4,10 +4,7 @@ from models import db, Schedule, Employee, Shift
 from services.schedule_generator import ScheduleGenerator, ScheduleGenerationError
 from services.pdf_generator import PDFGenerator
 from http import HTTPStatus
-import logging
-
-# Configure logging
-logger = logging.getLogger(__name__)
+from utils.logger import logger
 
 schedules = Blueprint('schedules', __name__)
 
@@ -58,41 +55,88 @@ def get_schedules():
 @schedules.route('/api/schedules/generate/', methods=['POST'])
 def generate_schedule():
     """Generate a schedule for a date range"""
-    logger.info("Schedule generation request received")
+    logger.schedule_logger.debug("Schedule generation request received")
     try:
         data = request.get_json()
         start_date = datetime.strptime(data['start_date'], '%Y-%m-%d').date()
         end_date = datetime.strptime(data['end_date'], '%Y-%m-%d').date()
         
-        logger.info(f"Generating schedule for period: {start_date} to {end_date}")
+        logger.schedule_logger.debug(
+            f"Generating schedule for period: {start_date} to {end_date}",
+            extra={
+                'action': 'generate_schedule',
+                'start_date': start_date.isoformat(),
+                'end_date': end_date.isoformat()
+            }
+        )
         
         # Get the latest version for this date range
         latest_version = Schedule.get_latest_version(start_date, end_date)
         next_version = latest_version + 1
-        logger.debug(f"Creating schedule version {next_version}")
+        logger.schedule_logger.debug(
+            f"Creating schedule version {next_version}",
+            extra={'version': next_version}
+        )
         
         generator = ScheduleGenerator()
-        logger.info("Starting schedule generation")
+        logger.schedule_logger.debug("Starting schedule generation")
         schedules, errors = generator.generate_schedule(start_date, end_date)
         
         # Set version for all new schedules
-        logger.debug(f"Setting version {next_version} for {len(schedules)} schedules")
+        logger.schedule_logger.debug(
+            f"Setting version {next_version} for {len(schedules)} schedules",
+            extra={
+                'version': next_version,
+                'schedule_count': len(schedules)
+            }
+        )
         for schedule in schedules:
             schedule.version = next_version
             db.session.add(schedule)
             
         db.session.commit()
-        logger.info(f"Schedule generation completed successfully. Created {len(schedules)} schedules")
+        logger.schedule_logger.info(
+            f"Schedule generation completed successfully. Created {len(schedules)} schedules",
+            extra={
+                'action': 'generation_complete',
+                'schedule_count': len(schedules),
+                'version': next_version
+            }
+        )
         
         if errors:
-            logger.warning(f"Schedule generated with {len(errors)} warnings/errors")
+            logger.schedule_logger.warning(
+                f"Schedule generated with {len(errors)} warnings/errors",
+                extra={
+                    'action': 'generation_warnings',
+                    'error_count': len(errors)
+                }
+            )
             for error in errors:
                 if error['type'] == 'critical':
-                    logger.error(f"Critical error: {error['message']}")
+                    logger.error_logger.error(
+                        f"Critical error: {error['message']}",
+                        extra={
+                            'action': 'critical_error',
+                            'error': error
+                        }
+                    )
                 elif error['type'] == 'warning':
-                    logger.warning(f"Warning for {error.get('date', 'unknown date')}: {error['message']}")
+                    logger.schedule_logger.warning(
+                        f"Warning for {error.get('date', 'unknown date')}: {error['message']}",
+                        extra={
+                            'action': 'warning',
+                            'error': error
+                        }
+                    )
                 else:
-                    logger.info(f"Note for {error.get('date', 'unknown date')}: {error['message']}")
+                    logger.schedule_logger.info(
+                        f"Note for {error.get('date', 'unknown date')}: {error['message']}",
+                        extra={
+                            'action': 'note',
+                            'error': error
+                        }
+                    )
         
         return jsonify({
             'schedules': [schedule.to_dict() for schedule in schedules],
@@ -103,15 +147,33 @@ def generate_schedule():
         
     except KeyError as e:
         error_msg = f'Missing required field: {str(e)}'
-        logger.error(error_msg)
+        logger.error_logger.error(
+            error_msg,
+            extra={
+                'action': 'validation_error',
+                'error': str(e)
+            }
+        )
         return jsonify({'error': error_msg}), HTTPStatus.BAD_REQUEST
     except ValueError as e:
         error_msg = str(e)
-        logger.error(f"Value error during schedule generation: {error_msg}")
+        logger.error_logger.error(
+            f"Value error during schedule generation: {error_msg}",
+            extra={
+                'action': 'value_error',
+                'error': str(e)
+            }
+        )
         return jsonify({'error': error_msg}), HTTPStatus.BAD_REQUEST
     except Exception as e:
         error_msg = str(e)
-        logger.error(f"Unexpected error during schedule generation: {error_msg}")
+        logger.error_logger.error(
+            f"Unexpected error during schedule generation: {error_msg}",
+            extra={
+                'action': 'unexpected_error',
+                'error': str(e)
+            }
+        )
         return jsonify({'error': error_msg}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 @schedules.route('/api/schedules/pdf', methods=['GET'])

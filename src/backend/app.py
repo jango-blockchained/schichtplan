@@ -21,6 +21,7 @@ from routes.availability import availability
 from routes.absences import bp as absences_bp
 from api.coverage import bp as coverage_bp
 from api.demo_data import bp as demo_data_bp
+from routes import logs  # Add logs import
 
 def setup_logging(app):
     # Create logs directory if it doesn't exist
@@ -56,10 +57,19 @@ def setup_logging(app):
     app.logger.setLevel(logging.INFO)
     app.logger.info('Backend startup')
 
-def create_app():
+def create_app(test_config=None):
     app = Flask(__name__, instance_relative_config=True)
     
-    # Ensure the instance folder exists
+    if test_config is None:
+        app.config.from_mapping(
+            SECRET_KEY='dev',
+            SQLALCHEMY_DATABASE_URI='sqlite:///' + os.path.join(app.instance_path, 'schichtplan.db'),
+            SQLALCHEMY_TRACK_MODIFICATIONS=False,
+            CORS_ALLOW_CREDENTIALS=True
+        )
+    else:
+        app.config.update(test_config)
+        
     try:
         os.makedirs(app.instance_path)
     except OSError:
@@ -96,6 +106,7 @@ def create_app():
     app.register_blueprint(absences_bp)
     app.register_blueprint(coverage_bp)
     app.register_blueprint(demo_data_bp)
+    app.register_blueprint(logs.bp)  # Register logs blueprint
     
     # Create database tables
     with app.app_context():

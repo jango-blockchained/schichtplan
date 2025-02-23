@@ -14,6 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getSettings, updateEmployeeAvailability, getEmployeeAvailabilities, EmployeeAvailability } from '@/services/api';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { AvailabilityTypeSelect } from './AvailabilityTypeSelect';
 
 interface EmployeeAvailabilityModalProps {
     employeeId: number;
@@ -28,6 +29,11 @@ type TimeSlot = {
     time: string;
     hour: number;
     days: { [key: string]: boolean };
+};
+
+type CellState = {
+    selected: boolean;
+    type: string;
 };
 
 // Define days starting with Monday (1) to Sunday (7)
@@ -53,12 +59,13 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
     onClose,
 }) => {
     const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
-    const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set());
+    const [selectedCells, setSelectedCells] = useState<Map<string, string>>(new Map());
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState<string | null>(null);
     const [dailyHours, setDailyHours] = useState<{ [key: string]: number }>({});
     const [weeklyHours, setWeeklyHours] = useState(0);
     const [activeDays, setActiveDays] = useState<string[]>([]);
+    const [currentType, setCurrentType] = useState<string>('AVL');
 
     const { data: settings } = useQuery({
         queryKey: ['settings'],
@@ -72,7 +79,7 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
 
     useEffect(() => {
         // Initialize with empty selection and hours immediately
-        setSelectedCells(new Set());
+        setSelectedCells(new Map());
         setDailyHours({});
         setWeeklyHours(0);
 
@@ -112,9 +119,8 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
         setDailyHours(dayHours);
 
         if (availabilities) {
-            const newSelectedCells = new Set<string>();
+            const newSelectedCells = new Map<string, string>();
             availabilities.forEach(availability => {
-                // Convert backend day (0=Sunday) to frontend day (0=Monday)
                 const frontendDayIndex = convertBackendDayToFrontend(availability.day_of_week);
                 const day = ALL_DAYS[frontendDayIndex];
 
@@ -122,7 +128,7 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
                     const hour = format(new Date().setHours(availability.hour, 0), TIME_FORMAT);
                     const nextHour = format(new Date().setHours(availability.hour + 1, 0), TIME_FORMAT);
                     const cellId = `${day}-${hour} - ${nextHour}`;
-                    newSelectedCells.add(cellId);
+                    newSelectedCells.set(cellId, availability.availability_type || 'AVL');
                 }
             });
             setSelectedCells(newSelectedCells);
@@ -130,24 +136,21 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
         }
     }, [availabilities, activeDays]);
 
-    const calculateHours = (cells: Set<string>) => {
+    const calculateHours = (cells: Map<string, string>) => {
         if (!activeDays.length) return;
 
-        // Initialize daily hours with 0 for all active days
         const dayHours: { [key: string]: number } = {};
         activeDays.forEach(day => {
             dayHours[day] = 0;
         });
 
-        // Count hours for each day
-        Array.from(cells).forEach(cellId => {
+        Array.from(cells.keys()).forEach(cellId => {
             const dayMatch = cellId.match(/^([^-]+)-/);
             if (dayMatch && dayMatch[1] && dayHours.hasOwnProperty(dayMatch[1])) {
                 dayHours[dayMatch[1]]++;
             }
         });
 
-        // Calculate total hours
         const totalHours = Object.values(dayHours).reduce((sum, hours) => sum + hours, 0);
 
         setDailyHours(dayHours);
@@ -174,21 +177,21 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
     };
 
     const toggleCell = (cellId: string) => {
-        const newSelectedCells = new Set(selectedCells);
+        const newSelectedCells = new Map(selectedCells);
         if (newSelectedCells.has(cellId)) {
             newSelectedCells.delete(cellId);
         } else {
-            newSelectedCells.add(cellId);
+            newSelectedCells.set(cellId, currentType);
         }
         setSelectedCells(newSelectedCells);
         calculateHours(newSelectedCells);
     };
 
     const handleSelectAll = () => {
-        const newSelectedCells = new Set<string>();
+        const newSelectedCells = new Map<string, string>();
         timeSlots.forEach(({ time }) => {
             activeDays.forEach(day => {
-                newSelectedCells.add(`${day}-${time}`);
+                newSelectedCells.set(`${day}-${time}`, currentType);
             });
         });
         setSelectedCells(newSelectedCells);
@@ -196,12 +199,12 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
     };
 
     const handleDeselectAll = () => {
-        setSelectedCells(new Set());
-        calculateHours(new Set());
+        setSelectedCells(new Map());
+        calculateHours(new Map());
     };
 
     const handleToggleDay = (day: string) => {
-        const newSelectedCells = new Set(selectedCells);
+        const newSelectedCells = new Map(selectedCells);
         const isDaySelected = timeSlots.every(({ time }) =>
             newSelectedCells.has(`${day}-${time}`)
         );
@@ -211,7 +214,7 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
             if (isDaySelected) {
                 newSelectedCells.delete(cellId);
             } else {
-                newSelectedCells.add(cellId);
+                newSelectedCells.set(cellId, currentType);
             }
         });
 
@@ -220,7 +223,7 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
     };
 
     const handleSave = async () => {
-        const availabilityData = Array.from(selectedCells).map(cellId => {
+        const availabilityData = Array.from(selectedCells.entries()).map(([cellId, type]) => {
             const [day, timeRange] = cellId.split('-');
             const frontendDayIndex = ALL_DAYS.indexOf(day);
             const backendDayIndex = convertFrontendDayToBackend(frontendDayIndex);
@@ -232,12 +235,20 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
                 day_of_week: backendDayIndex,
                 hour: hour,
                 is_available: true,
+                availability_type: type
             };
         });
 
         await updateEmployeeAvailability(employeeId, availabilityData);
         await refetchAvailabilities();
         onClose();
+    };
+
+    const getCellColor = (cellId: string) => {
+        if (!selectedCells.has(cellId)) return '';
+        const type = selectedCells.get(cellId);
+        const availabilityType = settings?.availability_types?.types.find(t => t.id === type);
+        return availabilityType?.color || '#22c55e';
     };
 
     return (
@@ -251,13 +262,19 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
                         <span>Mögliche Stunden: {weeklyHours}h/Woche</span>
                     </div>
                 </DialogHeader>
-                <div className="flex justify-end space-x-2 mb-4">
-                    <Button variant="outline" onClick={handleSelectAll}>
-                        Alle auswählen
-                    </Button>
-                    <Button variant="outline" onClick={handleDeselectAll}>
-                        Alle abwählen
-                    </Button>
+                <div className="flex justify-between items-center mb-4">
+                    <AvailabilityTypeSelect
+                        value={currentType}
+                        onChange={setCurrentType}
+                    />
+                    <div className="flex space-x-2">
+                        <Button variant="outline" onClick={handleSelectAll}>
+                            Alle auswählen
+                        </Button>
+                        <Button variant="outline" onClick={handleDeselectAll}>
+                            Alle abwählen
+                        </Button>
+                    </div>
                 </div>
                 <div className="overflow-x-auto">
                     <Table>
@@ -286,23 +303,29 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
                             {timeSlots.map(({ time }) => (
                                 <TableRow key={time}>
                                     <TableCell className="font-medium">{time}</TableCell>
-                                    {activeDays.map(day => (
-                                        <TableCell
-                                            key={`${day}-${time}`}
-                                            className={cn(
-                                                'cursor-pointer select-none transition-colors text-center',
-                                                selectedCells.has(`${day}-${time}`)
-                                                    ? 'bg-green-100 hover:bg-green-200'
-                                                    : 'hover:bg-muted'
-                                            )}
-                                            onMouseDown={() => handleCellMouseDown(day, time)}
-                                            onMouseEnter={() => handleCellMouseEnter(day, time)}
-                                        >
-                                            {selectedCells.has(`${day}-${time}`) && (
-                                                <Check className="h-4 w-4 mx-auto text-green-600" />
-                                            )}
-                                        </TableCell>
-                                    ))}
+                                    {activeDays.map(day => {
+                                        const cellId = `${day}-${time}`;
+                                        return (
+                                            <TableCell
+                                                key={cellId}
+                                                className={cn(
+                                                    'cursor-pointer select-none transition-colors text-center',
+                                                    selectedCells.has(cellId)
+                                                        ? 'hover:brightness-90'
+                                                        : 'hover:bg-muted'
+                                                )}
+                                                style={{
+                                                    backgroundColor: getCellColor(cellId)
+                                                }}
+                                                onMouseDown={() => handleCellMouseDown(day, time)}
+                                                onMouseEnter={() => handleCellMouseEnter(day, time)}
+                                            >
+                                                {selectedCells.has(cellId) && (
+                                                    <Check className="h-4 w-4 mx-auto text-white" />
+                                                )}
+                                            </TableCell>
+                                        );
+                                    })}
                                 </TableRow>
                             ))}
                         </TableBody>

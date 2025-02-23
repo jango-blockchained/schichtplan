@@ -43,7 +43,7 @@ const DEFAULT_PRESETS = {
         },
         employee_groups: [
             {
-                id: 'VL',
+                id: 'VZ',
                 name: 'Vollzeit',
                 description: 'Full-time employee (35-48h/week)',
                 minHours: 35,
@@ -102,7 +102,7 @@ const DEFAULT_PRESETS = {
         },
         employee_groups: [
             {
-                id: 'VL',
+                id: 'VZ',
                 name: 'Vollzeit',
                 description: 'Full-time employee (35-48h/week)',
                 minHours: 35,
@@ -161,7 +161,7 @@ const DEFAULT_PRESETS = {
         },
         employee_groups: [
             {
-                id: 'VL',
+                id: 'VZ',
                 name: 'Vollzeit',
                 description: 'Full-time employee (35-48h/week)',
                 minHours: 35,
@@ -208,7 +208,7 @@ const validateEmployeeGroups = (groups: EmployeeGroup[]): string | null => {
         }
 
         switch (group.id) {
-            case 'VL':
+            case 'VZ':
             case 'TL':
                 if (group.minHours < 35) {
                     return `${group.name}: Full-time employees must work at least 35 hours per week`;

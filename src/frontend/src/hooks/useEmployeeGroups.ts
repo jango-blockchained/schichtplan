@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getSettings } from '@/services/api';
 
 export interface EmployeeGroup {
-    id: string;  // Matches backend's EmployeeGroup enum values: VL, TZ, GFB, TL
+    id: string;  // Matches backend's EmployeeGroup enum values: VZ, TZ, GFB, TL
     name: string;
     description?: string;
     minHours: number;
