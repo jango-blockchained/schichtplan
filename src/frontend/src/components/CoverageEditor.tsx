@@ -30,6 +30,7 @@ interface StoreConfigProps {
     employee_types: Array<{
         id: string;
         name: string;
+        abbr?: string;
     }>;
 }
 
@@ -99,6 +100,7 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ slot, onSave, onCancel, store
                     <Input
                         id="startTime"
                         type="time"
+                        step="900"
                         value={startTime}
                         onChange={(e) => setStartTime(e.target.value)}
                         className={errors.time ? "border-destructive" : ""}
@@ -109,6 +111,7 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ slot, onSave, onCancel, store
                     <Input
                         id="endTime"
                         type="time"
+                        step="900"
                         value={endTime}
                         onChange={(e) => setEndTime(e.target.value)}
                         className={errors.time ? "border-destructive" : ""}
@@ -191,11 +194,21 @@ const CoverageBlock: React.FC<CoverageBlockProps> = ({ slot, dayIndex, onUpdate,
     const [startWidth, setStartWidth] = useState(0);
     const [showEditor, setShowEditor] = useState(false);
 
+    const getTimeInQuarters = (time: string) => {
+        const [hours, minutes] = time.split(':').map(Number);
+        return hours * 4 + Math.round(minutes / 15);
+    };
+
+    const startQuarters = getTimeInQuarters(slot.startTime);
+    const endQuarters = getTimeInQuarters(slot.endTime);
     const startHour = parseInt(slot.startTime.split(':')[0]);
-    const endHour = parseInt(slot.endTime.split(':')[0]);
-    const duration = endHour - startHour;
+    const startMinutes = parseInt(slot.startTime.split(':')[1]);
+    const openingHourQuarters = getTimeInQuarters(storeConfig.store_opening);
+
     const cellWidth = (gridWidth - TIME_COLUMN_WIDTH) / hours.length;
-    const startOffset = startHour - parseInt(storeConfig.store_opening.split(':')[0]);
+    const quarterWidth = cellWidth / 4;
+    const startOffsetQuarters = startQuarters - openingHourQuarters;
+    const durationQuarters = endQuarters - startQuarters;
 
     const [{ isDragging }, drag] = useDrag({
         type: 'COVERAGE_BLOCK',
@@ -226,8 +239,8 @@ const CoverageBlock: React.FC<CoverageBlockProps> = ({ slot, dayIndex, onUpdate,
         e.preventDefault();
 
         const diff = e.pageX - startX;
-        const newWidth = Math.max(cellWidth, Math.min(startWidth + diff, cellWidth * 24));
-        const newDuration = Math.round(newWidth / cellWidth);
+        const newQuarters = Math.round(diff / quarterWidth);
+        const newWidth = Math.max(quarterWidth, Math.min(startWidth + (newQuarters * quarterWidth), cellWidth * 24));
 
         if (blockRef.current) {
             blockRef.current.style.width = `${newWidth}px`;
@@ -239,11 +252,15 @@ const CoverageBlock: React.FC<CoverageBlockProps> = ({ slot, dayIndex, onUpdate,
         setIsResizing(false);
 
         const width = blockRef.current?.offsetWidth || 0;
-        const newDuration = Math.round(width / cellWidth);
-        const newEndHour = startHour + newDuration;
+        const newQuarters = Math.round(width / quarterWidth);
+        const totalMinutes = (startHour * 60 + startMinutes) + (newQuarters * 15);
+        const newHours = Math.floor(totalMinutes / 60);
+        const newMinutes = totalMinutes % 60;
+
+        const endTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
 
         onUpdate({
-            endTime: `${newEndHour.toString().padStart(2, '0')}:00`
+            endTime
         });
     };
 
@@ -258,6 +275,13 @@ const CoverageBlock: React.FC<CoverageBlockProps> = ({ slot, dayIndex, onUpdate,
         }
     }, [isResizing]);
 
+    const formatDuration = (startTime: string, endTime: string) => {
+        const start = new Date(`1970-01-01T${startTime}`);
+        const end = new Date(`1970-01-01T${endTime}`);
+        const diffHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+        return diffHours === Math.floor(diffHours) ? `${diffHours}h` : `${diffHours.toFixed(2)}h`;
+    };
+
     return (
         <>
             <div
@@ -268,8 +292,8 @@ const CoverageBlock: React.FC<CoverageBlockProps> = ({ slot, dayIndex, onUpdate,
                     isEditing ? "cursor-move" : "cursor-default"
                 )}
                 style={{
-                    left: `calc(${startOffset} * (100% / ${hours.length}))`,
-                    width: `calc(${duration} * (100% / ${hours.length}))`,
+                    left: `${startOffsetQuarters * quarterWidth}px`,
+                    width: `${durationQuarters * quarterWidth}px`,
                     height: CELL_HEIGHT - 8,
                     top: 4,
                 }}
@@ -281,12 +305,19 @@ const CoverageBlock: React.FC<CoverageBlockProps> = ({ slot, dayIndex, onUpdate,
                         <span>{slot.minEmployees}-{slot.maxEmployees}</span>
                         <span className="text-xs text-muted-foreground">
                             ({slot.employeeTypes.map(typeId =>
-                                storeConfig.employee_types.find(t => t.id === typeId)?.name
-                            ).join(', ')})
+                                storeConfig.employee_types.find(t => t.id === typeId)?.abbr ||
+                                storeConfig.employee_types.find(t => t.id === typeId)?.name?.charAt(0) ||
+                                '?'
+                            ).join(',')})
                         </span>
                     </div>
-                    <div className="text-sm font-medium text-foreground">
-                        {slot.startTime}-{slot.endTime}
+                    <div className="flex flex-col items-end">
+                        <div className="text-sm font-medium text-foreground">
+                            {slot.startTime}-{slot.endTime}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                            {formatDuration(slot.startTime, slot.endTime)}
+                        </div>
                     </div>
                     {isEditing && (
                         <Button
@@ -521,7 +552,7 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
         const startHour = parseInt(storeConfig.store_opening.split(':')[0]);
         const endHour = parseInt(storeConfig.store_closing.split(':')[0]);
         return Array.from(
-            { length: endHour - startHour + 1 },
+            { length: endHour - startHour },
             (_, i) => `${(startHour + i).toString().padStart(2, '0')}:00`
         );
     }, [storeConfig.store_opening, storeConfig.store_closing]);
@@ -696,9 +727,6 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
                                     ))}
                                     {/* Last time marker */}
                                     <div className="absolute -bottom-[1px] right-0 w-px h-2 bg-border" />
-                                    <div className="absolute -bottom-6 right-0 text-xs text-muted-foreground whitespace-nowrap" style={{ transform: 'translateX(50%)' }}>
-                                        {hours[hours.length - 1].split(':')[0] + ":00"}
-                                    </div>
                                 </div>
                             </div>
                         </div>

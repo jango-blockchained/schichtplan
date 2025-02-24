@@ -240,31 +240,27 @@ export default function CoveragePage() {
                 </Card>
             </div>
 
-            <Card>
-                <CardContent className="p-6">
-                    <CoverageEditor
-                        initialCoverage={initialCoverage}
-                        storeConfig={storeConfig}
-                        onChange={async (newCoverage) => {
-                            try {
-                                await updateCoverage(newCoverage);
-                                await queryClient.invalidateQueries(['coverage']);
-                                toast({
-                                    title: "Success",
-                                    description: "Coverage settings saved successfully",
-                                });
-                            } catch (error) {
-                                console.error('Error updating coverage:', error);
-                                toast({
-                                    title: "Error",
-                                    description: "Failed to save coverage settings",
-                                    variant: "destructive",
-                                });
-                            }
-                        }}
-                    />
-                </CardContent>
-            </Card>
+            <CoverageEditor
+                initialCoverage={initialCoverage}
+                storeConfig={storeConfig}
+                onChange={async (newCoverage) => {
+                    try {
+                        await updateCoverage(newCoverage);
+                        await queryClient.invalidateQueries(['coverage']);
+                        toast({
+                            title: "Success",
+                            description: "Coverage settings saved successfully",
+                        });
+                    } catch (error) {
+                        console.error('Error updating coverage:', error);
+                        toast({
+                            title: "Error",
+                            description: "Failed to save coverage settings",
+                            variant: "destructive",
+                        });
+                    }
+                }}
+            />
         </div>
     );
 } 
