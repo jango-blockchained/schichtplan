@@ -58,14 +58,14 @@ export default function SettingsPage() {
   const [localSettings, setLocalSettings] = useState<Settings | null>(null);
   const [selectedDemoModule, setSelectedDemoModule] = useState<string>("");
 
-  const { data: settings, isLoading, error } = useQuery<Settings>({
+  const { data: settings, isLoading, error } = useQuery({
     queryKey: ["settings"],
     queryFn: getSettings,
     retry: 3,
     staleTime: 1000 * 60 * 5, // 5 minutes
     refetchOnMount: true,
     refetchOnWindowFocus: true,
-  });
+  } as const);
 
   useEffect(() => {
     if (settings) {
@@ -268,62 +268,102 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="storeOpening">Opening Time</Label>
-                          <Input
-                            id="storeOpening"
-                            type="time"
-                            value={localSettings?.general.store_opening ?? '09:00'}
-                            onChange={(e) =>
-                              handleSave("general", { store_opening: e.target.value })
-                            }
-                            onBlur={handleImmediateUpdate}
-                            className="w-full"
-                          />
+                      <h3 className="text-lg font-semibold">Store Hours</h3>
+                      <div className="rounded-lg border p-4 space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="store-opening">Opening Time</Label>
+                            <input
+                              id="store-opening"
+                              type="time"
+                              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                              value={localSettings?.general.store_opening ?? '09:00'}
+                              onChange={(e) => handleSave("general", { store_opening: e.target.value })}
+                              title="Store opening time"
+                              aria-label="Store opening time"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="store-closing">Closing Time</Label>
+                            <input
+                              id="store-closing"
+                              type="time"
+                              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                              value={localSettings?.general.store_closing ?? '20:00'}
+                              onChange={(e) => handleSave("general", { store_closing: e.target.value })}
+                              title="Store closing time"
+                              aria-label="Store closing time"
+                            />
+                          </div>
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="storeClosing">Closing Time</Label>
-                          <Input
-                            id="storeClosing"
-                            type="time"
-                            value={localSettings?.general.store_closing ?? '20:00'}
-                            onChange={(e) =>
-                              handleSave("general", { store_closing: e.target.value })
-                            }
-                            onBlur={handleImmediateUpdate}
-                            className="w-full"
-                          />
+
+                        <Separator className="my-2" />
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="keyholder-before">Keyholder Time Before Opening</Label>
+                            <div className="flex items-center space-x-2">
+                              <input
+                                id="keyholder-before"
+                                type="number"
+                                min="0"
+                                max="120"
+                                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                value={localSettings?.general.keyholder_before_minutes ?? 30}
+                                onChange={(e) => handleSave("general", { keyholder_before_minutes: parseInt(e.target.value) })}
+                                title="Minutes before opening for keyholders"
+                                aria-label="Minutes before opening for keyholders"
+                              />
+                              <span className="text-sm text-muted-foreground">min</span>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="keyholder-after">Keyholder Time After Closing</Label>
+                            <div className="flex items-center space-x-2">
+                              <input
+                                id="keyholder-after"
+                                type="number"
+                                min="0"
+                                max="120"
+                                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                value={localSettings?.general.keyholder_after_minutes ?? 30}
+                                onChange={(e) => handleSave("general", { keyholder_after_minutes: parseInt(e.target.value) })}
+                                title="Minutes after closing for keyholders"
+                                aria-label="Minutes after closing for keyholders"
+                              />
+                              <span className="text-sm text-muted-foreground">min</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
+                    </div>
 
-                      <div className="space-y-4">
-                        <Label>Opening Days</Label>
-                        <div className="grid grid-cols-7 gap-2">
-                          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => (
-                            <div key={day} className="flex flex-col items-center space-y-2">
-                              <Label className="text-sm">{day}</Label>
-                              <Switch
-                                checked={localSettings?.general.opening_days?.[index.toString()] ?? false}
-                                onCheckedChange={(checked) => {
-                                  if (!localSettings) return;
-                                  const updatedSettings = {
-                                    ...localSettings,
-                                    general: {
-                                      ...localSettings.general,
-                                      opening_days: {
-                                        ...localSettings.general.opening_days,
-                                        [index.toString()]: checked
-                                      }
+                    <div className="space-y-4">
+                      <Label>Opening Days</Label>
+                      <div className="grid grid-cols-7 gap-2">
+                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => (
+                          <div key={day} className="flex flex-col items-center space-y-2">
+                            <Label className="text-sm">{day}</Label>
+                            <Switch
+                              checked={localSettings?.general.opening_days?.[index.toString()] ?? false}
+                              onCheckedChange={(checked) => {
+                                if (!localSettings) return;
+                                const updatedSettings = {
+                                  ...localSettings,
+                                  general: {
+                                    ...localSettings.general,
+                                    opening_days: {
+                                      ...localSettings.general.opening_days,
+                                      [index.toString()]: checked
                                     }
-                                  };
-                                  setLocalSettings(updatedSettings);
-                                  updateMutation.mutate(updatedSettings);
-                                }}
-                              />
-                            </div>
-                          ))}
-                        </div>
+                                  }
+                                };
+                                setLocalSettings(updatedSettings);
+                                updateMutation.mutate(updatedSettings);
+                              }}
+                            />
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -1102,37 +1142,41 @@ export default function SettingsPage() {
                         </div>
                       </div>
                     </div>
-
-                    <PDFLayoutEditor
-                      config={{
-                        page_size: localSettings?.pdf_layout.page_size ?? 'A4',
-                        orientation: localSettings?.pdf_layout.orientation ?? 'portrait',
-                        margins: localSettings?.pdf_layout.margins ?? { top: 20, right: 20, bottom: 20, left: 20 },
-                        table_style: localSettings?.pdf_layout.table_style ?? {
-                          header_bg_color: '#f5f5f5',
-                          border_color: '#e0e0e0',
-                          text_color: '#000000',
-                          header_text_color: '#000000'
-                        },
-                        fonts: localSettings?.pdf_layout.fonts ?? {
-                          family: 'Arial',
-                          size: 12,
-                          header_size: 14
-                        },
-                        content: localSettings?.pdf_layout.content ?? {
-                          show_employee_id: true,
-                          show_position: true,
-                          show_breaks: true,
-                          show_total_hours: true
-                        }
-                      }}
-                      onChange={(config) => {
-                        handleSave("pdf_layout", config);
-                        handleImmediateUpdate();
-                      }}
-                    />
                   </div>
                 </CardContent>
+
+                <div className="mt-6 border-t pt-6">
+                  <h3 className="text-lg font-semibold mb-4">Layout Preview</h3>
+                  <PDFLayoutEditor
+                    config={{
+                      page_size: localSettings?.pdf_layout.page_size ?? 'A4',
+                      orientation: localSettings?.pdf_layout.orientation ?? 'portrait',
+                      margins: localSettings?.pdf_layout.margins ?? { top: 20, right: 20, bottom: 20, left: 20 },
+                      table_style: localSettings?.pdf_layout.table_style ?? {
+                        header_bg_color: '#f5f5f5',
+                        border_color: '#e0e0e0',
+                        text_color: '#000000',
+                        header_text_color: '#000000'
+                      },
+                      fonts: localSettings?.pdf_layout.fonts ?? {
+                        family: 'Arial',
+                        size: 12,
+                        header_size: 14
+                      },
+                      content: localSettings?.pdf_layout.content ?? {
+                        show_employee_id: true,
+                        show_position: true,
+                        show_breaks: true,
+                        show_total_hours: true
+                      }
+                    }}
+                    onChange={(config) => {
+                      handleSave("pdf_layout", config);
+                      handleImmediateUpdate();
+                    }}
+                  />
+                </div>
+
                 <CardFooter className="flex justify-end space-x-2">
                   <Button
                     variant="outline"

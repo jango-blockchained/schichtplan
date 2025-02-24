@@ -1,53 +1,110 @@
 import axios, { AxiosError } from 'axios';
 import type { Settings, Employee, Schedule, ScheduleResponse, ScheduleUpdate, DailyCoverage, CoverageTimeSlot } from '@/types/index';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+interface APIErrorResponse {
+    error?: string;
+}
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const api = axios.create({
     baseURL: API_BASE_URL,
     headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json'
     },
-    withCredentials: true
+    withCredentials: false,
+    timeout: 10000,
+    validateStatus: status => status >= 200 && status < 300
 });
+
+// Add request interceptor for debugging
+api.interceptors.request.use(
+    (config) => {
+        console.log('Making request to:', config.url);
+        return config;
+    },
+    (error) => {
+        console.error('Request error:', error);
+        return Promise.reject(error);
+    }
+);
 
 // Add response interceptor to handle common errors
 api.interceptors.response.use(
-    (response) => response,
-    (error: AxiosError) => {
-        console.error('API Error:', {
-            message: error.message,
-            status: error.response?.status,
-            data: error.response?.data,
+    (response) => {
+        // Log successful responses for debugging
+        console.log('Response received from:', response.config?.url, {
+            status: response.status,
+            headers: response.headers,
+            data: response.data
         });
 
-        // Customize error message based on status
-        if (error.response?.status === 404) {
-            throw new Error('Die angeforderten Daten wurden nicht gefunden.');
-        } else if (error.response?.status === 500) {
-            throw new Error('Ein Serverfehler ist aufgetreten. Bitte versuchen Sie es später erneut.');
-        } else if (!error.response) {
+        // Check if response has data
+        if (response.data === undefined || response.data === null) {
+            console.warn('Empty response received from:', response.config?.url);
+            // Return empty object for GET requests, undefined for others
+            return {
+                ...response,
+                data: response.config?.method?.toLowerCase() === 'get' ? {} : undefined
+            };
+        }
+        return response;
+    },
+    (error: AxiosError<APIErrorResponse>) => {
+        // Get the most specific error message available
+        const errorMessage = error.response?.data?.error
+            || error.message
+            || 'Ein unerwarteter Fehler ist aufgetreten';
+
+        // Log the full error details for debugging
+        const errorDetails = {
+            message: errorMessage,
+            status: error.response?.status,
+            data: error.response?.data,
+            url: error.config?.url,
+            method: error.config?.method,
+            headers: error.response?.headers
+        };
+
+        console.error('API Error Details:', JSON.stringify(errorDetails, null, 2));
+
+        // Check if it's a network error (no response received)
+        if (!error.response) {
+            console.error('Network error details:', JSON.stringify({
+                request: error.request,
+                config: error.config
+            }, null, 2));
             throw new Error('Verbindung zum Server fehlgeschlagen. Bitte überprüfen Sie Ihre Internetverbindung.');
         }
 
-        throw error;
+        // Customize error message based on status and response data
+        if (error.response.status === 404) {
+            throw new Error('Die angeforderten Daten wurden nicht gefunden.');
+        } else if (error.response.status === 500) {
+            throw new Error(errorMessage);
+        } else if (error.response.status === 308) {
+            throw new Error('Redirect error: The API endpoint requires a trailing slash.');
+        } else {
+            throw new Error(errorMessage);
+        }
     }
 );
 
 // Settings
 export const getSettings = async (): Promise<Settings> => {
-    const response = await api.get('/settings');
+    const response = await api.get('/settings/');
     return response.data;
 };
 
 export const updateSettings = async (settings: Partial<Settings>): Promise<Settings> => {
-    const response = await api.put('/settings', settings);
+    const response = await api.put('/settings/', settings);
     return response.data;
 };
 
 export const resetSettings = async (): Promise<Settings> => {
     try {
-        const response = await api.post<Settings>('/settings/reset');
+        const response = await api.post<Settings>('/settings/reset/');
         return response.data;
     } catch (error) {
         if (error instanceof Error) {
@@ -132,37 +189,27 @@ export const getShifts = async (): Promise<Shift[]> => {
 };
 
 export const createShift = async (data: Omit<Shift, 'id' | 'duration_hours' | 'created_at' | 'updated_at'>): Promise<Shift> => {
-    const response = await fetch('/api/shifts', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to create shift');
+    try {
+        const response = await api.post<Shift>('/shifts/', data);
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to create shift: ${error.message}`);
+        }
+        throw error;
     }
-
-    return response.json();
 };
 
 export const updateShift = async ({ id, ...data }: Partial<Shift> & { id: number }): Promise<Shift> => {
-    const response = await fetch(`/api/shifts/${id}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to update shift');
+    try {
+        const response = await api.put<Shift>(`/shifts/${id}/`, data);
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to update shift: ${error.message}`);
+        }
+        throw error;
     }
-
-    return response.json();
 };
 
 export const deleteShift = async (id: number): Promise<void> => {
@@ -218,10 +265,11 @@ export const getSchedules = async (startDate: string, endDate: string, version?:
         const response = await api.get<ScheduleResponse>(`/schedules/?${params}`);
         return response.data;
     } catch (error) {
-        if (error instanceof Error) {
-            throw new Error(`Failed to fetch schedules: ${error.message}`);
+        if (error instanceof AxiosError) {
+            const errorMessage = error.response?.data?.error || error.message;
+            throw new Error(`Failed to fetch schedules: ${errorMessage}`);
         }
-        throw error;
+        throw new Error(`Failed to fetch schedules: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 };
 

@@ -7,9 +7,9 @@ class Schedule(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     employee_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
-    shift_id = db.Column(db.Integer, db.ForeignKey('shifts.id'), nullable=False)
+    shift_id = db.Column(db.Integer, db.ForeignKey('shifts.id'), nullable=True)  # Make nullable
     date = db.Column(db.Date, nullable=False)
-    version = db.Column(db.Integer, nullable=False, default=1)  # Add version field
+    version = db.Column(db.Integer, nullable=False, default=1)
     break_start = db.Column(db.String(5), nullable=True)  # Format: "HH:MM"
     break_end = db.Column(db.String(5), nullable=True)    # Format: "HH:MM"
     notes = db.Column(db.Text, nullable=True)
@@ -20,12 +20,13 @@ class Schedule(db.Model):
     employee = db.relationship('Employee', back_populates='shifts')
     shift = db.relationship('Shift', back_populates='schedules')
 
-    def __init__(self, date, employee_id, shift_id, break_start=None, break_end=None):
+    def __init__(self, date, employee_id, shift_id=None, break_start=None, break_end=None, version=1):
         self.date = date
         self.employee_id = employee_id
         self.shift_id = shift_id
         self.break_start = break_start
         self.break_end = break_end
+        self.version = version
 
     def set_break(self, start_time: time, duration_minutes: int = 60):
         """Set break time for the shift"""

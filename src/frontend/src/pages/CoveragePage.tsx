@@ -38,8 +38,8 @@ export default function CoveragePage() {
     const { toast } = useToast();
     const queryClient = useQueryClient();
 
-    const { data: settings, isLoading: isSettingsLoading } = useQuery<Settings>({
-        queryKey: ['settings'],
+    const { data: settings, isLoading: isSettingsLoading } = useQuery({
+        queryKey: ['settings'] as const,
         queryFn: getSettings
     });
 

@@ -172,7 +172,6 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, onSave, initialD
                         />
                     </div>
                 </div>
-
                 <div className="flex items-center space-x-2">
                     <Switch
                         id="requires_break"

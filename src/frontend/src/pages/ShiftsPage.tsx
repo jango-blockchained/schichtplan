@@ -20,12 +20,12 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
   const queryClient = useQueryClient();
 
   const { data: shifts, isLoading: shiftsLoading } = useQuery({
-    queryKey: ['shifts'],
+    queryKey: ['shifts'] as const,
     queryFn: getShifts,
   });
 
   const { data: settings, isLoading: settingsLoading } = useQuery({
-    queryKey: ['settings'],
+    queryKey: ['settings'] as const,
     queryFn: getSettings,
   });
 
@@ -98,6 +98,7 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
       await deleteMutation.mutateAsync(shiftId);
     }
   };
+
 
   const handleSaveShift = async (data: any) => {
     if (editingShift) {
