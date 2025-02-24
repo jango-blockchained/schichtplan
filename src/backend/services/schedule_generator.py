@@ -193,6 +193,31 @@ class ScheduleGenerator:
         )
         
         try:
+            # Get or create placeholder shift for empty schedules
+            placeholder_shift = Shift.query.filter_by(start_time='00:00', end_time='00:00').first()
+            if not placeholder_shift:
+                placeholder_shift = Shift(
+                    start_time='00:00',
+                    end_time='00:00',
+                    min_employees=0,
+                    max_employees=0,
+                    requires_break=False
+                )
+                db.session.add(placeholder_shift)
+                try:
+                    db.session.commit()
+                except Exception as e:
+                    logger.error_logger.error(
+                        "Failed to create placeholder shift",
+                        extra={
+                            'action': 'create_placeholder_failed',
+                            'error_message': str(e),
+                            'error_type': type(e).__name__
+                        }
+                    )
+                    db.session.rollback()
+                    raise
+
             # Pre-processing steps
             logger.schedule_logger.debug("Starting pre-processing steps")
             self.process_absences()
@@ -206,37 +231,154 @@ class ScheduleGenerator:
             logger.schedule_logger.debug("Verifying scheduling goals")
             self.verify_goals()
             
+            # Get all schedules for the period
             schedules = Schedule.query.filter(
                 Schedule.date >= start_date,
                 Schedule.date <= end_date
             ).all()
             
+            # Ensure each employee has at least one row
+            employee_schedules = {}
+            for schedule in schedules:
+                if schedule.employee_id not in employee_schedules:
+                    employee_schedules[schedule.employee_id] = []
+                employee_schedules[schedule.employee_id].append(schedule)
+            
+            # Create empty schedules for employees without any assignments
+            for employee in self.resources.employees:
+                if employee.id not in employee_schedules:
+                    logger.schedule_logger.warning(
+                        f"Employee {employee.id} has no assignments in the schedule",
+                        extra={
+                            'action': 'employee_no_assignments',
+                            'employee_id': employee.id,
+                            'employee_name': f"{employee.first_name} {employee.last_name}",
+                            'employee_group': employee.employee_group
+                        }
+                    )
+                    self.generation_errors.append({
+                        'type': 'warning',
+                        'message': f'No assignments for {employee.first_name} {employee.last_name}',
+                        'employee_id': employee.id,
+                        'employee_group': employee.employee_group
+                    })
+                    # Create an empty schedule entry for the first day
+                    empty_schedule = Schedule(
+                        employee_id=employee.id,
+                        date=start_date,
+                        shift_id=placeholder_shift.id,
+                        version=1
+                    )
+                    empty_schedule.notes = "No assignments in this period"
+                    db.session.add(empty_schedule)
+                    schedules.append(empty_schedule)
+            
+            try:
+                db.session.commit()
+            except Exception as e:
+                logger.error_logger.error(
+                    "Failed to save empty schedules",
+                    extra={
+                        'action': 'save_empty_schedules_failed',
+                        'error_message': str(e),
+                        'error_type': type(e).__name__
+                    }
+                )
+                db.session.rollback()
+            
+            # Log detailed statistics
+            total_shifts = len(schedules)
+            employees_scheduled = len(employee_schedules)
+            total_employees = len(self.resources.employees)
+            coverage_percentage = (employees_scheduled / total_employees) * 100 if total_employees > 0 else 0
+            
             logger.schedule_logger.info(
-                f"Schedule generation completed. Created {len(schedules)} schedules with "
-                f"{len(self.generation_errors)} errors/warnings",
+                f"Schedule generation completed. Created {total_shifts} schedules for {employees_scheduled}/{total_employees} employees",
                 extra={
                     'action': 'generation_complete',
-                    'schedule_count': len(schedules),
-                    'error_count': len(self.generation_errors)
+                    'schedule_count': total_shifts,
+                    'employees_scheduled': employees_scheduled,
+                    'total_employees': total_employees,
+                    'coverage_percentage': coverage_percentage,
+                    'error_count': len(self.generation_errors),
+                    'period_start': start_date.isoformat(),
+                    'period_end': end_date.isoformat()
                 }
             )
+            
+            # Log all errors and warnings
+            if self.generation_errors:
+                for error in self.generation_errors:
+                    if error['type'] == 'critical':
+                        logger.error_logger.error(
+                            error['message'],
+                            extra={
+                                'action': 'critical_error',
+                                'error_details': error
+                            }
+                        )
+                    elif error['type'] == 'warning':
+                        logger.schedule_logger.warning(
+                            error['message'],
+                            extra={
+                                'action': 'generation_warning',
+                                'warning_details': error
+                            }
+                        )
+                    else:
+                        logger.schedule_logger.info(
+                            error['message'],
+                            extra={
+                                'action': 'generation_info',
+                                'info_details': error
+                            }
+                        )
             
             return schedules, self.generation_errors
             
         except Exception as e:
             logger.error_logger.error(
-                "Schedule generation failed",
-                error=e,
+                "Schedule generation encountered an error",
                 extra={
-                    'action': 'generation_failed',
+                    'action': 'generation_error',
+                    'error_type': type(e).__name__,
+                    'error_message': str(e),
                     'start_date': start_date.isoformat(),
                     'end_date': end_date.isoformat()
                 }
             )
             self.generation_errors.append({
                 'type': 'critical',
-                'message': f'Schedule generation failed: {str(e)}'
+                'message': f'Schedule generation error: {str(e)}',
+                'error_type': type(e).__name__
             })
+            
+            # Try to return any partial schedules that were created
+            try:
+                partial_schedules = Schedule.query.filter(
+                    Schedule.date >= start_date,
+                    Schedule.date <= end_date
+                ).all()
+                if partial_schedules:
+                    logger.schedule_logger.warning(
+                        f"Returning {len(partial_schedules)} partial schedules despite error",
+                        extra={
+                            'action': 'partial_schedules',
+                            'schedule_count': len(partial_schedules)
+                        }
+                    )
+                    return partial_schedules, self.generation_errors
+            except Exception as fetch_error:
+                logger.error_logger.error(
+                    "Failed to fetch partial schedules",
+                    extra={
+                        'action': 'fetch_partial_failed',
+                        'error_message': str(fetch_error),
+                        'error_type': type(fetch_error).__name__
+                    }
+                )
+            
+            # If everything fails, return empty list
             return [], self.generation_errors
 
     # Helper methods (implementation details) below...
@@ -274,28 +416,64 @@ class ScheduleGenerator:
         pass  # Implementation details...
 
     def _get_store_config(self) -> Settings:
-        logger.debug("Fetching store configuration")
+        """Get store configuration from database"""
+        logger.schedule_logger.debug(
+            "Fetching store configuration",
+            extra={'action': 'fetch_store_config'}
+        )
         config = Settings.query.first()
         if not config:
-            logger.error("Store configuration not found")
+            logger.error_logger.error(
+                "Store configuration not found",
+                extra={'action': 'store_config_missing'}
+            )
             raise ScheduleGenerationError("Store configuration not found")
-        logger.debug(f"Store config loaded: opening={config.store_opening}, closing={config.store_closing}")
+        logger.schedule_logger.debug(
+            "Store config loaded",
+            extra={
+                'action': 'store_config_loaded',
+                'opening': config.store_opening,
+                'closing': config.store_closing
+            }
+        )
         return config
     
     def _get_shifts(self) -> List[Shift]:
-        logger.debug("Fetching shifts")
+        """Get all shifts from database"""
+        logger.schedule_logger.debug(
+            "Fetching shifts",
+            extra={'action': 'fetch_shifts'}
+        )
         shifts = Shift.query.all()
         if not shifts:
-            logger.error("No shifts found")
+            logger.error_logger.error(
+                "No shifts found",
+                extra={'action': 'shifts_missing'}
+            )
             raise ScheduleGenerationError("No shifts found")
-        logger.debug(f"Found {len(shifts)} shifts")
+        logger.schedule_logger.debug(
+            f"Found {len(shifts)} shifts",
+            extra={
+                'action': 'shifts_loaded',
+                'shift_count': len(shifts)
+            }
+        )
         return shifts
     
     def _get_coverage(self) -> List[Coverage]:
         """Get coverage requirements from database"""
-        logger.debug("Fetching coverage requirements")
+        logger.schedule_logger.debug(
+            "Fetching coverage requirements",
+            extra={'action': 'fetch_coverage'}
+        )
         coverage = Coverage.query.all()
-        logger.debug(f"Found {len(coverage)} coverage requirements")
+        logger.schedule_logger.debug(
+            f"Found {len(coverage)} coverage requirements",
+            extra={
+                'action': 'coverage_loaded',
+                'coverage_count': len(coverage)
+            }
+        )
         return coverage
     
     def _get_employee_hours(self, employee: Employee, week_start: date) -> float:

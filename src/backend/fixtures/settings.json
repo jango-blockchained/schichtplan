@@ -1,16 +1,16 @@
 {
     "general": {
-        "store_name": "ShiftWise Store",
-        "store_address": "Example Street 123, 12345 City",
-        "store_contact": "contact@shiftwisestore.com",
+        "store_name": "TEDi",
+        "store_address": "Kassel",
+        "store_contact": "contact@tedi.de",
         "timezone": "Europe/Berlin",
         "language": "de",
         "date_format": "DD.MM.YYYY",
         "time_format": "24h",
-        "store_opening": "07:00",
-        "store_closing": "22:00",
-        "keyholder_before_minutes": 30,
-        "keyholder_after_minutes": 30,
+        "store_opening": "09:00",
+        "store_closing": "20:00",
+        "keyholder_before_minutes": 5,
+        "keyholder_after_minutes": 15,
         "opening_days": {
             "0": false,
             "1": true,

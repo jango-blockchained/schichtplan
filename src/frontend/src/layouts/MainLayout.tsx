@@ -1,18 +1,22 @@
 import React from 'react';
 import { Link as RouterLink, useLocation, Outlet } from 'react-router-dom';
-import { Menu, LayoutDashboard, Users, Settings, FileText, List, BarChart } from 'lucide-react';
+import { Menu, LayoutDashboard, Users, Settings as SettingsIcon, FileText, List, BarChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { getSettings } from '@/services/api';
+import type { Settings } from '@/types/index';
 
 const drawerWidth = 240;
 
 export const MainLayout = () => {
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const location = useLocation();
-  const { data: settings } = useQuery(['settings'], getSettings);
+  const { data: settings } = useQuery({
+    queryKey: ['settings'] as const,
+    queryFn: getSettings
+  });
 
   const navItems = React.useMemo(() => [
     { label: 'Schichtplan', path: '/', icon: LayoutDashboard },
@@ -22,7 +26,7 @@ export const MainLayout = () => {
       : { label: 'Schichten', path: '/shifts', icon: FileText },
     { label: 'Formulars', path: '/formulars', icon: FileText },
     { label: 'Logs', path: '/logs', icon: List },
-    { label: 'Einstellungen', path: '/settings', icon: Settings },
+    { label: 'Einstellungen', path: '/settings', icon: SettingsIcon },
   ], [settings?.scheduling.scheduling_resource_type]);
 
   const handleDrawerToggle = () => {

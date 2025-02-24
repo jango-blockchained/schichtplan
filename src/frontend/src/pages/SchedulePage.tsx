@@ -421,13 +421,7 @@ export function SchedulePage() {
                 "Als PDF exportieren"
               )}
             </Button>
-            <Button
-              variant="secondary"
-              onClick={() => setIsLayoutCustomizerOpen(true)}
-              disabled={isUpdating}
-            >
-              Layout anpassen
-            </Button>
+
           </div>
         </div>
 

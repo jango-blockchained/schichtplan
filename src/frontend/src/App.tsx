@@ -12,6 +12,7 @@ import { ThemeProvider } from '@/providers/ThemeProvider';
 import FormularsPage from './pages/FormularsPage';
 import LogsPage from './pages/LogsPage';
 import CoveragePage from './pages/CoveragePage';
+import { AxiosError } from 'axios';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -19,6 +20,15 @@ const queryClient = new QueryClient({
       retry: 1,
       refetchOnWindowFocus: false,
     },
+    mutations: {
+      onError: (error: unknown) => {
+        if (error instanceof AxiosError && error.response?.data?.error) {
+          console.error('Mutation Error:', error.response.data.error);
+        } else {
+          console.error('Mutation Error:', error instanceof Error ? error.message : 'An unknown error occurred');
+        }
+      }
+    }
   },
 });
 

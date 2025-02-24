@@ -5,6 +5,7 @@ import logging
 
 settings = Blueprint('settings', __name__, url_prefix='/api/settings')
 
+@settings.route('', methods=['GET'])
 @settings.route('/', methods=['GET'])
 def get_settings():
     """Get all settings or initialize with defaults if none exist"""
@@ -39,6 +40,7 @@ def get_settings():
             logging.error(f'Error resetting settings: {str(reset_error)}')
             return jsonify({'error': f'Critical error retrieving settings: {str(reset_error)}'}), HTTPStatus.INTERNAL_SERVER_ERROR
 
+@settings.route('', methods=['PUT'])
 @settings.route('/', methods=['PUT'])
 def update_settings():
     """Update settings"""
@@ -58,6 +60,7 @@ def update_settings():
         return jsonify({'error': str(e)}), HTTPStatus.BAD_REQUEST
 
 @settings.route('/reset', methods=['POST'])
+@settings.route('/reset/', methods=['POST'])
 def reset_settings():
     """Reset settings to defaults"""
     Settings.query.delete()

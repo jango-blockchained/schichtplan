@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getSchedules } from '@/services/api';
 import { Schedule, ScheduleError } from '@/types';
+import { AxiosError } from 'axios';
 
 interface UseScheduleDataResult {
     scheduleData: Schedule[];
@@ -17,14 +18,28 @@ export function useScheduleData(
     version?: number
 ): UseScheduleDataResult {
     const { data, isLoading, error, refetch } = useQuery({
-        queryKey: ['schedules', startDate.toISOString(), endDate.toISOString(), version],
+        queryKey: ['schedules', startDate.toISOString(), endDate.toISOString(), version] as const,
         queryFn: async () => {
-            const response = await getSchedules(
-                startDate.toISOString().split('T')[0],
-                endDate.toISOString().split('T')[0],
-                version
-            );
-            return response;
+            try {
+                const response = await getSchedules(
+                    startDate.toISOString().split('T')[0],
+                    endDate.toISOString().split('T')[0],
+                    version
+                );
+                return response;
+            } catch (error) {
+                if (error instanceof AxiosError) {
+                    const errorMessage = error.response?.data?.error || error.message;
+                    console.error('Schedule fetch error:', {
+                        message: errorMessage,
+                        status: error.response?.status,
+                        data: error.response?.data
+                    });
+                    throw new Error(errorMessage);
+                }
+                console.error('Schedule fetch error:', error);
+                throw error;
+            }
         },
     });
 
@@ -33,7 +48,7 @@ export function useScheduleData(
         versions: data?.versions || [],
         errors: data?.errors || [],
         loading: isLoading,
-        error: error instanceof Error ? error.message : null,
+        error: error instanceof Error ? error.message : 'An unknown error occurred',
         refetch: async () => {
             await refetch();
         },
