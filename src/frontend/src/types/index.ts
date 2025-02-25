@@ -232,6 +232,7 @@ export interface Settings {
         employee_types: Array<{
             id: string;
             name: string;
+            abbr?: string;
             min_hours: number;
             max_hours: number;
             type: 'employee';

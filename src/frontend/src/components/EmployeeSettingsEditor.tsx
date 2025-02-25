@@ -228,10 +228,13 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                             )}
                             {type === 'absence' && group.type === 'absence' && (
                                 <TableCell>
-                                    <div
-                                        className="w-6 h-6 rounded-full"
-                                        style={{ backgroundColor: group.color }}
-                                    />
+                                    <div className="flex items-center gap-2">
+                                        <div
+                                            className="w-6 h-6 rounded border"
+                                            style={{ backgroundColor: group.color }}
+                                        />
+                                        {group.color}
+                                    </div>
                                 </TableCell>
                             )}
                             <TableCell>
@@ -242,6 +245,13 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                                         onClick={() => handleOpenModal(group)}
                                     >
                                         <Pencil className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleDeleteGroup(group.id)}
+                                    >
+                                        <Trash2 className="h-4 w-4 text-destructive" />
                                     </Button>
                                 </div>
                             </TableCell>

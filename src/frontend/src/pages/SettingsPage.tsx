@@ -30,7 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useDebouncedCallback } from 'use-debounce';
-import { useTheme } from '@/providers/ThemeProvider';
+import { useTheme } from '@/hooks/use-theme';
 
 export interface BaseGroup {
   id: string;
@@ -195,7 +195,7 @@ export default function SettingsPage() {
       <Card>
         <CardContent className="p-6">
           <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 gap-4">
+            <TabsList className="grid w-full grid-cols-3 lg:grid-cols-5 gap-4">
               <TabsTrigger value="general" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 General
               </TabsTrigger>
@@ -207,9 +207,6 @@ export default function SettingsPage() {
               </TabsTrigger>
               <TabsTrigger value="pdf" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 PDF Layout
-              </TabsTrigger>
-              <TabsTrigger value="employee_groups" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                Groups
               </TabsTrigger>
               <TabsTrigger value="actions" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 Actions
@@ -594,19 +591,13 @@ export default function SettingsPage() {
                           value={localSettings?.display.theme ?? ''}
                           onValueChange={(value) => {
                             if (!localSettings) return;
-                            const updatedSettings = {
-                              ...localSettings,
-                              display: {
-                                ...localSettings.display,
-                                theme: value
-                              }
-                            };
+                            const theme = value as 'light' | 'dark' | 'system';
+                            const updatedSettings = Object.assign({}, localSettings, {
+                              display: Object.assign({}, localSettings.display, { theme })
+                            }) as Settings;
                             setLocalSettings(updatedSettings);
-                            updateMutation.mutate(updatedSettings, {
-                              onSuccess: () => {
-                                setTheme(value as 'light' | 'dark' | 'system');
-                              }
-                            });
+                            updateMutation.mutate(updatedSettings);
+                            setTheme(theme);
                             debouncedUpdate.cancel();
                           }}
                         >
@@ -771,65 +762,6 @@ export default function SettingsPage() {
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter className="flex justify-end space-x-2">
-                  <Button
-                    variant="outline"
-                    onClick={handleImmediateUpdate}
-                  >
-                    <Save className="w-4 h-4 mr-2" />
-                    Save Changes
-                  </Button>
-                </CardFooter>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="employee_groups">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Employee Groups</CardTitle>
-                  <CardDescription>Manage employee and absence types</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-6">
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-lg font-semibold">Employee Types</Label>
-                        <Button variant="outline" size="sm">
-                          <Plus className="h-4 w-4 mr-2" />
-                          Add Type
-                        </Button>
-                      </div>
-                      <EmployeeSettingsEditor
-                        type="employee"
-                        groups={localSettings?.employee_groups.employee_types.map(type => ({
-                          ...type,
-                          type: 'employee'
-                        })) ?? []}
-                        onChange={handleEmployeeGroupChange}
-                      />
-                    </div>
-
-                    <Separator className="my-6" />
-
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-lg font-semibold">Absence Types</Label>
-                        <Button variant="outline" size="sm">
-                          <Plus className="h-4 w-4 mr-2" />
-                          Add Type
-                        </Button>
-                      </div>
-                      <EmployeeSettingsEditor
-                        type="absence"
-                        groups={localSettings?.employee_groups.absence_types.map(type => ({
-                          ...type,
-                          type: 'absence'
-                        })) ?? []}
-                        onChange={handleAbsenceGroupChange}
-                      />
                     </div>
                   </div>
                 </CardContent>

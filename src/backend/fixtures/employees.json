@@ -22,7 +22,7 @@
             "color": "#9E9E9E"
         },
         {
-            "id": "team_leader",
+            "id": "TL",
             "name": "Teamleiter",
             "min_hours": 35,
             "max_hours": 40,
@@ -31,31 +31,21 @@
     ],
     "absence_types": [
         {
-            "id": "vacation",
+            "id": "URL",
             "name": "Urlaub",
             "color": "#FF9800",
-            "paid": true,
             "requires_approval": true
         },
         {
             "id": "sick",
             "name": "Krank",
             "color": "#F44336",
-            "paid": true,
             "requires_approval": false
         },
         {
-            "id": "unpaid",
-            "name": "Unbezahlt",
-            "color": "#9E9E9E",
-            "paid": false,
-            "requires_approval": true
-        },
-        {
-            "id": "training",
+            "id": "SLG",
             "name": "Schulung",
             "color": "#4CAF50",
-            "paid": true,
             "requires_approval": true
         }
     ],
@@ -114,6 +104,72 @@
             "is_active": true,
             "email": "charlie.wilson@example.com",
             "phone": "+49123456793"
+        },
+        {
+            "employee_id": "LM1",
+            "first_name": "Laura",
+            "last_name": "Miller",
+            "employee_group": "VZ",
+            "contracted_hours": 38.0,
+            "is_keyholder": true,
+            "is_active": true,
+            "email": "laura.miller@example.com",
+            "phone": "+49123456794"
+        },
+        {
+            "employee_id": "GR1",
+            "first_name": "George",
+            "last_name": "Robinson",
+            "employee_group": "TL",
+            "contracted_hours": 40.0,
+            "is_keyholder": true,
+            "is_active": true,
+            "email": "george.robinson@example.com",
+            "phone": "+49123456795"
+        },
+        {
+            "employee_id": "EM1",
+            "first_name": "Emma",
+            "last_name": "Martinez",
+            "employee_group": "TZ",
+            "contracted_hours": 25.0,
+            "is_keyholder": false,
+            "is_active": true,
+            "email": "emma.martinez@example.com",
+            "phone": "+49123456796"
+        },
+        {
+            "employee_id": "OL1",
+            "first_name": "Oliver",
+            "last_name": "Lee",
+            "employee_group": "GFB",
+            "contracted_hours": 12.0,
+            "is_keyholder": false,
+            "is_active": true,
+            "email": "oliver.lee@example.com",
+            "phone": "+49123456797"
+        },
+        {
+            "employee_id": "SC1",
+            "first_name": "Sophia",
+            "last_name": "Clark",
+            "employee_group": "TZ",
+            "contracted_hours": 28.0,
+            "is_keyholder": false,
+            "is_active": true,
+            "email": "sophia.clark@example.com",
+            "phone": "+49123456798"
+        },
+        {
+            "employee_id": "MH1",
+            "first_name": "Michael",
+            "last_name": "Harris",
+            "employee_group": "VZ",
+            "contracted_hours": 39.0,
+            "is_keyholder": true,
+            "is_active": true,
+            "email": "michael.harris@example.com",
+            "phone": "+49123456799"
         }
     ]
 }

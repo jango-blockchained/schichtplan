@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link as RouterLink, useLocation, Outlet } from 'react-router-dom';
-import { Menu, LayoutDashboard, Users, Settings as SettingsIcon, FileText, List, BarChart } from 'lucide-react';
+import { Menu, LayoutDashboard, Users, Settings as SettingsIcon, FileText, List, BarChart, Cog } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
@@ -26,6 +26,7 @@ export const MainLayout = () => {
       : { label: 'Schichten', path: '/shifts', icon: FileText },
     { label: 'Formulars', path: '/formulars', icon: FileText },
     { label: 'Logs', path: '/logs', icon: List },
+    { label: 'Optionen', path: '/options', icon: Cog },
     { label: 'Einstellungen', path: '/settings', icon: SettingsIcon },
   ], [settings?.scheduling.scheduling_resource_type]);
 

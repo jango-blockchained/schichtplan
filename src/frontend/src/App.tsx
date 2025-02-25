@@ -7,11 +7,11 @@ import ShiftsPage from './pages/ShiftsPage';
 import { EmployeesPage } from './pages/EmployeesPage';
 import SettingsPage from './pages/SettingsPage';
 import { Toaster } from '@/components/ui/toaster';
-import PDFSettings from '@/pages/PDFSettings';
 import { ThemeProvider } from '@/providers/ThemeProvider';
 import FormularsPage from './pages/FormularsPage';
 import LogsPage from './pages/LogsPage';
 import CoveragePage from './pages/CoveragePage';
+import OptionsPage from './pages/OptionsPage';
 import { AxiosError } from 'axios';
 
 const queryClient = new QueryClient({
@@ -44,10 +44,10 @@ const App: React.FC = () => {
               <Route path="coverage" element={<CoveragePage />} />
               <Route path="employees" element={<EmployeesPage />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="options" element={<OptionsPage />} />
               <Route path="formulars" element={<FormularsPage />} />
               <Route path="logs" element={<LogsPage />} />
             </Route>
-            <Route path="/pdf-settings" element={<PDFSettings />} />
           </Routes>
           <Toaster />
         </BrowserRouter>

@@ -1,53 +1,61 @@
 import React, { useEffect, useState } from 'react';
-import { PDFLayoutEditor, PDFLayoutConfig } from '@/components/PDFLayoutEditor';
+import { PDFLayoutEditor } from '@/components/PDFLayoutEditor';
 import { PDFLayoutPresets } from '@/components/PDFLayoutPresets';
 import { useToast } from '@/components/ui/use-toast';
 
-type ConfigPath =
-    ['table', 'style', keyof PDFLayoutConfig['table']['style']] |
-    ['table', 'column_widths', keyof PDFLayoutConfig['table']['column_widths']] |
-    ['title', keyof PDFLayoutConfig['title']] |
-    ['margins', keyof PDFLayoutConfig['margins']] |
-    ['page', keyof PDFLayoutConfig['page']];
+export interface PDFLayoutConfig {
+    page_size: string;
+    orientation: string;
+    margins: {
+        top: number;
+        right: number;
+        bottom: number;
+        left: number;
+    };
+    table_style: {
+        header_bg_color: string;
+        border_color: string;
+        text_color: string;
+        header_text_color: string;
+    };
+    fonts: {
+        family: string;
+        size: number;
+        header_size: number;
+    };
+    content: {
+        show_employee_id: boolean;
+        show_position: boolean;
+        show_breaks: boolean;
+        show_total_hours: boolean;
+    };
+}
 
 const defaultConfig: PDFLayoutConfig = {
+    page_size: 'A4',
+    orientation: 'landscape',
     margins: {
         top: 20,
         right: 20,
         bottom: 20,
         left: 20,
     },
-    table: {
-        style: {
-            fontSize: 10,
-            rowHeight: 8,
-            headerBackground: '#f4f4f5',
-            alternateRowColors: true,
-            alternateRowBackground: '#f8f8f8',
-            gridLines: true,
-            font: 'Helvetica',
-        },
-        column_widths: {
-            name: 100,
-            monday: 60,
-            tuesday: 60,
-            wednesday: 60,
-            thursday: 60,
-            friday: 60,
-            saturday: 60,
-            sunday: 60,
-            total: 60,
-        },
+    table_style: {
+        header_bg_color: '#f4f4f5',
+        border_color: '#e2e2e2',
+        text_color: '#000000',
+        header_text_color: '#000000',
     },
-    title: {
-        fontSize: 16,
-        alignment: 'center' as const,
-        fontStyle: 'bold' as const,
-        font: 'Helvetica-Bold',
+    fonts: {
+        family: 'Helvetica',
+        size: 10,
+        header_size: 12,
     },
-    page: {
-        size: 'A4' as const,
-        orientation: 'landscape' as const,
+    content: {
+        show_employee_id: true,
+        show_position: true,
+        show_breaks: true,
+        show_total_hours: true,
     },
 };
 
@@ -89,26 +97,18 @@ export default function PDFSettings() {
         }
     };
 
-    const handleConfigChange = async (path: ConfigPath, value: any) => {
-        const newConfig = { ...config };
-        let current: any = newConfig;
-
-        // Navigate to the nested property
-        for (let i = 0; i < path.length - 1; i++) {
-            current = current[path[i]];
-        }
-
-        // Update the value
-        current[path[path.length - 1]] = value;
-        setConfig(newConfig);
-
+    const handleConfigChange = async (newConfig: PDFLayoutConfig) => {
         try {
-            const response = await fetch('/api/pdf-settings/layout', {
+            const response = await fetch('/pdf-settings/layout', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(newConfig),
             });
             if (!response.ok) throw new Error('Failed to update config');
+            setConfig(newConfig);
+            toast({
+                description: 'Layout settings saved successfully.',
+            });
         } catch (error) {
             toast({
                 variant: 'destructive',
@@ -119,39 +119,57 @@ export default function PDFSettings() {
 
     const handleSavePreset = async (name: string, presetConfig: PDFLayoutConfig) => {
         try {
-            const response = await fetch(`/api/pdf-settings/presets/${name}`, {
+            const response = await fetch(`/pdf-settings/presets/${name}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(presetConfig),
             });
             if (!response.ok) throw new Error('Failed to save preset');
             await fetchPresets();
+            toast({
+                description: `Preset "${name}" saved successfully.`,
+            });
         } catch (error) {
-            throw new Error('Failed to save preset');
+            toast({
+                variant: 'destructive',
+                description: 'Failed to save preset.',
+            });
         }
     };
 
     const handleDeletePreset = async (name: string) => {
         try {
-            const response = await fetch(`/api/pdf-settings/presets/${name}`, {
+            const response = await fetch(`/pdf-settings/presets/${name}`, {
                 method: 'DELETE',
             });
             if (!response.ok) throw new Error('Failed to delete preset');
             await fetchPresets();
+            toast({
+                description: `Preset "${name}" deleted successfully.`,
+            });
         } catch (error) {
-            throw new Error('Failed to delete preset');
+            toast({
+                variant: 'destructive',
+                description: 'Failed to delete preset.',
+            });
         }
     };
 
     const handleApplyPreset = async (name: string) => {
         try {
-            const response = await fetch(`/api/pdf-settings/presets/${name}/apply`, {
+            const response = await fetch(`/pdf-settings/presets/${name}/apply`, {
                 method: 'POST',
             });
             if (!response.ok) throw new Error('Failed to apply preset');
             await fetchCurrentConfig();
+            toast({
+                description: `Preset "${name}" applied successfully.`,
+            });
         } catch (error) {
-            throw new Error('Failed to apply preset');
+            toast({
+                variant: 'destructive',
+                description: 'Failed to apply preset.',
+            });
         }
     };
 
@@ -170,7 +188,7 @@ export default function PDFSettings() {
                 <div>
                     <PDFLayoutEditor
                         config={config}
-                        onConfigChange={handleConfigChange}
+                        onChange={handleConfigChange}
                     />
                 </div>
             </div>
