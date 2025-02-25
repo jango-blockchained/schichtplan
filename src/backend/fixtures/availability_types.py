@@ -1,0 +1,55 @@
+from typing import TypedDict, Literal
+
+class AvailabilityType(TypedDict):
+    code: str
+    name: str
+    color: str
+    description: str
+    type: Literal['available', 'fixed', 'unavailable', 'preferred']
+
+AVAILABILITY_TYPES: list[AvailabilityType] = [
+    {
+        'code': 'AVL',
+        'name': 'Available',
+        'color': '#22c55e',
+        'description': 'Employee is available for work',
+        'type': 'available'
+    },
+    {
+        'code': 'FIX',
+        'name': 'Fixed',
+        'color': '#3b82f6',
+        'description': 'Fixed/regular schedule',
+        'type': 'fixed'
+    },
+    {
+        'code': 'UNA',
+        'name': 'Unavailable',
+        'color': '#ef4444',
+        'description': 'Not available for work',
+        'type': 'unavailable'
+    },
+    {
+        'code': 'PRF',
+        'name': 'Preferred',
+        'color': '#8b5cf6',
+        'description': 'Preferred working time',
+        'type': 'preferred'
+    }
+]
+
+# Dictionary for quick lookups
+AVAILABILITY_TYPES_DICT = {t['code']: t for t in AVAILABILITY_TYPES}
+
+def get_availability_type(code: str) -> AvailabilityType | None:
+    """Get availability type by code."""
+    return AVAILABILITY_TYPES_DICT.get(code)
+
+def is_valid_availability_code(code: str) -> bool:
+    """Check if an availability code is valid."""
+    return code in AVAILABILITY_TYPES_DICT
+
+def get_availability_color(code: str) -> str:
+    """Get the color for an availability code."""
+    availability_type = get_availability_type(code)
+    return availability_type['color'] if availability_type else '#000000' 

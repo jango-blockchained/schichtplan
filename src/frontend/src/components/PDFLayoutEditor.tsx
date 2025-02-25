@@ -1,44 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { ColorPicker } from '@/components/ui/color-picker';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useToast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
-import { Slider } from '@/components/ui/slider';
-
-export interface PDFLayoutConfig {
-    page_size: string;
-    orientation: string;
-    margins: {
-        top: number;
-        right: number;
-        bottom: number;
-        left: number;
-    };
-    table_style: {
-        header_bg_color: string;
-        border_color: string;
-        text_color: string;
-        header_text_color: string;
-    };
-    fonts: {
-        family: string;
-        size: number;
-        header_size: number;
-    };
-    content: {
-        show_employee_id: boolean;
-        show_position: boolean;
-        show_breaks: boolean;
-        show_total_hours: boolean;
-    };
-}
+import { PDFLayoutConfig } from '@/pages/PDFSettings';
 
 interface PDFLayoutEditorProps {
     config: PDFLayoutConfig;
@@ -49,25 +18,7 @@ const AVAILABLE_FONTS = ['Helvetica', 'Helvetica-Bold', 'Times-Roman', 'Times-Bo
 const PAGE_SIZES = ['A4', 'Letter', 'Legal'];
 
 export function PDFLayoutEditor({ config, onChange }: PDFLayoutEditorProps) {
-    const { toast } = useToast();
     const [isLoading, setIsLoading] = useState<'save' | 'preview' | null>(null);
-
-    const handleSave = async () => {
-        try {
-            setIsLoading('save');
-            onChange(config);
-            toast({
-                description: 'Layout settings saved successfully.',
-            });
-        } catch (error) {
-            toast({
-                variant: 'destructive',
-                description: 'Failed to save layout settings.',
-            });
-        } finally {
-            setIsLoading(null);
-        }
-    };
 
     const handlePreview = async () => {
         try {
@@ -87,10 +38,7 @@ export function PDFLayoutEditor({ config, onChange }: PDFLayoutEditorProps) {
             window.open(url, '_blank');
             window.URL.revokeObjectURL(url);
         } catch (error) {
-            toast({
-                variant: 'destructive',
-                description: 'Failed to generate preview.',
-            });
+            console.error('Failed to generate preview:', error);
         } finally {
             setIsLoading(null);
         }
@@ -113,46 +61,44 @@ export function PDFLayoutEditor({ config, onChange }: PDFLayoutEditorProps) {
     };
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-6">
             <Card>
                 <CardHeader>
                     <CardTitle>Page Settings</CardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label>Page Size</Label>
-                            <Select
-                                value={config.page_size}
-                                onValueChange={(value) => handleChange('page_size', value)}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {PAGE_SIZES.map((size) => (
-                                        <SelectItem key={size} value={size}>
-                                            {size}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Orientation</Label>
-                            <Select
-                                value={config.orientation}
-                                onValueChange={(value) => handleChange('orientation', value)}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="portrait">Portrait</SelectItem>
-                                    <SelectItem value="landscape">Landscape</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
+                <CardContent className="space-y-6">
+                    <div className="space-y-2">
+                        <Label>Page Size</Label>
+                        <Select
+                            value={config.page_size}
+                            onValueChange={(value) => handleChange('page_size', value)}
+                        >
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {PAGE_SIZES.map((size) => (
+                                    <SelectItem key={size} value={size}>
+                                        {size}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Orientation</Label>
+                        <Select
+                            value={config.orientation}
+                            onValueChange={(value) => handleChange('orientation', value)}
+                        >
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="portrait">Portrait</SelectItem>
+                                <SelectItem value="landscape">Landscape</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
                 </CardContent>
             </Card>
@@ -161,21 +107,19 @@ export function PDFLayoutEditor({ config, onChange }: PDFLayoutEditorProps) {
                 <CardHeader>
                     <CardTitle>Margins (mm)</CardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        {Object.entries(config.margins).map(([side, value]) => (
-                            <div key={side} className="space-y-2">
-                                <Label className="capitalize">{side}</Label>
-                                <Input
-                                    type="number"
-                                    value={value}
-                                    onChange={(e) => handleChange(['margins', side], Number(e.target.value))}
-                                    min={0}
-                                    max={50}
-                                />
-                            </div>
-                        ))}
-                    </div>
+                <CardContent className="grid grid-cols-2 gap-4">
+                    {Object.entries(config.margins).map(([side, value]) => (
+                        <div key={side} className="space-y-2">
+                            <Label className="capitalize">{side}</Label>
+                            <Input
+                                type="number"
+                                value={value}
+                                onChange={(e) => handleChange(['margins', side], Number(e.target.value))}
+                                min={0}
+                                max={50}
+                            />
+                        </div>
+                    ))}
                 </CardContent>
             </Card>
 
@@ -304,10 +248,6 @@ export function PDFLayoutEditor({ config, onChange }: PDFLayoutEditorProps) {
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : null}
                     Preview
-                </Button>
-                <Button onClick={handleSave} disabled={!!isLoading}>
-                    {isLoading === 'save' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Save Changes
                 </Button>
             </div>
         </div>

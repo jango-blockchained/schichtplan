@@ -1,0 +1,8 @@
+[test]
+preload = ["./src/test-utils/setup.ts"]
+environment = "jsdom"
+coverage = true
+timeout = 5000
+
+[test.dom]
+enabled = true 
