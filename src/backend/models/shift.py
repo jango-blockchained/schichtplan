@@ -1,6 +1,6 @@
 from . import db
 from datetime import datetime
-from models import Settings
+from .settings import Settings
 
 class ShiftValidationError(Exception):
     """Custom validation error for shifts"""

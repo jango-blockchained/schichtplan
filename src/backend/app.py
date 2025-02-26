@@ -29,7 +29,7 @@ def setup_logging(app):
     os.makedirs(log_dir, exist_ok=True)
     
     # Set up logging
-    log_file = os.path.join(log_dir, 'backend.log')
+    log_file = os.path.join(app.instance_path, 'logs/backend.log')
     file_handler = RotatingFileHandler(log_file, maxBytes=1024 * 1024, backupCount=10)
     file_handler.setFormatter(logging.Formatter(
         '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
@@ -63,7 +63,7 @@ def create_app(test_config=None):
     if test_config is None:
         app.config.from_mapping(
             SECRET_KEY='dev',
-            SQLALCHEMY_DATABASE_URI='sqlite:///' + os.path.join(app.instance_path, 'schichtplan.db'),
+            SQLALCHEMY_DATABASE_URI='sqlite:///' + os.path.join(app.instance_path, 'data.db'),
             SQLALCHEMY_TRACK_MODIFICATIONS=False,
             CORS_ALLOW_CREDENTIALS=True
         )
@@ -86,7 +86,7 @@ def create_app(test_config=None):
     # Configure SQLAlchemy
     # We use Flask's instance folder (src/backend/instance) for the database
     # This follows Flask's best practices for instance-specific files
-    db_path = os.path.join(app.instance_path, 'schichtplan.db')
+    db_path = os.path.join(app.instance_path, 'data.db')
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
