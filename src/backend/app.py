@@ -29,7 +29,7 @@ def setup_logging(app):
     os.makedirs(log_dir, exist_ok=True)
     
     # Set up logging
-    log_file = os.path.join(app.instance_path, 'logs/backend.log')
+    log_file = os.path.join(app.instance_path, 'backend.log')
     file_handler = RotatingFileHandler(log_file, maxBytes=1024 * 1024, backupCount=10)
     file_handler.setFormatter(logging.Formatter(
         '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
