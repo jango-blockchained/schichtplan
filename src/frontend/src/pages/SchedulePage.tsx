@@ -11,7 +11,7 @@ import { PDFLayoutEditor } from '@/components/PDFLayoutEditor';
 import { usePDFConfig } from '@/hooks/usePDFConfig';
 import { DateRange } from 'react-day-picker';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, X } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -20,7 +20,7 @@ import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScheduleTable } from '@/components/ScheduleTable';
-import { ScheduleError } from '@/types';
+import { ScheduleError, PDFLayoutConfig } from '@/types';
 import { cn } from '@/lib/utils';
 
 export function SchedulePage() {
@@ -31,7 +31,6 @@ export function SchedulePage() {
   const [weeksAmount, setWeeksAmount] = useState<number>(1);
   const [selectedVersion, setSelectedVersion] = useState<number | undefined>();
   const [isLayoutCustomizerOpen, setIsLayoutCustomizerOpen] = useState(false);
-  const { config: pdfConfig, updateConfig } = usePDFConfig();
   const { toast } = useToast();
   const [generationLogs, setGenerationLogs] = useState<{
     timestamp: Date;
@@ -80,20 +79,23 @@ export function SchedulePage() {
         dateRange.to.toISOString().split('T')[0]
       );
 
-      if (result.errors && result.errors.length > 0) {
-        result.errors.forEach(error => {
-          const logType = error.type === 'critical' ? 'error' : error.type === 'warning' ? 'warning' : 'info';
-          const details = [
-            error.date && `Date: ${format(new Date(error.date), 'dd.MM.yyyy')}`,
-            error.shift && `Shift: ${error.shift}`
-          ].filter(Boolean).join(' | ');
+      const errors = result?.errors || [];
+      errors.forEach(error => {
+        if (!error) return;
 
-          addGenerationLog(logType, error.message, details);
-        });
-      }
+        const logType = error.type === 'critical' ? 'error' :
+          error.type === 'warning' ? 'warning' : 'info';
+
+        const details = [
+          error.date && `Date: ${format(new Date(error.date), 'dd.MM.yyyy')}`,
+          error.shift && `Shift: ${error.shift}`
+        ].filter(Boolean).join(' | ');
+
+        addGenerationLog(logType, error.message || 'Unknown error', details || undefined);
+      });
 
       addGenerationLog('info', 'Schedule generation completed',
-        `Generated ${result.total_shifts} shifts`);
+        `Generated ${result?.total_shifts || 0} shifts`);
 
       return result;
     },
@@ -258,6 +260,16 @@ export function SchedulePage() {
     }
   };
 
+  // Fix the fetchError type
+  useEffect(() => {
+    if (fetchError) {
+      addGenerationLog('error', 'Error fetching schedule data',
+        typeof fetchError === 'object' && fetchError !== null && 'message' in fetchError
+          ? String((fetchError as { message: unknown }).message)
+          : "Ein unerwarteter Fehler ist aufgetreten");
+    }
+  }, [fetchError]);
+
   // Show loading skeleton for initial data fetch
   if (isLoading && !scheduleData) {
     return (
@@ -329,64 +341,68 @@ export function SchedulePage() {
     );
   }
 
-  // Show error state
-  if (fetchError || generateMutation.error) {
-    const error = (fetchError || generateMutation.error) as Error;
-    return (
-      <div className="container mx-auto py-6">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Fehler</AlertTitle>
-          <AlertDescription>
-            {error.message || "Ein unerwarteter Fehler ist aufgetreten"}
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
-
   // Show loading overlay for subsequent data fetches
-  const isUpdating = isLoading || updateShiftMutation.isLoading || generateMutation.isLoading || exportMutation.isLoading;
+  const isUpdating = isLoading || updateShiftMutation.isPending || generateMutation.isPending || exportMutation.isPending;
+
+  // Initialize PDFLayoutConfig with required properties
+  const defaultPDFConfig: PDFLayoutConfig = {
+    page_size: 'A4',
+    orientation: 'portrait',
+    table_style: {
+      header_background: '#f1f5f9',
+      row_background: '#ffffff',
+      alternate_row_background: '#f8fafc',
+      border_color: '#e2e8f0',
+      text_color: '#1e293b',
+    },
+    fonts: {
+      regular: 'Helvetica',
+      bold: 'Helvetica-Bold',
+    },
+    content: {
+      title: 'Schichtplan',
+      subtitle: '',
+      footer: '',
+    },
+  };
+
+  const { config: pdfConfig = defaultPDFConfig, updateConfig } = usePDFConfig();
 
   return (
-    <DndProvider backend={HTML5Backend}>
-      <div className="container mx-auto py-6 space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Schichtplan</h1>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Select
-                value={weeksAmount.toString()}
-                onValueChange={handleWeeksAmountChange}
-              >
-                <SelectTrigger className="w-[120px]">
-                  <SelectValue placeholder="Anzahl Wochen" />
-                </SelectTrigger>
-                <SelectContent>
-                  {[1, 2, 3, 4].map(num => (
-                    <SelectItem key={num} value={num.toString()}>
-                      {num} {num === 1 ? 'Woche' : 'Wochen'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <DateRangePicker
-                dateRange={dateRange}
-                onChange={handleWeekChange}
-                selectWeek
-              />
-            </div>
+    <div className="container mx-auto py-6 space-y-6">
+      <div className="flex flex-col space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <DateRangePicker
+              dateRange={dateRange}
+              onChange={handleWeekChange}
+              selectWeek
+            />
+            <Select value={weeksAmount.toString()} onValueChange={handleWeeksAmountChange}>
+              <SelectTrigger className="w-32">
+                <SelectValue placeholder="Wochen" />
+              </SelectTrigger>
+              <SelectContent>
+                {[1, 2, 3, 4].map((week) => (
+                  <SelectItem key={week} value={week.toString()}>
+                    {week} {week === 1 ? 'Woche' : 'Wochen'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center space-x-2">
             {versions && versions.length > 0 && (
               <Select
                 value={selectedVersion?.toString()}
-                onValueChange={(v) => setSelectedVersion(v ? parseInt(v, 10) : undefined)}
+                onValueChange={(value) => setSelectedVersion(value ? parseInt(value, 10) : undefined)}
               >
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Version wählen" />
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Version auswählen" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="">Aktuelle Version</SelectItem>
-                  {versions.map(version => (
+                  {versions.map((version) => (
                     <SelectItem key={version} value={version.toString()}>
                       Version {version}
                     </SelectItem>
@@ -396,121 +412,100 @@ export function SchedulePage() {
             )}
             <Button
               onClick={() => generateMutation.mutate()}
-              disabled={isUpdating || !dateRange?.from || !dateRange?.to}
+              disabled={generateMutation.isPending}
             >
-              {generateMutation.isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Generiere...
-                </>
-              ) : (
-                "Schichtplan generieren"
+              {generateMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
+              Schichtplan generieren
             </Button>
             <Button
               variant="outline"
               onClick={() => exportMutation.mutate()}
-              disabled={isUpdating || !dateRange?.from || !dateRange?.to}
+              disabled={exportMutation.isPending}
             >
-              {exportMutation.isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Exportiere...
-                </>
-              ) : (
-                "Als PDF exportieren"
+              {exportMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
+              PDF Export
             </Button>
-
+            <Button
+              variant="outline"
+              onClick={() => setIsLayoutCustomizerOpen(true)}
+            >
+              PDF Layout
+            </Button>
           </div>
         </div>
 
-        {errors && errors.length > 0 && (
-          <Card className="bg-destructive/5">
-            <CardHeader>
-              <CardTitle>Warnungen und Fehler</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {errors.map((error, index) => (
-                  <Alert
-                    key={index}
-                    variant={error.type === 'critical' ? 'destructive' : 'default'}
-                  >
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>
-                      {error.type === 'critical' ? 'Kritischer Fehler' : 'Warnung'}
-                      {error.date && ` - ${format(new Date(error.date), 'dd.MM.yyyy')}`}
-                      {error.shift && ` - ${error.shift}`}
-                    </AlertTitle>
-                    <AlertDescription>{error.message}</AlertDescription>
-                  </Alert>
-                ))}
+        <DndProvider backend={HTML5Backend}>
+          <div className="relative">
+            {isLoading && (
+              <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-10">
+                <Loader2 className="h-8 w-8 animate-spin" />
               </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {scheduleData && (
-          <ScheduleTable
-            schedules={scheduleData}
-            dateRange={dateRange}
-            onDrop={handleDrop}
-            isLoading={isLoading}
-          />
-        )}
-
-        {/* Generation Logs */}
-        {generationLogs.length > 0 && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Generierungsverlauf</CardTitle>
-              <Button variant="outline" size="sm" onClick={clearGenerationLogs}>
-                Verlauf löschen
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {generationLogs.map((log, index) => (
-                  <div
-                    key={index}
-                    className={cn(
-                      "p-3 rounded text-sm",
-                      log.type === 'error' && "bg-destructive/10 text-destructive",
-                      log.type === 'warning' && "bg-warning/10 text-warning",
-                      log.type === 'info' && "bg-muted"
-                    )}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="font-medium">{log.message}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {format(log.timestamp, 'HH:mm:ss')}
-                      </div>
-                    </div>
-                    {log.details && (
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {log.details}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        <Dialog open={isLayoutCustomizerOpen} onOpenChange={setIsLayoutCustomizerOpen}>
-          <DialogContent className="max-w-4xl">
-            <DialogHeader>
-              <DialogTitle>PDF Layout anpassen</DialogTitle>
-            </DialogHeader>
-            <PDFLayoutEditor
-              config={pdfConfig}
-              onConfigChange={updateConfig}
+            )}
+            <ScheduleTable
+              schedules={scheduleData || []}
+              dateRange={dateRange}
+              onDrop={handleDrop}
+              isLoading={isLoading}
             />
-          </DialogContent>
-        </Dialog>
+          </div>
+        </DndProvider>
+
+        {/* Logs Section */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-base font-semibold">Logs</CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearGenerationLogs}
+              className="h-8 px-2"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {generationLogs.map((log, index) => (
+                <Alert
+                  key={index}
+                  variant={log.type === 'error' ? 'destructive' : 'default'}
+                >
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle className="text-sm">
+                    {format(log.timestamp, 'HH:mm:ss')} - {log.message}
+                  </AlertTitle>
+                  {log.details && (
+                    <AlertDescription className="text-sm mt-1">
+                      {log.details}
+                    </AlertDescription>
+                  )}
+                </Alert>
+              ))}
+              {generationLogs.length === 0 && (
+                <div className="text-sm text-muted-foreground text-center py-4">
+                  Keine Logs vorhanden
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
-    </DndProvider>
+
+      <Dialog open={isLayoutCustomizerOpen} onOpenChange={setIsLayoutCustomizerOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>PDF Layout anpassen</DialogTitle>
+          </DialogHeader>
+          <PDFLayoutEditor
+            config={pdfConfig}
+            onConfigChange={updateConfig}
+          />
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 } 

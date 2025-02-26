@@ -258,6 +258,9 @@ export interface CoverageTimeSlot {
     minEmployees: number;
     maxEmployees: number;
     employeeTypes: string[];
+    requiresKeyholder: boolean;
+    keyholderBeforeMinutes: number;
+    keyholderAfterMinutes: number;
 }
 
 export interface DailyCoverage {

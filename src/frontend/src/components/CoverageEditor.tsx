@@ -47,6 +47,9 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ slot, onSave, onCancel, store
     const [minEmployees, setMinEmployees] = useState(slot.minEmployees);
     const [maxEmployees, setMaxEmployees] = useState(slot.maxEmployees);
     const [selectedTypes, setSelectedTypes] = useState<string[]>(slot.employeeTypes);
+    const [requiresKeyholder, setRequiresKeyholder] = useState(slot.requiresKeyholder);
+    const [keyholderBeforeMinutes, setKeyholderBeforeMinutes] = useState(slot.keyholderBeforeMinutes);
+    const [keyholderAfterMinutes, setKeyholderAfterMinutes] = useState(slot.keyholderAfterMinutes);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
     const validateForm = () => {
@@ -68,6 +71,15 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ slot, onSave, onCancel, store
             newErrors.types = "At least one employee type must be selected";
         }
 
+        if (requiresKeyholder) {
+            if (keyholderBeforeMinutes < 0) {
+                newErrors.keyholderBefore = "Keyholder before minutes must be non-negative";
+            }
+            if (keyholderAfterMinutes < 0) {
+                newErrors.keyholderAfter = "Keyholder after minutes must be non-negative";
+            }
+        }
+
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -79,7 +91,10 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ slot, onSave, onCancel, store
                 endTime,
                 minEmployees,
                 maxEmployees,
-                employeeTypes: selectedTypes
+                employeeTypes: selectedTypes,
+                requiresKeyholder,
+                keyholderBeforeMinutes,
+                keyholderAfterMinutes
             });
         }
     };
@@ -166,6 +181,48 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ slot, onSave, onCancel, store
                     ))}
                 </div>
                 {errors.types && <p className="text-sm text-destructive">{errors.types}</p>}
+            </div>
+
+            <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                    <Label htmlFor="requiresKeyholder">Requires Keyholder</Label>
+                    <input
+                        type="checkbox"
+                        id="requiresKeyholder"
+                        checked={requiresKeyholder}
+                        onChange={(e) => setRequiresKeyholder(e.target.checked)}
+                        className="h-4 w-4"
+                    />
+                </div>
+
+                {requiresKeyholder && (
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="keyholderBeforeMinutes">Minutes Before</Label>
+                            <Input
+                                id="keyholderBeforeMinutes"
+                                type="number"
+                                min={0}
+                                value={keyholderBeforeMinutes}
+                                onChange={(e) => setKeyholderBeforeMinutes(Number(e.target.value))}
+                                className={errors.keyholderBefore ? "border-destructive" : ""}
+                            />
+                            {errors.keyholderBefore && <p className="text-sm text-destructive">{errors.keyholderBefore}</p>}
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="keyholderAfterMinutes">Minutes After</Label>
+                            <Input
+                                id="keyholderAfterMinutes"
+                                type="number"
+                                min={0}
+                                value={keyholderAfterMinutes}
+                                onChange={(e) => setKeyholderAfterMinutes(Number(e.target.value))}
+                                className={errors.keyholderAfter ? "border-destructive" : ""}
+                            />
+                            {errors.keyholderAfter && <p className="text-sm text-destructive">{errors.keyholderAfter}</p>}
+                        </div>
+                    </div>
+                )}
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
@@ -283,86 +340,98 @@ const CoverageBlock: React.FC<CoverageBlockProps> = ({ slot, dayIndex, onUpdate,
     };
 
     return (
-        <>
-            <div
-                ref={blockRef}
-                className={cn(
-                    "absolute bg-primary/5 border border-primary/20 rounded-md group",
-                    isDragging ? "opacity-50 bg-primary/10" : "hover:bg-primary/10",
-                    isEditing ? "cursor-move" : "cursor-default"
-                )}
-                style={{
-                    left: `${startOffsetQuarters * quarterWidth}px`,
-                    width: `${durationQuarters * quarterWidth}px`,
-                    height: CELL_HEIGHT - 8,
-                    top: 4,
-                }}
-                onClick={() => isEditing && setShowEditor(true)}
-            >
-                <div className="h-full flex items-center justify-between overflow-hidden px-3">
-                    <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                        <Users className="h-4 w-4 text-primary/70" />
-                        <span>{slot.minEmployees}-{slot.maxEmployees}</span>
-                        <span className="text-xs text-muted-foreground">
-                            ({slot.employeeTypes.map(typeId =>
-                                storeConfig.employee_types.find(t => t.id === typeId)?.abbr ||
-                                storeConfig.employee_types.find(t => t.id === typeId)?.name?.charAt(0) ||
-                                '?'
-                            ).join(',')})
+        <div
+            ref={blockRef}
+            style={{
+                position: 'absolute',
+                left: `${TIME_COLUMN_WIDTH + (startOffsetQuarters * quarterWidth)}px`,
+                width: `${durationQuarters * quarterWidth}px`,
+                height: `${CELL_HEIGHT - BLOCK_VERTICAL_PADDING * 2}px`,
+                opacity: isDragging ? 0.5 : 1,
+            }}
+            className={cn(
+                "bg-primary/20 border border-primary rounded-md p-1 cursor-move flex flex-col justify-between",
+                isEditing ? "hover:bg-primary/30" : ""
+            )}
+        >
+            <div className="flex justify-between items-start text-xs">
+                <div className="flex flex-col">
+                    <span>{slot.startTime} - {slot.endTime}</span>
+                    <span className="text-muted-foreground">
+                        {slot.minEmployees}-{slot.maxEmployees} {slot.minEmployees === 1 ? 'person' : 'people'}
+                    </span>
+                    {slot.requiresKeyholder && (
+                        <span className="text-primary font-medium">
+                            🔑 Keyholder required
+                            {(slot.keyholderBeforeMinutes > 0 || slot.keyholderAfterMinutes > 0) && (
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger>
+                                            <Clock className="h-3 w-3 inline ml-1" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>Keyholder needed:</p>
+                                            {slot.keyholderBeforeMinutes > 0 && (
+                                                <p>{slot.keyholderBeforeMinutes} min before</p>
+                                            )}
+                                            {slot.keyholderAfterMinutes > 0 && (
+                                                <p>{slot.keyholderAfterMinutes} min after</p>
+                                            )}
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            )}
                         </span>
-                    </div>
-                    <div className="flex flex-col items-end">
-                        <div className="text-sm font-medium text-foreground">
-                            {slot.startTime}-{slot.endTime}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                            {formatDuration(slot.startTime, slot.endTime)}
-                        </div>
-                    </div>
-                    {isEditing && (
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+                    )}
+                </div>
+                {isEditing && (
+                    <div className="flex gap-1">
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setShowEditor(true);
+                            }}
+                            className="p-1 hover:bg-primary/20 rounded"
+                        >
+                            <PencilIcon className="h-3 w-3" />
+                        </button>
+                        <button
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onDelete();
                             }}
+                            className="p-1 hover:bg-destructive/20 rounded text-destructive"
                         >
-                            <Trash2 className="h-4 w-4" />
-                        </Button>
-                    )}
-                </div>
-                {isEditing && (
-                    <>
-                        <div
-                            className="absolute top-0 right-0 w-1 h-full cursor-e-resize bg-primary/20 hover:bg-primary/40"
-                            onMouseDown={handleResizeStart}
-                        />
-                        <div
-                            className="absolute top-0 left-0 w-1 h-full cursor-w-resize bg-primary/20 hover:bg-primary/40"
-                            onMouseDown={handleResizeStart}
-                        />
-                    </>
+                            <Trash2 className="h-3 w-3" />
+                        </button>
+                    </div>
                 )}
             </div>
-            <Dialog open={showEditor} onOpenChange={setShowEditor}>
-                <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                        <DialogTitle>Edit Coverage Block</DialogTitle>
-                    </DialogHeader>
-                    <BlockEditor
-                        slot={slot}
-                        onSave={(updates) => {
-                            onUpdate(updates);
-                            setShowEditor(false);
-                        }}
-                        onCancel={() => setShowEditor(false)}
-                        storeConfig={storeConfig}
-                    />
-                </DialogContent>
-            </Dialog>
-        </>
+            {isEditing && (
+                <div
+                    className="absolute right-0 top-0 bottom-0 w-1 cursor-ew-resize"
+                    onMouseDown={handleResizeStart}
+                />
+            )}
+            {showEditor && (
+                <Dialog open={showEditor} onOpenChange={setShowEditor}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Edit Coverage Block</DialogTitle>
+                        </DialogHeader>
+                        <BlockEditor
+                            slot={slot}
+                            onSave={(updates) => {
+                                onUpdate(updates);
+                                setShowEditor(false);
+                            }}
+                            onCancel={() => setShowEditor(false)}
+                            storeConfig={storeConfig}
+                        />
+                    </DialogContent>
+                </Dialog>
+            )}
+        </div>
     );
 };
 
@@ -600,7 +669,10 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
             endTime: `${endHour.toString().padStart(2, '0')}:00`,
             minEmployees: storeConfig.min_employees_per_shift,
             maxEmployees: storeConfig.max_employees_per_shift,
-            employeeTypes: storeConfig.employee_types.map(t => t.id)  // Default to all employee types
+            employeeTypes: storeConfig.employee_types.map(t => t.id),
+            requiresKeyholder: false,
+            keyholderBeforeMinutes: 0,
+            keyholderAfterMinutes: 0
         };
 
         // Check if there's already a slot at this time
@@ -645,6 +717,45 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
         onChange?.(newCoverage);
     };
 
+    const handleAddDefaultSlots = () => {
+        const morningShift: CoverageTimeSlot = {
+            startTime: "09:00",
+            endTime: "14:00",
+            minEmployees: 1,
+            maxEmployees: 2,
+            employeeTypes: storeConfig.employee_types.map(t => t.id),
+            requiresKeyholder: true,
+            keyholderBeforeMinutes: 30,
+            keyholderAfterMinutes: 0
+        };
+
+        const afternoonShift: CoverageTimeSlot = {
+            startTime: "14:00",
+            endTime: "20:00",
+            minEmployees: 1,
+            maxEmployees: 2,
+            employeeTypes: storeConfig.employee_types.map(t => t.id),
+            requiresKeyholder: true,
+            keyholderBeforeMinutes: 0,
+            keyholderAfterMinutes: 30
+        };
+
+        // Add morning and afternoon shifts for each day
+        const newCoverage = [...coverage];
+        openingDays.forEach((dayIdx) => {
+            if (dayIdx !== 0) { // Skip Sunday (index 0)
+                newCoverage[dayIdx].timeSlots.push(morningShift, afternoonShift);
+            }
+        });
+        setCoverage(newCoverage);
+        onChange?.(newCoverage);
+
+        toast({
+            title: "Default shifts added",
+            description: "Added shifts for Monday through Saturday",
+        });
+    };
+
     return (
         <DndProvider backend={HTML5Backend}>
             <Card className="overflow-hidden">
@@ -665,40 +776,7 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
                                 variant="default"
                                 size="sm"
                                 className="gap-2"
-                                onClick={() => {
-                                    // Add morning shift (09:00-14:00) and afternoon shift (14:00-20:00) for each day
-                                    const newCoverage = [...coverage];
-                                    openingDays.forEach((dayIndex) => {
-                                        if (dayIndex !== 0) { // Skip Sunday (index 0)
-                                            // Morning shift
-                                            const morningShift: CoverageTimeSlot = {
-                                                startTime: "09:00",
-                                                endTime: "14:00",
-                                                minEmployees: 1,
-                                                maxEmployees: 2,
-                                                employeeTypes: storeConfig.employee_types.map(t => t.id)
-                                            };
-                                            newCoverage[dayIndex].timeSlots.push(morningShift);
-
-                                            // Afternoon shift
-                                            const afternoonShift: CoverageTimeSlot = {
-                                                startTime: "14:00",
-                                                endTime: "20:00",
-                                                minEmployees: 1,
-                                                maxEmployees: 2,
-                                                employeeTypes: storeConfig.employee_types.map(t => t.id)
-                                            };
-                                            newCoverage[dayIndex].timeSlots.push(afternoonShift);
-                                        }
-                                    });
-                                    setCoverage(newCoverage);
-                                    onChange?.(newCoverage);
-
-                                    toast({
-                                        title: "Default shifts added",
-                                        description: "Added shifts for Monday through Saturday",
-                                    });
-                                }}
+                                onClick={handleAddDefaultSlots}
                             >
                                 <Plus className="h-4 w-4" />
                                 Add All

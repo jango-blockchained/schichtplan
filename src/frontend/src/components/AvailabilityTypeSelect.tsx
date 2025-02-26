@@ -30,13 +30,24 @@ export function AvailabilityTypeSelect({ value, onChange }: AvailabilityTypeSele
         queryFn: getSettings,
     });
 
-    const availabilityTypes = settings?.availability_types?.types || [];
+    // Filter out UNAVAILABLE type and sort by priority
+    const availabilityTypes = (settings?.availability_types?.types || [])
+        .filter((type: AvailabilityType) => type.is_available)
+        .sort((a: AvailabilityType, b: AvailabilityType) => a.priority - b.priority);
 
     return (
         <Select value={value} onValueChange={onChange}>
             <SelectTrigger className="w-[200px]">
                 <SelectValue>
-                    {availabilityTypes.find((type: AvailabilityType) => type.id === value)?.name || 'Select type'}
+                    <div className="flex items-center gap-2">
+                        <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: availabilityTypes.find(type => type.id === value)?.color }}
+                        />
+                        <span>
+                            {availabilityTypes.find(type => type.id === value)?.name || 'Select type'}
+                        </span>
+                    </div>
                 </SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -51,6 +62,9 @@ export function AvailabilityTypeSelect({ value, onChange }: AvailabilityTypeSele
                             style={{ backgroundColor: type.color }}
                         />
                         <span>{type.name}</span>
+                        <span className="ml-auto text-xs text-muted-foreground">
+                            {type.description}
+                        </span>
                     </SelectItem>
                 ))}
             </SelectContent>

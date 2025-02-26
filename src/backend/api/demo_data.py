@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 from models import db, Settings, Employee, Shift, Coverage, EmployeeAvailability
+from models.employee import AvailabilityType
 from http import HTTPStatus
 from datetime import datetime, timedelta
 import random
@@ -60,6 +61,39 @@ def generate_absence_types():
             'name': 'Schulung',
             'color': '#4CAF50',
             'type': 'absence'
+        }
+    ]
+
+def generate_availability_types():
+    """Generate demo availability types"""
+    return [
+        {
+            'id': 'AVL',
+            'name': 'Available',
+            'color': '#22c55e',
+            'description': 'Employee is available for work',
+            'type': 'availability'
+        },
+        {
+            'id': 'FIX',
+            'name': 'Fixed',
+            'color': '#3b82f6',
+            'description': 'Fixed/regular schedule',
+            'type': 'availability'
+        },
+        {
+            'id': 'UNA',
+            'name': 'Unavailable',
+            'color': '#ef4444',
+            'description': 'Not available for work',
+            'type': 'availability'
+        },
+        {
+            'id': 'PRF',
+            'name': 'Preferred',
+            'color': '#8b5cf6',
+            'description': 'Preferred working time',
+            'type': 'availability'
         }
     ]
 
@@ -130,7 +164,6 @@ def generate_shift_data():
             end_time="14:00",
             min_employees=1,
             max_employees=2,
-            duration_hours=5.0,
             requires_break=False,
             active_days=[1, 2, 3, 4, 5, 6]  # Monday to Saturday
         ),
@@ -139,7 +172,6 @@ def generate_shift_data():
             end_time="20:00",
             min_employees=1,
             max_employees=2,
-            duration_hours=6.0,
             requires_break=True,
             active_days=[1, 2, 3, 4, 5, 6]  # Monday to Saturday
         )
@@ -153,11 +185,14 @@ def generate_coverage_data():
         # Morning slot
         coverage_slots.append(Coverage(
             day_index=day_index,
-            start_time="09:00",
+            start_time="08:30",
             end_time="14:00",
             min_employees=1,
             max_employees=2,
-            employee_types=["VZ", "TZ"]
+            employee_types=["TL", "VZ", "TZ", "GFB"],
+            requires_keyholder=True,
+            keyholder_before_minutes=30,
+            keyholder_after_minutes=0
         ))
         # Afternoon slot
         coverage_slots.append(Coverage(
@@ -166,26 +201,92 @@ def generate_coverage_data():
             end_time="20:00",
             min_employees=1,
             max_employees=2,
-            employee_types=["VZ", "TZ", "GFB"]
+            employee_types=["TL", "VZ", "TZ", "GFB"],
+            requires_keyholder=True,
+            keyholder_before_minutes=0,
+            keyholder_after_minutes=30
         ))
     return coverage_slots
 
 def generate_availability_data(employees):
-    """Generate demo availability data"""
+    """Generate demo availability data with continuous blocks without gaps"""
     availabilities = []
+    
+    # Randomly select 30% of employees to have random availability patterns
+    random_pattern_employees = set(random.sample(employees, k=max(1, len(employees) // 3)))
+    
+    # Select some full-time employees (VZ and TL) to have fixed schedules
+    fixed_schedule_employees = set(
+        employee for employee in employees 
+        if employee.employee_group in ['VZ', 'TL'] 
+        and employee not in random_pattern_employees 
+        and random.random() < 0.4  # 40% of remaining full-time employees get fixed schedules
+    )
+    
     for employee in employees:
         # Generate recurring availability for each employee
-        for day_index in range(7):  # 0-6 (Sunday-Saturday)
-            if day_index != 0:  # Skip Sunday
-                availability = EmployeeAvailability(
-                    employee_id=employee.id,
-                    is_recurring=True,
-                    day_index=day_index,
-                    start_time="09:00",
-                    end_time="20:00",
-                    availability_type="available"
-                )
-                availabilities.append(availability)
+        for day_of_week in range(7):  # 0-6 (Sunday-Saturday)
+            if day_of_week != 0:  # Skip Sunday
+                # Determine the daily schedule pattern
+                if employee in fixed_schedule_employees:
+                    # Fixed schedule employees have set blocks
+                    if employee.employee_group == 'TL':
+                        # Team leaders work one solid block morning to mid-afternoon
+                        blocks = [(8, 16, AvailabilityType.FIXED)]
+                    else:  # VZ with fixed schedule
+                        # Alternate between morning and afternoon blocks
+                        if day_of_week % 2 == 0:
+                            blocks = [(9, 15, AvailabilityType.FIXED)]  # Morning block
+                        else:
+                            blocks = [(14, 20, AvailabilityType.FIXED)]  # Afternoon block
+                
+                elif employee in random_pattern_employees:
+                    # Create 2-3 continuous blocks with different types, NO GAPS
+                    blocks = []
+                    if random.random() < 0.7:  # 70% chance of starting in the morning
+                        current_hour = 9
+                    else:
+                        current_hour = 14  # Start in the afternoon
+                    
+                    end_hour = 20  # Latest possible end time
+                    
+                    while current_hour < end_hour:
+                        # Determine block length - between 2 and 4 hours, but must reach end_hour
+                        remaining_hours = end_hour - current_hour
+                        if remaining_hours <= 4:
+                            block_length = remaining_hours
+                        else:
+                            block_length = random.randint(2, min(4, remaining_hours))
+                        
+                        block_end = current_hour + block_length
+                        # Assign type - higher chance of AVAILABLE, lower chance of PROMISE
+                        block_type = AvailabilityType.PROMISE if random.random() < 0.3 else AvailabilityType.AVAILABLE
+                        blocks.append((current_hour, block_end, block_type))
+                        current_hour = block_end
+                
+                else:
+                    # Regular employees get one continuous block
+                    if random.random() < 0.6:  # 60% chance of full day
+                        blocks = [(9, 20, AvailabilityType.AVAILABLE)]
+                    else:  # Morning or afternoon block, but not both
+                        if random.random() < 0.5:
+                            blocks = [(9, 14, AvailabilityType.AVAILABLE)]  # Morning
+                        else:
+                            blocks = [(14, 20, AvailabilityType.AVAILABLE)]  # Afternoon
+                
+                # Create availability records for each block
+                for start_hour, end_hour, availability_type in blocks:
+                    for hour in range(start_hour, end_hour):
+                        availability = EmployeeAvailability(
+                            employee_id=employee.id,
+                            is_recurring=True,
+                            day_of_week=day_of_week,
+                            hour=hour,
+                            is_available=True,
+                            availability_type=availability_type
+                        )
+                        availabilities.append(availability)
+    
     return availabilities
 
 @bp.route('/', methods=['POST'])
@@ -215,6 +316,18 @@ def generate_demo_data():
                 logging.error(f"Error updating settings: {str(e)}")
                 raise
 
+        # Clean up all availabilities first
+        if module in ['availability', 'employees', 'all']:
+            logging.info("Cleaning up existing availabilities...")
+            try:
+                EmployeeAvailability.query.delete()
+                db.session.commit()
+                logging.info("Successfully cleaned up existing availabilities")
+            except Exception as e:
+                db.session.rollback()
+                logging.error(f"Error cleaning up availabilities: {str(e)}")
+                raise
+
         if module in ['employees', 'all']:
             # Clear existing employees
             logging.info("Generating demo employees...")
@@ -231,6 +344,7 @@ def generate_demo_data():
             
             if module == 'all':
                 # Generate availability for new employees
+                logging.info("Generating demo availabilities...")
                 availabilities = generate_availability_data(employees)
                 db.session.add_all(availabilities)
                 try:
@@ -241,49 +355,19 @@ def generate_demo_data():
                     logging.error(f"Error creating availabilities: {str(e)}")
                     raise
         
-        if module in ['shifts', 'all']:
-            # Clear existing shifts
-            logging.info("Generating demo shifts...")
-            Shift.query.delete()
-            shifts = generate_shift_data()
-            db.session.add_all(shifts)
+        elif module == 'availability':
+            # Generate new availabilities for existing employees
+            logging.info("Generating demo availabilities for existing employees...")
+            employees = Employee.query.all()
+            availabilities = generate_availability_data(employees)
+            db.session.add_all(availabilities)
             try:
                 db.session.commit()
-                logging.info(f"Successfully created {len(shifts)} shifts")
+                logging.info(f"Successfully created {len(availabilities)} availabilities")
             except Exception as e:
                 db.session.rollback()
-                logging.error(f"Error creating shifts: {str(e)}")
+                logging.error(f"Error creating availabilities: {str(e)}")
                 raise
-        
-        if module in ['coverage', 'all']:
-            # Clear existing coverage
-            logging.info("Generating demo coverage...")
-            Coverage.query.delete()
-            coverage_slots = generate_coverage_data()
-            db.session.add_all(coverage_slots)
-            try:
-                db.session.commit()
-                logging.info(f"Successfully created {len(coverage_slots)} coverage slots")
-            except Exception as e:
-                db.session.rollback()
-                logging.error(f"Error creating coverage: {str(e)}")
-                raise
-        
-        if module in ['availability', 'all']:
-            # Clear existing availability
-            logging.info("Generating demo availability...")
-            EmployeeAvailability.query.delete()
-            if module != 'all':  # If 'all', availability was already generated with employees
-                employees = Employee.query.all()
-                availabilities = generate_availability_data(employees)
-                db.session.add_all(availabilities)
-                try:
-                    db.session.commit()
-                    logging.info(f"Successfully created {len(availabilities)} availabilities")
-                except Exception as e:
-                    db.session.rollback()
-                    logging.error(f"Error creating availabilities: {str(e)}")
-                    raise
         
         # Update settings to record the execution
         settings = Settings.query.first()

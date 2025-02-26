@@ -9,7 +9,7 @@
         "time_format": "24h",
         "store_opening": "09:00",
         "store_closing": "20:00",
-        "keyholder_before_minutes": 5,
+        "keyholder_before_minutes": 30,
         "keyholder_after_minutes": 15,
         "opening_days": {
             "0": false,

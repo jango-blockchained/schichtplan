@@ -128,7 +128,10 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
                     const hour = format(new Date().setHours(availability.hour, 0), TIME_FORMAT);
                     const nextHour = format(new Date().setHours(availability.hour + 1, 0), TIME_FORMAT);
                     const cellId = `${day}-${hour} - ${nextHour}`;
-                    newSelectedCells.set(cellId, availability.availability_type || 'AVL');
+                    // Only create entries for available hours with their specific type
+                    if (availability.is_available) {
+                        newSelectedCells.set(cellId, availability.availability_type);
+                    }
                 }
             });
             setSelectedCells(newSelectedCells);
@@ -251,31 +254,80 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
         return availabilityType?.color || '#22c55e';
     };
 
+    const calculateTypeStats = () => {
+        const stats = new Map<string, number>();
+        selectedCells.forEach((type) => {
+            stats.set(type, (stats.get(type) || 0) + 1);
+        });
+        return stats;
+    };
+
+    const calculateCumulativeHours = (day: string, currentHour: number) => {
+        const stats = new Map<string, number>();
+        timeSlots.forEach(({ time }) => {
+            const [startTime] = time.split(' - ')[0].split(':').map(Number);
+            if (startTime <= currentHour) {
+                const cellId = `${day}-${time}`;
+                const type = selectedCells.get(cellId);
+                if (type) {
+                    stats.set(type, (stats.get(type) || 0) + 1);
+                }
+            }
+        });
+        return stats;
+    };
+
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="max-w-7xl" onMouseUp={handleMouseUp}>
                 <DialogHeader>
-                    <DialogTitle>Verfügbarkeit für {employeeName}</DialogTitle>
-                    <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                        <Badge variant="outline">{employeeGroup}</Badge>
-                        <span>Vertragsstunden: {contractedHours}h/Woche</span>
-                        <span>Mögliche Stunden: {weeklyHours}h/Woche</span>
+                    <DialogTitle>
+                        Availability for {employeeName}
+                    </DialogTitle>
+                    <div className="flex flex-col gap-2 mt-2">
+                        <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-sm">
+                                {employeeGroup}
+                            </Badge>
+                            <span className="text-sm text-muted-foreground">
+                                Contracted: {contractedHours}h/week
+                            </span>
+                            <span className="text-sm text-muted-foreground">
+                                Selected: {weeklyHours}h/week
+                            </span>
+                            {Array.from(calculateTypeStats()).map(([type, hours]) => {
+                                const availabilityType = settings?.availability_types?.types.find(t => t.id === type);
+                                return (
+                                    <div
+                                        key={type}
+                                        className="flex items-center gap-1 text-sm"
+                                        style={{ color: availabilityType?.color }}
+                                    >
+                                        <div
+                                            className="w-2 h-2 rounded-full"
+                                            style={{ backgroundColor: availabilityType?.color }}
+                                        />
+                                        {availabilityType?.name}: {hours}h
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div className="flex justify-between items-center">
+                            <AvailabilityTypeSelect
+                                value={currentType}
+                                onChange={setCurrentType}
+                            />
+                            <div className="flex items-center gap-2">
+                                <Button onClick={handleSelectAll} variant="outline" size="sm">
+                                    Select All
+                                </Button>
+                                <Button onClick={handleDeselectAll} variant="outline" size="sm">
+                                    Clear All
+                                </Button>
+                            </div>
+                        </div>
                     </div>
                 </DialogHeader>
-                <div className="flex justify-between items-center mb-4">
-                    <AvailabilityTypeSelect
-                        value={currentType}
-                        onChange={setCurrentType}
-                    />
-                    <div className="flex space-x-2">
-                        <Button variant="outline" onClick={handleSelectAll}>
-                            Alle auswählen
-                        </Button>
-                        <Button variant="outline" onClick={handleDeselectAll}>
-                            Alle abwählen
-                        </Button>
-                    </div>
-                </div>
                 <div className="overflow-x-auto">
                     <Table>
                         <TableHeader>
@@ -300,16 +352,18 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {timeSlots.map(({ time }) => (
+                            {timeSlots.map(({ time, hour }) => (
                                 <TableRow key={time}>
                                     <TableCell className="font-medium">{time}</TableCell>
                                     {activeDays.map(day => {
                                         const cellId = `${day}-${time}`;
+                                        const cumulativeHours = calculateCumulativeHours(day, hour);
+                                        const cellType = selectedCells.get(cellId);
                                         return (
                                             <TableCell
                                                 key={cellId}
                                                 className={cn(
-                                                    'cursor-pointer select-none transition-colors text-center',
+                                                    'cursor-pointer select-none transition-colors text-center relative',
                                                     selectedCells.has(cellId)
                                                         ? 'hover:brightness-90'
                                                         : 'hover:bg-muted'
@@ -321,7 +375,14 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
                                                 onMouseEnter={() => handleCellMouseEnter(day, time)}
                                             >
                                                 {selectedCells.has(cellId) && (
-                                                    <Check className="h-4 w-4 mx-auto text-white" />
+                                                    <>
+                                                        <Check className="h-4 w-4 mx-auto text-white" />
+                                                        <div className="absolute bottom-0 right-1 text-[10px] text-white">
+                                                            {Array.from(cumulativeHours).map(([type, count]) => (
+                                                                type === cellType ? count : null
+                                                            )).filter(Boolean).join('')}
+                                                        </div>
+                                                    </>
                                                 )}
                                             </TableCell>
                                         );
@@ -333,10 +394,10 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose}>
-                        Abbrechen
+                        Cancel
                     </Button>
                     <Button onClick={handleSave}>
-                        Speichern
+                        Save
                     </Button>
                 </DialogFooter>
             </DialogContent>
