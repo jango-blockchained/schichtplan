@@ -61,9 +61,11 @@ def create_app(test_config=None):
     app = Flask(__name__, instance_relative_config=True)
     
     if test_config is None:
+        # Use absolute path for database
+        db_path = os.path.abspath(os.path.join(app.instance_path, 'app.db'))
         app.config.from_mapping(
             SECRET_KEY='dev',
-            SQLALCHEMY_DATABASE_URI='sqlite:///' + os.path.join(app.instance_path, 'data.db'),
+            SQLALCHEMY_DATABASE_URI=f'sqlite:///{db_path}',
             SQLALCHEMY_TRACK_MODIFICATIONS=False,
             CORS_ALLOW_CREDENTIALS=True
         )
@@ -86,7 +88,7 @@ def create_app(test_config=None):
     # Configure SQLAlchemy
     # We use Flask's instance folder (src/backend/instance) for the database
     # This follows Flask's best practices for instance-specific files
-    db_path = os.path.join(app.instance_path, 'data.db')
+    db_path = os.path.abspath(os.path.join(app.instance_path, 'app.db'))
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     

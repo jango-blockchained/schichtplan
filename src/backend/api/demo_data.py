@@ -358,6 +358,18 @@ def generate_demo_data():
                     db.session.rollback()
                     logging.error(f"Error creating availabilities: {str(e)}")
                     raise
+                
+                # Generate coverage data
+                logging.info("Generating demo coverage...")
+                coverage_slots = generate_coverage_data()
+                db.session.add_all(coverage_slots)
+                try:
+                    db.session.commit()
+                    logging.info(f"Successfully created {len(coverage_slots)} coverage slots")
+                except Exception as e:
+                    db.session.rollback()
+                    logging.error(f"Error creating coverage slots: {str(e)}")
+                    raise
         
         elif module == 'availability':
             # Generate new availabilities for existing employees

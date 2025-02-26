@@ -32,6 +32,8 @@ interface StoreConfigProps {
         name: string;
         abbr?: string;
     }>;
+    keyholder_before_minutes: number;
+    keyholder_after_minutes: number;
 }
 
 interface BlockEditorProps {
@@ -48,9 +50,18 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ slot, onSave, onCancel, store
     const [maxEmployees, setMaxEmployees] = useState(slot.maxEmployees);
     const [selectedTypes, setSelectedTypes] = useState<string[]>(slot.employeeTypes);
     const [requiresKeyholder, setRequiresKeyholder] = useState(slot.requiresKeyholder);
-    const [keyholderBeforeMinutes, setKeyholderBeforeMinutes] = useState(slot.keyholderBeforeMinutes);
-    const [keyholderAfterMinutes, setKeyholderAfterMinutes] = useState(slot.keyholderAfterMinutes);
     const [errors, setErrors] = useState<Record<string, string>>({});
+
+    // Check if this is an early or late shift
+    const isEarlyShift = startTime === storeConfig.store_opening;
+    const isLateShift = endTime === storeConfig.store_closing;
+
+    // Update requiresKeyholder when early or late shift is detected
+    useEffect(() => {
+        if (isEarlyShift || isLateShift) {
+            setRequiresKeyholder(true);
+        }
+    }, [isEarlyShift, isLateShift]);
 
     const validateForm = () => {
         const newErrors: Record<string, string> = {};
@@ -71,15 +82,6 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ slot, onSave, onCancel, store
             newErrors.types = "At least one employee type must be selected";
         }
 
-        if (requiresKeyholder) {
-            if (keyholderBeforeMinutes < 0) {
-                newErrors.keyholderBefore = "Keyholder before minutes must be non-negative";
-            }
-            if (keyholderAfterMinutes < 0) {
-                newErrors.keyholderAfter = "Keyholder after minutes must be non-negative";
-            }
-        }
-
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -92,9 +94,9 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ slot, onSave, onCancel, store
                 minEmployees,
                 maxEmployees,
                 employeeTypes: selectedTypes,
-                requiresKeyholder,
-                keyholderBeforeMinutes,
-                keyholderAfterMinutes
+                requiresKeyholder: requiresKeyholder || isEarlyShift || isLateShift,
+                keyholderBeforeMinutes: isEarlyShift ? storeConfig.keyholder_before_minutes : 0,
+                keyholderAfterMinutes: isLateShift ? storeConfig.keyholder_after_minutes : 0
             });
         }
     };
@@ -189,37 +191,31 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ slot, onSave, onCancel, store
                     <input
                         type="checkbox"
                         id="requiresKeyholder"
-                        checked={requiresKeyholder}
+                        checked={requiresKeyholder || isEarlyShift || isLateShift}
                         onChange={(e) => setRequiresKeyholder(e.target.checked)}
+                        disabled={isEarlyShift || isLateShift}
                         className="h-4 w-4"
                     />
+                    {(isEarlyShift || isLateShift) && (
+                        <span className="text-xs text-muted-foreground ml-2">
+                            (Required for {isEarlyShift ? 'opening' : 'closing'} shift)
+                        </span>
+                    )}
                 </div>
 
-                {requiresKeyholder && (
+                {(requiresKeyholder || isEarlyShift || isLateShift) && (
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label htmlFor="keyholderBeforeMinutes">Minutes Before</Label>
-                            <Input
-                                id="keyholderBeforeMinutes"
-                                type="number"
-                                min={0}
-                                value={keyholderBeforeMinutes}
-                                onChange={(e) => setKeyholderBeforeMinutes(Number(e.target.value))}
-                                className={errors.keyholderBefore ? "border-destructive" : ""}
-                            />
-                            {errors.keyholderBefore && <p className="text-sm text-destructive">{errors.keyholderBefore}</p>}
+                            <Label>Minutes Before</Label>
+                            <div className="text-sm text-muted-foreground">
+                                {isEarlyShift ? `${storeConfig.keyholder_before_minutes} minutes` : "0 minutes"}
+                            </div>
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="keyholderAfterMinutes">Minutes After</Label>
-                            <Input
-                                id="keyholderAfterMinutes"
-                                type="number"
-                                min={0}
-                                value={keyholderAfterMinutes}
-                                onChange={(e) => setKeyholderAfterMinutes(Number(e.target.value))}
-                                className={errors.keyholderAfter ? "border-destructive" : ""}
-                            />
-                            {errors.keyholderAfter && <p className="text-sm text-destructive">{errors.keyholderAfter}</p>}
+                            <Label>Minutes After</Label>
+                            <div className="text-sm text-muted-foreground">
+                                {isLateShift ? `${storeConfig.keyholder_after_minutes} minutes` : "0 minutes"}
+                            </div>
                         </div>
                     </div>
                 )}
@@ -260,11 +256,14 @@ const CoverageBlock: React.FC<CoverageBlockProps> = ({ slot, dayIndex, onUpdate,
     const endQuarters = getTimeInQuarters(slot.endTime);
     const startHour = parseInt(slot.startTime.split(':')[0]);
     const startMinutes = parseInt(slot.startTime.split(':')[1]);
-    const openingHourQuarters = getTimeInQuarters(storeConfig.store_opening);
+    const openingHour = parseInt(storeConfig.store_opening.split(':')[0]);
+    const openingMinutes = parseInt(storeConfig.store_opening.split(':')[1]);
 
     const cellWidth = (gridWidth - TIME_COLUMN_WIDTH) / hours.length;
     const quarterWidth = cellWidth / 4;
-    const startOffsetQuarters = startQuarters - openingHourQuarters;
+
+    // Calculate offset based on difference from opening time
+    const startOffsetQuarters = ((startHour - openingHour) * 4) + Math.round((startMinutes - openingMinutes) / 15);
     const durationQuarters = endQuarters - startQuarters;
 
     const [{ isDragging }, drag] = useDrag({
@@ -339,6 +338,9 @@ const CoverageBlock: React.FC<CoverageBlockProps> = ({ slot, dayIndex, onUpdate,
         return diffHours === Math.floor(diffHours) ? `${diffHours}h` : `${diffHours.toFixed(2)}h`;
     };
 
+    const isEarlyShift = slot.startTime === storeConfig.store_opening;
+    const isLateShift = slot.endTime === storeConfig.store_closing;
+
     return (
         <div
             ref={blockRef}
@@ -350,48 +352,48 @@ const CoverageBlock: React.FC<CoverageBlockProps> = ({ slot, dayIndex, onUpdate,
                 opacity: isDragging ? 0.5 : 1,
             }}
             className={cn(
-                "bg-primary/20 border border-primary rounded-md p-1 cursor-move flex flex-col justify-between",
-                isEditing ? "hover:bg-primary/30" : ""
+                "bg-primary/10 border border-primary/20 rounded-sm p-1 cursor-move flex flex-col justify-between",
+                isEditing ? "hover:bg-primary/20" : ""
             )}
         >
-            <div className="flex justify-between items-start text-xs">
-                <div className="flex flex-col">
-                    <span>{slot.startTime} - {slot.endTime}</span>
-                    <span className="text-muted-foreground">
-                        {slot.minEmployees}-{slot.maxEmployees} {slot.minEmployees === 1 ? 'person' : 'people'}
-                    </span>
-                    {slot.requiresKeyholder && (
-                        <span className="text-primary font-medium">
-                            🔑 Keyholder required
-                            {(slot.keyholderBeforeMinutes > 0 || slot.keyholderAfterMinutes > 0) && (
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger>
-                                            <Clock className="h-3 w-3 inline ml-1" />
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                            <p>Keyholder needed:</p>
-                                            {slot.keyholderBeforeMinutes > 0 && (
-                                                <p>{slot.keyholderBeforeMinutes} min before</p>
-                                            )}
-                                            {slot.keyholderAfterMinutes > 0 && (
-                                                <p>{slot.keyholderAfterMinutes} min after</p>
-                                            )}
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                            )}
-                        </span>
+            <div className="flex justify-between items-start gap-1">
+                <div className="flex flex-col min-w-0">
+                    <div className="flex items-center text-xs font-medium">
+                        <span className="truncate">{slot.startTime} - {slot.endTime}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <span>{slot.minEmployees}-{slot.maxEmployees} {slot.minEmployees === 1 ? 'person' : 'people'}</span>
+                    </div>
+                    {(slot.requiresKeyholder || isEarlyShift || isLateShift) && (
+                        <div className="flex items-center gap-1 text-xs text-primary">
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger className="flex items-center gap-1 hover:text-primary/80">
+                                        <span>🔑</span>
+                                        <Clock className="h-3 w-3" />
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom" className="text-xs">
+                                        <p className="font-medium">Keyholder needed:</p>
+                                        {isEarlyShift && (
+                                            <p>{storeConfig.keyholder_before_minutes} min before opening</p>
+                                        )}
+                                        {isLateShift && (
+                                            <p>{storeConfig.keyholder_after_minutes} min after closing</p>
+                                        )}
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        </div>
                     )}
                 </div>
                 {isEditing && (
-                    <div className="flex gap-1">
+                    <div className="flex gap-0.5 shrink-0">
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
                                 setShowEditor(true);
                             }}
-                            className="p-1 hover:bg-primary/20 rounded"
+                            className="p-0.5 hover:bg-primary/20 rounded-sm"
                         >
                             <PencilIcon className="h-3 w-3" />
                         </button>
@@ -400,7 +402,7 @@ const CoverageBlock: React.FC<CoverageBlockProps> = ({ slot, dayIndex, onUpdate,
                                 e.stopPropagation();
                                 onDelete();
                             }}
-                            className="p-1 hover:bg-destructive/20 rounded text-destructive"
+                            className="p-0.5 hover:bg-destructive/20 rounded-sm text-destructive"
                         >
                             <Trash2 className="h-3 w-3" />
                         </button>
@@ -409,7 +411,7 @@ const CoverageBlock: React.FC<CoverageBlockProps> = ({ slot, dayIndex, onUpdate,
             </div>
             {isEditing && (
                 <div
-                    className="absolute right-0 top-0 bottom-0 w-1 cursor-ew-resize"
+                    className="absolute right-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-primary/20"
                     onMouseDown={handleResizeStart}
                 />
             )}
@@ -671,8 +673,8 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
             maxEmployees: storeConfig.max_employees_per_shift,
             employeeTypes: storeConfig.employee_types.map(t => t.id),
             requiresKeyholder: false,
-            keyholderBeforeMinutes: 0,
-            keyholderAfterMinutes: 0
+            keyholderBeforeMinutes: storeConfig.keyholder_before_minutes,
+            keyholderAfterMinutes: storeConfig.keyholder_after_minutes
         };
 
         // Check if there's already a slot at this time
@@ -725,7 +727,7 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
             maxEmployees: 2,
             employeeTypes: storeConfig.employee_types.map(t => t.id),
             requiresKeyholder: true,
-            keyholderBeforeMinutes: 30,
+            keyholderBeforeMinutes: storeConfig.keyholder_before_minutes,
             keyholderAfterMinutes: 0
         };
 
@@ -737,7 +739,7 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
             employeeTypes: storeConfig.employee_types.map(t => t.id),
             requiresKeyholder: true,
             keyholderBeforeMinutes: 0,
-            keyholderAfterMinutes: 30
+            keyholderAfterMinutes: storeConfig.keyholder_after_minutes
         };
 
         // Add morning and afternoon shifts for each day
