@@ -18,20 +18,44 @@ export const MainLayout = () => {
     queryFn: getSettings
   });
 
-  const navItems = React.useMemo(() => [
+  const mainNavItems = React.useMemo(() => [
     { label: 'Schichtplan', path: '/', icon: LayoutDashboard },
     { label: 'Mitarbeiter', path: '/employees', icon: Users },
     settings?.scheduling.scheduling_resource_type === 'coverage'
       ? { label: 'Coverage', path: '/coverage', icon: BarChart }
       : { label: 'Schichten', path: '/shifts', icon: FileText },
     { label: 'Formulars', path: '/formulars', icon: FileText },
-    { label: 'Logs', path: '/logs', icon: List },
     { label: 'Optionen', path: '/options', icon: Cog },
-    { label: 'Einstellungen', path: '/settings', icon: SettingsIcon },
   ], [settings?.scheduling.scheduling_resource_type]);
+
+  const footerNavItems = React.useMemo(() => [
+    { label: 'Logs', path: '/logs', icon: List },
+    { label: 'Einstellungen', path: '/settings', icon: SettingsIcon },
+  ], []);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
+  };
+
+  const NavItem = ({ item, isActive }: { item: { label: string; path: string; icon: React.ElementType }; isActive: boolean }) => {
+    const Icon = item.icon;
+    return (
+      <div>
+        <Button
+          variant="ghost"
+          className={cn(
+            'w-full justify-start gap-2 mb-1',
+            isActive && 'bg-accent'
+          )}
+          asChild
+        >
+          <RouterLink to={item.path}>
+            <Icon className="h-4 w-4" />
+            {item.label}
+          </RouterLink>
+        </Button>
+      </div>
+    );
   };
 
   const NavContent = () => (
@@ -39,30 +63,22 @@ export const MainLayout = () => {
       <div className="h-16 flex items-center px-4 border-b">
         <span className="font-semibold text-lg">{settings?.general.store_name || 'ShiftWise'}</span>
       </div>
-      <nav className="flex-1 p-4">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = location.pathname === item.path;
 
-          return (
-            <div key={item.path}>
-              <Button
-                variant="ghost"
-                className={cn(
-                  'w-full justify-start gap-2 mb-1',
-                  isActive && 'bg-accent'
-                )}
-                asChild
-              >
-                <RouterLink to={item.path}>
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </RouterLink>
-              </Button>
-            </div>
-          );
+      {/* Main navigation items */}
+      <nav className="flex-1 p-4">
+        {mainNavItems.map((item) => {
+          const isActive = location.pathname === item.path;
+          return <NavItem key={item.path} item={item} isActive={isActive} />;
         })}
       </nav>
+
+      {/* Footer navigation items */}
+      <div className="p-4 border-t">
+        {footerNavItems.map((item) => {
+          const isActive = location.pathname === item.path;
+          return <NavItem key={item.path} item={item} isActive={isActive} />;
+        })}
+      </div>
     </div>
   );
 

@@ -1,0 +1,168 @@
+{
+    "name": "ShiftWise MCP Server",
+    "description": "MCP server for the ShiftWise shift scheduling application",
+    "version": "1.0.0",
+    "server": {
+        "url": "http://localhost:8000",
+        "auth": {
+            "type": "none"
+        }
+    },
+    "resources": [
+        {
+            "name": "greeting",
+            "description": "Returns a greeting message to verify the MCP server is running"
+        },
+        {
+            "name": "get_employees",
+            "description": "Get all employees from the database"
+        },
+        {
+            "name": "get_employee",
+            "description": "Get a specific employee by ID",
+            "parameters": [
+                {
+                    "name": "employee_id",
+                    "type": "string",
+                    "description": "The ID of the employee to retrieve"
+                }
+            ]
+        },
+        {
+            "name": "get_shifts",
+            "description": "Get all shifts from the database"
+        },
+        {
+            "name": "get_schedules",
+            "description": "Get all schedules from the database"
+        },
+        {
+            "name": "get_schedule",
+            "description": "Get a specific schedule by ID",
+            "parameters": [
+                {
+                    "name": "schedule_id",
+                    "type": "integer",
+                    "description": "The ID of the schedule to retrieve"
+                }
+            ]
+        },
+        {
+            "name": "get_settings",
+            "description": "Get application settings"
+        }
+    ],
+    "tools": [
+        {
+            "name": "create_employee",
+            "description": "Create a new employee in the database",
+            "parameters": [
+                {
+                    "name": "first_name",
+                    "type": "string",
+                    "description": "Employee's first name"
+                },
+                {
+                    "name": "last_name",
+                    "type": "string",
+                    "description": "Employee's last name"
+                },
+                {
+                    "name": "employee_group",
+                    "type": "string",
+                    "description": "Employee group (VL, TZ, GfB, TL)"
+                },
+                {
+                    "name": "contracted_hours",
+                    "type": "number",
+                    "description": "Contracted weekly hours"
+                },
+                {
+                    "name": "is_keyholder",
+                    "type": "boolean",
+                    "description": "Whether the employee is a keyholder",
+                    "required": false
+                }
+            ]
+        },
+        {
+            "name": "update_employee",
+            "description": "Update an existing employee in the database",
+            "parameters": [
+                {
+                    "name": "employee_id",
+                    "type": "string",
+                    "description": "The ID of the employee to update"
+                },
+                {
+                    "name": "first_name",
+                    "type": "string",
+                    "description": "Employee's first name",
+                    "required": false
+                },
+                {
+                    "name": "last_name",
+                    "type": "string",
+                    "description": "Employee's last name",
+                    "required": false
+                },
+                {
+                    "name": "employee_group",
+                    "type": "string",
+                    "description": "Employee group (VL, TZ, GfB, TL)",
+                    "required": false
+                },
+                {
+                    "name": "contracted_hours",
+                    "type": "number",
+                    "description": "Contracted weekly hours",
+                    "required": false
+                },
+                {
+                    "name": "is_keyholder",
+                    "type": "boolean",
+                    "description": "Whether the employee is a keyholder",
+                    "required": false
+                }
+            ]
+        },
+        {
+            "name": "delete_employee",
+            "description": "Delete an employee from the database",
+            "parameters": [
+                {
+                    "name": "employee_id",
+                    "type": "string",
+                    "description": "The ID of the employee to delete"
+                }
+            ]
+        },
+        {
+            "name": "generate_schedule",
+            "description": "Generate a new schedule for the specified date range",
+            "parameters": [
+                {
+                    "name": "start_date",
+                    "type": "string",
+                    "description": "Start date in YYYY-MM-DD format"
+                },
+                {
+                    "name": "end_date",
+                    "type": "string",
+                    "description": "End date in YYYY-MM-DD format"
+                }
+            ]
+        },
+        {
+            "name": "export_schedule_pdf",
+            "description": "Export a schedule as PDF",
+            "parameters": [
+                {
+                    "name": "schedule_id",
+                    "type": "integer",
+                    "description": "The ID of the schedule to export"
+                }
+            ]
+        }
+    ]
+}
