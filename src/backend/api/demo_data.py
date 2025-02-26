@@ -180,6 +180,10 @@ def generate_shift_data():
 
 def generate_coverage_data():
     """Generate demo coverage data"""
+    # Clear existing coverage data first
+    Coverage.query.delete()
+    db.session.commit()
+    
     coverage_slots = []
     for day_index in range(1, 7):  # Monday to Saturday
         # Morning slot
