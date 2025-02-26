@@ -4,13 +4,13 @@ from datetime import datetime
 
 bp = Blueprint('absences', __name__)
 
-@bp.route('/api/employees/<int:employee_id>/absences', methods=['GET'])
+@bp.route('/employees/<int:employee_id>/absences', methods=['GET'])
 def get_employee_absences(employee_id):
     employee = Employee.query.get_or_404(employee_id)
     absences = Absence.query.filter_by(employee_id=employee_id).all()
     return jsonify([absence.to_dict() for absence in absences])
 
-@bp.route('/api/employees/<int:employee_id>/absences', methods=['POST'])
+@bp.route('/employees/<int:employee_id>/absences', methods=['POST'])
 def create_absence(employee_id):
     employee = Employee.query.get_or_404(employee_id)
     data = request.get_json()
@@ -35,7 +35,7 @@ def create_absence(employee_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 400
 
-@bp.route('/api/employees/<int:employee_id>/absences/<int:absence_id>', methods=['DELETE'])
+@bp.route('/employees/<int:employee_id>/absences/<int:absence_id>', methods=['DELETE'])
 def delete_absence(employee_id, absence_id):
     absence = Absence.query.filter_by(id=absence_id, employee_id=employee_id).first_or_404()
     
@@ -47,7 +47,7 @@ def delete_absence(employee_id, absence_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 400
 
-@bp.route('/api/employees/<int:employee_id>/absences/<int:absence_id>', methods=['PUT'])
+@bp.route('/employees/<int:employee_id>/absences/<int:absence_id>', methods=['PUT'])
 def update_absence(employee_id, absence_id):
     absence = Absence.query.filter_by(id=absence_id, employee_id=employee_id).first_or_404()
     data = request.get_json()

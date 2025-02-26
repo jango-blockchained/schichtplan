@@ -6,7 +6,7 @@ from utils.logger import logger
 
 bp = Blueprint('logs', __name__)
 
-@bp.route('/api/logs', methods=['POST'])
+@bp.route('/logs', methods=['POST'])
 def save_logs():
     """Save logs from frontend"""
     try:
@@ -23,7 +23,7 @@ def save_logs():
         logger.error_logger.error(f"Error saving logs: {str(e)}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-@bp.route('/api/logs', methods=['GET'])
+@bp.route('/logs', methods=['GET'])
 def get_logs():
     """Get logs with filtering"""
     try:
@@ -73,7 +73,7 @@ def get_logs():
         logger.error_logger.error(f"Error retrieving logs: {str(e)}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-@bp.route('/api/logs/stats', methods=['GET'])
+@bp.route('/logs/stats', methods=['GET'])
 def get_log_stats():
     """Get log statistics"""
     try:

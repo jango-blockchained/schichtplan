@@ -24,7 +24,10 @@ def get_all_coverage():
                 'endTime': c.end_time,
                 'minEmployees': c.min_employees,
                 'maxEmployees': c.max_employees,
-                'employeeTypes': c.employee_types
+                'employeeTypes': c.employee_types,
+                'requiresKeyholder': c.requires_keyholder,
+                'keyholderBeforeMinutes': c.keyholder_before_minutes,
+                'keyholderAfterMinutes': c.keyholder_after_minutes
             })
         
         # Convert to list and sort by day index
@@ -57,7 +60,10 @@ def create_coverage():
             end_time=data['end_time'],
             min_employees=data['min_employees'],
             max_employees=data['max_employees'],
-            employee_types=data.get('employee_types', [])  # Default to empty list if not provided
+            employee_types=data.get('employee_types', []),  # Default to empty list if not provided
+            requires_keyholder=data.get('requires_keyholder', False),  # Default to False if not provided
+            keyholder_before_minutes=data.get('keyholder_before_minutes'),  # Default to None if not provided
+            keyholder_after_minutes=data.get('keyholder_after_minutes')  # Default to None if not provided
         )
         
         db.session.add(coverage)
@@ -95,6 +101,12 @@ def update_coverage(coverage_id):
             coverage.max_employees = data['max_employees']
         if 'employee_types' in data:
             coverage.employee_types = data['employee_types']
+        if 'requires_keyholder' in data:
+            coverage.requires_keyholder = data['requires_keyholder']
+        if 'keyholder_before_minutes' in data:
+            coverage.keyholder_before_minutes = data['keyholder_before_minutes']
+        if 'keyholder_after_minutes' in data:
+            coverage.keyholder_after_minutes = data['keyholder_after_minutes']
         
         db.session.commit()
         return jsonify(coverage.to_dict())
@@ -147,7 +159,10 @@ def bulk_update_coverage():
                     end_time=time_slot['endTime'],
                     min_employees=time_slot['minEmployees'],
                     max_employees=time_slot['maxEmployees'],
-                    employee_types=time_slot.get('employeeTypes', [])  # Default to empty list if not provided
+                    employee_types=time_slot.get('employeeTypes', []),  # Default to empty list if not provided
+                    requires_keyholder=time_slot.get('requiresKeyholder', False),  # Default to False if not provided
+                    keyholder_before_minutes=time_slot.get('keyholderBeforeMinutes'),  # Default to None if not provided
+                    keyholder_after_minutes=time_slot.get('keyholderAfterMinutes')  # Default to None if not provided
                 )
                 db.session.add(coverage)
         

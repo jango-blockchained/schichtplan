@@ -97,16 +97,16 @@ def create_app(test_config=None):
     db.init_app(app)
     migrate = Migrate(app, db)
     
-    # Register blueprints
-    app.register_blueprint(shifts)
-    app.register_blueprint(settings)
-    app.register_blueprint(schedules)
-    app.register_blueprint(employees)
-    app.register_blueprint(availability)
-    app.register_blueprint(absences_bp)
-    app.register_blueprint(coverage_bp)
-    app.register_blueprint(demo_data_bp)
-    app.register_blueprint(logs.bp)  # Register logs blueprint
+    # Register blueprints with /api prefix
+    app.register_blueprint(shifts, url_prefix='/api')
+    app.register_blueprint(settings, url_prefix='/api')
+    app.register_blueprint(schedules, url_prefix='/api')
+    app.register_blueprint(employees, url_prefix='/api')
+    app.register_blueprint(availability)  # No url_prefix needed as it's already defined in the blueprint
+    app.register_blueprint(absences_bp, url_prefix='/api')
+    app.register_blueprint(coverage_bp)  # No url_prefix needed as it's already defined in the blueprint
+    app.register_blueprint(demo_data_bp)  # No url_prefix needed as it's already defined in the blueprint
+    app.register_blueprint(logs.bp, url_prefix='/api')  # Register logs blueprint
     
     # Create database tables
     with app.app_context():

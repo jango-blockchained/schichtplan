@@ -4,15 +4,15 @@ from models.employee import AvailabilityType
 from datetime import datetime, time
 from http import HTTPStatus
 
-availability = Blueprint('availability', __name__)
+availability = Blueprint('availability', __name__, url_prefix='/api/availability')
 
-@availability.route('/api/availability', methods=['GET'])
+@availability.route('/', methods=['GET'])
 def get_availabilities():
     """Get all availabilities"""
     availabilities = EmployeeAvailability.query.all()
     return jsonify([availability.to_dict() for availability in availabilities])
 
-@availability.route('/api/availability', methods=['POST'])
+@availability.route('/', methods=['POST'])
 def create_availability():
     """Create a new availability"""
     data = request.get_json()
@@ -38,13 +38,13 @@ def create_availability():
         db.session.rollback()
         return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
-@availability.route('/api/availability/<int:availability_id>', methods=['GET'])
+@availability.route('/<int:availability_id>', methods=['GET'])
 def get_availability(availability_id):
     """Get a specific availability"""
     availability = EmployeeAvailability.query.get_or_404(availability_id)
     return jsonify(availability.to_dict())
 
-@availability.route('/api/availability/<int:availability_id>', methods=['PUT'])
+@availability.route('/<int:availability_id>', methods=['PUT'])
 def update_availability(availability_id):
     """Update an availability"""
     availability = EmployeeAvailability.query.get_or_404(availability_id)
@@ -69,7 +69,7 @@ def update_availability(availability_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
-@availability.route('/api/availability/<int:availability_id>', methods=['DELETE'])
+@availability.route('/<int:availability_id>', methods=['DELETE'])
 def delete_availability(availability_id):
     """Delete an availability"""
     availability = EmployeeAvailability.query.get_or_404(availability_id)
@@ -83,7 +83,7 @@ def delete_availability(availability_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
-@availability.route('/api/availability/check', methods=['POST'])
+@availability.route('/check', methods=['POST'])
 def check_availability():
     """Check employee availability for a specific date and time range"""
     data = request.get_json()
@@ -126,7 +126,7 @@ def check_availability():
     except Exception as e:
         return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
-@availability.route('/api/employees/<int:employee_id>/availabilities', methods=['PUT'])
+@availability.route('/employees/<int:employee_id>/availabilities', methods=['PUT'])
 def update_employee_availabilities(employee_id):
     """Update employee availabilities"""
     data = request.get_json()
@@ -153,7 +153,7 @@ def update_employee_availabilities(employee_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), HTTPStatus.BAD_REQUEST
 
-@availability.route('/api/employees/<int:employee_id>/availabilities', methods=['GET'])
+@availability.route('/employees/<int:employee_id>/availabilities', methods=['GET'])
 def get_employee_availabilities(employee_id):
     """Get employee availabilities"""
     availabilities = EmployeeAvailability.query.filter_by(employee_id=employee_id).all()

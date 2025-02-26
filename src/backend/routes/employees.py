@@ -6,22 +6,22 @@ from datetime import datetime
 
 employees = Blueprint('employees', __name__)
 
-@employees.route('/api/employees', methods=['GET'])
-@employees.route('/api/employees/', methods=['GET'])
+@employees.route('/employees', methods=['GET'])
+@employees.route('/employees/', methods=['GET'])
 def get_employees():
     """Get all employees"""
     employees = Employee.query.all()
     return jsonify([employee.to_dict() for employee in employees])
 
-@employees.route('/api/employees/<int:employee_id>', methods=['GET'])
-@employees.route('/api/employees/<int:employee_id>/', methods=['GET'])
+@employees.route('/employees/<int:employee_id>', methods=['GET'])
+@employees.route('/employees/<int:employee_id>/', methods=['GET'])
 def get_employee(employee_id):
     """Get a specific employee"""
     employee = Employee.query.get_or_404(employee_id)
     return jsonify(employee.to_dict())
 
-@employees.route('/api/employees', methods=['POST'])
-@employees.route('/api/employees/', methods=['POST'])
+@employees.route('/employees', methods=['POST'])
+@employees.route('/employees/', methods=['POST'])
 def create_employee():
     """Create a new employee"""
     data = request.get_json()
@@ -55,8 +55,8 @@ def create_employee():
         db.session.rollback()
         return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
-@employees.route('/api/employees/<int:employee_id>', methods=['PUT'])
-@employees.route('/api/employees/<int:employee_id>/', methods=['PUT'])
+@employees.route('/employees/<int:employee_id>', methods=['PUT'])
+@employees.route('/employees/<int:employee_id>/', methods=['PUT'])
 def update_employee(employee_id):
     """Update an employee"""
     employee = Employee.query.get_or_404(employee_id)
@@ -87,8 +87,8 @@ def update_employee(employee_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
-@employees.route('/api/employees/<int:employee_id>', methods=['DELETE'])
-@employees.route('/api/employees/<int:employee_id>/', methods=['DELETE'])
+@employees.route('/employees/<int:employee_id>', methods=['DELETE'])
+@employees.route('/employees/<int:employee_id>/', methods=['DELETE'])
 def delete_employee(employee_id):
     """Delete an employee"""
     employee = Employee.query.get_or_404(employee_id)
@@ -102,13 +102,13 @@ def delete_employee(employee_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
-@employees.route('/api/employees/<int:employee_id>/availabilities', methods=['GET'])
+@employees.route('/employees/<int:employee_id>/availabilities', methods=['GET'])
 def get_employee_availabilities(employee_id):
     """Get all availabilities for an employee"""
     availabilities = EmployeeAvailability.query.filter_by(employee_id=employee_id).all()
     return jsonify([availability.to_dict() for availability in availabilities])
 
-@employees.route('/api/employees/<int:employee_id>/availabilities', methods=['PUT'])
+@employees.route('/employees/<int:employee_id>/availabilities', methods=['PUT'])
 def update_employee_availabilities(employee_id):
     """Update availabilities for an employee"""
     try:

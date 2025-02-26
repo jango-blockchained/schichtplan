@@ -152,11 +152,12 @@ class ScheduleGenerator:
         if daily_hours + coverage.duration > 6:
             return False
             
-        # Only morning (09:00/10:00-14:00) or day/evening (14:00-20:00) shifts
+        # Only morning (08:30-14:00) or day/evening (14:00-20:00) shifts
         start_hour = int(coverage.start_time.split(':')[0])
+        start_min = int(coverage.start_time.split(':')[1])
         end_hour = int(coverage.end_time.split(':')[0])
         
-        is_morning_shift = (start_hour in [9, 10] and end_hour == 14)
+        is_morning_shift = ((start_hour == 8 and start_min >= 30) or start_hour == 9) and end_hour == 14
         is_evening_shift = (start_hour == 14 and end_hour == 20)
         
         return is_morning_shift or is_evening_shift

@@ -8,8 +8,8 @@ from utils.logger import logger
 
 schedules = Blueprint('schedules', __name__)
 
-@schedules.route('/api/schedules', methods=['GET'])
-@schedules.route('/api/schedules/', methods=['GET'])
+@schedules.route('/schedules', methods=['GET'])
+@schedules.route('/schedules/', methods=['GET'])
 def get_schedules():
     """Get all schedules within a date range"""
     try:
@@ -51,8 +51,8 @@ def get_schedules():
     except Exception as e:
         return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
-@schedules.route('/api/schedules/generate', methods=['POST'])
-@schedules.route('/api/schedules/generate/', methods=['POST'])
+@schedules.route('/schedules/generate', methods=['POST'])
+@schedules.route('/schedules/generate/', methods=['POST'])
 def generate_schedule():
     """Generate a schedule for a date range"""
     logger.schedule_logger.debug("Schedule generation request received")
@@ -176,7 +176,7 @@ def generate_schedule():
         )
         return jsonify({'error': error_msg}), HTTPStatus.INTERNAL_SERVER_ERROR
 
-@schedules.route('/api/schedules/pdf', methods=['GET'])
+@schedules.route('/schedules/pdf', methods=['GET'])
 def get_schedule_pdf():
     """Get schedule as PDF"""
     try:
@@ -205,15 +205,15 @@ def get_schedule_pdf():
     except Exception as e:
         return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
-@schedules.route('/api/schedules/<int:schedule_id>', methods=['GET'])
-@schedules.route('/api/schedules/<int:schedule_id>/', methods=['GET'])
+@schedules.route('/schedules/<int:schedule_id>', methods=['GET'])
+@schedules.route('/schedules/<int:schedule_id>/', methods=['GET'])
 def get_schedule(schedule_id):
     """Get a specific schedule"""
     schedule = Schedule.query.get_or_404(schedule_id)
     return jsonify(schedule.to_dict())
 
-@schedules.route('/api/schedules/<int:schedule_id>', methods=['PUT'])
-@schedules.route('/api/schedules/<int:schedule_id>/', methods=['PUT'])
+@schedules.route('/schedules/<int:schedule_id>', methods=['PUT'])
+@schedules.route('/schedules/<int:schedule_id>/', methods=['PUT'])
 def update_schedule(schedule_id):
     """Update a schedule (for drag and drop functionality)"""
     try:
@@ -240,8 +240,8 @@ def update_schedule(schedule_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
-@schedules.route('/api/schedules/<int:schedule_id>', methods=['DELETE'])
-@schedules.route('/api/schedules/<int:schedule_id>/', methods=['DELETE'])
+@schedules.route('/schedules/<int:schedule_id>', methods=['DELETE'])
+@schedules.route('/schedules/<int:schedule_id>/', methods=['DELETE'])
 def delete_schedule(schedule_id):
     """Delete a schedule"""
     schedule = Schedule.query.get_or_404(schedule_id)
@@ -255,8 +255,8 @@ def delete_schedule(schedule_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
-@schedules.route('/api/schedules/export', methods=['POST'])
-@schedules.route('/api/schedules/export/', methods=['POST'])
+@schedules.route('/schedules/export', methods=['POST'])
+@schedules.route('/schedules/export/', methods=['POST'])
 def export_schedule():
     """Export schedule as PDF"""
     try:
