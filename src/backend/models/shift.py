@@ -57,7 +57,7 @@ class Shift(db.Model):
         self.duration_hours = duration_minutes / 60.0
 
     def _validate_store_hours(self):
-        """Validate that shift times are within store hours"""
+        """Validate that shift times are within store hours, considering keyholder requirements"""
         settings = Settings.query.first()
         if not settings:
             settings = Settings.get_default_settings()
@@ -71,14 +71,17 @@ class Shift(db.Model):
         store_open = time_to_minutes(settings.store_opening)
         store_close = time_to_minutes(settings.store_closing)
 
-        # For opening shifts, allow starting 30 minutes before store opening
-        if shift_start < store_open - 30:
+        # For opening shifts, allow starting before store opening if requires_keyholder
+        earliest_allowed_start = store_open - settings.keyholder_before_minutes
+        latest_allowed_end = store_close + settings.keyholder_after_minutes
+
+        if shift_start < earliest_allowed_start:
             raise ShiftValidationError(
-                f"Shift cannot start more than 30 minutes before store opening time ({settings.store_opening})"
+                f"Shift cannot start more than {settings.keyholder_before_minutes} minutes before store opening time ({settings.store_opening})"
             )
-        if shift_end > store_close:
+        if shift_end > latest_allowed_end:
             raise ShiftValidationError(
-                f"Shift cannot end after store closing time ({settings.store_closing})"
+                f"Shift cannot end more than {settings.keyholder_after_minutes} minutes after store closing time ({settings.store_closing})"
             )
 
     def to_dict(self):

@@ -1,11 +1,14 @@
 """Make shift_id nullable
 
 Revision ID: make_shift_id_nullable
-Create Date: 2025-02-23 18:45:00.000000
+Revises: 
+Create Date: 2024-02-26 23:19:28.795
 
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import text
+
 
 # revision identifiers, used by Alembic.
 revision = 'make_shift_id_nullable'
@@ -13,38 +16,65 @@ down_revision = None
 branch_labels = None
 depends_on = None
 
+
 def upgrade():
-    # Drop the existing foreign key constraint
-    op.drop_constraint('schedules_shift_id_fkey', 'schedules', type_='foreignkey')
+    # Drop the temporary table if it exists
+    op.execute(text('DROP TABLE IF EXISTS schedules_new'))
     
-    # Modify the column to be nullable
-    op.alter_column('schedules', 'shift_id',
-                    existing_type=sa.Integer(),
-                    nullable=True)
-    
-    # Re-add the foreign key constraint with ON DELETE SET NULL
-    op.create_foreign_key(
-        'schedules_shift_id_fkey',
-        'schedules', 'shifts',
-        ['shift_id'], ['id'],
-        ondelete='SET NULL'
+    # Create new table with nullable shift_id
+    op.create_table(
+        'schedules_new',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('employee_id', sa.Integer(), nullable=False),
+        sa.Column('shift_id', sa.Integer(), nullable=True),
+        sa.Column('date', sa.Date(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), nullable=True),
+        sa.Column('updated_at', sa.DateTime(), nullable=True),
+        sa.PrimaryKeyConstraint('id'),
+        sa.ForeignKeyConstraint(['employee_id'], ['employees.id']),
+        sa.ForeignKeyConstraint(['shift_id'], ['shifts.id'], ondelete='SET NULL')
     )
 
+    # Copy data from old table if it exists
+    op.execute(text(
+        """
+        INSERT INTO schedules_new 
+        SELECT id, employee_id, shift_id, date, created_at, updated_at 
+        FROM schedules
+        """
+    ))
+
+    # Drop old table and rename new one
+    op.drop_table('schedules')
+    op.rename_table('schedules_new', 'schedules')
+
+
 def downgrade():
-    # First, remove any NULL values
-    op.execute("DELETE FROM schedules WHERE shift_id IS NULL")
-    
-    # Drop the foreign key constraint
-    op.drop_constraint('schedules_shift_id_fkey', 'schedules', type_='foreignkey')
-    
-    # Make the column not nullable again
-    op.alter_column('schedules', 'shift_id',
-                    existing_type=sa.Integer(),
-                    nullable=False)
-    
-    # Re-add the original foreign key constraint
-    op.create_foreign_key(
-        'schedules_shift_id_fkey',
-        'schedules', 'shifts',
-        ['shift_id'], ['id']
-    ) 
+    # Create old table structure
+    op.execute(text('DROP TABLE IF EXISTS schedules_old'))
+    op.create_table(
+        'schedules_old',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('employee_id', sa.Integer(), nullable=False),
+        sa.Column('shift_id', sa.Integer(), nullable=False),
+        sa.Column('date', sa.Date(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), nullable=True),
+        sa.Column('updated_at', sa.DateTime(), nullable=True),
+        sa.PrimaryKeyConstraint('id'),
+        sa.ForeignKeyConstraint(['employee_id'], ['employees.id']),
+        sa.ForeignKeyConstraint(['shift_id'], ['shifts.id'])
+    )
+
+    # Copy data back, excluding NULL shift_ids
+    op.execute(text(
+        """
+        INSERT INTO schedules_old 
+        SELECT id, employee_id, shift_id, date, created_at, updated_at 
+        FROM schedules 
+        WHERE shift_id IS NOT NULL
+        """
+    ))
+
+    # Drop new table and rename old one back
+    op.drop_table('schedules')
+    op.rename_table('schedules_old', 'schedules') 
