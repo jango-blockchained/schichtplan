@@ -21,6 +21,31 @@ const TIME_ROW_HEIGHT = 24;
 const BLOCK_VERTICAL_PADDING = 0;
 const GRID_GAP = 0;
 
+// Time handling utility functions
+const timeToMinutes = (timeStr: string): number => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours * 60 + minutes;
+};
+
+const minutesToTime = (minutes: number): string => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+};
+
+const snapToQuarterHour = (timeStr: string): string => {
+    const totalMinutes = timeToMinutes(timeStr);
+    const roundedMinutes = Math.round(totalMinutes / 15) * 15;
+    return minutesToTime(roundedMinutes);
+};
+
+const formatDuration = (startTime: string, endTime: string): string => {
+    const startMinutes = timeToMinutes(startTime);
+    const endMinutes = timeToMinutes(endTime);
+    const diffHours = (endMinutes - startMinutes) / 60;
+    return diffHours === Math.floor(diffHours) ? `${diffHours}h` : `${diffHours.toFixed(1)}h`;
+};
+
 interface StoreConfigProps {
     store_opening: string;
     store_closing: string;
@@ -44,8 +69,8 @@ interface BlockEditorProps {
 }
 
 const BlockEditor: React.FC<BlockEditorProps> = ({ slot, onSave, onCancel, storeConfig }) => {
-    const [startTime, setStartTime] = useState(slot.startTime);
-    const [endTime, setEndTime] = useState(slot.endTime);
+    const [startTime, setStartTime] = useState(snapToQuarterHour(slot.startTime));
+    const [endTime, setEndTime] = useState(snapToQuarterHour(slot.endTime));
     const [minEmployees, setMinEmployees] = useState(slot.minEmployees);
     const [maxEmployees, setMaxEmployees] = useState(slot.maxEmployees);
     const [selectedTypes, setSelectedTypes] = useState<string[]>(slot.employeeTypes);
@@ -81,8 +106,17 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ slot, onSave, onCancel, store
     const validateForm = () => {
         const newErrors: Record<string, string> = {};
 
-        if (parseInt(startTime) >= parseInt(endTime)) {
+        const startMinutes = timeToMinutes(startTime);
+        const endMinutes = timeToMinutes(endTime);
+        const storeOpeningMinutes = timeToMinutes(storeConfig.store_opening);
+        const storeClosingMinutes = timeToMinutes(storeConfig.store_closing);
+
+        if (startMinutes >= endMinutes) {
             newErrors.time = "End time must be after start time";
+        }
+
+        if (startMinutes < storeOpeningMinutes || endMinutes > storeClosingMinutes) {
+            newErrors.time = "Time slot must be within store hours";
         }
 
         if (minEmployees > maxEmployees) {
@@ -99,6 +133,15 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ slot, onSave, onCancel, store
 
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
+    };
+
+    const handleTimeChange = (type: 'start' | 'end', value: string) => {
+        const snappedTime = snapToQuarterHour(value);
+        if (type === 'start') {
+            setStartTime(snappedTime);
+        } else {
+            setEndTime(snappedTime);
+        }
     };
 
     const handleSave = () => {
@@ -134,7 +177,7 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ slot, onSave, onCancel, store
                         type="time"
                         step="900"
                         value={startTime}
-                        onChange={(e) => setStartTime(e.target.value)}
+                        onChange={(e) => handleTimeChange('start', e.target.value)}
                         className={errors.time ? "border-destructive" : ""}
                     />
                 </div>
@@ -145,7 +188,7 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ slot, onSave, onCancel, store
                         type="time"
                         step="900"
                         value={endTime}
-                        onChange={(e) => setEndTime(e.target.value)}
+                        onChange={(e) => handleTimeChange('end', e.target.value)}
                         className={errors.time ? "border-destructive" : ""}
                     />
                 </div>
@@ -262,26 +305,6 @@ const CoverageBlock: React.FC<CoverageBlockProps> = ({ slot, dayIndex, onUpdate,
     const [startWidth, setStartWidth] = useState(0);
     const [showEditor, setShowEditor] = useState(false);
 
-    const snapToQuarterHour = (timeStr: string) => {
-        const [hours, minutes] = timeStr.split(':').map(Number);
-        const roundedMinutes = Math.round(minutes / 15) * 15;
-        const adjustedHours = roundedMinutes === 60 ? hours + 1 : hours;
-        const finalMinutes = roundedMinutes === 60 ? 0 : roundedMinutes;
-        return `${adjustedHours.toString().padStart(2, '0')}:${finalMinutes.toString().padStart(2, '0')}`;
-    };
-
-    const timeToMinutes = (timeStr: string) => {
-        const [hours, minutes] = timeStr.split(':').map(Number);
-        return hours * 60 + minutes;
-    };
-
-    const formatDuration = (startTime: string, endTime: string) => {
-        const start = new Date(`1970-01-01T${startTime}`);
-        const end = new Date(`1970-01-01T${endTime}`);
-        const diffHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-        return diffHours === Math.floor(diffHours) ? `${diffHours}h` : `${diffHours.toFixed(1)}h`;
-    };
-
     // Always use snapped times for position and width calculations
     const snappedStartTime = snapToQuarterHour(slot.startTime);
     const snappedEndTime = snapToQuarterHour(slot.endTime);
@@ -300,11 +323,19 @@ const CoverageBlock: React.FC<CoverageBlockProps> = ({ slot, dayIndex, onUpdate,
 
     const isEarlyShift = snappedStartTime === storeConfig.store_opening;
     const isLateShift = snappedEndTime === storeConfig.store_closing;
-    const duration = formatDuration(snappedStartTime, snappedEndTime); // Use snapped times for duration
+    const duration = formatDuration(snappedStartTime, snappedEndTime);
 
     const [{ isDragging }, drag] = useDrag({
         type: 'COVERAGE_BLOCK',
-        item: { type: 'COVERAGE_BLOCK', slot: { ...slot, startTime: snappedStartTime, endTime: snappedEndTime }, dayIndex }, // Use snapped times for dragging
+        item: {
+            type: 'COVERAGE_BLOCK',
+            slot: {
+                ...slot,
+                startTime: snappedStartTime,
+                endTime: snappedEndTime
+            },
+            dayIndex
+        },
         collect: monitor => ({
             isDragging: monitor.isDragging(),
         }),
@@ -331,8 +362,9 @@ const CoverageBlock: React.FC<CoverageBlockProps> = ({ slot, dayIndex, onUpdate,
         e.preventDefault();
 
         const diff = e.pageX - startX;
-        const newMinutes = Math.round(diff / minuteWidth / 0.25) * 15;
-        const newWidth = Math.max(minuteWidth * 15, Math.min(startWidth + diff, gridContentWidth));
+        const newMinutes = Math.round((startWidth + diff) / minuteWidth);
+        const snappedMinutes = Math.round(newMinutes / 15) * 15;
+        const newWidth = Math.max(minuteWidth * 15, Math.min(snappedMinutes * minuteWidth, gridContentWidth));
 
         if (blockRef.current) {
             blockRef.current.style.width = `${newWidth}px`;
@@ -344,15 +376,13 @@ const CoverageBlock: React.FC<CoverageBlockProps> = ({ slot, dayIndex, onUpdate,
         setIsResizing(false);
 
         const width = blockRef.current?.offsetWidth || 0;
-        const newMinutes = Math.round(width / minuteWidth / 0.25) * 15 + startMinutes;
-        const newHours = Math.floor(newMinutes / 60);
-        const newMins = newMinutes % 60;
-
-        const endTime = `${newHours.toString().padStart(2, '0')}:${newMins.toString().padStart(2, '0')}`;
-        const snappedEndTime = snapToQuarterHour(endTime); // Ensure the new end time is snapped
+        const newMinutes = Math.round(width / minuteWidth);
+        const snappedMinutes = Math.round(newMinutes / 15) * 15;
+        const newEndMinutes = startMinutes + snappedMinutes;
+        const newEndTime = minutesToTime(newEndMinutes);
 
         onUpdate({
-            endTime: snappedEndTime
+            endTime: snapToQuarterHour(newEndTime)
         });
     };
 
@@ -547,11 +577,6 @@ const DayRow: React.FC<DayRowProps> = ({
     gridWidth,
     storeConfig,
 }) => {
-    const timeToMinutes = (timeStr: string) => {
-        const [hours, minutes] = timeStr.split(':').map(Number);
-        return hours * 60 + minutes;
-    };
-
     const gridStartMinutes = timeToMinutes(hours[0]);
     const gridEndMinutes = timeToMinutes(hours[hours.length - 1]) + 60;
     const totalGridMinutes = gridEndMinutes - gridStartMinutes;
@@ -559,12 +584,10 @@ const DayRow: React.FC<DayRowProps> = ({
     const gridContentWidth = gridWidth - TIME_COLUMN_WIDTH;
     const minuteWidth = gridContentWidth / totalGridMinutes;
 
-    const cellWidth = gridContentWidth / (hours.length - 1);
-    const openingHour = parseInt(storeConfig.store_opening.split(':')[0]);
-
     const handleDropBlock = (slot: CoverageTimeSlot, cellIndex: number) => {
         if (!isEditing) return;
 
+        // Find the slot index
         const slotIndex = slots.findIndex(s =>
             s.startTime === slot.startTime &&
             s.endTime === slot.endTime &&
@@ -574,26 +597,43 @@ const DayRow: React.FC<DayRowProps> = ({
 
         if (slotIndex === -1) return;
 
-        const duration = parseInt(slot.endTime) - parseInt(slot.startTime);
+        // Calculate new start time based on cell index and grid start time
+        const cellMinutes = cellIndex * 60; // Each cell is one hour
+        const newStartMinutes = gridStartMinutes + cellMinutes;
 
-        const newStartHour = openingHour + cellIndex;
-        const newEndHour = Math.min(newStartHour + duration, parseInt(storeConfig.store_closing.split(':')[0]));
+        // Maintain the original duration
+        const originalDuration = timeToMinutes(slot.endTime) - timeToMinutes(slot.startTime);
+        const newEndMinutes = newStartMinutes + originalDuration;
 
-        // Don't allow dropping outside store hours
-        if (newStartHour < openingHour || newStartHour >= parseInt(storeConfig.store_closing.split(':')[0])) return;
+        // Convert to time strings and snap to quarter hours
+        const newStartTime = snapToQuarterHour(minutesToTime(newStartMinutes));
+        const newEndTime = snapToQuarterHour(minutesToTime(newEndMinutes));
 
-        // Check for conflicts more efficiently
+        // Validate against store hours
+        const storeOpeningMinutes = timeToMinutes(storeConfig.store_opening);
+        const storeClosingMinutes = timeToMinutes(storeConfig.store_closing);
+
+        if (timeToMinutes(newStartTime) < storeOpeningMinutes ||
+            timeToMinutes(newEndTime) > storeClosingMinutes) {
+            return; // Outside store hours
+        }
+
+        // Check for conflicts using minute-based comparisons
         const hasConflict = slots.some((existingSlot, index) => {
             if (index === slotIndex) return false;
-            const existingStart = parseInt(existingSlot.startTime);
-            const existingEnd = parseInt(existingSlot.endTime);
-            return (newStartHour < existingEnd && newEndHour > existingStart);
+
+            const existingStartMinutes = timeToMinutes(existingSlot.startTime);
+            const existingEndMinutes = timeToMinutes(existingSlot.endTime);
+            const newStartMin = timeToMinutes(newStartTime);
+            const newEndMin = timeToMinutes(newEndTime);
+
+            return (newStartMin < existingEndMinutes && newEndMin > existingStartMinutes);
         });
 
         if (!hasConflict) {
             onUpdateSlot(slotIndex, {
-                startTime: `${newStartHour.toString().padStart(2, '0')}:00`,
-                endTime: `${newEndHour.toString().padStart(2, '0')}:00`
+                startTime: newStartTime,
+                endTime: newEndTime
             });
         }
     };
