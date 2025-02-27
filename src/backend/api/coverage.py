@@ -19,9 +19,15 @@ def get_all_coverage():
                     'dayIndex': c.day_index,
                     'timeSlots': []
                 }
+            
+            # Calculate actual start and end times including keyholder requirements
+            start_time = c.start_time
+            end_time = c.end_time
+            
+            # Don't modify the visual times, just pass the keyholder information
             coverage_by_day[c.day_index]['timeSlots'].append({
-                'startTime': c.start_time,
-                'endTime': c.end_time,
+                'startTime': start_time,
+                'endTime': end_time,
                 'minEmployees': c.min_employees,
                 'maxEmployees': c.max_employees,
                 'employeeTypes': c.employee_types,
@@ -153,16 +159,17 @@ def bulk_update_coverage():
         # Add new coverage requirements
         for day_coverage in data:
             for time_slot in day_coverage['timeSlots']:
+                # Store the original times without keyholder adjustments
                 coverage = Coverage(
                     day_index=day_coverage['dayIndex'],
                     start_time=time_slot['startTime'],
                     end_time=time_slot['endTime'],
                     min_employees=time_slot['minEmployees'],
                     max_employees=time_slot['maxEmployees'],
-                    employee_types=time_slot.get('employeeTypes', []),  # Default to empty list if not provided
-                    requires_keyholder=time_slot.get('requiresKeyholder', False),  # Default to False if not provided
-                    keyholder_before_minutes=time_slot.get('keyholderBeforeMinutes'),  # Default to None if not provided
-                    keyholder_after_minutes=time_slot.get('keyholderAfterMinutes')  # Default to None if not provided
+                    employee_types=time_slot.get('employeeTypes', []),
+                    requires_keyholder=time_slot.get('requiresKeyholder', False),
+                    keyholder_before_minutes=time_slot.get('keyholderBeforeMinutes'),
+                    keyholder_after_minutes=time_slot.get('keyholderAfterMinutes')
                 )
                 db.session.add(coverage)
         

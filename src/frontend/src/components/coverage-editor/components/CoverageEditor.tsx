@@ -8,6 +8,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { CoverageEditorProps, DailyCoverage } from '../types';
 import { DAYS_SHORT, GRID_CONSTANTS } from '../utils/constants';
 import { DayRow } from './DayRow';
+import { timeToMinutes, minutesToTime } from '../utils/time';
 
 const { TIME_COLUMN_WIDTH, TIME_ROW_HEIGHT, HEADER_HEIGHT } = GRID_CONSTANTS;
 
@@ -27,13 +28,15 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
 
     // Calculate hours array
     const hours = React.useMemo(() => {
-        const startHour = parseInt(storeConfig.store_opening);
-        const endHour = parseInt(storeConfig.store_closing);
+        const opening = storeConfig?.store_opening?.split(':') || ['09', '00'];
+        const closing = storeConfig?.store_closing?.split(':') || ['20', '00'];
+        const startHour = parseInt(opening[0]);
+        const endHour = parseInt(closing[0]);
         return Array.from(
-            { length: endHour - startHour + 1 }, // +1 to include the last hour
+            { length: endHour - startHour + 1 },
             (_, i) => `${(startHour + i).toString().padStart(2, '0')}:00`
         );
-    }, [storeConfig.store_opening, storeConfig.store_closing]);
+    }, [storeConfig]);
 
     // Initialize coverage state
     const [coverage, setCoverage] = useState<DailyCoverage[]>(() => {
@@ -72,16 +75,23 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
             return; // Don't add slots outside opening hours
         }
 
+        const startTime = `${startHour.toString().padStart(2, '0')}:00`;
+        const endTime = `${endHour.toString().padStart(2, '0')}:00`;
+
+        // Determine if this is an opening or closing shift
+        const isEarlyShift = startTime === storeConfig.store_opening;
+        const isLateShift = endTime === storeConfig.store_closing;
+
         const newCoverage = [...coverage];
         const newSlot = {
-            startTime: `${startHour.toString().padStart(2, '0')}:00`,
-            endTime: `${endHour.toString().padStart(2, '0')}:00`,
+            startTime,
+            endTime,
             minEmployees: storeConfig.min_employees_per_shift,
             maxEmployees: storeConfig.max_employees_per_shift,
             employeeTypes: storeConfig.employee_types.map(t => t.id),
-            requiresKeyholder: false,
-            keyholderBeforeMinutes: storeConfig.keyholder_before_minutes,
-            keyholderAfterMinutes: storeConfig.keyholder_after_minutes
+            requiresKeyholder: isEarlyShift || isLateShift,
+            keyholderBeforeMinutes: isEarlyShift ? storeConfig.keyholder_before_minutes : 0,
+            keyholderAfterMinutes: isLateShift ? storeConfig.keyholder_after_minutes : 0
         };
 
         // Check if there's already a slot at this time
@@ -101,9 +111,17 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
     const handleUpdateSlot = (dayIndex: number, slotIndex: number, updates: any) => {
         const newCoverage = [...coverage];
         const currentSlot = newCoverage[dayIndex].timeSlots[slotIndex];
+
+        // Determine if this is an opening or closing shift after the update
+        const isEarlyShift = (updates.startTime || currentSlot.startTime) === storeConfig.store_opening;
+        const isLateShift = (updates.endTime || currentSlot.endTime) === storeConfig.store_closing;
+
         newCoverage[dayIndex].timeSlots[slotIndex] = {
             ...currentSlot,
-            ...updates
+            ...updates,
+            requiresKeyholder: isEarlyShift || isLateShift,
+            keyholderBeforeMinutes: isEarlyShift ? storeConfig.keyholder_before_minutes : 0,
+            keyholderAfterMinutes: isLateShift ? storeConfig.keyholder_after_minutes : 0
         };
         setCoverage(newCoverage);
         onChange?.(newCoverage);

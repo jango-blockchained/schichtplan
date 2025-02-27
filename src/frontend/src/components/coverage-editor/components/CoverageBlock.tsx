@@ -31,21 +31,53 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
     const snappedStartTime = snapToQuarterHour(slot.startTime);
     const snappedEndTime = snapToQuarterHour(slot.endTime);
 
-    const startMinutes = timeToMinutes(snappedStartTime);
-    const endMinutes = timeToMinutes(snappedEndTime);
-    const gridStartMinutes = timeToMinutes(hours[0]);
-    const gridEndMinutes = timeToMinutes(hours[hours.length - 1]) + 60;
-
-    const gridContentWidth = gridWidth - TIME_COLUMN_WIDTH;
-    const minuteWidth = gridContentWidth / (gridEndMinutes - gridStartMinutes);
-
-    // Precise position and width calculation using snapped times
-    const startOffset = (startMinutes - gridStartMinutes) * minuteWidth;
-    const blockWidth = (endMinutes - startMinutes) * minuteWidth;
-
+    // Determine if this is an opening or closing shift
     const isEarlyShift = snappedStartTime === storeConfig.store_opening;
     const isLateShift = snappedEndTime === storeConfig.store_closing;
+
+    // Calculate grid dimensions - use store hours without keyholder times
+    const gridStartTime = hours[0];
+    const gridEndTime = hours[hours.length - 1];
+    const gridStartMinutes = timeToMinutes(gridStartTime);
+    const gridEndMinutes = timeToMinutes(gridEndTime);
+    const totalGridMinutes = gridEndMinutes - gridStartMinutes;
+
+    // Calculate block position and dimensions
+    let startMinutes = timeToMinutes(snappedStartTime);
+    let endMinutes = timeToMinutes(snappedEndTime);
+    let keyholderBeforeMinutes = 0;
+    let keyholderAfterMinutes = 0;
+    let keyholderBeforeOffset = 0;
+    let keyholderAfterOffset = 0;
+
+    // Calculate keyholder times
+    if (isEarlyShift) {
+        keyholderBeforeMinutes = storeConfig.keyholder_before_minutes;
+        keyholderBeforeOffset = (startMinutes - keyholderBeforeMinutes) - gridStartMinutes;
+    }
+    if (isLateShift) {
+        keyholderAfterMinutes = storeConfig.keyholder_after_minutes;
+        keyholderAfterOffset = (endMinutes + keyholderAfterMinutes) - gridStartMinutes;
+    }
+
+    const gridContentWidth = gridWidth - TIME_COLUMN_WIDTH;
+    const minuteWidth = gridContentWidth / totalGridMinutes;
+
+    // Calculate position relative to grid start
+    const startOffset = Math.max(0, (startMinutes - gridStartMinutes) * minuteWidth);
+    const blockWidth = Math.min(
+        gridContentWidth - startOffset,
+        (endMinutes - startMinutes) * minuteWidth
+    );
+
+    // Calculate keyholder extensions
+    const keyholderBeforeWidth = keyholderBeforeMinutes * minuteWidth;
+    const keyholderAfterWidth = keyholderAfterMinutes * minuteWidth;
+
     const duration = formatDuration(snappedStartTime, snappedEndTime);
+
+    // Create a unique key for the block
+    const blockKey = `${dayIndex}-${snappedStartTime}-${snappedEndTime}`;
 
     const [{ isDragging }, drag] = useDrag({
         type: 'COVERAGE_BLOCK',
@@ -86,7 +118,7 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
         const diff = e.pageX - startX;
         const newMinutes = Math.round((startWidth + diff) / minuteWidth);
         const snappedMinutes = Math.round(newMinutes / 15) * 15;
-        const newWidth = Math.max(minuteWidth * 15, Math.min(snappedMinutes * minuteWidth, gridContentWidth));
+        const newWidth = Math.max(minuteWidth * 15, Math.min(snappedMinutes * minuteWidth, gridContentWidth - startOffset));
 
         if (blockRef.current) {
             blockRef.current.style.width = `${newWidth}px`;
@@ -119,36 +151,81 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
         }
     }, [isResizing]);
 
+    console.log("snappedStartTime:", snappedStartTime);
+    console.log("snappedEndTime:", snappedEndTime);
+    console.log("gridStartMinutes:", gridStartMinutes);
+    console.log("startMinutes:", startMinutes);
+    console.log("endMinutes:", endMinutes);
+    console.log("keyholderBeforeMinutes:", keyholderBeforeMinutes);
+    console.log("keyholderAfterMinutes:", keyholderAfterMinutes);
+    console.log("keyholderBeforeOffset:", keyholderBeforeOffset);
+    console.log("startOffset:", startOffset);
+    console.log("blockWidth:", blockWidth);
+
     return (
-        <div
-            ref={blockRef}
-            style={{
-                position: 'absolute',
-                left: `${TIME_COLUMN_WIDTH + startOffset}px`,
-                width: `${blockWidth}px`,
-                height: `${CELL_HEIGHT - BLOCK_VERTICAL_PADDING * 2}px`,
-                opacity: isDragging ? 0.5 : 1,
-            }}
-            className={cn(
-                "bg-primary/10 border border-primary/20 rounded-sm p-1 cursor-move flex flex-col",
-                isEditing ? "hover:bg-primary/20" : ""
-            )}
-        >
-            <div className="flex justify-between items-start gap-1 mb-auto">
-                <div className="flex flex-col min-w-0 flex-grow">
-                    <div className="flex justify-between items-center text-xs font-medium">
-                        <span className="truncate">{snappedStartTime} - {snappedEndTime}</span>
-                        <span className="text-muted-foreground ml-2">{duration}</span>
+        <>
+            <div
+                key={blockKey}
+                ref={blockRef}
+                style={{
+                    position: 'absolute',
+                    left: `${TIME_COLUMN_WIDTH + startOffset}px`,
+                    width: `${blockWidth}px`,
+                    height: `${CELL_HEIGHT - BLOCK_VERTICAL_PADDING * 2}px`,
+                    top: `${BLOCK_VERTICAL_PADDING}px`,
+                    opacity: isDragging ? 0.5 : 1,
+                    zIndex: isResizing ? 10 : isDragging ? 20 : 1,
+                    transform: isDragging ? 'scale(1.02)' : 'scale(1)',
+                    pointerEvents: isEditing ? 'all' : 'none',
+                }}
+                className={cn(
+                    "bg-primary/5 border border-primary/20 rounded-md px-2.5 py-1.5 cursor-move flex group relative",
+                    isEditing ? "hover:bg-primary/10 hover:border-primary/30" : "",
+                    "shadow-sm hover:shadow transition-all duration-200 ease-in-out",
+                    isDragging && "ring-2 ring-primary/30 shadow-lg",
+                    isResizing && "ring-2 ring-primary/50"
+                )}
+            >
+                {isEarlyShift && keyholderBeforeMinutes > 0 && (
+                    <div className="absolute right-full h-full" style={{
+                        width: `${keyholderBeforeMinutes * minuteWidth}px`,
+                        right: `${blockWidth}px`
+                    }}>
+                        <div className="w-full h-full bg-yellow-500/10 border-y border-l border-yellow-500/20 rounded-l-md flex items-center justify-center">
+                            <div className="flex items-center gap-1 px-1">
+                                <span className="text-[10px]">🔑</span>
+                                <span className="text-[10px] text-yellow-600/70">{keyholderBeforeMinutes}m</span>
+                            </div>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <span>{slot.minEmployees}-{slot.maxEmployees} {slot.minEmployees === 1 ? 'person' : 'people'}</span>
+                )}
+                {isLateShift && keyholderAfterMinutes > 0 && (
+                    <div
+                        className="absolute left-full h-full -ml-px flex items-center"
+                        style={{ width: `${keyholderAfterWidth}px` }}
+                    >
+                        <div className="w-full h-full bg-yellow-500/10 border-y border-r border-yellow-500/20 rounded-r-md flex items-center justify-center">
+                            <div className="flex items-center gap-1 px-1">
+                                <span className="text-[10px]">🔑</span>
+                                <span className="text-[10px] text-yellow-600/70">{keyholderAfterMinutes}m</span>
+                            </div>
+                        </div>
                     </div>
-                    {(slot.requiresKeyholder || isEarlyShift || isLateShift) && (
-                        <div className="flex items-center gap-1 text-xs text-primary">
+                )}
+                <div className="flex justify-between items-center gap-2 select-none w-full">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-primary font-medium text-xs whitespace-nowrap">{snappedStartTime} - {snappedEndTime}</span>
+                        <span className="text-muted-foreground font-medium bg-background/50 px-2 py-0.5 rounded-full text-[10px] whitespace-nowrap">{duration}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <span className="bg-primary/5 px-2 py-0.5 rounded-full text-[10px] border border-primary/10 text-muted-foreground whitespace-nowrap">
+                            {slot.minEmployees}-{slot.maxEmployees} {slot.minEmployees === 1 ? 'person' : 'people'}
+                        </span>
+                        {(slot.requiresKeyholder || isEarlyShift || isLateShift) && (
                             <TooltipProvider>
                                 <Tooltip>
-                                    <TooltipTrigger className="flex items-center gap-1 hover:text-primary/80">
-                                        <span>🔑</span>
+                                    <TooltipTrigger className="flex items-center gap-1 text-primary/70 bg-primary/5 px-2 py-0.5 rounded-full border border-primary/10 whitespace-nowrap">
+                                        <span className="text-[10px]">🔑</span>
                                         <Clock className="h-3 w-3" />
                                     </TooltipTrigger>
                                     <TooltipContent side="bottom" className="text-xs">
@@ -162,38 +239,56 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
                                     </TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
-                        </div>
-                    )}
+                        )}
+                        {isEditing && (
+                            <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setShowEditor(true);
+                                                }}
+                                                className="p-1 hover:bg-primary/10 rounded-md transition-colors"
+                                            >
+                                                <PencilIcon className="h-3.5 w-3.5 text-primary/70" />
+                                            </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top">Edit block</TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onDelete();
+                                                }}
+                                                className="p-1 hover:bg-destructive/10 rounded-md text-destructive/70 hover:text-destructive transition-colors"
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top">Delete block</TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            </div>
+                        )}
+                    </div>
                 </div>
                 {isEditing && (
-                    <div className="flex gap-0.5 shrink-0">
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setShowEditor(true);
-                            }}
-                            className="p-0.5 hover:bg-primary/20 rounded-sm"
-                        >
-                            <PencilIcon className="h-3 w-3" />
-                        </button>
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onDelete();
-                            }}
-                            className="p-0.5 hover:bg-destructive/20 rounded-sm text-destructive"
-                        >
-                            <Trash2 className="h-3 w-3" />
-                        </button>
-                    </div>
+                    <div
+                        className={cn(
+                            "absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize rounded-r-md transition-colors",
+                            "hover:bg-primary/20 hover:w-2",
+                            isResizing && "bg-primary/30 w-2"
+                        )}
+                        onMouseDown={handleResizeStart}
+                    />
                 )}
             </div>
-            {isEditing && (
-                <div
-                    className="absolute right-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-primary/20"
-                    onMouseDown={handleResizeStart}
-                />
-            )}
             {showEditor && (
                 <Dialog open={showEditor} onOpenChange={setShowEditor}>
                     <DialogContent>
@@ -212,6 +307,6 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
                     </DialogContent>
                 </Dialog>
             )}
-        </div>
+        </>
     );
 }; 

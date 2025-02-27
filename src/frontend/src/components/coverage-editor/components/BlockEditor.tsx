@@ -14,10 +14,10 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({ slot, onSave, onCancel
     const [selectedTypes, setSelectedTypes] = useState<string[]>(slot.employeeTypes);
     const [requiresKeyholder, setRequiresKeyholder] = useState(slot.requiresKeyholder);
     const [keyholderBeforeMinutes, setKeyholderBeforeMinutes] = useState<number>(
-        slot.startTime === storeConfig.store_opening ? storeConfig.keyholder_before_minutes : 0
+        slot.startTime === storeConfig?.store_opening ? storeConfig?.keyholder_before_minutes ?? 0 : 0
     );
     const [keyholderAfterMinutes, setKeyholderAfterMinutes] = useState<number>(
-        slot.endTime === storeConfig.store_closing ? storeConfig.keyholder_after_minutes : 0
+        slot.endTime === storeConfig?.store_closing ? storeConfig?.keyholder_after_minutes ?? 0 : 0
     );
     const [errors, setErrors] = useState<Record<string, string>>({});
 
