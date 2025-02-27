@@ -23,8 +23,8 @@ interface AvailabilityType {
 const defaultAvailabilityTypes: AvailabilityType[] = [
     { code: 'AVL', name: 'Available', color: '#22c55e', description: 'Employee is available for work', type: 'available' },
     { code: 'FIX', name: 'Fixed', color: '#3b82f6', description: 'Fixed/regular schedule', type: 'fixed' },
-    { code: 'UNA', name: 'Unavailable', color: '#ef4444', description: 'Not available for work', type: 'unavailable' },
-    { code: 'PRF', name: 'Preferred', color: '#8b5cf6', description: 'Preferred working time', type: 'preferred' },
+    { code: 'UNV', name: 'Unavailable', color: '#ef4444', description: 'Not available for work', type: 'unavailable' },
+    { code: 'PRM', name: 'Promised', color: '#f59e0b', description: 'Promised/preferred hours', type: 'preferred' },
 ];
 
 export default function OptionsPage() {
