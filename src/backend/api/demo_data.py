@@ -220,19 +220,28 @@ def generate_coverage_data():
     Coverage.query.delete()
     db.session.commit()
 
+    # Get store settings
+    settings = Settings.query.first()
+    if not settings:
+        settings = Settings.get_default_settings()
+
+    # Calculate times based on store settings
+    store_opening = settings.store_opening
+    store_closing = settings.store_closing
+
     coverage_slots = []
     for day_index in range(1, 7):  # Monday to Saturday
         # Morning slot
         coverage_slots.append(
             Coverage(
                 day_index=day_index,
-                start_time="08:30",
+                start_time=store_opening,
                 end_time="14:00",
                 min_employees=1,
                 max_employees=2,
                 employee_types=["TL", "VZ", "TZ", "GFB"],
                 requires_keyholder=True,
-                keyholder_before_minutes=30,
+                keyholder_before_minutes=settings.keyholder_before_minutes,
                 keyholder_after_minutes=0,
             )
         )
@@ -241,15 +250,19 @@ def generate_coverage_data():
             Coverage(
                 day_index=day_index,
                 start_time="14:00",
-                end_time="20:00",
+                end_time=store_closing,
                 min_employees=1,
                 max_employees=2,
                 employee_types=["TL", "VZ", "TZ", "GFB"],
                 requires_keyholder=True,
                 keyholder_before_minutes=0,
-                keyholder_after_minutes=30,
+                keyholder_after_minutes=settings.keyholder_after_minutes,
             )
         )
+
+    db.session.bulk_save_objects(coverage_slots)
+    db.session.commit()
+
     return coverage_slots
 
 

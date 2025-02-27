@@ -72,6 +72,16 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
         queryFn: getSettings,
     });
 
+    // Set initial availability type to the first available type from settings
+    useEffect(() => {
+        if (settings?.availability_types?.types) {
+            const availableTypes = settings.availability_types.types.filter(type => type.is_available);
+            if (availableTypes.length > 0) {
+                setCurrentType(availableTypes[0].id);
+            }
+        }
+    }, [settings]);
+
     const { data: availabilities, refetch: refetchAvailabilities } = useQuery({
         queryKey: ['employee-availabilities', employeeId],
         queryFn: () => getEmployeeAvailabilities(employeeId),
@@ -295,28 +305,31 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
                             <span className="text-sm text-muted-foreground">
                                 Selected: {weeklyHours}h/week
                             </span>
-                            {Array.from(calculateTypeStats()).map(([type, hours]) => {
-                                const availabilityType = settings?.availability_types?.types.find(t => t.id === type);
-                                return (
+                            {settings && Array.from(calculateTypeStats()).map(([type, hours]) => {
+                                const availabilityType = settings.availability_types.types.find(t => t.id === type);
+                                return availabilityType && (
                                     <div
                                         key={type}
                                         className="flex items-center gap-1 text-sm"
-                                        style={{ color: availabilityType?.color }}
+                                        style={{ color: availabilityType.color }}
                                     >
                                         <div
                                             className="w-2 h-2 rounded-full"
-                                            style={{ backgroundColor: availabilityType?.color }}
+                                            style={{ backgroundColor: availabilityType.color }}
                                         />
-                                        {availabilityType?.name}: {hours}h
+                                        {availabilityType.name}: {hours}h
                                     </div>
                                 );
                             })}
                         </div>
                         <div className="flex justify-between items-center">
-                            <AvailabilityTypeSelect
-                                value={currentType}
-                                onChange={setCurrentType}
-                            />
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm text-muted-foreground">Type:</span>
+                                <AvailabilityTypeSelect
+                                    value={currentType}
+                                    onChange={setCurrentType}
+                                />
+                            </div>
                             <div className="flex items-center gap-2">
                                 <Button onClick={handleSelectAll} variant="outline" size="sm">
                                     Select All
@@ -328,70 +341,74 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
                         </div>
                     </div>
                 </DialogHeader>
+
                 <div className="overflow-x-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead className="w-24">Zeit</TableHead>
-                                {activeDays.map(day => (
-                                    <TableHead key={day} className="text-center">
-                                        <Button
-                                            variant="ghost"
-                                            className="w-full"
-                                            onClick={() => handleToggleDay(day)}
-                                        >
-                                            <div>
-                                                {day}
-                                                <div className="text-xs text-muted-foreground mt-1">
-                                                    {dailyHours[day] || 0}h
-                                                </div>
-                                            </div>
-                                        </Button>
-                                    </TableHead>
-                                ))}
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {timeSlots.map(({ time, hour }) => (
-                                <TableRow key={time}>
-                                    <TableCell className="font-medium">{time}</TableCell>
-                                    {activeDays.map(day => {
-                                        const cellId = `${day}-${time}`;
-                                        const cumulativeHours = calculateCumulativeHours(day, hour);
-                                        const cellType = selectedCells.get(cellId);
-                                        return (
-                                            <TableCell
-                                                key={cellId}
-                                                className={cn(
-                                                    'cursor-pointer select-none transition-colors text-center relative',
-                                                    selectedCells.has(cellId)
-                                                        ? 'hover:brightness-90'
-                                                        : 'hover:bg-muted'
-                                                )}
-                                                style={{
-                                                    backgroundColor: getCellColor(cellId)
-                                                }}
-                                                onMouseDown={() => handleCellMouseDown(day, time)}
-                                                onMouseEnter={() => handleCellMouseEnter(day, time)}
+                    <div className="border rounded-lg">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-24">Zeit</TableHead>
+                                    {activeDays.map(day => (
+                                        <TableHead key={day} className="text-center">
+                                            <Button
+                                                variant="ghost"
+                                                className="w-full"
+                                                onClick={() => handleToggleDay(day)}
                                             >
-                                                {selectedCells.has(cellId) && (
-                                                    <>
-                                                        <Check className="h-4 w-4 mx-auto text-white" />
-                                                        <div className="absolute bottom-0 right-1 text-[10px] text-white">
-                                                            {Array.from(cumulativeHours).map(([type, count]) => (
-                                                                type === cellType ? count : null
-                                                            )).filter(Boolean).join('')}
-                                                        </div>
-                                                    </>
-                                                )}
-                                            </TableCell>
-                                        );
-                                    })}
+                                                <div>
+                                                    {day}
+                                                    <div className="text-xs text-muted-foreground mt-1">
+                                                        {dailyHours[day] || 0}h
+                                                    </div>
+                                                </div>
+                                            </Button>
+                                        </TableHead>
+                                    ))}
                                 </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                            </TableHeader>
+                            <TableBody>
+                                {timeSlots.map(({ time, hour }) => (
+                                    <TableRow key={time}>
+                                        <TableCell className="font-medium">{time}</TableCell>
+                                        {activeDays.map(day => {
+                                            const cellId = `${day}-${time}`;
+                                            const cumulativeHours = calculateCumulativeHours(day, hour);
+                                            const cellType = selectedCells.get(cellId);
+                                            return (
+                                                <TableCell
+                                                    key={cellId}
+                                                    className={cn(
+                                                        'cursor-pointer select-none transition-colors text-center relative',
+                                                        selectedCells.has(cellId)
+                                                            ? 'hover:brightness-90'
+                                                            : 'hover:bg-muted'
+                                                    )}
+                                                    style={{
+                                                        backgroundColor: getCellColor(cellId)
+                                                    }}
+                                                    onMouseDown={() => handleCellMouseDown(day, time)}
+                                                    onMouseEnter={() => handleCellMouseEnter(day, time)}
+                                                >
+                                                    {selectedCells.has(cellId) && (
+                                                        <>
+                                                            <Check className="h-4 w-4 mx-auto text-white" />
+                                                            <div className="absolute bottom-0 right-1 text-[10px] text-white">
+                                                                {Array.from(cumulativeHours).map(([type, count]) => (
+                                                                    type === cellType ? count : null
+                                                                )).filter(Boolean).join('')}
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </TableCell>
+                                            );
+                                        })}
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
                 </div>
+
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose}>
                         Cancel
