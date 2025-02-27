@@ -350,7 +350,7 @@ export interface Availability {
     end_date: string;
     start_time?: string;
     end_time?: string;
-    availability_type: 'unavailable' | 'preferred_off' | 'preferred_work' | 'available';
+    availability_type: 'AVL' | 'FIX' | 'PRM' | 'UNV';
     reason?: string;
     is_recurring: boolean;
     recurrence_day?: number;
