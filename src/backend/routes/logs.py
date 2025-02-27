@@ -51,82 +51,153 @@ def get_logs():
                 return []
 
             logs: List[Dict[str, Any]] = []
-            current_log: List[str] = []
+            try:
+                # Read the entire file
+                with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+                    content = f.read()
 
-            with open(filepath, "r") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-
-                    if line.startswith("{"):
-                        # Start of a new log entry
-                        if current_log:
-                            try:
-                                logs.append(json.loads("".join(current_log)))
-                            except json.JSONDecodeError as e:
-                                logger.error_logger.warning(
-                                    f"Failed to parse log entry: {e}"
-                                )
-                        current_log = [line]
-                    else:
-                        # Continuation of current log entry
-                        current_log.append(line)
-
-                # Don't forget to process the last log entry
-                if current_log:
+                # Split content into log entries (each starting with {"timestamp")
+                entries = content.split('{"timestamp')
+                for i, entry in enumerate(entries[1:], 1):  # Skip first empty split
                     try:
-                        logs.append(json.loads("".join(current_log)))
+                        # Reconstruct the entry by adding back the timestamp
+                        entry = '{"timestamp' + entry
+                        # Remove any line breaks and normalize whitespace
+                        entry = " ".join(entry.split())
+                        # Remove any remaining control characters
+                        entry = "".join(char for char in entry if ord(char) >= 32)
+
+                        # Parse the entry as JSON
+                        log_entry = json.loads(entry)
+
+                        # Add source file information
+                        log_entry["source_file"] = filename
+                        logs.append(log_entry)
+
                     except json.JSONDecodeError as e:
+                        # Log the error but continue processing
                         logger.error_logger.warning(
-                            f"Failed to parse last log entry: {e}"
+                            f"Failed to parse entry {i} in {filename}: {e}\nContent: {entry[:100]}"
                         )
+                    except Exception as e:
+                        # Log any other errors but continue processing
+                        logger.error_logger.warning(
+                            f"Error processing entry {i} in {filename}: {str(e)}\nContent: {entry[:100]}"
+                        )
+
+            except Exception as e:
+                logger.error_logger.error(
+                    f"Error reading log file {filename}: {str(e)}"
+                )
+                return []
 
             return logs
 
-        if log_type in ["all", "user"]:
-            user_logs = read_log_file("user_actions.log")
-            if level:
-                user_logs = [log for log in user_logs if log.get("level") == level]
-            logs.extend(user_logs)
+        # Read logs from each file based on type
+        all_logs: List[Dict[str, Any]] = []
+        try:
+            if log_type in ["all", "user"]:
+                user_logs = read_log_file("user_actions.log")
+                if level:
+                    user_logs = [
+                        log
+                        for log in user_logs
+                        if log.get("level", "").lower() == level.lower()
+                    ]
+                all_logs.extend(user_logs)
 
-        if log_type in ["all", "error"]:
-            error_logs = read_log_file("errors.log")
-            if level:  # Also filter error logs by level if specified
-                error_logs = [log for log in error_logs if log.get("level") == level]
-            logs.extend(error_logs)
+            if log_type in ["all", "error"]:
+                error_logs = read_log_file("errors.log")
+                if level:
+                    error_logs = [
+                        log
+                        for log in error_logs
+                        if log.get("level", "").lower() == level.lower()
+                    ]
+                all_logs.extend(error_logs)
 
-        if log_type in ["all", "schedule"]:
-            schedule_logs = read_log_file("schedule.log")
-            if level:
-                schedule_logs = [
-                    log for log in schedule_logs if log.get("level") == level
-                ]
-            logs.extend(schedule_logs)
+            if log_type in ["all", "schedule"]:
+                schedule_logs = read_log_file("schedule.log")
+                if level:
+                    schedule_logs = [
+                        log
+                        for log in schedule_logs
+                        if log.get("level", "").lower() == level.lower()
+                    ]
+                all_logs.extend(schedule_logs)
 
-        # Filter by date and sort
-        logs = [
-            log for log in logs if log.get("timestamp", "").split("T")[0] >= start_date
-        ]
-        logs.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+            # Filter by date and sort
+            logs = [
+                log
+                for log in all_logs
+                if log.get("timestamp", "").split(" ")[0] >= start_date
+            ]
+            logs.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
 
-        # Add debug information in development
-        debug_info = {
-            "logs_dir": str(ROOT_DIR / "logs"),
-            "files_found": [f.name for f in (ROOT_DIR / "logs").glob("*.log")],
-            "log_counts": {
-                "total": len(logs),
-                "user": len([l for l in logs if l.get("module") == "user"]),
-                "error": len([l for l in logs if l.get("level") == "error"]),
-                "schedule": len([l for l in logs if l.get("module") == "schedule"]),
-            },
-        }
+            # Add debug information
+            debug_info = {
+                "logs_dir": str(ROOT_DIR / "logs"),
+                "files_found": [f.name for f in (ROOT_DIR / "logs").glob("*.log")],
+                "log_counts": {
+                    "total": len(logs),
+                    "user": len([l for l in logs if l.get("module") == "user"]),
+                    "error": len(
+                        [l for l in logs if l.get("level", "").lower() == "error"]
+                    ),
+                    "schedule": len([l for l in logs if l.get("module") == "schedule"]),
+                },
+                "raw_counts": {
+                    "total": len(all_logs),
+                    "filtered": len(logs),
+                    "by_file": {
+                        "user_actions.log": len(
+                            [
+                                l
+                                for l in all_logs
+                                if l.get("source_file") == "user_actions.log"
+                            ]
+                        ),
+                        "errors.log": len(
+                            [
+                                l
+                                for l in all_logs
+                                if l.get("source_file") == "errors.log"
+                            ]
+                        ),
+                        "schedule.log": len(
+                            [
+                                l
+                                for l in all_logs
+                                if l.get("source_file") == "schedule.log"
+                            ]
+                        ),
+                    },
+                },
+            }
 
-        return jsonify({"status": "success", "logs": logs, "debug": debug_info})
+            return jsonify({"status": "success", "logs": logs, "debug": debug_info})
+
+        except Exception as e:
+            logger.error_logger.error(f"Error processing logs: {str(e)}")
+            return jsonify(
+                {
+                    "status": "error",
+                    "message": f"Error processing logs: {str(e)}",
+                    "debug": {
+                        "logs_dir": str(ROOT_DIR / "logs"),
+                        "files_found": [
+                            f.name for f in (ROOT_DIR / "logs").glob("*.log")
+                        ],
+                        "error": str(e),
+                    },
+                }
+            ), 500
 
     except Exception as e:
         logger.error_logger.error(f"Error retrieving logs: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify(
+            {"status": "error", "message": str(e), "debug": {"error": str(e)}}
+        ), 500
 
 
 @bp.route("/logs/stats", methods=["GET"])
