@@ -1,11 +1,22 @@
 import os
 from pathlib import Path
 
+# Define project root as src directory
+PROJECT_ROOT = Path(__file__).resolve().parent.parent  # src directory
+
+
 class Config:
-    BASE_DIR = Path(__file__).resolve().parent
-    SQLALCHEMY_DATABASE_URI = f'sqlite:///{BASE_DIR}/instance/app.db'
+    # Unified paths
+    INSTANCE_DIR = PROJECT_ROOT / "instance"
+    LOGS_DIR = PROJECT_ROOT / "logs"
+
+    SQLALCHEMY_DATABASE_URI = f"sqlite:///{INSTANCE_DIR}/app.db"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-key-please-change-in-production'
+    SECRET_KEY = os.environ.get("SECRET_KEY") or "dev-key-please-change-in-production"
+
+    # Ensure directories exist
+    INSTANCE_DIR.mkdir(exist_ok=True)
+    LOGS_DIR.mkdir(exist_ok=True)
 
     def __init__(self):
         self.SQLALCHEMY_DATABASE_URI = self.SQLALCHEMY_DATABASE_URI
@@ -24,4 +35,4 @@ class Config:
         setattr(self, key, value)
 
     def __repr__(self):
-        return f"Config(SQLALCHEMY_DATABASE_URI={self.SQLALCHEMY_DATABASE_URI}, SQLALCHEMY_TRACK_MODIFICATIONS={self.SQLALCHEMY_TRACK_MODIFICATIONS}, SECRET_KEY={self.SECRET_KEY})" 
+        return f"Config(SQLALCHEMY_DATABASE_URI={self.SQLALCHEMY_DATABASE_URI}, SQLALCHEMY_TRACK_MODIFICATIONS={self.SQLALCHEMY_TRACK_MODIFICATIONS}, SECRET_KEY={self.SECRET_KEY})"
