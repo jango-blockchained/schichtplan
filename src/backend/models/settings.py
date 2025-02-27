@@ -350,7 +350,7 @@ class Settings(db.Model):
                 "absence_types": self.absence_types,
             },
             "availability_types": (
-                self.availability_types.scalar()
+                self.availability_types
                 if self.availability_types is not None
                 else {
                     "types": [
