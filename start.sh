@@ -43,8 +43,8 @@ done
 
 # Start frontend
 cd ../frontend
-npm run dev &
-echo "Frontend starting on http://localhost:5173"
+bun run --watch --hot --bun dev &
+echo "Frontend starting via Bun on http://localhost:5173"
 
 # Wait for frontend to be ready
 while ! check_port 5173; do

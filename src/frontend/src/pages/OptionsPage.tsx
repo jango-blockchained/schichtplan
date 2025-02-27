@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -39,6 +39,25 @@ export default function OptionsPage() {
         queryFn: getSettings,
     });
 
+    // Initialize availability types from settings
+    useEffect(() => {
+        if (settings?.availability_types?.types) {
+            const types = settings.availability_types.types.map(type => ({
+                code: type.id,
+                name: type.name,
+                description: type.description,
+                color: type.color,
+                type: type.is_available
+                    ? type.priority === 1 ? 'fixed' as const
+                        : type.priority === 2 ? 'available' as const
+                            : type.priority === 3 ? 'preferred' as const
+                                : 'unavailable' as const
+                    : 'unavailable' as const
+            }));
+            setAvailabilityTypes(types);
+        }
+    }, [settings]);
+
     const updateMutation = useMutation({
         mutationFn: updateSettings,
         onSuccess: () => {
@@ -66,26 +85,34 @@ export default function OptionsPage() {
     };
 
     const handleSaveAvailabilityType = async () => {
-        if (!editingType) return;
+        if (!editingType || !settings) return;
 
         try {
+            // Update local state
             const updatedTypes = availabilityTypes.map(type =>
                 type.code === editingType.code ? { ...type, color: editingType.color } : type
             );
-
             setAvailabilityTypes(updatedTypes);
 
-            const response = await fetch('/api/settings/availability-types', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatedTypes),
-            });
+            // Convert all types to backend format
+            const formattedTypes = updatedTypes.map(type => ({
+                id: type.code,
+                name: type.name,
+                description: type.description || '',
+                color: type.color,
+                priority: type.type === 'fixed' ? 1 : type.type === 'available' ? 2 : type.type === 'preferred' ? 3 : 4,
+                is_available: type.type !== 'unavailable'
+            }));
 
-            if (!response.ok) throw new Error('Failed to save availability type');
+            // Update settings with all types
+            const updatedSettings = {
+                ...settings,
+                availability_types: {
+                    types: formattedTypes
+                }
+            };
 
-            toast({
-                description: 'Color updated successfully.',
-            });
+            updateMutation.mutate(updatedSettings);
             handleCloseModal();
         } catch (error) {
             toast({

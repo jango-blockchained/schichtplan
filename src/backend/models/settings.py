@@ -540,6 +540,10 @@ class Settings(db.Model):
                     attr_name = f"{key}_notify" if key != "email_notifications" else key
                     if hasattr(self, attr_name):
                         setattr(self, attr_name, value)
+            elif category == "availability_types":
+                # Handle availability types directly
+                if hasattr(self, category):
+                    setattr(self, category, values)
             elif category == "pdf_layout":
                 # Handle page size and orientation directly
                 if "page_size" in values:

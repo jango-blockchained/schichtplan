@@ -68,15 +68,24 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
     }, []);
 
     const handleAddSlot = (dayIndex: number, hour: number) => {
-        const startHour = parseInt(storeConfig.store_opening.split(':')[0]) + hour;
-        const endHour = Math.min(startHour + 1, parseInt(storeConfig.store_closing.split(':')[0]));
+        const storeOpeningHour = parseInt(storeConfig.store_opening.split(':')[0]);
+        const storeClosingHour = parseInt(storeConfig.store_closing.split(':')[0]);
+        const storeOpeningMinutes = parseInt(storeConfig.store_opening.split(':')[1]);
+        const storeClosingMinutes = parseInt(storeConfig.store_closing.split(':')[1]);
 
-        if (startHour >= parseInt(storeConfig.store_closing.split(':')[0])) {
+        // Calculate start time
+        const startHour = storeOpeningHour + hour;
+        const startMinutes = hour === 0 ? storeOpeningMinutes : 0;
+        const startTime = `${startHour.toString().padStart(2, '0')}:${startMinutes.toString().padStart(2, '0')}`;
+
+        // Calculate end time - either next hour or store closing time
+        const endHour = Math.min(startHour + 1, storeClosingHour);
+        const endMinutes = endHour === storeClosingHour ? storeClosingMinutes : startMinutes;
+        const endTime = `${endHour.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
+
+        if (startHour >= storeClosingHour) {
             return; // Don't add slots outside opening hours
         }
-
-        const startTime = `${startHour.toString().padStart(2, '0')}:00`;
-        const endTime = `${endHour.toString().padStart(2, '0')}:00`;
 
         // Determine if this is an opening or closing shift
         const isEarlyShift = startTime === storeConfig.store_opening;
