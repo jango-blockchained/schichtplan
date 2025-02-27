@@ -546,21 +546,13 @@ export const EmployeesPage = () => {
               </div>
               <div className="space-y-2">
                 <Label>Stunden</Label>
-                <Select
-                  value={formData.contracted_hours.toString()}
-                  onValueChange={(value) => setFormData({ ...formData, contracted_hours: Number(value) })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {getAvailableHours(formData.employee_group).map((hours) => (
-                      <SelectItem key={hours} value={hours.toString()}>
-                        {hours}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input
+                  type="number"
+                  min={getHoursRange(formData.employee_group)[0]}
+                  max={getHoursRange(formData.employee_group)[1]}
+                  value={formData.contracted_hours}
+                  onChange={(e) => setFormData({ ...formData, contracted_hours: Number(e.target.value) })}
+                />
               </div>
             </div>
 

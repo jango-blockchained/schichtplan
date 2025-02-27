@@ -9,7 +9,7 @@ import {
 import { Loader2, Users, Clock, Calendar, TrendingUp } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, TooltipProps } from 'recharts';
 import { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent';
-import { CoverageEditor } from "@/components/CoverageEditor";
+import { CoverageEditor } from "@/components/coverage-editor";
 import { useToast } from "@/components/ui/use-toast";
 import { getAllCoverage, updateCoverage, getSettings } from "@/services/api";
 import { DailyCoverage, Settings, CoverageTimeSlot } from "@/types/index";
