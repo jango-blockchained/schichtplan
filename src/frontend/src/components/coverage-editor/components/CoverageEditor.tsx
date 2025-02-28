@@ -223,14 +223,16 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
                                 <div className="absolute inset-0 flex">
                                     {hours.map((hour, index) => (
                                         <div key={hour} className="flex-1 relative">
-                                            <div className="absolute -bottom-[1px] -left-px w-px h-2 bg-border" />
-                                            <div className="absolute -bottom-6 start-0 -translate-x-1/2 text-xs text-muted-foreground whitespace-nowrap">
+                                            {/* Add vertical grid line */}
+                                            <div className="absolute inset-y-0 left-0 w-px bg-border/50" />
+                                            {/* Time label - centered in the column */}
+                                            <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-xs text-muted-foreground whitespace-nowrap">
                                                 {hour}
                                             </div>
                                         </div>
                                     ))}
-                                    {/* Last time marker */}
-                                    <div className="absolute -bottom-[1px] right-0 w-px h-2 bg-border" />
+                                    {/* Last vertical line */}
+                                    <div className="absolute inset-y-0 right-0 w-px bg-border/50" />
                                 </div>
                             </div>
                         </div>
