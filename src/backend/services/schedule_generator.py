@@ -157,8 +157,8 @@ class ScheduleGenerator:
                     employee_id=employee.id,
                     start_date=slot.start_date,
                     end_date=slot.end_date,
-                    start_time=slot.start_time,
-                    end_time=slot.end_time,
+                    start_time=f"{slot.hour:02d}:00",
+                    end_time=f"{(slot.hour + 1):02d}:00",
                 )
 
     def fill_open_slots(self, start_date: date, end_date: date):
@@ -217,23 +217,91 @@ class ScheduleGenerator:
 
     def verify_goals(self):
         """Verify that all scheduling goals are met"""
-        logger.schedule_logger.debug("Verifying scheduling goals")
+        logger.schedule_logger.info("=== Verifying Scheduling Goals ===")
 
-        # 1. Ensure minimum coverage
-        coverage_met = self._verify_minimum_coverage()
-        if not coverage_met:
-            self.generation_errors.append(
-                {"type": "error", "message": "Minimum coverage requirements not met"}
-            )
+        # 1. Verify minimum coverage
+        logger.schedule_logger.info("Checking minimum coverage requirements...")
+        coverage_issues = self._verify_minimum_coverage()
+        if coverage_issues:
+            for issue in coverage_issues:
+                self.generation_errors.append(
+                    {
+                        "type": "error",
+                        "message": f"Coverage requirement not met: {issue['message']}",
+                        "date": issue["date"].strftime("%Y-%m-%d"),
+                        "time": f"{issue['start_time']}-{issue['end_time']}",
+                        "required": issue["required"],
+                        "assigned": issue["assigned"],
+                    }
+                )
+                logger.schedule_logger.warning(
+                    f"Coverage issue on {issue['date']}: {issue['message']}"
+                )
 
         # 2. Verify exact hours for VZ and TZ
-        hours_met = self._verify_exact_hours()
-        if not hours_met:
-            self.generation_errors.append(
-                {
-                    "type": "error",
-                    "message": "Required hours not met for VZ/TZ employees",
-                }
+        logger.schedule_logger.info("Checking contracted hours...")
+        hours_issues = self._verify_exact_hours()
+        if hours_issues:
+            for issue in hours_issues:
+                self.generation_errors.append(
+                    {
+                        "type": "warning",
+                        "message": f"Hours requirement not met: {issue['message']}",
+                        "employee": issue["employee_name"],
+                        "employee_group": issue["employee_group"],
+                        "required_hours": issue["required_hours"],
+                        "actual_hours": issue["actual_hours"],
+                    }
+                )
+                logger.schedule_logger.warning(
+                    f"Hours issue for {issue['employee_name']}: {issue['message']}"
+                )
+
+        # 3. Verify keyholder coverage
+        logger.schedule_logger.info("Checking keyholder coverage...")
+        keyholder_issues = self._verify_keyholder_coverage()
+        if keyholder_issues:
+            for issue in keyholder_issues:
+                self.generation_errors.append(
+                    {
+                        "type": "error",
+                        "message": f"Keyholder requirement not met: {issue['message']}",
+                        "date": issue["date"].strftime("%Y-%m-%d"),
+                        "time": f"{issue['start_time']}-{issue['end_time']}",
+                    }
+                )
+                logger.schedule_logger.warning(
+                    f"Keyholder issue on {issue['date']}: {issue['message']}"
+                )
+
+        # 4. Verify rest periods
+        logger.schedule_logger.info("Checking rest periods...")
+        rest_issues = self._verify_rest_periods()
+        if rest_issues:
+            for issue in rest_issues:
+                self.generation_errors.append(
+                    {
+                        "type": "error",
+                        "message": f"Rest period violation: {issue['message']}",
+                        "employee": issue["employee_name"],
+                        "date": issue["date"].strftime("%Y-%m-%d"),
+                    }
+                )
+                logger.schedule_logger.warning(
+                    f"Rest period issue for {issue['employee_name']} on {issue['date']}: {issue['message']}"
+                )
+
+        # Log verification summary
+        error_count = len([e for e in self.generation_errors if e["type"] == "error"])
+        warning_count = len(
+            [e for e in self.generation_errors if e["type"] == "warning"]
+        )
+
+        if error_count == 0 and warning_count == 0:
+            logger.schedule_logger.info("All scheduling goals verified successfully!")
+        else:
+            logger.schedule_logger.warning(
+                f"Schedule verification completed with {error_count} errors and {warning_count} warnings"
             )
 
     def generate_schedule(
@@ -243,7 +311,7 @@ class ScheduleGenerator:
         if not current_app:
             raise ScheduleGenerationError("No Flask application context")
 
-        logger.schedule_logger.debug(
+        logger.schedule_logger.info(
             f"Starting schedule generation for period {start_date} to {end_date}",
             extra={
                 "action": "generate_schedule",
@@ -255,8 +323,18 @@ class ScheduleGenerator:
         try:
             # Load resources first - this must happen within app context
             self.resources.load_resources()
+            if not self.resources.employees:
+                logger.error_logger.error("No active employees found in database")
+                raise ScheduleGenerationError("No active employees found in database")
+
             logger.schedule_logger.info(
-                f"Initialized with {len(self.resources.employees)} employees"
+                f"Initialized with {len(self.resources.employees)} employees: "
+                + ", ".join(
+                    [
+                        f"{e.first_name} {e.last_name} ({e.employee_group})"
+                        for e in self.resources.employees
+                    ]
+                )
             )
 
             # Get or create placeholder shift for empty schedules
@@ -264,6 +342,9 @@ class ScheduleGenerator:
                 start_time="00:00", end_time="00:00"
             ).first()
             if not placeholder_shift:
+                logger.schedule_logger.info(
+                    "Creating placeholder shift for empty schedules"
+                )
                 placeholder_shift = Shift(
                     start_time="00:00",
                     end_time="00:00",
@@ -274,6 +355,9 @@ class ScheduleGenerator:
                 db.session.add(placeholder_shift)
                 try:
                     db.session.commit()
+                    logger.schedule_logger.info(
+                        "Successfully created placeholder shift"
+                    )
                 except Exception as e:
                     logger.error_logger.error(
                         "Failed to create placeholder shift",
@@ -286,67 +370,33 @@ class ScheduleGenerator:
                     db.session.rollback()
                     raise
 
-            # Pre-processing steps
-            logger.schedule_logger.debug("Starting pre-processing steps")
-            self.process_absences()
-            self.process_fix_availability()
-
-            # Main scheduling step
-            logger.schedule_logger.debug("Starting main scheduling step")
-            self.fill_open_slots(start_date, end_date)
-
-            # Verify goals
-            logger.schedule_logger.debug("Verifying scheduling goals")
-            self.verify_goals()
-
-            # Get all schedules for the period
-            schedules = Schedule.query.filter(
-                Schedule.date >= start_date, Schedule.date <= end_date
-            ).all()
-
-            # Ensure each employee has at least one row
-            employee_schedules = {}
-            for schedule in schedules:
-                if schedule.employee_id not in employee_schedules:
-                    employee_schedules[schedule.employee_id] = []
-                employee_schedules[schedule.employee_id].append(schedule)
-
-            # Create empty schedules for employees without any assignments
+            # Create initial empty schedules for all employees
+            logger.schedule_logger.info(
+                "Creating initial empty schedules for all employees"
+            )
+            all_schedules = []
             for employee in self.resources.employees:
-                if employee.id not in employee_schedules:
-                    logger.schedule_logger.warning(
-                        f"Employee {employee.id} has no assignments in the schedule",
-                        extra={
-                            "action": "employee_no_assignments",
-                            "employee_id": employee.id,
-                            "employee_name": f"{employee.first_name} {employee.last_name}",
-                            "employee_group": employee.employee_group,
-                        },
-                    )
-                    self.generation_errors.append(
-                        {
-                            "type": "warning",
-                            "message": f"No assignments for {employee.first_name} {employee.last_name}",
-                            "employee_id": employee.id,
-                            "employee_group": employee.employee_group,
-                        }
-                    )
-                    # Create an empty schedule entry for the first day
-                    empty_schedule = Schedule(
-                        employee_id=employee.id,
-                        date=start_date,
-                        shift_id=placeholder_shift.id,
-                        version=1,
-                    )
-                    empty_schedule.notes = "No assignments in this period"
-                    db.session.add(empty_schedule)
-                    schedules.append(empty_schedule)
+                empty_schedule = Schedule(
+                    employee_id=employee.id,
+                    date=start_date,
+                    shift_id=placeholder_shift.id,
+                    version=1,
+                )
+                empty_schedule.notes = "No assignments yet"
+                db.session.add(empty_schedule)
+                all_schedules.append(empty_schedule)
+                logger.schedule_logger.debug(
+                    f"Created empty schedule for {employee.first_name} {employee.last_name}"
+                )
 
             try:
                 db.session.commit()
+                logger.schedule_logger.info(
+                    f"Successfully created {len(all_schedules)} initial empty schedules"
+                )
             except Exception as e:
                 logger.error_logger.error(
-                    "Failed to save empty schedules",
+                    "Failed to save initial empty schedules",
                     extra={
                         "action": "save_empty_schedules_failed",
                         "error_message": str(e),
@@ -354,33 +404,92 @@ class ScheduleGenerator:
                     },
                 )
                 db.session.rollback()
+                raise
 
-            # Log detailed statistics
-            total_shifts = len(schedules)
-            employees_scheduled = len(employee_schedules)
+            # Pre-processing steps
+            logger.schedule_logger.info("Starting pre-processing steps")
+
+            logger.schedule_logger.info("Processing absences")
+            absence_count = (
+                len(self.resources.absence_data) if self.resources.absence_data else 0
+            )
+            logger.schedule_logger.info(
+                f"Found {absence_count} absence records to process"
+            )
+            self.process_absences()
+
+            logger.schedule_logger.info("Processing fixed availabilities")
+            availability_count = (
+                len(self.resources.availability_data)
+                if self.resources.availability_data
+                else 0
+            )
+            logger.schedule_logger.info(
+                f"Found {availability_count} availability records to process"
+            )
+            self.process_fix_availability()
+
+            # Main scheduling step
+            logger.schedule_logger.info("Starting main scheduling step")
+            coverage_count = (
+                len(self.resources.coverage_data) if self.resources.coverage_data else 0
+            )
+            logger.schedule_logger.info(
+                f"Processing {coverage_count} coverage requirements"
+            )
+            self.fill_open_slots(start_date, end_date)
+
+            # Verify goals
+            logger.schedule_logger.info("Verifying scheduling goals")
+            self.verify_goals()
+
+            # Get all schedules for the period
+            schedules = Schedule.query.filter(
+                Schedule.date >= start_date, Schedule.date <= end_date
+            ).all()
+
+            # Track assignments per employee for detailed reporting
+            employee_assignments = {}
+            for schedule in schedules:
+                if schedule.employee_id not in employee_assignments:
+                    employee_assignments[schedule.employee_id] = []
+                if schedule.shift_id != placeholder_shift.id:
+                    employee_assignments[schedule.employee_id].append(schedule)
+
+            # Log detailed assignment statistics
+            logger.schedule_logger.info("=== Schedule Generation Summary ===")
+            for employee in self.resources.employees:
+                assignments = employee_assignments.get(employee.id, [])
+                logger.schedule_logger.info(
+                    f"Employee: {employee.first_name} {employee.last_name} ({employee.employee_group})"
+                    f"\n  - Assignments: {len(assignments)}"
+                    f"\n  - Total hours: {sum(s.shift.duration_hours for s in assignments if s.shift):.1f}"
+                )
+
+            # Log overall statistics
+            total_shifts = len(
+                [s for s in schedules if s.shift_id != placeholder_shift.id]
+            )
+            employees_with_shifts = len([e for e in employee_assignments.values() if e])
             total_employees = len(self.resources.employees)
             coverage_percentage = (
-                (employees_scheduled / total_employees) * 100
+                (employees_with_shifts / total_employees) * 100
                 if total_employees > 0
                 else 0
             )
 
             logger.schedule_logger.info(
-                f"Schedule generation completed. Created {total_shifts} schedules for {employees_scheduled}/{total_employees} employees",
-                extra={
-                    "action": "generation_complete",
-                    "schedule_count": total_shifts,
-                    "employees_scheduled": employees_scheduled,
-                    "total_employees": total_employees,
-                    "coverage_percentage": coverage_percentage,
-                    "error_count": len(self.generation_errors),
-                    "period_start": start_date.isoformat(),
-                    "period_end": end_date.isoformat(),
-                },
+                f"\nSchedule Generation Complete:"
+                f"\n- Total employees: {total_employees}"
+                f"\n- Employees with shifts: {employees_with_shifts}"
+                f"\n- Total shifts assigned: {total_shifts}"
+                f"\n- Coverage percentage: {coverage_percentage:.1f}%"
+                f"\n- Errors/Warnings: {len(self.generation_errors)}"
             )
 
             # Log all errors and warnings
             if self.generation_errors:
+                logger.schedule_logger.info("\n=== Generation Issues ===")
                 for error in self.generation_errors:
                     if error["type"] == "critical":
                         logger.error_logger.error(
@@ -412,6 +521,7 @@ class ScheduleGenerator:
                     "error_message": str(e),
                     "start_date": start_date.isoformat(),
                     "end_date": end_date.isoformat(),
+                    "traceback": str(e.__traceback__),
                 },
             )
             self.generation_errors.append(
@@ -419,6 +529,7 @@ class ScheduleGenerator:
                     "type": "critical",
                     "message": f"Schedule generation error: {str(e)}",
                     "error_type": type(e).__name__,
+                    "traceback": str(e.__traceback__),
                 }
             )
 
@@ -443,6 +554,7 @@ class ScheduleGenerator:
                         "action": "fetch_partial_failed",
                         "error_message": str(fetch_error),
                         "error_type": type(fetch_error).__name__,
+                        "traceback": str(fetch_error.__traceback__),
                     },
                 )
 
@@ -477,13 +589,151 @@ class ScheduleGenerator:
         """Assign employees to a coverage slot"""
         pass  # Implementation details...
 
-    def _verify_minimum_coverage(self) -> bool:
+    def _verify_minimum_coverage(self) -> List[Dict[str, Any]]:
         """Verify that minimum coverage requirements are met"""
-        pass  # Implementation details...
+        issues = []
+        for date in self._get_date_range():
+            for coverage in self.resources.coverage_data:
+                assigned = len(
+                    self._get_employees_for_time(
+                        date, coverage.start_time, coverage.end_time
+                    )
+                )
+                if assigned < coverage.min_employees:
+                    issues.append(
+                        {
+                            "date": date,
+                            "start_time": coverage.start_time,
+                            "end_time": coverage.end_time,
+                            "required": coverage.min_employees,
+                            "assigned": assigned,
+                            "message": f"Need {coverage.min_employees} employees, only {assigned} assigned",
+                        }
+                    )
+        return issues
 
-    def _verify_exact_hours(self) -> bool:
+    def _verify_exact_hours(self) -> List[Dict[str, Any]]:
         """Verify that VZ and TZ employees have exact required hours"""
-        pass  # Implementation details...
+        issues = []
+        for employee in self.resources.employees:
+            if employee.employee_group in [EmployeeGroup.VZ, EmployeeGroup.TZ]:
+                total_hours = self._get_employee_total_hours(employee)
+                if (
+                    abs(total_hours - employee.contracted_hours) > 0.5
+                ):  # 30 minutes tolerance
+                    issues.append(
+                        {
+                            "employee_name": f"{employee.first_name} {employee.last_name}",
+                            "employee_group": employee.employee_group,
+                            "required_hours": employee.contracted_hours,
+                            "actual_hours": total_hours,
+                            "message": f"Scheduled {total_hours:.1f}h vs contracted {employee.contracted_hours}h",
+                        }
+                    )
+        return issues
+
+    def _verify_keyholder_coverage(self) -> List[Dict[str, Any]]:
+        """Verify that all early/late shifts have a keyholder"""
+        issues = []
+        for date in self._get_date_range():
+            schedules = Schedule.query.filter_by(date=date).all()
+            for schedule in schedules:
+                if schedule.shift and requires_keyholder(schedule.shift):
+                    has_keyholder = any(
+                        s.employee.is_keyholder
+                        for s in schedules
+                        if s.shift_id == schedule.shift_id
+                    )
+                    if not has_keyholder:
+                        issues.append(
+                            {
+                                "date": date,
+                                "start_time": schedule.shift.start_time,
+                                "end_time": schedule.shift.end_time,
+                                "message": f"No keyholder assigned for {schedule.shift.start_time}-{schedule.shift.end_time}",
+                            }
+                        )
+        return issues
+
+    def _verify_rest_periods(self) -> List[Dict[str, Any]]:
+        """Verify minimum rest periods between shifts"""
+        issues = []
+        for employee in self.resources.employees:
+            schedules = (
+                Schedule.query.filter_by(employee_id=employee.id)
+                .order_by(Schedule.date)
+                .all()
+            )
+            for i in range(len(schedules) - 1):
+                if schedules[i].shift and schedules[i + 1].shift:
+                    rest_hours = self._calculate_rest_hours(
+                        schedules[i].date,
+                        schedules[i].shift.end_time,
+                        schedules[i + 1].date,
+                        schedules[i + 1].shift.start_time,
+                    )
+                    if rest_hours < 11:
+                        issues.append(
+                            {
+                                "employee_name": f"{employee.first_name} {employee.last_name}",
+                                "date": schedules[i].date,
+                                "message": f"Only {rest_hours:.1f}h rest between shifts (minimum 11h required)",
+                            }
+                        )
+        return issues
+
+    def _get_date_range(self) -> List[date]:
+        """Get all dates in the current schedule period"""
+        schedules = Schedule.query.order_by(Schedule.date).all()
+        if not schedules:
+            return []
+        start_date = schedules[0].date
+        end_date = schedules[-1].date
+        dates = []
+        current = start_date
+        while current <= end_date:
+            dates.append(current)
+            current += timedelta(days=1)
+        return dates
+
+    def _get_employees_for_time(
+        self, date: date, start_time: str, end_time: str
+    ) -> List[Employee]:
+        """Get all employees scheduled for a specific time slot"""
+        schedules = Schedule.query.filter_by(date=date).all()
+        return [
+            schedule.employee
+            for schedule in schedules
+            if schedule.shift
+            and self._shifts_overlap(
+                schedule.shift.start_time, schedule.shift.end_time, start_time, end_time
+            )
+        ]
+
+    def _get_employee_total_hours(self, employee: Employee) -> float:
+        """Calculate total scheduled hours for an employee"""
+        schedules = Schedule.query.filter_by(employee_id=employee.id).all()
+        return sum(
+            schedule.shift.duration_hours
+            for schedule in schedules
+            if schedule.shift and schedule.shift.duration_hours
+        )
+
+    def _calculate_rest_hours(
+        self, date1: date, time1: str, date2: date, time2: str
+    ) -> float:
+        """Calculate hours between two shifts"""
+        dt1 = datetime.combine(date1, datetime.strptime(time1, "%H:%M").time())
+        dt2 = datetime.combine(date2, datetime.strptime(time2, "%H:%M").time())
+        return (dt2 - dt1).total_seconds() / 3600
+
+    def _shifts_overlap(self, start1: str, end1: str, start2: str, end2: str) -> bool:
+        """Check if two shifts overlap"""
+        t1 = datetime.strptime(start1, "%H:%M").time()
+        t2 = datetime.strptime(end1, "%H:%M").time()
+        t3 = datetime.strptime(start2, "%H:%M").time()
+        t4 = datetime.strptime(end2, "%H:%M").time()
+        return (t1 <= t4) and (t2 >= t3)
 
     def _is_store_open(self, date: date) -> bool:
         """Check if store is open on the given date"""

@@ -1,6 +1,6 @@
 from . import db
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, date
 from sqlalchemy import (
     Column,
     Integer,
@@ -12,7 +12,6 @@ from sqlalchemy import (
     Enum as SQLEnum,
 )
 from sqlalchemy.orm import relationship
-from datetime import date
 
 
 class AvailabilityType(str, Enum):
@@ -56,6 +55,7 @@ class Employee(db.Model):
     contracted_hours = Column(Float, nullable=False)
     is_keyholder = Column(Boolean, nullable=False, default=False)
     is_active = Column(Boolean, nullable=False, default=True)
+    birthday = Column(Date, nullable=True)
     email = Column(String(120), unique=True, nullable=True)
     phone = Column(String(20), nullable=True)
     created_at = Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -78,6 +78,7 @@ class Employee(db.Model):
         contracted_hours,
         is_keyholder=False,
         is_active=True,
+        birthday=None,
         email=None,
         phone=None,
     ):
@@ -88,6 +89,7 @@ class Employee(db.Model):
         self.contracted_hours = contracted_hours
         self.is_keyholder = is_keyholder
         self.is_active = is_active
+        self.birthday = birthday
         self.email = email
         self.phone = phone
 
@@ -143,6 +145,16 @@ class Employee(db.Model):
             max_monthly_hours = 556 / 12.41
             return max_monthly_hours / 4.33
 
+    def activate(self):
+        """Activate the employee"""
+        self.is_active = True
+        self.updated_at = datetime.utcnow()
+
+    def deactivate(self):
+        """Deactivate the employee"""
+        self.is_active = False
+        self.updated_at = datetime.utcnow()
+
     def to_dict(self):
         """Convert employee object to dictionary for JSON serialization"""
         return {
@@ -154,6 +166,7 @@ class Employee(db.Model):
             "contracted_hours": self.contracted_hours,
             "is_keyholder": self.is_keyholder,
             "is_active": self.is_active,
+            "birthday": self.birthday.isoformat() if self.birthday else None,
             "email": self.email,
             "phone": self.phone,
             "created_at": self.created_at.isoformat() if self.created_at else None,
