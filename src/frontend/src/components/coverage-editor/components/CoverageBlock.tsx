@@ -92,9 +92,9 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
     const blockKey = `${dayIndex}-${snappedStartTime}-${snappedEndTime}`;
 
     const [{ isDragging }, drag] = useDrag({
-        type: 'COVERAGE_BLOCK',
+        type: 'coverage-block',
         item: {
-            type: 'COVERAGE_BLOCK',
+            type: 'coverage-block',
             slot: {
                 ...slot,
                 startTime: snappedStartTime,
@@ -212,132 +212,118 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
     }, [isDragging, isResizing, isEditing, blockWidth, startOffset]);
 
     return (
-        <>
-            <div
-                key={blockKey}
-                ref={blockRef}
-                style={{
-                    position: 'absolute',
-                    left: `${TIME_COLUMN_WIDTH + startOffset}px`,
-                    width: `${blockWidth}px`,
-                    height: `${CELL_HEIGHT - BLOCK_VERTICAL_PADDING * 2}px`,
-                    top: `${BLOCK_VERTICAL_PADDING}px`,
-                    opacity: isDragging ? 0.5 : 1,
-                    zIndex: isResizing ? 10 : isDragging ? 20 : 1,
-                    transform: isDragging ? 'scale(1.02)' : 'scale(1)',
-                    pointerEvents: isEditing ? 'all' : 'none',
-                }}
-                className={cn(
-                    "bg-primary/5 border border-primary/20 rounded-md px-2.5 py-1.5 cursor-move flex group relative",
-                    isEditing ? "hover:bg-primary/10 hover:border-primary/30" : "",
-                    "shadow-sm hover:shadow transition-all duration-200 ease-in-out",
-                    isDragging && "ring-2 ring-primary/30 shadow-lg",
-                    isResizing && "ring-2 ring-primary/50"
-                )}
-            >
-                {isEarlyShift && keyholderBeforeMinutes > 0 && (
-                    <div className="absolute right-full h-full" style={{
-                        width: `${keyholderBeforeWidth}px`,
-                        right: `${blockWidth}px`
-                    }}>
-                        <div className="w-full h-full bg-yellow-500/10 border-y border-l border-yellow-500/20 rounded-l-md flex items-center justify-center">
-                            <div className="flex items-center gap-1 px-1">
-                                <span className="text-[10px]">🔑</span>
-                                <span className="text-[10px] text-yellow-600/70">{keyholderBeforeMinutes}m</span>
-                            </div>
-                        </div>
-                    </div>
-                )}
-                {isLateShift && keyholderAfterMinutes > 0 && (
-                    <div
-                        className="absolute left-full h-full -ml-px flex items-center"
-                        style={{ width: `${keyholderAfterWidth}px` }}
-                    >
-                        <div className="w-full h-full bg-yellow-500/10 border-y border-r border-yellow-500/20 rounded-r-md flex items-center justify-center">
-                            <div className="flex items-center gap-1 px-1">
-                                <span className="text-[10px]">🔑</span>
-                                <span className="text-[10px] text-yellow-600/70">{keyholderAfterMinutes}m</span>
-                            </div>
-                        </div>
-                    </div>
-                )}
-                <div className="flex justify-between items-center gap-2 select-none w-full">
-                    <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-primary font-medium text-xs whitespace-nowrap">{snappedStartTime} - {snappedEndTime}</span>
-                        <span className="text-muted-foreground font-medium bg-background/50 px-2 py-0.5 rounded-full text-[10px] whitespace-nowrap">{duration}</span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                        <span className="bg-primary/5 px-2 py-0.5 rounded-full text-[10px] border border-primary/10 text-muted-foreground whitespace-nowrap">
-                            {slot.minEmployees}-{slot.maxEmployees} {slot.minEmployees === 1 ? 'person' : 'people'}
-                        </span>
-                        {(slot.requiresKeyholder || isEarlyShift || isLateShift) && (
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger className="flex items-center gap-1 text-primary/70 bg-primary/5 px-2 py-0.5 rounded-full border border-primary/10 whitespace-nowrap">
-                                        <span className="text-[10px]">🔑</span>
-                                        <Clock className="h-3 w-3" />
-                                    </TooltipTrigger>
-                                    <TooltipContent side="bottom" className="text-xs">
-                                        <p className="font-medium">Keyholder needed:</p>
-                                        {isEarlyShift && (
-                                            <p>{storeConfig.keyholder_before_minutes} min before opening</p>
-                                        )}
-                                        {isLateShift && (
-                                            <p>{storeConfig.keyholder_after_minutes} min after closing</p>
-                                        )}
-                                    </TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
-                        )}
-                        {isEditing && (
-                            <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setShowEditor(true);
-                                                }}
-                                                className="p-1 hover:bg-primary/10 rounded-md transition-colors"
-                                            >
-                                                <PencilIcon className="h-3.5 w-3.5 text-primary/70" />
-                                            </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="top">Edit block</TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    onDelete();
-                                                }}
-                                                className="p-1 hover:bg-destructive/10 rounded-md text-destructive/70 hover:text-destructive transition-colors"
-                                            >
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                            </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="top">Delete block</TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                            </div>
-                        )}
-                    </div>
+        <div
+            ref={blockRef}
+            style={{
+                position: 'absolute',
+                left: `${startOffset}px`,
+                width: `${blockWidth}px`,
+                height: `${CELL_HEIGHT - 2 * BLOCK_VERTICAL_PADDING}px`,
+                top: `${BLOCK_VERTICAL_PADDING}px`,
+                fontSize: GRID_CONSTANTS.FONT_SIZE.BLOCK,
+                zIndex: isDragging ? 50 : isResizing ? 40 : 1,
+                transform: isDragging ? 'scale(1.02)' : 'none',
+                opacity: isDragging ? 0.7 : 1,
+                cursor: isEditing ? (isResizing ? 'col-resize' : 'move') : 'default'
+            }}
+            className={cn(
+                "flex items-center px-2 rounded-md transition-all duration-200",
+                "border shadow-sm",
+                slot.requiresKeyholder
+                    ? "bg-amber-50 border-amber-200/70"
+                    : "bg-primary/5 border-primary/20",
+                isDragging && "ring-2 ring-primary shadow-lg",
+                isResizing && "ring-2 ring-primary"
+            )}
+        >
+            {/* Keyholder indicator */}
+            {slot.requiresKeyholder && (
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-400 rounded-l" />
+            )}
+
+            <div className="flex justify-between items-center gap-2 select-none w-full min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                    <span className="text-primary font-medium whitespace-nowrap overflow-hidden text-ellipsis">
+                        {snappedStartTime} - {snappedEndTime}
+                    </span>
+                    <span className="text-muted-foreground font-medium bg-background/50 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                        {duration}
+                    </span>
                 </div>
-                {isEditing && (
-                    <div
-                        className={cn(
-                            "absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize rounded-r-md transition-colors",
-                            "hover:bg-primary/20 hover:w-2",
-                            isResizing && "bg-primary/30 w-2"
-                        )}
-                        onMouseDown={handleResizeStart}
-                    />
-                )}
+                <div className="flex items-center gap-1.5 shrink-0">
+                    <span className={cn(
+                        "px-1.5 py-0.5 rounded-full border whitespace-nowrap",
+                        slot.requiresKeyholder
+                            ? "bg-amber-50/80 border-amber-200/50 text-amber-700"
+                            : "bg-primary/5 border-primary/10 text-muted-foreground"
+                    )}>
+                        {slot.minEmployees}-{slot.maxEmployees}
+                    </span>
+                </div>
             </div>
+
+            {/* Resize handle */}
+            {isEditing && (
+                <div
+                    className={cn(
+                        "absolute right-0 top-0 bottom-0 w-2 cursor-col-resize",
+                        "hover:bg-primary/20 rounded-r",
+                        isResizing && "bg-primary/30"
+                    )}
+                    onMouseDown={handleResizeStart}
+                />
+            )}
+
+            {/* Edit/Delete buttons */}
+            {isEditing && (
+                <div className={cn(
+                    "absolute -top-8 right-0 flex items-center gap-1 bg-background rounded-md shadow-lg border px-1 py-0.5",
+                    "opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                )}>
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowEditor(true);
+                                    }}
+                                    className="p-1 hover:bg-primary/10 rounded"
+                                >
+                                    <PencilIcon className="h-3 w-3" />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p className="text-xs">Edit block</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDelete();
+                                    }}
+                                    className={cn(
+                                        "p-1 hover:bg-destructive/10 rounded text-destructive",
+                                        "opacity-0 group-hover:opacity-100 transition-opacity",
+                                        "border border-destructive/20"
+                                    )}
+                                >
+                                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p className="text-xs">Delete block</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                </div>
+            )}
+
             {showEditor && (
                 <Dialog open={showEditor} onOpenChange={setShowEditor}>
                     <DialogContent>
@@ -356,6 +342,6 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
                     </DialogContent>
                 </Dialog>
             )}
-        </>
+        </div>
     );
 }; 

@@ -226,7 +226,7 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
                                             {/* Add vertical grid line */}
                                             <div className="absolute inset-y-0 left-0 w-px bg-border/50" />
                                             {/* Time label - centered in the column */}
-                                            <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-xs text-muted-foreground whitespace-nowrap">
+                                            <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] text-muted-foreground/70 whitespace-nowrap">
                                                 {hour}
                                             </div>
                                         </div>
