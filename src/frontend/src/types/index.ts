@@ -19,10 +19,25 @@ export interface TimeSlot {
 
 export interface Employee {
     id: number;
-    name: string;
-    is_keyholder: boolean;
+    employee_id: string;
+    first_name: string;
+    last_name: string;
+    employee_group: string;
     contracted_hours: number;
+    is_keyholder: boolean;
+    is_active: boolean;
+    birthday: string | null;
+    email: string | null;
+    phone: string | null;
+    created_at: string | null;
+    updated_at: string | null;
+    max_daily_hours: number;
+    max_weekly_hours: number;
 }
+
+export type CreateEmployeeRequest = Omit<Employee, 'id' | 'employee_id' | 'created_at' | 'updated_at' | 'max_daily_hours' | 'max_weekly_hours'>;
+
+export type UpdateEmployeeRequest = CreateEmployeeRequest;
 
 export interface Shift {
     id: number;

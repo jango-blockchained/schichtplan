@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import type { Settings, Employee, Schedule, ScheduleResponse, ScheduleUpdate, DailyCoverage, CoverageTimeSlot } from '@/types/index';
+import { CreateEmployeeRequest, UpdateEmployeeRequest } from '../types';
 
 interface APIErrorResponse {
     error?: string;
@@ -127,7 +128,7 @@ export const getEmployees = async (): Promise<Employee[]> => {
     }
 };
 
-export const createEmployee = async (data: Omit<Employee, 'id' | 'employee_id'>): Promise<Employee> => {
+export const createEmployee = async (data: CreateEmployeeRequest): Promise<Employee> => {
     try {
         const response = await api.post<Employee>('/employees/', data);
         return response.data;
@@ -139,7 +140,7 @@ export const createEmployee = async (data: Omit<Employee, 'id' | 'employee_id'>)
     }
 };
 
-export const updateEmployee = async (id: number, data: Partial<Employee>): Promise<Employee> => {
+export const updateEmployee = async (id: number, data: UpdateEmployeeRequest): Promise<Employee> => {
     try {
         const response = await api.put<Employee>(`/employees/${id}`, data);
         return response.data;
