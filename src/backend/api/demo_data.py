@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from models import db, Settings, Employee, Shift, Coverage, EmployeeAvailability
+from models import db, Settings, Employee, Coverage, EmployeeAvailability
 from models.employee import AvailabilityType
 from http import HTTPStatus
 from datetime import datetime
@@ -191,35 +191,8 @@ def generate_employee_data():
     return employees
 
 
-def generate_shift_data():
-    """Generate demo shift data"""
-    shifts = [
-        Shift(
-            start_time="09:00",
-            end_time="14:00",
-            min_employees=1,
-            max_employees=2,
-            requires_break=False,
-            active_days=[1, 2, 3, 4, 5, 6],  # Monday to Saturday
-        ),
-        Shift(
-            start_time="14:00",
-            end_time="20:00",
-            min_employees=1,
-            max_employees=2,
-            requires_break=True,
-            active_days=[1, 2, 3, 4, 5, 6],  # Monday to Saturday
-        ),
-    ]
-    return shifts
-
-
 def generate_coverage_data():
     """Generate demo coverage data"""
-    # Clear existing coverage data first
-    Coverage.query.delete()
-    db.session.commit()
-
     # Get store settings
     settings = Settings.query.first()
     if not settings:
@@ -259,9 +232,6 @@ def generate_coverage_data():
                 keyholder_after_minutes=settings.keyholder_after_minutes,
             )
         )
-
-    db.session.bulk_save_objects(coverage_slots)
-    db.session.commit()
 
     return coverage_slots
 
@@ -360,21 +330,16 @@ def generate_availability_data(employees):
 
 @bp.route("/", methods=["POST"])
 def generate_demo_data():
-    """Generate demo data based on selected module"""
-    data = request.get_json()
-    module = data.get("module", "all")
-
+    """Generate demo data"""
     try:
-        # First, ensure we have a settings record
-        settings = Settings.query.first()
-        if not settings:
-            settings = Settings.get_default_settings()
-            db.session.add(settings)
-            db.session.commit()
+        module = request.args.get("module", "all")
+        logging.info(f"Generating demo data for module: {module}")
 
-        # Update employee types and absence types
         if module in ["settings", "all"]:
             logging.info("Generating demo settings...")
+            settings = Settings.query.first()
+            if not settings:
+                settings = Settings.get_default_settings()
             settings.employee_types = generate_employee_types()
             settings.absence_types = generate_absence_types()
             try:
@@ -427,17 +392,23 @@ def generate_demo_data():
                     raise
 
                 # Generate coverage data
-                logging.info("Generating demo coverage...")
-                coverage_slots = generate_coverage_data()
-                db.session.add_all(coverage_slots)
                 try:
+                    # Clear existing coverage data in a transaction
+                    logging.info("Clearing existing coverage data...")
+                    Coverage.query.delete()
+                    db.session.commit()
+
+                    # Generate and save new coverage data in a new transaction
+                    logging.info("Generating demo coverage...")
+                    coverage_slots = generate_coverage_data()
+                    db.session.add_all(coverage_slots)
                     db.session.commit()
                     logging.info(
                         f"Successfully created {len(coverage_slots)} coverage slots"
                     )
                 except Exception as e:
                     db.session.rollback()
-                    logging.error(f"Error creating coverage slots: {str(e)}")
+                    logging.error(f"Error managing coverage data: {str(e)}")
                     raise
 
         elif module == "availability":
@@ -454,6 +425,26 @@ def generate_demo_data():
             except Exception as e:
                 db.session.rollback()
                 logging.error(f"Error creating availabilities: {str(e)}")
+                raise
+
+        elif module == "coverage":
+            try:
+                # Clear existing coverage data in a transaction
+                logging.info("Clearing existing coverage data...")
+                Coverage.query.delete()
+                db.session.commit()
+
+                # Generate and save new coverage data in a new transaction
+                logging.info("Generating demo coverage...")
+                coverage_slots = generate_coverage_data()
+                db.session.add_all(coverage_slots)
+                db.session.commit()
+                logging.info(
+                    f"Successfully created {len(coverage_slots)} coverage slots"
+                )
+            except Exception as e:
+                db.session.rollback()
+                logging.error(f"Error managing coverage data: {str(e)}")
                 raise
 
         # Update settings to record the execution
