@@ -1,14 +1,24 @@
 from . import db
 from enum import Enum
-from datetime import datetime, time
-from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey, Date, Enum as SQLEnum
+from datetime import datetime
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Boolean,
+    Float,
+    ForeignKey,
+    Date,
+    Enum as SQLEnum,
+)
 from sqlalchemy.orm import relationship
 from datetime import date
 
+
 class AvailabilityType(str, Enum):
     AVAILABLE = "AVL"  # Available for work
-    FIXED = "FIX"     # Fixed working hours
-    PROMISE = "PRM"   # Promised/preferred hours
+    FIXED = "FIX"  # Fixed working hours
+    PROMISE = "PRM"  # Promised/preferred hours
     UNAVAILABLE = "UNV"  # Not available
 
     @property
@@ -23,18 +33,20 @@ class AvailabilityType(str, Enum):
             self.FIXED: 1,
             self.AVAILABLE: 2,
             self.PROMISE: 3,
-            self.UNAVAILABLE: 4
+            self.UNAVAILABLE: 4,
         }
         return priorities.get(self, 4)
 
+
 class EmployeeGroup(str, Enum):
-    VZ = "VZ"   # Vollzeit
-    TZ = "TZ"   # Teilzeit
-    GFB = "GFB" # Geringfügig Beschäftigt
-    TL = "TL"   # Team Leader
+    VZ = "VZ"  # Vollzeit
+    TZ = "TZ"  # Teilzeit
+    GFB = "GFB"  # Geringfügig Beschäftigt
+    TL = "TL"  # Team Leader
+
 
 class Employee(db.Model):
-    __tablename__ = 'employees'
+    __tablename__ = "employees"
 
     id = Column(Integer, primary_key=True)
     employee_id = Column(String(50), unique=True, nullable=False)
@@ -47,14 +59,28 @@ class Employee(db.Model):
     email = Column(String(120), unique=True, nullable=True)
     phone = Column(String(20), nullable=True)
     created_at = Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Relationships
-    shifts = relationship('Schedule', back_populates='employee')
-    availabilities = relationship("EmployeeAvailability", back_populates="employee", cascade="all, delete-orphan")
+    updated_at = Column(
+        db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
 
-    def __init__(self, employee_id, first_name, last_name, employee_group, contracted_hours, 
-                 is_keyholder=False, is_active=True, email=None, phone=None):
+    # Relationships
+    shifts = relationship("Schedule", back_populates="employee")
+    availabilities = relationship(
+        "EmployeeAvailability", back_populates="employee", cascade="all, delete-orphan"
+    )
+
+    def __init__(
+        self,
+        employee_id,
+        first_name,
+        last_name,
+        employee_group,
+        contracted_hours,
+        is_keyholder=False,
+        is_active=True,
+        email=None,
+        phone=None,
+    ):
         self.employee_id = employee_id
         self.first_name = first_name
         self.last_name = last_name
@@ -64,7 +90,7 @@ class Employee(db.Model):
         self.is_active = is_active
         self.email = email
         self.phone = phone
-        
+
         # Validate the employee data
         if not self.validate_hours():
             raise ValueError("Invalid contracted hours for employee group")
@@ -72,10 +98,10 @@ class Employee(db.Model):
     def _generate_employee_id(self, first_name, last_name):
         """Generate a unique 3-letter identifier based on name"""
         # Handle short names by padding with 'X'
-        first = first_name[0] if first_name else 'X'
-        last = last_name[:2] if len(last_name) >= 2 else (last_name + 'X' * 2)[:2]
+        first = first_name[0] if first_name else "X"
+        last = last_name[:2] if len(last_name) >= 2 else (last_name + "X" * 2)[:2]
         base_id = (first + last).upper()
-        
+
         # Check if ID exists and generate alternative if needed
         counter = 1
         temp_id = base_id
@@ -88,7 +114,7 @@ class Employee(db.Model):
         """Validate contracted hours based on employee group and legal limits"""
         if not 0 <= self.contracted_hours <= 48:  # German labor law maximum
             return False
-            
+
         if self.employee_group in [EmployeeGroup.VZ, EmployeeGroup.TL]:
             # Full-time employees should work between 35 and 48 hours
             return 35 <= self.contracted_hours <= 48
@@ -120,43 +146,60 @@ class Employee(db.Model):
     def to_dict(self):
         """Convert employee object to dictionary for JSON serialization"""
         return {
-            'id': self.id,
-            'employee_id': self.employee_id,
-            'first_name': self.first_name,
-            'last_name': self.last_name,
-            'employee_group': self.employee_group.value,
-            'contracted_hours': self.contracted_hours,
-            'is_keyholder': self.is_keyholder,
-            'is_active': self.is_active,
-            'email': self.email,
-            'phone': self.phone,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'max_daily_hours': self.get_max_daily_hours(),
-            'max_weekly_hours': self.get_max_weekly_hours()
+            "id": self.id,
+            "employee_id": self.employee_id,
+            "first_name": self.first_name,
+            "last_name": self.last_name,
+            "employee_group": self.employee_group.value,
+            "contracted_hours": self.contracted_hours,
+            "is_keyholder": self.is_keyholder,
+            "is_active": self.is_active,
+            "email": self.email,
+            "phone": self.phone,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "max_daily_hours": self.get_max_daily_hours(),
+            "max_weekly_hours": self.get_max_weekly_hours(),
         }
 
     def __repr__(self):
         return f"<Employee {self.employee_id}: {self.first_name} {self.last_name}>"
 
+
 class EmployeeAvailability(db.Model):
-    __tablename__ = 'employee_availabilities'
+    __tablename__ = "employee_availabilities"
 
     id = Column(Integer, primary_key=True)
-    employee_id = Column(Integer, ForeignKey('employees.id', ondelete='CASCADE'), nullable=False)
+    employee_id = Column(
+        Integer, ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
+    )
     day_of_week = Column(Integer, nullable=False)
     hour = Column(Integer, nullable=False)
     is_available = Column(Boolean, nullable=False, default=True)
     start_date = Column(Date, nullable=True)
     end_date = Column(Date, nullable=True)
     is_recurring = Column(Boolean, nullable=False, default=True)
-    availability_type = Column(SQLEnum(AvailabilityType), nullable=False, default=AvailabilityType.AVAILABLE)
+    availability_type = Column(
+        SQLEnum(AvailabilityType), nullable=False, default=AvailabilityType.AVAILABLE
+    )
     created_at = Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(
+        db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
 
     employee = relationship("Employee", back_populates="availabilities")
 
-    def __init__(self, employee_id, day_of_week, hour, is_available=True, start_date=None, end_date=None, is_recurring=True, availability_type=AvailabilityType.AVAILABLE):
+    def __init__(
+        self,
+        employee_id,
+        day_of_week,
+        hour,
+        is_available=True,
+        start_date=None,
+        end_date=None,
+        is_recurring=True,
+        availability_type=AvailabilityType.AVAILABLE,
+    ):
         self.employee_id = employee_id
         self.day_of_week = day_of_week
         self.hour = hour
@@ -168,20 +211,22 @@ class EmployeeAvailability(db.Model):
 
     def to_dict(self):
         return {
-            'id': self.id,
-            'employee_id': self.employee_id,
-            'day_of_week': self.day_of_week,
-            'hour': self.hour,
-            'is_available': self.is_available,
-            'start_date': self.start_date.isoformat() if self.start_date else None,
-            'end_date': self.end_date.isoformat() if self.end_date else None,
-            'is_recurring': self.is_recurring,
-            'availability_type': self.availability_type.value,
-            'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat()
+            "id": self.id,
+            "employee_id": self.employee_id,
+            "day_of_week": self.day_of_week,
+            "hour": self.hour,
+            "is_available": self.is_available,
+            "start_date": self.start_date.isoformat() if self.start_date else None,
+            "end_date": self.end_date.isoformat() if self.end_date else None,
+            "is_recurring": self.is_recurring,
+            "availability_type": self.availability_type.value,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
         }
 
-    def is_available_for_date(self, check_date: date, shift_start: str = None, shift_end: str = None) -> bool:
+    def is_available_for_date(
+        self, check_date: date, shift_start: str = None, shift_end: str = None
+    ) -> bool:
         """Check if the availability applies for a given date and shift times."""
         # First check if the availability applies to this date
         if not self.is_recurring:
@@ -194,13 +239,14 @@ class EmployeeAvailability(db.Model):
         if self.day_of_week != check_date.weekday():
             return False
 
-        # If no shift times provided, just check the date
+        # If no shift times provided, just check the date and availability
         if shift_start is None or shift_end is None:
-            return True
+            return bool(self.is_available)
 
         # Convert shift times to hours
-        start_hour = int(shift_start.split(':')[0])
-        end_hour = int(shift_end.split(':')[0])
+        start_hour = int(shift_start.split(":")[0])
+        end_hour = int(shift_end.split(":")[0])
 
-        # Check if the hour falls within the shift
-        return start_hour <= self.hour < end_hour and self.is_available 
+        # Check if the availability hour falls within the shift hours
+        # Cast SQLAlchemy boolean to Python boolean with bool()
+        return start_hour <= self.hour < end_hour and bool(self.is_available)

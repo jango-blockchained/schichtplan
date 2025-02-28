@@ -73,14 +73,14 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
         const storeOpeningMinutes = parseInt(storeConfig.store_opening.split(':')[1]);
         const storeClosingMinutes = parseInt(storeConfig.store_closing.split(':')[1]);
 
-        // Calculate start time
-        const startHour = storeOpeningHour + hour;
+        // Calculate start time based on the hour index
+        const startHour = storeOpeningHour + Math.floor(hour);
         const startMinutes = hour === 0 ? storeOpeningMinutes : 0;
         const startTime = `${startHour.toString().padStart(2, '0')}:${startMinutes.toString().padStart(2, '0')}`;
 
         // Calculate end time - either next hour or store closing time
         const endHour = Math.min(startHour + 1, storeClosingHour);
-        const endMinutes = endHour === storeClosingHour ? storeClosingMinutes : startMinutes;
+        const endMinutes = endHour === storeClosingHour ? storeClosingMinutes : 0;
         const endTime = `${endHour.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
 
         if (startHour >= storeClosingHour) {
