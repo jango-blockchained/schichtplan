@@ -394,14 +394,14 @@ export function SchedulePage() {
           <div className="flex items-center space-x-2">
             {versions && versions.length > 0 && (
               <Select
-                value={selectedVersion?.toString()}
-                onValueChange={(value) => setSelectedVersion(value ? parseInt(value, 10) : undefined)}
+                value={selectedVersion?.toString() ?? "current"}
+                onValueChange={(value) => setSelectedVersion(value === "current" ? undefined : parseInt(value, 10))}
               >
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder="Version auswählen" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Aktuelle Version</SelectItem>
+                  <SelectItem value="current">Aktuelle Version</SelectItem>
                   {versions.map((version) => (
                     <SelectItem key={version} value={version.toString()}>
                       Version {version}
