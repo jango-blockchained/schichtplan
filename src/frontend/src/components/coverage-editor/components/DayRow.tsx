@@ -19,91 +19,54 @@ export const DayRow: React.FC<DayRowProps> = ({
     gridWidth,
     storeConfig,
 }) => {
-    const gridStartMinutes = timeToMinutes(hours[0]);
-    const gridEndMinutes = timeToMinutes(hours[hours.length - 1]) + 60;
-    const totalGridMinutes = gridEndMinutes - gridStartMinutes;
+    const handleDropBlock = (slot: any, newStartIndex: number) => {
+        const newStartTime = hours[newStartIndex];
+        const durationMinutes = timeToMinutes(slot.endTime) - timeToMinutes(slot.startTime);
+        const newEndTime = minutesToTime(timeToMinutes(newStartTime) + durationMinutes);
 
-    const gridContentWidth = gridWidth - TIME_COLUMN_WIDTH;
-    const minuteWidth = gridContentWidth / totalGridMinutes;
-
-    const handleDropBlock = (slot: any, cellIndex: number) => {
-        if (!isEditing) return;
-
-        // Find the slot index
+        // Find the slot index in the current slots array
         const slotIndex = slots.findIndex(s =>
             s.startTime === slot.startTime &&
-            s.endTime === slot.endTime &&
-            s.minEmployees === slot.minEmployees &&
-            s.maxEmployees === slot.maxEmployees
+            s.endTime === slot.endTime
         );
 
-        if (slotIndex === -1) return;
-
-        // Calculate new start time based on cell index and grid start time
-        const cellMinutes = cellIndex * 60; // Each cell is one hour
-        const newStartMinutes = gridStartMinutes + cellMinutes;
-
-        // Maintain the original duration
-        const originalDuration = timeToMinutes(slot.endTime) - timeToMinutes(slot.startTime);
-        const newEndMinutes = newStartMinutes + originalDuration;
-
-        // Convert to time strings and snap to quarter hours
-        const newStartTime = snapToQuarterHour(minutesToTime(newStartMinutes));
-        const newEndTime = snapToQuarterHour(minutesToTime(newEndMinutes));
-
-        // Validate against store hours
-        const storeOpeningMinutes = timeToMinutes(storeConfig.store_opening);
-        const storeClosingMinutes = timeToMinutes(storeConfig.store_closing);
-
-        if (timeToMinutes(newStartTime) < storeOpeningMinutes ||
-            timeToMinutes(newEndTime) > storeClosingMinutes) {
-            return; // Outside store hours
-        }
-
-        // Check for conflicts using minute-based comparisons
-        const hasConflict = slots.some((existingSlot, index) => {
-            if (index === slotIndex) return false;
-
-            const existingStartMinutes = timeToMinutes(existingSlot.startTime);
-            const existingEndMinutes = timeToMinutes(existingSlot.endTime);
-            const newStartMin = timeToMinutes(newStartTime);
-            const newEndMin = timeToMinutes(newEndTime);
-
-            return (newStartMin < existingEndMinutes && newEndMin > existingStartMinutes);
-        });
-
-        if (!hasConflict) {
+        if (slotIndex !== -1) {
             onUpdateSlot(slotIndex, {
-                startTime: newStartTime,
-                endTime: newEndTime
+                startTime: snapToQuarterHour(newStartTime),
+                endTime: snapToQuarterHour(newEndTime)
             });
         }
     };
 
     return (
-        <div className="flex w-full border-b border-border/50 hover:bg-accent/5">
+        <div className="flex border-b relative" style={{ height: CELL_HEIGHT }}>
+            {/* Day label */}
             <div
-                className="flex items-center justify-center font-medium shrink-0 border-r border-border/50 text-sm text-muted-foreground"
-                style={{ width: TIME_COLUMN_WIDTH, height: CELL_HEIGHT }}
+                className="shrink-0 flex items-center justify-center font-medium border-r bg-muted/5"
+                style={{ width: TIME_COLUMN_WIDTH }}
             >
                 {dayName}
             </div>
-            <div className="flex-1 relative flex">
-                {hours.map((hour, i) => (
+
+            {/* Time grid */}
+            <div className="flex-1 flex relative">
+                {hours.map((hour, index) => (
                     <TimeGridCell
                         key={hour}
                         hour={hour}
-                        cellIndex={i}
+                        cellIndex={index}
                         dayIndex={dayIndex}
                         slots={slots}
-                        onAddSlot={() => onAddSlot(i)}
+                        onAddSlot={() => onAddSlot(index)}
                         isEditing={isEditing}
                         onDropBlock={handleDropBlock}
                     />
                 ))}
+
+                {/* Coverage blocks */}
                 {slots.map((slot, index) => (
                     <CoverageBlock
-                        key={index}
+                        key={`${slot.startTime}-${slot.endTime}-${index}`}
                         slot={slot}
                         dayIndex={dayIndex}
                         onUpdate={(updates) => onUpdateSlot(index, updates)}
