@@ -9,7 +9,7 @@ class ShiftValidationError(Exception):
     pass
 
 
-class Shift(db.Model):
+class ShiftTemplate(db.Model):
     __tablename__ = "shifts"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -76,10 +76,19 @@ class Shift(db.Model):
 
     def _calculate_duration(self):
         """Calculate shift duration in hours"""
-        start_hour, start_min = map(int, self.start_time.split(":"))
-        end_hour, end_min = map(int, self.end_time.split(":"))
-        duration_minutes = (end_hour * 60 + end_min) - (start_hour * 60 + start_min)
-        self.duration_hours = duration_minutes / 60.0
+        start_hour, start_minute = map(int, self.start_time.split(":"))
+        end_hour, end_minute = map(int, self.end_time.split(":"))
+
+        # Convert to minutes
+        start_minutes = start_hour * 60 + start_minute
+        end_minutes = end_hour * 60 + end_minute
+
+        # Handle overnight shifts
+        if end_minutes < start_minutes:
+            end_minutes += 24 * 60  # Add 24 hours
+
+        # Calculate duration in hours
+        self.duration_hours = (end_minutes - start_minutes) / 60
 
     def _validate_store_hours(self):
         """Validate that shift times are within store hours, considering keyholder requirements"""
@@ -125,4 +134,102 @@ class Shift(db.Model):
         }
 
     def __repr__(self):
-        return f"<Shift {self.start_time}-{self.end_time}>"
+        return f"<ShiftTemplate {self.start_time}-{self.end_time}>"
+
+    @staticmethod
+    def time_to_minutes(time_str):
+        """Convert time string to minutes since midnight"""
+        hour, minute = map(int, time_str.split(":"))
+        return hour * 60 + minute
+
+    def validate_times(self):
+        """Validate shift times"""
+        # Check if end time is after start time
+        start_minutes = self.time_to_minutes(self.start_time)
+        end_minutes = self.time_to_minutes(self.end_time)
+
+        # Allow overnight shifts
+        if end_minutes < start_minutes:
+            end_minutes += 24 * 60  # Add 24 hours
+
+        # Check if shift is too short (less than 1 hour)
+        if end_minutes - start_minutes < 60:
+            raise ShiftValidationError("Shift must be at least 1 hour long")
+
+        # Check if shift is too long (more than 12 hours)
+        if end_minutes - start_minutes > 12 * 60:
+            raise ShiftValidationError("Shift cannot be longer than 12 hours")
+
+        # Check if break is required
+        if self.requires_break and end_minutes - start_minutes > 6 * 60:
+            # Shifts longer than 6 hours require a break
+            pass  # This is just a validation, actual break scheduling happens elsewhere
+
+        return True
+
+    @staticmethod
+    def create_default_shifts():
+        """Create a set of default shifts for a typical retail store"""
+        default_shifts = [
+            # Morning shifts
+            ShiftTemplate(
+                start_time="08:00",
+                end_time="16:00",
+                min_employees=2,
+                max_employees=4,
+                requires_break=True,
+            ),
+            ShiftTemplate(
+                start_time="09:00",
+                end_time="17:00",
+                min_employees=2,
+                max_employees=4,
+                requires_break=True,
+            ),
+            # Midday shifts
+            ShiftTemplate(
+                start_time="10:00",
+                end_time="18:00",
+                min_employees=2,
+                max_employees=4,
+                requires_break=True,
+            ),
+            ShiftTemplate(
+                start_time="11:00",
+                end_time="19:00",
+                min_employees=2,
+                max_employees=4,
+                requires_break=True,
+            ),
+            # Evening shifts
+            ShiftTemplate(
+                start_time="12:00",
+                end_time="20:00",
+                min_employees=2,
+                max_employees=4,
+                requires_break=True,
+            ),
+            # Part-time shifts
+            ShiftTemplate(
+                start_time="08:00",
+                end_time="12:00",
+                min_employees=1,
+                max_employees=2,
+                requires_break=False,
+            ),
+            ShiftTemplate(
+                start_time="12:00",
+                end_time="16:00",
+                min_employees=1,
+                max_employees=2,
+                requires_break=False,
+            ),
+            ShiftTemplate(
+                start_time="16:00",
+                end_time="20:00",
+                min_employees=1,
+                max_employees=2,
+                requires_break=False,
+            ),
+        ]
+        return default_shifts

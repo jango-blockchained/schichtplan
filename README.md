@@ -184,4 +184,59 @@ To initialize the database:
 cd src/backend
 flask db upgrade  # Apply all migrations
 python init_db.py  # Initialize with default data
-``` 
+```
+
+## Resource Type Clarification
+
+The application has two resource types for schedule generation:
+
+- **ShiftTemplate**: Fixed shift plan with more conditions (previously called "Shifts")
+- **Coverage**: More generic scheduling with fewer conditions (only employee amount)
+
+## Recent Changes
+
+### Backend Renaming
+
+We've renamed the `Shift` model to `ShiftTemplate` to better describe its purpose as a fixed template. This helps clarify the distinction between shifts and coverage in the application.
+
+- Renamed `shift.py` to `fixed_shift.py`
+- Renamed `Shift` class to `ShiftTemplate`
+- Updated all references to `Shift` in the codebase
+
+### Frontend Reorganization
+
+We've reorganized the frontend components into separate folders:
+
+- `src/frontend/src/components/shifts-editor/`: Contains all shift-related components
+- `src/frontend/src/components/coverage-editor/`: Contains all coverage-related components
+
+This helps prevent confusion between similarly named components and makes the codebase more maintainable.
+
+## Development
+
+### Frontend
+
+- Typescript
+- Bun runtime
+- Tailwind 4
+- shadcn-ui
+- Folder: `./src/frontend/`
+- Dev Cmd: `bun run dev`
+
+### Backend
+
+- Flask app
+- Python
+- Folder: `./src/backend/`
+- Virtual Env: `./.venv/`
+- Requirements File: `./requirements.txt`, `src/backend/requirements.txt`
+- Dev Cmd: `flask run`
+
+### Database
+
+- SQLite
+- Folder: `./src/backend/instance/app.db`
+
+### Logs
+
+- Folder: `./src/logs/` 

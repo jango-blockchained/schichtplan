@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, date
 from typing import List, Dict, Any, Optional, Tuple
 from models import (
     Employee,
-    Shift,
+    ShiftTemplate,
     Schedule,
     Settings,
     EmployeeAvailability,
@@ -77,7 +77,7 @@ class ScheduleResources:
         )
 
         # Load shifts
-        self.shifts = Shift.query.all()
+        self.shifts = ShiftTemplate.query.all()
         logger.schedule_logger.debug(f"Loaded {len(self.shifts)} shifts")
 
         # Load employees ordered by type: TL, VZ, TZ, GFB
@@ -338,14 +338,14 @@ class ScheduleGenerator:
             )
 
             # Get or create placeholder shift for empty schedules
-            placeholder_shift = Shift.query.filter_by(
+            placeholder_shift = ShiftTemplate.query.filter_by(
                 start_time="00:00", end_time="00:00"
             ).first()
             if not placeholder_shift:
                 logger.schedule_logger.info(
                     "Creating placeholder shift for empty schedules"
                 )
-                placeholder_shift = Shift(
+                placeholder_shift = ShiftTemplate(
                     start_time="00:00",
                     end_time="00:00",
                     min_employees=0,
@@ -741,7 +741,12 @@ class ScheduleGenerator:
 
     def _get_employee_hours(self, employee: Employee, date: date) -> float:
         """Get total hours for an employee on a given date"""
-        pass  # Implementation details...
+        schedules = Schedule.query.filter_by(employee_id=employee.id).all()
+        return sum(
+            schedule.shift.duration_hours
+            for schedule in schedules
+            if schedule.shift and schedule.shift.duration_hours
+        )
 
     def _get_store_config(self) -> Settings:
         """Get store configuration from database"""
@@ -765,12 +770,12 @@ class ScheduleGenerator:
         )
         return config
 
-    def _get_shifts(self) -> List[Shift]:
+    def _get_shifts(self) -> List[ShiftTemplate]:
         """Get all shifts from database"""
         logger.schedule_logger.debug(
             "Fetching shifts", extra={"action": "fetch_shifts"}
         )
-        shifts = Shift.query.all()
+        shifts = ShiftTemplate.query.all()
         if not shifts:
             logger.error_logger.error(
                 "No shifts found", extra={"action": "shifts_missing"}
@@ -812,7 +817,9 @@ class ScheduleGenerator:
             total_hours += shift.duration_hours
         return total_hours
 
-    def _check_availability(self, employee: Employee, day: date, shift: Shift) -> bool:
+    def _check_availability(
+        self, employee: Employee, day: date, shift: ShiftTemplate
+    ) -> bool:
         """Check if employee is available for the given shift"""
         # Get all relevant availability records
         availabilities = EmployeeAvailability.query.filter(
@@ -848,7 +855,7 @@ class ScheduleGenerator:
         return False
 
     def _assign_breaks(
-        self, schedule: Schedule, shift: Shift
+        self, schedule: Schedule, shift: ShiftTemplate
     ) -> Tuple[Optional[str], Optional[str]]:
         """Assign break times for a shift based on German labor law"""
         if not shift.requires_break():
@@ -890,7 +897,7 @@ class ScheduleGenerator:
         return None, None
 
     def _validate_break_rules(
-        self, shift: Shift, break_start: Optional[str], break_end: Optional[str]
+        self, shift: ShiftTemplate, break_start: Optional[str], break_end: Optional[str]
     ) -> bool:
         """Validate that break times comply with German labor law"""
         if not shift.requires_break():
@@ -921,7 +928,9 @@ class ScheduleGenerator:
 
         return True
 
-    def _check_daily_hours(self, employee: Employee, day: date, shift: Shift) -> bool:
+    def _check_daily_hours(
+        self, employee: Employee, day: date, shift: ShiftTemplate
+    ) -> bool:
         """Check if adding this shift would exceed daily hour limits"""
         # Get all shifts for this day
         existing_shifts = Schedule.query.filter(
@@ -934,7 +943,7 @@ class ScheduleGenerator:
         return total_hours <= 10  # Max 10 hours per day
 
     def _check_weekly_hours(
-        self, employee: Employee, week_start: date, shift: Shift
+        self, employee: Employee, week_start: date, shift: ShiftTemplate
     ) -> bool:
         """Check if adding this shift would exceed weekly hour limits"""
         week_hours = self._get_employee_hours(employee, week_start)
@@ -955,8 +964,8 @@ class ScheduleGenerator:
                     Schedule.date >= month_start,
                     Schedule.date <= week_start + timedelta(days=6),
                 )
-                .join(Shift)
-                .with_entities(db.func.sum(Shift.duration_hours))
+                .join(ShiftTemplate)
+                .with_entities(db.func.sum(ShiftTemplate.duration_hours))
                 .scalar()
                 or 0
             )
@@ -966,7 +975,9 @@ class ScheduleGenerator:
             max_monthly_hours = 556 / 12.41
             return month_hours + shift.duration_hours <= max_monthly_hours
 
-    def _check_rest_period(self, employee: Employee, day: date, shift: Shift) -> bool:
+    def _check_rest_period(
+        self, employee: Employee, day: date, shift: ShiftTemplate
+    ) -> bool:
         """Check if minimum rest period between shifts is respected (11 hours)"""
         # Get previous day's shift
         prev_day = day - timedelta(days=1)
@@ -974,7 +985,7 @@ class ScheduleGenerator:
             Schedule.query.filter(
                 Schedule.employee_id == employee.id, Schedule.date == prev_day
             )
-            .join(Shift)
+            .join(ShiftTemplate)
             .first()
         )
 
@@ -1000,7 +1011,7 @@ class ScheduleGenerator:
         return False
 
     def _check_shift_distribution(
-        self, employee: Employee, day: date, shift: Shift
+        self, employee: Employee, day: date, shift: ShiftTemplate
     ) -> bool:
         """Check if shift distribution is fair and follows employee group rules"""
         # Team Leaders and Full-time employees should have priority for Tuesday/Thursday shifts
@@ -1035,7 +1046,7 @@ class ScheduleGenerator:
         return True
 
     def _check_keyholder_coverage(
-        self, shift: Shift, day: date, current_schedules: List[Schedule]
+        self, shift: ShiftTemplate, day: date, current_schedules: List[Schedule]
     ) -> bool:
         """Check if keyholder coverage requirements are met for early/late shifts"""
         if shift.shift_type not in [ShiftType.EARLY, ShiftType.LATE]:
@@ -1053,7 +1064,7 @@ class ScheduleGenerator:
         return False
 
     def _validate_shift_against_store_hours(
-        self, shift: Shift, store_opening: str, store_closing: str
+        self, shift: ShiftTemplate, store_opening: str, store_closing: str
     ) -> bool:
         """Validate that shift times are within store hours"""
 
@@ -1068,7 +1079,9 @@ class ScheduleGenerator:
 
         return shift_start >= store_open and shift_end <= store_close
 
-    def _can_assign_shift(self, employee: Employee, shift: Shift, date: date) -> bool:
+    def _can_assign_shift(
+        self, employee: Employee, shift: ShiftTemplate, date: date
+    ) -> bool:
         """Check if an employee can be assigned to a shift on a given date"""
         # Check if employee is available on this day
         if not self._is_employee_available(employee, date):
@@ -1095,7 +1108,7 @@ class ScheduleGenerator:
         return True
 
     def _has_enough_rest_time(
-        self, employee: Employee, shift: Shift, date: date
+        self, employee: Employee, shift: ShiftTemplate, date: date
     ) -> bool:
         """Check if employee has enough rest time between shifts"""
         # Get previous day's schedule
@@ -1159,7 +1172,7 @@ class ScheduleGenerator:
 
     def _assign_employees_to_shift(
         self,
-        shift: Shift,
+        shift: ShiftTemplate,
         employees: List[Employee],
         date: datetime,
         availability_lookup: Dict[str, List[EmployeeAvailability]],
@@ -1228,11 +1241,11 @@ class ScheduleGenerator:
             # Check if employee has early shift next day
             next_day = date + timedelta(days=1)
             early_next_day = (
-                Schedule.query.join(Shift)
+                Schedule.query.join(ShiftTemplate)
                 .filter(
                     Schedule.employee_id == employee.id,
                     Schedule.date == next_day,
-                    Schedule.shift.has(Shift.start_time < "08:00"),
+                    Schedule.shift.has(ShiftTemplate.start_time < "08:00"),
                 )
                 .first()
             )
@@ -1243,11 +1256,11 @@ class ScheduleGenerator:
             # Check if employee had late shift previous day
             prev_day = date - timedelta(days=1)
             late_prev_day = (
-                Schedule.query.join(Shift)
+                Schedule.query.join(ShiftTemplate)
                 .filter(
                     Schedule.employee_id == employee.id,
                     Schedule.date == prev_day,
-                    Schedule.shift.has(Shift.end_time >= "18:00"),
+                    Schedule.shift.has(ShiftTemplate.end_time >= "18:00"),
                 )
                 .first()
             )

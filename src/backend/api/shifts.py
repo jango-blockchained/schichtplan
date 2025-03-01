@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
-from models import db, Shift
+from models import db, ShiftTemplate
 from http import HTTPStatus
-from models.shift import ShiftValidationError
+from models.fixed_shift import ShiftValidationError
 
 bp = Blueprint("shifts", __name__, url_prefix="/api/shifts")
 
@@ -9,14 +9,14 @@ bp = Blueprint("shifts", __name__, url_prefix="/api/shifts")
 @bp.route("/", methods=["GET"])
 def get_shifts():
     """Get all shifts"""
-    shifts = Shift.query.all()
+    shifts = ShiftTemplate.query.all()
     return jsonify([shift.to_dict() for shift in shifts]), HTTPStatus.OK
 
 
 @bp.route("/<int:shift_id>", methods=["GET"])
 def get_shift(shift_id):
     """Get shift by ID"""
-    shift = Shift.query.get_or_404(shift_id)
+    shift = ShiftTemplate.query.get_or_404(shift_id)
     return jsonify(shift.to_dict()), HTTPStatus.OK
 
 
@@ -26,7 +26,7 @@ def create_shift():
     data = request.get_json()
 
     try:
-        shift = Shift(
+        shift = ShiftTemplate(
             start_time=data["start_time"],
             end_time=data["end_time"],
             min_employees=int(data["min_employees"]),
@@ -64,7 +64,7 @@ def create_shift():
 @bp.route("/<int:shift_id>", methods=["PUT"])
 def update_shift(shift_id):
     """Update shift"""
-    shift = Shift.query.get_or_404(shift_id)
+    shift = ShiftTemplate.query.get_or_404(shift_id)
     data = request.get_json()
 
     try:
@@ -98,7 +98,7 @@ def update_shift(shift_id):
 @bp.route("/<int:shift_id>", methods=["DELETE"])
 def delete_shift(shift_id):
     """Delete shift"""
-    shift = Shift.query.get_or_404(shift_id)
+    shift = ShiftTemplate.query.get_or_404(shift_id)
 
     try:
         db.session.delete(shift)
@@ -116,7 +116,7 @@ def delete_shift(shift_id):
 def create_default_shifts():
     """Create default shifts"""
     try:
-        default_shifts = Shift.create_default_shifts()
+        default_shifts = ShiftTemplate.create_default_shifts()
         for shift in default_shifts:
             db.session.add(shift)
         db.session.commit()

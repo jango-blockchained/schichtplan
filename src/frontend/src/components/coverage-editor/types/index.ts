@@ -45,6 +45,8 @@ export interface CoverageBlockProps {
     gridWidth: number;
     storeConfig: StoreConfigProps;
     hours: string[];
+    gridStartMinutes: number;
+    totalGridMinutes: number;
 }
 
 export interface DayRowProps {
@@ -68,6 +70,8 @@ export interface TimeGridCellProps {
     onAddSlot: () => void;
     isEditing: boolean;
     onDropBlock?: (block: CoverageTimeSlot, newStartIndex: number) => void;
+    minuteWidth: number;
+    gridStartMinutes: number;
 }
 
 export interface CoverageEditorProps {

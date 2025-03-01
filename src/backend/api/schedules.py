@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, send_file
-from models import db, Schedule, Employee, Shift, Settings, EmployeeGroup
+from models import db, Schedule, Employee, ShiftTemplate, Settings, EmployeeGroup
 from http import HTTPStatus
 from datetime import datetime, timedelta, date
 import calendar
@@ -122,7 +122,7 @@ def generate_schedule():
 def _generate_day_schedule(
     current_date: date,
     employees: List[Employee],
-    shifts: List[Shift],
+    shifts: List[ShiftTemplate],
     store_config: Settings,
 ) -> List[Schedule]:
     """Generate schedule for a single day"""
@@ -205,7 +205,7 @@ def _generate_day_schedule(
 
 def _can_work_shift(
     employee: Employee,
-    shift: Shift,
+    shift: ShiftTemplate,
     current_date: date,
     employee_hours: Dict[int, float],
 ) -> bool:
@@ -218,17 +218,17 @@ def _can_work_shift(
             Schedule.date >= week_start,
             Schedule.date <= current_date,
         )
-        .join(Shift)
+        .join(ShiftTemplate)
         .with_entities(
             db.func.sum(
                 db.func.cast(
                     (
-                        db.func.strftime("%H", Shift.end_time)
-                        + db.func.strftime("%M", Shift.end_time) / 60.0
+                        db.func.strftime("%H", ShiftTemplate.end_time)
+                        + db.func.strftime("%M", ShiftTemplate.end_time) / 60.0
                     )
                     - (
-                        db.func.strftime("%H", Shift.start_time)
-                        + db.func.strftime("%M", Shift.start_time) / 60.0
+                        db.func.strftime("%H", ShiftTemplate.start_time)
+                        + db.func.strftime("%M", ShiftTemplate.start_time) / 60.0
                     ),
                     db.Float,
                 )
@@ -255,17 +255,17 @@ def _can_work_shift(
                 Schedule.date >= month_start,
                 Schedule.date <= current_date,
             )
-            .join(Shift)
+            .join(ShiftTemplate)
             .with_entities(
                 db.func.sum(
                     db.func.cast(
                         (
-                            db.func.strftime("%H", Shift.end_time)
-                            + db.func.strftime("%M", Shift.end_time) / 60.0
+                            db.func.strftime("%H", ShiftTemplate.end_time)
+                            + db.func.strftime("%M", ShiftTemplate.end_time) / 60.0
                         )
                         - (
-                            db.func.strftime("%H", Shift.start_time)
-                            + db.func.strftime("%M", Shift.start_time) / 60.0
+                            db.func.strftime("%H", ShiftTemplate.start_time)
+                            + db.func.strftime("%M", ShiftTemplate.start_time) / 60.0
                         ),
                         db.Float,
                     )
@@ -398,7 +398,7 @@ def test_schedule_generation(client, app):
         db.session.add(store_config)
 
         # Create shifts
-        opening_shift = Shift(
+        opening_shift = ShiftTemplate(
             start_time="08:00",
             end_time="16:00",
             min_employees=2,
@@ -408,7 +408,7 @@ def test_schedule_generation(client, app):
             active_days=[0, 1, 2, 3, 4, 5],  # Mon-Sat
         )
 
-        middle_shift = Shift(
+        middle_shift = ShiftTemplate(
             start_time="10:00",
             end_time="18:00",
             min_employees=2,
@@ -418,7 +418,7 @@ def test_schedule_generation(client, app):
             active_days=[0, 1, 2, 3, 4, 5],  # Mon-Sat
         )
 
-        closing_shift = Shift(
+        closing_shift = ShiftTemplate(
             start_time="12:00",
             end_time="20:00",
             min_employees=2,
