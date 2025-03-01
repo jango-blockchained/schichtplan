@@ -613,10 +613,29 @@ class ScheduleGenerator:
             existing_schedule = Schedule.query.filter(
                 Schedule.employee_id == candidate.id,
                 Schedule.date == date,
-                Schedule.shift_id == shift.id,
             ).first()
-            if not existing_schedule:
+            if not existing_schedule or (
+                existing_schedule.shift
+                and existing_schedule.shift.start_time == "00:00"
+            ):
                 filtered_candidates.append(candidate)
+                if (
+                    existing_schedule
+                    and existing_schedule.shift
+                    and existing_schedule.shift.start_time == "00:00"
+                ):
+                    # Delete the placeholder schedule
+                    db.session.delete(existing_schedule)
+                    try:
+                        db.session.commit()
+                        logger.schedule_logger.debug(
+                            f"Deleted placeholder schedule for {candidate.first_name} {candidate.last_name} on {date}"
+                        )
+                    except Exception as e:
+                        logger.error_logger.error(
+                            f"Failed to delete placeholder schedule: {str(e)}"
+                        )
+                        db.session.rollback()
         candidates = filtered_candidates
 
         # Filter out candidates who would exceed their weekly hours
@@ -819,24 +838,15 @@ class ScheduleGenerator:
         return (t1 <= t4) and (t2 >= t3)
 
     def _is_store_open(self, date: date) -> bool:
-        """Check if store is open on the given date"""
-        # Store is closed on Sundays
-        if date.weekday() == 6:  # Sunday
-            return False
-
+        """Check if the store is open on a given date"""
         # Get store settings
         settings = self.resources.settings
         if not settings:
             return True  # If no settings found, assume store is open
 
-        # Check if this is a holiday or special closing day
-        closed_dates = EmployeeAvailability.query.filter(
-            EmployeeAvailability.availability_type == AvailabilityType.STORE_CLOSED,
-            EmployeeAvailability.start_date <= date,
-            EmployeeAvailability.end_date >= date,
-        ).first()
-
-        return not bool(closed_dates)  # Store is open if no closed dates found
+        # Check if this day is in the store's opening days
+        day_index = date.weekday()  # 0-6 (Monday-Sunday)
+        return day_index in settings.opening_days
 
     def _get_employee_hours(self, employee: Employee, date: date) -> float:
         """Get total hours for an employee on a given date"""
