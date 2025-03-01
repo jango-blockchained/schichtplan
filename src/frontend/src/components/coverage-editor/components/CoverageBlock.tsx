@@ -6,7 +6,14 @@ import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '@/comp
 import { cn } from '@/lib/utils';
 import { CoverageBlockProps } from '../types';
 import { GRID_CONSTANTS } from '../utils/constants';
-import { formatDuration, minutesToTime, snapToQuarterHour, timeToMinutes } from '../utils/time';
+import {
+    formatDuration,
+    minutesToTime,
+    snapToQuarterHour,
+    timeToMinutes,
+    calculateGridPosition,
+    normalizeTime
+} from '../utils/time';
 import { BlockEditor } from './BlockEditor';
 
 const { TIME_COLUMN_WIDTH, CELL_HEIGHT, BLOCK_VERTICAL_PADDING } = GRID_CONSTANTS;
@@ -27,58 +34,47 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
     const [startWidth, setStartWidth] = useState(0);
     const [showEditor, setShowEditor] = useState(false);
 
-    // Use the original times from the slot without snapping for display
-    const displayStartTime = slot.startTime;
-    const displayEndTime = slot.endTime;
+    // Normalize times to ensure consistent format
+    const displayStartTime = normalizeTime(slot.startTime);
+    const displayEndTime = normalizeTime(slot.endTime);
 
-    // Use snapped times for calculations only
-    const snappedStartTime = snapToQuarterHour(slot.startTime);
-    const snappedEndTime = snapToQuarterHour(slot.endTime);
+    // Use snapped times for calculations
+    const snappedStartTime = snapToQuarterHour(displayStartTime);
+    const snappedEndTime = snapToQuarterHour(displayEndTime);
 
     // Determine if this is an opening or closing shift
     const isEarlyShift = snappedStartTime === storeConfig.store_opening;
     const isLateShift = snappedEndTime === storeConfig.store_closing;
 
-    // Calculate grid dimensions - use store hours without keyholder times
+    // Calculate grid dimensions
     const gridStartTime = hours[0];
     const gridEndTime = hours[hours.length - 1];
     const gridStartMinutes = timeToMinutes(gridStartTime);
-    const gridEndMinutes = timeToMinutes(gridEndTime) + 60; // Add one hour to get the full range
+    const gridEndMinutes = timeToMinutes(gridEndTime) + 60;
     const totalGridMinutes = gridEndMinutes - gridStartMinutes;
 
-    // Calculate block position and dimensions using the exact grid dimensions
+    // Calculate block position and dimensions
     const startMinutes = timeToMinutes(displayStartTime);
     const endMinutes = timeToMinutes(displayEndTime);
 
-    // Calculate the width of the grid content area (excluding the day column)
+    // Calculate the width of the grid content area
     const gridContentWidth = gridWidth - TIME_COLUMN_WIDTH;
 
-    // Calculate position based on minutes from start as a percentage of total grid minutes
-    const startOffsetPercentage = (startMinutes - gridStartMinutes) / totalGridMinutes;
-    const startOffset = gridContentWidth * startOffsetPercentage;
-
-    // Calculate width based on duration as a percentage of total grid minutes
-    const durationMinutes = endMinutes - startMinutes;
-    const durationPercentage = durationMinutes / totalGridMinutes;
-    const blockWidth = gridContentWidth * durationPercentage;
+    // Calculate position and width using the utility function
+    const startOffset = calculateGridPosition(displayStartTime, gridStartTime, totalGridMinutes, gridContentWidth);
+    const endOffset = calculateGridPosition(displayEndTime, gridStartTime, totalGridMinutes, gridContentWidth);
+    const blockWidth = endOffset - startOffset;
 
     // Calculate keyholder times
-    let keyholderBeforeMinutes = 0;
-    let keyholderAfterMinutes = 0;
+    const keyholderBeforeMinutes = isEarlyShift ? storeConfig.keyholder_before_minutes : 0;
+    const keyholderAfterMinutes = isLateShift ? storeConfig.keyholder_after_minutes : 0;
 
-    if (isEarlyShift) {
-        keyholderBeforeMinutes = storeConfig.keyholder_before_minutes;
-    }
-    if (isLateShift) {
-        keyholderAfterMinutes = storeConfig.keyholder_after_minutes;
-    }
-
-    // Calculate keyholder extensions as percentages of the grid
-    const keyholderBeforePercentage = keyholderBeforeMinutes / totalGridMinutes;
-    const keyholderAfterPercentage = keyholderAfterMinutes / totalGridMinutes;
-
-    const keyholderBeforeWidth = keyholderBeforeMinutes > 0 ? gridContentWidth * keyholderBeforePercentage : 0;
-    const keyholderAfterWidth = keyholderAfterMinutes > 0 ? gridContentWidth * keyholderAfterPercentage : 0;
+    const keyholderBeforeWidth = keyholderBeforeMinutes > 0
+        ? calculateGridPosition(minutesToTime(startMinutes - keyholderBeforeMinutes), gridStartTime, totalGridMinutes, gridContentWidth) - startOffset
+        : 0;
+    const keyholderAfterWidth = keyholderAfterMinutes > 0
+        ? calculateGridPosition(minutesToTime(endMinutes + keyholderAfterMinutes), gridStartTime, totalGridMinutes, gridContentWidth) - endOffset
+        : 0;
 
     const duration = formatDuration(displayStartTime, displayEndTime);
 
@@ -122,24 +118,27 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
         e.preventDefault();
 
         const diff = e.pageX - startX;
-        // Convert the pixel difference to minutes
         const minuteWidth = gridContentWidth / totalGridMinutes;
-        const additionalMinutes = Math.round(diff / minuteWidth / 15) * 15;
 
+        // Calculate new end minutes with 15-minute snapping
+        const additionalMinutes = Math.round(diff / minuteWidth / 15) * 15;
         const newEndMinutes = Math.min(
             Math.max(
-                startMinutes + 15, // Minimum 15 minutes
+                startMinutes + 15,
                 endMinutes + additionalMinutes
             ),
-            gridEndMinutes // Maximum is grid end time
+            gridEndMinutes
         );
 
-        // Calculate new width based on duration percentage
-        const newDurationMinutes = newEndMinutes - startMinutes;
-        const newDurationPercentage = newDurationMinutes / totalGridMinutes;
-        const newWidth = gridContentWidth * newDurationPercentage;
-
+        // Update block width using the grid position calculation
         if (blockRef.current) {
+            const newEndOffset = calculateGridPosition(
+                minutesToTime(newEndMinutes),
+                gridStartTime,
+                totalGridMinutes,
+                gridContentWidth
+            );
+            const newWidth = newEndOffset - startOffset;
             blockRef.current.style.width = `${newWidth}px`;
         }
     };
@@ -149,11 +148,10 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
         setIsResizing(false);
 
         const width = blockRef.current?.offsetWidth || 0;
-        // Convert width back to minutes
         const widthPercentage = width / gridContentWidth;
         const durationMinutes = Math.round(widthPercentage * totalGridMinutes / 15) * 15;
         const newEndMinutes = startMinutes + durationMinutes;
-        const newEndTime = minutesToTime(newEndMinutes);
+        const newEndTime = snapToQuarterHour(minutesToTime(newEndMinutes));
 
         onUpdate({
             endTime: newEndTime
@@ -171,43 +169,47 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
         }
     }, [isResizing]);
 
-    console.log("snappedStartTime:", snappedStartTime);
-    console.log("snappedEndTime:", snappedEndTime);
-    console.log("gridStartMinutes:", gridStartMinutes);
-    console.log("startMinutes:", startMinutes);
-    console.log("endMinutes:", endMinutes);
-    console.log("keyholderBeforeMinutes:", keyholderBeforeMinutes);
-    console.log("keyholderAfterMinutes:", keyholderAfterMinutes);
-    console.log("keyholderBeforeOffset:", keyholderBeforePercentage);
-    console.log("startOffset:", startOffset);
-    console.log("blockWidth:", blockWidth);
+    // Debug logging
+    console.log("Block Timing:", {
+        snappedStartTime,
+        snappedEndTime,
+        gridStartMinutes,
+        startMinutes,
+        endMinutes,
+        keyholderBeforeMinutes,
+        keyholderAfterMinutes,
+        startOffset,
+        blockWidth
+    });
+
     useEffect(() => {
         if (blockRef.current) {
             const computedStyle = window.getComputedStyle(blockRef.current);
-            console.log("CSS Properties - Position Exact:");
-            console.log("left:", computedStyle.left);
-            console.log("top:", computedStyle.top);
-            console.log("width:", computedStyle.width);
-            console.log("height:", computedStyle.height);
-            console.log("zIndex:", computedStyle.zIndex);
-            console.log("opacity:", computedStyle.opacity);
-            console.log("transform:", computedStyle.transform);
-            console.log("pointerEvents:", computedStyle.pointerEvents);
+            console.log("CSS Properties - Position Exact:", {
+                left: computedStyle.left,
+                top: computedStyle.top,
+                width: computedStyle.width,
+                height: computedStyle.height,
+                zIndex: computedStyle.zIndex,
+                opacity: computedStyle.opacity,
+                transform: computedStyle.transform,
+                pointerEvents: computedStyle.pointerEvents
+            });
         }
     }, [isDragging, isResizing, isEditing, blockWidth, startOffset]);
 
     useEffect(() => {
         if (blockRef.current) {
-            const computedStyle = window.getComputedStyle(blockRef.current);
-            console.log("CSS Properties - Position Relative:");
-            console.log("left:", `${TIME_COLUMN_WIDTH + startOffset}px`);
-            console.log("width:", `${blockWidth}px`);
-            console.log("height:", `${CELL_HEIGHT - BLOCK_VERTICAL_PADDING * 2}px`);
-            console.log("top:", `${BLOCK_VERTICAL_PADDING}px`);
-            console.log("opacity:", isDragging ? 0.5 : 1);
-            console.log("zIndex:", isResizing ? 10 : isDragging ? 20 : 1);
-            console.log("transform:", isDragging ? 'scale(1.02)' : 'scale(1)');
-            console.log("pointerEvents:", isEditing ? 'all' : 'none');
+            console.log("CSS Properties - Position Relative:", {
+                left: `${TIME_COLUMN_WIDTH + startOffset}px`,
+                width: `${blockWidth}px`,
+                height: `${CELL_HEIGHT - BLOCK_VERTICAL_PADDING * 2}px`,
+                top: `${BLOCK_VERTICAL_PADDING}px`,
+                opacity: isDragging ? 0.5 : 1,
+                zIndex: isResizing ? 10 : isDragging ? 20 : 1,
+                transform: isDragging ? 'scale(1.02)' : 'scale(1)',
+                pointerEvents: isEditing ? 'all' : 'none'
+            });
         }
     }, [isDragging, isResizing, isEditing, blockWidth, startOffset]);
 

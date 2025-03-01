@@ -5,7 +5,7 @@ export const timeToMinutes = (timeStr: string): number => {
 
 export const minutesToTime = (minutes: number): string => {
     const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
+    const mins = Math.round(minutes % 60);
     return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
 };
 
@@ -18,7 +18,7 @@ export const snapToQuarterHour = (timeStr: string): string => {
 export const formatDuration = (startTime: string, endTime: string): string => {
     const startMinutes = timeToMinutes(startTime);
     const endMinutes = timeToMinutes(endTime);
-    const diffMinutes = endMinutes - startMinutes;
+    const diffMinutes = Math.round((endMinutes - startMinutes) / 15) * 15;
     const diffHours = diffMinutes / 60;
 
     if (diffHours === Math.floor(diffHours)) {
@@ -34,4 +34,24 @@ export const formatDuration = (startTime: string, endTime: string): string => {
             return `${hours}h ${minutes}m`;
         }
     }
+};
+
+export const normalizeTime = (timeStr: string): string => {
+    return minutesToTime(timeToMinutes(timeStr));
+};
+
+export const isValidTimeFormat = (timeStr: string): boolean => {
+    return /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr);
+};
+
+export const calculateGridPosition = (
+    time: string,
+    gridStartTime: string,
+    totalMinutes: number,
+    gridWidth: number
+): number => {
+    const timeMinutes = timeToMinutes(time);
+    const startMinutes = timeToMinutes(gridStartTime);
+    const position = ((timeMinutes - startMinutes) / totalMinutes) * gridWidth;
+    return Math.round(position);
 }; 

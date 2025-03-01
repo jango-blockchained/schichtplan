@@ -375,19 +375,22 @@ class ScheduleGenerator:
                 "Creating initial empty schedules for all employees"
             )
             all_schedules = []
-            for employee in self.resources.employees:
-                empty_schedule = Schedule(
-                    employee_id=employee.id,
-                    date=start_date,
-                    shift_id=placeholder_shift.id,
-                    version=1,
-                )
-                empty_schedule.notes = "No assignments yet"
-                db.session.add(empty_schedule)
-                all_schedules.append(empty_schedule)
-                logger.schedule_logger.debug(
-                    f"Created empty schedule for {employee.first_name} {employee.last_name}"
-                )
+            current_date = start_date
+            while current_date <= end_date:
+                for employee in self.resources.employees:
+                    empty_schedule = Schedule(
+                        employee_id=employee.id,
+                        date=current_date,
+                        shift_id=placeholder_shift.id,
+                        version=1,
+                    )
+                    empty_schedule.notes = "No assignments yet"
+                    db.session.add(empty_schedule)
+                    all_schedules.append(empty_schedule)
+                    logger.schedule_logger.debug(
+                        f"Created empty schedule for {employee.first_name} {employee.last_name} on {current_date}"
+                    )
+                current_date += timedelta(days=1)
 
             try:
                 db.session.commit()
@@ -587,7 +590,87 @@ class ScheduleGenerator:
         self, date: date, coverage: Coverage, candidates: List[Employee]
     ):
         """Assign employees to a coverage slot"""
-        pass  # Implementation details...
+        logger.schedule_logger.debug(
+            f"Assigning employees for {date} {coverage.start_time}-{coverage.end_time}"
+        )
+
+        # Get the shift template for this coverage
+        shift = next(
+            (s for s in self.resources.shifts if s.id == coverage.shift_id),
+            None,
+        )
+        if not shift:
+            logger.error_logger.error(f"No shift found for coverage {coverage.id}")
+            return
+
+        # Sort candidates by priority (keyholders first if required)
+        if coverage.requires_keyholder:
+            candidates.sort(key=lambda e: not e.is_keyholder)
+
+        # Filter out candidates who already have shifts this day
+        filtered_candidates = []
+        for candidate in candidates:
+            existing_schedule = Schedule.query.filter(
+                Schedule.employee_id == candidate.id,
+                Schedule.date == date,
+                Schedule.shift_id == shift.id,
+            ).first()
+            if not existing_schedule:
+                filtered_candidates.append(candidate)
+        candidates = filtered_candidates
+
+        # Filter out candidates who would exceed their weekly hours
+        week_start = date - timedelta(days=date.weekday())
+        filtered_candidates = []
+        for candidate in candidates:
+            current_hours = self._get_employee_hours(candidate, week_start)
+            if current_hours is not None and shift.duration_hours is not None:
+                if current_hours + shift.duration_hours <= candidate.contracted_hours:
+                    filtered_candidates.append(candidate)
+        candidates = filtered_candidates
+
+        # Filter out candidates who don't have enough rest time
+        filtered_candidates = []
+        for candidate in candidates:
+            if self._has_enough_rest_time(candidate, shift, date):
+                filtered_candidates.append(candidate)
+        candidates = filtered_candidates
+
+        # Try to assign required number of employees
+        assigned_count = 0
+        for candidate in candidates:
+            if assigned_count >= coverage.max_employees:
+                break
+
+            # Create the schedule
+            schedule = Schedule(
+                employee_id=candidate.id, date=date, shift_id=shift.id, version=1
+            )
+            db.session.add(schedule)
+            try:
+                db.session.commit()
+                assigned_count += 1
+                logger.schedule_logger.info(
+                    f"Assigned {candidate.first_name} {candidate.last_name} to shift on {date}"
+                )
+            except Exception as e:
+                logger.error_logger.error(
+                    f"Failed to assign {candidate.first_name} {candidate.last_name}: {str(e)}"
+                )
+                db.session.rollback()
+
+        # Log if minimum coverage not met
+        if assigned_count < coverage.min_employees:
+            self.generation_errors.append(
+                {
+                    "type": "error",
+                    "message": f"Coverage requirement not met: Need {coverage.min_employees} employees, only {assigned_count} assigned",
+                    "date": date.strftime("%Y-%m-%d"),
+                    "time": f"{coverage.start_time}-{coverage.end_time}",
+                    "required": coverage.min_employees,
+                    "assigned": assigned_count,
+                }
+            )
 
     def _verify_minimum_coverage(self) -> List[Dict[str, Any]]:
         """Verify that minimum coverage requirements are met"""
@@ -737,7 +820,23 @@ class ScheduleGenerator:
 
     def _is_store_open(self, date: date) -> bool:
         """Check if store is open on the given date"""
-        pass  # Implementation details...
+        # Store is closed on Sundays
+        if date.weekday() == 6:  # Sunday
+            return False
+
+        # Get store settings
+        settings = self.resources.settings
+        if not settings:
+            return True  # If no settings found, assume store is open
+
+        # Check if this is a holiday or special closing day
+        closed_dates = EmployeeAvailability.query.filter(
+            EmployeeAvailability.availability_type == AvailabilityType.STORE_CLOSED,
+            EmployeeAvailability.start_date <= date,
+            EmployeeAvailability.end_date >= date,
+        ).first()
+
+        return not bool(closed_dates)  # Store is open if no closed dates found
 
     def _get_employee_hours(self, employee: Employee, date: date) -> float:
         """Get total hours for an employee on a given date"""
@@ -1087,14 +1186,20 @@ class ScheduleGenerator:
         if not self._is_employee_available(employee, date):
             return False
 
-        # Get start and end hours
-        start_hour = int(shift.start_time.split(":")[0])
-        end_hour = int(shift.end_time.split(":")[0])
-        is_opening = start_hour <= 9  # Opening shifts start at or before 9 AM
-        is_closing = end_hour >= 18  # Closing shifts end at or after 6 PM
+        # Get coverage requirements for this time slot
+        coverage = next(
+            (
+                c
+                for c in self.resources.coverage_data
+                if c.day_index == date.weekday()
+                and c.start_time == shift.start_time
+                and c.end_time == shift.end_time
+            ),
+            None,
+        )
 
-        # Check keyholder requirements for opening/closing shifts
-        if (is_opening or is_closing) and not employee.is_keyholder:
+        # If coverage requires a keyholder and employee is not one, they can't be assigned
+        if coverage and coverage.requires_keyholder and not employee.is_keyholder:
             return False
 
         # Check if employee has enough rest time between shifts
@@ -1117,13 +1222,41 @@ class ScheduleGenerator:
             employee_id=employee.id, date=prev_date
         ).first()
 
-        if prev_schedule:
-            # Check if there's enough rest time between shifts
-            prev_end_hour = int(prev_schedule.shift.end_time.split(":")[0])
-            curr_start_hour = int(shift.start_time.split(":")[0])
+        if prev_schedule and prev_schedule.shift:
+            # Convert times to datetime for proper comparison
+            prev_end = datetime.combine(
+                prev_date,
+                datetime.strptime(prev_schedule.shift.end_time, "%H:%M").time(),
+            )
+            curr_start = datetime.combine(
+                date, datetime.strptime(shift.start_time, "%H:%M").time()
+            )
 
-            # Calculate hours between shifts (across days)
-            hours_between = (24 - prev_end_hour) + curr_start_hour
+            # Calculate hours between shifts
+            hours_between = (curr_start - prev_end).total_seconds() / 3600
+
+            # Require at least 11 hours rest between shifts
+            if hours_between < 11:
+                return False
+
+        # Get next day's schedule
+        next_date = date + timedelta(days=1)
+        next_schedule = Schedule.query.filter_by(
+            employee_id=employee.id, date=next_date
+        ).first()
+
+        if next_schedule and next_schedule.shift:
+            # Convert times to datetime for proper comparison
+            curr_end = datetime.combine(
+                date, datetime.strptime(shift.end_time, "%H:%M").time()
+            )
+            next_start = datetime.combine(
+                next_date,
+                datetime.strptime(next_schedule.shift.start_time, "%H:%M").time(),
+            )
+
+            # Calculate hours between shifts
+            hours_between = (next_start - curr_end).total_seconds() / 3600
 
             # Require at least 11 hours rest between shifts
             if hours_between < 11:
@@ -1217,15 +1350,41 @@ class ScheduleGenerator:
 
     def _validate_shift_requirements(self, shift, current_date, assigned_employees):
         """Validate shift-specific requirements"""
-        if requires_keyholder(shift):
+        # Get coverage requirements for this time slot
+        coverage = next(
+            (
+                c
+                for c in self.resources.coverage_data
+                if c.day_index == current_date.weekday()
+                and c.start_time == shift.start_time
+                and c.end_time == shift.end_time
+            ),
+            None,
+        )
+
+        # Check if keyholder is required and assigned
+        if coverage and coverage.requires_keyholder:
             keyholder_assigned = any(e.is_keyholder for e in assigned_employees)
             if not keyholder_assigned:
                 return False
         return True
 
-    def _get_shift_priority(self, shift):
-        """Get priority for shift scheduling (early/late shifts first)"""
-        if requires_keyholder(shift):
+    def _get_shift_priority(self, shift, current_date):
+        """Get priority for shift scheduling (keyholder shifts first)"""
+        # Get coverage requirements for this time slot
+        coverage = next(
+            (
+                c
+                for c in self.resources.coverage_data
+                if c.day_index == current_date.weekday()
+                and c.start_time == shift.start_time
+                and c.end_time == shift.end_time
+            ),
+            None,
+        )
+
+        # Prioritize shifts that require keyholders
+        if coverage and coverage.requires_keyholder:
             return 0
         return 1
 

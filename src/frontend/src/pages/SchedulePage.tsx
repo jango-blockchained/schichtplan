@@ -52,6 +52,23 @@ export function SchedulePage() {
     selectedVersion
   );
 
+  // Fetch data on initial load
+  useEffect(() => {
+    if (!isLoading && !scheduleData.length) {
+      refetch();
+    }
+  }, []);
+
+  // Log fetch errors
+  useEffect(() => {
+    if (fetchError) {
+      addGenerationLog('error', 'Error fetching schedule data',
+        typeof fetchError === 'object' && fetchError !== null && 'message' in fetchError
+          ? String((fetchError as { message: unknown }).message)
+          : "Ein unerwarteter Fehler ist aufgetreten");
+    }
+  }, [fetchError]);
+
   const addGenerationLog = (type: 'info' | 'warning' | 'error', message: string, details?: string) => {
     setGenerationLogs(prev => [...prev, {
       timestamp: new Date(),
@@ -100,7 +117,14 @@ export function SchedulePage() {
       return result;
     },
     onSuccess: (data) => {
-      refetch();
+      if (data?.schedules) {
+        // Update the schedule data directly without refetching
+        scheduleData.length = 0;
+        scheduleData.push(...data.schedules);
+      } else {
+        // Fallback to refetch if schedules are not in the response
+        refetch();
+      }
       toast({
         title: "Erfolg",
         description: `Schichtplan wurde erfolgreich generiert. ${data?.total_shifts || 0} Schichten wurden erstellt.`,
@@ -259,16 +283,6 @@ export function SchedulePage() {
       });
     }
   };
-
-  // Fix the fetchError type
-  useEffect(() => {
-    if (fetchError) {
-      addGenerationLog('error', 'Error fetching schedule data',
-        typeof fetchError === 'object' && fetchError !== null && 'message' in fetchError
-          ? String((fetchError as { message: unknown }).message)
-          : "Ein unerwarteter Fehler ist aufgetreten");
-    }
-  }, [fetchError]);
 
   // Show loading skeleton for initial data fetch
   if (isLoading && !scheduleData) {

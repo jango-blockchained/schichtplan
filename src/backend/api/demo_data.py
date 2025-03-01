@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from models import db, Settings, Employee, Coverage, EmployeeAvailability
+from models import db, Settings, Employee, Coverage, EmployeeAvailability, ShiftTemplate
 from models.employee import AvailabilityType
 from http import HTTPStatus
 from datetime import datetime
@@ -154,7 +154,7 @@ def generate_employee_data():
     ]
 
     employees = []
-    for i in range(20):
+    for i in range(30):
         emp_type = random.choice(employee_types)
         first_name = random.choice(first_names)
         last_name = random.choice(last_names)
@@ -198,17 +198,46 @@ def generate_coverage_data():
     if not settings:
         settings = Settings.get_default_settings()
 
-    # Calculate times based on store settings
-    store_opening = settings.store_opening
-    store_closing = settings.store_closing
+    # Get or create shift templates
+    morning_shift = ShiftTemplate.query.filter_by(
+        start_time=settings.store_opening, end_time="14:00"
+    ).first()
+    if not morning_shift:
+        morning_shift = ShiftTemplate(
+            start_time=settings.store_opening,
+            end_time="14:00",
+            min_employees=1,
+            max_employees=2,
+            requires_break=True,
+        )
+        db.session.add(morning_shift)
+
+    afternoon_shift = ShiftTemplate.query.filter_by(
+        start_time="14:00", end_time=settings.store_closing
+    ).first()
+    if not afternoon_shift:
+        afternoon_shift = ShiftTemplate(
+            start_time="14:00",
+            end_time=settings.store_closing,
+            min_employees=1,
+            max_employees=2,
+            requires_break=True,
+        )
+        db.session.add(afternoon_shift)
+
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        raise e
 
     coverage_slots = []
-    for day_index in range(1, 7):  # Monday to Saturday
+    for day_index in range(0, 6):  # Monday (0) to Saturday (5)
         # Morning slot
         coverage_slots.append(
             Coverage(
                 day_index=day_index,
-                start_time=store_opening,
+                start_time=settings.store_opening,
                 end_time="14:00",
                 min_employees=1,
                 max_employees=2,
@@ -216,6 +245,7 @@ def generate_coverage_data():
                 requires_keyholder=True,
                 keyholder_before_minutes=settings.keyholder_before_minutes,
                 keyholder_after_minutes=0,
+                shift_id=morning_shift.id,
             )
         )
         # Afternoon slot
@@ -223,13 +253,14 @@ def generate_coverage_data():
             Coverage(
                 day_index=day_index,
                 start_time="14:00",
-                end_time=store_closing,
+                end_time=settings.store_closing,
                 min_employees=1,
                 max_employees=2,
                 employee_types=["TL", "VZ", "TZ", "GFB"],
                 requires_keyholder=True,
                 keyholder_before_minutes=0,
                 keyholder_after_minutes=settings.keyholder_after_minutes,
+                shift_id=afternoon_shift.id,
             )
         )
 
