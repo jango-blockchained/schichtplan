@@ -3,7 +3,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
-import { Shift, Settings } from '@/types';
+import { Settings } from '@/types';
+import { Shift } from '@/services/api';
 import { ShiftCoverageView } from './ShiftCoverageView';
 import { ShiftForm } from './ShiftForm';
 import { ShiftEditorProps } from '../types';
@@ -20,13 +21,6 @@ export const ShiftEditor: React.FC<ShiftEditorProps> = ({
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <h2 className="text-3xl font-bold tracking-tight">Shift Management</h2>
-                <Button onClick={onAddShift}>
-                    <Plus className="mr-2 h-4 w-4" /> Add Shift
-                </Button>
-            </div>
-
             <Tabs defaultValue="coverage" value={activeTab} onValueChange={setActiveTab}>
                 <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="coverage">Coverage View</TabsTrigger>
@@ -52,19 +46,31 @@ export const ShiftEditor: React.FC<ShiftEditorProps> = ({
 
                 <TabsContent value="list">
                     <Card>
-                        <CardHeader>
-                            <CardTitle>Shift List</CardTitle>
-                            <CardDescription>
-                                Manage your shifts
-                            </CardDescription>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                            <div>
+                                <CardTitle>Shift List</CardTitle>
+                                <CardDescription>
+                                    Manage your shifts
+                                </CardDescription>
+                            </div>
+                            {onAddShift && (
+                                <Button onClick={onAddShift} size="sm">
+                                    <Plus className="mr-2 h-4 w-4" /> Add Shift
+                                </Button>
+                            )}
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
                                 {shifts.map(shift => (
                                     <ShiftForm
                                         key={shift.id}
+                                        settings={settings}
                                         shift={shift}
-                                        onSave={onUpdateShift}
+                                        onSave={(data) => onUpdateShift && onUpdateShift({
+                                            ...shift,
+                                            ...data,
+                                            duration_hours: calculateDuration(data.start_time, data.end_time)
+                                        })}
                                         onDelete={onDeleteShift ? () => onDeleteShift(shift.id) : undefined}
                                     />
                                 ))}
@@ -80,4 +86,18 @@ export const ShiftEditor: React.FC<ShiftEditorProps> = ({
             </Tabs>
         </div>
     );
+};
+
+// Helper function to calculate duration in hours
+const calculateDuration = (start_time: string, end_time: string): number => {
+    const timeToMinutes = (time: string): number => {
+        const [hours, minutes] = time.split(':').map(Number);
+        return hours * 60 + minutes;
+    };
+
+    const startMinutes = timeToMinutes(start_time);
+    const endMinutes = timeToMinutes(end_time);
+    let duration = endMinutes - startMinutes;
+    if (duration < 0) duration += 24 * 60; // Handle overnight shifts
+    return duration / 60;
 }; 

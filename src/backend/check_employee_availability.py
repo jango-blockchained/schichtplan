@@ -6,7 +6,7 @@ def check_availability():
     print("Checking employee availability...")
 
     # Connect to the database
-    conn = sqlite3.connect("instance/app.db")
+    conn = sqlite3.connect("../instance/app.db")
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 

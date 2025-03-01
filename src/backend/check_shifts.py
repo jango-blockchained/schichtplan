@@ -1,44 +1,68 @@
+import sys
+import os
+import logging
+
+# Add the current directory to the path so we can import modules
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+# Import app and models after path setup
 from app import create_app
-from models import db
-from datetime import date, timedelta
+from models import ShiftTemplate, Employee
 
 
-def check_shifts_and_coverage():
+def main():
+    # Create Flask app context
     app = create_app()
+
     with app.app_context():
-        print("Checking shifts in database...")
+        try:
+            # Query all shifts
+            shifts = ShiftTemplate.query.all()
+            logger.info(f"Found {len(shifts)} shifts")
 
-        # Get all shifts
-        shifts = db.session.execute(db.text("SELECT * FROM shifts")).fetchall()
-        print(f"Found {len(shifts)} shifts:")
-        for shift in shifts:
-            # Print the column names for the first row to see what's available
-            if shifts.index(shift) == 0:
-                print("  Available columns:", shift._mapping.keys())
-
-            # Access columns by index to be safe
-            print(f"  - Shift {shift[0]}: {shift[1]}-{shift[2]}, Duration: {shift[3]}h")
-
-        print("\nChecking coverage requirements...")
-
-        # Calculate next week's dates (same as in test_schedule_generation.py)
-        today = date.today()
-        next_monday = today + timedelta(days=(7 - today.weekday()))
-        next_sunday = next_monday + timedelta(days=6)
-
-        # Get coverage requirements for next week
-        coverage_reqs = db.session.execute(db.text("SELECT * FROM coverage")).fetchall()
-
-        print(f"Found {len(coverage_reqs)} coverage requirements:")
-        # Print the column names for the first row to see what's available
-        if coverage_reqs and len(coverage_reqs) > 0:
-            print("  Available columns:", coverage_reqs[0]._mapping.keys())
-            for req in coverage_reqs:
-                # Access by index to be safe - day_index is col 1, start_time col 2, end_time col 3, min_employees col 4
-                print(
-                    f"  - Day {req[1]}, Time {req[2]}-{req[3]}: {req[4]} employees required"
+            # Log details about each shift
+            for shift in shifts:
+                logger.info(
+                    f"Shift {shift.id}: {shift.start_time} - {shift.end_time}, "
+                    f"Duration: {shift.duration_hours}h, "
+                    f"Min employees: {shift.min_employees}, "
+                    f"Max employees: {shift.max_employees}, "
+                    f"Active days: {shift.active_days}"
                 )
+
+                if shift.duration_hours == 0.0:
+                    logger.warning(f"Shift {shift.id} has a duration of 0.0 hours!")
+
+                # Check if this is shift 9
+                if shift.id == 9:
+                    logger.debug(
+                        f"FOUND SHIFT 9: {shift.id}, {shift.start_time} - {shift.end_time}, "
+                        f"Duration: {shift.duration_hours}h, "
+                        f"Min employees: {shift.min_employees}, "
+                        f"Max employees: {shift.max_employees}, "
+                        f"Active days: {shift.active_days}"
+                    )
+
+            # Query all active employees
+            employees = Employee.query.filter_by(is_active=True).all()
+            logger.info(f"Found {len(employees)} active employees")
+
+            # Log details about each employee
+            for employee in employees:
+                logger.info(
+                    f"Employee {employee.id}: {employee.first_name} {employee.last_name}, "
+                    f"Contracted hours: {employee.contracted_hours}h, "
+                    f"Is keyholder: {employee.is_keyholder}"
+                )
+
+        except Exception as e:
+            logger.error(f"Error in main function: {str(e)}")
+            raise
 
 
 if __name__ == "__main__":
-    check_shifts_and_coverage()
+    main()
