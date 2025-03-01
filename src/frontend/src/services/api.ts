@@ -512,3 +512,51 @@ export const generateDemoData = async (module: string): Promise<void | Settings>
         throw error;
     }
 };
+
+// Store Config
+export interface StoreConfig {
+    settings: Settings;
+    version: string;
+}
+
+export const getStoreConfig = async (): Promise<StoreConfig> => {
+    try {
+        const response = await api.get<StoreConfig>('/store/config');
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to fetch store config: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export const updateStoreConfig = async (config: Partial<StoreConfig>): Promise<StoreConfig> => {
+    try {
+        const response = await api.put<StoreConfig>('/store/config', config);
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to update store config: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export async function resetStoreConfig(): Promise<void> {
+    try {
+        const response = await fetch(`${API_BASE_URL}/store/config/reset`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to reset store config: ${response.statusText}`);
+        }
+    } catch (error) {
+        console.error('Error resetting store config:', error);
+        throw error;
+    }
+}

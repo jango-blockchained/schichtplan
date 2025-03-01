@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link as RouterLink, useLocation, Outlet } from 'react-router-dom';
-import { Menu, LayoutDashboard, Users, Settings as SettingsIcon, FileText, List, BarChart, Cog } from 'lucide-react';
+import { Menu, LayoutDashboard, Users, Settings as SettingsIcon, FileText, List, BarChart, Cog, Layout } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
@@ -28,6 +28,7 @@ export const MainLayout = () => {
   ], []);
 
   const footerNavItems = React.useMemo(() => [
+    { label: 'Layout', path: '/layout', icon: Layout },
     { label: 'Logs', path: '/logs', icon: List },
     { label: 'Einstellungen', path: '/settings', icon: SettingsIcon },
   ], []);

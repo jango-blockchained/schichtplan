@@ -1,6 +1,6 @@
 import { Settings } from '@/types';
 import { parse, format, differenceInMinutes, isAfter, isBefore, addMinutes, subMinutes } from 'date-fns';
-import { TimeRange, ShiftDebugInfo, PositioningDetails } from '../types';
+import { TimeRange } from '../types';
 
 // Utility Functions
 export const parseTime = (time: string): Date => parse(time, 'HH:mm', new Date());
@@ -26,8 +26,8 @@ export class TimeCalculator {
         const rangeEnd = addMinutes(storeClosing, keyholderAfterMinutes);
 
         return {
-            start: formatHour(rangeStart),
-            end: formatHour(rangeEnd)
+            start: format(rangeStart, 'HH:mm'),
+            end: format(rangeEnd, 'HH:mm')
         };
     }
 
@@ -81,8 +81,8 @@ export const calculateTimeRange = (
 /**
  * Generates time slots for a given time range
  */
-export const generateTimeSlots = (timeRange: TimeRange, intervalMinutes: number = 60) => {
-    const slots = [];
+export const generateTimeSlots = (timeRange: TimeRange, intervalMinutes: number = 60): string[] => {
+    const slots: string[] = [];
 
     // Parse the time strings to Date objects for calculations
     const today = new Date();

@@ -1,37 +1,48 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 
-type Theme = 'dark' | 'light';
+type Theme = 'light' | 'dark';
 
-interface ThemeContextType {
+type ThemeContextType = {
     theme: Theme;
-    setTheme: (theme: Theme) => void;
-}
+    toggleTheme: () => void;
+};
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
+// Helper function to safely interact with localStorage
+const storage = {
+    getItem: (key: string): string | null => {
+        try {
+            return typeof window !== 'undefined' ? window.localStorage?.getItem(key) : null;
+        } catch {
+            return null;
+        }
+    },
+    setItem: (key: string, value: string): void => {
+        try {
+            if (typeof window !== 'undefined') {
+                window.localStorage?.setItem(key, value);
+            }
+        } catch {
+            // Ignore errors
+        }
+    }
+};
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const [theme, setTheme] = useState<Theme>(() => {
-        // Check for saved theme preference
-        const savedTheme = localStorage.getItem("theme");
-        if (savedTheme === "dark" || savedTheme === "light") {
-            return savedTheme;
-        }
-        // Check system preference
-        if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-            return "dark";
-        }
-        return "light";
+        const savedTheme = storage.getItem("theme");
+        return (savedTheme === 'dark' || savedTheme === 'light') ? savedTheme : 'light';
     });
 
-    useEffect(() => {
-        const root = window.document.documentElement;
-        root.classList.remove("light", "dark");
-        root.classList.add(theme);
-        localStorage.setItem("theme", theme);
-    }, [theme]);
+    const toggleTheme = () => {
+        const newTheme = theme === 'light' ? 'dark' : 'light';
+        setTheme(newTheme);
+        storage.setItem("theme", newTheme);
+    };
 
     return (
-        <ThemeContext.Provider value={{ theme, setTheme }}>
+        <ThemeContext.Provider value={{ theme, toggleTheme }}>
             {children}
         </ThemeContext.Provider>
     );

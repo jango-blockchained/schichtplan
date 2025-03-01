@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from 'bun:test';
-import { render, fireEvent } from '../../test-utils/test-utils';
+import { render, screen, fireEvent } from '../../test-utils/test-utils';
 import DateRangeSelector from '../DateRangeSelector';
 
 describe('DateRangeSelector', () => {
@@ -16,14 +16,15 @@ describe('DateRangeSelector', () => {
     });
 
     it('displays the current date range', () => {
-        const { container } = render(<DateRangeSelector {...defaultProps} />);
-        const button = container.querySelector('button');
-        expect(button?.textContent).toContain('Feb 01, 2024');
-        expect(button?.textContent).toContain('Feb 29, 2024');
+        render(<DateRangeSelector {...defaultProps} />);
+        const dateButton = screen.getByRole('button', { name: /Feb 01, 2024.*Feb 29, 2024/i });
+        expect(dateButton).toBeDefined();
+        expect(dateButton.textContent).toContain('Feb 01, 2024');
+        expect(dateButton.textContent).toContain('Feb 29, 2024');
     });
 
     it('handles null dates', () => {
-        const { container } = render(
+        render(
             <DateRangeSelector
                 startDate={null}
                 endDate={null}
@@ -31,19 +32,32 @@ describe('DateRangeSelector', () => {
                 setEndDate={defaultProps.setEndDate}
             />
         );
-        const button = container.querySelector('button');
-        expect(button?.textContent).toContain('Pick a date');
+        const dateButton = screen.getByRole('button', { name: /pick a date/i });
+        expect(dateButton).toBeDefined();
+        expect(dateButton.textContent).toContain('Pick a date');
     });
 
-    it('calls setStartDate and setEndDate when date range changes', () => {
-        const { container } = render(<DateRangeSelector {...defaultProps} />);
-        const button = container.querySelector('button');
-        if (button) {
-            fireEvent.click(button);
-            // Note: We can't fully test the date picker interaction here
-            // as it requires complex calendar interactions
-            // We'll just verify the button click works
-            expect(button).toBeDefined();
-        }
+    it('calls setStartDate and setEndDate when date range changes', async () => {
+        const setStartDate = mock(() => { });
+        const setEndDate = mock(() => { });
+
+        render(
+            <DateRangeSelector
+                startDate={defaultProps.startDate}
+                endDate={defaultProps.endDate}
+                setStartDate={setStartDate}
+                setEndDate={setEndDate}
+            />
+        );
+
+        const dateButton = screen.getByRole('button', { name: /Feb 01, 2024.*Feb 29, 2024/i });
+        expect(dateButton).toBeDefined();
+
+        // Click the button to open the date picker
+        await fireEvent.click(dateButton);
+
+        // The calendar should be visible now
+        const dialog = screen.getByRole('dialog');
+        expect(dialog).toBeDefined();
     });
 }); 

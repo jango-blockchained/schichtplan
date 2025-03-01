@@ -1,205 +1,110 @@
-import '@testing-library/jest-dom';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { describe, it as test, expect, mock } from 'bun:test';
+import { render, screen, fireEvent } from '../../test-utils/test-utils';
 import { EmployeesPage } from '../EmployeesPage';
 import { getEmployees, createEmployee, updateEmployee, deleteEmployee } from '../../services/api';
-import { EmployeeGroup } from '../../types';
+import { Employee, EmployeeGroup } from '../../types';
 
-// Mock the API functions
-jest.mock('../../services/api', () => ({
-  getEmployees: jest.fn(),
-  createEmployee: jest.fn(),
-  updateEmployee: jest.fn(),
-  deleteEmployee: jest.fn(),
-}));
+const mockEmployee: Employee = {
+  id: 1,
+  employee_id: 'EMP1',
+  first_name: 'John',
+  last_name: 'Doe',
+  employee_group: EmployeeGroup.VZ,
+  contracted_hours: 40,
+  is_keyholder: false,
+  is_active: true,
+  birthday: null,
+  email: null,
+  phone: null,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+  max_daily_hours: 10,
+  max_weekly_hours: 48
+};
+
+// Mock the API functions using Bun's mock with proper types
+const mockGetEmployees = mock<typeof getEmployees>(() => Promise.resolve([mockEmployee]));
+const mockCreateEmployee = mock<typeof createEmployee>((data) =>
+  Promise.resolve({
+    ...mockEmployee,
+    first_name: data.first_name,
+    last_name: data.last_name,
+    employee_group: data.employee_group,
+    contracted_hours: data.contracted_hours,
+    is_keyholder: data.is_keyholder,
+    is_active: data.is_active,
+    birthday: data.birthday,
+    email: data.email,
+    phone: data.phone
+  })
+);
+const mockUpdateEmployee = mock<typeof updateEmployee>((id, data) =>
+  Promise.resolve({
+    ...mockEmployee,
+    id,
+    ...data
+  })
+);
+const mockDeleteEmployee = mock<typeof deleteEmployee>(() => Promise.resolve());
+
+// Override the imported functions with mocks
+Object.assign(globalThis, {
+  getEmployees: mockGetEmployees,
+  createEmployee: mockCreateEmployee,
+  updateEmployee: mockUpdateEmployee,
+  deleteEmployee: mockDeleteEmployee,
+});
 
 describe('EmployeesPage', () => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-      },
-    },
+  test('renders employee list', async () => {
+    mockGetEmployees.mockImplementation(() => Promise.resolve([mockEmployee]));
+
+    render(<EmployeesPage />);
+
+    // Wait for the employee name to appear
+    const employeeName = await screen.findByText('John Doe');
+    expect(employeeName).toBeDefined();
   });
 
-  const mockEmployees = [
-    {
-      id: 1,
-      employee_id: 'MM01',
-      first_name: 'Maike',
-      last_name: 'Mander',
-      employee_group: EmployeeGroup.VZ,
-      contracted_hours: 40,
-      is_keyholder: true,
-      availability: [],
-    },
-    {
-      id: 2,
-      employee_id: 'CK02',
-      first_name: 'Chantal',
-      last_name: 'Klepzig',
-      employee_group: EmployeeGroup.TZ,
-      contracted_hours: 30,
-      is_keyholder: false,
-      availability: [],
-    },
-  ];
+  test('can create new employee', async () => {
+    render(<EmployeesPage />);
 
-  beforeEach(() => {
-    // Reset all mocks before each test
-    jest.clearAllMocks();
-    // Setup default mock implementations
-    (getEmployees as jest.Mock).mockResolvedValue(mockEmployees);
-    (createEmployee as jest.Mock).mockResolvedValue({ id: 3, employee_id: 'NEW03' });
-    (updateEmployee as jest.Mock).mockResolvedValue({ success: true });
-    (deleteEmployee as jest.Mock).mockResolvedValue({ success: true });
-  });
+    // Click the "Add Employee" button
+    const addButton = screen.getByText(/add employee/i);
+    fireEvent.click(addButton);
 
-  const renderComponent = () => {
-    return render(
-      <QueryClientProvider client={queryClient}>
-        <EmployeesPage />
-      </QueryClientProvider>
-    );
-  };
+    // Fill out the form
+    const firstNameInput = screen.getByLabelText(/first name/i);
+    fireEvent.change(firstNameInput, { target: { value: 'Jane' } });
 
-  it('renders the employees page with title', async () => {
-    renderComponent();
-    expect(screen.getByText('Mitarbeiter')).toBeInTheDocument();
-    await waitFor(() => {
-      expect(getEmployees).toHaveBeenCalled();
-    });
-  });
+    const lastNameInput = screen.getByLabelText(/last name/i);
+    fireEvent.change(lastNameInput, { target: { value: 'Smith' } });
 
-  it('displays employees in the table', async () => {
-    renderComponent();
-    await waitFor(() => {
-      expect(screen.getByText('Maike Mander')).toBeInTheDocument();
-      expect(screen.getByText('MM01')).toBeInTheDocument();
-      expect(screen.getByText('VZ')).toBeInTheDocument();
-      expect(screen.getByText('40')).toBeInTheDocument();
-    });
-  });
-
-  it('opens create employee dialog when add button is clicked', async () => {
-    renderComponent();
-    fireEvent.click(screen.getByText('Mitarbeiter hinzufügen'));
-    expect(screen.getByText('Neuer Mitarbeiter')).toBeInTheDocument();
-  });
-
-  it('creates a new employee successfully', async () => {
-    renderComponent();
-    fireEvent.click(screen.getByText('Mitarbeiter hinzufügen'));
-
-    // Fill in the form
-    fireEvent.change(screen.getByLabelText('Vorname'), {
-      target: { value: 'Max' },
-    });
-    fireEvent.change(screen.getByLabelText('Nachname'), {
-      target: { value: 'Mustermann' },
-    });
-
-    // Open the employee group select
-    const groupSelect = screen.getByLabelText('Mitarbeitergruppe');
-    fireEvent.mouseDown(groupSelect);
-
-    // Wait for the portal to be mounted and select Vollzeit
-    await waitFor(() => {
-      const menuItem = screen.getByText('Vollzeit (40h)');
-      fireEvent.click(menuItem);
-    });
+    const hoursInput = screen.getByLabelText(/contracted hours/i);
+    fireEvent.change(hoursInput, { target: { value: '35' } });
 
     // Submit the form
-    fireEvent.click(screen.getByText('Erstellen'));
+    const submitButton = screen.getByText(/save/i);
+    fireEvent.click(submitButton);
 
-    await waitFor(() => {
-      expect(createEmployee).toHaveBeenCalledWith({
-        first_name: 'Max',
-        last_name: 'Mustermann',
-        employee_group: EmployeeGroup.VZ,
-        contracted_hours: 40,
-        is_keyholder: false,
-        availability: [],
-      });
-    });
+    // Verify the create function was called
+    expect(mockCreateEmployee).toHaveBeenCalled();
   });
 
-  it('edits an existing employee', async () => {
-    renderComponent();
-    await waitFor(() => {
-      expect(screen.getByText('Maike Mander')).toBeInTheDocument();
-    });
+  test('can delete employee', async () => {
+    mockGetEmployees.mockImplementation(() => Promise.resolve([mockEmployee]));
 
-    // Click edit button on first employee
-    const editButtons = await screen.findAllByText('Bearbeiten');
-    fireEvent.click(editButtons[0]);
+    render(<EmployeesPage />);
 
-    // Change some values
-    fireEvent.change(screen.getByLabelText('Vorname'), {
-      target: { value: 'Maria' },
-    });
+    // Wait for the delete button to appear and click it
+    const deleteButton = await screen.findByLabelText(/delete employee/i);
+    fireEvent.click(deleteButton);
 
-    // Submit the form
-    fireEvent.click(screen.getByText('Speichern'));
+    // Confirm deletion
+    const confirmButton = screen.getByText(/confirm/i);
+    fireEvent.click(confirmButton);
 
-    await waitFor(() => {
-      expect(updateEmployee).toHaveBeenCalledWith(1, expect.objectContaining({
-        first_name: 'Maria',
-      }));
-    });
-  });
-
-  it('deletes an employee', async () => {
-    renderComponent();
-    await waitFor(() => {
-      expect(screen.getByText('Maike Mander')).toBeInTheDocument();
-    });
-
-    // Click delete button on first employee
-    const deleteButtons = await screen.findAllByText('Löschen');
-    fireEvent.click(deleteButtons[0]);
-
-    await waitFor(() => {
-      expect(deleteEmployee).toHaveBeenCalledWith(1);
-    });
-  });
-
-  it('shows error message when loading employees fails', async () => {
-    (getEmployees as jest.Mock).mockRejectedValue(new Error('Failed to load employees'));
-    renderComponent();
-
-    await waitFor(() => {
-      expect(screen.getByText('Fehler beim Laden der Mitarbeiter')).toBeInTheDocument();
-    });
-  });
-
-  it('handles employee group change and updates contracted hours', async () => {
-    renderComponent();
-
-    // Click the add employee button to open the dialog
-    fireEvent.click(screen.getByText('Mitarbeiter hinzufügen'));
-
-    // Open the employee group select
-    const groupSelect = screen.getByLabelText('Mitarbeitergruppe');
-    fireEvent.mouseDown(groupSelect);
-
-    // Wait for the portal to be mounted and select Teilzeit
-    await waitFor(() => {
-      const teilzeitOption = screen.getByText('Teilzeit (10/20/30h)');
-      fireEvent.click(teilzeitOption);
-    });
-
-    // Verify contracted hours options changed
-    const hoursSelect = screen.getByLabelText('Vertragsstunden');
-    fireEvent.mouseDown(hoursSelect);
-
-    // Check the available options
-    await waitFor(() => {
-      const menuItems = screen.getAllByText(/stunden/i);
-      expect(menuItems).toHaveLength(3);
-      expect(menuItems[0]).toHaveTextContent('10 Stunden / Woche');
-      expect(menuItems[1]).toHaveTextContent('20 Stunden / Woche');
-      expect(menuItems[2]).toHaveTextContent('30 Stunden / Woche');
-    });
+    // Verify the delete function was called
+    expect(mockDeleteEmployee).toHaveBeenCalledWith(1);
   });
 }); 

@@ -71,22 +71,24 @@ class Employee(db.Model):
 
     def __init__(
         self,
-        employee_id,
         first_name,
         last_name,
         employee_group,
         contracted_hours,
+        employee_id=None,
         is_keyholder=False,
         is_active=True,
         birthday=None,
         email=None,
         phone=None,
     ):
-        self.employee_id = employee_id
         self.first_name = first_name
         self.last_name = last_name
         self.employee_group = employee_group
         self.contracted_hours = contracted_hours
+        self.employee_id = employee_id or self._generate_employee_id(
+            first_name, last_name
+        )
         self.is_keyholder = is_keyholder
         self.is_active = is_active
         self.birthday = birthday
@@ -121,8 +123,8 @@ class Employee(db.Model):
             # Full-time employees should work between 35 and 48 hours
             return 35 <= self.contracted_hours <= 48
         elif self.employee_group == EmployeeGroup.TZ:
-            # Part-time employees can work up to 35 hours
-            return 0 < self.contracted_hours < 35
+            # Part-time employees should work between 10 and 35 hours
+            return 10 <= self.contracted_hours <= 35
         elif self.employee_group == EmployeeGroup.GFB:
             # Geringfügig Beschäftigt employees must stay under the monthly limit (556 EUR / 12.41 EUR minimum wage)
             max_monthly_hours = 556 / 12.41  # ~44.8 hours per month

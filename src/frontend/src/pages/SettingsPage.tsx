@@ -51,9 +51,9 @@ export interface BaseAbsenceType extends BaseGroup {
 
 type GroupType = BaseEmployeeType | BaseAbsenceType;
 
-export default function SettingsPage() {
+export function SettingsPage() {
   const { toast } = useToast();
-  const { setTheme } = useTheme();
+  const { setTheme, theme } = useTheme();
   const queryClient = useQueryClient();
   const [currentTab, setCurrentTab] = React.useState("general");
   const [localSettings, setLocalSettings] = useState<Settings | null>(null);
@@ -1125,3 +1125,5 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+export default SettingsPage;
