@@ -1,5 +1,5 @@
 import * as React from "react"
-import { format } from "date-fns"
+import { addDays, format } from "date-fns"
 import { Calendar as CalendarIcon } from "lucide-react"
 import { DateRange } from "react-day-picker"
 import { cn } from "@/lib/utils"
@@ -12,17 +12,47 @@ import {
 } from "@/components/ui/popover"
 
 interface DateRangePickerProps {
-    dateRange?: DateRange;
-    onChange?: (range: DateRange | undefined) => void;
-    align?: "start" | "center" | "end";
+    dateRange: DateRange | undefined;
+    setDateRange: (dateRange: DateRange | undefined) => void;
+    className?: string;
+    presets?: {
+        label: string;
+        dateRange: DateRange;
+    }[];
 }
 
 export function DateRangePicker({
     dateRange,
-    onChange,
-    align = "start",
+    setDateRange,
     className,
-}: DateRangePickerProps & React.HTMLAttributes<HTMLDivElement>) {
+    presets,
+}: DateRangePickerProps) {
+    const defaultPresets = [
+        {
+            label: "Today",
+            dateRange: {
+                from: new Date(),
+                to: new Date(),
+            },
+        },
+        {
+            label: "Next 7 days",
+            dateRange: {
+                from: new Date(),
+                to: addDays(new Date(), 6),
+            },
+        },
+        {
+            label: "Next 30 days",
+            dateRange: {
+                from: new Date(),
+                to: addDays(new Date(), 29),
+            },
+        },
+    ];
+
+    const allPresets = presets || defaultPresets;
+
     return (
         <div className={cn("grid gap-2", className)}>
             <Popover>
@@ -31,7 +61,7 @@ export function DateRangePicker({
                         id="date"
                         variant={"outline"}
                         className={cn(
-                            "w-[300px] justify-start text-left font-normal",
+                            "w-full justify-start text-left font-normal",
                             !dateRange && "text-muted-foreground"
                         )}
                     >
@@ -50,15 +80,29 @@ export function DateRangePicker({
                         )}
                     </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align={align}>
-                    <Calendar
-                        initialFocus
-                        mode="range"
-                        defaultMonth={dateRange?.from}
-                        selected={dateRange}
-                        onSelect={onChange}
-                        numberOfMonths={2}
-                    />
+                <PopoverContent className="w-auto p-0">
+                    <div className="flex">
+                        <div className="border-r p-3 space-y-2">
+                            {allPresets.map((preset) => (
+                                <Button
+                                    key={preset.label}
+                                    variant="ghost"
+                                    className="w-full justify-start font-normal"
+                                    onClick={() => setDateRange(preset.dateRange)}
+                                >
+                                    {preset.label}
+                                </Button>
+                            ))}
+                        </div>
+                        <Calendar
+                            initialFocus
+                            mode="range"
+                            defaultMonth={dateRange?.from}
+                            selected={dateRange}
+                            onSelect={setDateRange}
+                            numberOfMonths={2}
+                        />
+                    </div>
                 </PopoverContent>
             </Popover>
         </div>

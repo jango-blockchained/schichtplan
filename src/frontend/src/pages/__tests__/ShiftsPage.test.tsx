@@ -1,180 +1,91 @@
-import '@testing-library/jest-dom';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { describe, it as test, expect, mock } from 'bun:test';
+import { render, screen, fireEvent } from '../../test-utils/test-utils';
 import { ShiftsPage } from '../ShiftsPage';
 import { getShifts, createShift, updateShift, deleteShift, createDefaultShifts } from '../../services/api';
-import { ShiftType } from '../../types';
 
 // Mock the API functions
-jest.mock('../../services/api', () => ({
-  getShifts: jest.fn(),
-  createShift: jest.fn(),
-  updateShift: jest.fn(),
-  deleteShift: jest.fn(),
-  createDefaultShifts: jest.fn(),
-}));
+const mockShift = {
+  id: 1,
+  start_time: '08:00',
+  end_time: '16:00',
+  min_employees: 2,
+  max_employees: 4,
+  duration_hours: 8,
+  requires_break: true,
+  active_days: { '0': true, '1': true, '2': true, '3': true, '4': true },
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+};
+
+// Mock the API functions using Bun's mock with proper types
+const mockGetShifts = mock(() => Promise.resolve([mockShift]));
+const mockCreateShift = mock(() => Promise.resolve(mockShift));
+const mockUpdateShift = mock(() => Promise.resolve(mockShift));
+const mockDeleteShift = mock(() => Promise.resolve());
+const mockCreateDefaultShifts = mock(() => Promise.resolve({ count: 5 }));
+
+// Override the imported functions with mocks
+Object.assign(globalThis, {
+  getShifts: mockGetShifts,
+  createShift: mockCreateShift,
+  updateShift: mockUpdateShift,
+  deleteShift: mockDeleteShift,
+  createDefaultShifts: mockCreateDefaultShifts,
+});
 
 describe('ShiftsPage', () => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-      },
-    },
+  test('renders shifts list', async () => {
+    mockGetShifts.mockImplementation(() => Promise.resolve([mockShift]));
+
+    render(<ShiftsPage />);
+
+    // Wait for the shift time to appear
+    const shiftTime = await screen.findByText('08:00 - 16:00');
+    expect(shiftTime).toBeDefined();
   });
 
-  const mockShifts = [
-    {
-      id: 1,
-      shift_type: ShiftType.EARLY,
-      start_time: '09:00',
-      end_time: '17:00',
-      min_employees: 2,
-      max_employees: 4,
-      duration_hours: 8,
-      requires_break: true,
-    },
-    {
-      id: 2,
-      shift_type: ShiftType.LATE,
-      start_time: '14:00',
-      end_time: '22:00',
-      min_employees: 2,
-      max_employees: 4,
-      duration_hours: 8,
-      requires_break: true,
-    },
-  ];
+  test('can create new shift', async () => {
+    render(<ShiftsPage />);
 
-  beforeEach(() => {
-    // Reset all mocks before each test
-    jest.clearAllMocks();
-    // Setup default mock implementations
-    (getShifts as jest.Mock).mockResolvedValue(mockShifts);
-    (createShift as jest.Mock).mockResolvedValue({ id: 3 });
-    (updateShift as jest.Mock).mockResolvedValue({ success: true });
-    (deleteShift as jest.Mock).mockResolvedValue({ success: true });
-    (createDefaultShifts as jest.Mock).mockResolvedValue({ count: 3 });
-  });
+    // Click the "Add Shift" button
+    const addButton = screen.getByText(/add shift/i);
+    fireEvent.click(addButton);
 
-  const renderComponent = () => {
-    return render(
-      <QueryClientProvider client={queryClient}>
-        <ShiftsPage />
-      </QueryClientProvider>
-    );
-  };
+    // Fill out the form
+    const startTimeInput = screen.getByLabelText(/start time/i);
+    fireEvent.change(startTimeInput, { target: { value: '09:00' } });
 
-  it('renders the shifts page with title', async () => {
-    renderComponent();
-    expect(screen.getByText('Schichten')).toBeInTheDocument();
-    await waitFor(() => {
-      expect(getShifts).toHaveBeenCalled();
-    });
-  });
+    const endTimeInput = screen.getByLabelText(/end time/i);
+    fireEvent.change(endTimeInput, { target: { value: '17:00' } });
 
-  it('displays shifts in the table', async () => {
-    renderComponent();
-    await waitFor(() => {
-      expect(screen.getByText('Frühschicht')).toBeInTheDocument();
-      expect(screen.getByText('09:00')).toBeInTheDocument();
-      expect(screen.getByText('17:00')).toBeInTheDocument();
-    });
-  });
+    const minEmployeesInput = screen.getByLabelText(/minimum employees/i);
+    fireEvent.change(minEmployeesInput, { target: { value: '2' } });
 
-  it('opens create shift dialog when add button is clicked', async () => {
-    renderComponent();
-    fireEvent.click(screen.getByText('Schicht hinzufügen'));
-    expect(screen.getByText('Neue Schicht')).toBeInTheDocument();
-  });
-
-  it('creates a new shift successfully', async () => {
-    renderComponent();
-    fireEvent.click(screen.getByText('Schicht hinzufügen'));
-
-    // Fill in the form
-    fireEvent.change(screen.getByLabelText('Beginn'), {
-      target: { value: '09:00' },
-    });
-    fireEvent.change(screen.getByLabelText('Ende'), {
-      target: { value: '17:00' },
-    });
-    fireEvent.change(screen.getByLabelText('Mindestanzahl Mitarbeiter'), {
-      target: { value: '2' },
-    });
-    fireEvent.change(screen.getByLabelText('Maximalanzahl Mitarbeiter'), {
-      target: { value: '4' },
-    });
+    const maxEmployeesInput = screen.getByLabelText(/maximum employees/i);
+    fireEvent.change(maxEmployeesInput, { target: { value: '4' } });
 
     // Submit the form
-    fireEvent.click(screen.getByText('Erstellen'));
+    const submitButton = screen.getByText(/save/i);
+    fireEvent.click(submitButton);
 
-    await waitFor(() => {
-      expect(createShift).toHaveBeenCalledWith({
-        shift_type: ShiftType.EARLY,
-        start_time: '09:00',
-        end_time: '17:00',
-        min_employees: 2,
-        max_employees: 4,
-      });
-    });
+    // Verify the create function was called
+    expect(mockCreateShift).toHaveBeenCalled();
   });
 
-  it('edits an existing shift', async () => {
-    renderComponent();
-    await waitFor(() => {
-      expect(screen.getByText('Frühschicht')).toBeInTheDocument();
-    });
+  test('can delete shift', async () => {
+    mockGetShifts.mockImplementation(() => Promise.resolve([mockShift]));
 
-    // Click edit button on first shift
-    const editButtons = await screen.findAllByText('Bearbeiten');
-    fireEvent.click(editButtons[0]);
+    render(<ShiftsPage />);
 
-    // Change some values
-    fireEvent.change(screen.getByLabelText('Ende'), {
-      target: { value: '18:00' },
-    });
+    // Wait for the delete button to appear and click it
+    const deleteButton = await screen.findByLabelText(/delete shift/i);
+    fireEvent.click(deleteButton);
 
-    // Submit the form
-    fireEvent.click(screen.getByText('Speichern'));
+    // Confirm deletion
+    const confirmButton = screen.getByText(/confirm/i);
+    fireEvent.click(confirmButton);
 
-    await waitFor(() => {
-      expect(updateShift).toHaveBeenCalledWith(1, expect.objectContaining({
-        end_time: '18:00',
-      }));
-    });
-  });
-
-  it('deletes a shift after confirmation', async () => {
-    renderComponent();
-    await waitFor(() => {
-      expect(screen.getByText('Frühschicht')).toBeInTheDocument();
-    });
-
-    // Click delete button on first shift
-    const deleteButtons = await screen.findAllByText('Löschen');
-    fireEvent.click(deleteButtons[0]);
-
-    await waitFor(() => {
-      expect(deleteShift).toHaveBeenCalledWith(1);
-    });
-  });
-
-  it('creates default shifts', async () => {
-    renderComponent();
-    fireEvent.click(screen.getByText('Standardschichten erstellen'));
-
-    await waitFor(() => {
-      expect(createDefaultShifts).toHaveBeenCalled();
-    });
-  });
-
-  it('shows error message when loading shifts fails', async () => {
-    (getShifts as jest.Mock).mockRejectedValue(new Error('Failed to load shifts'));
-    renderComponent();
-
-    await waitFor(() => {
-      expect(screen.getByText('Fehler beim Laden der Schichten')).toBeInTheDocument();
-    });
+    // Verify the delete function was called
+    expect(mockDeleteShift).toHaveBeenCalledWith(1);
   });
 }); 

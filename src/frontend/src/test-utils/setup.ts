@@ -2,6 +2,9 @@ import { expect } from 'bun:test';
 import * as matchers from '@testing-library/jest-dom/matchers';
 import { TextEncoder as NodeTextEncoder, TextDecoder as NodeTextDecoder } from 'util';
 import { Window } from 'happy-dom';
+import '@testing-library/jest-dom';
+import { beforeAll, beforeEach } from 'bun:test';
+import { cleanup } from '@testing-library/react';
 
 // Add jest-dom matchers to Bun's expect
 Object.assign(expect, matchers);
@@ -32,18 +35,27 @@ Object.defineProperty(globalThis, 'getComputedStyle', {
 });
 
 // Mock window.matchMedia
-Object.defineProperty(window, 'matchMedia', {
-    writable: true,
-    value: (query: string) => ({
-        matches: false,
-        media: query,
-        onchange: null,
-        addListener: () => { },
-        removeListener: () => { },
-        addEventListener: () => { },
-        removeEventListener: () => { },
-        dispatchEvent: () => false,
-    }),
+beforeAll(() => {
+    Object.defineProperty(window, 'matchMedia', {
+        writable: true,
+        value: (query: string) => ({
+            matches: false,
+            media: query,
+            onchange: null,
+            addListener: () => { }, // deprecated
+            removeListener: () => { }, // deprecated
+            addEventListener: () => { },
+            removeEventListener: () => { },
+            dispatchEvent: () => { },
+        }),
+    });
+});
+
+// Reset the DOM after each test
+beforeEach(() => {
+    cleanup();
+    // Enable pointer events for testing
+    document.body.style.pointerEvents = 'auto';
 });
 
 // Polyfill for TextEncoder/TextDecoder
@@ -86,9 +98,6 @@ interface LegacyElement extends Element {
 (Element.prototype as LegacyElement).detachEvent = function (event: string, handler: EventListener): void {
     this.removeEventListener(event.slice(2), handler);
 };
-
-// Ensure pointer events are enabled for testing
-document.body.style.pointerEvents = 'auto';
 
 // Export test utilities
 export { expect }; 

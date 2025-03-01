@@ -1,5 +1,3 @@
-import { EmployeeGroup } from '../components/EmployeeSettingsEditor';
-
 export interface LayoutConfig {
     column_widths: number[];
     table_style: {
@@ -24,5 +22,20 @@ export interface LayoutConfig {
         bottom: number;
         left: number;
     };
-    employee_groups: EmployeeGroup[];
+}
+
+export interface Preset extends LayoutConfig {
+    name: string;
+    description?: string;
+}
+
+export type Presets = Record<string, LayoutConfig>;
+
+export interface GroupType {
+    id: string;
+    name: string;
+    description: string;
+    min_hours: number;
+    max_hours: number;
+    type: 'employee';
 } 

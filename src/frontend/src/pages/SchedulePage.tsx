@@ -7,9 +7,6 @@ import { Button } from '@/components/ui/button';
 import { useMutation } from '@tanstack/react-query';
 import { generateSchedule, exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule } from '@/services/api';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { PDFLayoutEditor } from '@/components/PDFLayoutEditor';
-import { usePDFConfig } from '@/hooks/usePDFConfig';
-import { DateRange } from 'react-day-picker';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, AlertCircle, X, CheckCircle2, Circle, Clock } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -20,11 +17,12 @@ import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScheduleTable } from '@/components/ScheduleTable';
-import { ScheduleError, PDFLayoutConfig } from '@/types';
+import { ScheduleError } from '@/types';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PageHeader } from '@/components/PageHeader';
 import { Progress } from '@/components/ui/progress';
+import { DateRange } from 'react-day-picker';
 
 interface GenerationStep {
   id: string;
@@ -219,8 +217,7 @@ export function SchedulePage() {
       addGenerationLog('info', 'Starting PDF export');
       const response = await exportSchedule(
         dateRange.from.toISOString().split('T')[0],
-        dateRange.to.toISOString().split('T')[0],
-        pdfConfig
+        dateRange.to.toISOString().split('T')[0]
       );
       addGenerationLog('info', 'PDF export completed');
       const blob = new Blob([response], { type: 'application/pdf' });
@@ -302,8 +299,8 @@ export function SchedulePage() {
     await updateBreakNotesMutation.mutateAsync({ employeeId, day, notes });
   };
 
-  const handleWeekChange = (range: DateRange | undefined) => {
-    if (range?.from) {
+  const handleWeekChange = (range: DateRange | undefined | React.FormEvent<HTMLDivElement>) => {
+    if (range && 'from' in range && range.from) {  // Check if it's a DateRange with valid from date
       setDateRange({
         from: range.from,
         to: addDays(range.from, (weeksAmount * 7) - 1)
@@ -427,30 +424,6 @@ export function SchedulePage() {
   // Show loading overlay for subsequent data fetches
   const isUpdating = isLoading || updateShiftMutation.isPending || generateMutation.isPending || exportMutation.isPending;
 
-  // Initialize PDFLayoutConfig with required properties
-  const defaultPDFConfig: PDFLayoutConfig = {
-    page_size: 'A4',
-    orientation: 'portrait',
-    table_style: {
-      header_background: '#f1f5f9',
-      row_background: '#ffffff',
-      alternate_row_background: '#f8fafc',
-      border_color: '#e2e8f0',
-      text_color: '#1e293b',
-    },
-    fonts: {
-      regular: 'Helvetica',
-      bold: 'Helvetica-Bold',
-    },
-    content: {
-      title: 'Schichtplan',
-      subtitle: '',
-      footer: '',
-    },
-  };
-
-  const { config: pdfConfig = defaultPDFConfig, updateConfig } = usePDFConfig();
-
   // Add this component for the generation overlay
   const GenerationOverlay = () => (
     <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
@@ -503,7 +476,6 @@ export function SchedulePage() {
             <DateRangePicker
               dateRange={dateRange}
               onChange={handleWeekChange}
-              selectWeek
             />
             <Select value={weeksAmount.toString()} onValueChange={handleWeeksAmountChange}>
               <SelectTrigger className="w-32">
@@ -585,12 +557,6 @@ export function SchedulePage() {
               )}
               PDF Export
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => setIsLayoutCustomizerOpen(true)}
-            >
-              PDF Layout
-            </Button>
           </div>
         </div>
 
@@ -650,18 +616,6 @@ export function SchedulePage() {
           </CardContent>
         </Card>
       </div>
-
-      <Dialog open={isLayoutCustomizerOpen} onOpenChange={setIsLayoutCustomizerOpen}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>PDF Layout anpassen</DialogTitle>
-          </DialogHeader>
-          <PDFLayoutEditor
-            config={pdfConfig}
-            onConfigChange={updateConfig}
-          />
-        </DialogContent>
-      </Dialog>
 
       {generateMutation.isPending && <GenerationOverlay />}
     </div>
