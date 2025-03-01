@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { getSchedules } from '@/services/api';
+import { getSchedules, type ScheduleResponse } from '@/services/api';
 import { Schedule, ScheduleError } from '@/types';
 import { AxiosError } from 'axios';
 
@@ -17,16 +17,15 @@ export function useScheduleData(
     endDate: Date,
     version?: number
 ): UseScheduleDataResult {
-    const { data, isLoading, error, refetch } = useQuery({
+    const { data, isLoading, error, refetch } = useQuery<ScheduleResponse>({
         queryKey: ['schedules', startDate.toISOString(), endDate.toISOString(), version] as const,
         queryFn: async () => {
             try {
-                const response = await getSchedules(
+                return await getSchedules(
                     startDate.toISOString().split('T')[0],
                     endDate.toISOString().split('T')[0],
                     version
                 );
-                return response;
             } catch (error) {
                 if (error instanceof AxiosError) {
                     const errorMessage = error.response?.data?.error || error.message;
@@ -41,12 +40,16 @@ export function useScheduleData(
                 throw error;
             }
         },
+        gcTime: 30 * 60 * 1000, // Keep unused data in cache for 30 minutes
+        staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+        refetchOnMount: true, // Always refetch when component mounts
+        refetchOnWindowFocus: true, // Refetch when window regains focus
     });
 
     return {
-        scheduleData: data?.schedules || [],
-        versions: data?.versions || [],
-        errors: data?.errors || [],
+        scheduleData: data?.schedules ?? [],
+        versions: data?.versions ?? [],
+        errors: data?.errors ?? [],
         loading: isLoading,
         error: error instanceof Error ? error.message : 'An unknown error occurred',
         refetch: async () => {

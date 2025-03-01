@@ -1,5 +1,13 @@
 from flask import Blueprint, request, jsonify, send_file
-from models import db, Schedule, Employee, ShiftTemplate, Settings, EmployeeGroup
+from models import (
+    db,
+    Schedule,
+    Employee,
+    ShiftTemplate,
+    Settings,
+    EmployeeGroup,
+    Coverage,
+)
 from http import HTTPStatus
 from datetime import datetime, timedelta, date
 import calendar
@@ -26,6 +34,7 @@ def get_schedules():
     """Get all schedules for a given period"""
     start_date = request.args.get("start_date")
     end_date = request.args.get("end_date")
+    version = request.args.get("version")
 
     query = Schedule.query
 
@@ -41,24 +50,29 @@ def get_schedules():
     schedules = query.all()
 
     return jsonify(
-        [
-            {
-                "id": schedule.id,
-                "date": schedule.date.strftime("%Y-%m-%d"),
-                "employee": {
-                    "id": schedule.employee.id,
-                    "name": f"{schedule.employee.first_name} {schedule.employee.last_name}",
-                },
-                "shift": {
-                    "id": schedule.shift.id,
-                    "start_time": schedule.shift.start_time,
-                    "end_time": schedule.shift.end_time,
-                },
-                "break_start": schedule.break_start,
-                "break_end": schedule.break_end,
-            }
-            for schedule in schedules
-        ]
+        {
+            "schedules": [
+                {
+                    "id": schedule.id,
+                    "date": schedule.date.strftime("%Y-%m-%d"),
+                    "employee": {
+                        "id": schedule.employee.id,
+                        "name": f"{schedule.employee.first_name} {schedule.employee.last_name}",
+                    },
+                    "shift": {
+                        "id": schedule.shift.id,
+                        "start_time": schedule.shift.start_time,
+                        "end_time": schedule.shift.end_time,
+                    },
+                    "break_start": schedule.break_start,
+                    "break_end": schedule.break_end,
+                    "notes": schedule.notes,
+                }
+                for schedule in schedules
+            ],
+            "versions": [],  # Add version handling if needed
+            "errors": [],  # Add error handling if needed
+        }
     ), HTTPStatus.OK
 
 
@@ -104,6 +118,25 @@ def generate_schedule():
                     "end_date": end_date.strftime("%Y-%m-%d"),
                     "total_shifts": len(schedules),
                     "errors": errors,
+                    "schedules": [
+                        {
+                            "id": schedule.id,
+                            "date": schedule.date.strftime("%Y-%m-%d"),
+                            "employee": {
+                                "id": schedule.employee.id,
+                                "name": f"{schedule.employee.first_name} {schedule.employee.last_name}",
+                            },
+                            "shift": {
+                                "id": schedule.shift.id,
+                                "start_time": schedule.shift.start_time,
+                                "end_time": schedule.shift.end_time,
+                            },
+                            "break_start": schedule.break_start,
+                            "break_end": schedule.break_end,
+                            "notes": schedule.notes,
+                        }
+                        for schedule in schedules
+                    ],
                 }
             ), HTTPStatus.CREATED
 
@@ -134,7 +167,20 @@ def _generate_day_schedule(
     # Track employee hours
     employee_hours = {emp.id: 0 for emp in employees}
 
+    # Get coverage requirements for this day
+    coverage_data = Coverage.query.filter_by(day_index=current_date.weekday()).all()
+
     for shift in sorted_shifts:
+        # Get coverage requirements for this shift
+        coverage = next(
+            (
+                c
+                for c in coverage_data
+                if c.start_time == shift.start_time and c.end_time == shift.end_time
+            ),
+            None,
+        )
+
         # Determine number of employees needed for this shift
         if current_date.weekday() in [1, 3]:  # Tuesday and Thursday
             required_employees = shift.max_employees
@@ -155,20 +201,22 @@ def _generate_day_schedule(
             if not available_employees:
                 break
 
-            # Prioritize keyholders for opening and closing shifts
-            start_hour = int(shift.start_time.split(":")[0])
-            end_hour = int(shift.end_time.split(":")[0])
-            is_opening = start_hour <= 9  # Opening shifts start at or before 9 AM
-            is_closing = end_hour >= 18  # Closing shifts end at or after 6 PM
+            # Check if keyholder is required
+            needs_keyholder = coverage and coverage.requires_keyholder
+            has_keyholder = any(
+                e.is_keyholder for e in day_schedules if e.shift_id == shift.id
+            )
 
-            if is_opening or is_closing:
+            if needs_keyholder and not has_keyholder:
+                # Try to find a keyholder first
                 keyholder = next(
                     (emp for emp in available_employees if emp.is_keyholder), None
                 )
                 if keyholder:
                     employee = keyholder
                 else:
-                    employee = available_employees[0]
+                    # If no keyholder available, skip this shift
+                    break
             else:
                 employee = available_employees[0]
 
@@ -209,80 +257,62 @@ def _can_work_shift(
     current_date: date,
     employee_hours: Dict[int, float],
 ) -> bool:
-    """Check if employee can work the given shift"""
-    # Check weekly hours limit
+    """Check if an employee can work a shift"""
+    # Get coverage requirements for this time slot
+    coverage = Coverage.query.filter_by(
+        day_index=current_date.weekday(),
+        start_time=shift.start_time,
+        end_time=shift.end_time,
+    ).first()
+
+    # If coverage requires a keyholder and employee is not one, they can't work
+    if coverage and coverage.requires_keyholder and not employee.is_keyholder:
+        return False
+
+    # Check if employee has already worked today
+    if Schedule.query.filter_by(employee_id=employee.id, date=current_date).first():
+        return False
+
+    # Check if employee has worked yesterday's closing shift
+    yesterday = current_date - timedelta(days=1)
+    yesterday_schedule = Schedule.query.filter_by(
+        employee_id=employee.id, date=yesterday
+    ).first()
+    if yesterday_schedule:
+        yesterday_shift = ShiftTemplate.query.get(yesterday_schedule.shift_id)
+        if yesterday_shift and int(yesterday_shift.end_time.split(":")[0]) >= 18:
+            # Don't schedule for early shift after late shift
+            if int(shift.start_time.split(":")[0]) <= 9:
+                return False
+
+    # Check weekly hours
     week_start = current_date - timedelta(days=current_date.weekday())
-    weekly_hours = (
-        Schedule.query.filter(
-            Schedule.employee_id == employee.id,
-            Schedule.date >= week_start,
-            Schedule.date <= current_date,
-        )
-        .join(ShiftTemplate)
-        .with_entities(
-            db.func.sum(
-                db.func.cast(
-                    (
-                        db.func.strftime("%H", ShiftTemplate.end_time)
-                        + db.func.strftime("%M", ShiftTemplate.end_time) / 60.0
-                    )
-                    - (
-                        db.func.strftime("%H", ShiftTemplate.start_time)
-                        + db.func.strftime("%M", ShiftTemplate.start_time) / 60.0
-                    ),
-                    db.Float,
-                )
-            )
-        )
-        .scalar()
-        or 0
-    )
+    week_hours = employee_hours.get(employee.id, 0)
 
-    weekly_hours += employee_hours.get(employee.id, 0)
+    # Add hours from previous days this week
+    week_schedules = Schedule.query.filter(
+        Schedule.employee_id == employee.id,
+        Schedule.date >= week_start,
+        Schedule.date < current_date,
+    ).all()
+    for schedule in week_schedules:
+        schedule_shift = ShiftTemplate.query.get(schedule.shift_id)
+        if schedule_shift:
+            week_hours += schedule_shift.duration_hours
 
-    if employee.employee_group in [EmployeeGroup.VZ, EmployeeGroup.TL]:
-        if weekly_hours + shift.duration_hours > 40:
+    # Check if adding this shift would exceed weekly limits
+    if employee.employee_group == EmployeeGroup.GFB:
+        # GFB employees limited to 10 hours per week
+        if week_hours + shift.duration_hours > 10:
             return False
     elif employee.employee_group == EmployeeGroup.TZ:
-        if weekly_hours + shift.duration_hours > employee.contracted_hours:
+        # Part-time employees limited to contracted hours
+        if week_hours + shift.duration_hours > employee.contracted_hours:
             return False
-    else:  # GFB
-        # Check monthly hours
-        month_start = date(current_date.year, current_date.month, 1)
-        monthly_hours = (
-            Schedule.query.filter(
-                Schedule.employee_id == employee.id,
-                Schedule.date >= month_start,
-                Schedule.date <= current_date,
-            )
-            .join(ShiftTemplate)
-            .with_entities(
-                db.func.sum(
-                    db.func.cast(
-                        (
-                            db.func.strftime("%H", ShiftTemplate.end_time)
-                            + db.func.strftime("%M", ShiftTemplate.end_time) / 60.0
-                        )
-                        - (
-                            db.func.strftime("%H", ShiftTemplate.start_time)
-                            + db.func.strftime("%M", ShiftTemplate.start_time) / 60.0
-                        ),
-                        db.Float,
-                    )
-                )
-            )
-            .scalar()
-            or 0
-        )
-
-        if monthly_hours + shift.duration_hours > 40:
+    else:
+        # Full-time employees limited to 40 hours per week
+        if week_hours + shift.duration_hours > 40:
             return False
-
-    # Check if already working that day
-    if Schedule.query.filter(
-        Schedule.employee_id == employee.id, Schedule.date == current_date
-    ).first():
-        return False
 
     return True
 

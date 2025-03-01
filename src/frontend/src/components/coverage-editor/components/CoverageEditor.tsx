@@ -5,18 +5,79 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, PencilIcon } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { CoverageEditorProps, DailyCoverage } from '../types';
+import { CoverageEditorProps, DailyCoverage, StoreConfigProps } from '../types';
 import { DAYS_SHORT, GRID_CONSTANTS } from '../utils/constants';
 import { DayRow } from './DayRow';
 import { timeToMinutes, minutesToTime } from '../utils/time';
 
 const { TIME_COLUMN_WIDTH, TIME_ROW_HEIGHT, HEADER_HEIGHT } = GRID_CONSTANTS;
 
-export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage, storeConfig, onChange }) => {
+// Helper function to normalize store config
+const normalizeStoreConfig = (config: any): StoreConfigProps => {
+    // Handle undefined or null config
+    if (!config) {
+        return {
+            store_opening: "09:00",
+            store_closing: "20:00",
+            opening_days: {
+                "0": false,  // Sunday
+                "1": true,   // Monday
+                "2": true,   // Tuesday
+                "3": true,   // Wednesday
+                "4": true,   // Thursday
+                "5": true,   // Friday
+                "6": true    // Saturday
+            },
+            min_employees_per_shift: 1,
+            max_employees_per_shift: 3,
+            employee_types: [],
+            keyholder_before_minutes: 30,
+            keyholder_after_minutes: 30
+        };
+    }
+
+    // If the config has a 'general' property, it's using the Settings type
+    if (config.general) {
+        return {
+            store_opening: config.general.store_opening || "09:00",
+            store_closing: config.general.store_closing || "20:00",
+            opening_days: config.general.opening_days || {
+                "0": false, "1": true, "2": true, "3": true, "4": true, "5": true, "6": true
+            },
+            min_employees_per_shift: config.scheduling?.min_employees_per_shift ?? 1,
+            max_employees_per_shift: config.scheduling?.max_employees_per_shift ?? 3,
+            employee_types: config.employee_groups?.employee_types ?? [],
+            keyholder_before_minutes: config.general.keyholder_before_minutes ?? 30,
+            keyholder_after_minutes: config.general.keyholder_after_minutes ?? 30
+        };
+    }
+
+    // If it's already in StoreConfigProps format, ensure all properties have values
+    return {
+        store_opening: config.store_opening || "09:00",
+        store_closing: config.store_closing || "20:00",
+        opening_days: config.opening_days || {
+            "0": false, "1": true, "2": true, "3": true, "4": true, "5": true, "6": true
+        },
+        min_employees_per_shift: config.min_employees_per_shift ?? 1,
+        max_employees_per_shift: config.max_employees_per_shift ?? 3,
+        employee_types: config.employee_types ?? [],
+        keyholder_before_minutes: config.keyholder_before_minutes ?? 30,
+        keyholder_after_minutes: config.keyholder_after_minutes ?? 30
+    };
+};
+
+export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage, storeConfig: rawStoreConfig, onChange }) => {
     const { toast } = useToast();
     const containerRef = useRef<HTMLDivElement>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [gridWidth, setGridWidth] = useState(0);
+
+    // Normalize store config
+    const storeConfig = normalizeStoreConfig(rawStoreConfig);
+
+    const [openingMinEmployees, setOpeningMinEmployees] = useState(storeConfig.min_employees_per_shift);
+    const [closingMinEmployees, setClosingMinEmployees] = useState(storeConfig.min_employees_per_shift);
 
     // Calculate opening days from settings
     const openingDays = React.useMemo(() => {
@@ -155,13 +216,57 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
         onChange?.(newCoverage);
     };
 
+    const handleUpdateOpeningMinEmployees = (value: number) => {
+        const newValue = Math.max(1, value);
+        setOpeningMinEmployees(newValue);
+
+        const newCoverage = coverage.map(day => ({
+            ...day,
+            timeSlots: day.timeSlots.map(slot => {
+                if (slot.startTime === storeConfig.store_opening) {
+                    return {
+                        ...slot,
+                        minEmployees: newValue,
+                        maxEmployees: Math.max(slot.maxEmployees, newValue)
+                    };
+                }
+                return slot;
+            })
+        }));
+
+        setCoverage(newCoverage);
+        onChange?.(newCoverage);
+    };
+
+    const handleUpdateClosingMinEmployees = (value: number) => {
+        const newValue = Math.max(1, value);
+        setClosingMinEmployees(newValue);
+
+        const newCoverage = coverage.map(day => ({
+            ...day,
+            timeSlots: day.timeSlots.map(slot => {
+                if (slot.endTime === storeConfig.store_closing) {
+                    return {
+                        ...slot,
+                        minEmployees: newValue,
+                        maxEmployees: Math.max(slot.maxEmployees, newValue)
+                    };
+                }
+                return slot;
+            })
+        }));
+
+        setCoverage(newCoverage);
+        onChange?.(newCoverage);
+    };
+
     const handleAddDefaultSlots = () => {
         // Use the exact store opening and closing times
         const morningShift = {
             startTime: storeConfig.store_opening,
             endTime: "14:00",
-            minEmployees: 1,
-            maxEmployees: 2,
+            minEmployees: openingMinEmployees,
+            maxEmployees: Math.max(2, openingMinEmployees),
             employeeTypes: storeConfig.employee_types.map(t => t.id),
             requiresKeyholder: true,
             keyholderBeforeMinutes: storeConfig.keyholder_before_minutes,
@@ -171,8 +276,8 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
         const afternoonShift = {
             startTime: "14:00",
             endTime: storeConfig.store_closing,
-            minEmployees: 1,
-            maxEmployees: 2,
+            minEmployees: closingMinEmployees,
+            maxEmployees: Math.max(2, closingMinEmployees),
             employeeTypes: storeConfig.employee_types.map(t => t.id),
             requiresKeyholder: true,
             keyholderBeforeMinutes: 0,
@@ -200,67 +305,109 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
 
     return (
         <DndProvider backend={HTML5Backend}>
-            <Card className="overflow-hidden">
-                <div className="flex items-center justify-between border-b p-4 bg-card">
-                    <h2 className="text-lg font-semibold">Employee Coverage Requirements</h2>
-                    <div className="flex items-center gap-2">
-                        <Button
-                            variant={isEditing ? "secondary" : "outline"}
-                            size="sm"
-                            className="gap-2"
-                            onClick={() => setIsEditing(!isEditing)}
-                        >
-                            <PencilIcon className="h-4 w-4" />
-                            {isEditing ? 'Done' : 'Edit'}
-                        </Button>
-                        {isEditing && (
+            <div className="space-y-4">
+                <Card className="overflow-hidden">
+                    <div className="flex items-center justify-between border-b p-4 bg-card">
+                        <h2 className="text-lg font-semibold">Employee Coverage Requirements</h2>
+                        <div className="flex items-center gap-2">
                             <Button
-                                variant="default"
+                                variant={isEditing ? "secondary" : "outline"}
                                 size="sm"
                                 className="gap-2"
-                                onClick={handleAddDefaultSlots}
+                                onClick={() => setIsEditing(!isEditing)}
                             >
-                                <Plus className="h-4 w-4" />
-                                Add All
+                                <PencilIcon className="h-4 w-4" />
+                                {isEditing ? 'Done' : 'Edit'}
                             </Button>
-                        )}
-                    </div>
-                </div>
-
-                <div ref={containerRef} className="overflow-auto relative">
-                    {/* Time header */}
-                    <div className="flex" style={{ height: HEADER_HEIGHT }}>
-                        <div style={{ width: TIME_COLUMN_WIDTH }} className="shrink-0 border-r border-border/50" />
-                        <div className="flex-1 flex relative border-b border-border/50">
-                            {hours.map((hour, i) => (
-                                <div
-                                    key={hour}
-                                    className="flex-1 relative border-r border-border/50 flex items-center justify-center text-sm font-medium text-muted-foreground"
+                            {isEditing && (
+                                <Button
+                                    variant="default"
+                                    size="sm"
+                                    className="gap-2"
+                                    onClick={handleAddDefaultSlots}
                                 >
-                                    {hour}
-                                </div>
-                            ))}
+                                    <Plus className="h-4 w-4" />
+                                    Add All
+                                </Button>
+                            )}
                         </div>
                     </div>
 
-                    {/* Days grid */}
-                    {openingDays.map((dayIndex) => (
-                        <DayRow
-                            key={dayIndex}
-                            dayName={DAYS_SHORT[dayIndex]}
-                            dayIndex={dayIndex}
-                            slots={coverage.find(c => c.dayIndex === dayIndex)?.timeSlots || []}
-                            hours={hours}
-                            onAddSlot={(hourIndex) => handleAddSlot(dayIndex, hourIndex)}
-                            onUpdateSlot={(slotIndex, updates) => handleUpdateSlot(dayIndex, slotIndex, updates)}
-                            onDeleteSlot={(slotIndex) => handleDeleteSlot(dayIndex, slotIndex)}
-                            isEditing={isEditing}
-                            gridWidth={gridWidth}
-                            storeConfig={storeConfig}
-                        />
-                    ))}
-                </div>
-            </Card>
+                    <div ref={containerRef} className="overflow-auto relative">
+                        {/* Time header */}
+                        <div className="flex" style={{ height: HEADER_HEIGHT }}>
+                            <div style={{ width: TIME_COLUMN_WIDTH }} className="shrink-0 border-r border-border/50" />
+                            <div className="flex-1 flex relative border-b border-border/50">
+                                {hours.map((hour, i) => (
+                                    <div
+                                        key={hour}
+                                        className="flex-1 relative border-r border-border/50 flex items-center justify-center text-sm font-medium text-muted-foreground"
+                                    >
+                                        {hour}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Days grid */}
+                        {openingDays.map((dayIndex) => (
+                            <DayRow
+                                key={dayIndex}
+                                dayName={DAYS_SHORT[dayIndex]}
+                                dayIndex={dayIndex}
+                                slots={coverage.find(c => c.dayIndex === dayIndex)?.timeSlots || []}
+                                hours={hours}
+                                onAddSlot={(hourIndex) => handleAddSlot(dayIndex, hourIndex)}
+                                onUpdateSlot={(slotIndex, updates) => handleUpdateSlot(dayIndex, slotIndex, updates)}
+                                onDeleteSlot={(slotIndex) => handleDeleteSlot(dayIndex, slotIndex)}
+                                isEditing={isEditing}
+                                gridWidth={gridWidth}
+                                storeConfig={storeConfig}
+                            />
+                        ))}
+                    </div>
+                </Card>
+
+                {/* Minimum Employee Requirements Section */}
+                <Card className="p-4">
+                    <div className="space-y-4">
+                        <h3 className="text-sm font-medium">Minimum Employee Requirements</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label htmlFor="openingMin" className="text-sm text-muted-foreground">
+                                    Opening (incl. 1 keyholder)
+                                </label>
+                                <input
+                                    id="openingMin"
+                                    type="number"
+                                    min="1"
+                                    value={openingMinEmployees}
+                                    onChange={(e) => handleUpdateOpeningMinEmployees(parseInt(e.target.value) || 1)}
+                                    className="w-full px-3 py-2 border rounded-md text-sm text-foreground bg-background disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled={!isEditing}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label htmlFor="closingMin" className="text-sm text-muted-foreground">
+                                    Closing (incl. 1 keyholder)
+                                </label>
+                                <input
+                                    id="closingMin"
+                                    type="number"
+                                    min="1"
+                                    value={closingMinEmployees}
+                                    onChange={(e) => handleUpdateClosingMinEmployees(parseInt(e.target.value) || 1)}
+                                    className="w-full px-3 py-2 border rounded-md text-sm text-foreground bg-background disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled={!isEditing}
+                                />
+                            </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            These settings will be applied to all opening and closing shifts respectively.
+                        </p>
+                    </div>
+                </Card>
+            </div>
         </DndProvider>
     );
 }; 

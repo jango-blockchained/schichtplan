@@ -139,7 +139,9 @@ export default function CoveragePage() {
         employee_types: settings.employee_groups.employee_types.map(type => ({
             id: type.id,
             name: type.name
-        }))
+        })),
+        keyholder_before_minutes: settings.general.keyholder_before_minutes,
+        keyholder_after_minutes: settings.general.keyholder_after_minutes
     };
 
     // Initialize default coverage if none exists
@@ -246,7 +248,7 @@ export default function CoveragePage() {
                 onChange={async (newCoverage) => {
                     try {
                         await updateCoverage(newCoverage);
-                        await queryClient.invalidateQueries(['coverage']);
+                        await queryClient.invalidateQueries({ queryKey: ['coverage'] });
                         toast({
                             title: "Success",
                             description: "Coverage settings saved successfully",

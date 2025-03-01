@@ -1,9 +1,15 @@
 import axios, { AxiosError } from 'axios';
-import type { Settings, Employee, Schedule, ScheduleResponse, ScheduleUpdate, DailyCoverage, CoverageTimeSlot } from '@/types/index';
+import type { Settings, Employee, Schedule, ScheduleError, ScheduleUpdate, DailyCoverage, CoverageTimeSlot } from '@/types/index';
 import { CreateEmployeeRequest, UpdateEmployeeRequest } from '../types';
 
 interface APIErrorResponse {
     error?: string;
+}
+
+export interface ScheduleResponse {
+    schedules: Schedule[];
+    versions: number[];
+    errors: ScheduleError[];
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
