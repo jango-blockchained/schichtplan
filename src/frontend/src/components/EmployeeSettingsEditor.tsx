@@ -17,7 +17,8 @@ import {
     TableRow,
 } from "./ui/table";
 
-type GroupType = EmployeeType | AbsenceType;
+export type { EmployeeType, AbsenceType };
+export type GroupType = EmployeeType | AbsenceType;
 
 interface EmployeeSettingsEditorProps {
     type: 'employee' | 'absence';

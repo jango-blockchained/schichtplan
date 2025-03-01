@@ -8,31 +8,18 @@ import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 
-export type CalendarProps = Omit<React.ComponentProps<typeof DayPicker>, "mode" | "selected" | "onSelect"> & {
-    mode?: "single" | "range" | "multiple"
-    selected?: Date | Date[] | DateRange | undefined
-    onSelect?: (date: Date | Date[] | DateRange | undefined) => void
-}
+export type CalendarProps = React.ComponentProps<typeof DayPicker>
 
-export interface DateRange {
-    from: Date | undefined;
-    to: Date | undefined;
-}
+export type DateRange = DayPickerDateRange
 
 function Calendar({
     className,
     classNames,
     showOutsideDays = true,
-    mode = "single",
-    selected,
-    onSelect,
     ...props
 }: CalendarProps) {
     return (
         <DayPicker
-            mode={mode}
-            selected={selected}
-            onSelect={onSelect}
             showOutsideDays={showOutsideDays}
             className={cn("p-3", className)}
             locale={de}

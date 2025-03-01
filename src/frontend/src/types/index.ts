@@ -312,12 +312,14 @@ export interface PDFLayoutConfig {
 export interface StoreConfigProps extends StoreConfig {
     min_employees_per_shift: number;
     max_employees_per_shift: number;
-}
-
-export interface AbsenceType {
-    id: string;
-    name: string;
-    color: string;
+    employee_types: Array<{
+        id: string;
+        name: string;
+        abbr?: string;
+        min_hours: number;
+        max_hours: number;
+        type: 'employee';
+    }>;
 }
 
 export interface EmployeeType {
@@ -325,15 +327,34 @@ export interface EmployeeType {
     name: string;
     min_hours: number;
     max_hours: number;
+    type: 'employee';
+}
+
+export interface AbsenceType {
+    id: string;
+    name: string;
+    color: string;
+    type: 'absence';
 }
 
 export type GroupType = EmployeeType | AbsenceType;
 
+export interface WeeklyShift {
+    day: number;
+    start_time: string;
+    end_time: string;
+    employee_id?: number;
+    break?: {
+        start: string;
+        end: string;
+        notes?: string;
+    };
+}
+
 export interface WeeklySchedule {
-    [key: string]: {
-        day: number;
-        start_time: string;
-        end_time: string;
-        employee_id?: number;
-    }[];
+    employee_id: number;
+    name: string;
+    position: string;
+    contracted_hours: number;
+    shifts: WeeklyShift[];
 } 
