@@ -1,211 +1,152 @@
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getShifts, createShift, updateShift, deleteShift, Shift } from '@/services/api';
-import { getSettings } from '@/services/api';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import React, { useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/use-toast';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ShiftForm } from '@/components/shifts-editor/components/ShiftForm';
+import { PageHeader } from '@/components/PageHeader';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Plus, Loader2 } from 'lucide-react';
 import { ShiftEditor } from '@/components/shifts-editor/components/ShiftEditor';
-import { Loader2, Pencil, Trash2, Plus } from 'lucide-react';
+import { Settings } from '@/types';
+import { Shift, getShifts, createShift, updateShift, deleteShift } from '@/services/api';
+import { getSettings } from '@/services/api';
 
-interface ShiftsPageProps { }
+// Helper function to convert active_days from object to array if needed
+const convertActiveDaysToArray = (activeDays: { [key: string]: boolean }): number[] => {
+  return Object.entries(activeDays)
+    .filter(([_, isActive]) => isActive)
+    .map(([day]) => parseInt(day));
+};
 
-const ShiftsPage: React.FC<ShiftsPageProps> = () => {
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editingShift, setEditingShift] = useState<Shift | null>(null);
+// Helper function to convert active_days from array to object if needed
+const convertActiveDaysToObject = (activeDays: number[]): { [key: string]: boolean } => {
+  const result: { [key: string]: boolean } = {};
+  for (let i = 0; i < 7; i++) {
+    result[i.toString()] = activeDays.includes(i);
+  }
+  return result;
+};
+
+export const ShiftsPage: React.FC = () => {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
+  const [shifts, setShifts] = useState<Shift[]>([]);
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const { data: shifts, isLoading: shiftsLoading } = useQuery({
-    queryKey: ['shifts'] as const,
-    queryFn: getShifts,
-  });
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [shiftsData, settingsData] = await Promise.all([
+          getShifts(),
+          getSettings()
+        ]);
+        setShifts(shiftsData);
+        setSettings(settingsData);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load shifts and settings',
+          variant: 'destructive',
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const { data: settings, isLoading: settingsLoading } = useQuery({
-    queryKey: ['settings'] as const,
-    queryFn: getSettings,
-  });
+    fetchData();
+  }, [toast]);
 
-  const createMutation = useMutation({
-    mutationFn: createShift,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['shifts'] });
-      setEditDialogOpen(false);
+  const handleAddShift = async () => {
+    if (!settings) return;
+
+    try {
+      const defaultShift = {
+        start_time: settings.general.store_opening,
+        end_time: settings.general.store_closing,
+        min_employees: 1,
+        max_employees: 3,
+        requires_break: true,
+        active_days: settings.general.opening_days,
+      };
+
+      const newShift = await createShift(defaultShift);
+      setShifts(prev => [...prev, newShift]);
       toast({
-        description: 'Schicht erfolgreich erstellt',
+        title: 'Success',
+        description: 'Shift created successfully',
       });
-    },
-    onError: (error) => {
+    } catch (error) {
+      console.error('Error creating shift:', error);
       toast({
+        title: 'Error',
+        description: 'Failed to create shift',
         variant: 'destructive',
-        title: 'Fehler',
-        description: error instanceof Error ? error.message : 'Fehler beim Erstellen der Schicht',
       });
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: updateShift,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['shifts'] });
-      setEditDialogOpen(false);
-      setEditingShift(null);
-      toast({
-        description: 'Schicht erfolgreich aktualisiert',
-      });
-    },
-    onError: (error) => {
-      toast({
-        variant: 'destructive',
-        title: 'Fehler',
-        description: error instanceof Error ? error.message : 'Fehler beim Aktualisieren der Schicht',
-      });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: deleteShift,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['shifts'] });
-      toast({
-        description: 'Schicht erfolgreich gelöscht',
-      });
-    },
-    onError: (error) => {
-      toast({
-        variant: 'destructive',
-        title: 'Fehler',
-        description: error instanceof Error ? error.message : 'Fehler beim Löschen der Schicht',
-      });
-    },
-  });
-
-  const handleAddShift = () => {
-    setEditingShift(null);
-    setEditDialogOpen(true);
+    }
   };
 
-  const handleEditShift = (shift: Shift) => {
-    setEditingShift(shift);
-    setEditDialogOpen(true);
+  const handleUpdateShift = async (updatedShift: Shift) => {
+    try {
+      const result = await updateShift(updatedShift);
+      setShifts(prev => prev.map(shift =>
+        shift.id === result.id ? result : shift
+      ));
+      toast({
+        title: 'Success',
+        description: 'Shift updated successfully',
+      });
+    } catch (error) {
+      console.error('Error updating shift:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update shift',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleDeleteShift = async (shiftId: number) => {
-    if (window.confirm('Möchten Sie diese Schicht wirklich löschen?')) {
-      await deleteMutation.mutateAsync(shiftId);
+    try {
+      await deleteShift(shiftId);
+      setShifts(prev => prev.filter(shift => shift.id !== shiftId));
+      toast({
+        title: 'Success',
+        description: 'Shift deleted successfully',
+      });
+    } catch (error) {
+      console.error('Error deleting shift:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete shift',
+        variant: 'destructive',
+      });
     }
   };
 
-  const handleSaveShift = async (data: any) => {
-    if (editingShift) {
-      await updateMutation.mutateAsync({ id: editingShift.id, ...data });
-    } else {
-      await createMutation.mutateAsync(data);
-    }
-  };
-
-  if (shiftsLoading || settingsLoading || !settings) {
+  if (loading || !settings) {
     return (
-      <div className="container mx-auto py-6 flex justify-center items-center min-h-[50vh]">
-        <div className="flex flex-col items-center gap-2">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Lade Schichten...</p>
+      <div className="container mx-auto py-6 space-y-8">
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Schichten</h1>
-        <Button onClick={handleAddShift}>
-          <Plus className="h-4 w-4 mr-2" />
-          Neue Schicht
-        </Button>
-      </div>
+    <div className="container mx-auto py-6 space-y-8">
+      <PageHeader
+        title="Schichten"
+        description="Verwalte die Schichten für deinen Betrieb"
+      />
 
-      {/* Shift Editor with Coverage View */}
-      {shifts && settings && (
-        <Card className="mb-8">
-          <CardContent className="p-6">
-            <ShiftEditor
-              shifts={shifts}
-              settings={settings}
-              onAddShift={handleAddShift}
-              onUpdateShift={updateMutation.mutateAsync}
-              onDeleteShift={deleteMutation.mutateAsync}
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Shift Cards Grid */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Schichtübersicht</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {shifts?.map((shift) => (
-              <Card key={shift.id} className="p-4 space-y-4 border shadow-sm">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-semibold">
-                      {shift.start_time} - {shift.end_time}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {shift.duration_hours} Stunden
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEditShift(shift)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteShift(shift.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                <div className="text-sm">
-                  <p>Mitarbeiter: {shift.min_employees} - {shift.max_employees}</p>
-                  <p>Pause: {shift.requires_break ? 'Ja' : 'Nein'}</p>
-                </div>
-              </Card>
-            ))}
-            {shifts?.length === 0 && (
-              <div className="col-span-full text-center py-8 text-muted-foreground">
-                Keine Schichten definiert. Klicken Sie auf "Neue Schicht", um eine zu erstellen.
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingShift ? 'Schicht bearbeiten' : 'Neue Schicht'}</DialogTitle>
-          </DialogHeader>
-          <ShiftForm
-            settings={settings}
-            initialData={editingShift || undefined}
-            onSave={handleSaveShift}
-          />
-        </DialogContent>
-      </Dialog>
+      <ShiftEditor
+        shifts={shifts}
+        settings={settings}
+        onAddShift={handleAddShift}
+        onUpdateShift={handleUpdateShift}
+        onDeleteShift={handleDeleteShift}
+      />
     </div>
   );
-};
-
-export default ShiftsPage; 
+}; 
