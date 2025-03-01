@@ -9,7 +9,12 @@ interface APIErrorResponse {
 export interface ScheduleResponse {
     schedules: Schedule[];
     versions: number[];
-    errors: ScheduleError[];
+    errors?: ScheduleError[];
+    version?: number;
+    total_shifts?: number;
+    filled_shifts_count?: number;
+    total_schedules?: number;
+    filtered_schedules?: number;
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -260,11 +265,12 @@ export interface ScheduleData {
     notes: string | null;
 }
 
-export const getSchedules = async (startDate: string, endDate: string, version?: number): Promise<ScheduleResponse> => {
+export const getSchedules = async (startDate: string, endDate: string, version?: number, includeEmpty: boolean = false): Promise<ScheduleResponse> => {
     try {
         const params = new URLSearchParams({
             start_date: startDate,
             end_date: endDate,
+            include_empty: includeEmpty.toString()
         });
         if (version !== undefined) {
             params.append('version', version.toString());
@@ -280,11 +286,16 @@ export const getSchedules = async (startDate: string, endDate: string, version?:
     }
 };
 
-export const generateSchedule = async (startDate: string, endDate: string): Promise<ScheduleResponse> => {
+export const generateSchedule = async (
+    startDate: string,
+    endDate: string,
+    createEmptySchedules: boolean = false
+): Promise<ScheduleResponse> => {
     try {
         const response = await api.post<ScheduleResponse>('/schedules/generate/', {
             start_date: startDate,
             end_date: endDate,
+            create_empty_schedules: createEmptySchedules,
         });
         return response.data;
     } catch (error) {

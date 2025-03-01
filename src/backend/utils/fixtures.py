@@ -90,26 +90,43 @@ def load_availabilities():
 
         group_avail = data["availabilities"][group_key]
 
-        # Add weekday availabilities
-        for day in range(1, 6):  # Monday to Friday
-            for hour in group_avail["weekdays"]["hours"]:
+        # Map fixture availability types to AvailabilityType enum
+        type_mapping = {
+            "REGULAR": AvailabilityType.AVAILABLE,
+            "FIXED": AvailabilityType.FIXED,
+            "PROMISE": AvailabilityType.PROMISE,
+        }
+
+        # Add weekday availabilities (Monday to Friday)
+        for day in range(1, 6):
+            # Get the full range of hours from the fixture
+            hours = group_avail["weekdays"]["hours"]
+
+            # Ensure we have coverage for both shift templates (13:00-18:00 and 15:00-20:00)
+            required_hours = list(range(13, 21))  # 13:00 to 20:00
+
+            # Add availability records for all hours that are both in the fixture and required
+            for hour in set(hours) & set(required_hours):
                 availability = EmployeeAvailability(
                     employee_id=employee.id,
                     day_of_week=day,
                     hour=hour,
                     is_available=True,
-                    availability_type=AvailabilityType[group_avail["weekdays"]["type"]],
+                    availability_type=type_mapping[group_avail["weekdays"]["type"]],
                 )
                 db.session.add(availability)
 
         # Add Saturday availabilities
-        for hour in group_avail["saturday"]["hours"]:
+        hours = group_avail["saturday"]["hours"]
+        required_hours = list(range(13, 21))  # 13:00 to 20:00
+
+        for hour in set(hours) & set(required_hours):
             availability = EmployeeAvailability(
                 employee_id=employee.id,
                 day_of_week=6,
                 hour=hour,
                 is_available=True,
-                availability_type=AvailabilityType[group_avail["saturday"]["type"]],
+                availability_type=type_mapping[group_avail["saturday"]["type"]],
             )
             db.session.add(availability)
 

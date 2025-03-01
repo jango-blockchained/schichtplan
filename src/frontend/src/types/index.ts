@@ -78,6 +78,8 @@ export interface ScheduleResponse {
     errors?: ScheduleError[];
     version?: number;
     total_shifts?: number;
+    filled_shifts_count?: number;
+    total_schedules?: number;
     versions?: number[];
 }
 

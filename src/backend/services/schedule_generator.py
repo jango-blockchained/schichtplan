@@ -305,9 +305,16 @@ class ScheduleGenerator:
             )
 
     def generate_schedule(
-        self, start_date: date, end_date: date
+        self, start_date: date, end_date: date, create_empty_schedules: bool = False
     ) -> Tuple[List[Schedule], List[Dict[str, Any]]]:
-        """Main schedule generation method following the defined hierarchy"""
+        """Main schedule generation method following the defined hierarchy
+
+        Args:
+            start_date: Start date of the schedule period
+            end_date: End date of the schedule period
+            create_empty_schedules: Whether to create empty schedules for all employees
+                                    If False, only create schedules for assigned shifts
+        """
         if not current_app:
             raise ScheduleGenerationError("No Flask application context")
 
@@ -317,6 +324,7 @@ class ScheduleGenerator:
                 "action": "generate_schedule",
                 "start_date": start_date.isoformat(),
                 "end_date": end_date.isoformat(),
+                "create_empty_schedules": create_empty_schedules,
             },
         )
 
@@ -370,44 +378,46 @@ class ScheduleGenerator:
                     db.session.rollback()
                     raise
 
-            # Create initial empty schedules for all employees
+            # Create initial empty schedules for all employees (if configured)
             logger.schedule_logger.info(
-                "Creating initial empty schedules for all employees"
+                f"{'Creating' if create_empty_schedules else 'Skipping'} initial empty schedules for all employees"
             )
             all_schedules = []
-            current_date = start_date
-            while current_date <= end_date:
-                for employee in self.resources.employees:
-                    empty_schedule = Schedule(
-                        employee_id=employee.id,
-                        date=current_date,
-                        shift_id=placeholder_shift.id,
-                        version=1,
-                    )
-                    empty_schedule.notes = "No assignments yet"
-                    db.session.add(empty_schedule)
-                    all_schedules.append(empty_schedule)
-                    logger.schedule_logger.debug(
-                        f"Created empty schedule for {employee.first_name} {employee.last_name} on {current_date}"
-                    )
-                current_date += timedelta(days=1)
 
-            try:
-                db.session.commit()
-                logger.schedule_logger.info(
-                    f"Successfully created {len(all_schedules)} initial empty schedules"
-                )
-            except Exception as e:
-                logger.error_logger.error(
-                    "Failed to save initial empty schedules",
-                    extra={
-                        "action": "save_empty_schedules_failed",
-                        "error_message": str(e),
-                        "error_type": type(e).__name__,
-                    },
-                )
-                db.session.rollback()
-                raise
+            if create_empty_schedules:
+                current_date = start_date
+                while current_date <= end_date:
+                    for employee in self.resources.employees:
+                        empty_schedule = Schedule(
+                            employee_id=employee.id,
+                            date=current_date,
+                            shift_id=placeholder_shift.id,
+                            version=1,
+                        )
+                        empty_schedule.notes = "No assignments yet"
+                        db.session.add(empty_schedule)
+                        all_schedules.append(empty_schedule)
+                        logger.schedule_logger.debug(
+                            f"Created empty schedule for {employee.first_name} {employee.last_name} on {current_date}"
+                        )
+                    current_date += timedelta(days=1)
+
+                try:
+                    db.session.commit()
+                    logger.schedule_logger.info(
+                        f"Successfully created {len(all_schedules)} initial empty schedules"
+                    )
+                except Exception as e:
+                    logger.error_logger.error(
+                        "Failed to save initial empty schedules",
+                        extra={
+                            "action": "save_empty_schedules_failed",
+                            "error_message": str(e),
+                            "error_type": type(e).__name__,
+                        },
+                    )
+                    db.session.rollback()
+                    raise
 
             # Pre-processing steps
             logger.schedule_logger.info("Starting pre-processing steps")
@@ -584,7 +594,42 @@ class ScheduleGenerator:
         self, date: date, start_time: str, end_time: str
     ) -> List[Employee]:
         """Get list of available employees for a given time slot"""
-        pass  # Implementation details...
+        available_employees = []
+
+        # Get the shift template for this time slot
+        shift = next(
+            (
+                s
+                for s in self.resources.shifts
+                if s.start_time == start_time and s.end_time == end_time
+            ),
+            None,
+        )
+
+        if not shift:
+            logger.error_logger.error(
+                f"No shift template found for {start_time}-{end_time}"
+            )
+            return []
+
+        for employee in self.resources.employees:
+            # Skip if employee has exceeded weekly hours
+            week_start = date - timedelta(days=date.weekday())
+            current_hours = self._get_employee_hours(employee, week_start)
+
+            if current_hours is not None and shift.duration_hours is not None:
+                if current_hours + shift.duration_hours > employee.contracted_hours:
+                    continue
+
+            # Check if employee is available for this time slot
+            if self._check_availability(employee, date, start_time, end_time):
+                # Check if employee has enough rest time
+                if self._has_enough_rest_time(employee, shift, date):
+                    # Check if employee hasn't exceeded max shifts per week
+                    if not self._exceeds_max_shifts(employee, date):
+                        available_employees.append(employee)
+
+        return available_employees
 
     def _assign_employees_to_slot(
         self, date: date, coverage: Coverage, candidates: List[Employee]
@@ -927,41 +972,12 @@ class ScheduleGenerator:
         return total_hours
 
     def _check_availability(
-        self, employee: Employee, day: date, shift: ShiftTemplate
+        self, employee: Employee, day: date, start_time: str, end_time: str
     ) -> bool:
         """Check if employee is available for the given shift"""
-        # Get all relevant availability records
-        availabilities = EmployeeAvailability.query.filter(
-            EmployeeAvailability.employee_id == employee.id,
-            db.or_(
-                db.and_(
-                    EmployeeAvailability.start_date.is_(
-                        None
-                    ),  # Recurring availabilities
-                    EmployeeAvailability.end_date.is_(None),
-                    EmployeeAvailability.is_recurring.is_(True),
-                ),
-                db.and_(
-                    EmployeeAvailability.start_date <= day,  # Temporary availabilities
-                    EmployeeAvailability.end_date >= day,
-                ),
-            ),
-        ).all()
-
-        # If no availability records exist, employee is considered unavailable
-        if not availabilities:
-            return False
-
-        # Check each availability record
-        for availability in availabilities:
-            if availability.is_available_for_date(
-                day,
-                shift.start_time if shift else None,
-                shift.end_time if shift else None,
-            ):
-                return True
-
-        return False
+        # Use the employee's is_available_for_date method directly
+        # This will use our updated logic for checking availability
+        return employee.is_available_for_date(day, start_time, end_time)
 
     def _assign_breaks(
         self, schedule: Schedule, shift: ShiftTemplate
@@ -1293,7 +1309,7 @@ class ScheduleGenerator:
     def _is_employee_available(self, employee: Employee, date: date) -> bool:
         """Check if employee is available on the given date"""
         # Check if the employee is available on the given date
-        return self._check_availability(employee, date, None)
+        return self._check_availability(employee, date, None, None)
 
     def _calculate_duration(self, start_time: str, end_time: str) -> float:
         """Calculate duration in hours between two time strings (HH:MM format)"""

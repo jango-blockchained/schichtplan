@@ -199,31 +199,31 @@ def generate_coverage_data():
         settings = Settings.get_default_settings()
 
     # Get or create shift templates
-    morning_shift = ShiftTemplate.query.filter_by(
-        start_time=settings.store_opening, end_time="14:00"
+    early_afternoon_shift = ShiftTemplate.query.filter_by(
+        start_time="13:00", end_time="18:00"
     ).first()
-    if not morning_shift:
-        morning_shift = ShiftTemplate(
-            start_time=settings.store_opening,
-            end_time="14:00",
-            min_employees=1,
+    if not early_afternoon_shift:
+        early_afternoon_shift = ShiftTemplate(
+            start_time="13:00",
+            end_time="18:00",
+            min_employees=0,
             max_employees=2,
-            requires_break=True,
+            requires_break=False,
         )
-        db.session.add(morning_shift)
+        db.session.add(early_afternoon_shift)
 
-    afternoon_shift = ShiftTemplate.query.filter_by(
-        start_time="14:00", end_time=settings.store_closing
+    late_afternoon_shift = ShiftTemplate.query.filter_by(
+        start_time="15:00", end_time="20:00"
     ).first()
-    if not afternoon_shift:
-        afternoon_shift = ShiftTemplate(
-            start_time="14:00",
-            end_time=settings.store_closing,
-            min_employees=1,
+    if not late_afternoon_shift:
+        late_afternoon_shift = ShiftTemplate(
+            start_time="15:00",
+            end_time="20:00",
+            min_employees=0,
             max_employees=2,
-            requires_break=True,
+            requires_break=False,
         )
-        db.session.add(afternoon_shift)
+        db.session.add(late_afternoon_shift)
 
     try:
         db.session.commit()
@@ -233,34 +233,34 @@ def generate_coverage_data():
 
     coverage_slots = []
     for day_index in range(0, 6):  # Monday (0) to Saturday (5)
-        # Morning slot
+        # Early afternoon slot
         coverage_slots.append(
             Coverage(
                 day_index=day_index,
-                start_time=settings.store_opening,
-                end_time="14:00",
+                start_time="13:00",
+                end_time="18:00",
                 min_employees=1,
                 max_employees=2,
                 employee_types=["TL", "VZ", "TZ", "GFB"],
                 requires_keyholder=True,
                 keyholder_before_minutes=settings.keyholder_before_minutes,
                 keyholder_after_minutes=0,
-                shift_id=morning_shift.id,
+                shift_id=early_afternoon_shift.id,
             )
         )
-        # Afternoon slot
+        # Late afternoon slot
         coverage_slots.append(
             Coverage(
                 day_index=day_index,
-                start_time="14:00",
-                end_time=settings.store_closing,
+                start_time="15:00",
+                end_time="20:00",
                 min_employees=1,
                 max_employees=2,
                 employee_types=["TL", "VZ", "TZ", "GFB"],
                 requires_keyholder=True,
                 keyholder_before_minutes=0,
                 keyholder_after_minutes=settings.keyholder_after_minutes,
-                shift_id=afternoon_shift.id,
+                shift_id=late_afternoon_shift.id,
             )
         )
 
