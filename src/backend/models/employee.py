@@ -254,12 +254,28 @@ class EmployeeAvailability(db.Model):
 
         # If no shift times provided, just check the date and availability
         if shift_start is None or shift_end is None:
-            return bool(self.is_available)
+            return self.is_available is True
+
+        # For FIXED and PROMISE availability types, they are available for any shift time
+        if self.availability_type in [AvailabilityType.FIXED, AvailabilityType.PROMISE]:
+            return self.is_available is True
 
         # Convert shift times to hours
         start_hour = int(shift_start.split(":")[0])
         end_hour = int(shift_end.split(":")[0])
 
-        # Check if the availability hour falls within the shift hours
-        # Cast SQLAlchemy boolean to Python boolean with bool()
-        return start_hour <= self.hour < end_hour and bool(self.is_available)
+        # For AVAILABLE type, check if the availability hour overlaps with the shift hours
+        # The employee needs to be available for at least one hour during the shift
+        # Use 'is True' for SQLAlchemy boolean comparison
+        if self.is_available is not True:
+            return False
+
+        # Check if the availability hour overlaps with the shift hours
+        return (
+            (
+                self.hour >= start_hour and self.hour < end_hour
+            )  # Hour is within shift time
+            or (
+                self.hour + 1 > start_hour and self.hour < end_hour
+            )  # Hour overlaps with shift
+        )

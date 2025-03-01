@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request, send_file
 from datetime import datetime
-from models import db, Schedule
+from models import db, Schedule, ShiftTemplate
 from services.schedule_generator import ScheduleGenerator
 from services.pdf_generator import PDFGenerator
 from http import HTTPStatus
@@ -17,6 +17,9 @@ def get_schedules():
         start_date = request.args.get("start_date")
         end_date = request.args.get("end_date")
         version = request.args.get("version", type=int)  # Optional version filter
+        include_empty = (
+            request.args.get("include_empty", "false").lower() == "true"
+        )  # Default to false
 
         if not start_date or not end_date:
             return jsonify(
@@ -35,7 +38,19 @@ def get_schedules():
         if version is not None:
             query = query.filter(Schedule.version == version)
 
-        schedules = query.all()
+        # Fetch all schedules first
+        all_schedules = query.all()
+
+        # Get the placeholder shift (00:00 - 00:00)
+        placeholder_shift = ShiftTemplate.query.filter_by(
+            start_time="00:00", end_time="00:00"
+        ).first()
+
+        # Filter out empty schedules if requested
+        if not include_empty and placeholder_shift:
+            schedules = [s for s in all_schedules if s.shift_id != placeholder_shift.id]
+        else:
+            schedules = all_schedules
 
         # Get all versions for this date range
         versions = (
@@ -50,6 +65,8 @@ def get_schedules():
             {
                 "schedules": [schedule.to_dict() for schedule in schedules],
                 "versions": [v[0] for v in versions],
+                "total_schedules": len(all_schedules),
+                "filtered_schedules": len(schedules),
             }
         )
 
@@ -69,12 +86,16 @@ def generate_schedule():
         start_date = datetime.strptime(data["start_date"], "%Y-%m-%d").date()
         end_date = datetime.strptime(data["end_date"], "%Y-%m-%d").date()
 
+        # Get the create_empty_schedules parameter, default to False
+        create_empty_schedules = data.get("create_empty_schedules", False)
+
         logger.schedule_logger.debug(
             f"Generating schedule for period: {start_date} to {end_date}",
             extra={
                 "action": "generate_schedule",
                 "start_date": start_date.isoformat(),
                 "end_date": end_date.isoformat(),
+                "create_empty_schedules": create_empty_schedules,
             },
         )
 
@@ -87,7 +108,9 @@ def generate_schedule():
 
         generator = ScheduleGenerator()
         logger.schedule_logger.debug("Starting schedule generation")
-        schedules, errors = generator.generate_schedule(start_date, end_date)
+        schedules, errors = generator.generate_schedule(
+            start_date, end_date, create_empty_schedules=create_empty_schedules
+        )
 
         # Set version for all new schedules
         logger.schedule_logger.debug(
@@ -130,12 +153,26 @@ def generate_schedule():
                         extra={"action": "note", "error": error},
                     )
 
+        # Get the placeholder shift used for empty schedules
+        placeholder_shift = ShiftTemplate.query.filter_by(
+            start_time="00:00", end_time="00:00"
+        ).first()
+
+        # Count only schedules with actual shifts (not placeholder)
+        filled_shifts = (
+            [s for s in schedules if s.shift_id != placeholder_shift.id]
+            if placeholder_shift
+            else []
+        )
+
         return jsonify(
             {
                 "schedules": [schedule.to_dict() for schedule in schedules],
                 "errors": errors,
                 "version": next_version,
-                "total_shifts": len(schedules),
+                "total_shifts": len(filled_shifts),
+                "total_schedules": len(schedules),  # Total including empty schedules
+                "filled_shifts_count": len(filled_shifts),  # For clarity
             }
         ), HTTPStatus.CREATED
 

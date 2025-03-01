@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScheduleTable } from '@/components/ScheduleTable';
 import { ScheduleError, PDFLayoutConfig } from '@/types';
 import { cn } from '@/lib/utils';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export function SchedulePage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -31,6 +32,8 @@ export function SchedulePage() {
   const [weeksAmount, setWeeksAmount] = useState<number>(1);
   const [selectedVersion, setSelectedVersion] = useState<number | undefined>();
   const [isLayoutCustomizerOpen, setIsLayoutCustomizerOpen] = useState(false);
+  const [createEmptySchedules, setCreateEmptySchedules] = useState<boolean>(false);
+  const [includeEmpty, setIncludeEmpty] = useState<boolean>(false);
   const { toast } = useToast();
   const [generationLogs, setGenerationLogs] = useState<{
     timestamp: Date;
@@ -49,7 +52,8 @@ export function SchedulePage() {
   } = useScheduleData(
     dateRange?.from || new Date(),
     dateRange?.to || addDays(dateRange?.from || new Date(), 6),
-    selectedVersion
+    selectedVersion,
+    includeEmpty
   );
 
   // Fetch data on initial load
@@ -93,7 +97,8 @@ export function SchedulePage() {
 
       const result = await generateSchedule(
         dateRange.from.toISOString().split('T')[0],
-        dateRange.to.toISOString().split('T')[0]
+        dateRange.to.toISOString().split('T')[0],
+        createEmptySchedules
       );
 
       const errors = result?.errors || [];
@@ -127,7 +132,7 @@ export function SchedulePage() {
       }
       toast({
         title: "Erfolg",
-        description: `Schichtplan wurde erfolgreich generiert. ${data?.total_shifts || 0} Schichten wurden erstellt.`,
+        description: `Schichtplan wurde erfolgreich generiert. ${data?.filled_shifts_count || data?.total_shifts || 0} Schichten wurden erstellt.`,
       });
     },
     onError: (error) => {
@@ -404,6 +409,35 @@ export function SchedulePage() {
                 ))}
               </SelectContent>
             </Select>
+            <div className="flex space-x-4 my-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="createEmptySchedules"
+                  checked={createEmptySchedules}
+                  onCheckedChange={(checked) => setCreateEmptySchedules(checked === true)}
+                />
+                <label
+                  htmlFor="createEmptySchedules"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Leere Zeilen für alle Mitarbeiter erstellen
+                </label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="includeEmptySchedules"
+                  checked={includeEmpty}
+                  onCheckedChange={(checked) => setIncludeEmpty(checked === true)}
+                />
+                <label
+                  htmlFor="includeEmptySchedules"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Leere Zeilen anzeigen
+                </label>
+              </div>
+            </div>
           </div>
           <div className="flex items-center space-x-2">
             {versions && versions.length > 0 && (

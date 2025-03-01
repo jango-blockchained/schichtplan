@@ -15,16 +15,18 @@ interface UseScheduleDataResult {
 export function useScheduleData(
     startDate: Date,
     endDate: Date,
-    version?: number
+    version?: number,
+    includeEmpty: boolean = false
 ): UseScheduleDataResult {
     const { data, isLoading, error, refetch } = useQuery<ScheduleResponse>({
-        queryKey: ['schedules', startDate.toISOString(), endDate.toISOString(), version] as const,
+        queryKey: ['schedules', startDate.toISOString(), endDate.toISOString(), version, includeEmpty] as const,
         queryFn: async () => {
             try {
                 return await getSchedules(
                     startDate.toISOString().split('T')[0],
                     endDate.toISOString().split('T')[0],
-                    version
+                    version,
+                    includeEmpty
                 );
             } catch (error) {
                 if (error instanceof AxiosError) {
