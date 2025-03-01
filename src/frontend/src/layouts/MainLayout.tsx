@@ -21,12 +21,11 @@ export const MainLayout = () => {
   const mainNavItems = React.useMemo(() => [
     { label: 'Schichtplan', path: '/', icon: LayoutDashboard },
     { label: 'Mitarbeiter', path: '/employees', icon: Users },
-    settings?.scheduling.scheduling_resource_type === 'coverage'
-      ? { label: 'Coverage', path: '/coverage', icon: BarChart }
-      : { label: 'Schichten', path: '/shifts', icon: FileText },
+    { label: 'Coverage', path: '/coverage', icon: BarChart },
+    { label: 'Schichten', path: '/shifts', icon: FileText },
     { label: 'Formulars', path: '/formulars', icon: FileText },
     { label: 'Optionen', path: '/options', icon: Cog },
-  ], [settings?.scheduling.scheduling_resource_type]);
+  ], []);
 
   const footerNavItems = React.useMemo(() => [
     { label: 'Logs', path: '/logs', icon: List },

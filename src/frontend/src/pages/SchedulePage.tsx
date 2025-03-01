@@ -42,6 +42,18 @@ export function SchedulePage() {
     details?: string;
   }[]>([]);
 
+  const handleIncludeEmptyChange = (checked: boolean) => {
+    console.log("Toggling includeEmpty:", { from: includeEmpty, to: checked });
+    setIncludeEmpty(checked);
+    addGenerationLog('info', `${checked ? 'Including' : 'Excluding'} empty schedules in view`);
+  };
+
+  const handleCreateEmptyChange = (checked: boolean) => {
+    console.log("Toggling createEmptySchedules:", { from: createEmptySchedules, to: checked });
+    setCreateEmptySchedules(checked);
+    addGenerationLog('info', `Will ${checked ? 'create' : 'not create'} empty schedules for all employees during generation`);
+  };
+
   const {
     scheduleData,
     versions,
@@ -95,11 +107,27 @@ export function SchedulePage() {
       addGenerationLog('info', 'Starting schedule generation',
         `Period: ${format(dateRange.from, 'dd.MM.yyyy')} to ${format(dateRange.to, 'dd.MM.yyyy')}`);
 
+      // Debug log the parameters being sent
+      console.log('Schedule generation parameters:', {
+        start_date: dateRange.from.toISOString().split('T')[0],
+        end_date: dateRange.to.toISOString().split('T')[0],
+        create_empty_schedules: createEmptySchedules
+      });
+
       const result = await generateSchedule(
         dateRange.from.toISOString().split('T')[0],
         dateRange.to.toISOString().split('T')[0],
         createEmptySchedules
       );
+
+      // Debug log the response
+      console.log('Schedule generation response:', {
+        total_schedules: result?.total_schedules || 0,
+        filled_shifts: result?.filled_shifts_count || 0,
+        empty_schedules: (result?.total_schedules || 0) - (result?.filled_shifts_count || 0),
+        versions: result?.versions || [],
+        errors: result?.errors || []
+      });
 
       const errors = result?.errors || [];
       errors.forEach(error => {
@@ -414,7 +442,7 @@ export function SchedulePage() {
                 <Checkbox
                   id="createEmptySchedules"
                   checked={createEmptySchedules}
-                  onCheckedChange={(checked) => setCreateEmptySchedules(checked === true)}
+                  onCheckedChange={handleCreateEmptyChange}
                 />
                 <label
                   htmlFor="createEmptySchedules"
@@ -428,7 +456,7 @@ export function SchedulePage() {
                 <Checkbox
                   id="includeEmptySchedules"
                   checked={includeEmpty}
-                  onCheckedChange={(checked) => setIncludeEmpty(checked === true)}
+                  onCheckedChange={handleIncludeEmptyChange}
                 />
                 <label
                   htmlFor="includeEmptySchedules"

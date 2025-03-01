@@ -590,11 +590,35 @@ class ScheduleGenerator:
         """Add an availability slot for an employee"""
         pass  # Implementation details...
 
+    def _has_valid_duration(self, shift):
+        """
+        Check if a shift has a valid duration (greater than 0).
+
+        Args:
+            shift: The shift to check
+
+        Returns:
+            bool: True if the shift has a valid duration, False otherwise
+        """
+        if shift.duration_hours <= 0:
+            logger.schedule_logger.warning(
+                f"Filtering out shift {shift.id} ({shift.start_time}-{shift.end_time}) with invalid duration: {shift.duration_hours}h"
+            )
+            logger.schedule_logger.warning(
+                f"Shift details - min_employees: {shift.min_employees}, max_employees: {shift.max_employees}"
+            )
+            return False
+        return True
+
     def _get_available_employees(
         self, date: date, start_time: str, end_time: str
     ) -> List[Employee]:
         """Get list of available employees for a given time slot"""
         available_employees = []
+
+        logger.schedule_logger.debug(
+            f"Finding available employees for {date} {start_time}-{end_time}"
+        )
 
         # Get the shift template for this time slot
         shift = next(
@@ -612,23 +636,68 @@ class ScheduleGenerator:
             )
             return []
 
+        logger.schedule_logger.debug(
+            f"Found shift template: {shift.id} ({shift.start_time}-{shift.end_time}, duration: {shift.duration_hours}h)"
+        )
+
+        # Check if shift has valid duration
+        if not self._has_valid_duration(shift):
+            logger.schedule_logger.error(
+                f"Skipping employee assignment for shift with invalid duration: {shift.id}"
+            )
+            return []
+
         for employee in self.resources.employees:
+            logger.schedule_logger.debug(
+                f"Checking employee {employee.id} ({employee.first_name} {employee.last_name})"
+            )
+
             # Skip if employee has exceeded weekly hours
             week_start = date - timedelta(days=date.weekday())
             current_hours = self._get_employee_hours(employee, week_start)
 
+            logger.schedule_logger.debug(
+                f"Employee {employee.id} current hours: {current_hours}, contracted: {employee.contracted_hours}"
+            )
+
             if current_hours is not None and shift.duration_hours is not None:
                 if current_hours + shift.duration_hours > employee.contracted_hours:
+                    logger.schedule_logger.debug(
+                        f"Employee {employee.id} would exceed contracted hours, skipping"
+                    )
                     continue
 
             # Check if employee is available for this time slot
-            if self._check_availability(employee, date, start_time, end_time):
-                # Check if employee has enough rest time
-                if self._has_enough_rest_time(employee, shift, date):
-                    # Check if employee hasn't exceeded max shifts per week
-                    if not self._exceeds_max_shifts(employee, date):
-                        available_employees.append(employee)
+            is_available = self._check_availability(
+                employee, date, start_time, end_time
+            )
+            logger.schedule_logger.debug(
+                f"Employee {employee.id} availability check: {is_available}"
+            )
 
+            if is_available:
+                # Check if employee has enough rest time
+                has_rest = self._has_enough_rest_time(employee, shift, date)
+                logger.schedule_logger.debug(
+                    f"Employee {employee.id} rest time check: {has_rest}"
+                )
+
+                if has_rest:
+                    # Check if employee hasn't exceeded max shifts per week
+                    exceeds_shifts = self._exceeds_max_shifts(employee, date)
+                    logger.schedule_logger.debug(
+                        f"Employee {employee.id} max shifts check: {not exceeds_shifts}"
+                    )
+
+                    if not exceeds_shifts:
+                        available_employees.append(employee)
+                        logger.schedule_logger.debug(
+                            f"Employee {employee.id} is available and added to candidates"
+                        )
+
+        logger.schedule_logger.debug(
+            f"Found {len(available_employees)} available employees for {date} {start_time}-{end_time}"
+        )
         return available_employees
 
     def _assign_employees_to_slot(
@@ -882,6 +951,11 @@ class ScheduleGenerator:
         t4 = datetime.strptime(end2, "%H:%M").time()
         return (t1 <= t4) and (t2 >= t3)
 
+    def _time_overlaps(self, start1: str, end1: str, start2: str, end2: str) -> bool:
+        """Check if two time ranges overlap"""
+        # This is functionally the same as _shifts_overlap
+        return self._shifts_overlap(start1, end1, start2, end2)
+
     def _is_store_open(self, date: date) -> bool:
         """Check if the store is open on a given date"""
         # Get store settings
@@ -972,12 +1046,85 @@ class ScheduleGenerator:
         return total_hours
 
     def _check_availability(
-        self, employee: Employee, day: date, start_time: str, end_time: str
+        self, employee: Employee, date: date, start_time: str, end_time: str
     ) -> bool:
-        """Check if employee is available for the given shift"""
-        # Use the employee's is_available_for_date method directly
-        # This will use our updated logic for checking availability
-        return employee.is_available_for_date(day, start_time, end_time)
+        """Check if an employee is available for a given time slot"""
+        logger.schedule_logger.debug(
+            f"Checking availability for employee {employee.id} on {date} {start_time}-{end_time}"
+        )
+
+        # Check if employee is absent
+        if self._is_employee_absent(employee, date):
+            logger.schedule_logger.debug(f"Employee {employee.id} is absent on {date}")
+            return False
+
+        # Check if employee has fixed availability
+        fixed_slots = [
+            a
+            for a in self.resources.availability_data
+            if a.employee_id == employee.id
+            and a.availability_type == AvailabilityType.FIXED
+            and a.start_date <= date <= a.end_date
+        ]
+
+        logger.schedule_logger.debug(
+            f"Employee {employee.id} has {len(fixed_slots)} fixed availability slots on {date}"
+        )
+
+        if fixed_slots:
+            # Check if any fixed slot covers this time
+            for slot in fixed_slots:
+                slot_start = f"{slot.hour:02d}:00"
+                slot_end = f"{(slot.hour + 1):02d}:00"
+
+                logger.schedule_logger.debug(
+                    f"Checking fixed slot {slot_start}-{slot_end} against shift {start_time}-{end_time}"
+                )
+
+                if self._time_overlaps(slot_start, slot_end, start_time, end_time):
+                    logger.schedule_logger.debug(
+                        f"Employee {employee.id} has fixed availability for {start_time}-{end_time}"
+                    )
+                    return True
+
+            logger.schedule_logger.debug(
+                f"Employee {employee.id} has no fixed availability covering {start_time}-{end_time}"
+            )
+            return False
+
+        # Check if employee has unavailable slots
+        unavailable_slots = [
+            a
+            for a in self.resources.availability_data
+            if a.employee_id == employee.id
+            and a.availability_type == AvailabilityType.UNAVAILABLE
+            and a.start_date <= date <= a.end_date
+        ]
+
+        logger.schedule_logger.debug(
+            f"Employee {employee.id} has {len(unavailable_slots)} unavailable slots on {date}"
+        )
+
+        # Check if any unavailable slot overlaps with this time
+        for slot in unavailable_slots:
+            slot_start = f"{slot.hour:02d}:00"
+            slot_end = f"{(slot.hour + 1):02d}:00"
+
+            logger.schedule_logger.debug(
+                f"Checking unavailable slot {slot_start}-{slot_end} against shift {start_time}-{end_time}"
+            )
+
+            if self._time_overlaps(slot_start, slot_end, start_time, end_time):
+                logger.schedule_logger.debug(
+                    f"Employee {employee.id} is unavailable for {start_time}-{end_time}"
+                )
+                return False
+
+        # If no fixed or unavailable slots, employee is available by default
+        logger.schedule_logger.debug(
+            f"Employee {employee.id} is available for {start_time}-{end_time} (default availability)"
+        )
+        return True
 
     def _assign_breaks(
         self, schedule: Schedule, shift: ShiftTemplate
@@ -1315,7 +1462,17 @@ class ScheduleGenerator:
         """Calculate duration in hours between two time strings (HH:MM format)"""
         start_hour, start_min = map(int, start_time.split(":"))
         end_hour, end_min = map(int, end_time.split(":"))
-        return (end_hour - start_hour) + (end_min - start_min) / 60.0
+
+        # Convert to minutes
+        start_minutes = start_hour * 60 + start_min
+        end_minutes = end_hour * 60 + end_min
+
+        # Handle overnight shifts
+        if end_minutes < start_minutes:
+            end_minutes += 24 * 60  # Add 24 hours
+
+        # Calculate duration in hours
+        return (end_minutes - start_minutes) / 60.0
 
     def _create_availability_lookup(
         self, availabilities: List[EmployeeAvailability]
@@ -1472,3 +1629,27 @@ class ScheduleGenerator:
                 raise ScheduleGenerationError(
                     f"Could not satisfy {' and '.join(error_msg)} for {shift_time} shift on {current_date.strftime('%Y-%m-%d')}"
                 )
+
+    def _is_employee_absent(self, employee: Employee, date: date) -> bool:
+        """Check if an employee is absent on a given date"""
+        logger.schedule_logger.debug(
+            f"Checking if employee {employee.id} is absent on {date}"
+        )
+
+        # Check if there are any unavailable slots for this employee on this date
+        unavailable_slots = [
+            a
+            for a in self.resources.availability_data
+            if a.employee_id == employee.id
+            and a.availability_type == AvailabilityType.UNAVAILABLE
+            and a.start_date <= date <= a.end_date
+        ]
+
+        if unavailable_slots:
+            logger.schedule_logger.debug(
+                f"Employee {employee.id} is absent on {date} - found {len(unavailable_slots)} unavailable slots"
+            )
+            return True
+
+        logger.schedule_logger.debug(f"Employee {employee.id} is not absent on {date}")
+        return False
