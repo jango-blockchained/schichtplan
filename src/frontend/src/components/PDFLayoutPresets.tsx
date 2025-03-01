@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
-import { PDFLayoutConfig } from './PDFLayoutEditor';
+import { PDFLayoutConfig } from '@/types';
 
 interface PDFLayoutPresetsProps {
     presets: Record<string, PDFLayoutConfig>;

@@ -5,8 +5,8 @@ import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
 import { Alert, AlertDescription } from './ui/alert';
 import { Trash2, Plus, Pencil } from 'lucide-react';
-import { ColorPicker } from './ui/color-picker';
-import { BaseEmployeeType, BaseAbsenceType } from '@/types';
+import ColorPicker from './ColorPicker';
+import { EmployeeType, AbsenceType } from '@/types';
 import { useDebouncedCallback } from 'use-debounce';
 import {
     Table,
@@ -17,23 +17,15 @@ import {
     TableRow,
 } from "./ui/table";
 
-export interface EmployeeType extends BaseEmployeeType {
-    type: 'employee';
-}
-
-export interface AbsenceType extends BaseAbsenceType {
-    type: 'absence';
-}
-
 type GroupType = EmployeeType | AbsenceType;
 
 interface EmployeeSettingsEditorProps {
-    type: GroupType['type'];
+    type: 'employee' | 'absence';
     groups: GroupType[];
     onChange: (groups: GroupType[]) => void;
 }
 
-export default function EmployeeSettingsEditor<T extends keyof GroupType>({ groups, onChange, type }: EmployeeSettingsEditorProps) {
+export default function EmployeeSettingsEditor({ groups, onChange, type }: EmployeeSettingsEditorProps) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingGroup, setEditingGroup] = useState<GroupType | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -51,7 +43,6 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
         switch (type) {
             case 'employee':
                 return {
-                    type: 'employee',
                     id: '',
                     name: '',
                     min_hours: 0,
@@ -59,7 +50,6 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                 } as EmployeeType;
             case 'absence':
                 return {
-                    type: 'absence',
                     id: '',
                     name: '',
                     color: '#FF9800'
@@ -138,7 +128,7 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                     </div>
                 </div>
 
-                {type === 'employee' && editingGroup.type === 'employee' && (
+                {type === 'employee' && 'min_hours' in editingGroup && (
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label>Min Hours</Label>
@@ -148,7 +138,7 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                                 onChange={(e) => setEditingGroup({
                                     ...editingGroup,
                                     min_hours: Number(e.target.value)
-                                } as EmployeeType)}
+                                })}
                             />
                         </div>
 
@@ -160,22 +150,22 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                                 onChange={(e) => setEditingGroup({
                                     ...editingGroup,
                                     max_hours: Number(e.target.value)
-                                } as EmployeeType)}
+                                })}
                             />
                         </div>
                     </div>
                 )}
 
-                {type === 'absence' && editingGroup.type === 'absence' && (
+                {type === 'absence' && 'color' in editingGroup && (
                     <div className="space-y-2">
                         <Label>Color</Label>
                         <ColorPicker
-                            id={`group-color-${editingGroup.id}`}
                             color={editingGroup.color}
-                            onChange={(color) => setEditingGroup({
+                            onChange={(color: string) => setEditingGroup({
                                 ...editingGroup,
                                 color
-                            } as AbsenceType)}
+                            })}
+                            label={editingGroup.name || editingGroup.color}
                         />
                     </div>
                 )}
@@ -186,7 +176,7 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
-                <h3 className="text-lg font-medium">
+                <h3 className="text-lg font-semibold">
                     {type === 'employee' ? 'Employee Types' : 'Absence Types'}
                 </h3>
                 <Button
@@ -220,13 +210,13 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                         <TableRow key={group.id}>
                             <TableCell>{group.id}</TableCell>
                             <TableCell>{group.name}</TableCell>
-                            {type === 'employee' && group.type === 'employee' && (
+                            {type === 'employee' && 'min_hours' in group && (
                                 <>
                                     <TableCell>{group.min_hours}</TableCell>
                                     <TableCell>{group.max_hours}</TableCell>
                                 </>
                             )}
-                            {type === 'absence' && group.type === 'absence' && (
+                            {type === 'absence' && 'color' in group && (
                                 <TableCell>
                                     <div className="flex items-center gap-2">
                                         <div
@@ -251,7 +241,7 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                                         size="sm"
                                         onClick={() => handleDeleteGroup(group.id)}
                                     >
-                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                        <Trash2 className="h-4 w-4" />
                                     </Button>
                                 </div>
                             </TableCell>
@@ -260,7 +250,7 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                 </TableBody>
             </Table>
 
-            <Dialog open={isModalOpen} onOpenChange={handleCloseModal}>
+            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>
@@ -277,9 +267,7 @@ export default function EmployeeSettingsEditor<T extends keyof GroupType>({ grou
                     {renderModalContent()}
 
                     <DialogFooter>
-                        <Button variant="outline" onClick={handleCloseModal}>
-                            Cancel
-                        </Button>
+                        <Button variant="outline" onClick={handleCloseModal}>Cancel</Button>
                         <Button onClick={handleSaveGroup}>
                             {editingGroup?.id ? 'Save' : 'Create'}
                         </Button>

@@ -17,6 +17,10 @@ import reportlab.lib.pagesizes as pagesizes
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch
 from flask import current_app
+from services.schedule_generator import ScheduleGenerator, ScheduleGenerationError
+import logging
+
+logger = logging.getLogger(__name__)
 
 bp = Blueprint("schedules", __name__, url_prefix="/api/schedules")
 
@@ -181,14 +185,6 @@ def _generate_day_schedule(
             None,
         )
 
-        # Determine number of employees needed for this shift
-        if current_date.weekday() in [1, 3]:  # Tuesday and Thursday
-            required_employees = shift.max_employees
-        else:
-            required_employees = max(
-                shift.min_employees, (shift.max_employees + shift.min_employees) // 2
-            )
-
         # Find available employees for this shift
         available_employees = [
             emp
@@ -197,6 +193,9 @@ def _generate_day_schedule(
         ]
 
         # Assign employees to shift
+        required_employees = (
+            coverage.min_employees if coverage else len(available_employees)
+        )
         for _ in range(required_employees):
             if not available_employees:
                 break

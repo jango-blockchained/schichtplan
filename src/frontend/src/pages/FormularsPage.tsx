@@ -2,6 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { FileText, FileSpreadsheet, UserPlus, Calendar } from 'lucide-react';
+import { PageHeader } from '@/components/PageHeader';
 
 const formulars = [
     {
@@ -37,8 +38,11 @@ export default function FormularsPage() {
     };
 
     return (
-        <div className="container mx-auto py-6">
-            <h1 className="text-2xl font-bold mb-6">Formulare</h1>
+        <div className="container mx-auto py-6 space-y-8">
+            <PageHeader
+                title="Formulare"
+                description="Zugriff auf alle verfügbaren Formulare"
+            />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {formulars.map((formular) => (
                     <Card key={formular.id} className="hover:shadow-lg transition-shadow">

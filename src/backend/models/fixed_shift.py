@@ -1,6 +1,13 @@
 from . import db
 from datetime import datetime
 from .settings import Settings
+from enum import Enum
+
+
+class ShiftType(Enum):
+    EARLY = "early"
+    MIDDLE = "middle"
+    LATE = "late"
 
 
 class ShiftValidationError(Exception):
@@ -19,6 +26,7 @@ class ShiftTemplate(db.Model):
     max_employees = db.Column(db.Integer, nullable=False)
     duration_hours = db.Column(db.Float, nullable=False)
     requires_break = db.Column(db.Boolean, nullable=False, default=True)
+    shift_type = db.Column(db.Enum(ShiftType), nullable=False)
     active_days = db.Column(
         db.JSON,
         nullable=False,
@@ -48,6 +56,7 @@ class ShiftTemplate(db.Model):
         max_employees=5,
         requires_break=True,
         active_days=None,
+        shift_type=None,
     ):
         self.start_time = start_time
         self.end_time = end_time
@@ -63,6 +72,21 @@ class ShiftTemplate(db.Model):
             "5": True,  # Friday
             "6": True,  # Saturday
         }
+
+        # Determine shift type based on time if not provided
+        if shift_type is None:
+            start_hour = int(start_time.split(":")[0])
+            end_hour = int(end_time.split(":")[0])
+
+            if start_hour < 8:
+                self.shift_type = ShiftType.EARLY
+            elif end_hour >= 18:
+                self.shift_type = ShiftType.LATE
+            else:
+                self.shift_type = ShiftType.MIDDLE
+        else:
+            self.shift_type = shift_type
+
         self._calculate_duration()
         self._needs_validation = True  # Flag to track if validation is needed
 
@@ -128,6 +152,7 @@ class ShiftTemplate(db.Model):
             "max_employees": self.max_employees,
             "duration_hours": self.duration_hours,
             "requires_break": self.requires_break,
+            "shift_type": self.shift_type.value if self.shift_type else None,
             "active_days": self.active_days,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,

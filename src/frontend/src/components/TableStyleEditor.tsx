@@ -62,7 +62,7 @@ const TableStyleEditor: React.FC<TableStyleEditorProps> = ({ tableStyle, onChang
     );
 
     return (
-        <Card className="p-4 border">
+        <Card className="p-6 border">
             <div className="space-y-4">
                 <ColorInput
                     label="Border Color"

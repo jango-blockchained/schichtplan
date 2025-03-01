@@ -62,8 +62,6 @@ def load_shifts():
         shift = ShiftTemplate(
             start_time=shift_data["start_time"],
             end_time=shift_data["end_time"],
-            min_employees=shift_data["min_employees"],
-            max_employees=shift_data["max_employees"],
             requires_break=shift_data["requires_break"],
         )
         db.session.add(shift)

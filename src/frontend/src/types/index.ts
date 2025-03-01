@@ -112,8 +112,6 @@ export interface StoreConfig {
     keyholder_after_minutes: number;
     opening_days: { [key: string]: boolean };
     special_hours: { [key: string]: { is_closed: boolean, opening: string, closing: string } };
-    min_employees_per_shift: number;
-    max_employees_per_shift: number;
     break_duration_minutes: number;
     created_at?: string;
     updated_at?: string;
@@ -191,8 +189,6 @@ export interface Settings {
         min_rest_between_shifts: number;
         scheduling_period_weeks: number;
         auto_schedule_preferences: boolean;
-        min_employees_per_shift: number;
-        max_employees_per_shift: number;
     };
     display: {
         theme: string;
@@ -283,4 +279,61 @@ export interface CoverageTimeSlot {
 export interface DailyCoverage {
     dayIndex: number;
     timeSlots: CoverageTimeSlot[];
+}
+
+export interface PDFLayoutConfig {
+    page_size: string;
+    orientation: string;
+    margins: {
+        top: number;
+        right: number;
+        bottom: number;
+        left: number;
+    };
+    table_style: {
+        header_bg_color: string;
+        border_color: string;
+        text_color: string;
+        header_text_color: string;
+    };
+    fonts: {
+        family: string;
+        size: number;
+        header_size: number;
+    };
+    content: {
+        show_employee_id: boolean;
+        show_position: boolean;
+        show_breaks: boolean;
+        show_total_hours: boolean;
+    };
+}
+
+export interface StoreConfigProps extends StoreConfig {
+    min_employees_per_shift: number;
+    max_employees_per_shift: number;
+}
+
+export interface AbsenceType {
+    id: string;
+    name: string;
+    color: string;
+}
+
+export interface EmployeeType {
+    id: string;
+    name: string;
+    min_hours: number;
+    max_hours: number;
+}
+
+export type GroupType = EmployeeType | AbsenceType;
+
+export interface WeeklySchedule {
+    [key: string]: {
+        day: number;
+        start_time: string;
+        end_time: string;
+        employee_id?: number;
+    }[];
 } 

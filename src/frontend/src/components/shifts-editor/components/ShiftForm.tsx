@@ -91,10 +91,10 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, shift, onSave, o
     };
 
     return (
-        <Card className="p-4">
+        <Card className="p-6">
             <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-medium">
+                    <h3 className="text-lg font-semibold">
                         {shift ? `Schicht ${shift.id}` : 'Neue Schicht'}
                     </h3>
                     {onDelete && (
@@ -171,7 +171,7 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, shift, onSave, o
 
                     <div className="grid gap-2">
                         <Label>Schicht Visualisierung</Label>
-                        <Card className="p-4">
+                        <Card className="p-6">
                             <div className="relative h-12 bg-muted rounded-md">
                                 {/* Store hours background */}
                                 <div className="absolute inset-0 flex items-center justify-between px-2 text-xs text-muted-foreground">

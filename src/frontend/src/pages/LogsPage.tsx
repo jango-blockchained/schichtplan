@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
+import { PageHeader } from '@/components/PageHeader';
 
 interface LogEntry {
     timestamp: string;
@@ -182,14 +183,10 @@ export default function LogsPage() {
 
     return (
         <div className="container mx-auto py-6 space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Logs</h1>
-                    <p className="text-muted-foreground">
-                        View and analyze system logs
-                    </p>
-                </div>
-            </div>
+            <PageHeader
+                title="Logs"
+                description="View and analyze system logs"
+            />
 
             <Tabs value={currentTab} onValueChange={setCurrentTab}>
                 <TabsList>

@@ -164,7 +164,7 @@ export function ScheduleTable({ schedules, dateRange, onDrop, isLoading }: Sched
         });
 
         // Sort employees by type (VZ/TL -> TZ -> GFB)
-        const employeeTypeOrder = {
+        const employeeTypeOrder: Record<string, number> = {
             'VZ': 0,
             'TL': 0,
             'TZ': 1,
@@ -178,7 +178,7 @@ export function ScheduleTable({ schedules, dateRange, onDrop, isLoading }: Sched
             const typeA = employeeA.employee_name.match(/\((.*?)\)/)?.[1] || '';
             const typeB = employeeB.employee_name.match(/\((.*?)\)/)?.[1] || '';
 
-            return (employeeTypeOrder[typeA] || 99) - (employeeTypeOrder[typeB] || 99);
+            return (employeeTypeOrder[typeA] ?? 99) - (employeeTypeOrder[typeB] ?? 99);
         });
 
         // Group by employee type
@@ -248,7 +248,7 @@ export function ScheduleTable({ schedules, dateRange, onDrop, isLoading }: Sched
                                                     s => s.date === format(day, 'yyyy-MM-dd')
                                                 );
                                                 return (
-                                                    <TableCell key={day.toISOString()} className="p-2">
+                                                    <TableCell key={day.toISOString()}>
                                                         <ScheduleCell
                                                             schedule={daySchedule}
                                                             onDrop={onDrop}

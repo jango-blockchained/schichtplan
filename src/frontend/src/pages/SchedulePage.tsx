@@ -11,7 +11,7 @@ import { PDFLayoutEditor } from '@/components/PDFLayoutEditor';
 import { usePDFConfig } from '@/hooks/usePDFConfig';
 import { DateRange } from 'react-day-picker';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2, AlertCircle, X } from 'lucide-react';
+import { Loader2, AlertCircle, X, CheckCircle2, Circle, Clock } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -23,6 +23,15 @@ import { ScheduleTable } from '@/components/ScheduleTable';
 import { ScheduleError, PDFLayoutConfig } from '@/types';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
+import { PageHeader } from '@/components/PageHeader';
+import { Progress } from '@/components/ui/progress';
+
+interface GenerationStep {
+  id: string;
+  title: string;
+  status: 'pending' | 'in-progress' | 'completed' | 'error';
+  message?: string;
+}
 
 export function SchedulePage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -41,6 +50,14 @@ export function SchedulePage() {
     message: string;
     details?: string;
   }[]>([]);
+
+  const [generationSteps, setGenerationSteps] = useState<GenerationStep[]>([
+    { id: 'init', title: 'Initialisiere Generierung', status: 'pending' },
+    { id: 'validate', title: 'Validiere Eingabedaten', status: 'pending' },
+    { id: 'process', title: 'Verarbeite Schichtplan', status: 'pending' },
+    { id: 'assign', title: 'Weise Schichten zu', status: 'pending' },
+    { id: 'finalize', title: 'Finalisiere Schichtplan', status: 'pending' },
+  ]);
 
   const handleIncludeEmptyChange = (checked: boolean) => {
     console.log("Toggling includeEmpty:", { from: includeEmpty, to: checked });
@@ -98,37 +115,53 @@ export function SchedulePage() {
     setGenerationLogs([]);
   };
 
+  const updateGenerationStep = (stepId: string, status: GenerationStep['status'], message?: string) => {
+    setGenerationSteps(steps =>
+      steps.map(step =>
+        step.id === stepId
+          ? { ...step, status, message }
+          : step
+      )
+    );
+  };
+
   const generateMutation = useMutation({
     mutationFn: async () => {
       if (!dateRange?.from || !dateRange?.to) {
         throw new Error("Bitte wählen Sie einen Zeitraum aus");
       }
 
+      // Reset steps
+      setGenerationSteps(steps => steps.map(step => ({ ...step, status: 'pending', message: undefined })));
+
+      // Step 1: Initialize
+      updateGenerationStep('init', 'in-progress');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      updateGenerationStep('init', 'completed');
+
+      // Step 2: Validate
+      updateGenerationStep('validate', 'in-progress');
       addGenerationLog('info', 'Starting schedule generation',
         `Period: ${format(dateRange.from, 'dd.MM.yyyy')} to ${format(dateRange.to, 'dd.MM.yyyy')}`);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      updateGenerationStep('validate', 'completed');
 
-      // Debug log the parameters being sent
-      console.log('Schedule generation parameters:', {
-        start_date: dateRange.from.toISOString().split('T')[0],
-        end_date: dateRange.to.toISOString().split('T')[0],
-        create_empty_schedules: createEmptySchedules
-      });
+      // Step 3: Process
+      updateGenerationStep('process', 'in-progress');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      updateGenerationStep('process', 'completed');
 
+      // Step 4: Assign
+      updateGenerationStep('assign', 'in-progress');
       const result = await generateSchedule(
         dateRange.from.toISOString().split('T')[0],
         dateRange.to.toISOString().split('T')[0],
         createEmptySchedules
       );
+      updateGenerationStep('assign', 'completed');
 
-      // Debug log the response
-      console.log('Schedule generation response:', {
-        total_schedules: result?.total_schedules || 0,
-        filled_shifts: result?.filled_shifts_count || 0,
-        empty_schedules: (result?.total_schedules || 0) - (result?.filled_shifts_count || 0),
-        versions: result?.versions || [],
-        errors: result?.errors || []
-      });
-
+      // Step 5: Finalize
+      updateGenerationStep('finalize', 'in-progress');
       const errors = result?.errors || [];
       errors.forEach(error => {
         if (!error) return;
@@ -146,6 +179,9 @@ export function SchedulePage() {
 
       addGenerationLog('info', 'Schedule generation completed',
         `Generated ${result?.total_shifts || 0} shifts`);
+
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      updateGenerationStep('finalize', 'completed');
 
       return result;
     },
@@ -415,8 +451,52 @@ export function SchedulePage() {
 
   const { config: pdfConfig = defaultPDFConfig, updateConfig } = usePDFConfig();
 
+  // Add this component for the generation overlay
+  const GenerationOverlay = () => (
+    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
+      <Card className="w-[400px] shadow-lg">
+        <CardHeader>
+          <CardTitle className="text-center">
+            Generiere Schichtplan
+            <div className="text-sm font-normal text-muted-foreground mt-1">
+              Bitte warten Sie, während der Schichtplan generiert wird...
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {generationSteps.map((step, index) => (
+            <div key={step.id} className="flex items-center space-x-3">
+              {step.status === 'pending' && <Circle className="h-5 w-5 text-muted-foreground" />}
+              {step.status === 'in-progress' && <Clock className="h-5 w-5 text-blue-500 animate-pulse" />}
+              {step.status === 'completed' && <CheckCircle2 className="h-5 w-5 text-green-500" />}
+              {step.status === 'error' && <AlertCircle className="h-5 w-5 text-red-500" />}
+              <div className="flex-1">
+                <div className="text-sm font-medium">{step.title}</div>
+                {step.message && (
+                  <div className="text-xs text-muted-foreground">{step.message}</div>
+                )}
+              </div>
+            </div>
+          ))}
+          <Progress
+            value={
+              (generationSteps.filter(step => step.status === 'completed').length /
+                generationSteps.length) * 100
+            }
+            className="mt-4"
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+
   return (
     <div className="container mx-auto py-6 space-y-6">
+      <PageHeader
+        title="Schichtplan"
+        description="Erstelle und verwalte Schichtpläne für deine Mitarbeiter"
+      />
+
       <div className="flex flex-col space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -582,6 +662,8 @@ export function SchedulePage() {
           />
         </DialogContent>
       </Dialog>
+
+      {generateMutation.isPending && <GenerationOverlay />}
     </div>
   );
 } 

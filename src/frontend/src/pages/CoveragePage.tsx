@@ -13,6 +13,7 @@ import { CoverageEditor } from "@/components/coverage-editor";
 import { useToast } from "@/components/ui/use-toast";
 import { getAllCoverage, updateCoverage, getSettings } from "@/services/api";
 import { DailyCoverage, Settings, CoverageTimeSlot } from "@/types/index";
+import { PageHeader } from '@/components/PageHeader';
 
 const CustomTooltip = ({ active, payload }: TooltipProps<ValueType, NameType>) => {
     if (active && payload && payload.length) {
@@ -152,14 +153,10 @@ export default function CoveragePage() {
 
     return (
         <div className="container mx-auto py-6 space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Coverage Overview</h1>
-                    <p className="text-muted-foreground">
-                        Monitor employee coverage and scheduling statistics
-                    </p>
-                </div>
-            </div>
+            <PageHeader
+                title="Coverage Overview"
+                description="Monitor employee coverage and scheduling statistics"
+            />
 
             <div className="grid gap-4 grid-cols-1 md:grid-cols-4">
                 {/* Total Employees Card */}
