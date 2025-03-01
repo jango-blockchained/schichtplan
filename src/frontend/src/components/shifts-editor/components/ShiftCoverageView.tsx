@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
-import { Settings, Shift } from '@/types';
+import { Settings } from '@/types';
+import { Shift } from '@/services/api';
 import { parse, format, differenceInMinutes, isAfter, isBefore, addMinutes, subMinutes } from 'date-fns';
 
 // Constants

@@ -39,4 +39,70 @@ export class TimeCalculator {
 
         return labels;
     }
-} 
+}
+
+/**
+ * Calculates the time range for a day based on store hours
+ */
+export const calculateTimeRange = (
+    storeOpening: string,
+    storeClosing: string
+): TimeRange => {
+    // Parse the store opening and closing times
+    const today = new Date();
+    const dateFormat = 'yyyy-MM-dd';
+    const timeFormat = 'HH:mm';
+    const dateString = format(today, dateFormat);
+
+    const rangeStart = parse(`${dateString} ${storeOpening}`, `${dateFormat} ${timeFormat}`, new Date());
+    const rangeEnd = parse(`${dateString} ${storeClosing}`, `${dateFormat} ${timeFormat}`, new Date());
+
+    // Handle overnight shifts (closing time is earlier than opening time)
+    if (isAfter(rangeStart, rangeEnd)) {
+        // Add a day to the end time
+        const nextDay = new Date(rangeEnd);
+        nextDay.setDate(nextDay.getDate() + 1);
+        return {
+            start: format(rangeStart, timeFormat),
+            end: format(nextDay, timeFormat)
+        };
+    }
+
+    return {
+        start: format(rangeStart, timeFormat),
+        end: format(rangeEnd, timeFormat)
+    };
+};
+
+/**
+ * Generates time slots for a given time range
+ */
+export const generateTimeSlots = (timeRange: TimeRange, intervalMinutes: number = 60) => {
+    const slots = [];
+
+    // Parse the time strings to Date objects for calculations
+    const today = new Date();
+    const dateFormat = 'yyyy-MM-dd';
+    const timeFormat = 'HH:mm';
+    const dateString = format(today, dateFormat);
+
+    const startDate = parse(`${dateString} ${timeRange.start}`, `${dateFormat} ${timeFormat}`, new Date());
+    const endDate = parse(`${dateString} ${timeRange.end}`, `${dateFormat} ${timeFormat}`, new Date());
+
+    // Handle overnight shifts
+    if (isAfter(startDate, endDate)) {
+        // Add a day to the end time
+        const nextDay = new Date(endDate);
+        nextDay.setDate(nextDay.getDate() + 1);
+        endDate.setDate(endDate.getDate() + 1);
+    }
+
+    let currentTime = new Date(startDate);
+
+    while (isBefore(currentTime, endDate) || currentTime.getTime() === endDate.getTime()) {
+        slots.push(format(currentTime, timeFormat));
+        currentTime = addMinutes(currentTime, intervalMinutes);
+    }
+
+    return slots;
+}; 

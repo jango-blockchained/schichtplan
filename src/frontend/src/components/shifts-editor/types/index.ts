@@ -1,39 +1,35 @@
-import { Settings, Shift } from '@/types';
+import { Settings } from '@/types';
+import { Shift } from '@/services/api';
 
 export interface TimeRange {
-    start: Date;
-    end: Date;
+    start: string;
+    end: string;
 }
 
 export interface ShiftDebugInfo {
-    shiftId: number;
-    originalShiftStart: string;
-    originalShiftEnd: string;
-    rangeStart: string;
-    rangeEnd: string;
-    isShiftBeforeRange: boolean;
-    isShiftAfterRange: boolean;
-    positioningResult?: string | PositioningDetails;
+    id: number;
+    startTime: string;
+    endTime: string;
+    startX: number;
+    width: number;
+    day: number;
 }
 
 export interface PositioningDetails {
-    totalDuration: number;
-    shiftStartFromRangeStart: number;
-    shiftDuration: number;
-    left: number;
+    x: number;
     width: number;
 }
 
 export interface EnhancedShift extends Shift {
-    isEarlyShift: boolean;
-    isLateShift: boolean;
+    positioning?: PositioningDetails;
+    debugInfo?: ShiftDebugInfo;
 }
 
 export interface ShiftEditorProps {
     shifts: Shift[];
     settings: Settings;
     onAddShift?: () => void;
-    onUpdateShift?: (shift: Shift) => Promise<void>;
-    onDeleteShift?: (shiftId: number) => Promise<void>;
-    onEmployeeCountChange?: (shiftId: number, minEmployees: number, maxEmployees: number) => Promise<void>;
+    onUpdateShift?: (shift: Shift) => void;
+    onDeleteShift?: (shiftId: number) => void;
+    onEmployeeCountChange?: (day: number, hour: number, count: number) => void;
 } 
