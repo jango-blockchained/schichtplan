@@ -27,7 +27,11 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
     const [startWidth, setStartWidth] = useState(0);
     const [showEditor, setShowEditor] = useState(false);
 
-    // Always use snapped times for position and width calculations
+    // Use the original times from the slot without snapping for display
+    const displayStartTime = slot.startTime;
+    const displayEndTime = slot.endTime;
+
+    // Use snapped times for calculations only
     const snappedStartTime = snapToQuarterHour(slot.startTime);
     const snappedEndTime = snapToQuarterHour(slot.endTime);
 
@@ -39,57 +43,47 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
     const gridStartTime = hours[0];
     const gridEndTime = hours[hours.length - 1];
     const gridStartMinutes = timeToMinutes(gridStartTime);
-    const gridEndMinutes = timeToMinutes(gridEndTime);
+    const gridEndMinutes = timeToMinutes(gridEndTime) + 60; // Add one hour to get the full range
     const totalGridMinutes = gridEndMinutes - gridStartMinutes;
 
-    // Calculate block position and dimensions
-    const startMinutes = timeToMinutes(snappedStartTime);
-    const endMinutes = timeToMinutes(snappedEndTime);
+    // Calculate block position and dimensions using the exact grid dimensions
+    const startMinutes = timeToMinutes(displayStartTime);
+    const endMinutes = timeToMinutes(displayEndTime);
 
-    // Calculate the width of one hour in pixels
+    // Calculate the width of the grid content area (excluding the day column)
     const gridContentWidth = gridWidth - TIME_COLUMN_WIDTH;
-    const hourWidth = gridContentWidth / (hours.length);
 
-    // Calculate position based on hours from start, accounting for column centering
-    const startHour = Math.floor((startMinutes - gridStartMinutes) / 60);
-    const startMinuteOffset = (startMinutes - gridStartMinutes) % 60;
-    const startOffsetPercentage = startMinuteOffset / 60;
+    // Calculate position based on minutes from start as a percentage of total grid minutes
+    const startOffsetPercentage = (startMinutes - gridStartMinutes) / totalGridMinutes;
+    const startOffset = gridContentWidth * startOffsetPercentage;
 
-    // Calculate the exact pixel position
-    const startOffset = (startHour * hourWidth) + (startOffsetPercentage * hourWidth);
-
-    // Calculate block width based on duration
+    // Calculate width based on duration as a percentage of total grid minutes
     const durationMinutes = endMinutes - startMinutes;
-    const durationHours = durationMinutes / 60;
-    const blockWidth = durationHours * hourWidth;
+    const durationPercentage = durationMinutes / totalGridMinutes;
+    const blockWidth = gridContentWidth * durationPercentage;
 
     // Calculate keyholder times
     let keyholderBeforeMinutes = 0;
     let keyholderAfterMinutes = 0;
-    let keyholderBeforeOffset = 0;
-    let keyholderAfterOffset = 0;
 
     if (isEarlyShift) {
         keyholderBeforeMinutes = storeConfig.keyholder_before_minutes;
-        const keyholderStartHour = Math.floor((startMinutes - keyholderBeforeMinutes - gridStartMinutes) / 60);
-        const keyholderStartOffset = (startMinutes - keyholderBeforeMinutes - gridStartMinutes) % 60;
-        keyholderBeforeOffset = (keyholderStartHour * hourWidth) + ((keyholderStartOffset / 60) * hourWidth);
     }
     if (isLateShift) {
         keyholderAfterMinutes = storeConfig.keyholder_after_minutes;
-        const keyholderEndHour = Math.floor((endMinutes + keyholderAfterMinutes - gridStartMinutes) / 60);
-        const keyholderEndOffset = (endMinutes + keyholderAfterMinutes - gridStartMinutes) % 60;
-        keyholderAfterOffset = (keyholderEndHour * hourWidth) + ((keyholderEndOffset / 60) * hourWidth);
     }
 
-    // Calculate keyholder extensions
-    const keyholderBeforeWidth = keyholderBeforeMinutes > 0 ? (keyholderBeforeMinutes / 60) * hourWidth : 0;
-    const keyholderAfterWidth = keyholderAfterMinutes > 0 ? (keyholderAfterMinutes / 60) * hourWidth : 0;
+    // Calculate keyholder extensions as percentages of the grid
+    const keyholderBeforePercentage = keyholderBeforeMinutes / totalGridMinutes;
+    const keyholderAfterPercentage = keyholderAfterMinutes / totalGridMinutes;
 
-    const duration = formatDuration(snappedStartTime, snappedEndTime);
+    const keyholderBeforeWidth = keyholderBeforeMinutes > 0 ? gridContentWidth * keyholderBeforePercentage : 0;
+    const keyholderAfterWidth = keyholderAfterMinutes > 0 ? gridContentWidth * keyholderAfterPercentage : 0;
+
+    const duration = formatDuration(displayStartTime, displayEndTime);
 
     // Create a unique key for the block
-    const blockKey = `${dayIndex}-${snappedStartTime}-${snappedEndTime}`;
+    const blockKey = `${dayIndex}-${displayStartTime}-${displayEndTime}`;
 
     const [{ isDragging }, drag] = useDrag({
         type: 'COVERAGE_BLOCK',
@@ -97,8 +91,8 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
             type: 'COVERAGE_BLOCK',
             slot: {
                 ...slot,
-                startTime: snappedStartTime,
-                endTime: snappedEndTime
+                startTime: displayStartTime,
+                endTime: displayEndTime
             },
             dayIndex
         },
@@ -128,15 +122,22 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
         e.preventDefault();
 
         const diff = e.pageX - startX;
-        // Convert the pixel difference to hours
-        const additionalHours = diff / hourWidth;
-        // Round to nearest 15 minutes
-        const additionalMinutes = Math.round(additionalHours * 60 / 15) * 15;
-        const newEndMinutes = startMinutes + additionalMinutes;
+        // Convert the pixel difference to minutes
+        const minuteWidth = gridContentWidth / totalGridMinutes;
+        const additionalMinutes = Math.round(diff / minuteWidth / 15) * 15;
 
-        // Calculate new width based on rounded minutes
-        const newDurationHours = (newEndMinutes - startMinutes) / 60;
-        const newWidth = Math.max(0.25 * hourWidth, Math.min(newDurationHours * hourWidth, gridContentWidth - startOffset));
+        const newEndMinutes = Math.min(
+            Math.max(
+                startMinutes + 15, // Minimum 15 minutes
+                endMinutes + additionalMinutes
+            ),
+            gridEndMinutes // Maximum is grid end time
+        );
+
+        // Calculate new width based on duration percentage
+        const newDurationMinutes = newEndMinutes - startMinutes;
+        const newDurationPercentage = newDurationMinutes / totalGridMinutes;
+        const newWidth = gridContentWidth * newDurationPercentage;
 
         if (blockRef.current) {
             blockRef.current.style.width = `${newWidth}px`;
@@ -148,15 +149,14 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
         setIsResizing(false);
 
         const width = blockRef.current?.offsetWidth || 0;
-        // Convert width back to hours
-        const durationHours = width / hourWidth;
-        // Round to nearest 15 minutes
-        const durationMinutes = Math.round(durationHours * 60 / 15) * 15;
+        // Convert width back to minutes
+        const widthPercentage = width / gridContentWidth;
+        const durationMinutes = Math.round(widthPercentage * totalGridMinutes / 15) * 15;
         const newEndMinutes = startMinutes + durationMinutes;
         const newEndTime = minutesToTime(newEndMinutes);
 
         onUpdate({
-            endTime: snapToQuarterHour(newEndTime)
+            endTime: newEndTime
         });
     };
 
@@ -178,7 +178,7 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
     console.log("endMinutes:", endMinutes);
     console.log("keyholderBeforeMinutes:", keyholderBeforeMinutes);
     console.log("keyholderAfterMinutes:", keyholderAfterMinutes);
-    console.log("keyholderBeforeOffset:", keyholderBeforeOffset);
+    console.log("keyholderBeforeOffset:", keyholderBeforePercentage);
     console.log("startOffset:", startOffset);
     console.log("blockWidth:", blockWidth);
     useEffect(() => {
@@ -263,7 +263,7 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
                 )}
                 <div className="flex justify-between items-center gap-2 select-none w-full">
                     <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-primary font-medium text-xs whitespace-nowrap">{snappedStartTime} - {snappedEndTime}</span>
+                        <span className="text-primary font-medium text-xs whitespace-nowrap">{displayStartTime} - {displayEndTime}</span>
                         <span className="text-muted-foreground font-medium bg-background/50 px-2 py-0.5 rounded-full text-[10px] whitespace-nowrap">{duration}</span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">

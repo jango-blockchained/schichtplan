@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
 import { Card } from '@/components/ui/card';
-import { ShiftForm } from '@/components/ShiftForm';
-import { ShiftCoverageView } from '@/components/ShiftCoverageView';
+import { ShiftForm } from '@/components/shifts-editor/components/ShiftForm';
+import { ShiftEditor } from '@/components/shifts-editor/components/ShiftEditor';
 import { Shift } from '@/types';
 import { Pencil, Trash2, Plus } from 'lucide-react';
 
@@ -123,7 +123,18 @@ const ShiftsPage: React.FC<ShiftsPageProps> = () => {
       </div>
 
       {/* Shift Coverage View */}
-      {shifts && <ShiftCoverageView settings={settings} shifts={shifts} />}
+      {shifts && settings && (
+        <ShiftEditor
+          shifts={shifts}
+          settings={settings}
+          onAddShift={() => {
+            setEditingShift(null);
+            setEditDialogOpen(true);
+          }}
+          onUpdateShift={updateMutation.mutateAsync}
+          onDeleteShift={deleteMutation.mutateAsync}
+        />
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {shifts?.map((shift) => (

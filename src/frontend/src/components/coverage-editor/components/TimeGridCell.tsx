@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { TimeGridCellProps } from '../types';
 import { timeToMinutes } from '../utils/time';
 import { GRID_CONSTANTS } from '../utils/constants';
+import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 const { CELL_HEIGHT } = GRID_CONSTANTS;
 
@@ -15,7 +16,9 @@ export const TimeGridCell: React.FC<TimeGridCellProps> = ({
     slots,
     onAddSlot,
     isEditing,
-    onDropBlock
+    onDropBlock,
+    minuteWidth,
+    gridStartMinutes
 }) => {
     const [{ isOver, canDrop }, drop] = useDrop({
         accept: 'COVERAGE_BLOCK',
@@ -29,56 +32,71 @@ export const TimeGridCell: React.FC<TimeGridCellProps> = ({
     });
 
     const currentHour = parseInt(hour);
+    const nextHour = currentHour + 1;
+    const timeRangeDisplay = `${hour} - ${nextHour.toString().padStart(2, '0')}:00`;
+
+    // Calculate cell width based on minutes
+    const cellStartMinutes = timeToMinutes(hour);
+    const cellWidth = minuteWidth * 60; // Each cell represents 1 hour (60 minutes)
+
     const hasSlotInHour = slots.some(slot => {
         const startHour = parseInt(slot.startTime.split(':')[0]);
         const endHour = parseInt(slot.endTime.split(':')[0]);
         return currentHour >= startHour && currentHour < endHour;
     });
 
+    // Create quarter-hour tooltips
+    const getTimeForQuarter = (minutes: number) => {
+        return `${currentHour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    };
+
     return (
-        <div
-            ref={drop}
-            style={{ height: CELL_HEIGHT }}
-            className={cn(
-                "flex-1 relative border-r border-border/40 transition-all duration-300",
-                isOver && canDrop && "bg-primary/20 border-primary shadow-inner",
-                !hasSlotInHour && isEditing && "hover:bg-primary/10 hover:shadow-lg",
-                currentHour % 2 === 0 ? "bg-muted/10" : "bg-transparent",
-                "group rounded-sm"
-            )}
-            onClick={() => !hasSlotInHour && isEditing && onAddSlot()}
-        >
-            {/* Vertical grid line */}
-            <div className="absolute inset-y-0 right-0 w-px bg-border/40" />
-
-            {/* Quarter hour markers */}
-            {[15, 30, 45].map((minutes) => (
-                <div
-                    key={minutes}
-                    className="absolute top-0 bottom-0"
-                    style={{ left: `${(minutes / 60) * 100}%` }}
-                >
-                    <div className={cn(
-                        "absolute inset-y-0 w-px transition-colors duration-300",
-                        minutes === 30 ? "bg-border/50" : "bg-border/30",
-                        isOver && "bg-primary/30"
-                    )} />
-                </div>
-            ))}
-
-            {!hasSlotInHour && isEditing && (
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300">
-                    <div className={cn(
-                        "rounded-full p-2.5 transition-all duration-300 transform",
-                        "bg-primary/20 backdrop-blur-sm shadow-lg",
-                        "group-hover:scale-110 group-hover:bg-primary/30",
-                        "group-active:scale-95 group-active:bg-primary/40",
-                        "border border-primary/30"
-                    )}>
-                        <Plus className="h-5 w-5 text-primary" />
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <div
+                        ref={drop}
+                        style={{ width: cellWidth }}
+                        className={cn(
+                            "relative border-r border-border/50 transition-colors duration-200",
+                            isOver && "bg-primary/5",
+                            hasSlotInHour && "bg-primary/5"
+                        )}
+                        title={timeRangeDisplay}
+                    >
+                        {isEditing && !hasSlotInHour && (
+                            <button
+                                onClick={onAddSlot}
+                                className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity"
+                            >
+                                <Plus className="h-4 w-4 text-muted-foreground" />
+                            </button>
+                        )}
+                        {/* Quarter-hour markers */}
+                        {[15, 30, 45].map((minutes) => (
+                            <TooltipProvider key={minutes}>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <div
+                                            className="absolute top-0 bottom-0 cursor-help"
+                                            style={{ left: `${(minutes / 60) * 100}%` }}
+                                        >
+                                            <div className={cn(
+                                                "absolute inset-y-0 w-px transition-colors duration-300",
+                                                minutes === 30 ? "bg-border/50" : "bg-border/30",
+                                                isOver && "bg-primary/30"
+                                            )} />
+                                        </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="text-xs">
+                                        {getTimeForQuarter(minutes)}
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        ))}
                     </div>
-                </div>
-            )}
-        </div>
+                </TooltipTrigger>
+            </Tooltip>
+        </TooltipProvider>
     );
 }; 

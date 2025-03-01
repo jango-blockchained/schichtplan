@@ -19,10 +19,12 @@ export const DayRow: React.FC<DayRowProps> = ({
     gridWidth,
     storeConfig,
 }) => {
-    const gridStartMinutes = timeToMinutes(hours[0]);
-    const gridEndMinutes = timeToMinutes(hours[hours.length - 1]) + 60;
+    // Calculate grid dimensions using exact store hours
+    const gridStartMinutes = timeToMinutes(storeConfig.store_opening);
+    const gridEndMinutes = timeToMinutes(storeConfig.store_closing);
     const totalGridMinutes = gridEndMinutes - gridStartMinutes;
 
+    // Calculate grid content width and minute width
     const gridContentWidth = gridWidth - TIME_COLUMN_WIDTH;
     const minuteWidth = gridContentWidth / totalGridMinutes;
 
@@ -39,24 +41,26 @@ export const DayRow: React.FC<DayRowProps> = ({
 
         if (slotIndex === -1) return;
 
-        // Calculate new start time based on cell index and grid start time
-        const cellMinutes = cellIndex * 60; // Each cell is one hour
-        const newStartMinutes = gridStartMinutes + cellMinutes;
+        // Calculate new start time based on cell index
+        // Each cell represents one hour, and we need to calculate the time at the start of that cell
+        const hourOfDay = parseInt(hours[cellIndex].split(':')[0]);
+        const minutesOfHour = parseInt(hours[cellIndex].split(':')[1] || '0');
+        const newStartTime = `${hourOfDay.toString().padStart(2, '0')}:${minutesOfHour.toString().padStart(2, '0')}`;
 
         // Maintain the original duration
-        const originalDuration = timeToMinutes(slot.endTime) - timeToMinutes(slot.startTime);
+        const originalStartMinutes = timeToMinutes(slot.startTime);
+        const originalEndMinutes = timeToMinutes(slot.endTime);
+        const originalDuration = originalEndMinutes - originalStartMinutes;
+        const newStartMinutes = timeToMinutes(newStartTime);
         const newEndMinutes = newStartMinutes + originalDuration;
-
-        // Convert to time strings and snap to quarter hours
-        const newStartTime = snapToQuarterHour(minutesToTime(newStartMinutes));
-        const newEndTime = snapToQuarterHour(minutesToTime(newEndMinutes));
+        const newEndTime = minutesToTime(newEndMinutes);
 
         // Validate against store hours
         const storeOpeningMinutes = timeToMinutes(storeConfig.store_opening);
         const storeClosingMinutes = timeToMinutes(storeConfig.store_closing);
 
-        if (timeToMinutes(newStartTime) < storeOpeningMinutes ||
-            timeToMinutes(newEndTime) > storeClosingMinutes) {
+        if (newStartMinutes < storeOpeningMinutes ||
+            newEndMinutes > storeClosingMinutes) {
             return; // Outside store hours
         }
 
@@ -66,10 +70,8 @@ export const DayRow: React.FC<DayRowProps> = ({
 
             const existingStartMinutes = timeToMinutes(existingSlot.startTime);
             const existingEndMinutes = timeToMinutes(existingSlot.endTime);
-            const newStartMin = timeToMinutes(newStartTime);
-            const newEndMin = timeToMinutes(newEndTime);
 
-            return (newStartMin < existingEndMinutes && newEndMin > existingStartMinutes);
+            return (newStartMinutes < existingEndMinutes && newEndMinutes > existingStartMinutes);
         });
 
         if (!hasConflict) {
@@ -81,40 +83,43 @@ export const DayRow: React.FC<DayRowProps> = ({
     };
 
     return (
-        <div className="flex w-full border-b border-border/50 hover:bg-accent/5">
-            <div
-                className="flex items-center justify-center font-medium shrink-0 border-r border-border/50 text-sm text-muted-foreground"
-                style={{ width: TIME_COLUMN_WIDTH, height: CELL_HEIGHT }}
-            >
-                {dayName}
+        <div className="relative" style={{ height: CELL_HEIGHT }}>
+            <div className="absolute left-0 top-0 bottom-0 flex items-center justify-center bg-background border-r"
+                style={{ width: TIME_COLUMN_WIDTH }}>
+                <span className="text-sm font-medium">{dayName}</span>
             </div>
-            <div className="flex-1 relative flex">
-                {hours.map((hour, i) => (
+            <div className="absolute top-0 bottom-0 flex"
+                style={{ left: TIME_COLUMN_WIDTH, right: 0 }}>
+                {hours.map((hour, index) => (
                     <TimeGridCell
-                        key={hour}
+                        key={`${dayIndex}-${hour}`}
                         hour={hour}
-                        cellIndex={i}
+                        cellIndex={index}
                         dayIndex={dayIndex}
                         slots={slots}
-                        onAddSlot={() => onAddSlot(i)}
+                        onAddSlot={() => onAddSlot(index)}
                         isEditing={isEditing}
                         onDropBlock={handleDropBlock}
-                    />
-                ))}
-                {slots.map((slot, index) => (
-                    <CoverageBlock
-                        key={index}
-                        slot={slot}
-                        dayIndex={dayIndex}
-                        onUpdate={(updates) => onUpdateSlot(index, updates)}
-                        onDelete={() => onDeleteSlot(index)}
-                        isEditing={isEditing}
-                        gridWidth={gridWidth}
-                        storeConfig={storeConfig}
-                        hours={hours}
+                        minuteWidth={minuteWidth}
+                        gridStartMinutes={gridStartMinutes}
                     />
                 ))}
             </div>
+            {slots.map((slot, index) => (
+                <CoverageBlock
+                    key={`${dayIndex}-${slot.startTime}-${slot.endTime}-${index}`}
+                    slot={slot}
+                    dayIndex={dayIndex}
+                    onUpdate={(updates) => onUpdateSlot(index, updates)}
+                    onDelete={() => onDeleteSlot(index)}
+                    isEditing={isEditing}
+                    gridWidth={gridWidth}
+                    storeConfig={storeConfig}
+                    hours={hours}
+                    gridStartMinutes={gridStartMinutes}
+                    totalGridMinutes={totalGridMinutes}
+                />
+            ))}
         </div>
     );
 }; 

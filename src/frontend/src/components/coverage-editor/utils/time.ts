@@ -18,6 +18,20 @@ export const snapToQuarterHour = (timeStr: string): string => {
 export const formatDuration = (startTime: string, endTime: string): string => {
     const startMinutes = timeToMinutes(startTime);
     const endMinutes = timeToMinutes(endTime);
-    const diffHours = (endMinutes - startMinutes) / 60;
-    return diffHours === Math.floor(diffHours) ? `${diffHours}h` : `${diffHours.toFixed(1)}h`;
+    const diffMinutes = endMinutes - startMinutes;
+    const diffHours = diffMinutes / 60;
+
+    if (diffHours === Math.floor(diffHours)) {
+        return `${diffHours}h`;
+    } else {
+        const hours = Math.floor(diffHours);
+        const minutes = diffMinutes % 60;
+        if (minutes === 0) {
+            return `${hours}h`;
+        } else if (hours === 0) {
+            return `${minutes}m`;
+        } else {
+            return `${hours}h ${minutes}m`;
+        }
+    }
 }; 

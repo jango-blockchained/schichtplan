@@ -28,15 +28,22 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
 
     // Calculate hours array
     const hours = React.useMemo(() => {
-        const opening = storeConfig?.store_opening?.split(':') || ['09', '00'];
-        const closing = storeConfig?.store_closing?.split(':') || ['20', '00'];
-        const startHour = parseInt(opening[0]);
-        const endHour = parseInt(closing[0]);
-        return Array.from(
-            { length: endHour - startHour + 1 },
-            (_, i) => `${(startHour + i).toString().padStart(2, '0')}:00`
-        );
-    }, [storeConfig]);
+        // Ensure we have valid store hours
+        if (!storeConfig?.store_opening || !storeConfig?.store_closing) {
+            return ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'];
+        }
+
+        const [openingHour, openingMinute] = storeConfig.store_opening.split(':').map(Number);
+        const [closingHour, closingMinute] = storeConfig.store_closing.split(':').map(Number);
+
+        // Calculate the number of hours needed (including partial hours)
+        const totalHours = closingHour - openingHour + (closingMinute >= openingMinute ? 1 : 0);
+
+        return Array.from({ length: totalHours }, (_, i) => {
+            const hour = (openingHour + i).toString().padStart(2, '0');
+            return `${hour}:00`;
+        });
+    }, [storeConfig?.store_opening, storeConfig?.store_closing]);
 
     // Initialize coverage state
     const [coverage, setCoverage] = useState<DailyCoverage[]>(() => {
@@ -73,14 +80,17 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
         const storeOpeningMinutes = parseInt(storeConfig.store_opening.split(':')[1]);
         const storeClosingMinutes = parseInt(storeConfig.store_closing.split(':')[1]);
 
-        // Calculate start time based on the hour index
-        const startHour = storeOpeningHour + Math.floor(hour);
-        const startMinutes = hour === 0 ? storeOpeningMinutes : 0;
+        // Get the hour from the hours array
+        const hourString = hours[hour];
+        const startHour = parseInt(hourString.split(':')[0]);
+        const startMinutes = parseInt(hourString.split(':')[1] || '0');
+
+        // Calculate start time
         const startTime = `${startHour.toString().padStart(2, '0')}:${startMinutes.toString().padStart(2, '0')}`;
 
         // Calculate end time - either next hour or store closing time
         const endHour = Math.min(startHour + 1, storeClosingHour);
-        const endMinutes = endHour === storeClosingHour ? storeClosingMinutes : 0;
+        const endMinutes = endHour === storeClosingHour ? storeClosingMinutes : startMinutes;
         const endTime = `${endHour.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
 
         if (startHour >= storeClosingHour) {
@@ -105,9 +115,11 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
 
         // Check if there's already a slot at this time
         const hasConflict = newCoverage[dayIndex].timeSlots.some(slot => {
-            const slotStartHour = parseInt(slot.startTime);
-            const slotEndHour = parseInt(slot.endTime);
-            return (startHour < slotEndHour && endHour > slotStartHour);
+            const slotStartMinutes = timeToMinutes(slot.startTime);
+            const slotEndMinutes = timeToMinutes(slot.endTime);
+            const newStartMinutes = timeToMinutes(startTime);
+            const newEndMinutes = timeToMinutes(endTime);
+            return (newStartMinutes < slotEndMinutes && newEndMinutes > slotStartMinutes);
         });
 
         if (!hasConflict) {
@@ -144,8 +156,9 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
     };
 
     const handleAddDefaultSlots = () => {
+        // Use the exact store opening and closing times
         const morningShift = {
-            startTime: "09:00",
+            startTime: storeConfig.store_opening,
             endTime: "14:00",
             minEmployees: 1,
             maxEmployees: 2,
@@ -157,7 +170,7 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
 
         const afternoonShift = {
             startTime: "14:00",
-            endTime: "20:00",
+            endTime: storeConfig.store_closing,
             minEmployees: 1,
             maxEmployees: 2,
             employeeTypes: storeConfig.employee_types.map(t => t.id),
@@ -170,6 +183,9 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
         const newCoverage = [...coverage];
         openingDays.forEach((dayIdx) => {
             if (dayIdx !== 0) { // Skip Sunday (index 0)
+                // Clear existing slots first to avoid conflicts
+                newCoverage[dayIdx].timeSlots = [];
+                // Add the new shifts
                 newCoverage[dayIdx].timeSlots.push(morningShift, afternoonShift);
             }
         });
@@ -211,65 +227,38 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
                     </div>
                 </div>
 
-                <div className="overflow-x-auto" ref={containerRef}>
-                    <div className="w-full">
-                        {/* Time row */}
-                        <div className="flex border-b border-border/50" style={{ height: TIME_ROW_HEIGHT }}>
-                            <div
-                                className="shrink-0 border-r border-border/50"
-                                style={{ width: TIME_COLUMN_WIDTH }}
-                            />
-                            <div className="flex-1 relative">
-                                <div className="absolute inset-0 flex">
-                                    {hours.map((hour, index) => (
-                                        <div key={hour} className="flex-1 relative">
-                                            {/* Add vertical grid line */}
-                                            <div className="absolute inset-y-0 left-0 w-px bg-border/50" />
-                                            {/* Time label - centered in the column */}
-                                            <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-xs text-muted-foreground whitespace-nowrap">
-                                                {hour}
-                                            </div>
-                                        </div>
-                                    ))}
-                                    {/* Last vertical line */}
-                                    <div className="absolute inset-y-0 right-0 w-px bg-border/50" />
+                <div ref={containerRef} className="overflow-auto relative">
+                    {/* Time header */}
+                    <div className="flex" style={{ height: HEADER_HEIGHT }}>
+                        <div style={{ width: TIME_COLUMN_WIDTH }} className="shrink-0 border-r border-border/50" />
+                        <div className="flex-1 flex relative border-b border-border/50">
+                            {hours.map((hour, i) => (
+                                <div
+                                    key={hour}
+                                    className="flex-1 relative border-r border-border/50 flex items-center justify-center text-sm font-medium text-muted-foreground"
+                                >
+                                    {hour}
                                 </div>
-                            </div>
+                            ))}
                         </div>
-
-                        {/* Grid header with day labels */}
-                        <div className="flex border-b border-border/50" style={{ height: HEADER_HEIGHT }}>
-                            <div
-                                className="flex items-center justify-center font-medium shrink-0 border-r border-border/50 bg-muted/50 text-sm text-muted-foreground"
-                                style={{ width: TIME_COLUMN_WIDTH }}
-                            />
-                            <div className="flex-1 flex">
-                                {hours.map((_, index) => (
-                                    <div
-                                        key={index}
-                                        className="flex-1 border-r border-border/50 bg-muted/50"
-                                    />
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Day rows */}
-                        {openingDays.map((dayIndex) => (
-                            <DayRow
-                                key={dayIndex}
-                                dayName={DAYS_SHORT[dayIndex]}
-                                dayIndex={dayIndex}
-                                slots={coverage[dayIndex].timeSlots}
-                                hours={hours}
-                                onAddSlot={(hourIndex) => handleAddSlot(dayIndex, hourIndex)}
-                                onUpdateSlot={(slotIndex, updates) => handleUpdateSlot(dayIndex, slotIndex, updates)}
-                                onDeleteSlot={(slotIndex) => handleDeleteSlot(dayIndex, slotIndex)}
-                                isEditing={isEditing}
-                                gridWidth={gridWidth}
-                                storeConfig={storeConfig}
-                            />
-                        ))}
                     </div>
+
+                    {/* Days grid */}
+                    {openingDays.map((dayIndex) => (
+                        <DayRow
+                            key={dayIndex}
+                            dayName={DAYS_SHORT[dayIndex]}
+                            dayIndex={dayIndex}
+                            slots={coverage.find(c => c.dayIndex === dayIndex)?.timeSlots || []}
+                            hours={hours}
+                            onAddSlot={(hourIndex) => handleAddSlot(dayIndex, hourIndex)}
+                            onUpdateSlot={(slotIndex, updates) => handleUpdateSlot(dayIndex, slotIndex, updates)}
+                            onDeleteSlot={(slotIndex) => handleDeleteSlot(dayIndex, slotIndex)}
+                            isEditing={isEditing}
+                            gridWidth={gridWidth}
+                            storeConfig={storeConfig}
+                        />
+                    ))}
                 </div>
             </Card>
         </DndProvider>
