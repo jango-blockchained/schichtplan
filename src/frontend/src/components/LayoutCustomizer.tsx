@@ -11,9 +11,12 @@ import DateRangeSelector from './DateRangeSelector';
 import TableStyleEditor from './TableStyleEditor';
 import FontEditor from './FontEditor';
 import MarginEditor from './MarginEditor';
-import EmployeeSettingsEditor, { EmployeeGroup } from './EmployeeSettingsEditor';
+import EmployeeSettingsEditor from './EmployeeSettingsEditor';
+import { EmployeeType, AbsenceType } from '@/types';
 import Preview from './Preview';
 import { LayoutConfig } from '../types/LayoutConfig';
+
+type GroupType = EmployeeType | AbsenceType;
 
 // Predefined presets
 const DEFAULT_PRESETS = {
@@ -46,33 +49,25 @@ const DEFAULT_PRESETS = {
                 id: 'VZ',
                 name: 'Vollzeit',
                 description: 'Full-time employee (35-48h/week)',
-                minHours: 35,
-                maxHours: 48,
-                isFullTime: true
+                min_hours: 35,
+                max_hours: 48,
+                type: 'employee' as const
             },
             {
                 id: 'TZ',
                 name: 'Teilzeit',
-                description: 'Part-time employee (10-35h/week)',
-                minHours: 10,
-                maxHours: 35,
-                isFullTime: false
+                description: 'Part-time employee (10-34h/week)',
+                min_hours: 10,
+                max_hours: 34,
+                type: 'employee' as const
             },
             {
                 id: 'GFB',
-                name: 'Geringfügig Beschäftigt',
-                description: `Mini-job employee (max 556 EUR/month, ~${Math.floor((556 / 12.41) / 4.33)}h/week)`,
-                minHours: 0,
-                maxHours: Math.floor((556 / 12.41) / 4.33),
-                isFullTime: false
-            },
-            {
-                id: 'TL',
-                name: 'Team Leader',
-                description: 'Team leader (35-48h/week)',
-                minHours: 35,
-                maxHours: 48,
-                isFullTime: true
+                name: 'Geringfügig',
+                description: 'Mini-job employee (<10h/week)',
+                min_hours: 0,
+                max_hours: 10,
+                type: 'employee' as const
             }
         ]
     },
@@ -105,33 +100,25 @@ const DEFAULT_PRESETS = {
                 id: 'VZ',
                 name: 'Vollzeit',
                 description: 'Full-time employee (35-48h/week)',
-                minHours: 35,
-                maxHours: 48,
-                isFullTime: true
+                min_hours: 35,
+                max_hours: 48,
+                type: 'employee' as const
             },
             {
                 id: 'TZ',
                 name: 'Teilzeit',
-                description: 'Part-time employee (10-35h/week)',
-                minHours: 10,
-                maxHours: 35,
-                isFullTime: false
+                description: 'Part-time employee (10-34h/week)',
+                min_hours: 10,
+                max_hours: 34,
+                type: 'employee' as const
             },
             {
                 id: 'GFB',
-                name: 'Geringfügig Beschäftigt',
-                description: `Mini-job employee (max 556 EUR/month, ~${Math.floor((556 / 12.41) / 4.33)}h/week)`,
-                minHours: 0,
-                maxHours: Math.floor((556 / 12.41) / 4.33),
-                isFullTime: false
-            },
-            {
-                id: 'TL',
-                name: 'Team Leader',
-                description: 'Team leader (35-48h/week)',
-                minHours: 35,
-                maxHours: 48,
-                isFullTime: true
+                name: 'Geringfügig',
+                description: 'Mini-job employee (<10h/week)',
+                min_hours: 0,
+                max_hours: 10,
+                type: 'employee' as const
             }
         ]
     },
@@ -164,103 +151,87 @@ const DEFAULT_PRESETS = {
                 id: 'VZ',
                 name: 'Vollzeit',
                 description: 'Full-time employee (35-48h/week)',
-                minHours: 35,
-                maxHours: 48,
-                isFullTime: true
+                min_hours: 35,
+                max_hours: 48,
+                type: 'employee' as const
             },
             {
                 id: 'TZ',
                 name: 'Teilzeit',
-                description: 'Part-time employee (10-35h/week)',
-                minHours: 10,
-                maxHours: 35,
-                isFullTime: false
+                description: 'Part-time employee (10-34h/week)',
+                min_hours: 10,
+                max_hours: 34,
+                type: 'employee' as const
             },
             {
                 id: 'GFB',
-                name: 'Geringfügig Beschäftigt',
-                description: `Mini-job employee (max 556 EUR/month, ~${Math.floor((556 / 12.41) / 4.33)}h/week)`,
-                minHours: 0,
-                maxHours: Math.floor((556 / 12.41) / 4.33),
-                isFullTime: false
-            },
-            {
-                id: 'TL',
-                name: 'Team Leader',
-                description: 'Team leader (35-48h/week)',
-                minHours: 35,
-                maxHours: 48,
-                isFullTime: true
+                name: 'Geringfügig',
+                description: 'Mini-job employee (<10h/week)',
+                min_hours: 0,
+                max_hours: 10,
+                type: 'employee' as const
             }
         ]
     }
 };
 
-// Add validation function for employee groups
-const validateEmployeeGroups = (groups: EmployeeGroup[]): string | null => {
-    for (const group of groups) {
-        if (group.minHours < 0 || group.maxHours > 48) {
-            return `${group.name}: Hours must be between 0 and 48 (German labor law maximum)`;
+const validateEmployeeGroups = (groups: GroupType[]): string[] => {
+    const errors: string[] = [];
+    const ids = new Set<string>();
+
+    groups.forEach(group => {
+        if (ids.has(group.id)) {
+            errors.push(`Duplicate ID found: ${group.id}`);
+        }
+        ids.add(group.id);
+
+        if (!group.name || group.name.trim() === '') {
+            errors.push(`Group ${group.id} is missing a name`);
         }
 
-        if (group.minHours > group.maxHours) {
-            return `${group.name}: Minimum hours cannot be greater than maximum hours`;
+        if (group.type === 'employee') {
+            if (group.min_hours < 0) {
+                errors.push(`Group ${group.id} has invalid minimum hours`);
+            }
+            if (group.max_hours <= group.min_hours) {
+                errors.push(`Group ${group.id} has invalid maximum hours`);
+            }
         }
+    });
 
-        switch (group.id) {
-            case 'VZ':
-            case 'TL':
-                if (group.minHours < 35) {
-                    return `${group.name}: Full-time employees must work at least 35 hours per week`;
-                }
-                if (group.maxHours !== 48) {
-                    return `${group.name}: Full-time employees are limited to 48 hours per week`;
-                }
-                break;
-            case 'TZ':
-                if (group.maxHours > 35) {
-                    return `${group.name}: Part-time employees cannot exceed 35 hours per week`;
-                }
-                break;
-            case 'GFB':
-                const maxGfbHours = Math.floor((556 / 12.41) / 4.33);
-                if (group.maxHours > maxGfbHours) {
-                    return `${group.name}: Mini-job employees cannot exceed ${maxGfbHours} hours per week (556 EUR limit)`;
-                }
-                break;
-        }
-    }
-    return null;
+    return errors;
 };
 
-const LayoutCustomizer: React.FC = () => {
+interface LayoutCustomizerProps {
+    config: LayoutConfig;
+    onSave: (config: LayoutConfig) => void;
+    onClose: () => void;
+}
+
+interface Presets {
+    [key: string]: LayoutConfig;
+}
+
+const LayoutCustomizer: React.FC<LayoutCustomizerProps> = ({ config, onSave, onClose }) => {
+    const [currentConfig, setCurrentConfig] = useState<LayoutConfig>(config);
+    const [selectedPreset, setSelectedPreset] = useState<string>('');
+    const [showSaveDialog, setShowSaveDialog] = useState(false);
+    const [presetName, setPresetName] = useState('');
+    const [presets, setPresets] = useState<Presets>(DEFAULT_PRESETS);
+    const [validationErrors, setValidationErrors] = useState<string[]>([]);
+    const { toast } = useToast();
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
-    const [employeeGroups, setEmployeeGroups] = useState<EmployeeGroup[]>([]);
-    const [layoutConfig, setLayoutConfig] = useState<LayoutConfig>(() => {
-        const storedConfig = localStorage.getItem('lastLayoutConfig');
-        return storedConfig ? JSON.parse(storedConfig) : DEFAULT_PRESETS['Classic'];
-    });
 
     // State for managing presets
-    const [presets, setPresets] = useState<Record<string, LayoutConfig>>(() => {
-        const storedPresets = localStorage.getItem('layoutPresets');
-        return storedPresets ? JSON.parse(storedPresets) : DEFAULT_PRESETS;
-    });
-
-    // Modal and toast states
     const [isPresetModalOpen, setIsPresetModalOpen] = useState(false);
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    const { toast } = useToast();
-
-    const [newPresetName, setNewPresetName] = useState('');
-    const [selectedPreset, setSelectedPreset] = useState('');
 
     // Save configurations to local storage
     useEffect(() => {
-        localStorage.setItem('lastLayoutConfig', JSON.stringify(layoutConfig));
-    }, [layoutConfig]);
+        localStorage.setItem('lastLayoutConfig', JSON.stringify(currentConfig));
+    }, [currentConfig]);
 
     useEffect(() => {
         localStorage.setItem('layoutPresets', JSON.stringify(presets));
@@ -269,174 +240,146 @@ const LayoutCustomizer: React.FC = () => {
     const showToast = (message: string, variant: 'default' | 'destructive' = 'default') => {
         toast({
             description: message,
-            variant: variant,
+            variant
         });
     };
 
-    const handleCloseToast = () => {
-        // Implementation needed
-    };
-
     const handleSavePreset = () => {
-        if (!newPresetName.trim()) {
+        if (!presetName.trim()) {
             showToast('Preset name cannot be empty', 'destructive');
             return;
         }
 
-        const error = validateEmployeeGroups(layoutConfig.employee_groups);
-        if (error) {
-            showToast(error, 'destructive');
+        const errors = validateEmployeeGroups(currentConfig.employee_groups);
+        if (errors.length > 0) {
+            showToast(errors.join('\n'), 'destructive');
+            setValidationErrors(errors);
             return;
         }
 
-        if (presets[newPresetName]) {
+        if (presets[presetName]) {
             showToast('A preset with this name already exists', 'destructive');
             return;
         }
 
         const updatedPresets = {
             ...presets,
-            [newPresetName]: layoutConfig
+            [presetName]: currentConfig
         };
         setPresets(updatedPresets);
         setIsPresetModalOpen(false);
-        setNewPresetName('');
+        setPresetName('');
         showToast('Preset saved successfully');
     };
 
     const handleLoadPreset = () => {
         if (selectedPreset) {
-            setLayoutConfig(presets[selectedPreset]);
+            setCurrentConfig(presets[selectedPreset]);
             showToast(`Preset "${selectedPreset}" loaded successfully`);
         }
     };
 
-    const handleExport = async () => {
-        // Placeholder for export functionality
-        try {
-            // Validate dates
-            if (!startDate || !endDate) {
-                showToast('Please select both start and end dates', 'destructive');
-                return;
-            }
-
-            // TODO: Implement actual export logic
-            showToast('PDF exported successfully');
-        } catch (error) {
-            console.error('Export error:', error);
-            showToast('Failed to export PDF', 'destructive');
+    const handleDeletePreset = () => {
+        if (selectedPreset) {
+            const { [selectedPreset]: _, ...remainingPresets } = presets;
+            setPresets(remainingPresets);
+            setSelectedPreset('');
+            showToast(`Preset "${selectedPreset}" deleted successfully`);
         }
     };
 
-    const handleEmployeeGroupsChange = (newGroups: EmployeeGroup[]) => {
-        const error = validateEmployeeGroups(newGroups);
-        if (error) {
-            showToast(error, 'destructive');
+    const handleEmployeeGroupsChange = (newGroups: GroupType[]) => {
+        const errors = validateEmployeeGroups(newGroups);
+        if (errors.length > 0) {
+            showToast(errors.join('\n'), 'destructive');
+            setValidationErrors(errors);
             return;
         }
 
-        setEmployeeGroups(newGroups);
-        setLayoutConfig(prev => ({
+        setCurrentConfig(prev => ({
             ...prev,
             employee_groups: newGroups
         }));
     };
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-4 p-4">
             <div className="flex justify-between items-center">
                 <div className="space-x-2">
-                    <Input
-                        placeholder="Preset name"
-                        value={newPresetName}
-                        onChange={(e) => setNewPresetName(e.target.value)}
-                    />
-                    <Button onClick={handleSavePreset}>Save Preset</Button>
-                </div>
-                <div className="space-x-2">
                     <Select value={selectedPreset} onValueChange={setSelectedPreset}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Load preset" />
+                        <SelectTrigger className="w-[200px]">
+                            <SelectValue placeholder="Select a preset" />
                         </SelectTrigger>
                         <SelectContent>
-                            {Object.keys(presets).map((preset) => (
+                            {Object.keys(presets).map(preset => (
                                 <SelectItem key={preset} value={preset}>
                                     {preset}
                                 </SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
-                    <Button onClick={handleLoadPreset}>Load</Button>
+                    <Button onClick={handleLoadPreset} disabled={!selectedPreset}>
+                        Load
+                    </Button>
+                    <Button onClick={() => setIsPresetModalOpen(true)}>
+                        Save As
+                    </Button>
+                    <Button onClick={handleDeletePreset} disabled={!selectedPreset} variant="destructive">
+                        <Trash className="w-4 h-4" />
+                    </Button>
                 </div>
                 <div className="space-x-2">
-                    <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button variant="outline" size="icon" onClick={handleExport}>
-                                    <Download className="h-4 w-4" />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Export configuration</TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
-                    <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button variant="outline" size="icon">
-                                    <Upload className="h-4 w-4" />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Import configuration</TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
-                    <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button variant="outline" size="icon">
-                                    <Copy className="h-4 w-4" />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Copy configuration</TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
+                    <Button onClick={() => setIsExportModalOpen(true)}>
+                        <Download className="w-4 h-4 mr-2" />
+                        Export
+                    </Button>
+                    <Button onClick={() => setIsImportModalOpen(true)}>
+                        <Upload className="w-4 h-4 mr-2" />
+                        Import
+                    </Button>
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-4">
-                    <TableStyleEditor
-                        tableStyle={layoutConfig.table_style}
-                        onChange={(style) => setLayoutConfig(prev => ({ ...prev, table_style: style }))}
-                    />
-                    <FontEditor
-                        titleStyle={layoutConfig.title_style}
-                        onChange={(style) => setLayoutConfig(prev => ({ ...prev, title_style: style }))}
-                    />
-                    <MarginEditor
-                        margins={layoutConfig.margins}
-                        onChange={(margins) => setLayoutConfig(prev => ({ ...prev, margins }))}
-                    />
-                    <EmployeeSettingsEditor
-                        groups={employeeGroups}
-                        onChange={handleEmployeeGroupsChange}
-                    />
-                </div>
-                <div>
-                    <Preview layoutConfig={layoutConfig} />
-                </div>
-            </div>
-
-            {/* Preset Management Modal */}
             <Dialog open={isPresetModalOpen} onOpenChange={setIsPresetModalOpen}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Save Preset</DialogTitle>
                     </DialogHeader>
-                    <DialogFooter>
-                        <Button type="submit" onClick={handleSavePreset}>Save</Button>
-                    </DialogFooter>
+                    <div className="space-y-4">
+                        <Input
+                            placeholder="Preset name"
+                            value={presetName}
+                            onChange={(e) => setPresetName(e.target.value)}
+                        />
+                        <Button onClick={handleSavePreset}>Save Preset</Button>
+                    </div>
                 </DialogContent>
             </Dialog>
+
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-4">
+                    <TableStyleEditor
+                        tableStyle={currentConfig.table_style}
+                        onChange={(style) => setCurrentConfig(prev => ({ ...prev, table_style: style }))}
+                    />
+                    <FontEditor
+                        titleStyle={currentConfig.title_style}
+                        onChange={(style) => setCurrentConfig(prev => ({ ...prev, title_style: style }))}
+                    />
+                    <MarginEditor
+                        margins={currentConfig.margins}
+                        onChange={(margins) => setCurrentConfig(prev => ({ ...prev, margins }))}
+                    />
+                    <EmployeeSettingsEditor
+                        groups={currentConfig.employee_groups}
+                        onChange={handleEmployeeGroupsChange}
+                        type="employee"
+                    />
+                </div>
+                <div>
+                    <Preview layoutConfig={currentConfig} />
+                </div>
+            </div>
         </div>
     );
 };

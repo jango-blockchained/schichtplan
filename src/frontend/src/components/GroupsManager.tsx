@@ -11,27 +11,16 @@ import { Plus } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import EmployeeSettingsEditor from './EmployeeSettingsEditor';
+import { EmployeeType, AbsenceType } from '@/types';
 
-interface EmployeeType {
-    id: string;
-    name: string;
-    min_hours: number;
-    max_hours: number;
-    type: 'employee';
-}
-
-interface AbsenceType {
-    id: string;
-    name: string;
-    color: string;
-    type: 'absence';
-}
+type EmployeeTypeWithoutType = Omit<EmployeeType, 'type'>;
+type AbsenceTypeWithoutType = Omit<AbsenceType, 'type'>;
 
 interface GroupsManagerProps {
-    employeeTypes: Array<Omit<EmployeeType, 'type'>>;
-    absenceTypes: Array<Omit<AbsenceType, 'type'>>;
-    onEmployeeTypesChange: (groups: Array<Omit<EmployeeType, 'type'>>) => void;
-    onAbsenceTypesChange: (groups: Array<Omit<AbsenceType, 'type'>>) => void;
+    employeeTypes: EmployeeTypeWithoutType[];
+    absenceTypes: AbsenceTypeWithoutType[];
+    onEmployeeTypesChange: (groups: EmployeeTypeWithoutType[]) => void;
+    onAbsenceTypesChange: (groups: AbsenceTypeWithoutType[]) => void;
 }
 
 export function GroupsManager({

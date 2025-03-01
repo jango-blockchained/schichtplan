@@ -1,8 +1,7 @@
 import * as React from "react"
-import { addDays, format } from "date-fns"
+import { format } from "date-fns"
 import { Calendar as CalendarIcon } from "lucide-react"
 import { DateRange } from "react-day-picker"
-
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -13,18 +12,17 @@ import {
 } from "@/components/ui/popover"
 
 interface DateRangePickerProps {
-    dateRange: DateRange | undefined
-    onChange?: (range: DateRange | undefined) => void
-    selectWeek?: boolean
-    className?: string
+    dateRange?: DateRange;
+    onChange?: (range: DateRange | undefined) => void;
+    align?: "start" | "center" | "end";
 }
 
 export function DateRangePicker({
     dateRange,
     onChange,
-    selectWeek,
+    align = "start",
     className,
-}: DateRangePickerProps) {
+}: DateRangePickerProps & React.HTMLAttributes<HTMLDivElement>) {
     return (
         <div className={cn("grid gap-2", className)}>
             <Popover>
@@ -52,7 +50,7 @@ export function DateRangePicker({
                         )}
                     </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto p-0" align={align}>
                     <Calendar
                         initialFocus
                         mode="range"
