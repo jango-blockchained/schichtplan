@@ -8,6 +8,7 @@ from models import (
     EmployeeAvailability,
     Coverage,
     db,
+    ShiftType,
 )
 from models.employee import AvailabilityType, EmployeeGroup
 from flask import current_app

@@ -11,7 +11,7 @@ const Preview: React.FC<PreviewProps> = ({ layoutConfig }) => {
     const { table_style: tableStyle, title_style: titleStyle } = layoutConfig;
 
     return (
-        <Card className="p-4 bg-white shadow-sm">
+        <Card className="p-6 bg-white shadow-sm">
             <div
                 style={{
                     border: `${tableStyle.border_width}px solid ${tableStyle.border_color}`,

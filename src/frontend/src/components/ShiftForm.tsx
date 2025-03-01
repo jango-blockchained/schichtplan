@@ -124,7 +124,7 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, onSave, initialD
 
                 <div className="grid gap-2">
                     <Label>Schicht Visualisierung</Label>
-                    <Card className="p-4">
+                    <Card className="p-6">
                         <div className="relative h-12 bg-muted rounded-md">
                             {/* Store hours background */}
                             <div className="absolute inset-0 flex items-center justify-between px-2 text-xs text-muted-foreground">

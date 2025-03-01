@@ -31,6 +31,7 @@ import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useDebouncedCallback } from 'use-debounce';
 import { useTheme } from '@/hooks/use-theme';
+import { PageHeader } from '@/components/PageHeader';
 
 export interface BaseGroup {
   id: string;
@@ -183,14 +184,10 @@ export default function SettingsPage() {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-          <p className="text-muted-foreground">
-            Manage your store settings and preferences
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Settings"
+        description="Manage your store settings and preferences"
+      />
 
       <Card>
         <CardContent className="p-6">

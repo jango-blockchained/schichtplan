@@ -479,7 +479,7 @@ export const ShiftCoverageView: React.FC<ShiftCoverageViewProps> = ({ settings, 
                     </div>
 
                     <div className="mt-6 pt-4 border-t">
-                        <h3 className="text-lg font-medium mb-3">Legende</h3>
+                        <h3 className="text-lg font-semibold mb-3">Legende</h3>
                         <Legend />
                     </div>
                 </div>

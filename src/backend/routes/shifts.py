@@ -31,8 +31,6 @@ def create_shift():
         shift = ShiftTemplate(
             start_time=data["start_time"],
             end_time=data["end_time"],
-            min_employees=data["min_employees"],
-            max_employees=data["max_employees"],
             requires_break=data.get("requires_break", True),
         )
 
@@ -67,17 +65,11 @@ def update_shift(shift_id):
             temp_shift = ShiftTemplate(
                 start_time=new_start,
                 end_time=new_end,
-                min_employees=shift.min_employees,
-                max_employees=shift.max_employees,
             )
             # If validation passes, update the actual shift
             shift.start_time = new_start
             shift.end_time = new_end
 
-        if "min_employees" in data:
-            shift.min_employees = data["min_employees"]
-        if "max_employees" in data:
-            shift.max_employees = data["max_employees"]
         if "requires_break" in data:
             shift.requires_break = data["requires_break"]
 

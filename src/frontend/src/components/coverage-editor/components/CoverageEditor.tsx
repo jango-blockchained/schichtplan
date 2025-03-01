@@ -306,7 +306,7 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
     return (
         <DndProvider backend={HTML5Backend}>
             <div className="space-y-4">
-                <Card className="overflow-hidden">
+                <Card className="p-6">
                     <div className="flex items-center justify-between border-b p-4 bg-card">
                         <h2 className="text-lg font-semibold">Employee Coverage Requirements</h2>
                         <div className="flex items-center gap-2">
@@ -371,7 +371,7 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
                 {/* Minimum Employee Requirements Section */}
                 <Card className="p-4">
                     <div className="space-y-4">
-                        <h3 className="text-sm font-medium">Minimum Employee Requirements</h3>
+                        <h3 className="text-lg font-semibold">Minimum Employee Requirements</h3>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <label htmlFor="openingMin" className="text-sm text-muted-foreground">

@@ -6,6 +6,7 @@ import { Employee, CreateEmployeeRequest } from '../types';
 import { useEmployeeGroups } from '../hooks/useEmployeeGroups';
 import { EmployeeAvailabilityModal } from '@/components/EmployeeAvailabilityModal';
 import AbsenceModal from '@/components/AbsenceModal';
+import { PageHeader } from '@/components/PageHeader';
 import {
   Button,
   Table,
@@ -388,32 +389,35 @@ export const EmployeesPage = () => {
   const allSelected = employees?.length === selectedEmployees.size;
 
   return (
-    <div className="p-6">
-      <div className="mb-6 flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Mitarbeiter</h1>
-        <div className="flex gap-2 items-center">
-          <ThemeToggle />
-          {selectedEmployees.size > 0 && (
-            <>
-              <Button variant="outline" onClick={() => setSelectedEmployees(new Set())}>
-                Auswahl aufheben ({selectedEmployees.size})
-              </Button>
-              <Button variant="outline" onClick={handleExportSelected}>
-                <Download className="mr-2 h-4 w-4" />
-                Exportieren
-              </Button>
-              <Button variant="destructive" onClick={handleBulkDelete}>
-                <Trash2 className="mr-2 h-4 w-4" />
-                Löschen
-              </Button>
-            </>
-          )}
-          <Button onClick={() => handleOpenDialog()}>
-            <Plus className="mr-2 h-4 w-4" />
-            Mitarbeiter hinzufügen
-          </Button>
-        </div>
-      </div>
+    <div className="container mx-auto py-6 space-y-8">
+      <PageHeader
+        title="Mitarbeiter"
+        description="Verwalte deine Mitarbeiter und deren Verfügbarkeiten"
+        actions={
+          <div className="flex gap-2 items-center">
+            <ThemeToggle />
+            {selectedEmployees.size > 0 && (
+              <>
+                <Button variant="outline" onClick={() => setSelectedEmployees(new Set())}>
+                  Auswahl aufheben ({selectedEmployees.size})
+                </Button>
+                <Button variant="outline" onClick={handleExportSelected}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Exportieren
+                </Button>
+                <Button variant="destructive" onClick={handleBulkDelete}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Löschen
+                </Button>
+              </>
+            )}
+            <Button onClick={() => handleOpenDialog()}>
+              <Plus className="mr-2 h-4 w-4" />
+              Mitarbeiter hinzufügen
+            </Button>
+          </div>
+        }
+      />
 
       <div className="mb-4 flex gap-4 items-center">
         <div className="flex-1 relative">

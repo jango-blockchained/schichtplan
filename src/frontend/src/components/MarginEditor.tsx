@@ -15,7 +15,7 @@ const MarginEditor: React.FC<MarginEditorProps> = ({ margins, onChange }) => {
     };
 
     return (
-        <Card className="p-4 border">
+        <Card className="p-6 border">
             <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">

@@ -289,6 +289,9 @@ def export_schedule():
         start_date = datetime.strptime(data["start_date"], "%Y-%m-%d")
         end_date = datetime.strptime(data["end_date"], "%Y-%m-%d")
 
+        # Extract layout_config if provided
+        layout_config = data.get("layout_config")
+
         # Get schedules for the date range
         schedules = Schedule.query.filter(
             Schedule.date >= start_date.date(), Schedule.date <= end_date.date()
@@ -296,16 +299,43 @@ def export_schedule():
 
         # Generate PDF
         generator = PDFGenerator()
-        pdf_buffer = generator.generate_schedule_pdf(schedules, start_date, end_date)
+        try:
+            pdf_buffer = generator.generate_schedule_pdf(
+                schedules, start_date, end_date, layout_config
+            )
 
-        return send_file(
-            pdf_buffer,
-            mimetype="application/pdf",
-            as_attachment=True,
-            download_name=f"schedule_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.pdf",
-        )
+            return send_file(
+                pdf_buffer,
+                mimetype="application/pdf",
+                as_attachment=True,
+                download_name=f"schedule_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.pdf",
+            )
+        except Exception as e:
+            import traceback
+
+            error_msg = f"PDF generation error: {str(e)}"
+            logger.error_logger.error(
+                error_msg,
+                extra={
+                    "action": "pdf_generation_error",
+                    "error": str(e),
+                    "traceback": traceback.format_exc(),
+                },
+            )
+            return jsonify({"error": error_msg}), HTTPStatus.INTERNAL_SERVER_ERROR
 
     except (KeyError, ValueError) as e:
         return jsonify({"error": f"Invalid input: {str(e)}"}), HTTPStatus.BAD_REQUEST
     except Exception as e:
-        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+        import traceback
+
+        error_msg = f"Unexpected error: {str(e)}"
+        logger.error_logger.error(
+            error_msg,
+            extra={
+                "action": "export_schedule_error",
+                "error": str(e),
+                "traceback": traceback.format_exc(),
+            },
+        )
+        return jsonify({"error": error_msg}), HTTPStatus.INTERNAL_SERVER_ERROR

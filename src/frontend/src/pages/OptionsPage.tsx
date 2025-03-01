@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import { ColorPicker } from '@/components/ui/color-picker';
 import type { Settings } from '@/types/index';
+import { PageHeader } from '@/components/PageHeader';
 
 interface AvailabilityType {
     code: string;
@@ -150,14 +151,10 @@ export default function OptionsPage() {
 
     return (
         <div className="container mx-auto py-6 space-y-6">
-            <div className="flex items-center justify-between mb-6">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Options</h1>
-                    <p className="text-muted-foreground">
-                        Manage availability types and employee groups
-                    </p>
-                </div>
-            </div>
+            <PageHeader
+                title="Options"
+                description="Manage availability types and employee groups"
+            />
 
             <Card>
                 <CardHeader>

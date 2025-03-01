@@ -107,8 +107,6 @@ class Settings(db.Model):
     min_rest_between_shifts = Column(Float, nullable=False, default=11.0)
     scheduling_period_weeks = Column(Integer, nullable=False, default=4)
     auto_schedule_preferences = Column(Boolean, nullable=False, default=True)
-    min_employees_per_shift = Column(Integer, nullable=False, default=1)
-    max_employees_per_shift = Column(Integer, nullable=False, default=3)
 
     # Display and Notification Settings
     theme = Column(String(20), nullable=False, default="light")
@@ -291,8 +289,6 @@ class Settings(db.Model):
                 "min_rest_between_shifts": self.min_rest_between_shifts,
                 "scheduling_period_weeks": self.scheduling_period_weeks,
                 "auto_schedule_preferences": self.auto_schedule_preferences,
-                "min_employees_per_shift": self.min_employees_per_shift,
-                "max_employees_per_shift": self.max_employees_per_shift,
             },
             "display": {
                 "theme": self.theme,
@@ -414,8 +410,6 @@ class Settings(db.Model):
         settings.min_rest_between_shifts = 11.0
         settings.scheduling_period_weeks = 4
         settings.auto_schedule_preferences = True
-        settings.min_employees_per_shift = 1
-        settings.max_employees_per_shift = 3
 
         # Display Settings
         settings.theme = "light"
