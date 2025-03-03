@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ShiftTable } from '@/components/ShiftTable';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { useScheduleData } from '@/hooks/useScheduleData';
-import { addDays, startOfWeek, endOfWeek, addWeeks, format } from 'date-fns';
+import { addDays, startOfWeek, endOfWeek, addWeeks, format, getWeek, isBefore } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { useMutation } from '@tanstack/react-query';
 import { generateSchedule, exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule } from '@/services/api';
@@ -17,7 +17,7 @@ import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScheduleTable } from '@/components/ScheduleTable';
-import { ScheduleError } from '@/types';
+import { Schedule, ScheduleError } from '@/types';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PageHeader } from '@/components/PageHeader';
@@ -32,9 +32,10 @@ interface GenerationStep {
 }
 
 export function SchedulePage() {
+  const today = new Date();
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: startOfWeek(new Date(), { weekStartsOn: 1 }),
-    to: endOfWeek(new Date(), { weekStartsOn: 1 }),
+    from: startOfWeek(today, { weekStartsOn: 1 }),
+    to: endOfWeek(today, { weekStartsOn: 1 }),
   });
   const [weeksAmount, setWeeksAmount] = useState<number>(1);
   const [selectedVersion, setSelectedVersion] = useState<number | undefined>();
@@ -242,29 +243,27 @@ export function SchedulePage() {
   });
 
   const updateShiftMutation = useMutation({
-    mutationFn: async ({ employeeId, fromDay, toDay }: { employeeId: number; fromDay: number; toDay: number }) => {
-      if (!dateRange?.from) {
-        throw new Error("Kein Zeitraum ausgewählt");
-      }
-      const baseDate = dateRange.from;
-      const fromDate = addDays(baseDate, fromDay);
-      const toDate = addDays(baseDate, toDay);
-      return updateShiftDay(employeeId, fromDate.toISOString().split('T')[0], toDate.toISOString().split('T')[0]);
+    mutationFn: async ({ scheduleId, updates }: { scheduleId: number, updates: Partial<Schedule> }) => {
+      addGenerationLog('info', 'Updating shift',
+        `Schedule ID: ${scheduleId}, Updates: ${JSON.stringify(updates)}`);
+      await updateSchedule(scheduleId, updates);
     },
     onSuccess: () => {
       refetch();
       toast({
-        title: "Erfolg",
-        description: "Schicht wurde erfolgreich verschoben.",
+        title: "Success",
+        description: "Shift updated successfully",
       });
     },
     onError: (error) => {
+      const errorMessage = error instanceof Error ? error.message : "Failed to update shift";
+      addGenerationLog('error', 'Failed to update shift', errorMessage);
       toast({
-        title: "Fehler",
-        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
+        title: "Error",
+        description: errorMessage,
         variant: "destructive",
       });
-    },
+    }
   });
 
   const updateBreakNotesMutation = useMutation({
@@ -291,21 +290,64 @@ export function SchedulePage() {
     },
   });
 
-  const handleShiftUpdate = async (employeeId: number, fromDay: number, toDay: number) => {
-    await updateShiftMutation.mutateAsync({ employeeId, fromDay, toDay });
+  const handleShiftUpdate = async (scheduleId: number, updates: Partial<Schedule>) => {
+    await updateShiftMutation.mutateAsync({ scheduleId, updates });
   };
 
   const handleBreakNotesUpdate = async (employeeId: number, day: number, notes: string) => {
     await updateBreakNotesMutation.mutateAsync({ employeeId, day, notes });
   };
 
-  const handleWeekChange = (range: DateRange | undefined | React.FormEvent<HTMLDivElement>) => {
-    if (range && 'from' in range && range.from) {  // Check if it's a DateRange with valid from date
-      setDateRange({
-        from: range.from,
-        to: addDays(range.from, (weeksAmount * 7) - 1)
-      });
+  const handleWeekChange = (range: DateRange | undefined) => {
+    if (!range) {
+      setDateRange(undefined);
+      setWeeksAmount(1);
+      return;
     }
+
+    const startDate = range.from;
+    const endDate = range.to;
+
+    // If we have both dates
+    if (startDate && endDate) {
+      // If end date is before start date, swap them
+      if (isBefore(endDate, startDate)) {
+        const newStartDate = endDate;
+        const newEndDate = startDate;
+
+        // Calculate weeks
+        const days = Math.round((newEndDate.getTime() - newStartDate.getTime()) / (1000 * 60 * 60 * 24));
+        const weeks = Math.ceil((days + 1) / 7);
+        setWeeksAmount(weeks);
+
+        setDateRange({
+          from: newStartDate,
+          to: newEndDate
+        });
+        return;
+      }
+
+      // Calculate weeks
+      const days = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      const weeks = Math.ceil((days + 1) / 7);
+      setWeeksAmount(weeks);
+
+      setDateRange({
+        from: startDate,
+        to: endDate
+      });
+    } else {
+      // If we only have a start date
+      setDateRange(range);
+    }
+  };
+
+  const handleStartDateSelect = (date: Date) => {
+    const validStartDate = isBefore(date, today) ? today : date;
+    setDateRange({
+      from: validStartDate,
+      to: undefined
+    });
   };
 
   const handleWeeksAmountChange = (amount: string) => {
@@ -473,10 +515,22 @@ export function SchedulePage() {
       <div className="flex flex-col space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <DateRangePicker
-              dateRange={dateRange}
-              onChange={handleWeekChange}
-            />
+            <div className="flex flex-col space-y-2">
+              <DateRangePicker
+                dateRange={dateRange}
+                onChange={handleWeekChange}
+                fromDate={today}
+                onStartDateSelect={handleStartDateSelect}
+              />
+              {dateRange?.from && (
+                <div className="text-sm text-muted-foreground">
+                  KW {getWeek(dateRange.from, { weekStartsOn: 1 })}
+                  {dateRange.to && getWeek(dateRange.from, { weekStartsOn: 1 }) !== getWeek(dateRange.to, { weekStartsOn: 1 }) &&
+                    ` - ${getWeek(dateRange.to, { weekStartsOn: 1 })}`
+                  }
+                </div>
+              )}
+            </div>
             <Select value={weeksAmount.toString()} onValueChange={handleWeeksAmountChange}>
               <SelectTrigger className="w-32">
                 <SelectValue placeholder="Wochen" />
@@ -571,6 +625,7 @@ export function SchedulePage() {
               schedules={scheduleData || []}
               dateRange={dateRange}
               onDrop={handleDrop}
+              onUpdate={handleShiftUpdate}
               isLoading={isLoading}
             />
           </div>

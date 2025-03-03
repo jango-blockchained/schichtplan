@@ -1,5 +1,6 @@
 import * as React from "react"
-import { addDays, format } from "date-fns"
+import { addDays, format, isBefore, startOfToday, startOfWeek, endOfWeek } from "date-fns"
+import { de } from "date-fns/locale"
 import { Calendar as CalendarIcon } from "lucide-react"
 import { DateRange } from "react-day-picker"
 import { cn } from "@/lib/utils"
@@ -11,57 +12,64 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover"
 
-interface DateRangePickerProps {
-    dateRange: DateRange | undefined;
-    setDateRange: (dateRange: DateRange | undefined) => void;
+export interface DateRangePickerProps {
     className?: string;
-    presets?: {
-        label: string;
-        dateRange: DateRange;
-    }[];
+    dateRange?: DateRange;
+    onChange: (range: DateRange | undefined) => void;
+    fromDate?: Date;
+    onStartDateSelect?: (date: Date) => void;
 }
 
 export function DateRangePicker({
-    dateRange,
-    setDateRange,
     className,
-    presets,
+    dateRange,
+    onChange,
+    fromDate = startOfToday(),
+    onStartDateSelect,
 }: DateRangePickerProps) {
+    const today = startOfToday();
+    const [isOpen, setIsOpen] = React.useState(false);
+
     const defaultPresets = [
         {
-            label: "Today",
+            label: "Diese Woche",
             dateRange: {
-                from: new Date(),
-                to: new Date(),
+                from: startOfWeek(today, { weekStartsOn: 1 }),
+                to: endOfWeek(today, { weekStartsOn: 1 }),
             },
         },
         {
-            label: "Next 7 days",
+            label: "Nächste Woche",
             dateRange: {
-                from: new Date(),
-                to: addDays(new Date(), 6),
+                from: startOfWeek(addDays(today, 7), { weekStartsOn: 1 }),
+                to: endOfWeek(addDays(today, 7), { weekStartsOn: 1 }),
             },
         },
         {
-            label: "Next 30 days",
+            label: "Nächste 2 Wochen",
             dateRange: {
-                from: new Date(),
-                to: addDays(new Date(), 29),
+                from: today,
+                to: addDays(today, 13),
+            },
+        },
+        {
+            label: "Nächste 4 Wochen",
+            dateRange: {
+                from: today,
+                to: addDays(today, 27),
             },
         },
     ];
 
-    const allPresets = presets || defaultPresets;
-
     return (
         <div className={cn("grid gap-2", className)}>
-            <Popover>
+            <Popover open={isOpen} onOpenChange={setIsOpen}>
                 <PopoverTrigger asChild>
                     <Button
                         id="date"
                         variant={"outline"}
                         className={cn(
-                            "w-full justify-start text-left font-normal",
+                            "w-[300px] justify-start text-left font-normal",
                             !dateRange && "text-muted-foreground"
                         )}
                     >
@@ -69,26 +77,29 @@ export function DateRangePicker({
                         {dateRange?.from ? (
                             dateRange.to ? (
                                 <>
-                                    {format(dateRange.from, "LLL dd, y")} -{" "}
-                                    {format(dateRange.to, "LLL dd, y")}
+                                    {format(dateRange.from, "dd.MM.yyyy")} -{" "}
+                                    {format(dateRange.to, "dd.MM.yyyy")}
                                 </>
                             ) : (
-                                format(dateRange.from, "LLL dd, y")
+                                format(dateRange.from, "dd.MM.yyyy")
                             )
                         ) : (
-                            <span>Pick a date range</span>
+                            <span>Zeitraum auswählen</span>
                         )}
                     </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
+                <PopoverContent className="w-auto p-0" align="start">
                     <div className="flex">
                         <div className="border-r p-3 space-y-2">
-                            {allPresets.map((preset) => (
+                            {defaultPresets.map((preset) => (
                                 <Button
                                     key={preset.label}
                                     variant="ghost"
                                     className="w-full justify-start font-normal"
-                                    onClick={() => setDateRange(preset.dateRange)}
+                                    onClick={() => {
+                                        onChange(preset.dateRange);
+                                        setIsOpen(false);
+                                    }}
                                 >
                                     {preset.label}
                                 </Button>
@@ -97,10 +108,28 @@ export function DateRangePicker({
                         <Calendar
                             initialFocus
                             mode="range"
-                            defaultMonth={dateRange?.from}
+                            defaultMonth={dateRange?.from || fromDate}
                             selected={dateRange}
-                            onSelect={setDateRange}
+                            onSelect={(range) => {
+                                if (range?.from && !range.to && onStartDateSelect) {
+                                    onStartDateSelect(range.from);
+                                } else {
+                                    onChange(range);
+                                }
+                                if (range?.from && range?.to) {
+                                    setIsOpen(false);
+                                }
+                            }}
                             numberOfMonths={2}
+                            disabled={(date) => isBefore(date, fromDate)}
+                            locale={de}
+                            weekStartsOn={1}
+                            showOutsideDays={true}
+                            fixedWeeks={true}
+                            formatters={{
+                                formatCaption: (date, options) => format(date, 'MMMM yyyy', { locale: options?.locale }),
+                            }}
+                            ISOWeek
                         />
                     </div>
                 </PopoverContent>

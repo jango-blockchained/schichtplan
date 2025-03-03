@@ -15,9 +15,10 @@ interface DateTimePickerProps {
     date: Date;
     setDate: (date: Date) => void;
     className?: string;
+    disabled?: boolean;
 }
 
-export function DateTimePicker({ date, setDate, className }: DateTimePickerProps) {
+export function DateTimePicker({ date, setDate, className, disabled }: DateTimePickerProps) {
     const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(date);
 
     // Update the date when time changes
@@ -54,8 +55,10 @@ export function DateTimePicker({ date, setDate, className }: DateTimePickerProps
                         variant={"outline"}
                         className={cn(
                             "w-full justify-start text-left font-normal",
-                            !date && "text-muted-foreground"
+                            !date && "text-muted-foreground",
+                            disabled && "opacity-50 cursor-not-allowed"
                         )}
+                        disabled={disabled}
                     >
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {date ? format(date, "PPP") : <span>Pick a date</span>}
@@ -67,6 +70,7 @@ export function DateTimePicker({ date, setDate, className }: DateTimePickerProps
                         selected={selectedDate}
                         onSelect={handleSelect}
                         initialFocus
+                        disabled={disabled}
                     />
                 </PopoverContent>
             </Popover>
@@ -76,6 +80,7 @@ export function DateTimePicker({ date, setDate, className }: DateTimePickerProps
                     value={format(selectedDate || date, "HH:mm")}
                     onChange={handleTimeChange}
                     className="w-full"
+                    disabled={disabled}
                 />
             </div>
         </div>

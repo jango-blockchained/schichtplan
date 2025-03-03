@@ -560,3 +560,78 @@ export async function resetStoreConfig(): Promise<void> {
         throw error;
     }
 }
+
+// Absences
+export interface Absence {
+    id: number;
+    employee_id: number;
+    absence_type_id: string;
+    start_date: string;
+    end_date: string;
+    note?: string;
+}
+
+export const getAbsences = async (employeeId: number): Promise<Absence[]> => {
+    try {
+        const response = await api.get<Absence[]>(`/employees/${employeeId}/absences/`);
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to fetch absences: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export const createAbsence = async (data: Omit<Absence, 'id'>): Promise<Absence> => {
+    try {
+        const response = await api.post<Absence>('/absences/', data);
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to create absence: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export const deleteAbsence = async (id: number): Promise<void> => {
+    try {
+        await api.delete(`/absences/${id}`);
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to delete absence: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+// Database backup and restore
+export const backupDatabase = async (): Promise<Blob> => {
+    try {
+        const response = await api.get('/settings/backup', { responseType: 'blob' });
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to backup database: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export const restoreDatabase = async (file: File): Promise<void> => {
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        await api.post('/settings/restore', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to restore database: ${error.message}`);
+        }
+        throw error;
+    }
+};

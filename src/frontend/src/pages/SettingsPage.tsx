@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getSettings, updateSettings, generateDemoData } from "@/services/api";
+import { getSettings, updateSettings, generateDemoData, backupDatabase, restoreDatabase } from "@/services/api";
 import type { Settings } from "@/types/index";
 import {
   Card,
@@ -25,13 +25,15 @@ import {
 import { ColorPicker } from "@/components/ui/color-picker";
 import { PDFLayoutEditor } from "@/components/PDFLayoutEditor";
 import EmployeeSettingsEditor, { EmployeeType, AbsenceType } from "@/components/EmployeeSettingsEditor";
-import { Loader2, Save, Trash2, Plus } from "lucide-react";
+import { Loader2, Save, Trash2, Plus, Download, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useDebouncedCallback } from 'use-debounce';
 import { useTheme } from '@/hooks/use-theme';
 import { PageHeader } from '@/components/PageHeader';
+import { DateTimePicker } from '@/components/ui/date-time-picker';
+import { format } from 'date-fns';
 
 export interface BaseGroup {
   id: string;
@@ -105,22 +107,19 @@ export function SettingsPage() {
     1000 // 1 second delay
   );
 
-  const handleSave = <T extends keyof Settings>(category: T, updates: Partial<Settings[T]>) => {
+  const handleSave = (
+    category: keyof Omit<Settings, "id" | "store_name" | "store_address" | "store_contact" | "timezone" | "language" | "date_format" | "time_format" | "store_opening" | "store_closing" | "keyholder_before_minutes" | "keyholder_after_minutes" | "opening_days" | "special_hours" | "availability_types">,
+    updates: Partial<Settings[typeof category]>
+  ) => {
     if (!localSettings) return;
 
-    const updatedSettings = { ...localSettings };
-    if (category === 'employee_groups') {
-      const employeeGroups = updates as Partial<Settings['employee_groups']>;
-      updatedSettings.employee_groups = {
-        ...updatedSettings.employee_groups,
-        ...employeeGroups
-      };
-    } else {
-      updatedSettings[category] = {
-        ...updatedSettings[category],
+    const updatedSettings = {
+      ...localSettings,
+      [category]: {
+        ...localSettings[category],
         ...updates
-      } as Settings[T];
-    }
+      }
+    };
 
     setLocalSettings(updatedSettings);
     debouncedUpdate(updatedSettings);
@@ -164,6 +163,65 @@ export function SettingsPage() {
         {type.name}
       </SelectItem>
     ));
+  };
+
+  // Convert time string to Date object for DateTimePicker
+  const timeStringToDate = (timeStr: string): Date => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const date = new Date();
+    date.setHours(hours);
+    date.setMinutes(minutes);
+    return date;
+  };
+
+  // Convert Date object back to time string
+  const dateToTimeString = (date: Date): string => {
+    return format(date, 'HH:mm');
+  };
+
+  const handleBackup = async () => {
+    try {
+      const blob = await backupDatabase();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `backup_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast({
+        title: "Success",
+        description: "Database backup downloaded successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to backup database",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRestore = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      await restoreDatabase(file);
+      toast({
+        title: "Success",
+        description: "Database restored successfully",
+      });
+      // Reload the page to reflect the restored data
+      window.location.reload();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to restore database",
+        variant: "destructive",
+      });
+    }
   };
 
   if (isLoading) {
@@ -267,26 +325,16 @@ export function SettingsPage() {
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor="store-opening">Opening Time</Label>
-                            <input
-                              id="store-opening"
-                              type="time"
-                              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                              value={localSettings?.general.store_opening ?? '09:00'}
-                              onChange={(e) => handleSave("general", { store_opening: e.target.value })}
-                              title="Store opening time"
-                              aria-label="Store opening time"
+                            <DateTimePicker
+                              date={timeStringToDate(localSettings?.general.store_opening ?? '09:00')}
+                              setDate={(date) => handleSave("general", { store_opening: dateToTimeString(date) })}
                             />
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="store-closing">Closing Time</Label>
-                            <input
-                              id="store-closing"
-                              type="time"
-                              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                              value={localSettings?.general.store_closing ?? '20:00'}
-                              onChange={(e) => handleSave("general", { store_closing: e.target.value })}
-                              title="Store closing time"
-                              aria-label="Store closing time"
+                            <DateTimePicker
+                              date={timeStringToDate(localSettings?.general.store_closing ?? '20:00')}
+                              setDate={(date) => handleSave("general", { store_closing: dateToTimeString(date) })}
                             />
                           </div>
                         </div>
@@ -1115,6 +1163,34 @@ export function SettingsPage() {
                     Save Changes
                   </Button>
                 </CardFooter>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="database">
+              <Card className="mb-6">
+                <CardHeader>
+                  <CardTitle>Database Management</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex gap-4">
+                    <Button onClick={handleBackup}>
+                      <Download className="w-4 h-4 mr-2" />
+                      Backup Database
+                    </Button>
+                    <div className="relative">
+                      <input
+                        type="file"
+                        accept=".json"
+                        onChange={handleRestore}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      />
+                      <Button variant="outline">
+                        <Upload className="w-4 h-4 mr-2" />
+                        Restore Database
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
               </Card>
             </TabsContent>
 

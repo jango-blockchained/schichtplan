@@ -1,14 +1,14 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getEmployees, updateEmployee, deleteEmployee, createEmployee } from '@/services/api';
 import { Employee, CreateEmployeeRequest, UpdateEmployeeRequest } from '@/types';
 import { useToast } from '@/components/ui/use-toast';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { PageHeader } from '@/components/PageHeader';
 import { EmployeeModal } from '@/components/EmployeeModal';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 interface AlertState {
     type: 'delete' | 'deactivate' | null;
@@ -246,52 +246,26 @@ export function EmployeePage() {
                 </div>
             )}
 
-            {/* Alert Dialogs */}
-            <AlertDialog
-                open={alertState.type === 'delete'}
-                onOpenChange={() => setAlertState({ type: null, employee: null })}
-            >
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Mitarbeiter löschen</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Möchten Sie den Mitarbeiter wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={() => alertState.employee && handleDelete(alertState.employee)}
-                        >
-                            Löschen
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            {/* Confirm Dialogs */}
+            <ConfirmDialog
+                isOpen={alertState.type === 'delete'}
+                onClose={() => setAlertState({ type: null, employee: null })}
+                onConfirm={() => alertState.employee && handleDelete(alertState.employee)}
+                title="Mitarbeiter löschen"
+                description="Möchten Sie den Mitarbeiter wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden."
+                confirmText="Löschen"
+                cancelText="Abbrechen"
+            />
 
-            <AlertDialog
-                open={alertState.type === 'deactivate'}
-                onOpenChange={() => setAlertState({ type: null, employee: null })}
-            >
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>
-                            Mitarbeiter {alertState.employee?.is_active ? 'deaktivieren' : 'aktivieren'}
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Möchten Sie den Mitarbeiter wirklich {alertState.employee?.is_active ? 'deaktivieren' : 'aktivieren'}?
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={() => alertState.employee && handleToggleActive(alertState.employee)}
-                        >
-                            {alertState.employee?.is_active ? 'Deaktivieren' : 'Aktivieren'}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <ConfirmDialog
+                isOpen={alertState.type === 'deactivate'}
+                onClose={() => setAlertState({ type: null, employee: null })}
+                onConfirm={() => alertState.employee && handleToggleActive(alertState.employee)}
+                title={`Mitarbeiter ${alertState.employee?.is_active ? 'deaktivieren' : 'aktivieren'}`}
+                description={`Möchten Sie den Mitarbeiter wirklich ${alertState.employee?.is_active ? 'deaktivieren' : 'aktivieren'}?`}
+                confirmText={alertState.employee?.is_active ? 'Deaktivieren' : 'Aktivieren'}
+                cancelText="Abbrechen"
+            />
 
             {/* Add/Edit Employee Modal */}
             <EmployeeModal
