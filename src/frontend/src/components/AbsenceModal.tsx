@@ -1,36 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "./ui/table";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "./ui/select";
 import { format, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useToast } from '@/components/ui/use-toast';
 import { AbsenceType } from '@/types';
-
-interface Absence {
-    id: number;
-    employee_id: number;
-    absence_type_id: string;
-    start_date: string;
-    end_date: string;
-    note?: string;
-}
+import { getAbsences, createAbsence, deleteAbsence } from '@/services/api';
+import { DateTimePicker } from '@/components/ui/date-time-picker';
+import type { Absence } from '@/services/api';
 
 interface AbsenceModalProps {
     isOpen: boolean;
@@ -46,9 +28,9 @@ export default function AbsenceModal({ isOpen, onClose, employeeId, absenceTypes
         absence_type_id: '',
         start_date: '',
         end_date: '',
-        note: ''
+        note: '',
     });
-    const [isLoading, setIsLoading] = useState(true);
+    const { toast } = useToast();
 
     useEffect(() => {
         if (isOpen) {
@@ -58,80 +40,76 @@ export default function AbsenceModal({ isOpen, onClose, employeeId, absenceTypes
 
     const loadAbsences = async () => {
         try {
-            setIsLoading(true);
-            const response = await fetch(`/api/employees/${employeeId}/absences`);
-            if (!response.ok) throw new Error('Failed to load absences');
-            const data = await response.json();
+            const data = await getAbsences(employeeId);
             setAbsences(data);
         } catch (error) {
-            console.error('Error loading absences:', error);
-        } finally {
-            setIsLoading(false);
+            toast({
+                title: "Error",
+                description: error instanceof Error ? error.message : "Failed to load absences",
+                variant: "destructive",
+            });
         }
     };
 
     const handleAddAbsence = async () => {
         try {
-            const response = await fetch(`/api/employees/${employeeId}/absences`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(newAbsence),
-            });
-
-            if (!response.ok) throw new Error('Failed to add absence');
-
-            const addedAbsence = await response.json();
-            setAbsences([...absences, addedAbsence]);
-
-            // Reset form
+            await createAbsence(newAbsence);
+            await loadAbsences();
             setNewAbsence({
                 employee_id: employeeId,
                 absence_type_id: '',
                 start_date: '',
                 end_date: '',
-                note: ''
+                note: '',
+            });
+            toast({
+                title: "Success",
+                description: "Absence added successfully",
             });
         } catch (error) {
-            console.error('Error adding absence:', error);
+            toast({
+                title: "Error",
+                description: error instanceof Error ? error.message : "Failed to add absence",
+                variant: "destructive",
+            });
         }
     };
 
     const handleDeleteAbsence = async (absenceId: number) => {
         try {
-            const response = await fetch(`/api/employees/${employeeId}/absences/${absenceId}`, {
-                method: 'DELETE',
+            await deleteAbsence(absenceId);
+            await loadAbsences();
+            toast({
+                title: "Success",
+                description: "Absence deleted successfully",
             });
-
-            if (!response.ok) throw new Error('Failed to delete absence');
-
-            setAbsences(absences.filter(absence => absence.id !== absenceId));
         } catch (error) {
-            console.error('Error deleting absence:', error);
+            toast({
+                title: "Error",
+                description: error instanceof Error ? error.message : "Failed to delete absence",
+                variant: "destructive",
+            });
         }
     };
 
     const getAbsenceTypeName = (typeId: string) => {
-        return absenceTypes.find(type => type.id === typeId)?.name || typeId;
+        return absenceTypes.find(type => type.id === typeId)?.name || 'Unknown';
     };
 
     const getAbsenceTypeColor = (typeId: string) => {
-        return absenceTypes.find(type => type.id === typeId)?.color || '#808080';
+        return absenceTypes.find(type => type.id === typeId)?.color || '#000000';
     };
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-3xl">
+            <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Manage Absences</DialogTitle>
                 </DialogHeader>
-
                 <div className="space-y-6">
-                    {/* Add new absence form */}
-                    <div className="grid grid-cols-5 gap-4 items-end">
+                    <div className="space-y-4">
                         <div className="space-y-2">
-                            <Label>Type</Label>
+                            <Label>Absence Type</Label>
                             <Select
                                 value={newAbsence.absence_type_id}
                                 onValueChange={(value) => setNewAbsence({
@@ -140,7 +118,7 @@ export default function AbsenceModal({ isOpen, onClose, employeeId, absenceTypes
                                 })}
                             >
                                 <SelectTrigger>
-                                    <SelectValue placeholder="Select type" />
+                                    <SelectValue placeholder="Select absence type" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {absenceTypes.map((type) => (
@@ -160,24 +138,22 @@ export default function AbsenceModal({ isOpen, onClose, employeeId, absenceTypes
 
                         <div className="space-y-2">
                             <Label>Start Date</Label>
-                            <Input
-                                type="date"
-                                value={newAbsence.start_date}
-                                onChange={(e) => setNewAbsence({
+                            <DateTimePicker
+                                date={newAbsence.start_date ? new Date(newAbsence.start_date) : new Date()}
+                                setDate={(date) => setNewAbsence({
                                     ...newAbsence,
-                                    start_date: e.target.value
+                                    start_date: date.toISOString().split('T')[0]
                                 })}
                             />
                         </div>
 
                         <div className="space-y-2">
                             <Label>End Date</Label>
-                            <Input
-                                type="date"
-                                value={newAbsence.end_date}
-                                onChange={(e) => setNewAbsence({
+                            <DateTimePicker
+                                date={newAbsence.end_date ? new Date(newAbsence.end_date) : new Date()}
+                                setDate={(date) => setNewAbsence({
                                     ...newAbsence,
-                                    end_date: e.target.value
+                                    end_date: date.toISOString().split('T')[0]
                                 })}
                             />
                         </div>
@@ -203,7 +179,6 @@ export default function AbsenceModal({ isOpen, onClose, employeeId, absenceTypes
                         </Button>
                     </div>
 
-                    {/* Absences table */}
                     <Table>
                         <TableHeader>
                             <TableRow>

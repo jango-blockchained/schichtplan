@@ -5,6 +5,7 @@ from services.schedule_generator import ScheduleGenerator
 from services.pdf_generator import PDFGenerator
 from http import HTTPStatus
 from utils.logger import logger
+import uuid
 
 schedules = Blueprint("schedules", __name__)
 
@@ -80,7 +81,28 @@ def get_schedules():
 @schedules.route("/schedules/generate/", methods=["POST"])
 def generate_schedule():
     """Generate a schedule for a date range"""
-    logger.schedule_logger.debug("Schedule generation request received")
+    # Create a unique session ID for this generation request
+    session_id = str(uuid.uuid4())
+
+    # Create a session-specific logger
+    session_logger = logger.create_session_logger(session_id)
+
+    session_logger.info(
+        "Schedule generation request received",
+        extra={
+            "action": "generation_request",
+            "request_id": session_id,
+        },
+    )
+
+    logger.schedule_logger.debug(
+        f"Schedule generation request received with session ID: {session_id}",
+        extra={
+            "action": "generation_request",
+            "session_id": session_id,
+        },
+    )
+
     try:
         data = request.get_json()
         start_date = datetime.strptime(data["start_date"], "%Y-%m-%d").date()
@@ -89,7 +111,7 @@ def generate_schedule():
         # Get the create_empty_schedules parameter, default to False
         create_empty_schedules = data.get("create_empty_schedules", False)
 
-        logger.schedule_logger.debug(
+        session_logger.info(
             f"Generating schedule for period: {start_date} to {end_date}",
             extra={
                 "action": "generate_schedule",
@@ -99,101 +121,142 @@ def generate_schedule():
             },
         )
 
-        # Get the latest version for this date range
-        latest_version = Schedule.get_latest_version(start_date, end_date)
-        next_version = latest_version + 1
         logger.schedule_logger.debug(
-            f"Creating schedule version {next_version}", extra={"version": next_version}
-        )
-
-        generator = ScheduleGenerator()
-        logger.schedule_logger.debug("Starting schedule generation")
-        schedules, errors = generator.generate_schedule(
-            start_date, end_date, create_empty_schedules=create_empty_schedules
-        )
-
-        # Set version for all new schedules
-        logger.schedule_logger.debug(
-            f"Setting version {next_version} for {len(schedules)} schedules",
-            extra={"version": next_version, "schedule_count": len(schedules)},
-        )
-        for schedule in schedules:
-            schedule.version = next_version
-            db.session.add(schedule)
-
-        db.session.commit()
-        logger.schedule_logger.info(
-            f"Schedule generation completed successfully. Created {len(schedules)} schedules",
+            f"Generating schedule for period: {start_date} to {end_date}",
             extra={
-                "action": "generation_complete",
-                "schedule_count": len(schedules),
-                "version": next_version,
+                "action": "generate_schedule",
+                "session_id": session_id,
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+                "create_empty_schedules": create_empty_schedules,
             },
         )
 
-        if errors:
-            logger.schedule_logger.warning(
-                f"Schedule generated with {len(errors)} warnings/errors",
-                extra={"action": "generation_warnings", "error_count": len(errors)},
+        # Delete existing schedules for the period
+        existing_schedules = Schedule.query.filter(
+            Schedule.date >= start_date, Schedule.date <= end_date
+        ).all()
+
+        session_logger.info(
+            f"Found {len(existing_schedules)} existing schedules for the period",
+            extra={
+                "action": "existing_schedules",
+                "count": len(existing_schedules),
+            },
+        )
+
+        # Get the current max version
+        max_version = db.session.query(db.func.max(Schedule.version)).scalar() or 0
+        new_version = max_version + 1
+
+        session_logger.info(
+            f"Creating new schedule version: {new_version}",
+            extra={
+                "action": "new_version",
+                "version": new_version,
+                "previous_version": max_version,
+            },
+        )
+
+        # Generate new schedules
+        generator = ScheduleGenerator()
+        schedules_list, errors = generator.generate_schedule(
+            start_date, end_date, create_empty_schedules, session_id=session_id
+        )
+
+        session_logger.info(
+            f"Generated {len(schedules_list)} schedules with {len(errors)} errors",
+            extra={
+                "action": "generation_result",
+                "schedule_count": len(schedules_list),
+                "error_count": len(errors),
+                "has_errors": len(errors) > 0,
+            },
+        )
+
+        # Set version for all new schedules
+        for schedule in schedules_list:
+            schedule.version = new_version
+
+        # Save to database
+        if schedules_list:
+            db.session.add_all(schedules_list)
+            db.session.commit()
+
+            session_logger.info(
+                f"Saved {len(schedules_list)} schedules to database with version {new_version}",
+                extra={
+                    "action": "save_schedules",
+                    "count": len(schedules_list),
+                    "version": new_version,
+                },
             )
-            for error in errors:
-                if error["type"] == "critical":
-                    logger.error_logger.error(
-                        f"Critical error: {error['message']}",
-                        extra={"action": "critical_error", "error": error},
-                    )
-                elif error["type"] == "warning":
-                    logger.schedule_logger.warning(
-                        f"Warning for {error.get('date', 'unknown date')}: {error['message']}",
-                        extra={"action": "warning", "error": error},
-                    )
-                else:
-                    logger.schedule_logger.info(
-                        f"Note for {error.get('date', 'unknown date')}: {error['message']}",
-                        extra={"action": "note", "error": error},
-                    )
 
-        # Get the placeholder shift used for empty schedules
-        placeholder_shift = ShiftTemplate.query.filter_by(
-            start_time="00:00", end_time="00:00"
-        ).first()
+        # Return the result
+        result = {
+            "schedules": [schedule.to_dict() for schedule in schedules_list],
+            "errors": errors,
+            "total": len(schedules_list),
+            "version": new_version,
+        }
 
-        # Count only schedules with actual shifts (not placeholder)
-        filled_shifts = (
-            [s for s in schedules if s.shift_id != placeholder_shift.id]
-            if placeholder_shift
-            else []
+        session_logger.info(
+            "Schedule generation completed successfully",
+            extra={
+                "action": "generation_complete",
+                "schedule_count": len(schedules_list),
+                "error_count": len(errors),
+                "version": new_version,
+            },
         )
 
-        return jsonify(
-            {
-                "schedules": [schedule.to_dict() for schedule in schedules],
-                "errors": errors,
-                "version": next_version,
-                "total_shifts": len(filled_shifts),
-                "total_schedules": len(schedules),  # Total including empty schedules
-                "filled_shifts_count": len(filled_shifts),  # For clarity
-            }
-        ), HTTPStatus.CREATED
+        return jsonify(result)
 
-    except KeyError as e:
-        error_msg = f"Missing required field: {str(e)}"
-        logger.error_logger.error(
-            error_msg, extra={"action": "validation_error", "error": str(e)}
-        )
-        return jsonify({"error": error_msg}), HTTPStatus.BAD_REQUEST
     except ValueError as e:
-        error_msg = str(e)
+        error_msg = f"Invalid date format: {str(e)}"
+        session_logger.error(
+            error_msg,
+            extra={
+                "action": "generation_error",
+                "error_type": "value_error",
+                "error": str(e),
+            },
+        )
         logger.error_logger.error(
-            f"Value error during schedule generation: {error_msg}",
-            extra={"action": "value_error", "error": str(e)},
+            error_msg,
+            extra={
+                "action": "generation_error",
+                "session_id": session_id,
+                "error_type": "value_error",
+                "error": str(e),
+            },
         )
         return jsonify({"error": error_msg}), HTTPStatus.BAD_REQUEST
+
     except Exception as e:
-        error_msg = str(e)
+        import traceback
+
+        tb = traceback.format_exc()
+
+        error_msg = f"Schedule generation failed: {str(e)}"
+        session_logger.error(
+            error_msg,
+            extra={
+                "action": "generation_error",
+                "error_type": "exception",
+                "error": str(e),
+                "traceback": tb,
+            },
+        )
         logger.error_logger.error(
-            f"Unexpected error during schedule generation: {error_msg}",
-            extra={"action": "unexpected_error", "error": str(e)},
+            error_msg,
+            extra={
+                "action": "generation_error",
+                "session_id": session_id,
+                "error_type": "exception",
+                "error": str(e),
+                "traceback": tb,
+            },
         )
         return jsonify({"error": error_msg}), HTTPStatus.INTERNAL_SERVER_ERROR
 

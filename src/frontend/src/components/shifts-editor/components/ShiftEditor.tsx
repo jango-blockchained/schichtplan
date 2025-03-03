@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Plus, Edit2, Trash2 } from 'lucide-react';
 import { Settings } from '@/types';
 import { Shift } from '@/services/api';
-import { ShiftCoverageView } from './ShiftCoverageView';
 import { ShiftForm } from './ShiftForm';
 import { ShiftEditorProps } from '../types';
 
@@ -17,74 +15,119 @@ export const ShiftEditor: React.FC<ShiftEditorProps> = ({
     onDeleteShift,
     onEmployeeCountChange
 }) => {
-    const [activeTab, setActiveTab] = useState<string>('coverage');
+    const [editingShift, setEditingShift] = useState<Shift | null>(null);
+
+    const formatTime = (time: string) => {
+        return new Date(`2000-01-01T${time}`).toLocaleTimeString('de-DE', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        });
+    };
+
+    const getDayNames = (activeDays: { [key: string]: boolean }) => {
+        const days = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+        return Object.entries(activeDays)
+            .filter(([_, isActive]) => isActive)
+            .map(([day]) => days[parseInt(day)])
+            .join(', ');
+    };
 
     return (
-        <div className="space-y-6">
-            <Tabs defaultValue="coverage" value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="coverage">Coverage View</TabsTrigger>
-                    <TabsTrigger value="list">Shift List</TabsTrigger>
-                </TabsList>
+        <>
+            <div className="flex justify-end mb-4">
+                {onAddShift && (
+                    <Button onClick={onAddShift}>
+                        <Plus className="mr-2 h-4 w-4" /> Add Shift
+                    </Button>
+                )}
+            </div>
 
-                <TabsContent value="coverage">
-                    <Card>
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                {shifts.map(shift => (
+                    <Card key={shift.id} className="flex flex-col">
                         <CardHeader>
-                            <CardTitle>Shift Coverage</CardTitle>
+                            <CardTitle className="text-lg">Schicht {shift.id}</CardTitle>
                             <CardDescription>
-                                Visualize how shifts cover your store hours
+                                {formatTime(shift.start_time)} - {formatTime(shift.end_time)}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <ShiftCoverageView
-                                settings={settings}
-                                shifts={shifts}
-                            />
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-
-                <TabsContent value="list">
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                            <div>
-                                <CardTitle>Shift List</CardTitle>
-                                <CardDescription>
-                                    Manage your shifts
-                                </CardDescription>
+                            <div className="space-y-2 text-sm">
+                                <div>
+                                    <span className="font-medium">Active Days:</span> {getDayNames(shift.active_days)}
+                                </div>
+                                <div>
+                                    <span className="font-medium">Employees:</span> {shift.min_employees} - {shift.max_employees}
+                                </div>
+                                <div>
+                                    <span className="font-medium">Break Required:</span> {shift.requires_break ? 'Yes' : 'No'}
+                                </div>
                             </div>
-                            {onAddShift && (
-                                <Button onClick={onAddShift} size="sm">
-                                    <Plus className="mr-2 h-4 w-4" /> Add Shift
+                        </CardContent>
+                        <CardFooter className="flex justify-end gap-2 mt-auto">
+                            {onDeleteShift && (
+                                <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => onDeleteShift(shift.id)}
+                                >
+                                    <Trash2 className="h-4 w-4" />
                                 </Button>
                             )}
+                            {onUpdateShift && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setEditingShift(shift)}
+                                >
+                                    <Edit2 className="h-4 w-4" />
+                                </Button>
+                            )}
+                        </CardFooter>
+                    </Card>
+                ))}
+            </div>
+
+            {shifts.length === 0 && (
+                <Card>
+                    <CardContent className="text-center py-8 text-muted-foreground">
+                        No shifts defined. Click "Add Shift" to create one.
+                    </CardContent>
+                </Card>
+            )}
+
+            {editingShift && (
+                <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <Card className="w-full max-w-lg">
+                        <CardHeader>
+                            <CardTitle>Edit Shift {editingShift.id}</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="space-y-4">
-                                {shifts.map(shift => (
-                                    <ShiftForm
-                                        key={shift.id}
-                                        settings={settings}
-                                        shift={shift}
-                                        onSave={(data) => onUpdateShift && onUpdateShift({
-                                            ...shift,
-                                            ...data,
-                                            duration_hours: calculateDuration(data.start_time, data.end_time)
-                                        })}
-                                        onDelete={onDeleteShift ? () => onDeleteShift(shift.id) : undefined}
-                                    />
-                                ))}
-                                {shifts.length === 0 && (
-                                    <div className="text-center py-8 text-muted-foreground">
-                                        No shifts defined. Click "Add Shift" to create one.
-                                    </div>
-                                )}
-                            </div>
+                            <ShiftForm
+                                settings={settings}
+                                shift={editingShift}
+                                onSave={(data) => {
+                                    onUpdateShift && onUpdateShift({
+                                        ...editingShift,
+                                        ...data,
+                                    });
+                                    setEditingShift(null);
+                                }}
+                            />
                         </CardContent>
+                        <CardFooter className="flex justify-end">
+                            <Button
+                                variant="outline"
+                                onClick={() => setEditingShift(null)}
+                            >
+                                Cancel
+                            </Button>
+                        </CardFooter>
                     </Card>
-                </TabsContent>
-            </Tabs>
-        </div>
+                </div>
+            )}
+        </>
     );
 };
 

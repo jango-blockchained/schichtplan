@@ -1,0 +1,46 @@
+{
+  "name": "shift-mcp",
+  "version": "1.0.0",
+  "description": "Shift planning MCP server for Cursor IDE integration",
+  "type": "module",
+  "main": "./mcp-server.js",
+  "bin": {
+    "shift-mcp": "./mcp-server.js"
+  },
+  "files": [
+    "mcp-server.js",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node mcp-server.js",
+    "dev": "node --watch mcp-server.js",
+    "prepublishOnly": "npm run build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "mcp",
+    "typescript",
+    "model-context-protocol",
+    "shift-planning",
+    "cursor-ide"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "trustedDependencies": [
+    "@modelcontextprotocol/sdk"
+  ]
+}

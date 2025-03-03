@@ -1,9 +1,18 @@
 import sqlite3
 from datetime import date, timedelta, datetime
+import logging
+
+# Set up logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("schedule_generation.log"), logging.StreamHandler()],
+)
+logger = logging.getLogger(__name__)
 
 
 def generate_fresh_schedule():
-    print("Generating a fresh schedule for next week...")
+    logger.info("Starting fresh schedule generation for next week...")
 
     # Connect to the database
     conn = sqlite3.connect("instance/app.db")
@@ -15,7 +24,7 @@ def generate_fresh_schedule():
     next_monday = today + timedelta(days=(7 - today.weekday()))
     next_sunday = next_monday + timedelta(days=6)
 
-    print(f"Generating schedule for: {next_monday} to {next_sunday}")
+    logger.info(f"Schedule period: {next_monday} to {next_sunday}")
 
     # Get date range as strings for SQL query
     date_range = []
@@ -47,28 +56,28 @@ def generate_fresh_schedule():
     shifts = cursor.fetchall()
 
     if not shifts:
-        print("No valid shifts found in the database!")
+        logger.error("No valid shifts found in the database!")
         return
 
-    print(f"Found {len(shifts)} valid shifts:")
+    logger.info(f"Found {len(shifts)} valid shifts:")
     for shift in shifts:
-        print(
-            f"  - Shift {shift['id']}: {shift['start_time']}-{shift['end_time']} ({shift['duration_hours']}h)"
+        logger.debug(
+            f"Shift {shift['id']}: {shift['start_time']}-{shift['end_time']} ({shift['duration_hours']}h)"
         )
 
     # Get coverage requirements
     cursor.execute("SELECT * FROM coverage ORDER BY day_index, start_time")
     coverage_reqs = cursor.fetchall()
 
-    print(f"\nFound {len(coverage_reqs)} coverage requirements:")
+    if not coverage_reqs:
+        logger.error("No coverage requirements found!")
+        return
+
+    logger.info(f"Found {len(coverage_reqs)} coverage requirements:")
     for req in coverage_reqs:
-        day_index = req["day_index"]
-        start_time = req["start_time"]
-        end_time = req["end_time"]
-        min_employees = req["min_employees"]
-        max_employees = req["max_employees"]
-        print(
-            f"  - Day {day_index}, Time {start_time}-{end_time}: {min_employees}-{max_employees} employees"
+        logger.debug(
+            f"Day {req['day_index']}, {req['start_time']}-{req['end_time']}: "
+            f"{req['min_employees']}-{req['max_employees']} employees"
         )
 
     # Get the schema of the schedules table to know required fields
@@ -95,6 +104,8 @@ def generate_fresh_schedule():
         end_time = req["end_time"]
         min_employees = req["min_employees"]
 
+        logger.info(f"\nProcessing coverage for {date_str} ({start_time}-{end_time})")
+
         # Find employees available for this time slot
         cursor.execute(
             """
@@ -109,14 +120,24 @@ def generate_fresh_schedule():
 
         available_employees = cursor.fetchall()
 
-        print(f"\nDay {day_index} ({date_str}), Time {start_time}-{end_time}:")
-        print(f"  {len(available_employees)} employees available")
+        if not available_employees:
+            logger.warning(
+                f"No available employees found for {date_str} {start_time}-{end_time}"
+            )
+            continue
 
-        # Find a matching shift for this coverage
+        logger.info(f"Found {len(available_employees)} available employees:")
+        for emp in available_employees:
+            logger.debug(
+                f"  - {emp['first_name']} {emp['last_name']} ({emp['employee_group']})"
+            )
+
+        # Find a matching shift
         matching_shift = None
         for shift in shifts:
             if shift["start_time"] == start_time and shift["end_time"] == end_time:
                 matching_shift = shift
+                logger.debug(f"Found exact matching shift: {shift['id']}")
                 break
         else:
             # If no exact match, find a shift that covers most of the coverage time
@@ -136,34 +157,44 @@ def generate_fresh_schedule():
                     )
                 ):
                     matching_shift = shift
+                    logger.debug(f"Found partial matching shift: {shift['id']}")
                     break
 
         if not matching_shift:
-            print("  No matching shift found for this coverage requirement")
+            logger.error(
+                f"No matching shift found for coverage {start_time}-{end_time}"
+            )
             continue
 
-        print(
-            f"  Assigning shift {matching_shift['id']} ({matching_shift['start_time']}-{matching_shift['end_time']})"
+        logger.info(
+            f"Using shift {matching_shift['id']} "
+            f"({matching_shift['start_time']}-{matching_shift['end_time']})"
         )
 
         # Assign minimum number of employees to this shift
         assigned_count = 0
         for employee in available_employees[:min_employees]:
-            cursor.execute(
-                """
-                INSERT INTO schedules 
-                (employee_id, date, shift_id, version, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """,
-                (employee["id"], date_str, matching_shift["id"], version, now, now),
-            )
+            try:
+                cursor.execute(
+                    """
+                    INSERT INTO schedules 
+                    (employee_id, date, shift_id, version, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                    (employee["id"], date_str, matching_shift["id"], version, now, now),
+                )
 
-            assigned_count += 1
-            total_assignments += 1
+                assigned_count += 1
+                total_assignments += 1
 
-            print(
-                f"    - Assigned {employee['first_name']} {employee['last_name']} ({employee['employee_group']})"
-            )
+                logger.info(
+                    f"Assigned {employee['first_name']} {employee['last_name']} "
+                    f"to shift {matching_shift['id']} on {date_str}"
+                )
+            except sqlite3.Error as e:
+                logger.error(
+                    f"Failed to assign employee {employee['id']} to shift: {str(e)}"
+                )
 
         coverage_fulfilled.append(
             {
@@ -175,19 +206,26 @@ def generate_fresh_schedule():
         )
 
     # Commit all changes
-    conn.commit()
+    try:
+        conn.commit()
+        logger.info("Successfully committed all schedule changes")
+    except sqlite3.Error as e:
+        logger.error(f"Failed to commit schedule changes: {str(e)}")
+        conn.rollback()
 
     # Print summary
-    print("\nSchedule generation complete!")
-    print(f"Total assignments: {total_assignments}")
-    print("\nCoverage fulfillment:")
+    logger.info("\nSchedule generation complete!")
+    logger.info(f"Total assignments: {total_assignments}")
+    logger.info("\nCoverage fulfillment:")
     for cov in coverage_fulfilled:
-        print(
-            f"  - {cov['date']}, {cov['time']}: {cov['assigned']}/{cov['required']} employees assigned"
+        logger.info(
+            f"  - {cov['date']}, {cov['time']}: "
+            f"{cov['assigned']}/{cov['required']} employees assigned"
         )
 
     # Close the connection
     conn.close()
+    logger.info("Database connection closed")
 
 
 if __name__ == "__main__":

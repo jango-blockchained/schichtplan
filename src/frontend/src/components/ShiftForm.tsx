@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Settings } from '@/types';
+import { DateTimePicker } from '@/components/ui/date-time-picker';
 
 interface ShiftFormProps {
     settings: Settings;
@@ -40,6 +41,20 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, onSave, initialD
         active_days: initialData?.active_days || settings.general.opening_days,
     });
 
+    // Convert time string to Date object for DateTimePicker
+    const timeStringToDate = (timeStr: string): Date => {
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        const date = new Date();
+        date.setHours(hours);
+        date.setMinutes(minutes);
+        return date;
+    };
+
+    // Convert Date object back to time string
+    const dateToTimeString = (date: Date): string => {
+        return format(date, 'HH:mm');
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         onSave(formData);
@@ -68,22 +83,16 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, onSave, initialD
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <Label htmlFor="start_time">Beginn</Label>
-                            <Input
-                                id="start_time"
-                                type="time"
-                                value={formData.start_time}
-                                onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                                required
+                            <DateTimePicker
+                                date={timeStringToDate(formData.start_time)}
+                                setDate={(date) => setFormData({ ...formData, start_time: dateToTimeString(date) })}
                             />
                         </div>
                         <div>
                             <Label htmlFor="end_time">Ende</Label>
-                            <Input
-                                id="end_time"
-                                type="time"
-                                value={formData.end_time}
-                                onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                                required
+                            <DateTimePicker
+                                date={timeStringToDate(formData.end_time)}
+                                setDate={(date) => setFormData({ ...formData, end_time: dateToTimeString(date) })}
                             />
                         </div>
                     </div>

@@ -75,6 +75,10 @@ class Logger:
         self.logs_dir = ROOT_DIR / "logs"
         self.logs_dir.mkdir(exist_ok=True)
 
+        # Create a sessions directory for session-specific logs
+        self.sessions_dir = self.logs_dir / "sessions"
+        self.sessions_dir.mkdir(exist_ok=True)
+
         # Set up formatters
         formatter = CustomFormatter(
             '{"timestamp":"%(asctime)s","level":"%(levelname)s","module":"%(module)s",'
@@ -108,7 +112,7 @@ class Logger:
 
         # Schedule logger
         self.schedule_logger = logging.getLogger("schedule")
-        self.schedule_logger.setLevel(logging.INFO)
+        self.schedule_logger.setLevel(logging.DEBUG)
         self.schedule_logger.propagate = False  # Prevent propagation to root logger
         schedule_handler = RotatingFileHandler(
             self.logs_dir / "schedule.log",
@@ -129,6 +133,27 @@ class Logger:
         )
         app_handler.setFormatter(formatter)
         self.app_logger.addHandler(app_handler)
+
+    def create_session_logger(self, session_id):
+        """Create a logger for a specific schedule generation session"""
+        session_logger = logging.getLogger(f"session_{session_id}")
+        session_logger.setLevel(logging.DEBUG)
+        session_logger.propagate = False
+
+        # Create a formatter that includes the session ID
+        formatter = CustomFormatter(
+            '{"timestamp":"%(asctime)s","level":"%(levelname)s","module":"%(module)s",'
+            '"function":"%(funcName)s","line":%(lineno)d,"message":"%(message)s",'
+            '"session_id":"' + session_id + '","extra":%(extra_data)s}'
+        )
+
+        # Create a file handler for this session
+        session_file = self.sessions_dir / f"session_{session_id}.log"
+        file_handler = logging.FileHandler(session_file)
+        file_handler.setFormatter(formatter)
+        session_logger.addHandler(file_handler)
+
+        return session_logger
 
 
 logger = Logger()

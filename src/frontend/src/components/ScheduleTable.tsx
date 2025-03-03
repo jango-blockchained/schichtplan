@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { format, addDays, parseISO, startOfWeek } from 'date-fns';
 import { useDrag, useDrop } from 'react-dnd';
 import { Schedule } from '@/types';
@@ -9,6 +9,9 @@ import { cn } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
 import { useQuery } from '@tanstack/react-query';
 import { getSettings } from '@/services/api';
+import { Edit2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ShiftEditModal } from './ShiftEditModal';
 import {
     Table,
     TableBody,
@@ -22,6 +25,7 @@ interface ScheduleTableProps {
     schedules: Schedule[];
     dateRange: DateRange | undefined;
     onDrop: (scheduleId: number, newEmployeeId: number, newDate: Date, newShiftId: number) => Promise<void>;
+    onUpdate: (scheduleId: number, updates: Partial<Schedule>) => Promise<void>;
     isLoading: boolean;
 }
 
@@ -33,10 +37,12 @@ interface DragItem {
     date: string;
 }
 
-const ScheduleCell = ({ schedule, onDrop }: {
+const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
     schedule: Schedule | undefined;
     onDrop: (scheduleId: number, newEmployeeId: number, newDate: Date, newShiftId: number) => Promise<void>;
+    onUpdate: (scheduleId: number, updates: Partial<Schedule>) => Promise<void>;
 }) => {
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [{ isDragging }, drag] = useDrag(() => ({
         type: 'SCHEDULE',
         item: schedule ? {
@@ -79,37 +85,58 @@ const ScheduleCell = ({ schedule, onDrop }: {
     }
 
     return (
-        <div
-            ref={(node) => {
-                drag(drop(node));
-            }}
-            className={cn(
-                'p-2 rounded border transition-all duration-200 group min-h-[100px]',
-                isDragging && 'opacity-50 bg-primary/10',
-                isOver && 'ring-2 ring-primary/50',
-                'cursor-move hover:bg-primary/5'
-            )}
-        >
-            <div className="flex flex-col space-y-1">
-                <Badge variant="secondary" className="text-xs w-fit">
-                    {schedule.shift_start} - {schedule.shift_end}
-                </Badge>
-                {schedule.break_start && schedule.break_end && (
-                    <div className="text-xs text-muted-foreground">
-                        Pause: {schedule.break_start} - {schedule.break_end}
-                    </div>
+        <>
+            <div
+                ref={(node) => {
+                    drag(drop(node));
+                }}
+                className={cn(
+                    'p-2 rounded border transition-all duration-200 group min-h-[100px] relative',
+                    isDragging && 'opacity-50 bg-primary/10',
+                    isOver && 'ring-2 ring-primary/50',
+                    'cursor-move hover:bg-primary/5'
                 )}
-                {schedule.notes && (
-                    <div className="text-xs text-muted-foreground italic">
-                        {schedule.notes}
-                    </div>
-                )}
+            >
+                <div className="flex flex-col space-y-1">
+                    <Badge variant="secondary" className="text-xs w-fit">
+                        {schedule.shift_start} - {schedule.shift_end}
+                    </Badge>
+                    {schedule.break_start && schedule.break_end && (
+                        <div className="text-xs text-muted-foreground">
+                            Pause: {schedule.break_start} - {schedule.break_end}
+                        </div>
+                    )}
+                    {schedule.notes && (
+                        <div className="text-xs text-muted-foreground italic">
+                            {schedule.notes}
+                        </div>
+                    )}
+                </div>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setIsEditModalOpen(true);
+                    }}
+                >
+                    <Edit2 className="h-4 w-4" />
+                </Button>
             </div>
-        </div>
+            {isEditModalOpen && (
+                <ShiftEditModal
+                    isOpen={isEditModalOpen}
+                    onClose={() => setIsEditModalOpen(false)}
+                    schedule={schedule}
+                    onSave={onUpdate}
+                />
+            )}
+        </>
     );
 };
 
-export function ScheduleTable({ schedules, dateRange, onDrop, isLoading }: ScheduleTableProps) {
+export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoading }: ScheduleTableProps) {
     // Fetch settings
     const { data: settings } = useQuery({
         queryKey: ['settings'],
@@ -252,6 +279,7 @@ export function ScheduleTable({ schedules, dateRange, onDrop, isLoading }: Sched
                                                         <ScheduleCell
                                                             schedule={daySchedule}
                                                             onDrop={onDrop}
+                                                            onUpdate={onUpdate}
                                                         />
                                                     </TableCell>
                                                 );
