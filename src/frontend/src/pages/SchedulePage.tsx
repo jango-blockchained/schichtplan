@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { ShiftTable } from '@/components/ShiftTable';
-import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { useScheduleData } from '@/hooks/useScheduleData';
 import { addDays, startOfWeek, endOfWeek, addWeeks, format, getWeek, isBefore } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -23,6 +22,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { PageHeader } from '@/components/PageHeader';
 import { Progress } from '@/components/ui/progress';
 import { DateRange } from 'react-day-picker';
+import { getAvailableCalendarWeeks, getDateRangeFromWeekAndCount } from '@/utils/dateUtils';
 
 interface GenerationStep {
   id: string;
@@ -33,11 +33,8 @@ interface GenerationStep {
 
 export function SchedulePage() {
   const today = new Date();
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: startOfWeek(today, { weekStartsOn: 1 }),
-    to: endOfWeek(today, { weekStartsOn: 1 }),
-  });
-  const [weeksAmount, setWeeksAmount] = useState<number>(1);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [weeksAmount, setWeeksAmount] = useState(1);
   const [selectedVersion, setSelectedVersion] = useState<number | undefined>();
   const [isLayoutCustomizerOpen, setIsLayoutCustomizerOpen] = useState(false);
   const [createEmptySchedules, setCreateEmptySchedules] = useState<boolean>(false);
@@ -57,6 +54,69 @@ export function SchedulePage() {
     { id: 'assign', title: 'Weise Schichten zu', status: 'pending' },
     { id: 'finalize', title: 'Finalisiere Schichtplan', status: 'pending' },
   ]);
+
+  // Add a new state for selected calendar week
+  const [selectedCalendarWeek, setSelectedCalendarWeek] = useState<string>(() => {
+    const currentWeek = getWeek(today, { weekStartsOn: 1 });
+    const currentYear = today.getFullYear();
+    return `${currentYear}-${currentWeek}`;
+  });
+
+  // Initialize date range based on selected calendar week and week amount
+  useEffect(() => {
+    // Ensure we always have a valid dateRange on component mount
+    if (!dateRange || !dateRange.from || !dateRange.to) {
+      try {
+        // If we have a selected calendar week, use that
+        if (selectedCalendarWeek) {
+          const [yearStr, weekStr] = selectedCalendarWeek.split('-');
+          const week = parseInt(weekStr, 10);
+
+          if (!isNaN(week) && week >= 1 && week <= 53) {
+            const newDateRange = getDateRangeFromWeekAndCount(week, weeksAmount);
+            setDateRange(newDateRange);
+          } else {
+            console.error('Invalid week value in initialization:', selectedCalendarWeek);
+            // Fallback to current week
+            const currentWeek = getWeek(today, { weekStartsOn: 1 });
+            const newDateRange = getDateRangeFromWeekAndCount(currentWeek, weeksAmount);
+            setDateRange(newDateRange);
+          }
+        } else {
+          // Fallback to current week if no selection exists
+          const currentWeek = getWeek(today, { weekStartsOn: 1 });
+          const newDateRange = getDateRangeFromWeekAndCount(currentWeek, weeksAmount);
+          setDateRange(newDateRange);
+        }
+      } catch (error) {
+        console.error('Error during initialization:', error);
+        // Last resort fallback: use current week
+        const fallbackFrom = startOfWeek(today, { weekStartsOn: 1 });
+        const fallbackTo = addDays(fallbackFrom, (weeksAmount * 7) - 1);
+        setDateRange({ from: fallbackFrom, to: fallbackTo });
+      }
+    }
+  }, []);
+
+  // Update date range when calendar week or week amount changes
+  useEffect(() => {
+    if (selectedCalendarWeek) {
+      try {
+        const [yearStr, weekStr] = selectedCalendarWeek.split('-');
+        const week = parseInt(weekStr, 10);
+
+        if (isNaN(week) || week < 1 || week > 53) {
+          console.error('Invalid week value in calendar week change:', selectedCalendarWeek);
+          return;
+        }
+
+        const newDateRange = getDateRangeFromWeekAndCount(week, weeksAmount);
+        setDateRange(newDateRange);
+      } catch (error) {
+        console.error('Error during calendar week change:', error);
+      }
+    }
+  }, [selectedCalendarWeek, weeksAmount]);
 
   const handleIncludeEmptyChange = (checked: boolean) => {
     console.log("Toggling includeEmpty:", { from: includeEmpty, to: checked });
@@ -130,6 +190,18 @@ export function SchedulePage() {
         throw new Error("Bitte wählen Sie einen Zeitraum aus");
       }
 
+      // Ensure dates are valid Date objects
+      const startDate = new Date(dateRange.from);
+      const endDate = new Date(dateRange.to);
+
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        throw new Error("Ungültiger Datumsbereich ausgewählt");
+      }
+
+      // Format dates as YYYY-MM-DD for API
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+
       // Reset steps
       setGenerationSteps(steps => steps.map(step => ({ ...step, status: 'pending', message: undefined })));
 
@@ -141,7 +213,7 @@ export function SchedulePage() {
       // Step 2: Validate
       updateGenerationStep('validate', 'in-progress');
       addGenerationLog('info', 'Starting schedule generation',
-        `Period: ${format(dateRange.from, 'dd.MM.yyyy')} to ${format(dateRange.to, 'dd.MM.yyyy')}`);
+        `Period: ${format(startDate, 'dd.MM.yyyy')} to ${format(endDate, 'dd.MM.yyyy')}`);
       await new Promise(resolve => setTimeout(resolve, 1500));
       updateGenerationStep('validate', 'completed');
 
@@ -152,16 +224,42 @@ export function SchedulePage() {
 
       // Step 4: Assign
       updateGenerationStep('assign', 'in-progress');
+
+      // Log data being sent to API for debugging
+      console.log('Sending schedule generation request with parameters:', {
+        startDate: startDateStr,
+        endDate: endDateStr,
+        createEmptySchedules
+      });
+
       const result = await generateSchedule(
-        dateRange.from.toISOString().split('T')[0],
-        dateRange.to.toISOString().split('T')[0],
+        startDateStr,
+        endDateStr,
         createEmptySchedules
       );
+
+      // Log the entire result for debugging
+      console.log('Schedule generation result:', result);
+
       updateGenerationStep('assign', 'completed');
 
       // Step 5: Finalize
       updateGenerationStep('finalize', 'in-progress');
       const errors = result?.errors || [];
+
+      // Check if we have errors but no schedules
+      if (errors.length > 0 && (!result.schedules || result.schedules.length === 0)) {
+        // This means the generation likely failed
+        updateGenerationStep('finalize', 'error', 'Fehler bei der Generierung');
+
+        // Log prominent error
+        toast({
+          title: "Schichtplan-Generierung fehlgeschlagen",
+          description: errors[0]?.message || "Unbekannter Fehler bei der Schichtplan-Generierung",
+          variant: "destructive"
+        });
+      }
+
       errors.forEach(error => {
         if (!error) return;
 
@@ -176,11 +274,26 @@ export function SchedulePage() {
         addGenerationLog(logType, error.message || 'Unknown error', details || undefined);
       });
 
-      addGenerationLog('info', 'Schedule generation completed',
-        `Generated ${result?.total_shifts || 0} shifts`);
-
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      updateGenerationStep('finalize', 'completed');
+      if (errors.length === 0 && result.schedules && result.schedules.length > 0) {
+        updateGenerationStep('finalize', 'completed');
+        addGenerationLog('info', `Schichtplan für ${result.schedules.length} Mitarbeiter generiert`);
+        toast({
+          title: "Erfolg",
+          description: `Schichtplan für ${result.schedules.length} Mitarbeiter generiert`,
+          variant: "default"
+        });
+      } else if (errors.some(e => e?.type === 'critical')) {
+        updateGenerationStep('finalize', 'error', 'Kritische Fehler aufgetreten');
+      } else if (errors.length > 0) {
+        updateGenerationStep('finalize', 'completed', 'Mit Warnungen abgeschlossen');
+      } else {
+        updateGenerationStep('finalize', 'completed');
+        toast({
+          title: "Erfolg",
+          description: "Schichtplan erfolgreich generiert",
+          variant: "default"
+        });
+      }
 
       return result;
     },
@@ -298,66 +411,121 @@ export function SchedulePage() {
     await updateBreakNotesMutation.mutateAsync({ employeeId, day, notes });
   };
 
-  const handleWeekChange = (range: DateRange | undefined) => {
-    if (!range) {
-      setDateRange(undefined);
-      setWeeksAmount(1);
-      return;
-    }
+  // Add a handler for calendar week selection
+  const handleCalendarWeekChange = (weekValue: string) => {
+    setSelectedCalendarWeek(weekValue);
 
-    const startDate = range.from;
-    const endDate = range.to;
+    try {
+      // Parse the selected week value (format: "YYYY-WW")
+      const [yearStr, weekStr] = weekValue.split('-');
+      const year = parseInt(yearStr, 10);
+      const week = parseInt(weekStr, 10);
 
-    // If we have both dates
-    if (startDate && endDate) {
-      // If end date is before start date, swap them
-      if (isBefore(endDate, startDate)) {
-        const newStartDate = endDate;
-        const newEndDate = startDate;
-
-        // Calculate weeks
-        const days = Math.round((newEndDate.getTime() - newStartDate.getTime()) / (1000 * 60 * 60 * 24));
-        const weeks = Math.ceil((days + 1) / 7);
-        setWeeksAmount(weeks);
-
-        setDateRange({
-          from: newStartDate,
-          to: newEndDate
+      if (isNaN(year) || isNaN(week) || week < 1 || week > 53) {
+        console.error('Invalid week value:', weekValue);
+        toast({
+          title: "Fehler",
+          description: "Ungültige Kalenderwoche ausgewählt",
+          variant: "destructive"
         });
         return;
       }
 
-      // Calculate weeks
-      const days = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-      const weeks = Math.ceil((days + 1) / 7);
-      setWeeksAmount(weeks);
+      // Get date range for the selected week and the current week amount
+      const newDateRange = getDateRangeFromWeekAndCount(week, weeksAmount);
 
-      setDateRange({
-        from: startDate,
-        to: endDate
+      // Validate the generated date range
+      if (!newDateRange.from || !newDateRange.to ||
+        isNaN(newDateRange.from.getTime()) || isNaN(newDateRange.to.getTime())) {
+        console.error('Invalid date range generated:', newDateRange);
+        toast({
+          title: "Fehler",
+          description: "Fehler bei der Berechnung des Datumsbereichs",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log('Setting date range:', {
+        from: newDateRange.from.toISOString(),
+        to: newDateRange.to.toISOString(),
+        week,
+        weeksAmount
       });
-    } else {
-      // If we only have a start date
-      setDateRange(range);
-    }
-  };
 
-  const handleStartDateSelect = (date: Date) => {
-    const validStartDate = isBefore(date, today) ? today : date;
-    setDateRange({
-      from: validStartDate,
-      to: undefined
-    });
+      setDateRange(newDateRange);
+    } catch (error) {
+      console.error('Error parsing week value:', error);
+      toast({
+        title: "Fehler",
+        description: "Fehler bei der Verarbeitung der Kalenderwoche",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleWeeksAmountChange = (amount: string) => {
     const weeks = parseInt(amount, 10);
-    setWeeksAmount(weeks);
-    if (dateRange?.from) {
-      setDateRange({
-        from: dateRange.from,
-        to: addDays(dateRange.from, (weeks * 7) - 1)
+
+    if (isNaN(weeks) || weeks < 1 || weeks > 4) {
+      console.error('Invalid week amount:', amount);
+      toast({
+        title: "Fehler",
+        description: "Ungültige Wochenanzahl ausgewählt",
+        variant: "destructive"
       });
+      return;
+    }
+
+    setWeeksAmount(weeks);
+
+    if (selectedCalendarWeek) {
+      try {
+        // Parse the selected week value
+        const [yearStr, weekStr] = selectedCalendarWeek.split('-');
+        const week = parseInt(weekStr, 10);
+
+        if (isNaN(week) || week < 1 || week > 53) {
+          console.error('Invalid week value for amount change:', selectedCalendarWeek);
+          toast({
+            title: "Fehler",
+            description: "Ungültige Kalenderwoche für die Wochenanzahl",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        // Update date range based on the selected week and new amount
+        const newDateRange = getDateRangeFromWeekAndCount(week, weeks);
+
+        // Validate the generated date range
+        if (!newDateRange.from || !newDateRange.to ||
+          isNaN(newDateRange.from.getTime()) || isNaN(newDateRange.to.getTime())) {
+          console.error('Invalid date range generated:', newDateRange);
+          toast({
+            title: "Fehler",
+            description: "Fehler bei der Berechnung des Datumsbereichs",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        console.log('Setting date range from week amount change:', {
+          from: newDateRange.from.toISOString(),
+          to: newDateRange.to.toISOString(),
+          week,
+          weeks
+        });
+
+        setDateRange(newDateRange);
+      } catch (error) {
+        console.error('Error during week amount change:', error);
+        toast({
+          title: "Fehler",
+          description: "Fehler bei der Änderung der Wochenanzahl",
+          variant: "destructive"
+        });
+      }
     }
   };
 
@@ -505,6 +673,45 @@ export function SchedulePage() {
     </div>
   );
 
+  // Add a component to display schedule generation errors
+  const ScheduleGenerationErrors = ({ errors }: { errors: ScheduleError[] }) => {
+    if (!errors || errors.length === 0) return null;
+
+    return (
+      <Card className="mt-4 border-red-300">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-red-600 flex items-center gap-2">
+            <AlertCircle size={18} />
+            Fehler bei der Schichtplan-Generierung
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {errors.map((error, index) => (
+              <Alert key={index} variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>{error.type === 'critical' ? 'Kritischer Fehler' : 'Warnung'}</AlertTitle>
+                <AlertDescription className="mt-2">
+                  <div>{error.message}</div>
+                  {error.date && (
+                    <div className="text-sm mt-1">
+                      Datum: {format(new Date(error.date), 'dd.MM.yyyy')}
+                    </div>
+                  )}
+                  {error.shift && (
+                    <div className="text-sm">
+                      Schicht: {error.shift}
+                    </div>
+                  )}
+                </AlertDescription>
+              </Alert>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <PageHeader
@@ -516,18 +723,21 @@ export function SchedulePage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <div className="flex flex-col space-y-2">
-              <DateRangePicker
-                dateRange={dateRange}
-                onChange={handleWeekChange}
-                fromDate={today}
-                onStartDateSelect={handleStartDateSelect}
-              />
+              <Select value={selectedCalendarWeek} onValueChange={handleCalendarWeekChange}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Kalenderwoche wählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {getAvailableCalendarWeeks(true).map((week) => (
+                    <SelectItem key={week.value} value={week.value}>
+                      {week.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {dateRange?.from && (
                 <div className="text-sm text-muted-foreground">
-                  KW {getWeek(dateRange.from, { weekStartsOn: 1 })}
-                  {dateRange.to && getWeek(dateRange.from, { weekStartsOn: 1 }) !== getWeek(dateRange.to, { weekStartsOn: 1 }) &&
-                    ` - ${getWeek(dateRange.to, { weekStartsOn: 1 })}`
-                  }
+                  {format(dateRange.from, 'dd.MM.yyyy')} - {format(dateRange.to || dateRange.from, 'dd.MM.yyyy')}
                 </div>
               )}
             </div>
@@ -671,6 +881,11 @@ export function SchedulePage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Add error display component if there are errors */}
+      {generateMutation.data?.errors && generateMutation.data.errors.length > 0 && (
+        <ScheduleGenerationErrors errors={generateMutation.data.errors} />
+      )}
 
       {generateMutation.isPending && <GenerationOverlay />}
     </div>
