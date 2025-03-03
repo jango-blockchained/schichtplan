@@ -500,6 +500,8 @@ class ScheduleGenerator:
                         employee, current_date
                     )
 
+                    # The _get_preferred_shifts function now always returns a list (empty if error)
+                    # So we just need to check if it's empty
                     if not preferred_shifts:
                         self._log_detailed_debug(
                             f"No preferred shifts for employee {employee.id} on {current_date.isoformat()}",
@@ -519,20 +521,23 @@ class ScheduleGenerator:
                             schedules.append(schedule)
                         continue
 
+                    # Now we know preferred_shifts is not empty so we can access index 0 safely
+                    first_shift = preferred_shifts[0]  # Get the first preferred shift
+
                     # Create schedule with first preferred shift
                     self._log_detailed_info(
-                        f"Assigning employee {employee.id} to shift {preferred_shifts[0].id} on {current_date.isoformat()}",
+                        f"Assigning employee {employee.id} to shift {first_shift.id} on {current_date.isoformat()}",
                         "assign_shift",
                         session_id,
                         employee_id=employee.id,
-                        shift_id=preferred_shifts[0].id,
+                        shift_id=first_shift.id,
                         date=current_date.isoformat(),
-                        shift_start=preferred_shifts[0].start_time,
-                        shift_end=preferred_shifts[0].end_time,
+                        shift_start=first_shift.start_time,
+                        shift_end=first_shift.end_time,
                     )
                     schedule = Schedule(
                         employee_id=employee.id,
-                        shift_id=preferred_shifts[0].id,
+                        shift_id=first_shift.id,
                         date=current_date,
                     )
                     schedules.append(schedule)
@@ -1257,6 +1262,24 @@ class ScheduleGenerator:
         """
         session_id = getattr(self, "session_id", None)
 
+        if not employee:
+            self._log_detailed_error(
+                "Cannot check absence for None employee",
+                "check_absence_error",
+                session_id,
+                date=date.isoformat() if date else None,
+            )
+            return True  # Better to treat as absent if we don't know
+
+        if not date:
+            self._log_detailed_error(
+                f"Cannot check absence for employee {employee.id} with None date",
+                "check_absence_error",
+                session_id,
+                employee_id=employee.id,
+            )
+            return True  # Better to treat as absent if we don't know
+
         self._log_detailed_debug(
             f"Checking if employee {employee.id} is absent on {date}",
             "check_absence",
@@ -1265,48 +1288,78 @@ class ScheduleGenerator:
             date=date.isoformat(),
         )
 
-        # Check for absences in the database
-        absence = Absence.query.filter(
-            Absence.employee_id == employee.id,
-            Absence.start_date <= date,
-            Absence.end_date >= date,
-        ).first()
+        try:
+            # Check for absences in the database
+            absence = Absence.query.filter(
+                Absence.employee_id == employee.id,
+                Absence.start_date <= date,
+                Absence.end_date >= date,
+            ).first()
 
-        # Also check for unavailable availability records
-        unavailable = EmployeeAvailability.query.filter(
-            EmployeeAvailability.employee_id == employee.id,
-            EmployeeAvailability.start_date <= date,
-            EmployeeAvailability.end_date >= date,
-            EmployeeAvailability.availability_type
-            == AvailabilityType.UNAVAILABLE.value,
-            # Check if it's a full-day unavailability (all hours)
-            EmployeeAvailability.all_day == True,
-        ).first()
+            # Also check for unavailable availability records
+            # Check if there are any unavailable slots for this employee on this date
+            unavailable_slots = []
 
-        is_absent = absence is not None or unavailable is not None
+            # Make sure resources.availability_data exists and is not None
+            if (
+                hasattr(self, "resources")
+                and hasattr(self.resources, "availability_data")
+                and self.resources.availability_data is not None
+            ):
+                unavailable_slots = [
+                    a
+                    for a in self.resources.availability_data
+                    if a.employee_id == employee.id
+                    and a.availability_type == AvailabilityType.UNAVAILABLE.value
+                    and a.start_date <= date <= a.end_date
+                ]
+            else:
+                self._log_detailed_warning(
+                    "Availability data is not available for absence check",
+                    "missing_availability_data",
+                    session_id,
+                    employee_id=employee.id,
+                    date=date.isoformat(),
+                )
 
-        if is_absent:
-            reason = "absence record" if absence else "unavailability record"
-            self._log_detailed_debug(
-                f"Employee {employee.id} is absent on {date} due to {reason}",
-                "employee_absent",
+            is_absent = absence is not None or len(unavailable_slots) > 0
+
+            if is_absent:
+                reason = "absence record" if absence else "unavailability record"
+                self._log_detailed_debug(
+                    f"Employee {employee.id} is absent on {date} due to {reason}",
+                    "employee_absent",
+                    session_id,
+                    employee_id=employee.id,
+                    date=date.isoformat(),
+                    reason=reason,
+                    absence_id=absence.id if absence else None,
+                    unavailable_slots_count=len(unavailable_slots)
+                    if not absence
+                    else 0,
+                )
+            else:
+                self._log_detailed_debug(
+                    f"Employee {employee.id} is not absent on {date}",
+                    "employee_not_absent",
+                    session_id,
+                    employee_id=employee.id,
+                    date=date.isoformat(),
+                )
+
+            return is_absent
+
+        except Exception as e:
+            self._log_detailed_error(
+                f"Error checking if employee is absent: {str(e)}",
+                "check_absence_error",
                 session_id,
                 employee_id=employee.id,
                 date=date.isoformat(),
-                reason=reason,
-                absence_id=absence.id if absence else None,
-                unavailable_id=unavailable.id if unavailable else None,
+                error=str(e),
+                error_type=type(e).__name__,
             )
-        else:
-            self._log_detailed_debug(
-                f"Employee {employee.id} is not absent on {date}",
-                "employee_not_absent",
-                session_id,
-                employee_id=employee.id,
-                date=date.isoformat(),
-            )
-
-        return is_absent
+            return True  # Safer to treat as absent in case of error
 
     def _create_test_data(self):
         """Create test data for debugging purposes"""
@@ -1434,20 +1487,51 @@ class ScheduleGenerator:
         self, employee: Employee, date: date
     ) -> List[ShiftTemplate]:
         """Get preferred shifts for an employee on a given date"""
-        # Get all shifts
-        all_shifts = ShiftTemplate.query.all()
-        preferred_shifts = []
+        if not employee:
+            self._log_detailed_error(
+                "Cannot get preferred shifts for None employee",
+                "get_preferred_shifts_error",
+                getattr(self, "session_id", None),
+                date=date.isoformat() if date else None,
+            )
+            return []
 
-        for shift in all_shifts:
-            # Skip shifts with invalid duration
-            if not self._has_valid_duration(shift):
-                continue
+        try:
+            # Get all shifts
+            all_shifts = ShiftTemplate.query.all()
+            if not all_shifts:
+                self._log_detailed_debug(
+                    "No shifts available in the system",
+                    "no_shifts_available",
+                    getattr(self, "session_id", None),
+                    employee_id=employee.id,
+                    date=date.isoformat(),
+                )
+                return []
 
-            # Check if employee can work this shift
-            if self._can_assign_shift(employee, shift, date):
-                preferred_shifts.append(shift)
+            preferred_shifts = []
 
-        return preferred_shifts
+            for shift in all_shifts:
+                # Skip shifts with invalid duration
+                if not self._has_valid_duration(shift):
+                    continue
+
+                # Check if employee can work this shift
+                if self._can_assign_shift(employee, shift, date):
+                    preferred_shifts.append(shift)
+
+            return preferred_shifts
+        except Exception as e:
+            self._log_detailed_error(
+                f"Error getting preferred shifts: {str(e)}",
+                "get_preferred_shifts_error",
+                getattr(self, "session_id", None),
+                employee_id=getattr(employee, "id", None),
+                date=date.isoformat() if date else None,
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            return []
 
     def _log_detailed_info(self, message, action, session_id=None, **kwargs):
         """
@@ -1521,6 +1605,33 @@ class ScheduleGenerator:
             self.session_logger.error(
                 message, extra={k: v for k, v in extra.items() if k != "session_id"}
             )
+
+    def _log_detailed_warning(self, message, action, session_id=None, **kwargs):
+        """
+        Log detailed warning with consistent format.
+
+        Args:
+            message: The log message
+            action: The action being performed
+            session_id: Optional session ID for tracking
+            **kwargs: Additional context data to include in the log
+        """
+        log_context = {
+            "action": action,
+            "level": "warning",
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        if session_id:
+            log_context["session_id"] = session_id
+
+        log_context.update(kwargs)
+
+        if hasattr(self, "session_logger") and self.session_logger:
+            self.session_logger.warning(message, extra=log_context)
+        else:
+            # Fall back to the application logger if session logger isn't available
+            logger.schedule_logger.warning(message, extra=log_context)
 
     def _calculate_duration(self, start_time: str, end_time: str) -> float:
         """
