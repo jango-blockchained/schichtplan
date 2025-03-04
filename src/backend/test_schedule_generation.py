@@ -193,13 +193,24 @@ def main():
 
             # Generate schedules
             logger.info("Starting schedule generation...")
-            schedules, errors = generator.generate_schedule(
+            result = generator.generate_schedule(
                 start_date, end_date, create_empty_schedules=True
             )
 
+            # Check if there was an error
+            if "error" in result:
+                logger.error(f"Schedule generation failed: {result['error']}")
+                return
+
+            # Get the schedules from the result
+            schedules = result.get("schedule", [])
+            errors = []  # No errors in new format, but keep variable for compatibility
+
             # Log results
             total_schedules = len(schedules)
-            empty_schedules = len([s for s in schedules if not s.employee_id])
+            empty_schedules = len(
+                [s for s in schedules if "employee_id" not in s or not s["employee_id"]]
+            )
             assigned_schedules = total_schedules - empty_schedules
 
             logger.info("Schedule generation completed")

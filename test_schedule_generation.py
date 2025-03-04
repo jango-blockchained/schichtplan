@@ -80,7 +80,17 @@ def main():
 
     # Generate schedules
     try:
-        schedules, errors = generator.generate_schedule(next_monday, next_sunday)
+        result = generator.generate_schedule(next_monday, next_sunday)
+
+        # Check if there was an error
+        if "error" in result:
+            logger.error(f"Schedule generation failed: {result['error']}")
+            return
+
+        # Get the schedules from the result
+        schedules = result.get("schedule", [])
+        errors = []  # No errors in new format, but keep variable for compatibility
+
         logger.info(f"Generated {len(schedules)} schedules")
 
         if errors:
