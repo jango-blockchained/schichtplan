@@ -107,11 +107,27 @@ def generate_schedule():
         with current_app.app_context():
             # Generate new schedules
             generator = ScheduleGenerator()
-            schedules, errors = generator.generate_schedule(start_date, end_date)
+            result = generator.generate_schedule(start_date, end_date)
 
-            # Save all schedules
-            for schedule in schedules:
+            # Check if there was an error
+            if "error" in result:
+                return jsonify({"error": result["error"]}), 500
+
+            # Get the schedules from the result
+            schedules = result.get("schedule", [])
+
+            # Process and save schedules
+            saved_schedules = []
+            for schedule_data in schedules:
+                # Create a new Schedule object
+                schedule = Schedule(
+                    employee_id=schedule_data["employee_id"],
+                    shift_id=schedule_data["shift_id"],
+                    date=datetime.strptime(schedule_data["date"], "%Y-%m-%d").date(),
+                    notes=schedule_data.get("notes", ""),
+                )
                 db.session.add(schedule)
+                saved_schedules.append(schedule)
 
             db.session.commit()
 
@@ -121,7 +137,7 @@ def generate_schedule():
                     "start_date": start_date.strftime("%Y-%m-%d"),
                     "end_date": end_date.strftime("%Y-%m-%d"),
                     "total_shifts": len(schedules),
-                    "errors": errors,
+                    "errors": result.get("errors", []),
                     "schedules": [
                         {
                             "id": schedule.id,
@@ -139,7 +155,7 @@ def generate_schedule():
                             "break_end": schedule.break_end,
                             "notes": schedule.notes,
                         }
-                        for schedule in schedules
+                        for schedule in saved_schedules
                     ],
                 }
             ), HTTPStatus.CREATED

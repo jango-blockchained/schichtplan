@@ -160,9 +160,25 @@ def generate_schedule():
 
         # Generate new schedules
         generator = ScheduleGenerator()
-        schedules_list, errors = generator.generate_schedule(
+        result = generator.generate_schedule(
             start_date, end_date, create_empty_schedules, session_id=session_id
         )
+
+        # Check if there was an error
+        if "error" in result:
+            session_logger.error(
+                f"Schedule generation failed: {result['error']}",
+                extra={
+                    "action": "generation_error",
+                    "error": result["error"],
+                    "session_id": session_id,
+                },
+            )
+            return jsonify({"error": result["error"]}), 500
+
+        # Get the schedules from the result
+        schedules_list = result.get("schedule", [])
+        errors = []  # No errors in new format, but keep variable for compatibility
 
         session_logger.info(
             f"Generated {len(schedules_list)} schedules with {len(errors)} errors",
