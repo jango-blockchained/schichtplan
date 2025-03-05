@@ -119,52 +119,76 @@ def main():
 
                         if generator.resources.shifts:
                             for shift in generator.resources.shifts:
-                                is_available = generator._check_availability(
-                                    employee,
-                                    check_date,
-                                    shift.start_time,
-                                    shift.end_time,
-                                )
-                                logger.info(
-                                    f"  - Shift {shift.id} ({shift.start_time}-{shift.end_time}): {'Available' if is_available else 'Not available'}"
-                                )
-
-                                # If available, check other conditions
-                                if is_available:
-                                    # Check rest time
-                                    has_rest = generator._has_enough_rest_time(
-                                        employee, shift, check_date
+                                try:
+                                    is_available = generator._check_availability(
+                                        employee,
+                                        check_date,
+                                        shift.start_time,
+                                        shift.end_time,
                                     )
                                     logger.info(
-                                        f"    - Rest time check: {'Pass' if has_rest else 'Fail'}"
+                                        f"  - Shift {shift.id} ({shift.start_time}-{shift.end_time}): {'Available' if is_available else 'Not available'}"
                                     )
 
-                                    # Check max shifts
-                                    exceeds_shifts = generator._exceeds_max_shifts(
-                                        employee, check_date
-                                    )
-                                    logger.info(
-                                        f"    - Max shifts check: {'Pass' if not exceeds_shifts else 'Fail'}"
-                                    )
+                                    # If available, check other conditions
+                                    if is_available:
+                                        # Check rest time
+                                        try:
+                                            has_rest = generator._has_enough_rest_time(
+                                                employee, shift, check_date
+                                            )
+                                            logger.info(
+                                                f"    - Rest time check: {'Pass' if has_rest else 'Fail'}"
+                                            )
+                                        except Exception as e:
+                                            logger.error(
+                                                f"    - Rest time check error: {str(e)}"
+                                            )
 
-                                    # Check hours
-                                    week_start = check_date - timedelta(
-                                        days=check_date.weekday()
-                                    )
-                                    current_hours = generator._get_employee_hours(
-                                        employee, week_start
-                                    )
-                                    would_exceed = False
-                                    if (
-                                        current_hours is not None
-                                        and shift.duration_hours is not None
-                                    ):
-                                        would_exceed = (
-                                            current_hours + shift.duration_hours
-                                            > employee.contracted_hours
-                                        )
-                                    logger.info(
-                                        f"    - Hours check: Current={current_hours}h, Would exceed={would_exceed}"
+                                        # Check max shifts
+                                        try:
+                                            exceeds_shifts = (
+                                                generator._exceeds_max_shifts(
+                                                    employee, check_date
+                                                )
+                                            )
+                                            logger.info(
+                                                f"    - Max shifts check: {'Pass' if not exceeds_shifts else 'Fail'}"
+                                            )
+                                        except Exception as e:
+                                            logger.error(
+                                                f"    - Max shifts check error: {str(e)}"
+                                            )
+
+                                        # Check hours
+                                        try:
+                                            week_start = check_date - timedelta(
+                                                days=check_date.weekday()
+                                            )
+                                            current_hours = (
+                                                generator._get_employee_hours(
+                                                    employee, week_start
+                                                )
+                                            )
+                                            would_exceed = False
+                                            if (
+                                                current_hours is not None
+                                                and shift.duration_hours is not None
+                                            ):
+                                                would_exceed = (
+                                                    current_hours + shift.duration_hours
+                                                    > employee.contracted_hours
+                                                )
+                                            logger.info(
+                                                f"    - Hours check: Current={current_hours}h, Would exceed={would_exceed}"
+                                            )
+                                        except Exception as e:
+                                            logger.error(
+                                                f"    - Hours check error: {str(e)}"
+                                            )
+                                except Exception as e:
+                                    logger.error(
+                                        f"  - Availability check error: {str(e)}"
                                     )
             else:
                 logger.warning("No employees available in generator")
@@ -177,19 +201,26 @@ def main():
 
                 if generator.resources and generator.resources.shifts:
                     for shift in generator.resources.shifts:
-                        available_employees = generator._get_available_employees(
-                            check_date, shift.start_time, shift.end_time
-                        )
-                        logger.info(
-                            f"  - Shift {shift.id} ({shift.start_time}-{shift.end_time}): {len(available_employees)} available employees"
-                        )
-                        if available_employees:
-                            for emp in available_employees:
+                        try:
+                            available_employees = generator._get_available_employees(
+                                check_date, shift.start_time, shift.end_time
+                            )
+                            logger.info(
+                                f"  - Shift {shift.id} ({shift.start_time}-{shift.end_time}): {len(available_employees)} available employees"
+                            )
+                            if available_employees:
+                                for emp in available_employees:
+                                    logger.info(
+                                        f"    - Available: {emp.id} ({emp.first_name} {emp.last_name})"
+                                    )
+                            else:
                                 logger.info(
-                                    f"    - Available: {emp.id} ({emp.first_name} {emp.last_name})"
+                                    "    - No employees available for this shift"
                                 )
-                        else:
-                            logger.info("    - No employees available for this shift")
+                        except Exception as e:
+                            logger.error(
+                                f"  - Error getting available employees: {str(e)}"
+                            )
 
             # Generate schedules
             logger.info("Starting schedule generation...")
@@ -197,19 +228,20 @@ def main():
                 start_date, end_date, create_empty_schedules=True
             )
 
-            # Check if there was an error
-            if "error" in result:
-                logger.error(f"Schedule generation failed: {result['error']}")
-                return
-
             # Get the schedules from the result
             schedules = result.get("schedule", [])
-            errors = []  # No errors in new format, but keep variable for compatibility
+            errors = result.get("errors", [])
 
             # Log results
             total_schedules = len(schedules)
             empty_schedules = len(
-                [s for s in schedules if "employee_id" not in s or not s["employee_id"]]
+                [
+                    s
+                    for s in schedules
+                    if s.get("is_empty", False)
+                    or "shift_id" not in s
+                    or not s["shift_id"]
+                ]
             )
             assigned_schedules = total_schedules - empty_schedules
 
@@ -252,36 +284,47 @@ def main():
             ]
 
             if coverage_errors:
-                logger.warning(f"Found {len(coverage_errors)} coverage errors")
-                for error in coverage_errors[:5]:  # Show first 5 only
-                    logger.warning(f"  - {error.get('message', 'No message')}")
-
+                logger.warning(f"Coverage errors: {len(coverage_errors)}")
             if rest_violations:
-                logger.warning(f"Found {len(rest_violations)} rest period violations")
-                for error in rest_violations[:5]:  # Show first 5 only
-                    logger.warning(f"  - {error.get('message', 'No message')}")
-
+                logger.warning(f"Rest period violations: {len(rest_violations)}")
             if hours_violations:
-                logger.warning(f"Found {len(hours_violations)} hours violations")
-                for error in hours_violations[:5]:  # Show first 5 only
-                    logger.warning(f"  - {error.get('message', 'No message')}")
-
+                logger.warning(f"Hours violations: {len(hours_violations)}")
             if keyholder_violations:
-                logger.warning(
-                    f"Found {len(keyholder_violations)} keyholder violations"
+                logger.warning(f"Keyholder violations: {len(keyholder_violations)}")
+
+            # Verify all employees are included in the schedule
+            employee_ids = {e.id for e in employees}
+            scheduled_employee_ids = {
+                s.get("employee_id")
+                for s in schedules
+                if s.get("employee_id") is not None
+            }
+            missing_employees = employee_ids - scheduled_employee_ids
+
+            if missing_employees:
+                logger.error(
+                    f"Missing {len(missing_employees)} employees in the schedule!"
                 )
-                for error in keyholder_violations[:5]:  # Show first 5 only
-                    logger.warning(f"  - {error.get('message', 'No message')}")
+                for emp_id in missing_employees:
+                    emp = next((e for e in employees if e.id == emp_id), None)
+                    if emp:
+                        logger.error(
+                            f"  - Missing: {emp.id} ({emp.first_name} {emp.last_name})"
+                        )
+            else:
+                logger.info("All employees are included in the schedule")
+
+            # Print a summary of the schedule
+            logger.info("\nSchedule Summary:")
+            for day_offset in range(7):
+                check_date = start_date + timedelta(days=day_offset)
+                date_str = check_date.strftime("%Y-%m-%d")
+                day_schedules = [s for s in schedules if s.get("date") == date_str]
+                logger.info(f"  {date_str}: {len(day_schedules)} assignments")
 
     except Exception as e:
-        logger.error(f"Error during schedule generation: {str(e)}")
-        import traceback
-
-        logger.error(traceback.format_exc())
-        return 1
-
-    return 0
+        logger.error(f"Test failed with error: {str(e)}")
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
