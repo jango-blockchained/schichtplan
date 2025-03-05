@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from models import db, Settings, Employee, Coverage, EmployeeAvailability, ShiftTemplate
+from models import db, Settings, Employee, Coverage, EmployeeAvailability
 from models.employee import AvailabilityType
 from http import HTTPStatus
 from datetime import datetime
@@ -198,61 +198,27 @@ def generate_coverage_data():
     if not settings:
         settings = Settings.get_default_settings()
 
-    # Get or create shift templates
-    early_afternoon_shift = ShiftTemplate.query.filter_by(
-        start_time="13:00", end_time="18:00"
-    ).first()
-    if not early_afternoon_shift:
-        early_afternoon_shift = ShiftTemplate(
-            start_time="13:00",
-            end_time="18:00",
-            min_employees=0,
-            max_employees=2,
-            requires_break=False,
-        )
-        db.session.add(early_afternoon_shift)
-
-    late_afternoon_shift = ShiftTemplate.query.filter_by(
-        start_time="15:00", end_time="20:00"
-    ).first()
-    if not late_afternoon_shift:
-        late_afternoon_shift = ShiftTemplate(
-            start_time="15:00",
-            end_time="20:00",
-            min_employees=0,
-            max_employees=2,
-            requires_break=False,
-        )
-        db.session.add(late_afternoon_shift)
-
-    try:
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        raise e
-
     coverage_slots = []
     for day_index in range(0, 6):  # Monday (0) to Saturday (5)
         # Early afternoon slot
         coverage_slots.append(
             Coverage(
                 day_index=day_index,
-                start_time="13:00",
-                end_time="18:00",
+                start_time="09:00",
+                end_time="14:00",
                 min_employees=1,
                 max_employees=2,
                 employee_types=["TL", "VZ", "TZ", "GFB"],
                 requires_keyholder=True,
                 keyholder_before_minutes=settings.keyholder_before_minutes,
                 keyholder_after_minutes=0,
-                shift_id=early_afternoon_shift.id,
             )
         )
         # Late afternoon slot
         coverage_slots.append(
             Coverage(
                 day_index=day_index,
-                start_time="15:00",
+                start_time="14:00",
                 end_time="20:00",
                 min_employees=1,
                 max_employees=2,
@@ -260,7 +226,6 @@ def generate_coverage_data():
                 requires_keyholder=True,
                 keyholder_before_minutes=0,
                 keyholder_after_minutes=settings.keyholder_after_minutes,
-                shift_id=late_afternoon_shift.id,
             )
         )
 

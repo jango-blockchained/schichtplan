@@ -70,6 +70,9 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, shift, onSave, o
         }
     }, [shift]);
 
+    // Check if employee inputs should be disabled based on settings
+    const isEmployeeInputsDisabled = settings?.scheduling.scheduling_resource_type === 'coverage';
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         onSave(formData);
@@ -205,6 +208,7 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, shift, onSave, o
                                 value={formData.min_employees}
                                 onChange={(e) => setFormData({ ...formData, min_employees: parseInt(e.target.value) })}
                                 required
+                                disabled={isEmployeeInputsDisabled}
                             />
                         </div>
                         <div>
@@ -216,6 +220,7 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, shift, onSave, o
                                 value={formData.max_employees}
                                 onChange={(e) => setFormData({ ...formData, max_employees: parseInt(e.target.value) })}
                                 required
+                                disabled={isEmployeeInputsDisabled}
                             />
                         </div>
                     </div>

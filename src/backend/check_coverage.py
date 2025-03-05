@@ -13,7 +13,7 @@ def check_coverage():
 
         for c in coverage_data:
             print(
-                f"Day {c.day_index}: {c.start_time}-{c.end_time}, min: {c.min_employees}, max: {c.max_employees}, shift_id: {c.shift_id}"
+                f"Day {c.day_index}: {c.start_time}-{c.end_time}, min: {c.min_employees}, max: {c.max_employees}"
             )
 
 

@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, JSON, DateTime, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, JSON, DateTime, Boolean
 from . import db
 
 
@@ -24,9 +24,6 @@ class Coverage(db.Model):
     keyholder_after_minutes = Column(
         Integer, nullable=True
     )  # Minutes keyholder needs to stay after
-    shift_id = Column(
-        Integer, ForeignKey("shifts.id", name="fk_coverage_shift"), nullable=True
-    )
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -42,7 +39,6 @@ class Coverage(db.Model):
         requires_keyholder=False,
         keyholder_before_minutes=None,
         keyholder_after_minutes=None,
-        shift_id=None,
     ):
         self.day_index = day_index
         self.start_time = start_time
@@ -53,7 +49,6 @@ class Coverage(db.Model):
         self.requires_keyholder = requires_keyholder
         self.keyholder_before_minutes = keyholder_before_minutes
         self.keyholder_after_minutes = keyholder_after_minutes
-        self.shift_id = shift_id
 
     def to_dict(self):
         """Convert coverage to dictionary"""
