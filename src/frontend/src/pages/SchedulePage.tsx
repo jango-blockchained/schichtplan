@@ -238,6 +238,23 @@ export function SchedulePage() {
         createEmptySchedules
       );
 
+      // Process logs from the API response
+      if (result.logs) {
+        result.logs.forEach(log => {
+          // Try to parse the log message to determine its type
+          const logLower = log.toLowerCase();
+          let type: 'info' | 'warning' | 'error' = 'info';
+
+          if (logLower.includes('error') || logLower.includes('failed') || logLower.includes('critical')) {
+            type = 'error';
+          } else if (logLower.includes('warning') || logLower.includes('warn')) {
+            type = 'warning';
+          }
+
+          addGenerationLog(type, log);
+        });
+      }
+
       // Log the entire result for debugging
       console.log('Schedule generation result:', result);
 
@@ -273,27 +290,6 @@ export function SchedulePage() {
 
         addGenerationLog(logType, error.message || 'Unknown error', details || undefined);
       });
-
-      if (errors.length === 0 && result.schedules && result.schedules.length > 0) {
-        updateGenerationStep('finalize', 'completed');
-        addGenerationLog('info', `Schichtplan für ${result.schedules.length} Mitarbeiter generiert`);
-        toast({
-          title: "Erfolg",
-          description: `Schichtplan für ${result.schedules.length} Mitarbeiter generiert`,
-          variant: "default"
-        });
-      } else if (errors.some(e => e?.type === 'critical')) {
-        updateGenerationStep('finalize', 'error', 'Kritische Fehler aufgetreten');
-      } else if (errors.length > 0) {
-        updateGenerationStep('finalize', 'completed', 'Mit Warnungen abgeschlossen');
-      } else {
-        updateGenerationStep('finalize', 'completed');
-        toast({
-          title: "Erfolg",
-          description: "Schichtplan erfolgreich generiert",
-          variant: "default"
-        });
-      }
 
       return result;
     },

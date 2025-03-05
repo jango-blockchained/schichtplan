@@ -131,7 +131,6 @@ def test_coverage():
             min_employees=1,
             max_employees=2,
             requires_keyholder=False,
-            shift_id=1,
             employee_types=[],
         ),
         Coverage(
@@ -141,7 +140,6 @@ def test_coverage():
             min_employees=1,
             max_employees=1,
             requires_keyholder=True,
-            shift_id=2,
             employee_types=[],
         ),
         Coverage(
@@ -151,7 +149,6 @@ def test_coverage():
             min_employees=1,
             max_employees=1,
             requires_keyholder=True,
-            shift_id=3,
             employee_types=[],
         ),
     ]
@@ -267,8 +264,12 @@ def test_get_available_employees(
             mock_absence_query.filter_by.return_value.first.return_value = (
                 EmployeeAvailability(
                     employee_id=test_employees[0].id,
+                    day_of_week=test_date.weekday(),
+                    hour=9,
+                    is_available=False,
                     start_date=test_date,
                     end_date=test_date,
+                    is_recurring=False,
                     availability_type=AvailabilityType.UNAVAILABLE,
                 )
             )
@@ -300,8 +301,12 @@ def test_is_employee_absent(app_context, schedule_generator, test_employees):
         # Test with absence
         mock_query.filter_by.return_value.first.return_value = EmployeeAvailability(
             employee_id=employee.id,
+            day_of_week=test_date.weekday(),
+            hour=9,  # 9:00
+            is_available=False,
             start_date=test_date,
             end_date=test_date,
+            is_recurring=False,
             availability_type=AvailabilityType.UNAVAILABLE,
         )
         assert (

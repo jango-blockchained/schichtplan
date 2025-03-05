@@ -15,6 +15,7 @@ export interface ScheduleResponse {
     filled_shifts_count?: number;
     total_schedules?: number;
     filtered_schedules?: number;
+    logs?: string[];
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -297,8 +298,17 @@ export const generateSchedule = async (
             end_date: endDate,
             create_empty_schedules: createEmptySchedules,
         });
+
+        // If we have logs in the response, log them to console for debugging
+        if (response.data.logs) {
+            console.log('Schedule generation logs:', response.data.logs);
+        }
+
         return response.data;
     } catch (error) {
+        if (error instanceof AxiosError && error.response?.data?.logs) {
+            console.error('Schedule generation logs:', error.response.data.logs);
+        }
         if (error instanceof Error) {
             throw new Error(`Schedule generation failed: ${error.message}`);
         }

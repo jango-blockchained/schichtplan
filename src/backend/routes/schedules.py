@@ -84,22 +84,20 @@ def generate_schedule():
     # Create a unique session ID for this generation request
     session_id = str(uuid.uuid4())
 
-    # Create a session-specific logger
+    # Create a session-specific logger with a memory handler to capture logs
+    from logging import StreamHandler
+    from io import StringIO
+
+    log_stream = StringIO()
+    memory_handler = StreamHandler(log_stream)
     session_logger = logger.create_session_logger(session_id)
+    session_logger.addHandler(memory_handler)
 
     session_logger.info(
         "Schedule generation request received",
         extra={
             "action": "generation_request",
             "request_id": session_id,
-        },
-    )
-
-    logger.schedule_logger.debug(
-        f"Schedule generation request received with session ID: {session_id}",
-        extra={
-            "action": "generation_request",
-            "session_id": session_id,
         },
     )
 
@@ -115,17 +113,6 @@ def generate_schedule():
             f"Generating schedule for period: {start_date} to {end_date}",
             extra={
                 "action": "generate_schedule",
-                "start_date": start_date.isoformat(),
-                "end_date": end_date.isoformat(),
-                "create_empty_schedules": create_empty_schedules,
-            },
-        )
-
-        logger.schedule_logger.debug(
-            f"Generating schedule for period: {start_date} to {end_date}",
-            extra={
-                "action": "generate_schedule",
-                "session_id": session_id,
                 "start_date": start_date.isoformat(),
                 "end_date": end_date.isoformat(),
                 "create_empty_schedules": create_empty_schedules,
@@ -174,7 +161,10 @@ def generate_schedule():
                     "session_id": session_id,
                 },
             )
-            return jsonify({"error": result["error"]}), 500
+            # Get the logs before returning error
+            memory_handler.flush()
+            logs = log_stream.getvalue()
+            return jsonify({"error": result["error"], "logs": logs.splitlines()}), 500
 
         # Get the schedules from the result
         schedules_list = result.get("schedule", [])
@@ -208,12 +198,17 @@ def generate_schedule():
                 },
             )
 
-        # Return the result
+        # Get the logs
+        memory_handler.flush()
+        logs = log_stream.getvalue()
+
+        # Return the result with logs
         result = {
             "schedules": [schedule.to_dict() for schedule in schedules_list],
             "errors": errors,
             "total": len(schedules_list),
             "version": new_version,
+            "logs": logs.splitlines(),
         }
 
         session_logger.info(
@@ -238,16 +233,12 @@ def generate_schedule():
                 "error": str(e),
             },
         )
-        logger.error_logger.error(
-            error_msg,
-            extra={
-                "action": "generation_error",
-                "session_id": session_id,
-                "error_type": "value_error",
-                "error": str(e),
-            },
-        )
-        return jsonify({"error": error_msg}), HTTPStatus.BAD_REQUEST
+        # Get the logs before returning error
+        memory_handler.flush()
+        logs = log_stream.getvalue()
+        return jsonify(
+            {"error": error_msg, "logs": logs.splitlines()}
+        ), HTTPStatus.BAD_REQUEST
 
     except Exception as e:
         import traceback
@@ -264,17 +255,12 @@ def generate_schedule():
                 "traceback": tb,
             },
         )
-        logger.error_logger.error(
-            error_msg,
-            extra={
-                "action": "generation_error",
-                "session_id": session_id,
-                "error_type": "exception",
-                "error": str(e),
-                "traceback": tb,
-            },
-        )
-        return jsonify({"error": error_msg}), HTTPStatus.INTERNAL_SERVER_ERROR
+        # Get the logs before returning error
+        memory_handler.flush()
+        logs = log_stream.getvalue()
+        return jsonify(
+            {"error": error_msg, "logs": logs.splitlines()}
+        ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 @schedules.route("/schedules/pdf", methods=["GET"])
