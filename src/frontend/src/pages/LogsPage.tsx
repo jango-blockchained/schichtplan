@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/axios';
+import { clearLogs } from '@/services/api';
 import {
     Card,
     CardContent,
@@ -97,6 +98,8 @@ export default function LogsPage() {
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [currentTab, setCurrentTab] = useState<string>('logs');
     const [isExpanded, setIsExpanded] = useState<{ [key: string]: boolean }>({});
+    const [isClearing, setIsClearing] = useState<boolean>(false);
+    const queryClient = useQueryClient();
 
     // Format date with validation - enhanced for more robust handling of various date formats
     const formatDate = (dateString: string | null | undefined) => {
@@ -349,6 +352,24 @@ export default function LogsPage() {
         );
     };
 
+    // Function to handle clearing logs
+    const handleClearLogs = async () => {
+        if (window.confirm('Are you sure you want to clear all logs? This action cannot be undone.')) {
+            try {
+                setIsClearing(true);
+                await clearLogs();
+                // Invalidate and refetch logs and stats queries
+                await queryClient.invalidateQueries(['logs']);
+                await queryClient.invalidateQueries(['logStats']);
+            } catch (error) {
+                console.error('Failed to clear logs:', error);
+                alert('Failed to clear logs. Please try again.');
+            } finally {
+                setIsClearing(false);
+            }
+        }
+    };
+
     if (logsLoading || statsLoading) {
         return (
             <div className="flex items-center justify-center h-screen">
@@ -359,10 +380,27 @@ export default function LogsPage() {
 
     return (
         <div className="container mx-auto py-6 space-y-6">
-            <PageHeader
-                title="Logs"
-                description="View and analyze system logs"
-            />
+            <div className="flex justify-between items-center">
+                <PageHeader
+                    title="Logs"
+                    description="View and analyze system logs"
+                />
+                <Button
+                    variant="destructive"
+                    onClick={handleClearLogs}
+                    disabled={isClearing}
+                    className="mr-4"
+                >
+                    {isClearing ? (
+                        <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Clearing...
+                        </>
+                    ) : (
+                        'Clear Logs'
+                    )}
+                </Button>
+            </div>
 
             <Tabs value={currentTab} onValueChange={setCurrentTab}>
                 <TabsList>
