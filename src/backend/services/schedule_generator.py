@@ -357,90 +357,100 @@ class ScheduleGenerator:
         """Verify that all scheduling goals are met"""
         logger.schedule_logger.info("=== Verifying Scheduling Goals ===")
 
+        # Get settings
+        settings = Settings.query.first()
+        requirements = settings.scheduling.get("generation_requirements", {})
+
         # 1. Verify minimum coverage
-        logger.schedule_logger.info("Checking minimum coverage requirements...")
-        coverage_issues = self._verify_minimum_coverage()
-        if coverage_issues:
-            for issue in coverage_issues:
-                self.generation_errors.append(
-                    {
-                        "type": "error",
-                        "message": f"Coverage requirement not met: {issue['message']}",
-                        "date": issue["date"].strftime("%Y-%m-%d"),
-                        "time": f"{issue['start_time']}-{issue['end_time']}",
-                        "required": issue["required"],
-                        "assigned": issue["assigned"],
-                    }
-                )
-                logger.schedule_logger.warning(
-                    f"Coverage issue on {issue['date']}: {issue['message']}"
-                )
+        if requirements.get("enforce_minimum_coverage", True):
+            logger.schedule_logger.info("Checking minimum coverage requirements...")
+            coverage_issues = self._verify_minimum_coverage()
+            if coverage_issues:
+                for issue in coverage_issues:
+                    self.generation_errors.append(
+                        {
+                            "type": "error",
+                            "message": f"Coverage requirement not met: {issue['message']}",
+                            "date": issue["date"].strftime("%Y-%m-%d"),
+                            "time": f"{issue['start_time']}-{issue['end_time']}",
+                            "required": issue["required"],
+                            "assigned": issue["assigned"],
+                        }
+                    )
 
         # 2. Verify exact hours for VZ and TZ
-        logger.schedule_logger.info("Checking contracted hours...")
-        hours_issues = self._verify_exact_hours()
-        if hours_issues:
-            for issue in hours_issues:
-                self.generation_errors.append(
-                    {
-                        "type": "warning",
-                        "message": f"Hours requirement not met: {issue['message']}",
-                        "employee": issue["employee_name"],
-                        "employee_group": issue["employee_group"],
-                        "required_hours": issue["required_hours"],
-                        "actual_hours": issue["actual_hours"],
-                    }
-                )
-                logger.schedule_logger.warning(
-                    f"Hours issue for {issue['employee_name']}: {issue['message']}"
-                )
+        if requirements.get("enforce_contracted_hours", True):
+            logger.schedule_logger.info("Checking contracted hours...")
+            hours_issues = self._verify_exact_hours()
+            if hours_issues:
+                for issue in hours_issues:
+                    self.generation_errors.append(
+                        {
+                            "type": "warning",
+                            "message": f"Hours requirement not met: {issue['message']}",
+                            "employee": issue["employee_name"],
+                            "employee_group": issue["employee_group"],
+                            "required_hours": issue["required_hours"],
+                            "actual_hours": issue["actual_hours"],
+                        }
+                    )
 
         # 3. Verify keyholder coverage
-        logger.schedule_logger.info("Checking keyholder coverage...")
-        keyholder_issues = self._verify_keyholder_coverage()
-        if keyholder_issues:
-            for issue in keyholder_issues:
-                self.generation_errors.append(
-                    {
-                        "type": "error",
-                        "message": f"Keyholder requirement not met: {issue['message']}",
-                        "date": issue["date"].strftime("%Y-%m-%d"),
-                        "time": f"{issue['start_time']}-{issue['end_time']}",
-                    }
-                )
-                logger.schedule_logger.warning(
-                    f"Keyholder issue on {issue['date']}: {issue['message']}"
-                )
+        if requirements.get("enforce_keyholder_coverage", True):
+            logger.schedule_logger.info("Checking keyholder coverage...")
+            keyholder_issues = self._verify_keyholder_coverage()
+            if keyholder_issues:
+                for issue in keyholder_issues:
+                    self.generation_errors.append(
+                        {
+                            "type": "error",
+                            "message": f"Keyholder requirement not met: {issue['message']}",
+                            "date": issue["date"].strftime("%Y-%m-%d"),
+                            "time": f"{issue['start_time']}-{issue['end_time']}",
+                        }
+                    )
 
         # 4. Verify rest periods
-        logger.schedule_logger.info("Checking rest periods...")
-        rest_issues = self._verify_rest_periods()
-        if rest_issues:
-            for issue in rest_issues:
-                self.generation_errors.append(
-                    {
-                        "type": "error",
-                        "message": f"Rest period violation: {issue['message']}",
-                        "employee": issue["employee_name"],
-                        "date": issue["date"].strftime("%Y-%m-%d"),
-                    }
-                )
-                logger.schedule_logger.warning(
-                    f"Rest period issue for {issue['employee_name']} on {issue['date']}: {issue['message']}"
-                )
+        if requirements.get("enforce_rest_periods", True):
+            logger.schedule_logger.info("Checking rest periods...")
+            rest_issues = self._verify_rest_periods()
+            if rest_issues:
+                for issue in rest_issues:
+                    self.generation_errors.append(
+                        {
+                            "type": "error",
+                            "message": f"Rest period requirement not met: {issue['message']}",
+                            "employee": issue["employee_name"],
+                            "dates": f"{issue['first_date']} - {issue['second_date']}",
+                        }
+                    )
 
-        # Log verification summary
-        error_count = len([e for e in self.generation_errors if e["type"] == "error"])
-        warning_count = len(
-            [e for e in self.generation_errors if e["type"] == "warning"]
-        )
+        # Additional verifications based on settings
+        if requirements.get("enforce_max_hours", True):
+            logger.schedule_logger.info("Checking maximum hours...")
+            max_hours_issues = self._verify_max_hours()
+            if max_hours_issues:
+                self.generation_errors.extend(max_hours_issues)
 
-        if error_count == 0 and warning_count == 0:
-            logger.schedule_logger.info("All scheduling goals verified successfully!")
-        else:
+        if requirements.get("enforce_consecutive_days", True):
+            logger.schedule_logger.info("Checking consecutive days...")
+            consecutive_days_issues = self._verify_consecutive_days()
+            if consecutive_days_issues:
+                self.generation_errors.extend(consecutive_days_issues)
+
+        if requirements.get("enforce_weekend_distribution", True):
+            logger.schedule_logger.info("Checking weekend distribution...")
+            weekend_issues = self._verify_weekend_distribution()
+            if weekend_issues:
+                self.generation_errors.extend(weekend_issues)
+
+        # Log verification results
+        if self.generation_errors:
             logger.schedule_logger.warning(
-                f"Schedule verification completed with {error_count} errors and {warning_count} warnings"
+                f"Found {len(self.generation_errors)} issues during verification"
             )
+        else:
+            logger.schedule_logger.info("All verifications passed successfully")
 
     def generate_schedule(
         self, start_date, end_date, create_empty_schedules=False, session_id=None
