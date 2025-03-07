@@ -10,7 +10,7 @@ interface ScheduleGenerationSettingsProps {
 }
 
 export function ScheduleGenerationSettings({ settings, onUpdate }: ScheduleGenerationSettingsProps) {
-    const requirements = settings.scheduling.generation_requirements;
+    const requirements = settings?.scheduling?.generation_requirements ?? {};
 
     const handleToggle = (key: keyof Settings['scheduling']['generation_requirements']) => {
         onUpdate({ [key]: !requirements[key] });
@@ -51,7 +51,7 @@ export function ScheduleGenerationSettings({ settings, onUpdate }: ScheduleGener
                             </div>
                             <Switch
                                 id={key}
-                                checked={requirements[key]}
+                                checked={requirements[key] ?? true}
                                 onCheckedChange={() => handleToggle(key)}
                             />
                         </div>

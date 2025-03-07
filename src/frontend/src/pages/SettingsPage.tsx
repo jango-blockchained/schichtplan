@@ -114,6 +114,26 @@ export function SettingsPage() {
   ) => {
     if (!localSettings) return;
 
+    // Initialize generation_requirements if it doesn't exist
+    if (category === 'scheduling' && !localSettings.scheduling.generation_requirements) {
+      localSettings.scheduling.generation_requirements = {
+        enforce_minimum_coverage: true,
+        enforce_contracted_hours: true,
+        enforce_keyholder_coverage: true,
+        enforce_rest_periods: true,
+        enforce_early_late_rules: true,
+        enforce_employee_group_rules: true,
+        enforce_break_rules: true,
+        enforce_max_hours: true,
+        enforce_consecutive_days: true,
+        enforce_weekend_distribution: true,
+        enforce_shift_distribution: true,
+        enforce_availability: true,
+        enforce_qualifications: true,
+        enforce_opening_hours: true
+      };
+    }
+
     const updatedSettings = {
       ...localSettings,
       [category]: {
@@ -623,11 +643,38 @@ export function SettingsPage() {
                 </Card>
 
                 <ScheduleGenerationSettings
-                  settings={settings}
+                  settings={localSettings ?? {
+                    scheduling: {
+                      scheduling_resource_type: 'shifts',
+                      default_shift_duration: 8,
+                      min_break_duration: 30,
+                      max_daily_hours: 10,
+                      max_weekly_hours: 40,
+                      min_rest_between_shifts: 11,
+                      scheduling_period_weeks: 1,
+                      auto_schedule_preferences: true,
+                      generation_requirements: {
+                        enforce_minimum_coverage: true,
+                        enforce_contracted_hours: true,
+                        enforce_keyholder_coverage: true,
+                        enforce_rest_periods: true,
+                        enforce_early_late_rules: true,
+                        enforce_employee_group_rules: true,
+                        enforce_break_rules: true,
+                        enforce_max_hours: true,
+                        enforce_consecutive_days: true,
+                        enforce_weekend_distribution: true,
+                        enforce_shift_distribution: true,
+                        enforce_availability: true,
+                        enforce_qualifications: true,
+                        enforce_opening_hours: true
+                      }
+                    }
+                  } as Settings}
                   onUpdate={(updates) => handleSave('scheduling', {
-                    ...settings.scheduling,
+                    ...localSettings?.scheduling,
                     generation_requirements: {
-                      ...settings.scheduling.generation_requirements,
+                      ...(localSettings?.scheduling?.generation_requirements ?? {}),
                       ...updates
                     }
                   })}
