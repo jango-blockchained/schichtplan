@@ -325,3 +325,36 @@ def get_log_stats():
     except Exception as e:
         logger.error_logger.error(f"Error retrieving log stats: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@bp.route("/logs/clear", methods=["POST"])
+def clear_logs():
+    """Clear all log files"""
+    try:
+        log_files = ["user_actions.log", "errors.log", "schedule.log"]
+        cleared_files = []
+
+        for filename in log_files:
+            filepath = ROOT_DIR / "logs" / filename
+            if filepath.exists():
+                # Open the file in write mode to clear its contents
+                with open(filepath, "w") as f:
+                    pass  # Just open and close to clear the file
+                cleared_files.append(filename)
+                logger.app_logger.info(f"Cleared log file: {filename}")
+
+        # Log that logs were cleared (this will be the first entry in the cleared error log)
+        logger.error_logger.info("All logs were cleared by admin request")
+
+        return jsonify(
+            {
+                "status": "success",
+                "message": "Logs cleared successfully",
+                "cleared_files": cleared_files,
+            }
+        )
+    except Exception as e:
+        logger.error_logger.error(f"Error clearing logs: {str(e)}")
+        return jsonify(
+            {"status": "error", "message": f"Error clearing logs: {str(e)}"}
+        ), 500

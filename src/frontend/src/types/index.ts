@@ -189,6 +189,22 @@ export interface Settings {
         min_rest_between_shifts: number;
         scheduling_period_weeks: number;
         auto_schedule_preferences: boolean;
+        generation_requirements: {
+            enforce_minimum_coverage: boolean;
+            enforce_contracted_hours: boolean;
+            enforce_keyholder_coverage: boolean;
+            enforce_rest_periods: boolean;
+            enforce_early_late_rules: boolean;
+            enforce_employee_group_rules: boolean;
+            enforce_break_rules: boolean;
+            enforce_max_hours: boolean;
+            enforce_consecutive_days: boolean;
+            enforce_weekend_distribution: boolean;
+            enforce_shift_distribution: boolean;
+            enforce_availability: boolean;
+            enforce_qualifications: boolean;
+            enforce_opening_hours: boolean;
+        };
     };
     display: {
         theme: string;

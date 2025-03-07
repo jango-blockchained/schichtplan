@@ -645,3 +645,12 @@ export const restoreDatabase = async (file: File): Promise<void> => {
         throw error;
     }
 };
+
+export const clearLogs = async (): Promise<void> => {
+    try {
+        await api.post('/api/logs/clear');
+    } catch (error) {
+        console.error('Error clearing logs:', error);
+        throw error;
+    }
+};

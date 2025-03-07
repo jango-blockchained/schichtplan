@@ -34,6 +34,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { PageHeader } from '@/components/PageHeader';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { format } from 'date-fns';
+import { ScheduleGenerationSettings } from "@/components/ScheduleGenerationSettings";
 
 export interface BaseGroup {
   id: string;
@@ -500,125 +501,138 @@ export function SettingsPage() {
             </TabsContent>
 
             <TabsContent value="scheduling">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Scheduling Settings</CardTitle>
-                  <CardDescription>Configure scheduling rules and preferences</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="resourceType">Resource Type</Label>
-                        <Select
-                          value={localSettings?.scheduling.scheduling_resource_type}
-                          onValueChange={(value: 'shifts' | 'coverage') =>
-                            handleSave("scheduling", { scheduling_resource_type: value })
-                          }
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select resource type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="shifts">Shifts</SelectItem>
-                            <SelectItem value="coverage">Coverage</SelectItem>
-                          </SelectContent>
-                        </Select>
+              <div className="grid gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Scheduling Settings</CardTitle>
+                    <CardDescription>Configure scheduling rules and preferences</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="resourceType">Resource Type</Label>
+                          <Select
+                            value={localSettings?.scheduling.scheduling_resource_type}
+                            onValueChange={(value: 'shifts' | 'coverage') =>
+                              handleSave("scheduling", { scheduling_resource_type: value })
+                            }
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select resource type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="shifts">Shifts</SelectItem>
+                              <SelectItem value="coverage">Coverage</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="defaultShiftDuration">Default Shift Duration (hours)</Label>
+                          <Input
+                            type="number"
+                            id="defaultShiftDuration"
+                            value={localSettings?.scheduling.default_shift_duration ?? ''}
+                            onChange={(e) =>
+                              handleSave("scheduling", {
+                                default_shift_duration: parseFloat(e.target.value),
+                              })
+                            }
+                            onBlur={handleImmediateUpdate}
+                            className="w-full"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="minBreakDuration">Minimum Break Duration (minutes)</Label>
+                          <Input
+                            type="number"
+                            id="minBreakDuration"
+                            value={localSettings?.scheduling.min_break_duration ?? ''}
+                            onChange={(e) =>
+                              handleSave("scheduling", {
+                                min_break_duration: Number(e.target.value),
+                              })
+                            }
+                            onBlur={handleImmediateUpdate}
+                            className="w-full"
+                          />
+                        </div>
                       </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="defaultShiftDuration">Default Shift Duration (hours)</Label>
-                        <Input
-                          type="number"
-                          id="defaultShiftDuration"
-                          value={localSettings?.scheduling.default_shift_duration ?? ''}
-                          onChange={(e) =>
-                            handleSave("scheduling", {
-                              default_shift_duration: parseFloat(e.target.value),
-                            })
-                          }
-                          onBlur={handleImmediateUpdate}
-                          className="w-full"
-                        />
-                      </div>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="maxDailyHours">Maximum Daily Hours</Label>
+                          <Input
+                            type="number"
+                            id="maxDailyHours"
+                            value={localSettings?.scheduling.max_daily_hours ?? ''}
+                            onChange={(e) =>
+                              handleSave("scheduling", {
+                                max_daily_hours: Number(e.target.value),
+                              })
+                            }
+                            onBlur={handleImmediateUpdate}
+                            className="w-full"
+                          />
+                        </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="minBreakDuration">Minimum Break Duration (minutes)</Label>
-                        <Input
-                          type="number"
-                          id="minBreakDuration"
-                          value={localSettings?.scheduling.min_break_duration ?? ''}
-                          onChange={(e) =>
-                            handleSave("scheduling", {
-                              min_break_duration: Number(e.target.value),
-                            })
-                          }
-                          onBlur={handleImmediateUpdate}
-                          className="w-full"
-                        />
+                        <div className="space-y-2">
+                          <Label htmlFor="maxWeeklyHours">Maximum Weekly Hours</Label>
+                          <Input
+                            type="number"
+                            id="maxWeeklyHours"
+                            value={localSettings?.scheduling.max_weekly_hours ?? ''}
+                            onChange={(e) =>
+                              handleSave("scheduling", {
+                                max_weekly_hours: Number(e.target.value),
+                              })
+                            }
+                            onBlur={handleImmediateUpdate}
+                            className="w-full"
+                          />
+                        </div>
+
+                        <div className="flex items-center space-x-2 pt-2">
+                          <Switch
+                            id="autoSchedulePreferences"
+                            checked={localSettings?.scheduling.auto_schedule_preferences ?? false}
+                            onCheckedChange={(checked) =>
+                              handleSave("scheduling", {
+                                auto_schedule_preferences: checked,
+                              })
+                            }
+                          />
+                          <Label htmlFor="autoSchedulePreferences">
+                            Auto-schedule based on preferences
+                          </Label>
+                        </div>
                       </div>
                     </div>
+                  </CardContent>
+                  <CardFooter className="flex justify-end space-x-2">
+                    <Button
+                      variant="outline"
+                      onClick={handleImmediateUpdate}
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      Save Changes
+                    </Button>
+                  </CardFooter>
+                </Card>
 
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="maxDailyHours">Maximum Daily Hours</Label>
-                        <Input
-                          type="number"
-                          id="maxDailyHours"
-                          value={localSettings?.scheduling.max_daily_hours ?? ''}
-                          onChange={(e) =>
-                            handleSave("scheduling", {
-                              max_daily_hours: Number(e.target.value),
-                            })
-                          }
-                          onBlur={handleImmediateUpdate}
-                          className="w-full"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="maxWeeklyHours">Maximum Weekly Hours</Label>
-                        <Input
-                          type="number"
-                          id="maxWeeklyHours"
-                          value={localSettings?.scheduling.max_weekly_hours ?? ''}
-                          onChange={(e) =>
-                            handleSave("scheduling", {
-                              max_weekly_hours: Number(e.target.value),
-                            })
-                          }
-                          onBlur={handleImmediateUpdate}
-                          className="w-full"
-                        />
-                      </div>
-
-                      <div className="flex items-center space-x-2 pt-2">
-                        <Switch
-                          id="autoSchedulePreferences"
-                          checked={localSettings?.scheduling.auto_schedule_preferences ?? false}
-                          onCheckedChange={(checked) =>
-                            handleSave("scheduling", {
-                              auto_schedule_preferences: checked,
-                            })
-                          }
-                        />
-                        <Label htmlFor="autoSchedulePreferences">
-                          Auto-schedule based on preferences
-                        </Label>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter className="flex justify-end space-x-2">
-                  <Button
-                    variant="outline"
-                    onClick={handleImmediateUpdate}
-                  >
-                    <Save className="w-4 h-4 mr-2" />
-                    Save Changes
-                  </Button>
-                </CardFooter>
-              </Card>
+                <ScheduleGenerationSettings
+                  settings={settings}
+                  onUpdate={(updates) => handleSave('scheduling', {
+                    ...settings.scheduling,
+                    generation_requirements: {
+                      ...settings.scheduling.generation_requirements,
+                      ...updates
+                    }
+                  })}
+                />
+              </div>
             </TabsContent>
 
             <TabsContent value="display">
