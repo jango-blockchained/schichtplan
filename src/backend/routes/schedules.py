@@ -180,20 +180,34 @@ def generate_schedule():
             },
         )
 
-        # Set version for all new schedules
-        for schedule in schedules_list:
-            schedule.version = new_version
+        # Create Schedule objects from the dictionaries
+        schedule_objects = []
+        for schedule_dict in schedules_list:
+            # Skip empty schedules
+            if schedule_dict.get("is_empty", False):
+                continue
+
+            # Create a new Schedule object
+            schedule = Schedule(
+                date=datetime.strptime(schedule_dict["date"], "%Y-%m-%d").date()
+                if schedule_dict.get("date")
+                else None,
+                employee_id=schedule_dict["employee_id"],
+                shift_id=schedule_dict["shift_id"],
+                version=new_version,
+            )
+            schedule_objects.append(schedule)
 
         # Save to database
-        if schedules_list:
-            db.session.add_all(schedules_list)
+        if schedule_objects:
+            db.session.add_all(schedule_objects)
             db.session.commit()
 
             session_logger.info(
-                f"Saved {len(schedules_list)} schedules to database with version {new_version}",
+                f"Saved {len(schedule_objects)} schedules to database with version {new_version}",
                 extra={
                     "action": "save_schedules",
-                    "count": len(schedules_list),
+                    "count": len(schedule_objects),
                     "version": new_version,
                 },
             )
@@ -204,9 +218,9 @@ def generate_schedule():
 
         # Return the result with logs
         result = {
-            "schedules": [schedule.to_dict() for schedule in schedules_list],
+            "schedules": [schedule.to_dict() for schedule in schedule_objects],
             "errors": errors,
-            "total": len(schedules_list),
+            "total": len(schedule_objects),
             "version": new_version,
             "logs": logs.splitlines(),
         }
@@ -215,7 +229,7 @@ def generate_schedule():
             "Schedule generation completed successfully",
             extra={
                 "action": "generation_complete",
-                "schedule_count": len(schedules_list),
+                "schedule_count": len(schedule_objects),
                 "error_count": len(errors),
                 "version": new_version,
             },

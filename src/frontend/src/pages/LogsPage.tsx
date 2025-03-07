@@ -22,6 +22,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 import { PageHeader } from '@/components/PageHeader';
+import { Badge } from "@/components/ui/badge";
 
 interface LogEntry {
     timestamp: string;
@@ -32,6 +33,11 @@ interface LogEntry {
     user?: string;
     page?: string;
     details?: any;
+}
+
+interface GroupedLogEntry extends LogEntry {
+    count: number;
+    timestamps: string[];
 }
 
 interface LogStats {
@@ -46,28 +52,83 @@ interface LogStats {
     recent_errors: LogEntry[];
 }
 
+interface LogResponse {
+    status: string;
+    logs: LogEntry[];
+    debug: any;
+}
+
+interface StatsResponse {
+    status: string;
+    stats: LogStats;
+}
+
+// Function to group similar log entries
+const groupSimilarLogs = (logs: LogEntry[]): GroupedLogEntry[] => {
+    const groups: { [key: string]: GroupedLogEntry } = {};
+
+    logs.forEach(log => {
+        // Create a key based on the message and level (you can modify this to include other fields)
+        const key = `${log.level}:${log.message}:${log.module}:${log.action}`;
+
+        if (!groups[key]) {
+            groups[key] = {
+                ...log,
+                count: 1,
+                timestamps: [log.timestamp]
+            };
+        } else {
+            groups[key].count++;
+            groups[key].timestamps.push(log.timestamp);
+            // Keep the most recent timestamp as the main timestamp
+            groups[key].timestamp = groups[key].timestamps[0];
+        }
+    });
+
+    return Object.values(groups).sort((a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+};
+
 export default function LogsPage() {
     const [logType, setLogType] = useState<string>('all');
     const [days, setDays] = useState<number>(7);
     const [level, setLevel] = useState<string>('all');
     const [searchTerm, setSearchTerm] = useState<string>('');
     const [currentTab, setCurrentTab] = useState<string>('logs');
+    const [isExpanded, setIsExpanded] = useState<{ [key: string]: boolean }>({});
 
-    const { data: logs, isLoading: logsLoading } = useQuery<{ logs: LogEntry[] }>({
-        queryKey: ['logs', logType, days, level],
-        queryFn: () => api.get('/api/logs', {
-            params: { type: logType, days, level: level === 'all' ? null : level }
-        }).then(res => res.data)
+    const { data: logs, isLoading: logsLoading } = useQuery<LogResponse, Error, LogResponse>({
+        queryKey: ['logs', logType, days, level] as const,
+        queryFn: async () => {
+            const response = await api.get<LogResponse>('/api/logs', {
+                params: { type: logType, days, level: level === 'all' ? null : level }
+            });
+            return response.data;
+        },
+        retry: false,
+        refetchOnWindowFocus: false,
+        staleTime: 5000,
+        enabled: true,
+        refetchInterval: false
     });
 
-    const { data: stats, isLoading: statsLoading } = useQuery<{ stats: LogStats }>({
-        queryKey: ['logStats', days],
-        queryFn: () => api.get('/api/logs/stats', {
-            params: { days }
-        }).then(res => res.data)
+    const { data: stats, isLoading: statsLoading } = useQuery<StatsResponse, Error, StatsResponse>({
+        queryKey: ['logStats', days] as const,
+        queryFn: async () => {
+            const response = await api.get<StatsResponse>('/api/logs/stats', {
+                params: { days }
+            });
+            return response.data;
+        },
+        retry: false,
+        refetchOnWindowFocus: false,
+        staleTime: 5000,
+        enabled: true,
+        refetchInterval: false
     });
 
-    const filteredLogs = logs?.logs.filter(log => {
+    const filteredLogs = logs?.status === 'success' && Array.isArray(logs.logs) ? logs.logs.filter((log: LogEntry) => {
         if (!searchTerm) return true;
         const searchLower = searchTerm.toLowerCase();
         return (
@@ -76,7 +137,9 @@ export default function LogsPage() {
             log.action?.toLowerCase().includes(searchLower) ||
             log.user?.toLowerCase().includes(searchLower)
         );
-    });
+    }) : [];
+
+    const groupedLogs = filteredLogs ? groupSimilarLogs(filteredLogs) : [];
 
     const renderLogLevel = (level: string) => {
         const colors: Record<string, string> = {
@@ -88,32 +151,63 @@ export default function LogsPage() {
         return <span className={colors[level] || 'text-gray-500'}>{level.toUpperCase()}</span>;
     };
 
-    const renderLogEntry = (log: LogEntry) => (
-        <div key={log.timestamp} className="border-b p-4 hover:bg-gray-50">
-            <div className="flex justify-between items-start">
-                <div>
-                    <div className="text-sm text-gray-500">
-                        {new Date(log.timestamp).toLocaleString()}
+    const toggleExpand = (key: string) => {
+        setIsExpanded(prev => ({
+            ...prev,
+            [key]: !prev[key]
+        }));
+    };
+
+    const renderLogEntry = (log: GroupedLogEntry) => {
+        const key = `${log.level}:${log.message}:${log.module}:${log.action}`;
+        const isExpandable = log.count > 1;
+
+        return (
+            <div key={key} className="border-b p-4 hover:bg-gray-50">
+                <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                        <div className="text-sm text-gray-500 flex items-center gap-2">
+                            {new Date(log.timestamp).toLocaleString()}
+                            {log.count > 1 && (
+                                <Badge
+                                    variant="secondary"
+                                    className="cursor-pointer hover:bg-gray-200"
+                                    onClick={() => toggleExpand(key)}
+                                >
+                                    {log.count} occurrences
+                                </Badge>
+                            )}
+                        </div>
+                        <div className="font-medium">{log.message}</div>
                     </div>
-                    <div className="font-medium">{log.message}</div>
+                    <div className="text-right">
+                        {renderLogLevel(log.level)}
+                    </div>
                 </div>
-                <div className="text-right">
-                    {renderLogLevel(log.level)}
+                <div className="mt-2 text-sm text-gray-600">
+                    <span className="mr-4">Module: {log.module}</span>
+                    <span className="mr-4">Action: {log.action}</span>
+                    {log.user && <span className="mr-4">User: {log.user}</span>}
+                    {log.page && <span>Page: {log.page}</span>}
                 </div>
+                {log.details && (
+                    <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto">
+                        {JSON.stringify(log.details, null, 2)}
+                    </pre>
+                )}
+                {isExpandable && isExpanded[key] && (
+                    <div className="mt-4 pl-4 border-l-2 border-gray-200">
+                        <div className="text-sm font-medium mb-2">All Occurrences:</div>
+                        {log.timestamps.map((timestamp, idx) => (
+                            <div key={idx} className="text-sm text-gray-500">
+                                {new Date(timestamp).toLocaleString()}
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
-            <div className="mt-2 text-sm text-gray-600">
-                <span className="mr-4">Module: {log.module}</span>
-                <span className="mr-4">Action: {log.action}</span>
-                {log.user && <span className="mr-4">User: {log.user}</span>}
-                {log.page && <span>Page: {log.page}</span>}
-            </div>
-            {log.details && (
-                <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto">
-                    {JSON.stringify(log.details, null, 2)}
-                </pre>
-            )}
-        </div>
-    );
+        );
+    };
 
     const renderStats = () => {
         if (!stats) return null;
@@ -263,12 +357,12 @@ export default function LogsPage() {
                         <CardHeader>
                             <CardTitle>Log Entries</CardTitle>
                             <CardDescription>
-                                {filteredLogs?.length || 0} entries found
+                                {groupedLogs.length || 0} entries found
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div className="divide-y">
-                                {filteredLogs?.map(renderLogEntry)}
+                                {groupedLogs.map(renderLogEntry)}
                             </div>
                         </CardContent>
                     </Card>

@@ -84,8 +84,10 @@ def create_app(test_config=None):
                 "allow_credentials": True,
                 "allow_headers": ["Content-Type", "Authorization"],
                 "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                "supports_credentials": True,
             }
         },
+        supports_credentials=True,
     )
 
     # Set up logging

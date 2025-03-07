@@ -100,7 +100,9 @@ class Logger:
 
         # Error logger
         self.error_logger = logging.getLogger("errors")
-        self.error_logger.setLevel(logging.ERROR)
+        self.error_logger.setLevel(
+            logging.DEBUG
+        )  # Changed to DEBUG to capture more information
         self.error_logger.propagate = False  # Prevent propagation to root logger
         error_handler = RotatingFileHandler(
             self.logs_dir / "errors.log",
@@ -113,7 +115,7 @@ class Logger:
         # Schedule logger
         self.schedule_logger = logging.getLogger("schedule")
         self.schedule_logger.setLevel(logging.DEBUG)
-        self.schedule_logger.propagate = False  # Prevent propagation to root logger
+        self.schedule_logger.propagate = False
         schedule_handler = RotatingFileHandler(
             self.logs_dir / "schedule.log",
             maxBytes=10485760,  # 10MB
@@ -122,10 +124,10 @@ class Logger:
         schedule_handler.setFormatter(formatter)
         self.schedule_logger.addHandler(schedule_handler)
 
-        # App logger
+        # App logger for general application logs
         self.app_logger = logging.getLogger("app")
-        self.app_logger.setLevel(logging.INFO)
-        self.app_logger.propagate = False  # Prevent propagation to root logger
+        self.app_logger.setLevel(logging.DEBUG)
+        self.app_logger.propagate = False
         app_handler = RotatingFileHandler(
             self.logs_dir / "app.log",
             maxBytes=10485760,  # 10MB
@@ -134,26 +136,30 @@ class Logger:
         app_handler.setFormatter(formatter)
         self.app_logger.addHandler(app_handler)
 
-    def create_session_logger(self, session_id):
-        """Create a logger for a specific schedule generation session"""
+    def create_session_logger(self, session_id: str) -> logging.Logger:
+        """Create a new logger for a specific session"""
         session_logger = logging.getLogger(f"session_{session_id}")
         session_logger.setLevel(logging.DEBUG)
         session_logger.propagate = False
 
-        # Create a formatter that includes the session ID
-        formatter = CustomFormatter(
-            '{"timestamp":"%(asctime)s","level":"%(levelname)s","module":"%(module)s",'
-            '"function":"%(funcName)s","line":%(lineno)d,"message":"%(message)s",'
-            '"session_id":"' + session_id + '","extra":%(extra_data)s}'
-        )
-
         # Create a file handler for this session
-        session_file = self.sessions_dir / f"session_{session_id}.log"
-        file_handler = logging.FileHandler(session_file)
-        file_handler.setFormatter(formatter)
-        session_logger.addHandler(file_handler)
+        session_file = self.sessions_dir / f"{session_id}.log"
+        handler = RotatingFileHandler(
+            session_file,
+            maxBytes=10485760,  # 10MB
+            backupCount=2,
+        )
+        handler.setFormatter(
+            CustomFormatter(
+                '{"timestamp":"%(asctime)s","level":"%(levelname)s","module":"%(module)s",'
+                '"function":"%(funcName)s","line":%(lineno)d,"message":"%(message)s",'
+                '"user":"%(user)s","page":"%(page)s","action":"%(action)s","extra":%(extra_data)s}'
+            )
+        )
+        session_logger.addHandler(handler)
 
         return session_logger
 
 
+# Create a global logger instance
 logger = Logger()

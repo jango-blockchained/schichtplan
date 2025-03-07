@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta
 import json
-import os
 from typing import List, Dict, Any, Optional, cast
 from utils.logger import logger, ROOT_DIR
 
@@ -46,6 +45,8 @@ def get_logs():
 
         def read_log_file(filename: str) -> List[Dict[str, Any]]:
             filepath = ROOT_DIR / "logs" / filename
+            logger.error_logger.debug(f"Attempting to read log file: {filepath}")
+
             if not filepath.exists():
                 logger.error_logger.warning(f"Log file not found: {filepath}")
                 return []
@@ -55,9 +56,16 @@ def get_logs():
                 # Read the entire file
                 with open(filepath, "r", encoding="utf-8", errors="replace") as f:
                     content = f.read()
+                    logger.error_logger.debug(
+                        f"Read {len(content)} bytes from {filename}"
+                    )
 
                 # Split content into log entries (each starting with {"timestamp")
                 entries = content.split('{"timestamp')
+                logger.error_logger.debug(
+                    f"Found {len(entries)} potential entries in {filename}"
+                )
+
                 for i, entry in enumerate(entries[1:], 1):  # Skip first empty split
                     try:
                         # Reconstruct the entry by adding back the timestamp
@@ -91,6 +99,9 @@ def get_logs():
                 )
                 return []
 
+            logger.error_logger.debug(
+                f"Successfully parsed {len(logs)} entries from {filename}"
+            )
             return logs
 
         # Read logs from each file based on type
@@ -175,6 +186,9 @@ def get_logs():
                 },
             }
 
+            logger.error_logger.debug(
+                f"Returning {len(logs)} logs with debug info: {debug_info}"
+            )
             return jsonify({"status": "success", "logs": logs, "debug": debug_info})
 
         except Exception as e:
@@ -227,63 +241,85 @@ def get_log_stats():
         }
 
         for log_type, filename in log_files.items():
-            if not os.path.exists(filename):
+            filepath = ROOT_DIR / "logs" / filename
+            logger.error_logger.debug(f"Processing log file for stats: {filepath}")
+
+            if not filepath.exists():
+                logger.error_logger.warning(f"Log file not found for stats: {filepath}")
                 continue
 
-            with open(filename, "r") as f:
-                for line in f:
-                    try:
-                        log = json.loads(line.strip())
-                        log_date = datetime.fromisoformat(
-                            log["timestamp"].replace("Z", "+00:00")
-                        )
-
-                        if log_date >= start_date:
-                            stats["total_logs"] += 1
-
-                            # Count by level
-                            if log.get("level") == "error":
-                                stats["errors"] += 1
-                            elif log.get("level") == "warning":
-                                stats["warnings"] += 1
-
-                            # Count by type
-                            if log_type == "user":
-                                stats["user_actions"] += 1
-                            elif log_type == "schedule":
-                                stats["schedule_operations"] += 1
-
-                            # Group by date
-                            date_key = log_date.strftime("%Y-%m-%d")
-                            stats["by_date"][date_key] = (
-                                stats["by_date"].get(date_key, 0) + 1
+            try:
+                with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+                    for line in f:
+                        try:
+                            log = json.loads(line.strip())
+                            log_date = datetime.fromisoformat(
+                                log["timestamp"].replace("Z", "+00:00")
                             )
 
-                            # Group by module
-                            if "module" in log:
-                                stats["by_module"][log["module"]] = (
-                                    stats["by_module"].get(log["module"], 0) + 1
+                            if log_date >= start_date:
+                                stats["total_logs"] += 1
+
+                                # Count by level
+                                if log.get("level") == "error":
+                                    stats["errors"] += 1
+                                elif log.get("level") == "warning":
+                                    stats["warnings"] += 1
+
+                                # Count by type
+                                if log_type == "user":
+                                    stats["user_actions"] += 1
+                                elif log_type == "schedule":
+                                    stats["schedule_operations"] += 1
+
+                                # Group by date
+                                date_key = log_date.strftime("%Y-%m-%d")
+                                stats["by_date"][date_key] = (
+                                    stats["by_date"].get(date_key, 0) + 1
                                 )
 
-                            # Group by action
-                            if "action" in log:
-                                stats["by_action"][log["action"]] = (
-                                    stats["by_action"].get(log["action"], 0) + 1
-                                )
+                                # Group by module
+                                if "module" in log:
+                                    stats["by_module"][log["module"]] = (
+                                        stats["by_module"].get(log["module"], 0) + 1
+                                    )
 
-                            # Collect recent errors
-                            if (
-                                log.get("level") == "error"
-                                and len(stats["recent_errors"]) < 10
-                            ):
-                                stats["recent_errors"].append(log)
+                                # Group by action
+                                if "action" in log:
+                                    stats["by_action"][log["action"]] = (
+                                        stats["by_action"].get(log["action"], 0) + 1
+                                    )
 
-                    except json.JSONDecodeError:
-                        continue
+                                # Collect recent errors
+                                if (
+                                    log.get("level") == "error"
+                                    and len(stats["recent_errors"]) < 10
+                                ):
+                                    stats["recent_errors"].append(log)
+
+                        except json.JSONDecodeError as e:
+                            logger.error_logger.warning(
+                                f"Failed to parse log entry in {filename}: {e}"
+                            )
+                            continue
+                        except Exception as e:
+                            logger.error_logger.warning(
+                                f"Error processing log entry in {filename}: {e}"
+                            )
+                            continue
+
+            except Exception as e:
+                logger.error_logger.error(
+                    f"Error reading log file {filename} for stats: {e}"
+                )
+                continue
 
         # Sort recent errors by timestamp
         stats["recent_errors"].sort(key=lambda x: x["timestamp"], reverse=True)
 
+        logger.error_logger.debug(
+            f"Returning stats with {stats['total_logs']} total logs"
+        )
         return jsonify({"status": "success", "stats": stats})
 
     except Exception as e:
