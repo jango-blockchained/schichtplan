@@ -98,6 +98,88 @@ export default function LogsPage() {
     const [currentTab, setCurrentTab] = useState<string>('logs');
     const [isExpanded, setIsExpanded] = useState<{ [key: string]: boolean }>({});
 
+    // Format date with validation - enhanced for more robust handling of various date formats
+    const formatDate = (dateString: string | null | undefined) => {
+        // If the input is null or undefined, return Unknown date
+        if (dateString === null || dateString === undefined) {
+            console.warn('Received null or undefined date');
+            return 'Unknown date';
+        }
+
+        try {
+            // Log the raw date string for debugging
+            console.log('Formatting date string:', dateString, 'Type:', typeof dateString);
+
+            // If it's already displaying as Invalid Date, return Unknown date
+            if (String(dateString).includes('Invalid')) {
+                console.warn('Received already invalid date string:', dateString);
+                return 'Unknown date';
+            }
+
+            // Special case for timestamps that are just numbers (Unix timestamps in seconds or milliseconds)
+            if (/^\d+$/.test(String(dateString))) {
+                // If it's a Unix timestamp in seconds (10 digits), convert to milliseconds
+                const timestamp = String(dateString).length === 10
+                    ? parseInt(String(dateString)) * 1000
+                    : parseInt(String(dateString));
+
+                const date = new Date(timestamp);
+                if (!isNaN(date.getTime())) {
+                    return formatValidDate(date);
+                }
+            }
+
+            // Try to parse as ISO string or other recognized format
+            const date = new Date(dateString);
+
+            // Check if date is valid
+            if (isNaN(date.getTime())) {
+                console.warn('Failed to create valid date from:', dateString);
+
+                // Try alternative parsing approaches for common formats
+
+                // Try parsing as yyyy-mm-dd format
+                if (typeof dateString === 'string') {
+                    const parts = dateString.split(/[-T :.]/);
+                    if (parts.length >= 3) {
+                        const year = parseInt(parts[0]);
+                        const month = parseInt(parts[1]) - 1; // months are 0-indexed in JS
+                        const day = parseInt(parts[2]);
+
+                        if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+                            const manualDate = new Date(year, month, day);
+                            if (!isNaN(manualDate.getTime())) {
+                                console.log('Parsed date manually:', manualDate);
+                                return formatValidDate(manualDate);
+                            }
+                        }
+                    }
+                }
+
+                return 'Unknown date';
+            }
+
+            return formatValidDate(date);
+        } catch (e) {
+            console.error('Error formatting date:', e, 'Input was:', dateString);
+            return 'Unknown date';
+        }
+    };
+
+    // Helper to format a valid Date object consistently
+    const formatValidDate = (date: Date) => {
+        const pad = (num: number) => String(num).padStart(2, '0');
+
+        const year = date.getFullYear();
+        const month = pad(date.getMonth() + 1); // getMonth() is 0-indexed
+        const day = pad(date.getDate());
+        const hours = pad(date.getHours());
+        const minutes = pad(date.getMinutes());
+        const seconds = pad(date.getSeconds());
+
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    };
+
     const { data: logs, isLoading: logsLoading } = useQuery<LogResponse, Error, LogResponse>({
         queryKey: ['logs', logType, days, level] as const,
         queryFn: async () => {
@@ -163,11 +245,11 @@ export default function LogsPage() {
         const isExpandable = log.count > 1;
 
         return (
-            <div key={key} className="border-b p-4 hover:bg-gray-50">
+            <div key={key} className="border-b p-4 hover:bg-white/30 transition-colors duration-200">
                 <div className="flex justify-between items-start">
                     <div className="flex-1">
                         <div className="text-sm text-gray-500 flex items-center gap-2">
-                            {new Date(log.timestamp).toLocaleString()}
+                            {formatDate(log.timestamp)}
                             {log.count > 1 && (
                                 <Badge
                                     variant="secondary"
@@ -200,7 +282,7 @@ export default function LogsPage() {
                         <div className="text-sm font-medium mb-2">All Occurrences:</div>
                         {log.timestamps.map((timestamp, idx) => (
                             <div key={idx} className="text-sm text-gray-500">
-                                {new Date(timestamp).toLocaleString()}
+                                {formatDate(timestamp)}
                             </div>
                         ))}
                     </div>
@@ -255,7 +337,7 @@ export default function LogsPage() {
                                     <AlertDescription>
                                         {error.message}
                                         <div className="text-xs mt-1">
-                                            {new Date(error.timestamp).toLocaleString()}
+                                            {formatDate(error.timestamp)}
                                         </div>
                                     </AlertDescription>
                                 </Alert>
