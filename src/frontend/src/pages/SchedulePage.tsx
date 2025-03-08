@@ -178,7 +178,7 @@ export function SchedulePage() {
   const handleIncludeEmptyChange = (checked: boolean) => {
     console.log("Toggling includeEmpty:", { from: includeEmpty, to: checked });
     setIncludeEmpty(checked);
-    addGenerationLog('info', `${checked ? 'Including' : 'Excluding'} empty schedules in view`);
+    addGenerationLog('info', `Will ${checked ? 'show' : 'hide'} empty schedules`);
   };
 
   const handleCreateEmptyChange = (checked: boolean) => {
@@ -802,14 +802,14 @@ export function SchedulePage() {
 
           {versions && versions.length > 0 && (
             <Select
-              value={selectedVersion?.toString()}
-              onValueChange={(value) => setSelectedVersion(value ? parseInt(value, 10) : undefined)}
+              value={selectedVersion?.toString() ?? "current"}
+              onValueChange={(value) => setSelectedVersion(value === "current" ? undefined : parseInt(value, 10))}
             >
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Version wählen" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Aktuelle Version</SelectItem>
+                <SelectItem value="current">Aktuelle Version</SelectItem>
                 {versions.map(version => (
                   <SelectItem key={version} value={version.toString()}>
                     Version {version}

@@ -41,6 +41,11 @@ class Schedule(db.Model):
         self.break_end = break_end
         self.version = version
 
+    @property
+    def is_empty(self):
+        """Check if this is an empty schedule (no shift assigned)"""
+        return self.shift_id is None
+
     def set_break(self, start_time: time, duration_minutes: int = 60):
         """Set break time for the shift"""
         self.break_start = start_time
@@ -84,6 +89,7 @@ class Schedule(db.Model):
             "break_start": self.break_start,
             "break_end": self.break_end,
             "notes": self.notes,
+            "is_empty": self.is_empty,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

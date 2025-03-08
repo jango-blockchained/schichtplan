@@ -37,6 +37,10 @@ interface DragItem {
     date: string;
 }
 
+const isEmptySchedule = (schedule: Schedule | undefined) => {
+    return !schedule || !schedule.shift_id;
+};
+
 const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
     schedule: Schedule | undefined;
     onDrop: (scheduleId: number, newEmployeeId: number, newDate: Date, newShiftId: number) => Promise<void>;
@@ -74,12 +78,10 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
         }),
     }), [schedule, onDrop]);
 
-    if (!schedule) {
+    if (!schedule || isEmptySchedule(schedule)) {
         return (
-            <div className="h-full min-h-[100px] border border-dashed border-muted-foreground/20 rounded-md p-2">
-                <div className="text-xs text-muted-foreground text-center">
-                    Keine Schicht
-                </div>
+            <div className="h-full w-full flex items-center justify-center text-muted-foreground text-sm">
+                -
             </div>
         );
     }

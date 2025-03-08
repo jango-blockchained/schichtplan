@@ -541,7 +541,6 @@ class ScheduleGenerator:
                             "start_time": None,
                             "end_time": None,
                             "duration_hours": 0.0,
-                            "is_empty": True,
                         }
                         schedule.append(employee_entry)
                         logger.schedule_logger.debug(
