@@ -95,7 +95,7 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
 
     if (!schedule || isEmptySchedule(schedule)) {
         const emptySchedule: Schedule = {
-            id: 0, // This will be replaced when saving
+            id: 0,
             employee_id: schedule?.employee_id ?? 0,
             employee_name: schedule?.employee_name ?? '',
             shift_id: undefined,
@@ -135,7 +135,14 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
                         isOpen={isEditModalOpen}
                         onClose={() => setIsEditModalOpen(false)}
                         schedule={emptySchedule}
-                        onSave={onUpdate}
+                        onSave={async (_, updates) => {
+                            // Create a new schedule instead of updating
+                            await onUpdate(0, {
+                                ...updates,
+                                employee_id: emptySchedule.employee_id,
+                                date: emptySchedule.date,
+                            });
+                        }}
                     />
                 )}
             </div>
@@ -276,19 +283,24 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
             const employeeB = b[1][0];
 
             // Extract employee type from employee_name (assuming format "Name (Type)")
-            const typeA = employeeA.employee_name.match(/\((.*?)\)/)?.[1] || '';
-            const typeB = employeeB.employee_name.match(/\((.*?)\)/)?.[1] || '';
+            const employeeTypeA = employeeA?.employee_name ? (employeeA.employee_name.match(/\((.*?)\)/)?.[1] ?? 'Other') : 'Other';
+            const employeeTypeB = employeeB?.employee_name ? (employeeB.employee_name.match(/\((.*?)\)/)?.[1] ?? 'Other') : 'Other';
 
-            return (employeeTypeOrder[typeA] ?? 99) - (employeeTypeOrder[typeB] ?? 99);
+            return (employeeTypeOrder[employeeTypeA] ?? 99) - (employeeTypeOrder[employeeTypeB] ?? 99);
         });
 
         // Group by employee type
         sortedEmployees.forEach(([_, employeeSchedules]) => {
-            const type = employeeSchedules[0].employee_name.match(/\((.*?)\)/)?.[1] || 'Other';
-            if (!groups.has(type)) {
-                groups.set(type, []);
+            if (!employeeSchedules || employeeSchedules.length === 0) return;
+
+            const firstSchedule = employeeSchedules[0];
+            if (!firstSchedule) return;
+
+            const employeeType = firstSchedule.employee_name ? (firstSchedule.employee_name.match(/\((.*?)\)/)?.[1] ?? 'Other') : 'Other';
+            if (!groups.has(employeeType)) {
+                groups.set(employeeType, []);
             }
-            groups.get(type)?.push(...employeeSchedules);
+            groups.get(employeeType)?.push(...employeeSchedules);
         });
 
         return groups;
@@ -341,7 +353,8 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
                                 const uniqueEmployees = new Set(groupSchedules.map(s => s.employee_id));
                                 return Array.from(uniqueEmployees).map(employeeId => {
                                     const employeeSchedules = groupSchedules.filter(s => s.employee_id === employeeId);
-                                    const employeeName = employeeSchedules[0]?.employee_name.split(' (')[0];
+                                    const firstSchedule = employeeSchedules[0];
+                                    const employeeName = firstSchedule?.employee_name ? firstSchedule.employee_name.split(' (')[0] : 'Unbekannt';
 
                                     return (
                                         <TableRow key={employeeId}>
