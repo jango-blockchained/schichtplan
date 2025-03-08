@@ -38,7 +38,8 @@ def get_schedules():
     """Get all schedules for a given period"""
     start_date = request.args.get("start_date")
     end_date = request.args.get("end_date")
-    version = request.args.get("version")
+    version = request.args.get("version", type=int)
+    include_empty = request.args.get("include_empty", "false").lower() == "true"
 
     query = Schedule.query
 
@@ -50,8 +51,22 @@ def get_schedules():
         query = query.filter(
             Schedule.date <= datetime.strptime(end_date, "%Y-%m-%d").date()
         )
+    if version is not None:
+        query = query.filter(Schedule.version == version)
 
     schedules = query.all()
+
+    # Get all versions for this date range
+    versions = (
+        db.session.query(Schedule.version)
+        .filter(
+            Schedule.date >= datetime.strptime(start_date, "%Y-%m-%d").date(),
+            Schedule.date <= datetime.strptime(end_date, "%Y-%m-%d").date(),
+        )
+        .distinct()
+        .order_by(Schedule.version.desc())
+        .all()
+    )
 
     return jsonify(
         {
@@ -59,23 +74,23 @@ def get_schedules():
                 {
                     "id": schedule.id,
                     "date": schedule.date.strftime("%Y-%m-%d"),
-                    "employee": {
-                        "id": schedule.employee.id,
-                        "name": f"{schedule.employee.first_name} {schedule.employee.last_name}",
-                    },
-                    "shift": {
-                        "id": schedule.shift.id,
-                        "start_time": schedule.shift.start_time,
-                        "end_time": schedule.shift.end_time,
-                    },
+                    "employee_id": schedule.employee.id,
+                    "employee_name": f"{schedule.employee.first_name} {schedule.employee.last_name}",
+                    "shift_id": schedule.shift.id if schedule.shift else None,
+                    "shift_start": schedule.shift.start_time
+                    if schedule.shift
+                    else None,
+                    "shift_end": schedule.shift.end_time if schedule.shift else None,
                     "break_start": schedule.break_start,
                     "break_end": schedule.break_end,
                     "notes": schedule.notes,
+                    "version": schedule.version,
+                    "is_empty": not bool(schedule.shift_id),
                 }
                 for schedule in schedules
             ],
-            "versions": [],  # Add version handling if needed
-            "errors": [],  # Add error handling if needed
+            "versions": [v[0] for v in versions],
+            "errors": [],
         }
     ), HTTPStatus.OK
 

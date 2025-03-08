@@ -529,22 +529,25 @@ class ScheduleGenerator:
 
             # Always include all employees in the schedule plan, even if they don't get assigned
             if create_empty_schedules:
-                for employee in active_employees:
-                    # Add employee to schedule with empty shift
-                    employee_entry = {
-                        "employee_id": employee.id,
-                        "employee_name": f"{employee.first_name} {employee.last_name}",
-                        "shift_id": None,
-                        "date": None,
-                        "start_time": None,
-                        "end_time": None,
-                        "duration_hours": 0.0,
-                        "is_empty": True,
-                    }
-                    schedule.append(employee_entry)
-                    logger.schedule_logger.debug(
-                        f"Added empty entry for {employee.first_name} {employee.last_name}"
-                    )
+                current_date = start_date
+                while current_date <= end_date:
+                    for employee in active_employees:
+                        # Add employee to schedule with empty shift for each day
+                        employee_entry = {
+                            "employee_id": employee.id,
+                            "employee_name": f"{employee.first_name} {employee.last_name}",
+                            "shift_id": None,
+                            "date": current_date.strftime("%Y-%m-%d"),
+                            "start_time": None,
+                            "end_time": None,
+                            "duration_hours": 0.0,
+                            "is_empty": True,
+                        }
+                        schedule.append(employee_entry)
+                        logger.schedule_logger.debug(
+                            f"Added empty entry for {employee.first_name} {employee.last_name} on {current_date}"
+                        )
+                    current_date += timedelta(days=1)
 
             self.version = 1  # Set version for schedule entries
 
@@ -768,29 +771,36 @@ class ScheduleGenerator:
 
             logger.schedule_logger.info(f"Generated {len(schedule)} schedule entries")
 
-            # Ensure all employees are included in the schedule
+            # Ensure all employees are included in the schedule for each day
             if not create_empty_schedules:
-                employee_ids_in_schedule = {
-                    entry.get("employee_id") for entry in schedule
-                }
-                for employee in active_employees:
-                    if employee.id not in employee_ids_in_schedule:
-                        # Add employee to schedule with empty shift
-                        schedule.append(
-                            {
-                                "employee_id": employee.id,
-                                "employee_name": f"{employee.first_name} {employee.last_name}",
-                                "shift_id": None,
-                                "date": None,
-                                "start_time": None,
-                                "end_time": None,
-                                "duration_hours": 0.0,
-                                "is_empty": True,
-                            }
-                        )
-                        logger.schedule_logger.debug(
-                            f"Added missing employee {employee.first_name} {employee.last_name} to schedule"
-                        )
+                current_date = start_date
+                while current_date <= end_date:
+                    # Get all employee IDs that have a shift on this day
+                    employee_ids_with_shifts = {
+                        entry.get("employee_id")
+                        for entry in schedule
+                        if entry.get("date") == current_date.strftime("%Y-%m-%d")
+                    }
+
+                    # Add empty shifts for employees without assignments on this day
+                    for employee in active_employees:
+                        if employee.id not in employee_ids_with_shifts:
+                            schedule.append(
+                                {
+                                    "employee_id": employee.id,
+                                    "employee_name": f"{employee.first_name} {employee.last_name}",
+                                    "shift_id": None,
+                                    "date": current_date.strftime("%Y-%m-%d"),
+                                    "start_time": None,
+                                    "end_time": None,
+                                    "duration_hours": 0.0,
+                                    "is_empty": True,
+                                }
+                            )
+                            logger.schedule_logger.debug(
+                                f"Added missing employee {employee.first_name} {employee.last_name} to schedule for {current_date}"
+                            )
+                    current_date += timedelta(days=1)
 
         except Exception as e:
             error_msg = f"Schedule generation error: {str(e)}"

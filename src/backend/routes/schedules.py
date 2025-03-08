@@ -183,11 +183,7 @@ def generate_schedule():
         # Create Schedule objects from the dictionaries
         schedule_objects = []
         for schedule_dict in schedules_list:
-            # Skip empty schedules
-            if schedule_dict.get("is_empty", False):
-                continue
-
-            # Create a new Schedule object
+            # Create a new Schedule object, including empty schedules
             schedule = Schedule(
                 date=datetime.strptime(schedule_dict["date"], "%Y-%m-%d").date()
                 if schedule_dict.get("date")
@@ -195,6 +191,7 @@ def generate_schedule():
                 employee_id=schedule_dict["employee_id"],
                 shift_id=schedule_dict["shift_id"],
                 version=new_version,
+                is_empty=schedule_dict.get("is_empty", False),
             )
             schedule_objects.append(schedule)
 

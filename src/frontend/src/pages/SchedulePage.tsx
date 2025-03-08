@@ -16,6 +16,7 @@ import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScheduleTable } from '@/components/ScheduleTable';
+import { ScheduleOverview } from '@/components/Schedule/ScheduleOverview';
 import { Schedule, ScheduleError } from '@/types';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -74,25 +75,50 @@ export function SchedulePage() {
 
           if (!isNaN(week) && week >= 1 && week <= 53) {
             const newDateRange = getDateRangeFromWeekAndCount(week, weeksAmount);
-            setDateRange(newDateRange);
+
+            // Validate and normalize the date range
+            if (newDateRange.from && newDateRange.to &&
+              !isNaN(newDateRange.from.getTime()) && !isNaN(newDateRange.to.getTime())) {
+              const from = new Date(newDateRange.from.getTime());
+              from.setHours(0, 0, 0, 0);
+              const to = new Date(newDateRange.to.getTime());
+              to.setHours(23, 59, 59, 999);
+              setDateRange({ from, to });
+            } else {
+              throw new Error('Invalid date range generated');
+            }
           } else {
             console.error('Invalid week value in initialization:', selectedCalendarWeek);
             // Fallback to current week
             const currentWeek = getWeek(today, { weekStartsOn: 1 });
             const newDateRange = getDateRangeFromWeekAndCount(currentWeek, weeksAmount);
-            setDateRange(newDateRange);
+            if (newDateRange.from && newDateRange.to) {
+              const from = new Date(newDateRange.from.getTime());
+              from.setHours(0, 0, 0, 0);
+              const to = new Date(newDateRange.to.getTime());
+              to.setHours(23, 59, 59, 999);
+              setDateRange({ from, to });
+            }
           }
         } else {
           // Fallback to current week if no selection exists
           const currentWeek = getWeek(today, { weekStartsOn: 1 });
           const newDateRange = getDateRangeFromWeekAndCount(currentWeek, weeksAmount);
-          setDateRange(newDateRange);
+          if (newDateRange.from && newDateRange.to) {
+            const from = new Date(newDateRange.from.getTime());
+            from.setHours(0, 0, 0, 0);
+            const to = new Date(newDateRange.to.getTime());
+            to.setHours(23, 59, 59, 999);
+            setDateRange({ from, to });
+          }
         }
       } catch (error) {
         console.error('Error during initialization:', error);
         // Last resort fallback: use current week
         const fallbackFrom = startOfWeek(today, { weekStartsOn: 1 });
+        fallbackFrom.setHours(0, 0, 0, 0);
         const fallbackTo = addDays(fallbackFrom, (weeksAmount * 7) - 1);
+        fallbackTo.setHours(23, 59, 59, 999);
         setDateRange({ from: fallbackFrom, to: fallbackTo });
       }
     }
@@ -111,9 +137,40 @@ export function SchedulePage() {
         }
 
         const newDateRange = getDateRangeFromWeekAndCount(week, weeksAmount);
-        setDateRange(newDateRange);
+
+        // Validate the generated date range
+        if (!newDateRange.from || !newDateRange.to ||
+          isNaN(newDateRange.from.getTime()) || isNaN(newDateRange.to.getTime())) {
+          console.error('Invalid date range generated:', newDateRange);
+          toast({
+            title: "Fehler",
+            description: "Fehler bei der Berechnung des Datumsbereichs",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        // Ensure dates are at the start of their respective days
+        const from = new Date(newDateRange.from);
+        from.setHours(0, 0, 0, 0);
+        const to = new Date(newDateRange.to);
+        to.setHours(23, 59, 59, 999);
+
+        console.log('Setting date range:', {
+          from: from.toISOString(),
+          to: to.toISOString(),
+          week,
+          weeksAmount
+        });
+
+        setDateRange({ from, to });
       } catch (error) {
         console.error('Error during calendar week change:', error);
+        toast({
+          title: "Fehler",
+          description: "Fehler bei der Verarbeitung der Kalenderwoche",
+          variant: "destructive"
+        });
       }
     }
   }, [selectedCalendarWeek, weeksAmount]);
@@ -709,179 +766,159 @@ export function SchedulePage() {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="container mx-auto py-8 space-y-8">
       <PageHeader
         title="Schichtplan"
         description="Erstelle und verwalte Schichtpläne für deine Mitarbeiter"
       />
 
       <div className="flex flex-col space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="flex flex-col space-y-2">
-              <Select value={selectedCalendarWeek} onValueChange={handleCalendarWeekChange}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Kalenderwoche wählen" />
-                </SelectTrigger>
-                <SelectContent>
-                  {getAvailableCalendarWeeks(true).map((week) => (
-                    <SelectItem key={week.value} value={week.value}>
-                      {week.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {dateRange?.from && (
-                <div className="text-sm text-muted-foreground">
-                  {format(dateRange.from, 'dd.MM.yyyy')} - {format(dateRange.to || dateRange.from, 'dd.MM.yyyy')}
-                </div>
-              )}
-            </div>
-            <Select value={weeksAmount.toString()} onValueChange={handleWeeksAmountChange}>
-              <SelectTrigger className="w-32">
-                <SelectValue placeholder="Wochen" />
+        <div className="flex flex-wrap gap-4 items-center">
+          <Select value={selectedCalendarWeek} onValueChange={handleCalendarWeekChange}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="KW auswählen" />
+            </SelectTrigger>
+            <SelectContent>
+              {getAvailableCalendarWeeks().map(week => (
+                <SelectItem key={week.value} value={week.value}>
+                  {week.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={weeksAmount.toString()} onValueChange={handleWeeksAmountChange}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Anzahl Wochen" />
+            </SelectTrigger>
+            <SelectContent>
+              {[1, 2, 3, 4].map(amount => (
+                <SelectItem key={amount} value={amount.toString()}>
+                  {amount} {amount === 1 ? 'Woche' : 'Wochen'}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {versions && versions.length > 0 && (
+            <Select
+              value={selectedVersion?.toString()}
+              onValueChange={(value) => setSelectedVersion(value ? parseInt(value, 10) : undefined)}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Version wählen" />
               </SelectTrigger>
               <SelectContent>
-                {[1, 2, 3, 4].map((week) => (
-                  <SelectItem key={week} value={week.toString()}>
-                    {week} {week === 1 ? 'Woche' : 'Wochen'}
+                <SelectItem value="">Aktuelle Version</SelectItem>
+                {versions.map(version => (
+                  <SelectItem key={version} value={version.toString()}>
+                    Version {version}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <div className="flex space-x-4 my-4">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="createEmptySchedules"
-                  checked={createEmptySchedules}
-                  onCheckedChange={handleCreateEmptyChange}
-                />
-                <label
-                  htmlFor="createEmptySchedules"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Leere Zeilen für alle Mitarbeiter erstellen
-                </label>
-              </div>
+          )}
 
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="includeEmptySchedules"
-                  checked={includeEmpty}
-                  onCheckedChange={handleIncludeEmptyChange}
-                />
-                <label
-                  htmlFor="includeEmptySchedules"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Leere Zeilen anzeigen
-                </label>
-              </div>
-            </div>
-          </div>
           <div className="flex items-center space-x-2">
-            {versions && versions.length > 0 && (
-              <Select
-                value={selectedVersion?.toString() ?? "current"}
-                onValueChange={(value) => setSelectedVersion(value === "current" ? undefined : parseInt(value, 10))}
-              >
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Version auswählen" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="current">Aktuelle Version</SelectItem>
-                  {versions.map((version) => (
-                    <SelectItem key={version} value={version.toString()}>
-                      Version {version}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            <Button
-              onClick={() => generateMutation.mutate()}
-              disabled={generateMutation.isPending}
+            <Checkbox
+              id="createEmpty"
+              checked={createEmptySchedules}
+              onCheckedChange={handleCreateEmptyChange}
+            />
+            <label
+              htmlFor="createEmpty"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
             >
-              {generateMutation.isPending && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              Schichtplan generieren
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => exportMutation.mutate()}
-              disabled={exportMutation.isPending}
-            >
-              {exportMutation.isPending && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              PDF Export
-            </Button>
+              Leere Zeilen für alle Mitarbeiter erstellen
+            </label>
           </div>
+
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="showEmpty"
+              checked={includeEmpty}
+              onCheckedChange={handleIncludeEmptyChange}
+            />
+            <label
+              htmlFor="showEmpty"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            >
+              Leere Zeilen anzeigen
+            </label>
+          </div>
+
+          <div className="flex-1" />
+
+          <Button onClick={() => generateMutation.mutate()}>
+            Schichtplan generieren
+          </Button>
+
+          <Button variant="outline" onClick={() => exportMutation.mutate()}>
+            PDF Export
+          </Button>
         </div>
 
+        {dateRange?.from && dateRange?.to && (
+          <ScheduleOverview
+            schedules={scheduleData}
+            dateRange={{ from: dateRange.from, to: dateRange.to }}
+            version={selectedVersion}
+          />
+        )}
+
         <DndProvider backend={HTML5Backend}>
-          <div className="relative">
-            {isLoading && (
-              <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-10">
-                <Loader2 className="h-8 w-8 animate-spin" />
-              </div>
-            )}
-            <ScheduleTable
-              schedules={scheduleData || []}
-              dateRange={dateRange}
-              onDrop={handleDrop}
-              onUpdate={handleShiftUpdate}
-              isLoading={isLoading}
-            />
-          </div>
+          <ScheduleTable
+            schedules={scheduleData}
+            dateRange={dateRange}
+            onDrop={handleDrop}
+            onUpdate={handleShiftUpdate}
+            isLoading={isLoading}
+          />
         </DndProvider>
 
-        {/* Logs Section */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-base font-semibold">Logs</CardTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearGenerationLogs}
-              className="h-8 px-2"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-60 overflow-y-auto">
-              {generationLogs.map((log, index) => (
-                <Alert
-                  key={index}
-                  variant={log.type === 'error' ? 'destructive' : 'default'}
-                >
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle className="text-sm">
-                    {format(log.timestamp, 'HH:mm:ss')} - {log.message}
-                  </AlertTitle>
-                  {log.details && (
-                    <AlertDescription className="text-sm mt-1">
-                      {log.details}
-                    </AlertDescription>
-                  )}
-                </Alert>
-              ))}
-              {generationLogs.length === 0 && (
-                <div className="text-sm text-muted-foreground text-center py-4">
-                  Keine Logs vorhanden
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+        {errors && errors.length > 0 && (
+          <ScheduleGenerationErrors errors={errors} />
+        )}
 
-      {/* Add error display component if there are errors */}
-      {generateMutation.data?.errors && generateMutation.data.errors.length > 0 && (
-        <ScheduleGenerationErrors errors={generateMutation.data.errors} />
-      )}
+        {generationLogs.length > 0 && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-base font-semibold">Logs</CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearGenerationLogs}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {generationLogs.map((log, index) => (
+                <div
+                  key={index}
+                  className={cn(
+                    "flex items-start space-x-2 text-sm",
+                    log.type === 'error' && "text-destructive",
+                    log.type === 'warning' && "text-yellow-500"
+                  )}
+                >
+                  <div className="flex-shrink-0">
+                    {format(log.timestamp, 'HH:mm:ss')}
+                  </div>
+                  <div className="flex-1">
+                    {log.message}
+                    {log.details && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {log.details}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       {generateMutation.isPending && <GenerationOverlay />}
     </div>
