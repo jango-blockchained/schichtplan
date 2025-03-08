@@ -442,7 +442,7 @@ export const updateEmployeeAvailability = async (employeeId: number, availabilit
 
 export const updateSchedule = async (scheduleId: number, update: ScheduleUpdate): Promise<Schedule> => {
     try {
-        const response = await api.put<Schedule>(`/schedules/${scheduleId}/`, update);
+        const response = await api.put<Schedule>(`/api/schedules/${scheduleId}/`, update);
         return response.data;
     } catch (error) {
         if (error instanceof Error) {
