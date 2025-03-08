@@ -22,12 +22,19 @@ export function useScheduleData(
         queryKey: ['schedules', startDate.toISOString(), endDate.toISOString(), version, includeEmpty] as const,
         queryFn: async () => {
             try {
-                return await getSchedules(
+                const response = await getSchedules(
                     startDate.toISOString().split('T')[0],
                     endDate.toISOString().split('T')[0],
                     version,
                     includeEmpty
                 );
+
+                // Ensure versions array exists and is sorted in descending order
+                if (response.versions) {
+                    response.versions.sort((a, b) => b - a);
+                }
+
+                return response;
             } catch (error) {
                 if (error instanceof AxiosError) {
                     const errorMessage = error.response?.data?.error || error.message;

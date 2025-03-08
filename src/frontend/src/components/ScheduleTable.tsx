@@ -234,8 +234,15 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
 
     return (
         <Card>
-            <CardHeader>
-                <CardTitle>Schichtplan</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                    <CardTitle>Schichtplan</CardTitle>
+                    {dateRange?.from && dateRange?.to && (
+                        <div className="text-sm text-muted-foreground mt-1">
+                            {format(dateRange.from, 'dd.MM.yyyy')} - {format(dateRange.to, 'dd.MM.yyyy')}
+                        </div>
+                    )}
+                </div>
             </CardHeader>
             <CardContent>
                 <div className="overflow-x-auto">

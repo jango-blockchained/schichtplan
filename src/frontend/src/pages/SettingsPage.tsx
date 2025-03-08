@@ -671,13 +671,21 @@ export function SettingsPage() {
                       }
                     }
                   } as Settings}
-                  onUpdate={(updates) => handleSave('scheduling', {
-                    ...localSettings?.scheduling,
-                    generation_requirements: {
-                      ...(localSettings?.scheduling?.generation_requirements ?? {}),
-                      ...updates
-                    }
-                  })}
+                  onUpdate={(updates) => {
+                    if (!localSettings?.scheduling) return;
+
+                    const updatedSettings = {
+                      ...localSettings,
+                      scheduling: {
+                        ...localSettings.scheduling,
+                        generation_requirements: updates
+                      }
+                    };
+
+                    setLocalSettings(updatedSettings);
+                    debouncedUpdate.cancel();
+                    updateMutation.mutate(updatedSettings);
+                  }}
                 />
               </div>
             </TabsContent>

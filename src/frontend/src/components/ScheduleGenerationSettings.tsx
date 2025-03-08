@@ -1,8 +1,11 @@
-import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Settings } from '@/types';
+import { Button } from "@/components/ui/button";
+import { Save } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 interface ScheduleGenerationSettingsProps {
     settings: Settings;
@@ -10,10 +13,45 @@ interface ScheduleGenerationSettingsProps {
 }
 
 export function ScheduleGenerationSettings({ settings, onUpdate }: ScheduleGenerationSettingsProps) {
-    const requirements = settings?.scheduling?.generation_requirements ?? {};
+    const { toast } = useToast();
+    const defaultRequirements = {
+        enforce_minimum_coverage: true,
+        enforce_contracted_hours: true,
+        enforce_keyholder_coverage: true,
+        enforce_rest_periods: true,
+        enforce_early_late_rules: true,
+        enforce_employee_group_rules: true,
+        enforce_break_rules: true,
+        enforce_max_hours: true,
+        enforce_consecutive_days: true,
+        enforce_weekend_distribution: true,
+        enforce_shift_distribution: true,
+        enforce_availability: true,
+        enforce_qualifications: true,
+        enforce_opening_hours: true
+    };
 
-    const handleToggle = (key: keyof Settings['scheduling']['generation_requirements']) => {
-        onUpdate({ [key]: !requirements[key] });
+    // Use local state to track changes
+    const [localRequirements, setLocalRequirements] = useState(settings?.scheduling?.generation_requirements ?? defaultRequirements);
+
+    // Update local state when settings change
+    useEffect(() => {
+        setLocalRequirements(settings?.scheduling?.generation_requirements ?? defaultRequirements);
+    }, [settings]);
+
+    const handleToggle = (key: keyof typeof defaultRequirements, checked: boolean) => {
+        setLocalRequirements(prev => ({
+            ...prev,
+            [key]: checked
+        }));
+    };
+
+    const handleSave = () => {
+        onUpdate(localRequirements);
+        toast({
+            title: "Settings saved",
+            description: "Schedule generation requirements have been updated.",
+        });
     };
 
     const requirementsList = [
@@ -51,13 +89,22 @@ export function ScheduleGenerationSettings({ settings, onUpdate }: ScheduleGener
                             </div>
                             <Switch
                                 id={key}
-                                checked={requirements[key] ?? true}
-                                onCheckedChange={() => handleToggle(key)}
+                                checked={localRequirements[key] ?? defaultRequirements[key]}
+                                onCheckedChange={(checked) => handleToggle(key, checked)}
                             />
                         </div>
                     ))}
                 </div>
             </CardContent>
+            <CardFooter className="flex justify-end pt-4">
+                <Button
+                    variant="outline"
+                    onClick={handleSave}
+                >
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Changes
+                </Button>
+            </CardFooter>
         </Card>
     );
 } 
