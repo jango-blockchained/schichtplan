@@ -315,27 +315,39 @@ def get_schedule(schedule_id):
 def update_schedule(schedule_id):
     """Update a schedule (for drag and drop functionality)"""
     try:
-        schedule = Schedule.query.get_or_404(schedule_id)
         data = request.get_json()
 
-        if "employee_id" in data:
-            schedule.employee_id = data["employee_id"]
-        if "shift_id" in data:
-            schedule.shift_id = data["shift_id"]
-        if "date" in data:
-            schedule.date = datetime.strptime(data["date"], "%Y-%m-%d").date()
-        if "break_start" in data:
-            schedule.break_start = data["break_start"]
-        if "break_end" in data:
-            schedule.break_end = data["break_end"]
-        if "notes" in data:
-            schedule.notes = data["notes"]
+        # If schedule_id is 0, create a new schedule
+        if schedule_id == 0:
+            schedule = Schedule(
+                employee_id=data["employee_id"],
+                shift_id=data["shift_id"],
+                date=datetime.strptime(data["date"], "%Y-%m-%d").date(),
+                version=1,  # New schedules start at version 1
+            )
+            db.session.add(schedule)
+        else:
+            schedule = Schedule.query.get_or_404(schedule_id)
+            # Update existing schedule
+            if "employee_id" in data:
+                schedule.employee_id = data["employee_id"]
+            if "shift_id" in data:
+                schedule.shift_id = data["shift_id"]
+            if "date" in data:
+                schedule.date = datetime.strptime(data["date"], "%Y-%m-%d").date()
+            if "break_start" in data:
+                schedule.break_start = data["break_start"]
+            if "break_end" in data:
+                schedule.break_end = data["break_end"]
+            if "notes" in data:
+                schedule.notes = data["notes"]
 
         db.session.commit()
         return jsonify(schedule.to_dict())
 
     except Exception as e:
         db.session.rollback()
+        logger.error_logger.error(f"Error updating schedule: {str(e)}")
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 

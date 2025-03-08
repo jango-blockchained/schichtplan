@@ -20,7 +20,7 @@ export function ScheduleOverview({ schedules, dateRange, version }: ScheduleOver
 
     // Group schedules by employee type
     const employeeTypeStats = schedules.reduce((acc, schedule) => {
-        const type = schedule.employee_name.match(/\((.*?)\)/)?.[1] || 'Other';
+        const type = schedule.employee_name ? (schedule.employee_name.match(/\((.*?)\)/)?.[1] ?? 'Other') : 'Other';
         acc[type] = (acc[type] || 0) + 1;
         return acc;
     }, {} as Record<string, number>);
