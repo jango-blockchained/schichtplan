@@ -56,14 +56,15 @@ export interface Schedule {
     id: number;
     employee_id: number;
     employee_name: string;
-    shift_id: number;
-    shift_start: string;
-    shift_end: string;
+    shift_id?: number;
+    shift_start?: string | null;
+    shift_end?: string | null;
     date: string;
     version: number;
     break_start?: string;
     break_end?: string;
     notes?: string;
+    is_empty?: boolean;
 }
 
 export interface ScheduleError {

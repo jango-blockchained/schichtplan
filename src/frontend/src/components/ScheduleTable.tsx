@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
 import { useQuery } from '@tanstack/react-query';
 import { getSettings } from '@/services/api';
-import { Edit2 } from 'lucide-react';
+import { Edit2, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ShiftEditModal } from './ShiftEditModal';
 import {
@@ -47,9 +47,11 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
     onUpdate: (scheduleId: number, updates: Partial<Schedule>) => Promise<void>;
 }) => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [showActions, setShowActions] = useState(false);
+
     const [{ isDragging }, drag] = useDrag(() => ({
         type: 'SCHEDULE',
-        item: schedule ? {
+        item: schedule && !isEmptySchedule(schedule) ? {
             type: 'SCHEDULE',
             scheduleId: schedule.id,
             employeeId: schedule.employee_id,
@@ -69,7 +71,7 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
                     item.scheduleId,
                     schedule.employee_id,
                     parseISO(schedule.date),
-                    schedule.shift_id
+                    item.shiftId
                 );
             }
         },
@@ -78,10 +80,64 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
         }),
     }), [schedule, onDrop]);
 
+    const handleDelete = async () => {
+        if (!schedule) return;
+        try {
+            await onUpdate(schedule.id, { shift_id: undefined });
+        } catch (error) {
+            console.error('Error deleting shift:', error);
+        }
+    };
+
+    const handleAdd = () => {
+        setIsEditModalOpen(true);
+    };
+
     if (!schedule || isEmptySchedule(schedule)) {
+        const emptySchedule: Schedule = {
+            id: 0, // This will be replaced when saving
+            employee_id: schedule?.employee_id ?? 0,
+            employee_name: schedule?.employee_name ?? '',
+            shift_id: undefined,
+            shift_start: null,
+            shift_end: null,
+            date: schedule?.date ?? new Date().toISOString().split('T')[0],
+            version: schedule?.version ?? 1,
+            is_empty: true,
+        };
+
         return (
-            <div className="h-full w-full flex items-center justify-center text-muted-foreground text-sm">
-                -
+            <div
+                ref={drop}
+                className={cn(
+                    'h-full w-full flex items-center justify-center text-muted-foreground relative min-h-[100px]',
+                    'border border-dashed border-muted-foreground/20 rounded-md',
+                    'hover:border-primary/50 transition-colors duration-200',
+                    isOver && 'border-primary border-solid'
+                )}
+                onMouseEnter={() => setShowActions(true)}
+                onMouseLeave={() => setShowActions(false)}
+            >
+                {showActions ? (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleAdd}
+                        className="absolute inset-0 w-full h-full flex items-center justify-center rounded-none"
+                    >
+                        <Plus className="h-4 w-4" />
+                    </Button>
+                ) : (
+                    <span className="text-sm">-</span>
+                )}
+                {isEditModalOpen && (
+                    <ShiftEditModal
+                        isOpen={isEditModalOpen}
+                        onClose={() => setIsEditModalOpen(false)}
+                        schedule={emptySchedule}
+                        onSave={onUpdate}
+                    />
+                )}
             </div>
         );
     }
@@ -89,15 +145,15 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
     return (
         <>
             <div
-                ref={(node) => {
-                    drag(drop(node));
-                }}
+                ref={(node) => drag(drop(node))}
                 className={cn(
                     'p-2 rounded border transition-all duration-200 group min-h-[100px] relative',
                     isDragging && 'opacity-50 bg-primary/10',
                     isOver && 'ring-2 ring-primary/50',
-                    'cursor-move hover:bg-primary/5'
+                    'hover:bg-primary/5'
                 )}
+                onMouseEnter={() => setShowActions(true)}
+                onMouseLeave={() => setShowActions(false)}
             >
                 <div className="flex flex-col space-y-1">
                     <Badge variant="secondary" className="text-xs w-fit">
@@ -114,17 +170,33 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
                         </div>
                     )}
                 </div>
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        setIsEditModalOpen(true);
-                    }}
-                >
-                    <Edit2 className="h-4 w-4" />
-                </Button>
+                {showActions && (
+                    <div className="absolute top-1 right-1 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setIsEditModalOpen(true);
+                            }}
+                            className="h-6 w-6"
+                        >
+                            <Edit2 className="h-3 w-3" />
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete();
+                            }}
+                            className="h-6 w-6 hover:text-destructive"
+                        >
+                            <Trash2 className="h-3 w-3" />
+                        </Button>
+                    </div>
+                )}
+                <div className="absolute inset-0 cursor-move" />
             </div>
             {isEditModalOpen && (
                 <ShiftEditModal
