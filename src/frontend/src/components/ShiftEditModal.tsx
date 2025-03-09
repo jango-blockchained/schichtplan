@@ -42,6 +42,7 @@ export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditM
     }, [schedule]);
 
     const handleSave = async () => {
+        console.log('🟢 ShiftEditModal handleSave called');
         setIsSubmitting(true);
         try {
             const updates: Partial<Schedule> = {
@@ -51,13 +52,17 @@ export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditM
                 notes: notes || undefined,
             };
 
+            console.log('🟢 Calling onSave with:', { scheduleId: schedule.id, updates });
             await onSave(schedule.id, updates);
+            console.log('🟢 onSave completed successfully');
+
             toast({
                 title: "Success",
                 description: "Shift updated successfully",
             });
             onClose();
         } catch (error) {
+            console.error('🟢 Error in handleSave:', error);
             toast({
                 title: "Error",
                 description: error instanceof Error ? error.message : "Failed to update shift",

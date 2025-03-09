@@ -452,8 +452,8 @@ class ScheduleGenerator:
                     if hasattr(employee, "employee_group") and employee.employee_group:
                         try:
                             employee_name += f" ({employee.employee_group.value})"
-                        except:
-                            # If employee_group.value doesn't exist, just use the string representation
+                        except AttributeError:
+                            # If value attribute doesn't exist, use the string representation
                             employee_name += f" ({str(employee.employee_group)})"
 
                     # Create and add the empty schedule entry

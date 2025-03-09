@@ -926,8 +926,8 @@ class ScheduleGenerator:
                                 and employee.employee_group
                             ):
                                 employee_name += f" ({employee.employee_group.value})"
-                            elif hasattr(employee, "group") and employee.group:
-                                employee_name += f" ({employee.group})"
+                            # The employee.group attribute doesn't exist, so let's remove this check
+                            # and just use the employee name without a group when employee_group isn't available
 
                             schedule.append(
                                 {
