@@ -36,63 +36,99 @@ def get_next_month_dates():
 @bp.route("/", methods=["GET"])
 def get_schedules():
     """Get all schedules for a given period"""
-    start_date = request.args.get("start_date")
-    end_date = request.args.get("end_date")
-    version = request.args.get("version", type=int)
-    include_empty = request.args.get("include_empty", "false").lower() == "true"
+    try:
+        start_date = request.args.get("start_date")
+        end_date = request.args.get("end_date")
+        version = request.args.get("version", type=int)
+        include_empty = request.args.get("include_empty", "false").lower() == "true"
 
-    query = Schedule.query
+        # Provide default date range (current week) if not specified
+        if not start_date or not end_date:
+            today = date.today()
+            # Start from Monday of the current week
+            start_of_week = today - timedelta(days=today.weekday())
+            # End on Sunday of the current week
+            end_of_week = start_of_week + timedelta(days=6)
 
-    if start_date:
-        query = query.filter(
-            Schedule.date >= datetime.strptime(start_date, "%Y-%m-%d").date()
-        )
-    if end_date:
-        query = query.filter(
-            Schedule.date <= datetime.strptime(end_date, "%Y-%m-%d").date()
-        )
-    if version is not None:
-        query = query.filter(Schedule.version == version)
+            start_date = start_of_week.strftime("%Y-%m-%d")
+            end_date = end_of_week.strftime("%Y-%m-%d")
 
-    schedules = query.all()
+            logger.debug(f"Using default date range: {start_date} to {end_date}")
 
-    # Get all versions for this date range
-    versions = (
-        db.session.query(Schedule.version)
-        .filter(
-            Schedule.date >= datetime.strptime(start_date, "%Y-%m-%d").date(),
-            Schedule.date <= datetime.strptime(end_date, "%Y-%m-%d").date(),
-        )
-        .distinct()
-        .order_by(Schedule.version.desc())
-        .all()
-    )
+        query = Schedule.query
 
-    return jsonify(
-        {
-            "schedules": [
+        try:
+            query = query.filter(
+                Schedule.date >= datetime.strptime(start_date, "%Y-%m-%d").date()
+            )
+            query = query.filter(
+                Schedule.date <= datetime.strptime(end_date, "%Y-%m-%d").date()
+            )
+        except ValueError:
+            return jsonify(
                 {
-                    "id": schedule.id,
-                    "date": schedule.date.strftime("%Y-%m-%d"),
-                    "employee_id": schedule.employee.id,
-                    "employee_name": f"{schedule.employee.first_name} {schedule.employee.last_name}",
-                    "shift_id": schedule.shift.id if schedule.shift else None,
-                    "shift_start": schedule.shift.start_time
-                    if schedule.shift
-                    else None,
-                    "shift_end": schedule.shift.end_time if schedule.shift else None,
-                    "break_start": schedule.break_start,
-                    "break_end": schedule.break_end,
-                    "notes": schedule.notes,
-                    "version": schedule.version,
-                    "is_empty": not bool(schedule.shift_id),
+                    "error": "Invalid date format",
+                    "message": "Dates must be in the format YYYY-MM-DD",
                 }
-                for schedule in schedules
-            ],
-            "versions": [v[0] for v in versions],
-            "errors": [],
-        }
-    ), HTTPStatus.OK
+            ), HTTPStatus.BAD_REQUEST
+
+        if version is not None:
+            query = query.filter(Schedule.version == version)
+
+        schedules = query.all()
+
+        # Get all versions for this date range
+        try:
+            versions = (
+                db.session.query(Schedule.version)
+                .filter(
+                    Schedule.date >= datetime.strptime(start_date, "%Y-%m-%d").date(),
+                    Schedule.date <= datetime.strptime(end_date, "%Y-%m-%d").date(),
+                )
+                .distinct()
+                .order_by(Schedule.version.desc())
+                .all()
+            )
+        except Exception as e:
+            logger.error(f"Error getting schedule versions: {str(e)}")
+            versions = []
+
+        # Apply include_empty filter after database query to avoid complex joins
+        if not include_empty:
+            schedules = [s for s in schedules if s.shift_id is not None]
+
+        return jsonify(
+            {
+                "schedules": [
+                    {
+                        "id": schedule.id,
+                        "date": schedule.date.strftime("%Y-%m-%d"),
+                        "employee_id": schedule.employee.id,
+                        "employee_name": f"{schedule.employee.first_name} {schedule.employee.last_name}",
+                        "shift_id": schedule.shift.id if schedule.shift else None,
+                        "shift_start": schedule.shift.start_time
+                        if schedule.shift
+                        else None,
+                        "shift_end": schedule.shift.end_time
+                        if schedule.shift
+                        else None,
+                        "break_start": schedule.break_start,
+                        "break_end": schedule.break_end,
+                        "notes": schedule.notes,
+                        "version": schedule.version,
+                        "is_empty": not bool(schedule.shift_id),
+                    }
+                    for schedule in schedules
+                ],
+                "versions": [v[0] for v in versions],
+                "errors": [],
+            }
+        ), HTTPStatus.OK
+    except Exception as e:
+        logger.error(f"Error in get_schedules: {str(e)}")
+        return jsonify(
+            {"error": "Internal server error", "message": str(e)}
+        ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 @bp.route("/generate", methods=["POST"])

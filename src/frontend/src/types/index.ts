@@ -61,7 +61,7 @@ export interface Schedule {
     shift_end: string | null;
     is_empty: boolean;
     version: number;
-    status: 'draft' | 'published' | 'archived';
+    status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 }
 
 export interface ScheduleError {

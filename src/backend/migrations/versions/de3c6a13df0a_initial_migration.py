@@ -22,7 +22,7 @@ def upgrade():
     with op.batch_alter_table("schedules", schema=None) as batch_op:
         batch_op.add_column(
             sa.Column(
-                "status", sa.String(length=20), nullable=False, server_default="draft"
+                "status", sa.String(length=20), nullable=False, server_default="DRAFT"
             )
         )
 

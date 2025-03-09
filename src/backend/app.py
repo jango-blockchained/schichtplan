@@ -21,6 +21,7 @@ from routes.employees import employees
 from routes.availability import availability
 from routes.absences import bp as absences_bp
 from api.coverage import bp as coverage_bp
+from api.schedules import bp as api_schedules_bp
 from api.demo_data import bp as demo_data_bp
 from routes import logs  # Add logs import
 from utils.logger import (
@@ -86,9 +87,12 @@ def create_app(config_class=Config):
     app.register_blueprint(employees, url_prefix="/api")
     app.register_blueprint(availability, url_prefix="/api")
     app.register_blueprint(absences_bp, url_prefix="/api")
-    app.register_blueprint(coverage_bp, url_prefix="/api")
+    app.register_blueprint(coverage_bp)
     app.register_blueprint(demo_data_bp, url_prefix="/api")
     app.register_blueprint(logs.bp, url_prefix="/api")  # Register logs blueprint
+    app.register_blueprint(
+        api_schedules_bp, name="api_schedules"
+    )  # Register with unique name to avoid conflict
 
     @app.errorhandler(Exception)
     def handle_error(error):
@@ -98,9 +102,8 @@ def create_app(config_class=Config):
         return (
             jsonify(
                 {
-                    "error": "Internal server error",
-                    "message": str(error),
-                    "traceback": traceback.format_exc(),
+                    "error": str(error),
+                    "message": "An unexpected error occurred. Please try again later.",
                 }
             ),
             500,
