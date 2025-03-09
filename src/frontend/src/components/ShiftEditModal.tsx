@@ -4,25 +4,25 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
-import { Schedule, ShiftType } from '@/types';
+import { Schedule, ShiftType, ScheduleUpdate } from '@/types';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { getShifts, createShift } from '@/services/api';
 import { useQuery } from '@tanstack/react-query';
 import { Textarea } from '@/components/ui/textarea';
+import { Slider } from '@/components/ui/slider';
 
 interface ShiftEditModalProps {
     isOpen: boolean;
     onClose: () => void;
     schedule: Schedule;
-    onSave: (scheduleId: number, updates: Partial<Schedule>) => Promise<void>;
+    onSave: (scheduleId: number, updates: ScheduleUpdate) => Promise<void>;
 }
 
 export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditModalProps) {
     const [selectedShiftId, setSelectedShiftId] = useState<string>(schedule.shift_id?.toString() ?? '');
-    const [breakStart, setBreakStart] = useState(schedule.break_start ?? '');
-    const [breakEnd, setBreakEnd] = useState(schedule.break_end ?? '');
+    const [breakDuration, setBreakDuration] = useState<number>((schedule as any).break_duration ?? 0);
     const [notes, setNotes] = useState(schedule.notes ?? '');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
@@ -36,8 +36,7 @@ export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditM
         if (schedule.shift_id) {
             setSelectedShiftId(schedule.shift_id.toString());
         }
-        setBreakStart(schedule.break_start ?? '');
-        setBreakEnd(schedule.break_end ?? '');
+        setBreakDuration((schedule as any).break_duration ?? 0);
         setNotes(schedule.notes ?? '');
     }, [schedule]);
 
@@ -45,11 +44,10 @@ export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditM
         console.log('🟢 ShiftEditModal handleSave called');
         setIsSubmitting(true);
         try {
-            const updates: Partial<Schedule> = {
-                shift_id: selectedShiftId ? parseInt(selectedShiftId, 10) : undefined,
-                break_start: breakStart || undefined,
-                break_end: breakEnd || undefined,
-                notes: notes || undefined,
+            const updates: ScheduleUpdate = {
+                shift_id: selectedShiftId ? parseInt(selectedShiftId, 10) : null,
+                break_duration: breakDuration || null,
+                notes: notes || null,
             };
 
             console.log('🟢 Calling onSave with:', { scheduleId: schedule.id, updates });
@@ -71,14 +69,6 @@ export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditM
         } finally {
             setIsSubmitting(false);
         }
-    };
-
-    const timeStringToDate = (timeStr: string): Date => {
-        const [hours, minutes] = timeStr.split(':').map(Number);
-        const date = new Date();
-        date.setHours(hours);
-        date.setMinutes(minutes);
-        return date;
     };
 
     return (
@@ -109,25 +99,16 @@ export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditM
                         </Select>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="breakStart">Pause Start</Label>
-                            <Input
-                                id="breakStart"
-                                type="time"
-                                value={breakStart}
-                                onChange={(e) => setBreakStart(e.target.value)}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="breakEnd">Pause Ende</Label>
-                            <Input
-                                id="breakEnd"
-                                type="time"
-                                value={breakEnd}
-                                onChange={(e) => setBreakEnd(e.target.value)}
-                            />
-                        </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="breakDuration">Pausenlänge: {breakDuration} Minuten</Label>
+                        <Slider
+                            id="breakDuration"
+                            value={[breakDuration]}
+                            min={0}
+                            max={60}
+                            step={5}
+                            onValueChange={(values) => setBreakDuration(values[0])}
+                        />
                     </div>
 
                     <div className="space-y-2">

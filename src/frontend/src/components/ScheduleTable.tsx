@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
 import { useQuery } from '@tanstack/react-query';
 import { getSettings, getEmployees } from '@/services/api';
-import { Edit2, Plus, Trash2 } from 'lucide-react';
+import { Edit2, Trash2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ShiftEditModal } from './ShiftEditModal';
 import {
@@ -89,9 +89,12 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
     const handleDelete = async () => {
         if (!schedule) return;
         try {
-            await onUpdate(schedule.id, { shift_id: undefined });
+            console.log('🗑️ Deleting shift for schedule:', schedule.id);
+            // Set shift_id to null explicitly instead of undefined
+            await onUpdate(schedule.id, { shift_id: null });
+            console.log('🗑️ Delete operation completed successfully');
         } catch (error) {
-            console.error('Error deleting shift:', error);
+            console.error('🗑️ Error deleting shift:', error);
         }
     };
 
@@ -261,40 +264,6 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
         queryFn: getSettings,
     });
 
-    // Test function to directly test the onUpdate function
-    const testAddShift = async () => {
-        console.log('🔵 Test: Directly calling onUpdate');
-        try {
-            // Get the first employee ID from the schedules
-            const firstSchedule = schedules[0];
-            if (!firstSchedule) {
-                console.error('🔵 No schedules available for testing');
-                return;
-            }
-
-            // Use default values to handle potential undefined values
-            const employeeId = firstSchedule.employee_id ?? 0;
-            const date = firstSchedule.date ?? '';
-
-            console.log('🔵 Test: Using employee_id and date:', { employeeId, date });
-
-            // Call onUpdate with test data
-            const updateData: ScheduleUpdate = {
-                employee_id: employeeId,
-                date: date,
-                shift_id: 1, // Assuming shift ID 1 exists
-                break_duration: 30, // 30 minute break
-                notes: 'Test shift'
-            };
-
-            await onUpdate(0, updateData);
-
-            console.log('🔵 Test: onUpdate completed successfully');
-        } catch (error) {
-            console.error('🔵 Test: Error calling onUpdate:', error);
-        }
-    };
-
     // Fetch employee data to display names properly
     const { data: employees, isLoading: loadingEmployees } = useQuery({
         queryKey: ['employees'],
@@ -378,42 +347,44 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
         'Sunday': 'So'
     };
 
-    const employeeGroups = useMemo(() => {
-        const groups = new Map<string, Schedule[]>();
-        const employeeSchedules = new Map<number, Schedule[]>();
+    // SIMPLIFIED APPROACH: Create a direct lookup map from employee_id and date to schedule
+    const scheduleMap = useMemo(() => {
+        const map: Record<number, Record<string, Schedule>> = {};
 
-        // Group schedules by employee
+        // Process all schedules into the map for quick lookup
         schedules.forEach(schedule => {
-            if (!employeeSchedules.has(schedule.employee_id)) {
-                employeeSchedules.set(schedule.employee_id, []);
+            const employeeId = schedule.employee_id;
+
+            // Normalize the date format by stripping any time component
+            const dateStr = schedule.date.split('T')[0];
+
+            // Initialize the employee map if it doesn't exist
+            if (!map[employeeId]) {
+                map[employeeId] = {};
             }
-            employeeSchedules.get(schedule.employee_id)?.push(schedule);
+
+            // Store the schedule by date
+            map[employeeId][dateStr] = schedule;
         });
 
-        // Sort employees by type (VZ/TL -> TZ -> GFB)
-        const employeeTypeOrder: Record<string, number> = {
-            'VZ': 0,
-            'TL': 0,
-            'TZ': 1,
-            'GFB': 2
-        };
-        const sortedEmployees = Array.from(employeeSchedules.entries()).sort((a, b) => {
-            // Sort by employee ID as a fallback if we can't extract type
-            return a[0] - b[0];
+        // Log some debugging info about our map
+        console.log('🗺️ Schedule map created with:', {
+            totalEmployees: Object.keys(map).length,
+            sampleEmployee: Object.keys(map)[0] ? Object.keys(map)[0] : 'None',
+            totalSchedules: schedules.length,
+            schedulesWithShifts: schedules.filter(s => s.shift_id !== null).length
         });
 
-        // Group by employee type or just use "Other" if we can't determine type
-        sortedEmployees.forEach(([employeeId, employeeSchedules]) => {
-            if (!employeeSchedules || employeeSchedules.length === 0) return;
+        return map;
+    }, [schedules]);
 
-            // Just add all schedules to 'Other' group
-            if (!groups.has('Other')) {
-                groups.set('Other', []);
-            }
-            groups.get('Other')?.push(...employeeSchedules);
+    // Get unique employees from schedules
+    const uniqueEmployees = useMemo(() => {
+        const employeeSet = new Set<number>();
+        schedules.forEach(schedule => {
+            employeeSet.add(schedule.employee_id);
         });
-
-        return groups;
+        return Array.from(employeeSet);
     }, [schedules]);
 
     if (isLoading) {
@@ -430,24 +401,6 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
 
     return (
         <div className="schedule-table-container">
-            {/* Test button for debugging */}
-            <button
-                onClick={testAddShift}
-                style={{
-                    position: 'fixed',
-                    bottom: '20px',
-                    right: '20px',
-                    zIndex: 1000,
-                    padding: '10px',
-                    backgroundColor: '#007bff',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '5px'
-                }}
-            >
-                Test Add Shift
-            </button>
-
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
@@ -478,34 +431,30 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {Array.from(employeeGroups.entries()).map(([type, groupSchedules]) => {
-                                    const uniqueEmployees = new Set(groupSchedules.map(s => s.employee_id));
-                                    return Array.from(uniqueEmployees).map(employeeId => {
-                                        const employeeSchedules = groupSchedules.filter(s => s.employee_id === employeeId);
-                                        const firstSchedule = employeeSchedules[0];
-                                        return (
-                                            <TableRow key={employeeId}>
-                                                <TableCell className="font-medium">
-                                                    {formatEmployeeName(employeeId)}
+                                {uniqueEmployees.map(employeeId => (
+                                    <TableRow key={employeeId}>
+                                        <TableCell className="font-medium">
+                                            {formatEmployeeName(employeeId)}
+                                        </TableCell>
+                                        {days.map(day => {
+                                            // Format the date for lookup
+                                            const dateStr = format(day, 'yyyy-MM-dd');
+
+                                            // Get the schedule for this employee and date
+                                            const schedule = scheduleMap[employeeId]?.[dateStr];
+
+                                            return (
+                                                <TableCell key={day.toISOString()}>
+                                                    <ScheduleCell
+                                                        schedule={schedule}
+                                                        onDrop={onDrop}
+                                                        onUpdate={onUpdate}
+                                                    />
                                                 </TableCell>
-                                                {days.map(day => {
-                                                    const daySchedule = employeeSchedules.find(
-                                                        s => s.date === format(day, 'yyyy-MM-dd')
-                                                    );
-                                                    return (
-                                                        <TableCell key={day.toISOString()}>
-                                                            <ScheduleCell
-                                                                schedule={daySchedule}
-                                                                onDrop={onDrop}
-                                                                onUpdate={onUpdate}
-                                                            />
-                                                        </TableCell>
-                                                    );
-                                                })}
-                                            </TableRow>
-                                        );
-                                    });
-                                })}
+                                            );
+                                        })}
+                                    </TableRow>
+                                ))}
                             </TableBody>
                         </Table>
                     </div>
