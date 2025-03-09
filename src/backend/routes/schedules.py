@@ -2,7 +2,7 @@ from datetime import datetime, date, timedelta
 from flask import Blueprint, request, jsonify, current_app, send_file
 from models import db, Schedule, ShiftTemplate
 from models.schedule import ScheduleStatus, ScheduleVersionMeta
-from sqlalchemy import desc, and_
+from sqlalchemy import desc, text
 from services.pdf_generator import PDFGenerator
 from http import HTTPStatus
 from utils.logger import logger
@@ -13,6 +13,32 @@ from services.scheduler.validator import ScheduleValidator, ScheduleConfig
 
 # Define blueprint
 schedules = Blueprint("schedules", __name__)
+
+
+def get_or_create_initial_version(start_date, end_date):
+    """Helper function to get or create the initial version metadata"""
+    try:
+        # Check if any version exists first
+        existing_version = ScheduleVersionMeta.query.first()
+        if existing_version:
+            return existing_version
+
+        # Create initial version metadata within a transaction
+        version_meta = ScheduleVersionMeta(
+            version=1,
+            created_at=datetime.utcnow(),
+            status=ScheduleStatus.DRAFT,
+            date_range_start=start_date,
+            date_range_end=end_date,
+            notes="Initial version",
+        )
+        db.session.add(version_meta)
+        db.session.commit()
+        return version_meta
+    except Exception as e:
+        db.session.rollback()
+        logger.error_logger.error(f"Error in get_or_create_initial_version: {str(e)}")
+        return None
 
 
 @schedules.route("/schedules", methods=["GET"])
@@ -59,63 +85,47 @@ def get_schedules():
         use_version_meta = False
         try:
             test_query = db.session.execute(
-                "SELECT 1 FROM schedule_version_meta LIMIT 1"
+                text("SELECT 1 FROM schedule_version_meta LIMIT 1")
             )
             test_query.fetchall()
             use_version_meta = True
-        except Exception as e:
-            logger.error_logger.error(
-                f"schedule_version_meta table doesn't exist: {str(e)}"
-            )
-            use_version_meta = False
-
-        # Filter by version if specified
-        if version is not None:
-            query = query.filter(Schedule.version == version)
-        else:
-            # If no version specified, get the latest version for this date range
-            if use_version_meta:
-                try:
-                    latest_version = (
-                        ScheduleVersionMeta.query.filter(
-                            and_(
-                                ScheduleVersionMeta.date_range_start <= end_date,
-                                ScheduleVersionMeta.date_range_end >= start_date,
-                            )
-                        )
-                        .order_by(desc(ScheduleVersionMeta.version))
-                        .first()
-                    )
-
-                    if latest_version:
-                        version = latest_version.version
-                        query = query.filter(Schedule.version == version)
-                        logger.schedule_logger.info(
-                            f"Using latest version from metadata: {version}"
-                        )
-                except Exception as e:
-                    logger.error_logger.error(
-                        f"Error getting version metadata: {str(e)}"
-                    )
-                    use_version_meta = False
-
-            # Fallback to getting the latest version from schedules
-            if not use_version_meta:
-                latest_version_query = (
-                    db.session.query(Schedule.version)
-                    .filter(Schedule.date >= start_date, Schedule.date <= end_date)
-                    .order_by(desc(Schedule.version))
-                    .first()
+        except Exception:
+            # Create the table if it doesn't exist
+            try:
+                ScheduleVersionMeta.__table__.create(db.engine)
+                use_version_meta = True
+                logger.schedule_logger.info("Created schedule_version_meta table")
+            except Exception as create_error:
+                logger.error_logger.error(
+                    f"Could not create schedule_version_meta table: {str(create_error)}"
                 )
+                use_version_meta = False
 
-                if latest_version_query:
-                    version = latest_version_query[0]
-                    query = query.filter(Schedule.version == version)
-                    logger.schedule_logger.info(
-                        f"Using latest version from schedules: {version}"
-                    )
+        # Get the latest version if none specified
+        if version is None:
+            # Try to get latest version from both tables
+            max_schedule_version = db.session.query(
+                db.func.max(Schedule.version)
+            ).scalar()
+            max_meta_version = db.session.query(
+                db.func.max(ScheduleVersionMeta.version)
+            ).scalar()
 
-        # Fetch all schedules first
+            # Use the highest version number available, defaulting to 1 if no versions exist
+            version = (
+                max(filter(None, [max_schedule_version, max_meta_version]))
+                if max_schedule_version or max_meta_version
+                else 1
+            )
+
+            logger.schedule_logger.info(
+                f"Using latest version: {version} (schedule: {max_schedule_version}, meta: {max_meta_version})"
+            )
+
+        # Filter by version
+        query = query.filter(Schedule.version == version)
+
+        # Get all schedules first
         all_schedules = query.all()
 
         # Get the placeholder shift (00:00 - 00:00)
@@ -152,11 +162,24 @@ def get_schedules():
         if version and use_version_meta:
             try:
                 version_meta = ScheduleVersionMeta.query.get(version)
+                if not version_meta and version == 1:
+                    # Try to create initial version metadata
+                    version_meta = get_or_create_initial_version(start_date, end_date)
             except Exception as e:
                 logger.error_logger.error(
                     f"Error getting version metadata for version {version}: {str(e)}"
                 )
                 version_meta = None
+
+        # If no versions exist yet, create an initial version
+        if not version_numbers:
+            version = 1
+            version_numbers = [1]
+            version_statuses = {1: "DRAFT"}
+
+            # Create initial version metadata
+            if use_version_meta and not version_meta:
+                version_meta = get_or_create_initial_version(start_date, end_date)
 
         return jsonify(
             {
@@ -798,21 +821,40 @@ def get_all_versions():
         has_version_meta = False
         try:
             test_query = db.session.execute(
-                "SELECT 1 FROM schedule_version_meta LIMIT 1"
+                text("SELECT 1 FROM schedule_version_meta LIMIT 1")
             )
             test_query.fetchall()
             has_version_meta = True
-        except Exception as e:
-            logger.error_logger.error(
-                f"schedule_version_meta table doesn't exist: {str(e)}"
-            )
-            has_version_meta = False
+        except Exception:
+            # Create the table if it doesn't exist
+            try:
+                ScheduleVersionMeta.__table__.create(db.engine)
+                has_version_meta = True
+                logger.schedule_logger.info("Created schedule_version_meta table")
+            except Exception as create_error:
+                logger.error_logger.error(
+                    f"Could not create schedule_version_meta table: {str(create_error)}"
+                )
+                has_version_meta = False
 
         if has_version_meta:
             # Get metadata for all versions
             versions = ScheduleVersionMeta.query.order_by(
                 ScheduleVersionMeta.version.desc()
             ).all()
+
+            # If no versions exist, create an initial version
+            if not versions:
+                # Get the current week's date range
+                today = date.today()
+                start_of_week = today - timedelta(days=today.weekday())
+                end_of_week = start_of_week + timedelta(days=6)
+
+                # Create initial version metadata
+                version_meta = get_or_create_initial_version(start_of_week, end_of_week)
+                if version_meta:
+                    versions = [version_meta]
+
             return jsonify({"versions": [v.to_dict() for v in versions]})
         else:
             # Fallback: Get basic version info from schedules
@@ -828,6 +870,14 @@ def get_all_versions():
                 .all()
             )
 
+            # If no versions exist in schedules, create a default version
+            if not versions_data:
+                today = date.today()
+                start_of_week = today - timedelta(days=today.weekday())
+                end_of_week = start_of_week + timedelta(days=6)
+
+                versions_data = [(1, start_of_week, end_of_week, ScheduleStatus.DRAFT)]
+
             # Format results
             result = []
             for v in versions_data:
@@ -835,7 +885,7 @@ def get_all_versions():
                 result.append(
                     {
                         "version": version,
-                        "created_at": None,
+                        "created_at": datetime.utcnow().isoformat(),
                         "updated_at": None,
                         "status": status.value if status else "DRAFT",
                         "date_range": {
@@ -880,12 +930,17 @@ def create_new_version():
                 {"error": "Invalid date format, expected YYYY-MM-DD"}
             ), HTTPStatus.BAD_REQUEST
 
-        # Get the current max version
-        max_version = db.session.query(db.func.max(Schedule.version)).scalar() or 0
-        new_version = max_version + 1
+        # Get the current max version from both tables
+        max_schedule_version = (
+            db.session.query(db.func.max(Schedule.version)).scalar() or 0
+        )
+        max_meta_version = (
+            db.session.query(db.func.max(ScheduleVersionMeta.version)).scalar() or 0
+        )
+        new_version = max(max_schedule_version, max_meta_version) + 1
 
         logger.schedule_logger.info(
-            f"Creating new schedule version {new_version}"
+            f"Creating new schedule version {new_version} (max schedule version: {max_schedule_version}, max meta version: {max_meta_version})"
             + (f" based on version {base_version}" if base_version else "")
         )
 
@@ -925,7 +980,7 @@ def create_new_version():
         # Check if version_meta table exists by running a test query
         try:
             test_query = db.session.execute(
-                "SELECT 1 FROM schedule_version_meta LIMIT 1"
+                text("SELECT 1 FROM schedule_version_meta LIMIT 1")
             )
             test_query.fetchall()
 
@@ -938,7 +993,9 @@ def create_new_version():
                 date_range_start=start_date,
                 date_range_end=end_date,
                 base_version=base_version,
-                notes=notes,
+                notes=notes or f"Created from version {base_version}"
+                if base_version
+                else "New version",
             )
             db.session.add(version_meta)
             logger.schedule_logger.info(
@@ -1021,7 +1078,7 @@ def update_version_status(version):
         has_version_meta = False
         try:
             test_query = db.session.execute(
-                "SELECT 1 FROM schedule_version_meta LIMIT 1"
+                text("SELECT 1 FROM schedule_version_meta LIMIT 1")
             )
             test_query.fetchall()
             has_version_meta = True
