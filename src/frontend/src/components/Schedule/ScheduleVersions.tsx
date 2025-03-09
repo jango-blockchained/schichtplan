@@ -107,7 +107,7 @@ export function ScheduleVersions({ schedules, onPublish, onArchive }: ScheduleVe
                                     </div>
                                 </TableCell>
                                 <TableCell>
-                                    {group.status === 'draft' && (
+                                    {group.status === 'DRAFT' && (
                                         <Button
                                             variant="outline"
                                             size="sm"

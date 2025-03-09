@@ -841,213 +841,287 @@ export function SchedulePage() {
   };
 
   return (
-    <div className="container mx-auto py-8 space-y-8">
+    <div className="container mx-auto py-6 space-y-6">
       <PageHeader
         title="Schichtplan"
         description="Erstelle und verwalte Schichtpläne für deine Mitarbeiter"
       />
 
-      <div className="flex flex-col space-y-4">
-        <div className="flex flex-wrap gap-4 items-center">
-          <Select value={selectedCalendarWeek} onValueChange={handleCalendarWeekChange}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="KW auswählen" />
-            </SelectTrigger>
-            <SelectContent>
-              {getAvailableCalendarWeeks().map(week => (
-                <SelectItem key={week.value} value={week.value}>
-                  {week.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {/* Dashboard Controls Panel */}
+      <Card className="mb-4">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">Schichtplan-Einstellungen</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-4 items-center">
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Zeitraum</p>
+              <div className="flex items-center gap-2">
+                <Select value={selectedCalendarWeek} onValueChange={handleCalendarWeekChange}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="KW auswählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {getAvailableCalendarWeeks().map(week => (
+                      <SelectItem key={week.value} value={week.value}>
+                        {week.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-          <Select value={weeksAmount.toString()} onValueChange={handleWeeksAmountChange}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Anzahl Wochen" />
-            </SelectTrigger>
-            <SelectContent>
-              {[1, 2, 3, 4].map(amount => (
-                <SelectItem key={amount} value={amount.toString()}>
-                  {amount} {amount === 1 ? 'Woche' : 'Wochen'}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                <Select value={weeksAmount.toString()} onValueChange={handleWeeksAmountChange}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="Anzahl Wochen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3, 4].map(amount => (
+                      <SelectItem key={amount} value={amount.toString()}>
+                        {amount} {amount === 1 ? 'Woche' : 'Wochen'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Optionen</p>
+              <div className="flex gap-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="createEmpty"
+                    checked={createEmptySchedules}
+                    onCheckedChange={handleCreateEmptyChange}
+                  />
+                  <label
+                    htmlFor="createEmpty"
+                    className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Leere Zeilen erstellen
+                  </label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="showEmpty"
+                    checked={includeEmpty}
+                    onCheckedChange={handleIncludeEmptyChange}
+                  />
+                  <label
+                    htmlFor="showEmpty"
+                    className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Leere Zeilen anzeigen
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-1 ml-auto">
+              <p className="text-sm font-medium">Aktionen</p>
+              <div className="flex space-x-2">
+                <Button
+                  onClick={() => generateMutation.mutate()}
+                  disabled={generateMutation.isPending}
+                >
+                  {generateMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generiere...
+                    </>
+                  ) : (
+                    "Schichtplan generieren"
+                  )}
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={() => exportMutation.mutate()}
+                  disabled={exportMutation.isPending || scheduleData.length === 0}
+                >
+                  {exportMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Exportiere...
+                    </>
+                  ) : (
+                    "PDF Export"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
 
           {versions && versions.length > 0 && (
-            <Select
-              value={selectedVersion?.toString() ?? "current"}
-              onValueChange={(value) => setSelectedVersion(value === "current" ? undefined : parseInt(value, 10))}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Version wählen" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="current">Aktuelle Version</SelectItem>
-                {versions.map(version => (
-                  <SelectItem key={version} value={version.toString()}>
-                    Version {version}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="mt-4 pt-4 border-t">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium">Versionen:</p>
+                <Select
+                  value={selectedVersion?.toString() ?? "current"}
+                  onValueChange={(value) => setSelectedVersion(value === "current" ? undefined : parseInt(value, 10))}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Version wählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="current">Aktuelle Version</SelectItem>
+                    {versions.map(version => (
+                      <SelectItem key={version} value={version.toString()}>
+                        Version {version}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           )}
+        </CardContent>
+      </Card>
 
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="createEmpty"
-              checked={createEmptySchedules}
-              onCheckedChange={handleCreateEmptyChange}
-            />
-            <label
-              htmlFor="createEmpty"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-            >
-              Leere Zeilen für alle Mitarbeiter erstellen
-            </label>
-          </div>
+      {/* Error Alert - Shown when there's a fetch error */}
+      {fetchError && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Fehler beim Laden der Daten</AlertTitle>
+          <AlertDescription>
+            {typeof fetchError === 'object' && fetchError !== null && 'message' in fetchError
+              ? String((fetchError as { message: unknown }).message)
+              : "Ein unbekannter Fehler ist aufgetreten."}
+          </AlertDescription>
+        </Alert>
+      )}
 
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="showEmpty"
-              checked={includeEmpty}
-              onCheckedChange={handleIncludeEmptyChange}
-            />
-            <label
-              htmlFor="showEmpty"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-            >
-              Leere Zeilen anzeigen
-            </label>
-          </div>
+      {/* Schedule Overview Stats */}
+      {dateRange?.from && dateRange?.to && (
+        <ScheduleOverview
+          schedules={scheduleData}
+          dateRange={{ from: dateRange.from, to: dateRange.to }}
+          version={selectedVersion}
+        />
+      )}
 
-          <div className="flex-1" />
+      {/* Schedule Generation Errors */}
+      {errors && errors.length > 0 && <ScheduleGenerationErrors errors={errors} />}
 
-          <Button onClick={() => generateMutation.mutate()}>
-            Schichtplan generieren
-          </Button>
+      {/* Main Schedule Table */}
+      <DndProvider backend={HTML5Backend}>
+        <ScheduleTable
+          schedules={scheduleData.filter(s => includeEmpty || s.shift_id !== null)}
+          dateRange={dateRange}
+          onDrop={handleDrop}
+          onUpdate={handleShiftUpdate}
+          isLoading={isLoading}
+        />
+      </DndProvider>
 
-          <Button variant="outline" onClick={() => exportMutation.mutate()}>
-            PDF Export
-          </Button>
-        </div>
-
-        {dateRange?.from && dateRange?.to && (
-          <ScheduleOverview
-            schedules={scheduleData}
-            dateRange={{ from: dateRange.from, to: dateRange.to }}
-            version={selectedVersion}
-          />
-        )}
-
-        <DndProvider backend={HTML5Backend}>
-          <ScheduleTable
-            schedules={scheduleData.filter(s => s.status !== 'archived')}
-            dateRange={dateRange}
-            onDrop={handleDrop}
-            onUpdate={handleShiftUpdate}
-            isLoading={isLoading}
-          />
-        </DndProvider>
-
-        {errors && errors.length > 0 && (
-          <ScheduleGenerationErrors errors={errors} />
-        )}
-
-        {generationLogs.length > 0 && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-base font-semibold">Logs</CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearGenerationLogs}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-2">
+      {/* Activity Log Collapsible Section */}
+      {generationLogs.length > 0 && (
+        <Card className="mt-4 relative">
+          <CardHeader className="pb-2 flex justify-between items-center">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Clock size={16} />
+              Logs
+            </CardTitle>
+            <Button variant="ghost" size="sm" onClick={clearGenerationLogs}>
+              <X size={16} />
+            </Button>
+          </CardHeader>
+          <CardContent className="max-h-[200px] overflow-y-auto">
+            <div className="space-y-1.5">
               {generationLogs.map((log, index) => (
                 <div
                   key={index}
                   className={cn(
-                    "flex items-start space-x-2 text-sm",
-                    log.type === 'error' && "text-destructive",
-                    log.type === 'warning' && "text-yellow-500"
+                    "text-sm p-2 rounded flex gap-2",
+                    log.type === 'error' ? "bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300" :
+                      log.type === 'warning' ? "bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300" :
+                        "bg-slate-100 dark:bg-slate-800"
                   )}
                 >
-                  <div className="flex-shrink-0">
+                  <span className="text-xs whitespace-nowrap">
                     {format(log.timestamp, 'HH:mm:ss')}
-                  </div>
+                  </span>
+                  <span>{log.message}</span>
+                  {log.details && (
+                    <span className="text-xs opacity-80 ml-2">{log.details}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Schedule Versions Table - Only show if versions exist */}
+      {versions && versions.length > 0 && (
+        <ScheduleVersions
+          schedules={scheduleData}
+          onPublish={handlePublish}
+          onArchive={handleArchive}
+        />
+      )}
+
+      {/* Generation Modal */}
+      {generateMutation.isPending && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
+          <Card className="w-[400px] shadow-lg">
+            <CardHeader>
+              <CardTitle className="text-center">
+                Generiere Schichtplan
+                <div className="text-sm font-normal text-muted-foreground mt-1">
+                  Bitte warten Sie, während der Schichtplan generiert wird...
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {generationSteps.map((step, index) => (
+                <div key={step.id} className="flex items-center space-x-3">
+                  {step.status === 'pending' && <Circle className="h-5 w-5 text-muted-foreground" />}
+                  {step.status === 'in-progress' && <Clock className="h-5 w-5 text-blue-500 animate-pulse" />}
+                  {step.status === 'completed' && <CheckCircle2 className="h-5 w-5 text-green-500" />}
+                  {step.status === 'error' && <AlertCircle className="h-5 w-5 text-red-500" />}
                   <div className="flex-1">
-                    {log.message}
-                    {log.details && (
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {log.details}
-                      </div>
+                    <div className="text-sm font-medium">{step.title}</div>
+                    {step.message && (
+                      <div className="text-xs text-muted-foreground">{step.message}</div>
                     )}
                   </div>
                 </div>
               ))}
+              <Progress
+                value={
+                  (generationSteps.filter(step => step.status === 'completed').length /
+                    generationSteps.length) * 100
+                }
+                className="mt-4"
+              />
             </CardContent>
           </Card>
-        )}
+        </div>
+      )}
 
-        <ScheduleVersions
-          schedules={scheduleData}
-          onPublish={async (version) => {
-            try {
-              await publishSchedule(version);
-              toast({
-                title: "Schedule Published",
-                description: `Version ${version} has been published successfully.`,
-              });
-              // Refresh the schedule data
-              if (dateRange?.from && dateRange?.to) {
-                await refetch();
-              }
-            } catch (error) {
-              toast({
-                title: "Error",
-                description: "Failed to publish schedule.",
-                variant: "destructive",
-              });
-            }
-          }}
-          onArchive={async (version) => {
-            try {
-              await archiveSchedule(version);
-              toast({
-                title: "Schedule Archived",
-                description: `Version ${version} has been archived successfully.`,
-              });
-              // Refresh the schedule data
-              if (dateRange?.from && dateRange?.to) {
-                await refetch();
-              }
-            } catch (error) {
-              toast({
-                title: "Error",
-                description: "Failed to archive schedule.",
-                variant: "destructive",
-              });
-            }
-          }}
-        />
-
-        <DndProvider backend={HTML5Backend}>
-          <ScheduleTable
-            schedules={scheduleData.filter(s => s.status !== 'archived')}
-            dateRange={dateRange}
-            onDrop={handleDrop}
-            onUpdate={handleShiftUpdate}
-            isLoading={isLoading}
-          />
-        </DndProvider>
-      </div>
-
-      {generateMutation.isPending && <GenerationOverlay />}
+      {/* Error Modal */}
+      <Dialog
+        open={generateMutation.isError && errors && errors.length > 0}
+        onOpenChange={() => {
+          if (generateMutation.isError) {
+            // Clear error state by refetching data
+            refetch();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-red-600">
+              Schichtplan-Generierung fehlgeschlagen
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <ScheduleGenerationErrors errors={errors} />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

@@ -55,7 +55,7 @@ export function ScheduleVersions({ scheduleResponse, onPublish, onArchive }: Sch
                     {versions.map((version) => {
                         const versionSchedules = schedulesByVersion[version] || [];
                         const coverage = getCoveragePercentage(versionSchedules);
-                        const status = versionSchedules[0]?.status || 'draft';
+                        const status = versionSchedules[0]?.status || 'DRAFT';
                         const dateRange = versionSchedules.reduce(
                             (acc, schedule) => {
                                 const date = new Date(schedule.date);
@@ -84,7 +84,7 @@ export function ScheduleVersions({ scheduleResponse, onPublish, onArchive }: Sch
                                     <p className="text-sm">Coverage: {coverage}%</p>
                                 </div>
                                 <div className="flex gap-2">
-                                    {status === 'draft' && (
+                                    {status === 'DRAFT' && (
                                         <Button
                                             variant="outline"
                                             size="sm"
@@ -104,7 +104,7 @@ export function ScheduleVersions({ scheduleResponse, onPublish, onArchive }: Sch
                                             Archive
                                         </Button>
                                     )}
-                                    {status === 'draft' && (
+                                    {status === 'DRAFT' && (
                                         <Button variant="ghost" size="sm">
                                             <Pencil className="w-4 h-4 mr-1" />
                                             Edit

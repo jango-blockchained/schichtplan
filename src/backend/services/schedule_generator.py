@@ -255,7 +255,25 @@ class ScheduleGenerator:
                     date=current_date, coverage=coverage, candidates=filtered_candidates
                 )
 
-            current_date += timedelta(days=1)
+            # End of processing for this day
+            # Ensure current_date is a date object before incrementing
+            if isinstance(current_date, str):
+                try:
+                    parsed_date = datetime.strptime(current_date, "%Y-%m-%d").date()
+                    current_date = (parsed_date + timedelta(days=1)).strftime(
+                        "%Y-%m-%d"
+                    )
+                except ValueError as e:
+                    logger.error_logger.error(
+                        f"Error parsing date string {current_date}: {str(e)}"
+                    )
+                    # Increment date string manually (assume YYYY-MM-DD format)
+                    # This is a fallback that might not always work correctly
+                    current_date = (
+                        f"{current_date[0:8]}{int(current_date[8:10]) + 1:02d}"
+                    )
+            else:
+                current_date += timedelta(days=1)
 
         logger.schedule_logger.info(
             "Slot filling completed", extra={"action": "fill_slots_complete"}
@@ -453,20 +471,46 @@ class ScheduleGenerator:
             logger.schedule_logger.info("All verifications passed successfully")
 
     def generate_schedule(
-        self, start_date, end_date, create_empty_schedules=False, session_id=None
+        self, start_date, end_date, create_empty_schedules=True, session_id=None
     ):
         """
         Generate a schedule for the given date range
 
         Args:
-            start_date: The start date of the schedule
-            end_date: The end date of the schedule
-            create_empty_schedules: Whether to create empty schedules for employees with no shifts
+            start_date: The start date of the schedule (string in format 'YYYY-MM-DD' or date object)
+            end_date: The end date of the schedule (string in format 'YYYY-MM-DD' or date object)
+            create_empty_schedules: Whether to create empty schedules for employees with no shifts (defaults to True)
             session_id: Optional session ID for tracking
 
         Returns:
             dict: The generated schedule
         """
+        # Ensure dates are converted to date objects
+        if isinstance(start_date, str):
+            try:
+                start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+                logger.schedule_logger.debug(
+                    f"Converted start_date string to date object: {start_date}"
+                )
+            except ValueError as e:
+                error_msg = f"Invalid start_date format: {start_date}. Expected 'YYYY-MM-DD'. Error: {str(e)}"
+                logger.error_logger.error(error_msg)
+                raise ScheduleGenerationError(error_msg)
+
+        if isinstance(end_date, str):
+            try:
+                end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+                logger.schedule_logger.debug(
+                    f"Converted end_date string to date object: {end_date}"
+                )
+            except ValueError as e:
+                error_msg = f"Invalid end_date format: {end_date}. Expected 'YYYY-MM-DD'. Error: {str(e)}"
+                logger.error_logger.error(error_msg)
+                raise ScheduleGenerationError(error_msg)
+
+        # Store session ID
+        self.session_id = session_id
+
         # Initialize schedule and errors list
         schedule = []
         generation_errors = []
@@ -568,15 +612,50 @@ class ScheduleGenerator:
 
                 if not store_open:
                     logger.schedule_logger.info(f"Store is closed on {current_date}")
-                    current_date += timedelta(days=1)
+                    # Ensure current_date is a date object before incrementing
+                    if isinstance(current_date, str):
+                        try:
+                            parsed_date = datetime.strptime(
+                                current_date, "%Y-%m-%d"
+                            ).date()
+                            current_date = (parsed_date + timedelta(days=1)).strftime(
+                                "%Y-%m-%d"
+                            )
+                        except ValueError as e:
+                            logger.error_logger.error(
+                                f"Error parsing date string {current_date}: {str(e)}"
+                            )
+                            # Increment date string manually (assume YYYY-MM-DD format)
+                            # This is a fallback that might not always work correctly
+                            current_date = (
+                                f"{current_date[0:8]}{int(current_date[8:10]) + 1:02d}"
+                            )
+                    else:
+                        current_date += timedelta(days=1)
                     continue
 
                 # Get coverage requirements for this day
                 try:
+                    # Ensure current_date is a date object
+                    if isinstance(current_date, str):
+                        try:
+                            current_date_obj = datetime.strptime(
+                                current_date, "%Y-%m-%d"
+                            ).date()
+                            logger.schedule_logger.debug(
+                                f"Converted current_date string to date object: {current_date_obj}"
+                            )
+                        except ValueError as e:
+                            error_msg = f"Invalid current_date format: {current_date}. Error: {str(e)}"
+                            logger.error_logger.error(error_msg)
+                            raise ValueError(error_msg)
+                    else:
+                        current_date_obj = current_date
+
                     day_coverage = [
                         c
                         for c in self.resources.coverage_data
-                        if c.day_index == current_date.weekday()
+                        if c.day_index == current_date_obj.weekday()
                     ]
                     logger.schedule_logger.info(
                         f"Found {len(day_coverage)} coverage blocks for {current_date}"
@@ -675,32 +754,58 @@ class ScheduleGenerator:
                                             "Unknown Employee",
                                         )
 
-                                        shift_start = next(
-                                            (
-                                                s.start_time
-                                                for s in self.resources.shifts
-                                                if s.id == schedule_entry.shift_id
-                                            ),
-                                            "00:00",
-                                        )
+                                        # Safely get shift details with error handling
+                                        shift_start = "00:00"
+                                        shift_end = "00:00"
+                                        duration = 0.0
 
-                                        shift_end = next(
-                                            (
-                                                s.end_time
-                                                for s in self.resources.shifts
-                                                if s.id == schedule_entry.shift_id
-                                            ),
-                                            "00:00",
-                                        )
+                                        # Find the shift by ID with proper error handling
+                                        matching_shift = None
+                                        try:
+                                            matching_shift = next(
+                                                (
+                                                    s
+                                                    for s in self.resources.shifts
+                                                    if s.id == schedule_entry.shift_id
+                                                ),
+                                                None,
+                                            )
+                                        except Exception as shift_find_error:
+                                            logger.error_logger.error(
+                                                f"Error finding shift by ID {schedule_entry.shift_id}: {str(shift_find_error)}"
+                                            )
 
-                                        duration = next(
-                                            (
-                                                s.duration_hours
-                                                for s in self.resources.shifts
-                                                if s.id == schedule_entry.shift_id
-                                            ),
-                                            0.0,
-                                        )
+                                        # Safely extract shift details if the shift exists
+                                        if matching_shift:
+                                            shift_start = getattr(
+                                                matching_shift, "start_time", "00:00"
+                                            )
+                                            shift_end = getattr(
+                                                matching_shift, "end_time", "00:00"
+                                            )
+
+                                            # Make sure duration_hours exists and is valid
+                                            if (
+                                                hasattr(
+                                                    matching_shift, "duration_hours"
+                                                )
+                                                and matching_shift.duration_hours
+                                                is not None
+                                            ):
+                                                duration = matching_shift.duration_hours
+                                            else:
+                                                # Calculate duration if not available
+                                                try:
+                                                    duration = self._calculate_duration(
+                                                        shift_start, shift_end
+                                                    )
+                                                    logger.schedule_logger.debug(
+                                                        f"Calculated duration {duration}h for shift {schedule_entry.shift_id}"
+                                                    )
+                                                except Exception as calc_error:
+                                                    logger.error_logger.error(
+                                                        f"Error calculating duration for shift {schedule_entry.shift_id}: {str(calc_error)}"
+                                                    )
 
                                         schedule.append(
                                             {
@@ -766,7 +871,25 @@ class ScheduleGenerator:
                         )
                         # Continue with next coverage block
 
-                current_date += timedelta(days=1)
+                # End of processing for this day
+                # Ensure current_date is a date object before incrementing
+                if isinstance(current_date, str):
+                    try:
+                        parsed_date = datetime.strptime(current_date, "%Y-%m-%d").date()
+                        current_date = (parsed_date + timedelta(days=1)).strftime(
+                            "%Y-%m-%d"
+                        )
+                    except ValueError as e:
+                        logger.error_logger.error(
+                            f"Error parsing date string {current_date}: {str(e)}"
+                        )
+                        # Increment date string manually (assume YYYY-MM-DD format)
+                        # This is a fallback that might not always work correctly
+                        current_date = (
+                            f"{current_date[0:8]}{int(current_date[8:10]) + 1:02d}"
+                        )
+                else:
+                    current_date += timedelta(days=1)
 
             logger.schedule_logger.info(f"Generated {len(schedule)} schedule entries")
 
@@ -798,7 +921,12 @@ class ScheduleGenerator:
                             employee_name = (
                                 f"{employee.first_name} {employee.last_name}"
                             )
-                            if employee.group:
+                            if (
+                                hasattr(employee, "employee_group")
+                                and employee.employee_group
+                            ):
+                                employee_name += f" ({employee.employee_group.value})"
+                            elif hasattr(employee, "group") and employee.group:
                                 employee_name += f" ({employee.group})"
 
                             schedule.append(
@@ -872,6 +1000,16 @@ class ScheduleGenerator:
         Returns:
             bool: True if the shift has a valid duration, False otherwise
         """
+        if shift is None:
+            logger.schedule_logger.warning("Cannot validate duration of None shift")
+            return False
+
+        if not hasattr(shift, "duration_hours") or shift.duration_hours is None:
+            logger.schedule_logger.warning(
+                f"Shift {getattr(shift, 'id', 'unknown')} has no duration_hours attribute or it is None"
+            )
+            return False
+
         if shift.duration_hours <= 0:
             logger.schedule_logger.warning(
                 f"Filtering out shift {shift.id} ({shift.start_time}-{shift.end_time}) with invalid duration: {shift.duration_hours}h"
@@ -917,29 +1055,17 @@ class ScheduleGenerator:
                         None,
                     )
                 except Exception as e:
-                    error_msg = f"Error finding overlapping shift: {str(e)}"
-                    logger.error_logger.error(error_msg)
-                    # Try to find any shift as a fallback
-                    if self.resources.shifts:
-                        shift = self.resources.shifts[0]
+                    logger.error_logger.error(
+                        f"Error finding overlapping shift: {str(e)}"
+                    )
+                    shift = None
 
-            if not shift:
+            # Ensure the shift is valid before proceeding
+            if not self._has_valid_duration(shift):
                 logger.schedule_logger.warning(
-                    f"No matching shift found for {start_time}-{end_time}"
+                    f"No valid shift found for time slot {start_time}-{end_time}"
                 )
                 return []
-
-            # Check if shift has valid duration
-            try:
-                if not self._has_valid_duration(shift):
-                    logger.schedule_logger.warning(
-                        f"Shift {shift.id} has invalid duration"
-                    )
-                    return []
-            except Exception as e:
-                error_msg = f"Error checking shift duration: {str(e)}"
-                logger.error_logger.error(error_msg)
-                # Continue with the shift anyway
 
             for employee in self.resources.employees:
                 try:
@@ -970,16 +1096,33 @@ class ScheduleGenerator:
                         elif employee.employee_group == EmployeeGroup.GFB:
                             max_hours = 15  # GFB employees max 15 hours per week
 
+                        # More robust handling of None values
+                        if current_hours is None:
+                            current_hours = 0.0
+
+                        # Make sure shift exists and has duration_hours
+                        if shift is None:
+                            logger.error_logger.error(
+                                f"Shift is None when checking hours for employee {employee.id}"
+                            )
+                            continue
+
                         if (
-                            current_hours is not None
-                            and shift.duration_hours is not None
+                            not hasattr(shift, "duration_hours")
+                            or shift.duration_hours is None
                         ):
-                            if current_hours + shift.duration_hours > max_hours:
-                                logger.schedule_logger.debug(
-                                    f"Employee {employee.first_name} {employee.last_name} would exceed max hours "
-                                    f"({current_hours + shift.duration_hours} > {max_hours})"
-                                )
-                                continue
+                            logger.error_logger.error(
+                                f"Shift {shift.id} has no duration_hours attribute or it is None"
+                            )
+                            continue
+
+                        # Now we can safely check
+                        if current_hours + shift.duration_hours > max_hours:
+                            logger.schedule_logger.debug(
+                                f"Employee {employee.first_name} {employee.last_name} would exceed max hours "
+                                f"({current_hours + shift.duration_hours} > {max_hours})"
+                            )
+                            continue
                     except Exception as e:
                         error_msg = (
                             f"Error checking employee {employee.id} hours: {str(e)}"
@@ -1294,11 +1437,41 @@ class ScheduleGenerator:
     def _get_employee_total_hours(self, employee: Employee) -> float:
         """Calculate total scheduled hours for an employee"""
         schedules = Schedule.query.filter_by(employee_id=employee.id).all()
-        return sum(
-            schedule.shift.duration_hours
-            for schedule in schedules
-            if schedule.shift and schedule.shift.duration_hours
-        )
+
+        # Add additional logging to debug the issue
+        if not schedules:
+            logger.schedule_logger.debug(
+                f"No schedules found for employee {employee.id}"
+            )
+            return 0.0
+
+        total_hours = 0.0
+        for schedule in schedules:
+            try:
+                # Make a more explicit check for None shift and handle safely
+                if schedule.shift is None:
+                    logger.schedule_logger.debug(
+                        f"Schedule {schedule.id} has no shift (shift_id is None)"
+                    )
+                    continue
+
+                if (
+                    not hasattr(schedule.shift, "duration_hours")
+                    or schedule.shift.duration_hours is None
+                ):
+                    logger.schedule_logger.debug(
+                        f"Schedule {schedule.id} has shift {schedule.shift_id} with no duration_hours"
+                    )
+                    continue
+
+                total_hours += schedule.shift.duration_hours
+            except Exception as e:
+                logger.error_logger.error(
+                    f"Error calculating hours for schedule {schedule.id}: {str(e)}"
+                )
+                # Continue with next schedule if there's an error
+
+        return total_hours
 
     def _calculate_rest_hours(self, end_time_str: str, start_time_str: str) -> float:
         """
@@ -1419,12 +1592,24 @@ class ScheduleGenerator:
         Check if the store is open on a given date
 
         Args:
-            date: The date to check
+            date: The date to check (string in format 'YYYY-MM-DD' or date object)
 
         Returns:
             bool: True if store is open, False otherwise
         """
         try:
+            # Convert string date to date object if needed
+            if isinstance(date, str):
+                try:
+                    date = datetime.strptime(date, "%Y-%m-%d").date()
+                    logger.schedule_logger.debug(
+                        f"Converted date string to date object in _is_store_open: {date}"
+                    )
+                except ValueError as e:
+                    error_msg = f"Invalid date format in _is_store_open: {date}. Expected 'YYYY-MM-DD'. Error: {str(e)}"
+                    logger.error_logger.error(error_msg)
+                    raise ValueError(error_msg)
+
             # Get day of week (0 = Monday, 6 = Sunday)
             day_of_week = date.weekday()
 

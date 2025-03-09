@@ -77,7 +77,7 @@ export default function AbsenceModal({ isOpen, onClose, employeeId, absenceTypes
 
     const handleDeleteAbsence = async (absenceId: number) => {
         try {
-            await deleteAbsence(absenceId);
+            await deleteAbsence(absenceId, employeeId);
             await loadAbsences();
             toast({
                 title: "Success",

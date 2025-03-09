@@ -1,12 +1,17 @@
-from flask import Blueprint, jsonify, request, send_file
-from datetime import datetime
+from datetime import datetime, date, timedelta
+from flask import Blueprint, request, jsonify, current_app, send_file
 from models import db, Schedule, ShiftTemplate
-from services.schedule_generator import ScheduleGenerator
+from models.schedule import ScheduleStatus
+from sqlalchemy import desc
 from services.pdf_generator import PDFGenerator
 from http import HTTPStatus
 from utils.logger import logger
 import uuid
+from services.scheduler.generator import ScheduleGenerator, ScheduleGenerationError
+from services.scheduler.resources import ScheduleResources, ScheduleResourceError
+from services.scheduler.validator import ScheduleValidator, ScheduleConfig
 
+# Define blueprint
 schedules = Blueprint("schedules", __name__)
 
 
@@ -22,13 +27,28 @@ def get_schedules():
             request.args.get("include_empty", "false").lower() == "true"
         )  # Default to false
 
+        # Provide default date range (current week) if parameters are missing
         if not start_date or not end_date:
-            return jsonify(
-                {"error": "start_date and end_date are required"}
-            ), HTTPStatus.BAD_REQUEST
+            today = date.today()
+            # Start from Monday of the current week
+            start_of_week = today - timedelta(days=today.weekday())
+            # End on Sunday of the current week
+            end_of_week = start_of_week + timedelta(days=6)
 
-        start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
-        end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+            start_date = start_of_week.strftime("%Y-%m-%d")
+            end_date = end_of_week.strftime("%Y-%m-%d")
+
+            logger.schedule_logger.info(
+                f"Using default date range: {start_date} to {end_date}"
+            )
+
+        try:
+            start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+            end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify(
+                {"error": "Invalid date format, expected YYYY-MM-DD"}
+            ), HTTPStatus.BAD_REQUEST
 
         # Build query
         query = Schedule.query.filter(
@@ -106,8 +126,8 @@ def generate_schedule():
         start_date = datetime.strptime(data["start_date"], "%Y-%m-%d").date()
         end_date = datetime.strptime(data["end_date"], "%Y-%m-%d").date()
 
-        # Get the create_empty_schedules parameter, default to False
-        create_empty_schedules = data.get("create_empty_schedules", False)
+        # Get the create_empty_schedules parameter, default to True
+        create_empty_schedules = data.get("create_empty_schedules", True)
 
         session_logger.info(
             f"Generating schedule for period: {start_date} to {end_date}",
@@ -431,7 +451,7 @@ def export_schedule():
         return jsonify({"error": error_msg}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@schedules.route("/api/schedules/<int:version>/publish", methods=["POST"])
+@schedules.route("/schedules/<int:version>/publish", methods=["POST"])
 def publish_schedule(version):
     try:
         schedules = Schedule.query.filter_by(version=version).all()
@@ -448,7 +468,7 @@ def publish_schedule(version):
         return jsonify({"error": str(e)}), 500
 
 
-@schedules.route("/api/schedules/<int:version>/archive", methods=["POST"])
+@schedules.route("/schedules/<int:version>/archive", methods=["POST"])
 def archive_schedule(version):
     try:
         schedules = Schedule.query.filter_by(version=version).all()
@@ -463,3 +483,210 @@ def archive_schedule(version):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
+
+
+@schedules.route("/schedules/generate", methods=["POST"])
+def api_generate_schedule():
+    """Generate a new schedule using the ScheduleGenerator class"""
+    try:
+        # Parse dates from request
+        data = request.json
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        # Get date range
+        start_date_str = data.get("start_date")
+        end_date_str = data.get("end_date")
+        session_id = data.get(
+            "session_id", "web_" + datetime.now().strftime("%Y%m%d%H%M%S")
+        )
+        version = data.get("version", 1)
+
+        if not start_date_str:
+            # Default to next week
+            today = date.today()
+            next_monday = today + timedelta(days=(7 - today.weekday()))
+            start_date = next_monday
+        else:
+            start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+
+        if not end_date_str:
+            # Default to one week
+            end_date = start_date + timedelta(days=6)
+        else:
+            end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+
+        # Validate date range
+        if start_date > end_date:
+            return jsonify({"error": "Start date must be before end date"}), 400
+
+        # Create generator
+        generator = ScheduleGenerator()
+
+        # Generate schedule
+        result = generator.generate(start_date, end_date, version, session_id)
+
+        # Return result
+        if "error" in result:
+            return jsonify({"error": result["error"]}), 500
+
+        return jsonify(result), 200
+
+    except ScheduleGenerationError as e:
+        return jsonify({"error": f"Failed to generate schedule: {str(e)}"}), 500
+    except ScheduleResourceError as e:
+        return jsonify({"error": f"Resource error: {str(e)}"}), 400
+    except Exception as e:
+        current_app.logger.error(f"Error generating schedule: {str(e)}")
+        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+
+
+@schedules.route("/schedules/validate", methods=["POST"])
+def validate_schedule():
+    """Validate an existing schedule"""
+    try:
+        # Parse data from request
+        data = request.json
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        # Get schedule IDs
+        schedule_ids = data.get("schedule_ids", [])
+        if not schedule_ids:
+            return jsonify({"error": "No schedule IDs provided"}), 400
+
+        # Get schedules from database
+        schedules = Schedule.query.filter(Schedule.id.in_(schedule_ids)).all()
+        if not schedules:
+            return jsonify({"error": "No schedules found"}), 404
+
+        # Create resources and validator
+        resources = ScheduleResources()
+        resources.load()
+        validator = ScheduleValidator(resources)
+
+        # Create config from request
+        config = ScheduleConfig(
+            enforce_min_coverage=data.get("enforce_min_coverage", True),
+            enforce_contracted_hours=data.get("enforce_contracted_hours", True),
+            enforce_keyholder=data.get("enforce_keyholder", True),
+            enforce_rest_periods=data.get("enforce_rest_periods", True),
+            enforce_max_shifts=data.get("enforce_max_shifts", True),
+            enforce_max_hours=data.get("enforce_max_hours", True),
+            min_rest_hours=data.get("min_rest_hours", 11),
+        )
+
+        # Validate schedule
+        validation_errors = validator.validate(schedules, config)
+
+        # Convert errors to JSON format
+        errors = []
+        for error in validation_errors:
+            errors.append(
+                {
+                    "type": error.error_type,
+                    "message": error.message,
+                    "severity": error.severity,
+                    "details": error.details or {},
+                }
+            )
+
+        # Return validation report
+        return jsonify(
+            {
+                "valid": len(errors) == 0,
+                "errors": errors,
+                "schedule_count": len(schedules),
+                "validation_time": datetime.now().isoformat(),
+            }
+        ), 200
+
+    except ScheduleResourceError as e:
+        return jsonify({"error": f"Resource error: {str(e)}"}), 400
+    except Exception as e:
+        current_app.logger.error(f"Error validating schedule: {str(e)}")
+        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+
+
+@schedules.route("/schedules/versions", methods=["GET"])
+def get_schedule_versions():
+    """Get all available schedule versions"""
+    try:
+        # Get unique versions
+        versions = (
+            db.session.query(
+                Schedule.version,
+                db.func.min(Schedule.date).label("start_date"),
+                db.func.max(Schedule.date).label("end_date"),
+                db.func.max(Schedule.updated_at).label("updated_at"),
+                db.func.count(Schedule.id).label("entry_count"),
+            )
+            .group_by(Schedule.version)
+            .order_by(desc(Schedule.version))
+            .all()
+        )
+
+        # Format response
+        result = []
+        for version, start_date, end_date, updated_at, entry_count in versions:
+            result.append(
+                {
+                    "version": version,
+                    "start_date": start_date.isoformat() if start_date else None,
+                    "end_date": end_date.isoformat() if end_date else None,
+                    "entry_count": entry_count,
+                    "updated_at": updated_at.isoformat() if updated_at else None,
+                }
+            )
+
+        return jsonify(result), 200
+
+    except Exception as e:
+        current_app.logger.error(f"Error getting schedule versions: {str(e)}")
+        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+
+
+@schedules.route("/schedules/status/<int:version>", methods=["PUT"])
+def update_schedule_status(version):
+    """Update the status of a schedule version"""
+    try:
+        # Parse data from request
+        data = request.json
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        # Get new status
+        status_str = data.get("status")
+        if not status_str:
+            return jsonify({"error": "No status provided"}), 400
+
+        # Validate status
+        try:
+            status = ScheduleStatus(status_str)
+        except ValueError:
+            return jsonify({"error": f"Invalid status: {status_str}"}), 400
+
+        # Update schedules
+        affected_rows = Schedule.query.filter_by(version=version).update(
+            {"status": status}
+        )
+
+        if affected_rows == 0:
+            return jsonify({"error": f"No schedules found with version {version}"}), 404
+
+        # Commit changes
+        db.session.commit()
+
+        return jsonify(
+            {
+                "version": version,
+                "status": status.value,
+                "affected_rows": affected_rows,
+                "updated_at": datetime.now().isoformat(),
+            }
+        ), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Error updating schedule status: {str(e)}")
+        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500

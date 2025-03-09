@@ -588,7 +588,7 @@ export interface Absence {
 
 export const getAbsences = async (employeeId: number): Promise<Absence[]> => {
     try {
-        const response = await api.get<Absence[]>(`/employees/${employeeId}/absences/`);
+        const response = await api.get<Absence[]>(`/employees/${employeeId}/absences`);
         return response.data;
     } catch (error) {
         if (error instanceof Error) {
@@ -600,7 +600,7 @@ export const getAbsences = async (employeeId: number): Promise<Absence[]> => {
 
 export const createAbsence = async (data: Omit<Absence, 'id'>): Promise<Absence> => {
     try {
-        const response = await api.post<Absence>('/absences/', data);
+        const response = await api.post<Absence>(`/employees/${data.employee_id}/absences`, data);
         return response.data;
     } catch (error) {
         if (error instanceof Error) {
@@ -610,9 +610,9 @@ export const createAbsence = async (data: Omit<Absence, 'id'>): Promise<Absence>
     }
 };
 
-export const deleteAbsence = async (id: number): Promise<void> => {
+export const deleteAbsence = async (id: number, employeeId: number): Promise<void> => {
     try {
-        await api.delete(`/absences/${id}`);
+        await api.delete(`/employees/${employeeId}/absences/${id}`);
     } catch (error) {
         if (error instanceof Error) {
             throw new Error(`Failed to delete absence: ${error.message}`);
