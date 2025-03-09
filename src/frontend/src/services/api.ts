@@ -1,6 +1,8 @@
 import axios, { AxiosError } from 'axios';
 import type { Settings, Employee, Schedule, ScheduleError, ScheduleUpdate, DailyCoverage, CoverageTimeSlot } from '@/types/index';
 import { CreateEmployeeRequest, UpdateEmployeeRequest } from '../types';
+import { API_BASE_URL } from '@/config';
+import { api } from './apiClient';
 
 interface APIErrorResponse {
     error?: string;
@@ -9,6 +11,9 @@ interface APIErrorResponse {
 export interface ScheduleResponse {
     schedules: Schedule[];
     versions: number[];
+    version_statuses?: Record<number, string>;
+    current_version?: number;
+    version_meta?: VersionMeta;
     errors?: ScheduleError[];
     version?: number;
     total_shifts?: number;
@@ -266,25 +271,28 @@ export interface ScheduleData {
     notes: string | null;
 }
 
-export const getSchedules = async ({
-    startDate,
-    endDate,
-    includeEmpty = false,
-}: {
-    startDate: string;
-    endDate: string;
-    includeEmpty?: boolean;
-}): Promise<Schedule[]> => {
+export const getSchedules = async (
+    startDate: string,
+    endDate: string,
+    version?: number,
+    includeEmpty: boolean = false
+): Promise<ScheduleResponse> => {
     try {
+        console.log('🟩 getSchedules called with:', { startDate, endDate, version, includeEmpty });
+
         const response = await api.get('/schedules/', {
             params: {
                 start_date: startDate,
                 end_date: endDate,
+                version,
                 include_empty: includeEmpty,
             },
         });
+
+        console.log('🟩 getSchedules response:', response.data);
         return response.data;
     } catch (error) {
+        console.error('🟩 getSchedules error:', error);
         if (error instanceof Error) {
             throw new Error(`Failed to fetch schedules: ${error.message}`);
         }
@@ -447,18 +455,31 @@ export const updateEmployeeAvailability = async (employeeId: number, availabilit
 
 export const updateSchedule = async (scheduleId: number, update: ScheduleUpdate): Promise<Schedule> => {
     try {
-        console.log('🔴 updateSchedule API call:', { scheduleId, update });
+        console.log('🔴 updateSchedule API call:', {
+            scheduleId,
+            update,
+            shift_id_type: update.shift_id === null ? 'null' : (update.shift_id === undefined ? 'undefined' : typeof update.shift_id)
+        });
 
-        // The baseURL already includes /api, so we don't need to add it again
-        const url = `/schedules/${scheduleId}/`;
+        // Use the new /schedules/update/ endpoint with POST method
+        const url = `/schedules/update/${scheduleId}`;
         console.log('🔴 Making API request to:', API_BASE_URL + url);
 
-        const response = await api.put<Schedule>(url, update);
+        const response = await api.post<Schedule>(url, update);
         console.log('🔴 updateSchedule API response:', response.data);
 
         return response.data;
     } catch (error) {
         console.error('🔴 updateSchedule API error:', error);
+        // Log more details about the error
+        if (error && typeof error === 'object' && 'response' in error) {
+            console.error('🔴 API error details:', {
+                status: (error as any).response?.status,
+                statusText: (error as any).response?.statusText,
+                data: (error as any).response?.data
+            });
+        }
+
         if (error instanceof Error) {
             throw new Error(`Failed to update schedule: ${error.message}`);
         }
@@ -752,6 +773,196 @@ export const archiveSchedule = async (version: number) => {
     } catch (error) {
         if (error instanceof Error) {
             throw new Error(`Failed to archive schedule: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+// Version Management
+export interface VersionMeta {
+    version: number;
+    created_at: string;
+    created_by: number | null;
+    updated_at: string | null;
+    updated_by: number | null;
+    status: string;
+    date_range: {
+        start: string;
+        end: string;
+    };
+    base_version: number | null;
+    notes: string | null;
+}
+
+export interface VersionResponse {
+    versions: VersionMeta[];
+}
+
+export const getAllVersions = async (): Promise<VersionResponse> => {
+    try {
+        const response = await api.get<VersionResponse>('/schedules/versions');
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to fetch versions: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export interface CreateVersionRequest {
+    start_date: string;
+    end_date: string;
+    base_version?: number;
+    notes?: string;
+}
+
+export interface CreateVersionResponse {
+    message: string;
+    version: number;
+    status: string;
+    version_meta: VersionMeta;
+}
+
+export const createNewVersion = async (data: CreateVersionRequest): Promise<CreateVersionResponse> => {
+    try {
+        const response = await api.post<CreateVersionResponse>('/schedules/version', data);
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to create new version: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export interface UpdateVersionStatusRequest {
+    status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+}
+
+export interface UpdateVersionStatusResponse {
+    message: string;
+    version: number;
+    status: string;
+}
+
+export const updateVersionStatus = async (version: number, data: UpdateVersionStatusRequest): Promise<UpdateVersionStatusResponse> => {
+    try {
+        const response = await api.put<UpdateVersionStatusResponse>(`/schedules/version/${version}/status`, data);
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to update version status: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+// Add new version control functions below:
+
+export interface DuplicateVersionRequest {
+    start_date: string;
+    end_date: string;
+    source_version: number;
+    notes?: string;
+}
+
+export interface DuplicateVersionResponse {
+    message: string;
+    version: number;
+    status: string;
+    version_meta?: any;
+}
+
+export const duplicateVersion = async (data: DuplicateVersionRequest): Promise<DuplicateVersionResponse> => {
+    try {
+        const response = await api.post<DuplicateVersionResponse>('/schedules/version/duplicate', data);
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to duplicate version: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export interface VersionDetailsResponse {
+    version: number;
+    status: string;
+    created_at: string;
+    updated_at?: string;
+    date_range: {
+        start: string;
+        end: string;
+    };
+    base_version?: number;
+    notes?: string;
+    schedule_count: number;
+    employees_count: number;
+    days_count: number;
+}
+
+export const getVersionDetails = async (version: number): Promise<VersionDetailsResponse> => {
+    try {
+        const response = await api.get<VersionDetailsResponse>(`/schedules/version/${version}/details`);
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to get version details: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export interface CompareVersionsResponse {
+    base_version: number;
+    compare_version: number;
+    differences: {
+        added: number;
+        removed: number;
+        changed: number;
+        unchanged: number;
+        details: Array<{
+            employee_id: number;
+            date: string;
+            base_shift_id?: number;
+            compare_shift_id?: number;
+            type: 'added' | 'removed' | 'changed' | 'unchanged';
+        }>;
+    };
+}
+
+export const compareVersions = async (baseVersion: number, compareVersion: number): Promise<CompareVersionsResponse> => {
+    try {
+        const response = await api.get<CompareVersionsResponse>(
+            `/schedules/versions/compare?base_version=${baseVersion}&compare_version=${compareVersion}`
+        );
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to compare versions: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export interface UpdateVersionNotesRequest {
+    notes: string;
+}
+
+export interface UpdateVersionNotesResponse {
+    version: number;
+    notes: string;
+    message: string;
+}
+
+export const updateVersionNotes = async (version: number, data: UpdateVersionNotesRequest): Promise<UpdateVersionNotesResponse> => {
+    try {
+        const response = await api.put<UpdateVersionNotesResponse>(`/schedules/version/${version}/notes`, data);
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to update version notes: ${error.message}`);
         }
         throw error;
     }

@@ -69,3 +69,44 @@ class Schedule(db.Model):
 
     def __repr__(self):
         return f"<Schedule {self.id}: Employee {self.employee_id} on {self.date}>"
+
+
+class ScheduleVersionMeta(db.Model):
+    """Store metadata for schedule versions"""
+
+    __tablename__ = "schedule_version_meta"
+
+    version = Column(Integer, primary_key=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_by = Column(
+        Integer, nullable=True
+    )  # ForeignKey to users could be added later
+    updated_at = Column(DateTime, nullable=True)
+    updated_by = Column(
+        Integer, nullable=True
+    )  # ForeignKey to users could be added later
+    status = Column(
+        SQLEnum(ScheduleStatus), nullable=False, default=ScheduleStatus.DRAFT
+    )
+    date_range_start = Column(db.Date, nullable=False)
+    date_range_end = Column(db.Date, nullable=False)
+    base_version = Column(Integer, nullable=True)
+    notes = Column(db.Text, nullable=True)
+
+    def to_dict(self):
+        return {
+            "version": self.version,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_by": self.created_by,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "updated_by": self.updated_by,
+            "status": self.status.value,
+            "date_range": {
+                "start": self.date_range_start.isoformat()
+                if self.date_range_start
+                else None,
+                "end": self.date_range_end.isoformat() if self.date_range_end else None,
+            },
+            "base_version": self.base_version,
+            "notes": self.notes,
+        }
