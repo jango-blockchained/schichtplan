@@ -4,7 +4,7 @@ import { useScheduleData } from '@/hooks/useScheduleData';
 import { addDays, startOfWeek, endOfWeek, addWeeks, format, getWeek, isBefore } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { useMutation } from '@tanstack/react-query';
-import { generateSchedule, exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule } from '@/services/api';
+import { generateSchedule, exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, publishSchedule, archiveSchedule } from '@/services/api';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, AlertCircle, X, CheckCircle2, Circle, Clock } from 'lucide-react';
@@ -24,6 +24,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { Progress } from '@/components/ui/progress';
 import { DateRange } from 'react-day-picker';
 import { getAvailableCalendarWeeks, getDateRangeFromWeekAndCount } from '@/utils/dateUtils';
+import { ScheduleVersions } from '@/components/Schedule/ScheduleVersions';
 
 interface GenerationStep {
   id: string;
@@ -412,14 +413,25 @@ export function SchedulePage() {
     mutationFn: async ({ scheduleId, updates }: { scheduleId: number, updates: Partial<Schedule> }) => {
       addGenerationLog('info', 'Updating shift',
         `Schedule ID: ${scheduleId}, Updates: ${JSON.stringify(updates)}`);
-      await updateSchedule(scheduleId, updates);
+      const response = await updateSchedule(scheduleId, updates);
+      return { response, scheduleId };
     },
-    onSuccess: () => {
-      refetch();
-      toast({
-        title: "Success",
-        description: "Shift updated successfully",
-      });
+    onSuccess: async ({ response, scheduleId }) => {
+      try {
+        // Wait for the refetch to complete before showing the toast
+        await refetch();
+        toast({
+          title: "Success",
+          description: scheduleId === 0 ? "Shift created successfully" : "Shift updated successfully",
+        });
+      } catch (error) {
+        console.error('Error refetching data:', error);
+        // Still show success toast since the update succeeded
+        toast({
+          title: "Success",
+          description: scheduleId === 0 ? "Shift created successfully" : "Shift updated successfully",
+        });
+      }
     },
     onError: (error) => {
       const errorMessage = error instanceof Error ? error.message : "Failed to update shift";
@@ -612,6 +624,69 @@ export function SchedulePage() {
       });
     }
   };
+
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadSchedules = async () => {
+    try {
+      setLoading(true);
+      const startDate = new Date();
+      const endDate = addDays(startDate, 7);
+      const response = await getSchedules({
+        startDate: format(startDate, 'yyyy-MM-dd'),
+        endDate: format(endDate, 'yyyy-MM-dd'),
+        includeEmpty: true
+      });
+      setSchedules(response);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to load schedules',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePublish = async (version: number) => {
+    try {
+      await publishSchedule(version);
+      await loadSchedules();
+      toast({
+        title: 'Success',
+        description: 'Schedule published successfully'
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to publish schedule',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleArchive = async (version: number) => {
+    try {
+      await archiveSchedule(version);
+      await loadSchedules();
+      toast({
+        title: 'Success',
+        description: 'Schedule archived successfully'
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to archive schedule',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  useEffect(() => {
+    loadSchedules();
+  }, []);
 
   // Show loading skeleton for initial data fetch
   if (isLoading && !scheduleData) {
@@ -868,7 +943,7 @@ export function SchedulePage() {
 
         <DndProvider backend={HTML5Backend}>
           <ScheduleTable
-            schedules={scheduleData}
+            schedules={scheduleData.filter(s => s.status !== 'archived')}
             dateRange={dateRange}
             onDrop={handleDrop}
             onUpdate={handleShiftUpdate}
@@ -918,6 +993,58 @@ export function SchedulePage() {
             </CardContent>
           </Card>
         )}
+
+        <ScheduleVersions
+          schedules={scheduleData}
+          onPublish={async (version) => {
+            try {
+              await publishSchedule(version);
+              toast({
+                title: "Schedule Published",
+                description: `Version ${version} has been published successfully.`,
+              });
+              // Refresh the schedule data
+              if (dateRange?.from && dateRange?.to) {
+                await refetch();
+              }
+            } catch (error) {
+              toast({
+                title: "Error",
+                description: "Failed to publish schedule.",
+                variant: "destructive",
+              });
+            }
+          }}
+          onArchive={async (version) => {
+            try {
+              await archiveSchedule(version);
+              toast({
+                title: "Schedule Archived",
+                description: `Version ${version} has been archived successfully.`,
+              });
+              // Refresh the schedule data
+              if (dateRange?.from && dateRange?.to) {
+                await refetch();
+              }
+            } catch (error) {
+              toast({
+                title: "Error",
+                description: "Failed to archive schedule.",
+                variant: "destructive",
+              });
+            }
+          }}
+        />
+
+        <DndProvider backend={HTML5Backend}>
+          <ScheduleTable
+            schedules={scheduleData.filter(s => s.status !== 'archived')}
+            dateRange={dateRange}
+            onDrop={handleDrop}
+            onUpdate={handleShiftUpdate}
+            isLoading={isLoading}
+          />
+        </DndProvider>
       </div>
 
       {generateMutation.isPending && <GenerationOverlay />}

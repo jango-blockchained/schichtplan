@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getSettings, updateSettings, generateDemoData, backupDatabase, restoreDatabase } from "@/services/api";
+import { getSettings, updateSettings, generateDemoData, backupDatabase, restoreDatabase, wipeTables } from "@/services/api";
 import type { Settings } from "@/types/index";
 import {
   Card,
@@ -35,6 +35,18 @@ import { PageHeader } from '@/components/PageHeader';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { format } from 'date-fns';
 import { ScheduleGenerationSettings } from "@/components/ScheduleGenerationSettings";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { api } from "@/lib/axios";
 
 export interface BaseGroup {
   id: string;
@@ -61,6 +73,8 @@ export function SettingsPage() {
   const [currentTab, setCurrentTab] = React.useState("general");
   const [localSettings, setLocalSettings] = useState<Settings | null>(null);
   const [selectedDemoModule, setSelectedDemoModule] = useState<string>("");
+  const [selectedTables, setSelectedTables] = useState<string[]>([]);
+  const [availableTables, setAvailableTables] = useState<string[]>([]);
 
   const { data: settings, isLoading, error } = useQuery({
     queryKey: ["settings"],
@@ -240,6 +254,49 @@ export function SettingsPage() {
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to restore database",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Fetch available tables when component mounts
+  useEffect(() => {
+    const fetchTables = async () => {
+      try {
+        const response = await api.get('/settings/tables');
+        setAvailableTables(response.data.tables);
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to fetch database tables",
+          variant: "destructive",
+        });
+      }
+    };
+    fetchTables();
+  }, []);
+
+  const handleWipeTables = async () => {
+    if (selectedTables.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please select at least one table to wipe",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await wipeTables(selectedTables);
+      toast({
+        title: "Success",
+        description: "Selected tables have been wiped successfully",
+      });
+      setSelectedTables([]);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to wipe tables",
         variant: "destructive",
       });
     }
@@ -449,75 +506,162 @@ export function SettingsPage() {
             </TabsContent>
 
             <TabsContent value="actions">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Demo Data Generation</CardTitle>
-                  <CardDescription>
-                    Generate sample data for testing and development purposes
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="grid gap-4">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="demo-data-module">Select Module</Label>
-                      <Select
-                        value={selectedDemoModule}
-                        onValueChange={setSelectedDemoModule}
-                      >
-                        <SelectTrigger id="demo-data-module" className="w-[200px]">
-                          <SelectValue placeholder="Choose a module" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="settings">Settings</SelectItem>
-                          <SelectItem value="employees">Employees</SelectItem>
-                          <SelectItem value="shifts">Shifts</SelectItem>
-                          <SelectItem value="coverage">Coverage</SelectItem>
-                          <SelectItem value="availability">Availability</SelectItem>
-                          <SelectItem value="all">All Modules</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Demo Data Generation</CardTitle>
+                    <CardDescription>
+                      Generate sample data for testing and development purposes
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="grid gap-4">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="demo-data-module">Select Module</Label>
+                        <Select
+                          value={selectedDemoModule}
+                          onValueChange={setSelectedDemoModule}
+                        >
+                          <SelectTrigger id="demo-data-module" className="w-[200px]">
+                            <SelectValue placeholder="Choose a module" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="settings">Settings</SelectItem>
+                            <SelectItem value="employees">Employees</SelectItem>
+                            <SelectItem value="shifts">Shifts</SelectItem>
+                            <SelectItem value="coverage">Coverage</SelectItem>
+                            <SelectItem value="availability">Availability</SelectItem>
+                            <SelectItem value="all">All Modules</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                    <div className="flex items-center justify-between py-2">
-                      <Label>Last Execution</Label>
-                      <span className="text-sm text-muted-foreground">
-                        {localSettings?.actions.demo_data.last_execution
-                          ? new Date(localSettings.actions.demo_data.last_execution).toLocaleString()
-                          : "Never"}
-                      </span>
+                      <div className="flex items-center justify-between py-2">
+                        <Label>Last Execution</Label>
+                        <span className="text-sm text-muted-foreground">
+                          {localSettings?.actions.demo_data.last_execution
+                            ? new Date(localSettings.actions.demo_data.last_execution).toLocaleString()
+                            : "Never"}
+                        </span>
+                      </div>
+
+                      <Button
+                        onClick={async () => {
+                          if (!selectedDemoModule) return;
+                          try {
+                            await generateDemoData(selectedDemoModule);
+                            if (selectedDemoModule === 'settings' || selectedDemoModule === 'all') {
+                              await queryClient.invalidateQueries({ queryKey: ["settings"] });
+                            }
+                            toast({
+                              title: "Success",
+                              description: `Demo data generated for ${selectedDemoModule} module`,
+                            });
+                            queryClient.invalidateQueries({ queryKey: ["settings"] });
+                          } catch (error) {
+                            toast({
+                              title: "Error",
+                              description: error instanceof Error ? error.message : "Failed to generate demo data",
+                              variant: "destructive",
+                            });
+                          }
+                        }}
+                        disabled={!selectedDemoModule}
+                        className="w-full"
+                      >
+                        Generate Demo Data
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Database Management</CardTitle>
+                    <CardDescription>
+                      Manage your database backups and perform maintenance operations
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="flex gap-4">
+                      <Button onClick={handleBackup}>
+                        <Download className="w-4 h-4 mr-2" />
+                        Backup Database
+                      </Button>
+                      <div className="relative">
+                        <input
+                          type="file"
+                          accept=".json"
+                          onChange={handleRestore}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                        <Button variant="outline">
+                          <Upload className="w-4 h-4 mr-2" />
+                          Restore Database
+                        </Button>
+                      </div>
                     </div>
 
                     <Separator className="my-4" />
 
-                    <Button
-                      onClick={async () => {
-                        if (!selectedDemoModule) return;
-                        try {
-                          await generateDemoData(selectedDemoModule);
-                          if (selectedDemoModule === 'settings' || selectedDemoModule === 'all') {
-                            await queryClient.invalidateQueries({ queryKey: ["settings"] });
-                          }
-                          toast({
-                            title: "Success",
-                            description: `Demo data generated for ${selectedDemoModule} module`,
-                          });
-                          queryClient.invalidateQueries({ queryKey: ["settings"] });
-                        } catch (error) {
-                          toast({
-                            title: "Error",
-                            description: error instanceof Error ? error.message : "Failed to generate demo data",
-                            variant: "destructive",
-                          });
-                        }
-                      }}
-                      disabled={!selectedDemoModule}
-                      className="w-full"
-                    >
-                      Generate Demo Data
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-medium">Table Management</h3>
+                      <div className="space-y-2">
+                        <Label>Select Tables to Wipe</Label>
+                        <Select
+                          value={selectedTables.join(',')}
+                          onValueChange={(value) => setSelectedTables(value ? value.split(',') : [])}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select tables..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableTables.map((table) => (
+                              <SelectItem key={table} value={table}>
+                                {table}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="destructive"
+                            disabled={selectedTables.length === 0}
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Wipe Selected Tables
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This action will permanently delete all data from the selected tables:
+                              <ul className="list-disc list-inside mt-2">
+                                {selectedTables.map((table) => (
+                                  <li key={table}>{table}</li>
+                                ))}
+                              </ul>
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={handleWipeTables}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Yes, wipe tables
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </TabsContent>
 
             <TabsContent value="scheduling">
@@ -644,6 +788,36 @@ export function SettingsPage() {
 
                 <ScheduleGenerationSettings
                   settings={localSettings ?? {
+                    id: 0,
+                    store_name: '',
+                    store_address: null,
+                    store_contact: null,
+                    timezone: 'Europe/Berlin',
+                    language: 'de',
+                    date_format: 'DD.MM.YYYY',
+                    time_format: '24h',
+                    store_opening: '09:00',
+                    store_closing: '20:00',
+                    keyholder_before_minutes: 30,
+                    keyholder_after_minutes: 30,
+                    opening_days: {},
+                    special_hours: {},
+                    availability_types: { types: [] },
+                    general: {
+                      store_name: '',
+                      store_address: '',
+                      store_contact: '',
+                      timezone: 'Europe/Berlin',
+                      language: 'de',
+                      date_format: 'DD.MM.YYYY',
+                      time_format: '24h',
+                      store_opening: '09:00',
+                      store_closing: '20:00',
+                      keyholder_before_minutes: 30,
+                      keyholder_after_minutes: 30,
+                      opening_days: {},
+                      special_hours: {}
+                    },
                     scheduling: {
                       scheduling_resource_type: 'shifts',
                       default_shift_duration: 8,
@@ -669,16 +843,80 @@ export function SettingsPage() {
                         enforce_qualifications: true,
                         enforce_opening_hours: true
                       }
+                    },
+                    display: {
+                      theme: 'light',
+                      primary_color: '#000000',
+                      secondary_color: '#000000',
+                      accent_color: '#000000',
+                      background_color: '#ffffff',
+                      surface_color: '#ffffff',
+                      text_color: '#000000',
+                      dark_theme: {
+                        primary_color: '#ffffff',
+                        secondary_color: '#ffffff',
+                        accent_color: '#ffffff',
+                        background_color: '#000000',
+                        surface_color: '#000000',
+                        text_color: '#ffffff'
+                      },
+                      show_sunday: false,
+                      show_weekdays: true,
+                      start_of_week: 1,
+                      email_notifications: false,
+                      schedule_published: false,
+                      shift_changes: false,
+                      time_off_requests: false
+                    },
+                    pdf_layout: {
+                      page_size: 'A4',
+                      orientation: 'portrait',
+                      margins: {
+                        top: 20,
+                        right: 20,
+                        bottom: 20,
+                        left: 20
+                      },
+                      table_style: {
+                        header_bg_color: '#f5f5f5',
+                        border_color: '#e0e0e0',
+                        text_color: '#000000',
+                        header_text_color: '#000000'
+                      },
+                      fonts: {
+                        family: 'Arial',
+                        size: 12,
+                        header_size: 14
+                      },
+                      content: {
+                        show_employee_id: true,
+                        show_position: true,
+                        show_breaks: true,
+                        show_total_hours: true
+                      }
+                    },
+                    employee_groups: {
+                      employee_types: [],
+                      absence_types: []
+                    },
+                    actions: {
+                      demo_data: {
+                        selected_module: '',
+                        last_execution: null
+                      }
                     }
-                  } as Settings}
+                  }}
                   onUpdate={(updates) => {
                     if (!localSettings?.scheduling) return;
 
-                    const updatedSettings = {
+                    const updatedSettings: Settings = {
                       ...localSettings,
                       scheduling: {
                         ...localSettings.scheduling,
-                        generation_requirements: updates
+                        generation_requirements: {
+                          ...localSettings.scheduling.generation_requirements,
+                          ...updates
+                        }
                       }
                     };
 
@@ -1234,36 +1472,6 @@ export function SettingsPage() {
                 </CardFooter>
               </Card>
             </TabsContent>
-
-            <TabsContent value="database">
-              <Card className="mb-6">
-                <CardHeader>
-                  <CardTitle>Database Management</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex gap-4">
-                    <Button onClick={handleBackup}>
-                      <Download className="w-4 h-4 mr-2" />
-                      Backup Database
-                    </Button>
-                    <div className="relative">
-                      <input
-                        type="file"
-                        accept=".json"
-                        onChange={handleRestore}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      />
-                      <Button variant="outline">
-                        <Upload className="w-4 h-4 mr-2" />
-                        Restore Database
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* End of tabs */}
           </Tabs>
         </CardContent>
       </Card>

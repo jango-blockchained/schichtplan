@@ -266,24 +266,29 @@ export interface ScheduleData {
     notes: string | null;
 }
 
-export const getSchedules = async (startDate: string, endDate: string, version?: number, includeEmpty: boolean = false): Promise<ScheduleResponse> => {
+export const getSchedules = async ({
+    startDate,
+    endDate,
+    includeEmpty = false,
+}: {
+    startDate: string;
+    endDate: string;
+    includeEmpty?: boolean;
+}): Promise<Schedule[]> => {
     try {
-        const params = new URLSearchParams({
-            start_date: startDate,
-            end_date: endDate,
-            include_empty: includeEmpty.toString()
+        const response = await api.get('/schedules/', {
+            params: {
+                start_date: startDate,
+                end_date: endDate,
+                include_empty: includeEmpty,
+            },
         });
-        if (version !== undefined) {
-            params.append('version', version.toString());
-        }
-        const response = await api.get<ScheduleResponse>(`/schedules/?${params}`);
         return response.data;
     } catch (error) {
-        if (error instanceof AxiosError) {
-            const errorMessage = error.response?.data?.error || error.message;
-            throw new Error(`Failed to fetch schedules: ${errorMessage}`);
+        if (error instanceof Error) {
+            throw new Error(`Failed to fetch schedules: ${error.message}`);
         }
-        throw new Error(`Failed to fetch schedules: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        throw error;
     }
 };
 
@@ -619,7 +624,7 @@ export const deleteAbsence = async (id: number): Promise<void> => {
 // Database backup and restore
 export const backupDatabase = async (): Promise<Blob> => {
     try {
-        const response = await api.get('/settings/backup', { responseType: 'blob' });
+        const response = await api.get('/settings/backup/', { responseType: 'blob' });
         return response.data;
     } catch (error) {
         if (error instanceof Error) {
@@ -633,7 +638,7 @@ export const restoreDatabase = async (file: File): Promise<void> => {
     try {
         const formData = new FormData();
         formData.append('file', file);
-        await api.post('/settings/restore', formData, {
+        await api.post('/settings/restore/', formData, {
             headers: {
                 'Content-Type': 'multipart/form-data',
             },
@@ -646,11 +651,99 @@ export const restoreDatabase = async (file: File): Promise<void> => {
     }
 };
 
-export const clearLogs = async (): Promise<void> => {
+export const clearLogs = async () => {
     try {
-        await api.post('/api/logs/clear');
+        await api.post('/logs/clear');
     } catch (error) {
-        console.error('Error clearing logs:', error);
+        if (error instanceof Error) {
+            throw new Error(`Failed to clear logs: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export const wipeTables = async (tables: string[]): Promise<void> => {
+    try {
+        await api.post('/settings/wipe-tables', { tables });
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to wipe tables: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+// Logs
+export interface LogFile {
+    name: string;
+    path: string;
+    size: number;
+    modified: string;
+    preview: string;
+}
+
+export interface LogContent {
+    name: string;
+    content: string;
+    size: number;
+    modified: string;
+}
+
+export const getLogs = async (): Promise<LogFile[]> => {
+    try {
+        const response = await api.get<{ logs: LogFile[] }>('/settings/logs/');
+        return response.data.logs;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to fetch logs: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export const getLogContent = async (filename: string): Promise<LogContent> => {
+    try {
+        const response = await api.get<LogContent>(`/settings/logs/${filename}`);
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to fetch log content: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export const deleteLog = async (filename: string): Promise<void> => {
+    try {
+        await api.delete(`/settings/logs/${filename}`);
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to delete log: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export const publishSchedule = async (version: number) => {
+    try {
+        const response = await api.post(`/schedules/${version}/publish`);
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to publish schedule: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export const archiveSchedule = async (version: number) => {
+    try {
+        const response = await api.post(`/schedules/${version}/archive`);
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to archive schedule: ${error.message}`);
+        }
         throw error;
     }
 };

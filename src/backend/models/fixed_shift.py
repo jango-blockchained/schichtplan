@@ -45,9 +45,6 @@ class ShiftTemplate(db.Model):
         db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
-    # Relationships
-    schedules = db.relationship("Schedule", back_populates="shift")
-
     def __init__(
         self,
         start_time,

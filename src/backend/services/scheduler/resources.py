@@ -1,0 +1,182 @@
+from datetime import date
+from typing import List, Optional
+from models import (
+    Employee,
+    ShiftTemplate,
+    Settings,
+    Coverage,
+    db,
+    Absence,
+    EmployeeAvailability,
+)
+from models.employee import AvailabilityType, EmployeeGroup
+import logging
+
+
+# Create a standard logger
+logger = logging.getLogger(__name__)
+handler = logging.StreamHandler()
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
+
+class ScheduleResourceError(Exception):
+    """Exception raised for errors in the ScheduleResources class"""
+
+    pass
+
+
+class ScheduleResources:
+    """Centralized container for schedule generation resources"""
+
+    def __init__(self):
+        self.settings: Optional[Settings] = None
+        self.coverage: List[Coverage] = []
+        self.shifts: List[ShiftTemplate] = []
+        self.employees: List[Employee] = []
+        self.absences: List[Absence] = []
+        self.availabilities: List[EmployeeAvailability] = []
+
+    def load(self):
+        """Load all required resources from database"""
+        try:
+            self.settings = self._load_settings()
+            self.coverage = self._load_coverage()
+            self.shifts = self._load_shifts()
+            self.employees = self._load_employees()
+            self.absences = self._load_absences()
+            self.availabilities = self._load_availabilities()
+            logger.info("Successfully loaded all schedule resources")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to load schedule resources: {str(e)}")
+            raise ScheduleResourceError(f"Failed to load resources: {str(e)}") from e
+
+    def _load_settings(self) -> Settings:
+        """Load settings with error handling"""
+        settings = Settings.query.first()
+        if not settings:
+            logger.warning("No settings found, creating default settings")
+            settings = Settings()
+            db.session.add(settings)
+            db.session.commit()
+        return settings
+
+    def _load_coverage(self) -> List[Coverage]:
+        """Load coverage with error handling"""
+        coverage = Coverage.query.all()
+        if not coverage:
+            logger.warning("No coverage requirements found")
+        return coverage
+
+    def _load_shifts(self) -> List[ShiftTemplate]:
+        """Load shifts with error handling"""
+        shifts = ShiftTemplate.query.all()
+        if not shifts:
+            logger.error("No shift templates found in database")
+            raise ScheduleResourceError("No shift templates found")
+        return shifts
+
+    def _load_employees(self) -> List[Employee]:
+        """Load employees in priority order"""
+        employees = (
+            Employee.query.filter_by(is_active=True)
+            .order_by(
+                db.case(
+                    {
+                        EmployeeGroup.TL.value: 1,
+                        EmployeeGroup.VZ.value: 2,
+                        EmployeeGroup.TZ.value: 3,
+                        EmployeeGroup.GFB.value: 4,
+                    },
+                    value=Employee.employee_group,
+                )
+            )
+            .all()
+        )
+
+        if not employees:
+            logger.warning("No active employees found")
+
+        return employees
+
+    def _load_absences(self) -> List[Absence]:
+        """Load absences with error handling"""
+        return Absence.query.all()
+
+    def _load_availabilities(self) -> List[EmployeeAvailability]:
+        """Load availabilities with error handling"""
+        return EmployeeAvailability.query.filter(
+            EmployeeAvailability.availability_type != AvailabilityType.UNAVAILABLE
+        ).all()
+
+    def get_keyholders(self) -> List[Employee]:
+        """Return a list of keyholder employees"""
+        return [emp for emp in self.employees if emp.is_keyholder]
+
+    def get_employees_by_group(self, group: EmployeeGroup) -> List[Employee]:
+        """Return employees filtered by employee group"""
+        return [emp for emp in self.employees if emp.employee_group == group]
+
+    def get_daily_coverage(self, day: date) -> List[Coverage]:
+        """Get coverage requirements for a specific day"""
+        day_index = day.weekday()
+        return [cov for cov in self.coverage if cov.day_index == day_index]
+
+    def get_employee_absences(
+        self, employee_id: int, start_date: date, end_date: date
+    ) -> List[Absence]:
+        """Get absences for an employee in a date range"""
+        return [
+            absence
+            for absence in self.absences
+            if absence.employee_id == employee_id
+            and not (absence.end_date < start_date or absence.start_date > end_date)
+        ]
+
+    def get_employee_availability(
+        self, employee_id: int, day_of_week: int
+    ) -> List[EmployeeAvailability]:
+        """Get availability for an employee on a specific day of week"""
+        return [
+            avail
+            for avail in self.availabilities
+            if avail.employee_id == employee_id and avail.day_of_week == day_of_week
+        ]
+
+    def is_employee_available(
+        self, employee_id: int, day: date, start_hour: int, end_hour: int
+    ) -> bool:
+        """Check if an employee is available for a time slot"""
+        # Check for absences first
+        for absence in self.absences:
+            if (
+                absence.employee_id == employee_id
+                and absence.start_date <= day <= absence.end_date
+            ):
+                return False
+
+        # Check availability
+        day_of_week = day.weekday()
+        availabilities = self.get_employee_availability(employee_id, day_of_week)
+
+        # If no availabilities are set, employee is unavailable
+        if not availabilities:
+            return False
+
+        # Check if employee is available for all hours in the range
+        for hour in range(start_hour, end_hour):
+            hour_available = False
+            for avail in availabilities:
+                if (
+                    avail.hour == hour
+                    and avail.availability_type != AvailabilityType.UNAVAILABLE
+                ):
+                    hour_available = True
+                    break
+            if not hour_available:
+                return False
+
+        return True

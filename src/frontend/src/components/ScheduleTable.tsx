@@ -99,8 +99,8 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
             employee_id: schedule?.employee_id ?? 0,
             employee_name: schedule?.employee_name ?? '',
             shift_id: undefined,
-            shift_start: null,
-            shift_end: null,
+            shift_start: undefined,
+            shift_end: undefined,
             date: schedule?.date ?? new Date().toISOString().split('T')[0],
             version: schedule?.version ?? 1,
             is_empty: true,
@@ -136,12 +136,20 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
                         onClose={() => setIsEditModalOpen(false)}
                         schedule={emptySchedule}
                         onSave={async (_, updates) => {
-                            // Create a new schedule instead of updating
-                            await onUpdate(0, {
-                                ...updates,
-                                employee_id: emptySchedule.employee_id,
-                                date: emptySchedule.date,
-                            });
+                            try {
+                                if (!emptySchedule.employee_id || !emptySchedule.date) {
+                                    throw new Error('Missing required fields: employee_id or date');
+                                }
+                                // Create a new schedule instead of updating
+                                await onUpdate(0, {
+                                    ...updates,
+                                    employee_id: emptySchedule.employee_id,
+                                    date: emptySchedule.date,
+                                });
+                                setIsEditModalOpen(false);
+                            } catch (error) {
+                                console.error('Error creating schedule:', error);
+                            }
                         }}
                     />
                 )}
@@ -178,7 +186,7 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
                     )}
                 </div>
                 {showActions && (
-                    <div className="absolute top-1 right-1 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-1 right-1 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                         <Button
                             variant="ghost"
                             size="icon"
@@ -203,7 +211,7 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
                         </Button>
                     </div>
                 )}
-                <div className="absolute inset-0 cursor-move" />
+                <div className="absolute inset-0 cursor-move pointer-events-none" />
             </div>
             {isEditModalOpen && (
                 <ShiftEditModal
@@ -223,6 +231,23 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
         queryKey: ['settings'],
         queryFn: getSettings,
     });
+
+    const formatEmployeeName = (employeeName: string) => {
+        // Extract name and type from format "Firstname Lastname (Type)"
+        const match = employeeName.match(/^(\S+)\s+(\S+)(?:\s+\((.*?)\))?$/);
+        if (!match) return employeeName;
+
+        const [_, firstName, lastName, type] = match;
+        // Create abbreviation from first letters of first and last name
+        const abbr = (firstName[0] + lastName[0] + lastName[1]).toUpperCase();
+        return (
+            <>
+                {`${lastName}, ${firstName}`}
+                <br />
+                {`(${abbr})`}
+            </>
+        );
+    };
 
     const days = useMemo(() => {
         if (!dateRange?.from || !dateRange?.to || !settings) return [];
@@ -258,6 +283,17 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
             return dayDiffA - dayDiffB;
         });
     }, [dateRange, settings]);
+
+    // Map for German weekday abbreviations
+    const weekdayAbbr: { [key: string]: string } = {
+        'Monday': 'Mo',
+        'Tuesday': 'Di',
+        'Wednesday': 'Mi',
+        'Thursday': 'Do',
+        'Friday': 'Fr',
+        'Saturday': 'Sa',
+        'Sunday': 'So'
+    };
 
     const employeeGroups = useMemo(() => {
         const groups = new Map<string, Schedule[]>();
@@ -339,10 +375,10 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
                                 {days.map(day => (
                                     <TableHead key={day.toISOString()} className="min-w-[150px]">
                                         <div className="font-semibold">
-                                            {format(day, 'EEEE')}
+                                            {weekdayAbbr[format(day, 'EEEE')]}
                                         </div>
                                         <div className="text-xs text-muted-foreground">
-                                            {format(day, 'dd.MM.yyyy')}
+                                            {format(day, 'dd.MM')}
                                         </div>
                                     </TableHead>
                                 ))}
@@ -354,15 +390,10 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
                                 return Array.from(uniqueEmployees).map(employeeId => {
                                     const employeeSchedules = groupSchedules.filter(s => s.employee_id === employeeId);
                                     const firstSchedule = employeeSchedules[0];
-                                    const employeeName = firstSchedule?.employee_name ? firstSchedule.employee_name.split(' (')[0] : 'Unbekannt';
-
                                     return (
                                         <TableRow key={employeeId}>
                                             <TableCell className="font-medium">
-                                                <div>{employeeName}</div>
-                                                <div className="text-xs text-muted-foreground">
-                                                    ({type})
-                                                </div>
+                                                {firstSchedule && formatEmployeeName(firstSchedule.employee_name)}
                                             </TableCell>
                                             {days.map(day => {
                                                 const daySchedule = employeeSchedules.find(

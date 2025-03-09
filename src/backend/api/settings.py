@@ -90,4 +90,54 @@ def restore_database():
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
+@bp.route("/wipe-tables", methods=["POST"])
+def wipe_tables():
+    """Wipe specific database tables"""
+    if not request.is_json:
+        return jsonify(
+            {"error": "Content-Type must be application/json"}
+        ), HTTPStatus.BAD_REQUEST
+
+    data = request.get_json()
+    if not data or not isinstance(data.get("tables"), list):
+        return jsonify({"error": "tables list is required"}), HTTPStatus.BAD_REQUEST
+
+    tables_to_wipe = data["tables"]
+    inspector = inspect(db.engine)
+    available_tables = [
+        t for t in inspector.get_table_names() if t != "alembic_version"
+    ]
+
+    # Validate table names
+    invalid_tables = [t for t in tables_to_wipe if t not in available_tables]
+    if invalid_tables:
+        return jsonify(
+            {"error": f"Invalid table names: {', '.join(invalid_tables)}"}
+        ), HTTPStatus.BAD_REQUEST
+
+    try:
+        # Start a transaction
+        with db.session.begin():
+            for table_name in tables_to_wipe:
+                db.session.execute(f"TRUNCATE TABLE {table_name} CASCADE")
+
+        return jsonify(
+            {"message": "Tables wiped successfully", "wiped_tables": tables_to_wipe}
+        ), HTTPStatus.OK
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@bp.route("/tables", methods=["GET"])
+def get_tables():
+    """Get list of available database tables"""
+    try:
+        inspector = inspect(db.engine)
+        tables = [t for t in inspector.get_table_names() if t != "alembic_version"]
+        return jsonify({"tables": tables}), HTTPStatus.OK
+    except Exception as e:
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
 # ... rest of the existing code ...
