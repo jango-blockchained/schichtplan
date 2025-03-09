@@ -1,18 +1,20 @@
 from models import db
+from app import create_app
 
 
 def init_db():
     """Initialize the database, create tables if they don't exist."""
+    app = create_app()
+    with app.app_context():
+        # Import models to ensure tables are created
 
-    # Import models to ensure tables are created
+        # Create all tables
+        db.create_all()
 
-    # Create all tables
-    db.create_all()
+        # Initialize ScheduleVersionMeta table
+        migrate_schedule_versions()
 
-    # Initialize ScheduleVersionMeta table
-    migrate_schedule_versions()
-
-    print("Database initialized successfully.")
+        print("Database initialized successfully.")
 
 
 def migrate_schedule_versions():

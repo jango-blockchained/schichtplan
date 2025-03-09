@@ -1,8 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import type { Settings, Employee, Schedule, ScheduleError, ScheduleUpdate, DailyCoverage, CoverageTimeSlot } from '@/types/index';
 import { CreateEmployeeRequest, UpdateEmployeeRequest } from '../types';
-import { API_BASE_URL } from '@/config';
-import { api } from './apiClient';
 
 interface APIErrorResponse {
     error?: string;
@@ -826,9 +824,21 @@ export interface CreateVersionResponse {
 
 export const createNewVersion = async (data: CreateVersionRequest): Promise<CreateVersionResponse> => {
     try {
+        console.log('🔵 Creating new version with data:', data);
+        console.log('🔵 API base URL:', API_BASE_URL);
         const response = await api.post<CreateVersionResponse>('/schedules/version', data);
+        console.log('🔵 Create new version response:', response.data);
         return response.data;
     } catch (error) {
+        console.error('🔴 Create new version error:', error);
+        // Log more details about the error
+        if (error && typeof error === 'object' && 'response' in error) {
+            console.error('🔴 API error details:', {
+                status: (error as any).response?.status,
+                statusText: (error as any).response?.statusText,
+                data: (error as any).response?.data
+            });
+        }
         if (error instanceof Error) {
             throw new Error(`Failed to create new version: ${error.message}`);
         }

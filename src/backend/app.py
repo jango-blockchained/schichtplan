@@ -3,6 +3,7 @@ import logging
 import traceback
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+import os
 
 # Add the parent directory to Python path
 current_dir = Path(__file__).resolve().parent
@@ -76,6 +77,17 @@ def create_app(config_class=Config):
     # Initialize extensions
     db.init_app(app)
     migrate = Migrate(app, db)
+
+    # Ensure the instance folder exists
+    try:
+        os.makedirs(app.instance_path)
+    except OSError:
+        pass
+
+    # Create database tables
+    with app.app_context():
+        db.create_all()
+        app.logger.info("Database tables created")
 
     # Setup logging
     setup_logging(app)
