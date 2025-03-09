@@ -24,7 +24,7 @@ class LogService {
         const batch = this.queue.slice(0, this.batchSize);
 
         try {
-            await api.post('/api/logs', { logs: batch });
+            await api.post('/logs', { logs: batch });
             this.queue = this.queue.slice(batch.length);
         } catch (error) {
             console.error('Failed to send logs:', error);
@@ -72,4 +72,16 @@ class LogService {
     }
 }
 
-export const logService = new LogService(); 
+export const logService = new LogService();
+
+export const sendLogs = async (logs: LogEntry[]) => {
+    try {
+        const batch = logs.map(log => ({
+            ...log,
+            timestamp: new Date().toISOString()
+        }));
+        await api.post('/logs', { logs: batch });
+    } catch (error) {
+        console.error('Failed to send logs:', error);
+    }
+}; 

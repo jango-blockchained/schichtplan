@@ -321,7 +321,7 @@ def update_schedule(schedule_id):
         if schedule_id == 0:
             schedule = Schedule(
                 employee_id=data["employee_id"],
-                shift_id=data["shift_id"],
+                shift_id=data.get("shift_id"),  # Use get() to handle None/undefined
                 date=datetime.strptime(data["date"], "%Y-%m-%d").date(),
                 version=1,  # New schedules start at version 1
             )
@@ -332,7 +332,10 @@ def update_schedule(schedule_id):
             if "employee_id" in data:
                 schedule.employee_id = data["employee_id"]
             if "shift_id" in data:
-                schedule.shift_id = data["shift_id"]
+                # Explicitly handle None/undefined case
+                schedule.shift_id = (
+                    data["shift_id"] if data["shift_id"] is not None else None
+                )
             if "date" in data:
                 schedule.date = datetime.strptime(data["date"], "%Y-%m-%d").date()
             if "break_start" in data:
@@ -426,3 +429,37 @@ def export_schedule():
             },
         )
         return jsonify({"error": error_msg}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@schedules.route("/api/schedules/<int:version>/publish", methods=["POST"])
+def publish_schedule(version):
+    try:
+        schedules = Schedule.query.filter_by(version=version).all()
+        if not schedules:
+            return jsonify({"error": "Schedule version not found"}), 404
+
+        for schedule in schedules:
+            schedule.status = "published"
+
+        db.session.commit()
+        return jsonify({"message": "Schedule published successfully"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+@schedules.route("/api/schedules/<int:version>/archive", methods=["POST"])
+def archive_schedule(version):
+    try:
+        schedules = Schedule.query.filter_by(version=version).all()
+        if not schedules:
+            return jsonify({"error": "Schedule version not found"}), 404
+
+        for schedule in schedules:
+            schedule.status = "archived"
+
+        db.session.commit()
+        return jsonify({"message": "Schedule archived successfully"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500

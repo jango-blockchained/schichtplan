@@ -64,7 +64,7 @@ class Employee(db.Model):
     )
 
     # Relationships
-    shifts = relationship("Schedule", back_populates="employee")
+    schedule_entries = relationship("Schedule", back_populates="employee")
     availabilities = relationship(
         "EmployeeAvailability", back_populates="employee", cascade="all, delete-orphan"
     )

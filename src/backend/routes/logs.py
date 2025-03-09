@@ -1,8 +1,7 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from datetime import datetime, timedelta
 import json
 from typing import List, Dict, Any, Optional, cast
-from utils.logger import logger, ROOT_DIR
 
 bp = Blueprint("logs", __name__)
 
@@ -18,6 +17,7 @@ def save_logs():
 
         request_data = cast(Dict[str, Any], request.json)
         logs = request_data.get("logs", [])
+        logger = current_app.config["logger"]
 
         for log in logs:
             if log["level"] == "error":
@@ -28,7 +28,7 @@ def save_logs():
                 logger.user_logger.info(json.dumps(log))
         return jsonify({"status": "success"})
     except Exception as e:
-        logger.error_logger.error(f"Error saving logs: {str(e)}")
+        current_app.logger.error(f"Error saving logs: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
@@ -42,64 +42,35 @@ def get_logs():
 
         logs: List[Dict[str, Any]] = []
         start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+        logger = current_app.config["logger"]
 
         def read_log_file(filename: str) -> List[Dict[str, Any]]:
-            filepath = ROOT_DIR / "logs" / filename
-            logger.error_logger.debug(f"Attempting to read log file: {filepath}")
+            filepath = logger.logs_dir / filename
+            current_app.logger.debug(f"Attempting to read log file: {filepath}")
 
             if not filepath.exists():
-                logger.error_logger.warning(f"Log file not found: {filepath}")
+                current_app.logger.warning(f"Log file not found: {filepath}")
                 return []
 
             logs: List[Dict[str, Any]] = []
             try:
-                # Read the entire file
-                with open(filepath, "r", encoding="utf-8", errors="replace") as f:
-                    content = f.read()
-                    logger.error_logger.debug(
-                        f"Read {len(content)} bytes from {filename}"
-                    )
-
-                # Split content into log entries (each starting with {"timestamp")
-                entries = content.split('{"timestamp')
-                logger.error_logger.debug(
-                    f"Found {len(entries)} potential entries in {filename}"
-                )
-
-                for i, entry in enumerate(entries[1:], 1):  # Skip first empty split
-                    try:
-                        # Reconstruct the entry by adding back the timestamp
-                        entry = '{"timestamp' + entry
-                        # Remove any line breaks and normalize whitespace
-                        entry = " ".join(entry.split())
-                        # Remove any remaining control characters
-                        entry = "".join(char for char in entry if ord(char) >= 32)
-
-                        # Parse the entry as JSON
-                        log_entry = json.loads(entry)
-
-                        # Add source file information
-                        log_entry["source_file"] = filename
-                        logs.append(log_entry)
-
-                    except json.JSONDecodeError as e:
-                        # Log the error but continue processing
-                        logger.error_logger.warning(
-                            f"Failed to parse entry {i} in {filename}: {e}\nContent: {entry[:100]}"
-                        )
-                    except Exception as e:
-                        # Log any other errors but continue processing
-                        logger.error_logger.warning(
-                            f"Error processing entry {i} in {filename}: {str(e)}\nContent: {entry[:100]}"
-                        )
+                with open(filepath, "r", encoding="utf-8") as f:
+                    for line in f:
+                        try:
+                            log_entry = json.loads(line.strip())
+                            log_entry["source_file"] = filename
+                            logs.append(log_entry)
+                        except json.JSONDecodeError:
+                            current_app.logger.warning(
+                                f"Failed to parse log entry: {line.strip()}"
+                            )
+                            continue
 
             except Exception as e:
-                logger.error_logger.error(
-                    f"Error reading log file {filename}: {str(e)}"
-                )
+                current_app.logger.error(f"Error reading log file {filename}: {str(e)}")
                 return []
 
-            logger.error_logger.debug(
+            current_app.logger.debug(
                 f"Successfully parsed {len(logs)} entries from {filename}"
             )
             return logs
@@ -147,8 +118,8 @@ def get_logs():
 
             # Add debug information
             debug_info = {
-                "logs_dir": str(ROOT_DIR / "logs"),
-                "files_found": [f.name for f in (ROOT_DIR / "logs").glob("*.log")],
+                "logs_dir": str(logger.logs_dir),
+                "files_found": [f.name for f in logger.logs_dir.glob("*.log")],
                 "log_counts": {
                     "total": len(logs),
                     "user": len([l for l in logs if l.get("module") == "user"]),
@@ -186,29 +157,27 @@ def get_logs():
                 },
             }
 
-            logger.error_logger.debug(
+            current_app.logger.debug(
                 f"Returning {len(logs)} logs with debug info: {debug_info}"
             )
             return jsonify({"status": "success", "logs": logs, "debug": debug_info})
 
         except Exception as e:
-            logger.error_logger.error(f"Error processing logs: {str(e)}")
+            current_app.logger.error(f"Error processing logs: {str(e)}")
             return jsonify(
                 {
                     "status": "error",
                     "message": f"Error processing logs: {str(e)}",
                     "debug": {
-                        "logs_dir": str(ROOT_DIR / "logs"),
-                        "files_found": [
-                            f.name for f in (ROOT_DIR / "logs").glob("*.log")
-                        ],
+                        "logs_dir": str(logger.logs_dir),
+                        "files_found": [f.name for f in logger.logs_dir.glob("*.log")],
                         "error": str(e),
                     },
                 }
             ), 500
 
     except Exception as e:
-        logger.error_logger.error(f"Error retrieving logs: {str(e)}")
+        current_app.logger.error(f"Error retrieving logs: {str(e)}")
         return jsonify(
             {"status": "error", "message": str(e), "debug": {"error": str(e)}}
         ), 500
@@ -220,6 +189,7 @@ def get_log_stats():
     try:
         days = int(request.args.get("days", 7))
         start_date = datetime.now() - timedelta(days=days)
+        logger = current_app.config["logger"]
 
         stats = {
             "total_logs": 0,
@@ -241,11 +211,11 @@ def get_log_stats():
         }
 
         for log_type, filename in log_files.items():
-            filepath = ROOT_DIR / "logs" / filename
-            logger.error_logger.debug(f"Processing log file for stats: {filepath}")
+            filepath = logger.logs_dir / filename
+            current_app.logger.debug(f"Processing log file for stats: {filepath}")
 
             if not filepath.exists():
-                logger.error_logger.warning(f"Log file not found for stats: {filepath}")
+                current_app.logger.warning(f"Log file not found for stats: {filepath}")
                 continue
 
             try:
@@ -290,40 +260,30 @@ def get_log_stats():
                                         stats["by_action"].get(log["action"], 0) + 1
                                     )
 
-                                # Collect recent errors
-                                if (
-                                    log.get("level") == "error"
-                                    and len(stats["recent_errors"]) < 10
-                                ):
+                                # Track recent errors
+                                if log.get("level") == "error":
                                     stats["recent_errors"].append(log)
 
-                        except json.JSONDecodeError as e:
-                            logger.error_logger.warning(
-                                f"Failed to parse log entry in {filename}: {e}"
-                            )
-                            continue
-                        except Exception as e:
-                            logger.error_logger.warning(
-                                f"Error processing log entry in {filename}: {e}"
+                        except (json.JSONDecodeError, KeyError) as e:
+                            current_app.logger.warning(
+                                f"Failed to parse log entry in {filename}: {str(e)}"
                             )
                             continue
 
             except Exception as e:
-                logger.error_logger.error(
-                    f"Error reading log file {filename} for stats: {e}"
+                current_app.logger.error(
+                    f"Error processing log file {filename}: {str(e)}"
                 )
                 continue
 
-        # Sort recent errors by timestamp
-        stats["recent_errors"].sort(key=lambda x: x["timestamp"], reverse=True)
+        # Sort and limit recent errors
+        stats["recent_errors"].sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+        stats["recent_errors"] = stats["recent_errors"][:10]  # Keep only 10 most recent
 
-        logger.error_logger.debug(
-            f"Returning stats with {stats['total_logs']} total logs"
-        )
         return jsonify({"status": "success", "stats": stats})
 
     except Exception as e:
-        logger.error_logger.error(f"Error retrieving log stats: {str(e)}")
+        current_app.logger.error(f"Error retrieving log stats: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
@@ -331,11 +291,12 @@ def get_log_stats():
 def clear_logs():
     """Clear all log files"""
     try:
+        logger = current_app.config["logger"]
         log_files = ["user_actions.log", "errors.log", "schedule.log"]
         cleared_files = []
 
         for filename in log_files:
-            filepath = ROOT_DIR / "logs" / filename
+            filepath = logger.logs_dir / filename
             if filepath.exists():
                 # Open the file in write mode to clear its contents
                 with open(filepath, "w") as f:
@@ -354,7 +315,7 @@ def clear_logs():
             }
         )
     except Exception as e:
-        logger.error_logger.error(f"Error clearing logs: {str(e)}")
+        current_app.logger.error(f"Error clearing logs: {str(e)}")
         return jsonify(
             {"status": "error", "message": f"Error clearing logs: {str(e)}"}
         ), 500

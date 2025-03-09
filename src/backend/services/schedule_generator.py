@@ -783,11 +783,28 @@ class ScheduleGenerator:
 
                     # Add empty shifts for employees without assignments on this day
                     for employee in active_employees:
+                        # Skip if employee doesn't have required data
+                        if (
+                            not employee.id
+                            or not employee.first_name
+                            or not employee.last_name
+                        ):
+                            logger.schedule_logger.warning(
+                                f"Skipping employee with incomplete data: ID={employee.id}"
+                            )
+                            continue
+
                         if employee.id not in employee_ids_with_shifts:
+                            employee_name = (
+                                f"{employee.first_name} {employee.last_name}"
+                            )
+                            if employee.group:
+                                employee_name += f" ({employee.group})"
+
                             schedule.append(
                                 {
                                     "employee_id": employee.id,
-                                    "employee_name": f"{employee.first_name} {employee.last_name}",
+                                    "employee_name": employee_name,
                                     "shift_id": None,
                                     "date": current_date.strftime("%Y-%m-%d"),
                                     "start_time": None,
@@ -797,7 +814,7 @@ class ScheduleGenerator:
                                 }
                             )
                             logger.schedule_logger.debug(
-                                f"Added missing employee {employee.first_name} {employee.last_name} to schedule for {current_date}"
+                                f"Added missing employee {employee_name} to schedule for {current_date}"
                             )
                     current_date += timedelta(days=1)
 

@@ -186,7 +186,7 @@ export default function LogsPage() {
     const { data: logs, isLoading: logsLoading } = useQuery<LogResponse, Error, LogResponse>({
         queryKey: ['logs', logType, days, level] as const,
         queryFn: async () => {
-            const response = await api.get<LogResponse>('/api/logs', {
+            const response = await api.get<LogResponse>('/logs', {
                 params: { type: logType, days, level: level === 'all' ? null : level }
             });
             return response.data;
@@ -201,7 +201,7 @@ export default function LogsPage() {
     const { data: stats, isLoading: statsLoading } = useQuery<StatsResponse, Error, StatsResponse>({
         queryKey: ['logStats', days] as const,
         queryFn: async () => {
-            const response = await api.get<StatsResponse>('/api/logs/stats', {
+            const response = await api.get<StatsResponse>('/logs/stats', {
                 params: { days }
             });
             return response.data;

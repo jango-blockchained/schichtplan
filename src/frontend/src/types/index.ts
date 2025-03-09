@@ -55,16 +55,13 @@ export interface Shift {
 export interface Schedule {
     id: number;
     employee_id: number;
-    employee_name: string;
-    shift_id?: number;
-    shift_start?: string | null;
-    shift_end?: string | null;
     date: string;
+    shift_id: number | null;
+    shift_start: string | null;
+    shift_end: string | null;
+    is_empty: boolean;
     version: number;
-    break_start?: string;
-    break_end?: string;
-    notes?: string;
-    is_empty?: boolean;
+    status: 'draft' | 'published' | 'archived';
 }
 
 export interface ScheduleError {
@@ -85,12 +82,12 @@ export interface ScheduleResponse {
 }
 
 export interface ScheduleUpdate {
-    employee_id?: number;
-    shift_id?: number;
-    date?: string;
-    break_start?: string;
-    break_end?: string;
-    notes?: string;
+    employee_id?: number | null;
+    shift_id?: number | null;
+    date?: string | null;
+    break_start?: string | null;
+    break_end?: string | null;
+    notes?: string | null;
 }
 
 export interface DateRange {
