@@ -411,25 +411,40 @@ export function SchedulePage() {
 
   const updateShiftMutation = useMutation({
     mutationFn: async ({ scheduleId, updates }: { scheduleId: number, updates: Partial<Schedule> }) => {
+      console.log('🔶 updateShiftMutation called with:', { scheduleId, updates });
       addGenerationLog('info', 'Updating shift',
         `Schedule ID: ${scheduleId}, Updates: ${JSON.stringify(updates)}`);
-      const response = await updateSchedule(scheduleId, updates);
-      return { response, scheduleId };
-    },
-    onSuccess: async ({ response, scheduleId }) => {
+
       try {
-        // Wait for the refetch to complete before showing the toast
+        const response = await updateSchedule(scheduleId, updates);
+        console.log('🔶 updateShiftMutation success:', response);
+        return { response, scheduleId, isNew: scheduleId === 0 };
+      } catch (error) {
+        console.error('🔶 updateShiftMutation error:', error);
+        throw error;
+      }
+    },
+    onSuccess: async ({ response, scheduleId, isNew }) => {
+      try {
+        // Immediately refetch to show updated data
         await refetch();
+
         toast({
           title: "Success",
-          description: scheduleId === 0 ? "Shift created successfully" : "Shift updated successfully",
+          description: isNew ? "Shift created successfully" : "Shift updated successfully",
         });
+
+        if (isNew) {
+          // For new schedules, log additional details for debugging
+          addGenerationLog('info', 'New shift created',
+            `New Schedule ID: ${response.id}, Employee ID: ${response.employee_id}, Shift ID: ${response.shift_id}`);
+        }
       } catch (error) {
         console.error('Error refetching data:', error);
         // Still show success toast since the update succeeded
         toast({
           title: "Success",
-          description: scheduleId === 0 ? "Shift created successfully" : "Shift updated successfully",
+          description: isNew ? "Shift created successfully" : "Shift updated successfully",
         });
       }
     },

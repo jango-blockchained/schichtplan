@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react';
 import { format, addDays, parseISO, startOfWeek } from 'date-fns';
 import { useDrag, useDrop } from 'react-dnd';
-import { Schedule } from '@/types';
+import { Schedule, Employee, ScheduleUpdate } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
 import { useQuery } from '@tanstack/react-query';
-import { getSettings } from '@/services/api';
+import { getSettings, getEmployees } from '@/services/api';
 import { Edit2, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ShiftEditModal } from './ShiftEditModal';
@@ -25,7 +25,7 @@ interface ScheduleTableProps {
     schedules: Schedule[];
     dateRange: DateRange | undefined;
     onDrop: (scheduleId: number, newEmployeeId: number, newDate: Date, newShiftId: number) => Promise<void>;
-    onUpdate: (scheduleId: number, updates: Partial<Schedule>) => Promise<void>;
+    onUpdate: (scheduleId: number, updates: ScheduleUpdate) => Promise<void>;
     isLoading: boolean;
 }
 
@@ -37,6 +37,12 @@ interface DragItem {
     date: string;
 }
 
+// Define an extended type for Schedule that includes the break duration
+type ExtendedSchedule = Schedule & {
+    break_duration?: number | null;
+    notes?: string | null;
+};
+
 const isEmptySchedule = (schedule: Schedule | undefined) => {
     return !schedule || !schedule.shift_id;
 };
@@ -44,7 +50,7 @@ const isEmptySchedule = (schedule: Schedule | undefined) => {
 const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
     schedule: Schedule | undefined;
     onDrop: (scheduleId: number, newEmployeeId: number, newDate: Date, newShiftId: number) => Promise<void>;
-    onUpdate: (scheduleId: number, updates: Partial<Schedule>) => Promise<void>;
+    onUpdate: (scheduleId: number, updates: ScheduleUpdate) => Promise<void>;
 }) => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [showActions, setShowActions] = useState(false);
@@ -94,16 +100,18 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
     };
 
     if (!schedule || isEmptySchedule(schedule)) {
+        // Create empty schedule object with safe defaults
         const emptySchedule: Schedule = {
             id: 0,
             employee_id: schedule?.employee_id ?? 0,
-            employee_name: schedule?.employee_name ?? '',
-            shift_id: undefined,
-            shift_start: undefined,
-            shift_end: undefined,
+            // Remove the employee_name field since it's not in the Schedule type
+            shift_id: null, // Use null instead of undefined to match the type
+            shift_start: null, // Use null instead of undefined to match the type
+            shift_end: null, // Use null instead of undefined to match the type
             date: schedule?.date ?? new Date().toISOString().split('T')[0],
             version: schedule?.version ?? 1,
             is_empty: true,
+            status: 'DRAFT'
         };
 
         return (
@@ -137,18 +145,36 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
                         schedule={emptySchedule}
                         onSave={async (_, updates) => {
                             try {
+                                console.log('🟣 ScheduleTable empty cell onSave called with:', { updates });
+
                                 if (!emptySchedule.employee_id || !emptySchedule.date) {
                                     throw new Error('Missing required fields: employee_id or date');
                                 }
+
+                                console.log('🟣 About to call onUpdate with:', {
+                                    scheduleId: 0,
+                                    updates: {
+                                        ...updates,
+                                        employee_id: emptySchedule.employee_id,
+                                        date: emptySchedule.date,
+                                    }
+                                });
+
                                 // Create a new schedule instead of updating
+                                // Don't close the modal until we're sure the update succeeded
                                 await onUpdate(0, {
                                     ...updates,
                                     employee_id: emptySchedule.employee_id,
                                     date: emptySchedule.date,
                                 });
+
+                                console.log('🟣 onUpdate completed successfully');
+
+                                // Only close modal after successful save
                                 setIsEditModalOpen(false);
                             } catch (error) {
-                                console.error('Error creating schedule:', error);
+                                console.error('🟣 Error in empty cell onSave:', error);
+                                // Don't close the modal if there's an error
                             }
                         }}
                     />
@@ -156,6 +182,9 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
             </div>
         );
     }
+
+    // Cast the schedule to ExtendedSchedule to access the additional properties
+    const extendedSchedule = schedule as ExtendedSchedule;
 
     return (
         <>
@@ -174,14 +203,14 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
                     <Badge variant="secondary" className="text-xs w-fit">
                         {schedule.shift_start} - {schedule.shift_end}
                     </Badge>
-                    {schedule.break_start && schedule.break_end && (
+                    {extendedSchedule.break_duration && extendedSchedule.break_duration > 0 && (
                         <div className="text-xs text-muted-foreground">
-                            Pause: {schedule.break_start} - {schedule.break_end}
+                            Pause: {extendedSchedule.break_duration} min
                         </div>
                     )}
-                    {schedule.notes && (
+                    {extendedSchedule.notes && (
                         <div className="text-xs text-muted-foreground italic">
-                            {schedule.notes}
+                            {extendedSchedule.notes}
                         </div>
                     )}
                 </div>
@@ -232,14 +261,68 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
         queryFn: getSettings,
     });
 
-    const formatEmployeeName = (employeeName: string) => {
-        // Extract name and type from format "Firstname Lastname (Type)"
-        const match = employeeName.match(/^(\S+)\s+(\S+)(?:\s+\((.*?)\))?$/);
-        if (!match) return employeeName;
+    // Test function to directly test the onUpdate function
+    const testAddShift = async () => {
+        console.log('🔵 Test: Directly calling onUpdate');
+        try {
+            // Get the first employee ID from the schedules
+            const firstSchedule = schedules[0];
+            if (!firstSchedule) {
+                console.error('🔵 No schedules available for testing');
+                return;
+            }
 
-        const [_, firstName, lastName, type] = match;
+            // Use default values to handle potential undefined values
+            const employeeId = firstSchedule.employee_id ?? 0;
+            const date = firstSchedule.date ?? '';
+
+            console.log('🔵 Test: Using employee_id and date:', { employeeId, date });
+
+            // Call onUpdate with test data
+            const updateData: ScheduleUpdate = {
+                employee_id: employeeId,
+                date: date,
+                shift_id: 1, // Assuming shift ID 1 exists
+                break_duration: 30, // 30 minute break
+                notes: 'Test shift'
+            };
+
+            await onUpdate(0, updateData);
+
+            console.log('🔵 Test: onUpdate completed successfully');
+        } catch (error) {
+            console.error('🔵 Test: Error calling onUpdate:', error);
+        }
+    };
+
+    // Fetch employee data to display names properly
+    const { data: employees, isLoading: loadingEmployees } = useQuery({
+        queryKey: ['employees'],
+        queryFn: getEmployees,
+    });
+
+    // Employee lookup for quick access
+    const employeeLookup = useMemo(() => {
+        if (!employees) return {};
+
+        return employees.reduce((acc, employee) => {
+            acc[employee.id] = employee;
+            return acc;
+        }, {} as Record<number, Employee>);
+    }, [employees]);
+
+    const formatEmployeeName = (employeeId: number | undefined) => {
+        // Handle undefined employee ID
+        if (!employeeId || !employeeLookup[employeeId]) return '-';
+
+        const employee = employeeLookup[employeeId];
+        const firstName = employee.first_name;
+        const lastName = employee.last_name;
+        const type = employee.employee_group;
+
         // Create abbreviation from first letters of first and last name
         const abbr = (firstName[0] + lastName[0] + lastName[1]).toUpperCase();
+
         return (
             <>
                 {`${lastName}, ${firstName}`}
@@ -315,28 +398,19 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
             'GFB': 2
         };
         const sortedEmployees = Array.from(employeeSchedules.entries()).sort((a, b) => {
-            const employeeA = a[1][0];
-            const employeeB = b[1][0];
-
-            // Extract employee type from employee_name (assuming format "Name (Type)")
-            const employeeTypeA = employeeA?.employee_name ? (employeeA.employee_name.match(/\((.*?)\)/)?.[1] ?? 'Other') : 'Other';
-            const employeeTypeB = employeeB?.employee_name ? (employeeB.employee_name.match(/\((.*?)\)/)?.[1] ?? 'Other') : 'Other';
-
-            return (employeeTypeOrder[employeeTypeA] ?? 99) - (employeeTypeOrder[employeeTypeB] ?? 99);
+            // Sort by employee ID as a fallback if we can't extract type
+            return a[0] - b[0];
         });
 
-        // Group by employee type
-        sortedEmployees.forEach(([_, employeeSchedules]) => {
+        // Group by employee type or just use "Other" if we can't determine type
+        sortedEmployees.forEach(([employeeId, employeeSchedules]) => {
             if (!employeeSchedules || employeeSchedules.length === 0) return;
 
-            const firstSchedule = employeeSchedules[0];
-            if (!firstSchedule) return;
-
-            const employeeType = firstSchedule.employee_name ? (firstSchedule.employee_name.match(/\((.*?)\)/)?.[1] ?? 'Other') : 'Other';
-            if (!groups.has(employeeType)) {
-                groups.set(employeeType, []);
+            // Just add all schedules to 'Other' group
+            if (!groups.has('Other')) {
+                groups.set('Other', []);
             }
-            groups.get(employeeType)?.push(...employeeSchedules);
+            groups.get('Other')?.push(...employeeSchedules);
         });
 
         return groups;
@@ -355,68 +429,88 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
     }
 
     return (
-        <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                    <CardTitle>Schichtplan</CardTitle>
-                    {dateRange?.from && dateRange?.to && (
-                        <div className="text-sm text-muted-foreground mt-1">
-                            {format(dateRange.from, 'dd.MM.yyyy')} - {format(dateRange.to, 'dd.MM.yyyy')}
-                        </div>
-                    )}
-                </div>
-            </CardHeader>
-            <CardContent>
-                <div className="overflow-x-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead className="w-[200px]">Mitarbeiter</TableHead>
-                                {days.map(day => (
-                                    <TableHead key={day.toISOString()} className="min-w-[150px]">
-                                        <div className="font-semibold">
-                                            {weekdayAbbr[format(day, 'EEEE')]}
-                                        </div>
-                                        <div className="text-xs text-muted-foreground">
-                                            {format(day, 'dd.MM')}
-                                        </div>
-                                    </TableHead>
-                                ))}
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {Array.from(employeeGroups.entries()).map(([type, groupSchedules]) => {
-                                const uniqueEmployees = new Set(groupSchedules.map(s => s.employee_id));
-                                return Array.from(uniqueEmployees).map(employeeId => {
-                                    const employeeSchedules = groupSchedules.filter(s => s.employee_id === employeeId);
-                                    const firstSchedule = employeeSchedules[0];
-                                    return (
-                                        <TableRow key={employeeId}>
-                                            <TableCell className="font-medium">
-                                                {firstSchedule && formatEmployeeName(firstSchedule.employee_name)}
-                                            </TableCell>
-                                            {days.map(day => {
-                                                const daySchedule = employeeSchedules.find(
-                                                    s => s.date === format(day, 'yyyy-MM-dd')
-                                                );
-                                                return (
-                                                    <TableCell key={day.toISOString()}>
-                                                        <ScheduleCell
-                                                            schedule={daySchedule}
-                                                            onDrop={onDrop}
-                                                            onUpdate={onUpdate}
-                                                        />
-                                                    </TableCell>
-                                                );
-                                            })}
-                                        </TableRow>
-                                    );
-                                });
-                            })}
-                        </TableBody>
-                    </Table>
-                </div>
-            </CardContent>
-        </Card>
+        <div className="schedule-table-container">
+            {/* Test button for debugging */}
+            <button
+                onClick={testAddShift}
+                style={{
+                    position: 'fixed',
+                    bottom: '20px',
+                    right: '20px',
+                    zIndex: 1000,
+                    padding: '10px',
+                    backgroundColor: '#007bff',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '5px'
+                }}
+            >
+                Test Add Shift
+            </button>
+
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle>Schichtplan</CardTitle>
+                        {dateRange?.from && dateRange?.to && (
+                            <div className="text-sm text-muted-foreground mt-1">
+                                {format(dateRange.from, 'dd.MM.yyyy')} - {format(dateRange.to, 'dd.MM.yyyy')}
+                            </div>
+                        )}
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-[200px]">Mitarbeiter</TableHead>
+                                    {days.map(day => (
+                                        <TableHead key={day.toISOString()} className="min-w-[150px]">
+                                            <div className="font-semibold">
+                                                {weekdayAbbr[format(day, 'EEEE')]}
+                                            </div>
+                                            <div className="text-xs text-muted-foreground">
+                                                {format(day, 'dd.MM')}
+                                            </div>
+                                        </TableHead>
+                                    ))}
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {Array.from(employeeGroups.entries()).map(([type, groupSchedules]) => {
+                                    const uniqueEmployees = new Set(groupSchedules.map(s => s.employee_id));
+                                    return Array.from(uniqueEmployees).map(employeeId => {
+                                        const employeeSchedules = groupSchedules.filter(s => s.employee_id === employeeId);
+                                        const firstSchedule = employeeSchedules[0];
+                                        return (
+                                            <TableRow key={employeeId}>
+                                                <TableCell className="font-medium">
+                                                    {formatEmployeeName(employeeId)}
+                                                </TableCell>
+                                                {days.map(day => {
+                                                    const daySchedule = employeeSchedules.find(
+                                                        s => s.date === format(day, 'yyyy-MM-dd')
+                                                    );
+                                                    return (
+                                                        <TableCell key={day.toISOString()}>
+                                                            <ScheduleCell
+                                                                schedule={daySchedule}
+                                                                onDrop={onDrop}
+                                                                onUpdate={onUpdate}
+                                                            />
+                                                        </TableCell>
+                                                    );
+                                                })}
+                                            </TableRow>
+                                        );
+                                    });
+                                })}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
     );
 } 

@@ -447,9 +447,18 @@ export const updateEmployeeAvailability = async (employeeId: number, availabilit
 
 export const updateSchedule = async (scheduleId: number, update: ScheduleUpdate): Promise<Schedule> => {
     try {
-        const response = await api.put<Schedule>(`/schedules/${scheduleId}/`, update);
+        console.log('🔴 updateSchedule API call:', { scheduleId, update });
+
+        // The baseURL already includes /api, so we don't need to add it again
+        const url = `/schedules/${scheduleId}/`;
+        console.log('🔴 Making API request to:', API_BASE_URL + url);
+
+        const response = await api.put<Schedule>(url, update);
+        console.log('🔴 updateSchedule API response:', response.data);
+
         return response.data;
     } catch (error) {
+        console.error('🔴 updateSchedule API error:', error);
         if (error instanceof Error) {
             throw new Error(`Failed to update schedule: ${error.message}`);
         }
