@@ -8,7 +8,7 @@ import functools
 def is_early_shift(shift):
     """Check if a shift starts early in the morning (before 8:00)"""
     start_hour = int(shift.start_time.split(":")[0])
-    return start_hour < 8
+    return start_hour < 11
 
 
 def is_late_shift(shift):
