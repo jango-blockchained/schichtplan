@@ -4,6 +4,7 @@ from models import Schedule
 from models.employee import EmployeeGroup
 from dataclasses import dataclass
 from .resources import ScheduleResources
+from .utility import requires_keyholder
 
 
 @dataclass
