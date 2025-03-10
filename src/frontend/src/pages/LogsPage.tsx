@@ -359,8 +359,8 @@ export default function LogsPage() {
                 setIsClearing(true);
                 await clearLogs();
                 // Invalidate and refetch logs and stats queries
-                await queryClient.invalidateQueries(['logs']);
-                await queryClient.invalidateQueries(['logStats']);
+                await queryClient.invalidateQueries({ queryKey: ['logs'] });
+                await queryClient.invalidateQueries({ queryKey: ['logStats'] });
             } catch (error) {
                 console.error('Failed to clear logs:', error);
                 alert('Failed to clear logs. Please try again.');

@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { getSchedules, type ScheduleResponse } from '@/services/api';
+import { getSchedules, type ScheduleResponse, type Schedule as APISchedule } from '@/services/api';
 import { Schedule, ScheduleError } from '@/types';
 import { AxiosError } from 'axios';
 
-interface UseScheduleDataResult {
+export interface UseScheduleDataResult {
     scheduleData: Schedule[];
     versions: number[];
     errors: ScheduleError[];
@@ -11,6 +11,25 @@ interface UseScheduleDataResult {
     error: string | null;
     refetch: () => Promise<void>;
 }
+
+// Helper function to convert API Schedule to frontend Schedule
+const convertSchedule = (apiSchedule: APISchedule): Schedule => {
+    return {
+        id: apiSchedule.id,
+        employee_id: apiSchedule.employee_id,
+        date: apiSchedule.date,
+        shift_id: apiSchedule.shift_id,
+        shift_start: apiSchedule.shift_start ?? null,
+        shift_end: apiSchedule.shift_end ?? null,
+        is_empty: apiSchedule.is_empty ?? false,
+        version: apiSchedule.version,
+        status: apiSchedule.status as Schedule['status'],
+        break_start: apiSchedule.break_start ?? null,
+        break_end: apiSchedule.break_end ?? null,
+        notes: apiSchedule.notes ?? null,
+        employee_name: undefined
+    };
+};
 
 export function useScheduleData(
     startDate: Date,
@@ -36,6 +55,11 @@ export function useScheduleData(
                     includeEmpty
                 );
 
+                // Validate response structure
+                if (!response.schedules) {
+                    throw new Error('Invalid response format: missing schedules array');
+                }
+
                 console.log('🔄 useScheduleData received response:', {
                     scheduleCount: response.schedules?.length || 0,
                     shiftsWithData: response.schedules?.filter(s => s.shift_id !== null).length || 0,
@@ -55,8 +79,21 @@ export function useScheduleData(
                     console.error('Schedule fetch error:', {
                         message: errorMessage,
                         status: error.response?.status,
-                        data: error.response?.data
+                        data: error.response?.data,
+                        config: error.config
                     });
+
+                    // More user-friendly error messages based on status code
+                    if (error.code === 'ECONNABORTED') {
+                        throw new Error('The request timed out. Please check your internet connection and try again.');
+                    } else if (!error.response) {
+                        throw new Error('Could not connect to the server. Please check if the backend is running.');
+                    } else if (error.response.status === 404) {
+                        throw new Error('The schedule data could not be found.');
+                    } else if (error.response.status >= 500) {
+                        throw new Error('The server encountered an error. Please try again later.');
+                    }
+
                     throw new Error(errorMessage);
                 }
                 console.error('Schedule fetch error:', error);
@@ -67,9 +104,12 @@ export function useScheduleData(
         staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
         refetchOnMount: true, // Always refetch when component mounts
         refetchOnWindowFocus: true, // Refetch when window regains focus
+        retry: 2, // Retry failed requests up to 2 times
     });
 
-    const scheduleData = data?.schedules || [];
+    // Convert API Schedule objects to frontend Schedule objects
+    const scheduleData = data?.schedules ? data.schedules.map(convertSchedule) : [];
+
     console.log('🔄 useScheduleData returning:', {
         scheduleCount: scheduleData.length,
         shiftsWithId: scheduleData.filter(s => s.shift_id !== null).length,

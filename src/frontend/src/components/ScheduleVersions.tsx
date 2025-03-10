@@ -34,11 +34,11 @@ export function ScheduleVersions({ scheduleResponse, onPublish, onArchive }: Sch
     // Get the status badge color
     const getStatusBadge = (status: Schedule['status']) => {
         switch (status) {
-            case 'draft':
+            case 'DRAFT':
                 return <Badge variant="secondary">Draft</Badge>;
-            case 'published':
+            case 'PUBLISHED':
                 return <Badge variant="default">Published</Badge>;
-            case 'archived':
+            case 'ARCHIVED':
                 return <Badge variant="outline">Archived</Badge>;
             default:
                 return null;
@@ -86,7 +86,7 @@ export function ScheduleVersions({ scheduleResponse, onPublish, onArchive }: Sch
                                 <div className="flex gap-2">
                                     {status === 'DRAFT' && (
                                         <Button
-                                            variant="outline"
+                                            variant="default"
                                             size="sm"
                                             onClick={() => onPublish(version)}
                                         >
@@ -94,7 +94,7 @@ export function ScheduleVersions({ scheduleResponse, onPublish, onArchive }: Sch
                                             Publish
                                         </Button>
                                     )}
-                                    {status === 'published' && (
+                                    {status === 'PUBLISHED' && (
                                         <Button
                                             variant="outline"
                                             size="sm"

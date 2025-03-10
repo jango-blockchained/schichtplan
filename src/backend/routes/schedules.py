@@ -1,6 +1,6 @@
 from datetime import datetime, date, timedelta
 from flask import Blueprint, request, jsonify, current_app, send_file
-from models import db, Schedule, ShiftTemplate
+from models import db, Schedule, ShiftTemplate, Employee
 from models.schedule import ScheduleStatus, ScheduleVersionMeta
 from sqlalchemy import desc, text
 from services.pdf_generator import PDFGenerator
@@ -896,6 +896,7 @@ def create_new_version():
         end_date = data.get("end_date")
         base_version = data.get("base_version")
         notes = data.get("notes", "")
+        create_empty = data.get("create_empty_schedules", True)  # Default to True
 
         # Validate required parameters
         if not start_date or not end_date:
@@ -926,6 +927,8 @@ def create_new_version():
             + (f" based on version {base_version}" if base_version else "")
         )
 
+        new_schedules = []
+
         # Create a copy of the base version if provided
         if base_version is not None:
             # Copy schedules from base_version to new_version
@@ -935,7 +938,6 @@ def create_new_version():
                 Schedule.date <= end_date,
             ).all()
 
-            new_schedules = []
             for schedule in base_schedules:
                 new_schedule = Schedule(
                     employee_id=schedule.employee_id,
@@ -950,7 +952,6 @@ def create_new_version():
                 new_schedules.append(new_schedule)
 
             if new_schedules:
-                db.session.add_all(new_schedules)
                 logger.schedule_logger.info(
                     f"Copied {len(new_schedules)} schedules from version {base_version}"
                 )
@@ -958,6 +959,46 @@ def create_new_version():
                 logger.schedule_logger.info(
                     f"No schedules found in version {base_version} for the given date range"
                 )
+
+        # Always create empty schedules for each employee if we have none from copying
+        # or if explicitly requested
+        if not new_schedules or create_empty:
+            # Get all active employees
+            employees = Employee.query.filter_by(is_active=True).all()
+
+            # Create date range
+            date_range = []
+            current_date = start_date
+            while current_date <= end_date:
+                date_range.append(current_date)
+                current_date += timedelta(days=1)
+
+            # Create empty schedules for each employee for each day
+            for employee in employees:
+                for day in date_range:
+                    # Skip if we already have a schedule for this employee on this day
+                    if any(
+                        s.employee_id == employee.id and s.date == day
+                        for s in new_schedules
+                    ):
+                        continue
+
+                    new_schedule = Schedule(
+                        employee_id=employee.id,
+                        shift_id=None,  # Empty shift
+                        date=day,
+                        version=new_version,
+                        status=ScheduleStatus.DRAFT,
+                    )
+                    new_schedules.append(new_schedule)
+
+            logger.schedule_logger.info(
+                f"Created {len(new_schedules)} empty schedules for version {new_version}"
+            )
+
+        # Add all schedules to the session
+        if new_schedules:
+            db.session.add_all(new_schedules)
 
         # Check if version_meta table exists by running a test query
         try:

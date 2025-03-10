@@ -135,8 +135,8 @@ export default function CoveragePage() {
         store_opening: settings.general.store_opening,
         store_closing: settings.general.store_closing,
         opening_days: settings.general.opening_days,
-        min_employees_per_shift: settings.scheduling.min_employees_per_shift,
-        max_employees_per_shift: settings.scheduling.max_employees_per_shift,
+        min_employees_per_shift: settings.scheduling.min_employees_per_shift ?? 1,
+        max_employees_per_shift: settings.scheduling.max_employees_per_shift ?? 3,
         employee_types: settings.employee_groups.employee_types.map(type => ({
             id: type.id,
             name: type.name
