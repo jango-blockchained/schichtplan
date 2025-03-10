@@ -5,7 +5,16 @@ Scheduler package for schedule generation and validation.
 from .resources import ScheduleResources, ScheduleResourceError
 from .validator import ScheduleValidator, ScheduleConfig, ValidationError
 from .generator import ScheduleGenerator, ScheduleGenerationError
-from .utility import is_early_shift, is_late_shift, requires_keyholder
+from .utility import (
+    is_early_shift,
+    is_late_shift,
+    requires_keyholder,
+    time_to_minutes,
+    shifts_overlap,
+    time_overlaps,
+    calculate_duration,
+    calculate_rest_hours,
+)
 
 __all__ = [
     "ScheduleResources",
@@ -18,4 +27,9 @@ __all__ = [
     "is_early_shift",
     "is_late_shift",
     "requires_keyholder",
+    "time_to_minutes",
+    "shifts_overlap",
+    "time_overlaps",
+    "calculate_duration",
+    "calculate_rest_hours",
 ]
