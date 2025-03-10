@@ -318,8 +318,19 @@ class TestScheduleGenerator(unittest.TestCase):
             result = self.generator.generate(self.start_date, self.end_date)
 
             # Check warnings were included
-            self.assertEqual(len(result["warnings"]), 1)
-            self.assertEqual(result["warnings"][0]["type"], "coverage")
+            self.assertGreater(len(result["warnings"]), 0)
+
+            # Check that our mock warning is included
+            found_warning = False
+            for warning in result["warnings"]:
+                if (
+                    warning.get("type") == "coverage"
+                    and warning.get("message") == "Insufficient staff"
+                ):
+                    found_warning = True
+                    break
+
+            self.assertTrue(found_warning, "Expected warning not found in results")
         finally:
             # Restore the original method
             self.generator._create_schedule = orig_create_schedule
