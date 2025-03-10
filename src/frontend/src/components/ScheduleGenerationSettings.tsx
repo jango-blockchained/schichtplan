@@ -6,13 +6,42 @@ import { Settings } from '@/types';
 import { Button } from "@/components/ui/button";
 import { Save } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { CollapsibleSection } from './CollapsibleSection';
+import { Checkbox } from './ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Play, Settings2 } from 'lucide-react';
+import { DateRange } from 'react-day-picker';
+import { getAvailableCalendarWeeks } from '@/utils/dateUtils';
 
 interface ScheduleGenerationSettingsProps {
     settings: Settings;
     onUpdate: (updates: Partial<Settings['scheduling']['generation_requirements']>) => void;
+    selectedCalendarWeek?: string;
+    weeksAmount?: number;
+    createEmptySchedules?: boolean;
+    includeEmpty?: boolean;
+    onCalendarWeekChange?: (week: string) => void;
+    onWeeksAmountChange?: (amount: string) => void;
+    onCreateEmptyChange?: (checked: boolean) => void;
+    onIncludeEmptyChange?: (checked: boolean) => void;
+    onGenerateSchedule?: () => void;
+    isGenerating?: boolean;
 }
 
-export function ScheduleGenerationSettings({ settings, onUpdate }: ScheduleGenerationSettingsProps) {
+export function ScheduleGenerationSettings({
+    settings,
+    onUpdate,
+    selectedCalendarWeek,
+    weeksAmount,
+    createEmptySchedules,
+    includeEmpty,
+    onCalendarWeekChange,
+    onWeeksAmountChange,
+    onCreateEmptyChange,
+    onIncludeEmptyChange,
+    onGenerateSchedule,
+    isGenerating
+}: ScheduleGenerationSettingsProps): React.ReactElement {
     const { toast } = useToast();
     const defaultRequirements = {
         enforce_minimum_coverage: true,
@@ -71,40 +100,121 @@ export function ScheduleGenerationSettings({ settings, onUpdate }: ScheduleGener
         { key: 'enforce_opening_hours', label: 'Store Opening Hours', description: 'Align schedules with store opening hours' }
     ] as const;
 
+    const availableWeeks = getAvailableCalendarWeeks();
+
+    // Determine if we should show the schedule generation controls
+    const showGenerationControls = selectedCalendarWeek !== undefined &&
+        weeksAmount !== undefined &&
+        createEmptySchedules !== undefined &&
+        includeEmpty !== undefined &&
+        onCalendarWeekChange !== undefined &&
+        onWeeksAmountChange !== undefined &&
+        onCreateEmptyChange !== undefined &&
+        onIncludeEmptyChange !== undefined &&
+        onGenerateSchedule !== undefined;
+
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Schedule Generation Requirements</CardTitle>
-                <CardDescription>
-                    Enable or disable specific requirements for schedule generation
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="space-y-6">
-                    {requirementsList.map(({ key, label, description }) => (
-                        <div key={key} className="flex items-center justify-between space-x-4">
-                            <div>
-                                <Label htmlFor={key} className="font-medium">{label}</Label>
-                                <p className="text-sm text-gray-500">{description}</p>
-                            </div>
-                            <Switch
-                                id={key}
-                                checked={localRequirements[key] ?? defaultRequirements[key]}
-                                onCheckedChange={(checked) => handleToggle(key, checked)}
-                            />
-                        </div>
-                    ))}
+        <CollapsibleSection
+            title={
+                <div className="flex items-center">
+                    <Settings2 className="h-4 w-4 mr-2" />
+                    Dienstplan Generierung
                 </div>
-            </CardContent>
-            <CardFooter className="flex justify-end pt-4">
-                <Button
-                    variant="outline"
-                    onClick={handleSave}
-                >
-                    <Save className="w-4 h-4 mr-2" />
-                    Save Changes
-                </Button>
-            </CardFooter>
-        </Card>
+            }
+            defaultOpen={false}
+        >
+            <div className="space-y-4 p-4">
+                {showGenerationControls && (
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Kalenderwoche</label>
+                                <Select
+                                    value={selectedCalendarWeek}
+                                    onValueChange={onCalendarWeekChange}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Wähle eine Kalenderwoche" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {availableWeeks.map((week) => (
+                                            <SelectItem key={week.value} value={week.value}>
+                                                {week.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Anzahl Wochen</label>
+                                <Select
+                                    value={weeksAmount?.toString()}
+                                    onValueChange={onWeeksAmountChange}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Wähle die Anzahl der Wochen" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {[1, 2, 3, 4].map((amount) => (
+                                            <SelectItem key={amount} value={amount.toString()}>
+                                                {amount} {amount === 1 ? 'Woche' : 'Wochen'}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <div className="flex items-center space-x-2">
+                                <Checkbox
+                                    id="createEmpty"
+                                    checked={createEmptySchedules}
+                                    onCheckedChange={onCreateEmptyChange}
+                                />
+                                <label
+                                    htmlFor="createEmpty"
+                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                >
+                                    Leere Dienstpläne für alle Mitarbeiter erstellen
+                                </label>
+                            </div>
+
+                            <div className="flex items-center space-x-2">
+                                <Checkbox
+                                    id="includeEmpty"
+                                    checked={includeEmpty}
+                                    onCheckedChange={onIncludeEmptyChange}
+                                />
+                                <label
+                                    htmlFor="includeEmpty"
+                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                >
+                                    Leere Dienstpläne anzeigen
+                                </label>
+                            </div>
+                        </div>
+
+                        <Button
+                            onClick={onGenerateSchedule}
+                            disabled={isGenerating}
+                            className="w-full"
+                        >
+                            {isGenerating ? (
+                                <>
+                                    <Play className="mr-2 h-4 w-4 animate-spin" />
+                                    Generiere...
+                                </>
+                            ) : (
+                                <>
+                                    <Play className="mr-2 h-4 w-4" />
+                                    Dienstplan generieren
+                                </>
+                            )}
+                        </Button>
+                    </div>
+                )}
+            </div>
+        </CollapsibleSection>
     );
 } 

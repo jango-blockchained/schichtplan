@@ -4,7 +4,7 @@ import { useScheduleData } from '@/hooks/useScheduleData';
 import { addDays, startOfWeek, endOfWeek, addWeeks, format, getWeek, isBefore } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { useMutation } from '@tanstack/react-query';
-import { generateSchedule, exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, publishSchedule, archiveSchedule, updateVersionStatus, createNewVersion, duplicateVersion, getVersionDetails, compareVersions, updateVersionNotes, getAllVersions } from '@/services/api';
+import { generateSchedule, exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, publishSchedule, archiveSchedule, updateVersionStatus, createNewVersion, duplicateVersion, getVersionDetails, compareVersions, updateVersionNotes, getAllVersions, getSettings, updateSettings } from '@/services/api';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, AlertCircle, X, CheckCircle2, Circle, Clock, CheckCircle, XCircle, RefreshCw, Plus, Archive, Calendar, Settings2, Play, FileSpreadsheet, FileDown, History, CalendarIcon, Pencil, Copy, FileText, GitCompare } from 'lucide-react';
@@ -25,8 +25,15 @@ import { Progress } from '@/components/ui/progress';
 import { DateRange } from 'react-day-picker';
 import { getAvailableCalendarWeeks, getDateRangeFromWeekAndCount } from '@/utils/dateUtils';
 import { ScheduleVersions } from '@/components/Schedule/ScheduleVersions';
-import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient, UseQueryResult } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
+import { VersionControl } from '@/components/VersionControl';
+import { CollapsibleSection } from '@/components/CollapsibleSection';
+import { ScheduleGenerationSettings } from '@/components/ScheduleGenerationSettings';
+import type { ScheduleResponse, VersionResponse } from '@/services/api';
+import { type Settings } from '@/types';
+import { type Schedule as APISchedule } from '@/services/api';
+import { type UseScheduleDataResult } from '@/hooks/useScheduleData';
 
 interface GenerationStep {
   id: string;
@@ -43,15 +50,17 @@ export function SchedulePage() {
   const [isLayoutCustomizerOpen, setIsLayoutCustomizerOpen] = useState(false);
   const [createEmptySchedules, setCreateEmptySchedules] = useState<boolean>(true);
   const [includeEmpty, setIncludeEmpty] = useState<boolean>(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
+
+  // Add state for generation steps and logs
+  const [generationSteps, setGenerationSteps] = useState<GenerationStep[]>([]);
   const [generationLogs, setGenerationLogs] = useState<{
     type: "info" | "warning" | "error";
     timestamp: string;
     message: string;
     details?: string;
   }[]>([]);
-
-  const [generationSteps, setGenerationSteps] = useState<GenerationStep[]>([]);
   const [showGenerationOverlay, setShowGenerationOverlay] = useState(false);
 
   // Add a new state for selected calendar week
@@ -161,7 +170,7 @@ export function SchedulePage() {
           weeksAmount
         });
 
-        setDateRange({ from, to });
+        setDateRange(newDateRange);
       } catch (error) {
         console.error('Error during calendar week change:', error);
         toast({
@@ -185,14 +194,16 @@ export function SchedulePage() {
     addGenerationLog('info', `Will ${checked ? 'create' : 'not create'} empty schedules for all employees during generation`);
   };
 
-  // Fetch schedules
+  const queryClient = useQueryClient();
+
+  // Update the useQuery hook with proper types
   const {
     data,
     isLoading,
     refetch,
     isError,
     error,
-  } = useQuery({
+  } = useQuery<ScheduleResponse, Error>({
     queryKey: ['schedules', dateRange?.from, dateRange?.to, selectedVersion, includeEmpty],
     queryFn: async () => {
       if (!dateRange?.from || !dateRange?.to) {
@@ -211,20 +222,24 @@ export function SchedulePage() {
       const fromStr = format(dateRange.from, 'yyyy-MM-dd');
       const toStr = format(dateRange.to, 'yyyy-MM-dd');
 
-      const result = await getSchedules(
+      return await getSchedules(
         fromStr,
         toStr,
         selectedVersion,
         includeEmpty
       );
-
-      return result;
     },
     enabled: !!dateRange?.from && !!dateRange?.to,
   });
 
-  // Extract schedule data
-  const scheduleData = data?.schedules || [];
+  // Extract schedule data with proper types
+  const { scheduleData, errors: scheduleErrors, loading: isLoadingSchedule, error: scheduleError } = useScheduleData(
+    dateRange?.from ?? new Date(),
+    dateRange?.to ?? new Date(),
+    selectedVersion,
+    includeEmpty
+  );
+
   const versions = data?.versions || [];
   const errors = data?.errors || [];
 
@@ -413,8 +428,6 @@ export function SchedulePage() {
     },
   });
 
-  const queryClient = useQueryClient();
-
   const updateShiftMutation = useMutation({
     mutationFn: async ({ scheduleId, updates }: { scheduleId: number, updates: ScheduleUpdate }) => {
       console.log('🔶 updateShiftMutation called with:', { scheduleId, updates });
@@ -457,7 +470,7 @@ export function SchedulePage() {
           console.log('🔶 New shift created:', response);
         }
       } catch (error) {
-        console.error('🔶 Error refetching data after update:', error);
+        console.error('🔄 Error refetching data after update:', error);
         // Still show success toast since the update succeeded
         toast({
           title: "Success",
@@ -579,167 +592,8 @@ export function SchedulePage() {
     }
   };
 
-  const handleWeeksAmountChange = (amount: string) => {
-    const weeks = parseInt(amount, 10);
-
-    if (isNaN(weeks) || weeks < 1 || weeks > 4) {
-      console.error('Invalid week amount:', amount);
-      toast({
-        title: "Fehler",
-        description: "Ungültige Wochenanzahl ausgewählt",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setWeeksAmount(weeks);
-
-    if (selectedCalendarWeek) {
-      try {
-        // Parse the selected week value
-        const [yearStr, weekStr] = selectedCalendarWeek.split('-');
-        const week = parseInt(weekStr, 10);
-
-        if (isNaN(week) || week < 1 || week > 53) {
-          console.error('Invalid week value for amount change:', selectedCalendarWeek);
-          toast({
-            title: "Fehler",
-            description: "Ungültige Kalenderwoche für die Wochenanzahl",
-            variant: "destructive"
-          });
-          return;
-        }
-
-        // Update date range based on the selected week and new amount
-        const newDateRange = getDateRangeFromWeekAndCount(week, weeks);
-
-        // Validate the generated date range
-        if (!newDateRange.from || !newDateRange.to ||
-          isNaN(newDateRange.from.getTime()) || isNaN(newDateRange.to.getTime())) {
-          console.error('Invalid date range generated:', newDateRange);
-          toast({
-            title: "Fehler",
-            description: "Fehler bei der Berechnung des Datumsbereichs",
-            variant: "destructive"
-          });
-          return;
-        }
-
-        console.log('Setting date range from week amount change:', {
-          from: newDateRange.from.toISOString(),
-          to: newDateRange.to.toISOString(),
-          week,
-          weeks
-        });
-
-        setDateRange(newDateRange);
-      } catch (error) {
-        console.error('Error during week amount change:', error);
-        toast({
-          title: "Fehler",
-          description: "Fehler bei der Änderung der Wochenanzahl",
-          variant: "destructive"
-        });
-      }
-    }
-  };
-
-  const handleDrop = async (scheduleId: number, newEmployeeId: number, newDate: Date, newShiftId: number) => {
-    try {
-      // For drag and drop, we use a subset of ScheduleUpdate properties
-      const update: ScheduleUpdate = {
-        employee_id: newEmployeeId,
-        date: format(newDate, 'yyyy-MM-dd'),
-        shift_id: newShiftId
-      };
-
-      await updateSchedule(scheduleId, update);
-
-      // Refetch data to update the UI
-      await refetch();
-
-      toast({
-        title: "Success",
-        description: "Shift updated successfully.",
-      });
-    } catch (error) {
-      console.error('Error during drag and drop:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update shift",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const loadSchedules = async () => {
-    try {
-      addGenerationLog('info', 'Loading schedules');
-      const startDate = new Date();
-      const endDate = addDays(startDate, 7);
-
-      // Use the updated getSchedules function with individual parameters
-      const response = await getSchedules(
-        format(startDate, 'yyyy-MM-dd'),
-        format(endDate, 'yyyy-MM-dd'),
-        undefined,  // version parameter
-        true        // includeEmpty parameter
-      );
-
-      // Since response is ScheduleResponse, extract the schedules array
-      setSchedules(response.schedules || []);
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to load schedules',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handlePublish = async (version: number) => {
-    try {
-      await publishSchedule(version);
-      await loadSchedules();
-      toast({
-        title: 'Success',
-        description: 'Schedule published successfully'
-      });
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to publish schedule',
-        variant: 'destructive'
-      });
-    }
-  };
-
-  const handleArchive = async (version: number) => {
-    try {
-      await archiveSchedule(version);
-      await loadSchedules();
-      toast({
-        title: 'Success',
-        description: 'Schedule archived successfully'
-      });
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to archive schedule',
-        variant: 'destructive'
-      });
-    }
-  };
-
-  useEffect(() => {
-    loadSchedules();
-  }, []);
-
-  // Load versions for the selected week
-  const versionsQuery = useQuery({
+  // Update the useQuery hook with proper types
+  const versionsQuery: UseQueryResult<VersionResponse, Error> = useQuery({
     queryKey: ['versions', dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
     queryFn: async () => {
       if (!dateRange?.from || !dateRange?.to) {
@@ -1069,43 +923,95 @@ export function SchedulePage() {
   const [isComparingVersions, setIsComparingVersions] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
 
+  // Add state for duplicate version dialog
+  const [duplicateSourceVersion, setDuplicateSourceVersion] = useState<number | undefined>();
+  const [isDuplicateVersionOpen, setIsDuplicateVersionOpen] = useState(false);
+
+  // Update the fetchData function
+  const fetchData = () => {
+    void queryClient.invalidateQueries({
+      queryKey: ['schedules'],
+      exact: false
+    });
+  };
+
+  // Update the refetchSchedules function
+  const refetchSchedules = () => {
+    if (queryClient && selectedVersion) {
+      void queryClient.invalidateQueries({
+        queryKey: ['schedules', selectedVersion],
+        exact: false
+      });
+    } else {
+      // Manual refetch logic using the existing fetch function
+      if (dateRange?.from && dateRange?.to) {
+        fetchData();
+      }
+    }
+  };
+
   // Version control handlers
   const handleVersionChange = (version: number) => {
     setSelectedVersion(version);
-    refetch();
   };
 
-  const handlePublishVersion = (version: number) => {
-    updateVersionStatusMutation.mutate({ version, status: 'PUBLISHED' });
+  const handlePublishVersion = async (version: number) => {
+    if (version) {
+      try {
+        const result = await publishSchedule(version);
+        toast({
+          title: "Version Published",
+          description: `Version ${version} has been published successfully.`,
+        });
+
+        // Refetch schedules to update status
+        refetchSchedules();
+      } catch (error) {
+        toast({
+          title: "Publish Error",
+          description: "Failed to publish version.",
+          variant: "destructive",
+        });
+      }
+    }
   };
 
-  const handleArchiveVersion = (version: number) => {
-    updateVersionStatusMutation.mutate({ version, status: 'ARCHIVED' });
+  const handleArchiveVersion = async (version: number) => {
+    if (version) {
+      try {
+        const result = await archiveSchedule(version);
+        toast({
+          title: "Version Archived",
+          description: `Version ${version} has been archived successfully.`,
+        });
+
+        // Refetch schedules to update status
+        refetchSchedules();
+      } catch (error) {
+        toast({
+          title: "Archive Error",
+          description: "Failed to archive version.",
+          variant: "destructive",
+        });
+      }
+    }
   };
 
   // Add new version control handlers
-  const handleDuplicateVersion = () => {
-    if (!selectedVersion) {
-      toast({
-        title: "Error",
-        description: "Please select a version to duplicate",
-        variant: "destructive",
-      });
-      return;
+  const handleDuplicateVersion = async (version: number) => {
+    if (version) {
+      try {
+        // Open duplicate dialog with the selected version pre-filled
+        setDuplicateSourceVersion(version);
+        setIsDuplicateVersionOpen(true);
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to prepare version duplication.",
+          variant: "destructive",
+        });
+      }
     }
-
-    if (!dateRange?.from || !dateRange?.to) {
-      toast({
-        title: "Error",
-        description: "Please select a date range first",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Set initial notes for the duplicate
-    setVersionNotes(`Duplicated from version ${selectedVersion}`);
-    setDuplicateVersionDialogOpen(true);
   };
 
   const handleCompareVersions = async () => {
@@ -1172,783 +1078,552 @@ export function SchedulePage() {
     });
   };
 
+  // Update the ErrorDisplay component to use better styling
+  const ErrorDisplay = ({ error }: { error: any }) => (
+    <Alert variant="destructive">
+      <AlertCircle className="h-4 w-4" />
+      <AlertTitle>Error loading schedule</AlertTitle>
+      <AlertDescription>
+        {error?.message || 'An unknown error occurred. Please try again.'}
+      </AlertDescription>
+    </Alert>
+  );
+
+  // Add a skeleton loader for schedule table
+  const ScheduleTableSkeleton = () => (
+    <div className="space-y-4">
+      <Skeleton className="h-8 w-full" />
+      <div className="grid grid-cols-7 gap-2">
+        {Array(7).fill(0).map((_, i) => (
+          <Skeleton key={i} className="h-10" />
+        ))}
+      </div>
+      {Array(5).fill(0).map((_, i) => (
+        <div key={i} className="grid grid-cols-7 gap-2">
+          {Array(7).fill(0).map((_, j) => (
+            <Skeleton key={j} className="h-16" />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+
+  const handleGenerateSchedule = async () => {
+    if (!dateRange?.from || !dateRange?.to) {
+      toast({
+        title: "Fehler",
+        description: "Bitte wählen Sie einen Datumsbereich aus",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+    setGenerationSteps([
+      { id: '1', title: 'Initialisiere Generierung', status: 'pending' },
+      { id: '2', title: 'Lade Mitarbeiterdaten', status: 'pending' },
+      { id: '3', title: 'Generiere Schichtplan', status: 'pending' },
+      { id: '4', title: 'Speichere Ergebnisse', status: 'pending' }
+    ]);
+    setGenerationLogs([]);
+    setShowGenerationOverlay(true);
+
+    try {
+      // Update step 1 status
+      setGenerationSteps(prev => prev.map(step =>
+        step.id === '1' ? { ...step, status: 'in-progress' } : step
+      ));
+      addGenerationLog('info', 'Initialisiere Generierung...');
+
+      // Prepare request data
+      const fromStr = format(dateRange.from, 'yyyy-MM-dd');
+      const toStr = format(dateRange.to, 'yyyy-MM-dd');
+
+      // Update step 1 to completed and start step 2
+      setGenerationSteps(prev => prev.map(step =>
+        step.id === '1' ? { ...step, status: 'completed' } :
+          step.id === '2' ? { ...step, status: 'in-progress' } : step
+      ));
+      addGenerationLog('info', 'Lade Mitarbeiterdaten...');
+
+      // Update step 2 to completed and start step 3
+      setGenerationSteps(prev => prev.map(step =>
+        step.id === '2' ? { ...step, status: 'completed' } :
+          step.id === '3' ? { ...step, status: 'in-progress' } : step
+      ));
+      addGenerationLog('info', 'Generiere Schichtplan...');
+
+      // Call the generate schedule API
+      const result = await generateSchedule(
+        fromStr,
+        toStr,
+        createEmptySchedules
+      );
+
+      // Update step 3 to completed and start step 4
+      setGenerationSteps(prev => prev.map(step =>
+        step.id === '3' ? { ...step, status: 'completed' } :
+          step.id === '4' ? { ...step, status: 'in-progress' } : step
+      ));
+      addGenerationLog('info', 'Speichere Ergebnisse...');
+
+      // Process the result
+      if (result.errors && result.errors.length > 0) {
+        result.errors.forEach(error => {
+          addGenerationLog('error', error.message);
+        });
+      }
+
+      // Update step 4 to completed
+      setGenerationSteps(prev => prev.map(step =>
+        step.id === '4' ? { ...step, status: 'completed' } : step
+      ));
+      addGenerationLog('info', 'Generierung abgeschlossen');
+
+      // Refetch the schedule data
+      await refetch();
+
+      // Show success message
+      toast({
+        title: "Erfolg",
+        description: "Schichtplan wurde erfolgreich generiert",
+      });
+
+      // Close the overlay after a short delay
+      setTimeout(() => {
+        setShowGenerationOverlay(false);
+        setGenerationSteps([]);
+        setGenerationLogs([]);
+        setIsGenerating(false);
+      }, 2000);
+
+    } catch (error) {
+      // Update current step to error
+      setGenerationSteps(prev => prev.map(step =>
+        step.status === 'in-progress' ? { ...step, status: 'error' } : step
+      ));
+
+      // Log the error
+      addGenerationLog('error', 'Fehler bei der Generierung',
+        error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten");
+
+      // Show error toast
+      toast({
+        title: "Fehler",
+        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
+        variant: "destructive"
+      });
+
+      setIsGenerating(false);
+    }
+  };
+
+  // Version management functions
+  const handleVersionCreate = async () => {
+    if (!dateRange?.from || !dateRange?.to) {
+      toast({
+        title: "Fehler",
+        description: "Bitte wählen Sie einen Datumsbereich aus",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const result = await createNewVersion({
+        start_date: format(dateRange.from, 'yyyy-MM-dd'),
+        end_date: format(dateRange.to, 'yyyy-MM-dd'),
+        base_version: selectedVersion
+      });
+
+      toast({
+        title: "Erfolg",
+        description: `Neue Version ${result.version} wurde erstellt`
+      });
+
+      setSelectedVersion(result.version);
+      await refetch();
+    } catch (error) {
+      toast({
+        title: "Fehler",
+        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleVersionDuplicate = async () => {
+    if (!dateRange?.from || !dateRange?.to || !selectedVersion) {
+      toast({
+        title: "Fehler",
+        description: "Bitte wählen Sie einen Datumsbereich und eine Version aus",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const result = await duplicateVersion({
+        source_version: selectedVersion,
+        start_date: format(dateRange.from, 'yyyy-MM-dd'),
+        end_date: format(dateRange.to, 'yyyy-MM-dd')
+      });
+
+      toast({
+        title: "Erfolg",
+        description: `Version ${result.version} wurde dupliziert`
+      });
+
+      setSelectedVersion(result.version);
+      await refetch();
+    } catch (error) {
+      toast({
+        title: "Fehler",
+        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleVersionArchive = async () => {
+    if (!selectedVersion) {
+      toast({
+        title: "Fehler",
+        description: "Bitte wählen Sie eine Version aus",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      await archiveSchedule(selectedVersion);
+      toast({
+        title: "Erfolg",
+        description: `Version ${selectedVersion} wurde archiviert`
+      });
+      await refetch();
+    } catch (error) {
+      toast({
+        title: "Fehler",
+        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleVersionPublish = async () => {
+    if (!selectedVersion) {
+      toast({
+        title: "Fehler",
+        description: "Bitte wählen Sie eine Version aus",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      await publishSchedule(selectedVersion);
+      toast({
+        title: "Erfolg",
+        description: `Version ${selectedVersion} wurde veröffentlicht`
+      });
+      await refetch();
+    } catch (error) {
+      toast({
+        title: "Fehler",
+        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleVersionCompare = async (compareVersion: number) => {
+    if (!selectedVersion) {
+      toast({
+        title: "Fehler",
+        description: "Bitte wählen Sie eine Version aus",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const result = await compareVersions(selectedVersion, compareVersion);
+      // Handle comparison result (e.g., show in a modal)
+      console.log('Version comparison:', result);
+    } catch (error) {
+      toast({
+        title: "Fehler",
+        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleVersionNotesUpdate = async (version: number, notes: string) => {
+    try {
+      await updateVersionNotes(version, { notes });
+      toast({
+        title: "Erfolg",
+        description: "Notizen wurden aktualisiert"
+      });
+      await refetch();
+    } catch (error) {
+      toast({
+        title: "Fehler",
+        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleVersionStatusUpdate = async (version: number, status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED') => {
+    try {
+      await updateVersionStatus(version, { status });
+      toast({
+        title: "Erfolg",
+        description: `Status wurde auf ${status} geändert`
+      });
+      await refetch();
+    } catch (error) {
+      toast({
+        title: "Fehler",
+        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Add schedule update handlers
+  const handleShiftDrop = async (scheduleId: number, newEmployeeId: number, newDate: Date, newShiftId: number) => {
+    try {
+      await updateSchedule(scheduleId, {
+        employee_id: newEmployeeId,
+        date: format(newDate, 'yyyy-MM-dd'),
+        shift_id: newShiftId
+      });
+      await queryClient.invalidateQueries({ queryKey: ['schedules'] });
+    } catch (error) {
+      toast({
+        title: "Fehler",
+        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Update handleWeeksAmountChange to handle string to number conversion
+  const handleWeeksAmountChange = (amount: string) => {
+    const numAmount = parseInt(amount, 10);
+    if (!isNaN(numAmount) && numAmount >= 1 && numAmount <= 4) {
+      setWeeksAmount(numAmount);
+    }
+  };
+
+  // Add settings query
+  const settingsQuery = useQuery<Settings, Error>({
+    queryKey: ['settings'] as const,
+    queryFn: async () => {
+      const response = await getSettings();
+      return response;
+    },
+    retry: 3,
+    staleTime: 5 * 60 * 1000 // 5 minutes
+  });
+
+  // Add settings update handler
+  const handleSettingsUpdate = async (updates: Partial<Settings['scheduling']['generation_requirements']>) => {
+    try {
+      if (!settingsQuery.data) {
+        throw new Error("Settings not loaded");
+      }
+
+      const updatedSettings = {
+        ...settingsQuery.data,
+        scheduling: {
+          ...settingsQuery.data.scheduling,
+          generation_requirements: {
+            ...settingsQuery.data.scheduling.generation_requirements,
+            ...updates
+          }
+        }
+      };
+      await updateSettings(updatedSettings);
+      await settingsQuery.refetch();
+      toast({
+        title: "Erfolg",
+        description: "Einstellungen wurden aktualisiert"
+      });
+    } catch (error) {
+      toast({
+        title: "Fehler",
+        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Convert API Schedule to frontend Schedule
+  const convertSchedule = (apiSchedule: APISchedule): Schedule => {
+    return {
+      id: apiSchedule.id,
+      employee_id: apiSchedule.employee_id,
+      date: apiSchedule.date,
+      shift_id: apiSchedule.shift_id,
+      shift_start: apiSchedule.shift_start ?? null,
+      shift_end: apiSchedule.shift_end ?? null,
+      is_empty: apiSchedule.is_empty ?? false,
+      version: apiSchedule.version,
+      status: apiSchedule.status as Schedule['status'],
+      break_start: apiSchedule.break_start ?? null,
+      break_end: apiSchedule.break_end ?? null,
+      notes: apiSchedule.notes ?? null,
+      employee_name: undefined
+    };
+  };
+
+  // Convert schedules for the ScheduleTable
+  const convertedSchedules = (data?.schedules ?? []).map((apiSchedule) => convertSchedule(apiSchedule));
+
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <PageHeader
-        title="Schichtplan"
-        description="Erstelle und verwalte Schichtpläne für deine Mitarbeiter"
-      />
+    <div className="container mx-auto p-4 space-y-4">
+      <PageHeader title="Dienstplan">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={refetchSchedules}
+            className="flex items-center gap-1"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Aktualisieren
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsLayoutCustomizerOpen(true)}
+            className="flex items-center gap-1"
+          >
+            <Settings2 className="h-4 w-4" />
+            Layout
+          </Button>
+        </div>
+      </PageHeader>
 
-      {/* Error Alert - Shown when there's a fetch error */}
-      {isError && error && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Fehler beim Laden der Daten</AlertTitle>
-          <AlertDescription>
-            {error instanceof Error ? error.message : "Ein unbekannter Fehler ist aufgetreten."}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Combined Schedule Settings and Version Control */}
-      <Card className="mb-4">
-        <CardHeader className="pb-3 flex flex-row items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CardTitle className="text-lg">Schichtplan</CardTitle>
-            {versions && versions.length > 0 && selectedVersion && (
-              <Badge variant="outline" className="ml-2 flex items-center">
-                Version {selectedVersion}
-                {data?.version_statuses?.[selectedVersion] && (
-                  <span className={`ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs ${data.version_statuses[selectedVersion] === 'PUBLISHED'
-                    ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300'
-                    : data.version_statuses[selectedVersion] === 'ARCHIVED'
-                      ? 'bg-gray-100 text-gray-800 dark:bg-gray-800/40 dark:text-gray-300'
-                      : 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300'
-                    }`}>
-                    {data.version_statuses[selectedVersion] === 'DRAFT' && <AlertCircle className="h-3 w-3 mr-1" />}
-                    {data.version_statuses[selectedVersion] === 'PUBLISHED' && <CheckCircle2 className="h-3 w-3 mr-1" />}
-                    {data.version_statuses[selectedVersion] === 'ARCHIVED' && <Archive className="h-3 w-3 mr-1" />}
-                    {data.version_statuses[selectedVersion]}
-                  </span>
-                )}
-              </Badge>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div className="lg:col-span-3 space-y-4">
+          <div className="sticky top-4">
+            {settingsQuery.data && (
+              <ScheduleGenerationSettings
+                settings={settingsQuery.data}
+                onUpdate={handleSettingsUpdate}
+                selectedCalendarWeek={selectedCalendarWeek}
+                weeksAmount={weeksAmount}
+                createEmptySchedules={createEmptySchedules}
+                includeEmpty={includeEmpty}
+                onCalendarWeekChange={setSelectedCalendarWeek}
+                onWeeksAmountChange={handleWeeksAmountChange}
+                onCreateEmptyChange={handleCreateEmptyChange}
+                onIncludeEmptyChange={handleIncludeEmptyChange}
+                onGenerateSchedule={handleGenerateSchedule}
+                isGenerating={isGenerating}
+              />
             )}
+
+            <VersionControl
+              versions={versions}
+              versionStatuses={data?.version_statuses ?? {}}
+              currentVersion={data?.current_version}
+              versionMeta={data?.version_meta}
+              dateRange={dateRange}
+              onVersionChange={setSelectedVersion}
+              onCreateNewVersion={handleVersionCreate}
+              onPublishVersion={handleVersionPublish}
+              onArchiveVersion={handleVersionArchive}
+              onDuplicateVersion={handleVersionDuplicate}
+              isLoading={isLoadingSchedule}
+              hasError={!!scheduleError}
+              schedules={convertedSchedules}
+            />
           </div>
+        </div>
 
-          {dateRange?.from && dateRange?.to && (
-            <div className="text-sm text-muted-foreground flex items-center">
-              <Calendar className="h-4 w-4 mr-2" />
-              <span>
-                {format(dateRange.from, 'dd.MM.yyyy')} - {format(dateRange.to, 'dd.MM.yyyy')}
-              </span>
-            </div>
-          )}
-        </CardHeader>
-
-        <CardContent>
-          {/* Version Control - Elegantly Integrated */}
-          {dateRange?.from && dateRange?.to && (
-            <div className={`${versions && versions.length > 0 ? 'mb-6 pb-6 border-b' : 'mb-2'}`}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-medium flex items-center text-muted-foreground">
-                  <History className="h-4 w-4 mr-2" />
-                  Versionsverwaltung
-                </h3>
-
-                <Button
-                  onClick={handleCreateNewVersion}
-                  disabled={isLoading || createVersionMutation.isPending || updateVersionStatusMutation.isPending}
-                  className="flex items-center"
-                  variant="outline"
-                  size="sm"
-                >
-                  <Plus className="h-4 w-4 mr-1.5" />
-                  Neue Version
-                </Button>
-              </div>
-
-              {versions && versions.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                  {/* Version Selector */}
-                  <div className="md:col-span-4">
-                    <div className="space-y-3">
-                      <div className="flex flex-col space-y-1">
-                        <div className="text-sm text-muted-foreground">Kalenderwoche</div>
-                        <div className="flex items-center">
-                          <Select
-                            value={selectedCalendarWeek}
-                            onValueChange={(value) => {
-                              setSelectedCalendarWeek(value);
-                              // Reset selected version when changing week
-                              setSelectedVersion(undefined);
-                            }}
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="KW auswählen" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {getAvailableCalendarWeeks().map((week) => (
-                                <SelectItem key={week.value} value={week.value}>
-                                  {week.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        {versionsQuery.isLoading ? (
-                          <Skeleton className="h-4 w-24" />
-                        ) : versionsQuery.data?.versions?.length ? (
-                          <div className="text-xs text-muted-foreground">
-                            {versionsQuery.data.versions.length} {versionsQuery.data.versions.length === 1 ? 'Version' : 'Versionen'} verfügbar
-                          </div>
-                        ) : (
-                          <div className="text-xs text-muted-foreground">Keine Versionen für diese Woche</div>
-                        )}
-                      </div>
-
-                      {/* Primary Version Actions */}
-                      {selectedVersion && (
-                        <div className="flex gap-2">
-                          {data?.version_statuses?.[selectedVersion] === 'DRAFT' && (
-                            <Button
-                              onClick={() => handlePublishVersion(selectedVersion)}
-                              disabled={
-                                isLoading ||
-                                createVersionMutation.isPending ||
-                                updateVersionStatusMutation.isPending
-                              }
-                              size="sm"
-                              className="flex-1 flex items-center justify-center"
-                            >
-                              <CheckCircle2 className="h-4 w-4 mr-1.5" />
-                              Veröffentlichen
-                            </Button>
-                          )}
-
-                          {(data?.version_statuses?.[selectedVersion] === 'DRAFT' ||
-                            data?.version_statuses?.[selectedVersion] === 'PUBLISHED') && (
-                              <Button
-                                onClick={() => handleArchiveVersion(selectedVersion)}
-                                disabled={
-                                  isLoading ||
-                                  createVersionMutation.isPending ||
-                                  updateVersionStatusMutation.isPending
-                                }
-                                size="sm"
-                                variant="outline"
-                                className="flex-1 flex items-center justify-center"
-                              >
-                                <Archive className="h-4 w-4 mr-1.5" />
-                                Archivieren
-                              </Button>
-                            )}
-                        </div>
-                      )}
-
-                      {/* Advanced Version Actions */}
-                      <div className="pt-2 border-t">
-                        <div className="flex flex-col gap-2">
-                          <Button
-                            onClick={handleDuplicateVersion}
-                            disabled={!selectedVersion}
-                            size="sm"
-                            variant="outline"
-                            className="w-full justify-start"
-                          >
-                            <Copy className="h-4 w-4 mr-1.5" />
-                            Version duplizieren
-                          </Button>
-
-                          <Button
-                            onClick={handleUpdateNotes}
-                            disabled={!selectedVersion}
-                            size="sm"
-                            variant="outline"
-                            className="w-full justify-start"
-                          >
-                            <FileText className="h-4 w-4 mr-1.5" />
-                            Notizen bearbeiten
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Version Comparison */}
-                      {versions.length > 1 && selectedVersion && (
-                        <div className="pt-2 border-t">
-                          <h4 className="text-sm font-medium mb-2">Versionen vergleichen</h4>
-                          <div className="space-y-2">
-                            <Select
-                              value={versionToCompare?.toString() || ''}
-                              onValueChange={(value) => setVersionToCompare(Number(value))}
-                              disabled={isComparingVersions}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Version zum Vergleich wählen" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {versions.filter(v => v !== selectedVersion).map(v => (
-                                  <SelectItem key={v} value={v.toString()}>
-                                    Version {v}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-
-                            <Button
-                              onClick={handleCompareVersions}
-                              disabled={!versionToCompare || isComparingVersions}
-                              size="sm"
-                              className="w-full"
-                            >
-                              {isComparingVersions ? (
-                                <>
-                                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                                  Vergleiche...
-                                </>
-                              ) : (
-                                <>
-                                  <GitCompare className="h-4 w-4 mr-1.5" />
-                                  Vergleichen
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Version Info */}
-                  <div className="md:col-span-8">
-                    {selectedVersion && data?.version_statuses?.[selectedVersion] ? (
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className={`flex items-center ${data.version_statuses[selectedVersion] === 'PUBLISHED'
-                              ? 'text-green-600'
-                              : data.version_statuses[selectedVersion] === 'ARCHIVED'
-                                ? 'text-gray-500'
-                                : 'text-blue-600'
-                              }`}>
-                              {data.version_statuses[selectedVersion] === 'DRAFT' && <AlertCircle className="h-3 w-3 mr-1" />}
-                              {data.version_statuses[selectedVersion] === 'PUBLISHED' && <CheckCircle2 className="h-3 w-3 mr-1" />}
-                              {data.version_statuses[selectedVersion] === 'ARCHIVED' && <Archive className="h-3 w-3 mr-1" />}
-                              {data.version_statuses[selectedVersion]}
-                            </Badge>
-
-                            {data?.version_meta && (
-                              <span className="text-xs text-muted-foreground flex items-center">
-                                <Clock className="h-3 w-3 mr-1" />
-                                Erstellt: {format(new Date(data.version_meta.created_at), 'dd.MM.yyyy HH:mm')}
-                              </span>
-                            )}
-                          </div>
-
-                          {data?.version_statuses?.[selectedVersion] === 'DRAFT' && (
-                            <span className="text-xs text-blue-600 flex items-center">
-                              <Pencil className="h-3 w-3 mr-1" />
-                              Bearbeitbar
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Status description */}
-                        <div className="text-sm text-muted-foreground">
-                          {data.version_statuses[selectedVersion] === 'DRAFT' && (
-                            <div className="flex items-start text-blue-600/80">
-                              <AlertCircle className="h-4 w-4 mr-2 mt-0.5" />
-                              <p>Diese Version ist im Entwurfsmodus und kann bearbeitet werden.</p>
-                            </div>
-                          )}
-                          {data.version_statuses[selectedVersion] === 'PUBLISHED' && (
-                            <div className="flex items-start text-green-600/80">
-                              <CheckCircle2 className="h-4 w-4 mr-2 mt-0.5" />
-                              <p>Diese Version ist veröffentlicht und kann nicht mehr bearbeitet werden.</p>
-                            </div>
-                          )}
-                          {data.version_statuses[selectedVersion] === 'ARCHIVED' && (
-                            <div className="flex items-start text-gray-500">
-                              <Archive className="h-4 w-4 mr-2 mt-0.5" />
-                              <p>Diese Version ist archiviert und dient als Referenz.</p>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Version details */}
-                        {data?.version_meta && (data.version_meta.updated_at || data.version_meta.base_version || data.version_meta.notes) && (
-                          <div className="text-xs grid gap-1.5 pt-3 border-t">
-                            {data.version_meta.updated_at && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-muted-foreground min-w-24">Aktualisiert:</span>
-                                <span>{format(new Date(data.version_meta.updated_at), 'dd.MM.yyyy HH:mm')}</span>
-                              </div>
-                            )}
-                            {data.version_meta.base_version && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-muted-foreground min-w-24">Basiert auf:</span>
-                                <span>Version {data.version_meta.base_version}</span>
-                              </div>
-                            )}
-                            {data.version_meta.notes && (
-                              <div className="flex items-start gap-2 mt-1">
-                                <span className="text-muted-foreground min-w-24">Notizen:</span>
-                                <span>{data.version_meta.notes}</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center text-center py-8">
-                        <span className="text-muted-foreground mb-2">
-                          {versions && versions.length > 0
-                            ? "Bitte wählen Sie eine Version aus."
-                            : "Keine Versionen vorhanden"}
-                        </span>
-                        {!(versions && versions.length > 0) && (
-                          <Button
-                            onClick={handleCreateNewVersion}
-                            variant="outline"
-                            size="sm">
-                            Erste Version erstellen
-                          </Button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-6">
-                  <History className="h-8 w-8 mx-auto text-muted-foreground mb-3 opacity-50" />
-                  <h3 className="font-medium mb-2 text-base">Keine Versionen vorhanden</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Erstellen Sie Ihre erste Version, um Änderungen zu verfolgen.
-                  </p>
-                  <Button
-                    onClick={handleCreateNewVersion}
-                    variant="outline"
-                    size="sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Erste Version erstellen
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Time Frame & Options */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-            {/* Left column - Time frame & Options */}
-            <div className="md:col-span-7 space-y-6">
-              {/* Timeframe Section */}
-              <div className="bg-muted/30 p-4 rounded-lg">
-                <h3 className="text-sm font-medium mb-3 flex items-center">
-                  <CalendarIcon className="h-4 w-4 mr-2" />
-                  Zeitraum festlegen
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
-                  <div className="sm:col-span-7">
-                    <label className="text-xs text-muted-foreground block mb-1.5">Kalenderwoche</label>
-                    <Select value={selectedCalendarWeek} onValueChange={handleCalendarWeekChange}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="KW auswählen" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {getAvailableCalendarWeeks().map(week => (
-                          <SelectItem key={week.value} value={week.value}>
-                            {week.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="sm:col-span-5">
-                    <label className="text-xs text-muted-foreground block mb-1.5">Dauer</label>
-                    <Select value={weeksAmount.toString()} onValueChange={handleWeeksAmountChange}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Anzahl Wochen" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[1, 2, 3, 4].map(amount => (
-                          <SelectItem key={amount} value={amount.toString()}>
-                            {amount} {amount === 1 ? 'Woche' : 'Wochen'}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Options Section */}
-              <div>
-                <h3 className="text-sm font-medium mb-3 flex items-center">
-                  <Settings2 className="h-4 w-4 mr-2" />
-                  Anzeigeoptionen
-                </h3>
-                <div className="flex flex-wrap gap-y-2 gap-x-6">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="createEmpty"
-                      checked={createEmptySchedules}
-                      onCheckedChange={handleCreateEmptyChange}
-                    />
-                    <label
-                      htmlFor="createEmpty"
-                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                      Leere Zeilen erstellen
-                    </label>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="showEmpty"
-                      checked={includeEmpty}
-                      onCheckedChange={handleIncludeEmptyChange}
-                    />
-                    <label
-                      htmlFor="showEmpty"
-                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                      Leere Zeilen anzeigen
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Right column - Actions */}
-            <div className="md:col-span-5 flex flex-col justify-between">
-              <div>
-                <h3 className="text-sm font-medium mb-3 flex items-center">
-                  <Play className="h-4 w-4 mr-2" />
-                  Aktionen
-                </h3>
-                <div className="grid grid-cols-1 gap-2">
-                  <Button
-                    onClick={() => generateMutation.mutate()}
-                    disabled={generateMutation.isPending}
-                    className="w-full"
-                  >
-                    {generateMutation.isPending ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Generiere...
-                      </>
-                    ) : (
-                      <>
-                        <FileSpreadsheet className="mr-2 h-4 w-4" />
-                        Schichtplan generieren
-                      </>
-                    )}
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    onClick={() => exportMutation.mutate()}
-                    disabled={exportMutation.isPending || scheduleData.length === 0}
-                    className="w-full"
-                  >
-                    {exportMutation.isPending ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Exportiere...
-                      </>
-                    ) : (
-                      <>
-                        <FileDown className="mr-2 h-4 w-4" />
-                        PDF Export
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Generation Success Toast */}
-      <GenerationOverlay />
-
-      {/* Schedule Overview Stats */}
-      {dateRange?.from && dateRange?.to && (
-        <ScheduleOverview
-          schedules={scheduleData}
-          dateRange={{ from: dateRange.from, to: dateRange.to }}
-          version={selectedVersion}
-        />
-      )}
-
-      {/* Schedule Generation Errors */}
-      {errors && errors.length > 0 && <ScheduleGenerationErrors errors={errors} />}
-
-      {/* Main Schedule Table */}
-      <DndProvider backend={HTML5Backend}>
-        <ScheduleTable
-          schedules={scheduleData.filter(s => includeEmpty || s.shift_id !== null)}
-          dateRange={dateRange}
-          onDrop={handleDrop}
-          onUpdate={handleShiftUpdate}
-          isLoading={isLoading}
-        />
-      </DndProvider>
-
-      {/* Activity Log Collapsible Section */}
-      {generationLogs.length > 0 && (
-        <Card className="mt-4 relative">
-          <CardHeader className="py-2 px-4 flex justify-between items-center border-b">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Clock size={14} />
-              Aktivitätsprotokoll
-            </CardTitle>
-            <Button variant="ghost" size="icon" onClick={clearGenerationLogs} className="h-6 w-6">
-              <X size={14} />
-            </Button>
-          </CardHeader>
-          <CardContent className="max-h-[180px] overflow-y-auto p-3">
-            <div className="space-y-1">
-              {generationLogs.map((log, index) => (
-                <div
-                  key={index}
-                  className={cn(
-                    "text-xs p-1.5 rounded flex gap-2",
-                    log.type === 'error' ? "bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300" :
-                      log.type === 'warning' ? "bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300" :
-                        "bg-slate-100 dark:bg-slate-800"
+        <div className="lg:col-span-9">
+          <Card className="mb-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xl flex items-center justify-between">
+                <div>
+                  Schichtplan
+                  {dateRange?.from && dateRange?.to && (
+                    <span className="ml-2 text-sm text-muted-foreground">
+                      {format(dateRange.from, 'dd.MM.yyyy')} - {format(dateRange.to, 'dd.MM.yyyy')}
+                    </span>
                   )}
-                >
-                  <span className="text-[10px] whitespace-nowrap opacity-80">
-                    {format(new Date(log.timestamp), 'HH:mm:ss')}
-                  </span>
-                  <span>{log.message}</span>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Schedule Versions Table - Only show if versions exist */}
-      {versions && versions.length > 0 && (
-        <ScheduleVersions
-          schedules={scheduleData}
-          onPublish={handlePublish}
-          onArchive={handleArchive}
-        />
-      )}
-
-      {/* Generation Modal */}
-      {generateMutation.isPending && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
-          <Card className="w-[400px] shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-center">
-                Generiere Schichtplan
-                <div className="text-sm font-normal text-muted-foreground mt-1">
-                  Bitte warten Sie, während der Schichtplan generiert wird...
+                <div className="flex items-center gap-2">
+                  <Badge variant={isLoading || isLoadingSchedule ? "outline" : "default"} className="ml-2">
+                    {isLoading || isLoadingSchedule ? (
+                      <span className="flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Laden...
+                      </span>
+                    ) : (
+                      <span>{convertedSchedules.length} Einträge</span>
+                    )}
+                  </Badge>
                 </div>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {generationSteps.map((step, index) => (
-                <div key={step.id} className="flex items-center space-x-3">
-                  {step.status === 'pending' && <Circle className="h-5 w-5 text-muted-foreground" />}
-                  {step.status === 'in-progress' && <Clock className="h-5 w-5 text-blue-500 animate-pulse" />}
-                  {step.status === 'completed' && <CheckCircle2 className="h-5 w-5 text-green-500" />}
-                  {step.status === 'error' && <AlertCircle className="h-5 w-5 text-red-500" />}
-                  <div className="flex-1">
-                    <div className="text-sm font-medium">{step.title}</div>
-                    {step.message && (
-                      <div className="text-xs text-muted-foreground">{step.message}</div>
-                    )}
-                  </div>
-                </div>
-              ))}
-              <Progress
-                value={
-                  (generationSteps.filter(step => step.status === 'completed').length /
-                    generationSteps.length) * 100
-                }
-                className="mt-4"
-              />
-            </CardContent>
           </Card>
-        </div>
-      )}
 
-      {/* Error Modal */}
-      <Dialog
-        open={generateMutation.isError && errors && errors.length > 0}
-        onOpenChange={() => {
-          if (generateMutation.isError) {
-            // Clear error state by refetching data
-            refetch();
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-red-600">
-              Schichtplan-Generierung fehlgeschlagen
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <ScheduleGenerationErrors errors={errors} />
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Date Range Picker */}
-      <Card className="mb-4">
-        {/* ...existing Card content... */}
-      </Card>
-
-      {/* Duplicate Version Dialog */}
-      <Dialog open={duplicateVersionDialogOpen} onOpenChange={setDuplicateVersionDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Duplicate Version</DialogTitle>
-            <DialogDescription>
-              Create a new version as a duplicate of version {selectedVersion}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <label htmlFor="notes" className="text-sm font-medium">
-                Version Notes
-              </label>
-              <textarea
-                id="notes"
-                className="w-full min-h-[100px] p-2 border rounded-md"
-                placeholder="Enter notes for the new version"
-                value={versionNotes}
-                onChange={(e) => setVersionNotes(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDuplicateVersionDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={confirmDuplicateVersion}
-              disabled={duplicateVersionMutation.isPending}
-            >
-              {duplicateVersionMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                'Create Duplicate'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Notes Dialog */}
-      <Dialog open={isEditingNotes} onOpenChange={setIsEditingNotes}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit Version Notes</DialogTitle>
-            <DialogDescription>
-              Update notes for version {selectedVersion}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <label htmlFor="version-notes" className="text-sm font-medium">
-                Notes
-              </label>
-              <textarea
-                id="version-notes"
-                className="w-full min-h-[100px] p-2 border rounded-md"
-                placeholder="Enter version notes"
-                value={versionNotes}
-                onChange={(e) => setVersionNotes(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditingNotes(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={saveVersionNotes}
-              disabled={updateVersionNotesMutation.isPending}
-            >
-              {updateVersionNotesMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Save Notes'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Version Comparison Dialog */}
-      <Dialog open={!!comparisonResults} onOpenChange={() => setComparisonResults(null)}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Version Comparison</DialogTitle>
-            <DialogDescription>
-              Comparing Version {comparisonResults?.base_version} with Version {comparisonResults?.compare_version}
-            </DialogDescription>
-          </DialogHeader>
-          {comparisonResults && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-4 gap-4 text-center">
-                <div className="p-3 bg-green-100 dark:bg-green-900/20 rounded-md">
-                  <div className="text-lg font-bold text-green-700 dark:text-green-400">
-                    {comparisonResults.differences.added}
-                  </div>
-                  <div className="text-sm text-green-700 dark:text-green-400">Added</div>
-                </div>
-                <div className="p-3 bg-red-100 dark:bg-red-900/20 rounded-md">
-                  <div className="text-lg font-bold text-red-700 dark:text-red-400">
-                    {comparisonResults.differences.removed}
-                  </div>
-                  <div className="text-sm text-red-700 dark:text-red-400">Removed</div>
-                </div>
-                <div className="p-3 bg-yellow-100 dark:bg-yellow-900/20 rounded-md">
-                  <div className="text-lg font-bold text-yellow-700 dark:text-yellow-400">
-                    {comparisonResults.differences.changed}
-                  </div>
-                  <div className="text-sm text-yellow-700 dark:text-yellow-400">Changed</div>
-                </div>
-                <div className="p-3 bg-blue-100 dark:bg-blue-900/20 rounded-md">
-                  <div className="text-lg font-bold text-blue-700 dark:text-blue-400">
-                    {comparisonResults.differences.unchanged}
-                  </div>
-                  <div className="text-sm text-blue-700 dark:text-blue-400">Unchanged</div>
-                </div>
+          <DndProvider backend={HTML5Backend}>
+            {isLoading ? (
+              <div className="space-y-4">
+                <Skeleton className="h-[200px] w-full" />
+                <Skeleton className="h-[400px] w-full" />
               </div>
-              {comparisonResults.differences.details.length > 0 && (
-                <div className="border rounded-md overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted/50">
-                      <tr>
-                        <th className="p-2 text-left font-medium">Employee</th>
-                        <th className="p-2 text-left font-medium">Date</th>
-                        <th className="p-2 text-left font-medium">Base Shift</th>
-                        <th className="p-2 text-left font-medium">Compare Shift</th>
-                        <th className="p-2 text-left font-medium">Change</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {comparisonResults.differences.details
-                        .filter((d: any) => d.type !== 'unchanged')
-                        .map((diff: any, i: number) => (
-                          <tr key={i} className={
-                            diff.type === 'added' ? 'bg-green-50 dark:bg-green-900/10' :
-                              diff.type === 'removed' ? 'bg-red-50 dark:bg-red-900/10' :
-                                diff.type === 'changed' ? 'bg-yellow-50 dark:bg-yellow-900/10' : ''
-                          }>
-                            <td className="p-2 border-t">{diff.employee_id}</td>
-                            <td className="p-2 border-t">{diff.date}</td>
-                            <td className="p-2 border-t">{diff.base_shift_id || '-'}</td>
-                            <td className="p-2 border-t">{diff.compare_shift_id || '-'}</td>
-                            <td className="p-2 border-t capitalize">{diff.type}</td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
+            ) : isError ? (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>
+                  {error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten"}
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <>
+                {scheduleErrors.length > 0 && (
+                  <Alert variant="destructive" className="mb-4">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Fehler im Dienstplan</AlertTitle>
+                    <AlertDescription>
+                      <div className="max-h-40 overflow-y-auto">
+                        <ul className="list-disc pl-4">
+                          {scheduleErrors.map((error, index) => (
+                            <li key={index}>{error.message}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                <div className={showGenerationOverlay ? 'relative opacity-30 pointer-events-none' : 'relative'}>
+                  <ScheduleTable
+                    schedules={convertedSchedules}
+                    dateRange={dateRange}
+                    onDrop={handleShiftDrop}
+                    onUpdate={handleShiftUpdate}
+                    isLoading={isLoadingSchedule}
+                  />
                 </div>
-              )}
-            </div>
-          )}
-          <DialogFooter>
-            <Button onClick={() => setComparisonResults(null)}>Close</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              </>
+            )}
+          </DndProvider>
+        </div>
+      </div>
+
+      {showGenerationOverlay && <GenerationOverlay />}
     </div>
   );
 } 

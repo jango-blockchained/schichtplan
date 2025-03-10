@@ -57,11 +57,15 @@ export interface Schedule {
     employee_id: number;
     date: string;
     shift_id: number | null;
-    shift_start: string | null;
-    shift_end: string | null;
-    is_empty: boolean;
+    shift_start: string | null | undefined;
+    shift_end: string | null | undefined;
+    is_empty: boolean | undefined;
     version: number;
     status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+    break_start?: string | null;
+    break_end?: string | null;
+    notes?: string | null;
+    employee_name?: string;
 }
 
 export interface ScheduleError {
@@ -186,6 +190,8 @@ export interface Settings {
         min_rest_between_shifts: number;
         scheduling_period_weeks: number;
         auto_schedule_preferences: boolean;
+        min_employees_per_shift?: number;
+        max_employees_per_shift?: number;
         generation_requirements: {
             enforce_minimum_coverage: boolean;
             enforce_contracted_hours: boolean;
@@ -362,6 +368,8 @@ export interface WeeklyShift {
         end: string;
         notes?: string;
     };
+    start?: string;
+    end?: string;
 }
 
 export interface WeeklySchedule {

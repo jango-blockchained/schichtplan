@@ -1,9 +1,26 @@
 import axios, { AxiosError } from 'axios';
-import type { Settings, Employee, Schedule, ScheduleError, ScheduleUpdate, DailyCoverage, CoverageTimeSlot } from '@/types/index';
+import type { Settings, Employee, ScheduleError, ScheduleUpdate, DailyCoverage, CoverageTimeSlot } from '@/types/index';
 import { CreateEmployeeRequest, UpdateEmployeeRequest } from '../types';
 
 interface APIErrorResponse {
     error?: string;
+}
+
+export interface Schedule {
+    id: number;
+    date: string;
+    employee_id: number;
+    shift_id: number | null;
+    version: number;
+    status: string;
+    created_at: string;
+    updated_at: string;
+    break_start?: string | null;
+    break_end?: string | null;
+    notes?: string | null;
+    is_empty?: boolean;
+    shift_start?: string | null;
+    shift_end?: string | null;
 }
 
 export interface ScheduleResponse {
