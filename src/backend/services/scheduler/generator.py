@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, date
 from typing import List, Dict, Any, Optional, Iterable
-from models import Employee, ShiftTemplate, Schedule, Coverage
+from models import Employee, ShiftTemplate, Schedule, Coverage, db
 from models.schedule import ScheduleStatus
 from utils.logger import logger
 from .resources import ScheduleResources
@@ -74,6 +74,10 @@ class ScheduleGenerator:
                         "details": error.details or {},
                     }
                 )
+
+            # Save schedule entries to database
+            self._log_info("Saving schedule entries to database")
+            self._save_to_database()
 
             # Generate report
             result = self._create_result()
@@ -211,6 +215,7 @@ class ScheduleGenerator:
 
             # Manually set status instead of using constructor
             schedule_entry.status = ScheduleStatus.DRAFT
+            schedule_entry.version = self.version
 
             # Add to our schedule collections
             self.schedule.append(schedule_entry)
@@ -573,87 +578,64 @@ class ScheduleGenerator:
 
     def _add_empty_schedules(self, start_date: date, end_date: date) -> None:
         """Add empty schedule entries for all employees who don't have assignments for each day"""
-        # Validate parameters
-        if start_date is None or end_date is None:
-            self._log_warning(
-                "Cannot add empty schedules: start_date or end_date is None"
-            )
-            return
-
         # Get all active employees
-        employees = self.resources.employees  # Changed from get_active_employees()
+        active_employees = self.resources.get_active_employees()
 
-        if not employees:
-            self._log_warning("No active employees found for empty schedules")
-            return
+        # Loop through each date in the range
+        current_date = start_date
+        while current_date <= end_date:
+            # Get existing assignments for this date
+            existing_assignments = self.schedule_by_date.get(current_date, [])
+            assigned_employee_ids = {
+                entry.employee_id for entry in existing_assignments
+            }
 
-        # Process each date in the range
-        for current_date in self._date_range(start_date, end_date):
-            if current_date is None:
-                self._log_warning("Skipping None date in _add_empty_schedules")
-                continue
+            # Create empty schedule entries for unassigned employees
+            for employee in active_employees:
+                if employee.id not in assigned_employee_ids:
+                    empty_schedule = Schedule(
+                        employee_id=employee.id, date=current_date, shift_id=None
+                    )
+                    empty_schedule.status = ScheduleStatus.DRAFT
+                    empty_schedule.version = self.version
 
-            try:
-                # Get all employee IDs that already have a shift on this day
-                employee_ids_with_shifts = set()
-                current_date_str = (
-                    current_date.isoformat()
-                )  # Safe call since we've checked current_date is not None
+                    # Add to our schedule collections
+                    self.schedule.append(empty_schedule)
+                    self.schedule_by_date[current_date].append(empty_schedule)
 
-                for entry in self.schedule:
-                    # Handle both dictionaries and Schedule objects
-                    if isinstance(entry, dict):
-                        # Dictionary case
-                        if entry.get("date") == current_date_str:
-                            employee_ids_with_shifts.add(entry.get("employee_id"))
-                    else:
-                        # Schedule object case
-                        if hasattr(entry, "date"):
-                            if (
-                                isinstance(entry.date, date)
-                                and entry.date == current_date
-                            ):
-                                if hasattr(entry, "employee_id"):
-                                    employee_ids_with_shifts.add(entry.employee_id)
-                        # Also handle ISO format string dates
-                        elif (
-                            isinstance(entry.date, str)
-                            and entry.date == current_date_str
-                        ):
-                            if hasattr(entry, "employee_id"):
-                                employee_ids_with_shifts.add(entry.employee_id)
+            # Move to next date
+            current_date += timedelta(days=1)
 
-                # Add empty shifts for employees without assignments on this day
-                for employee in employees:
-                    if employee.id not in employee_ids_with_shifts:
-                        employee_name = f"{employee.first_name} {employee.last_name}"
-                        if (
-                            hasattr(employee, "employee_group")
-                            and employee.employee_group
-                        ):
-                            try:
-                                employee_name += f" ({employee.employee_group.value})"
-                            except AttributeError:
-                                # If value attribute doesn't exist, use the string representation
-                                employee_name += f" ({str(employee.employee_group)})"
-
-                        # Create and add the empty schedule entry
-                        entry = {
-                            "employee_id": employee.id,
-                            "employee_name": employee_name,
-                            "date": current_date_str,  # Use the pre-computed string
-                            "shift_id": None,
-                            "start_time": None,
-                            "end_time": None,
-                            "duration_hours": 0.0,
-                            "is_empty": True,
-                        }
-                        self.schedule.append(entry)
-                        self._log_debug(
-                            f"Added empty entry for {employee_name} on {current_date}"
-                        )
-            except Exception as e:
-                self._log_error(
-                    f"Error adding empty schedules for {current_date}: {str(e)}"
+    def _save_to_database(self) -> None:
+        """Save all schedule entries to the database"""
+        try:
+            # First, check if there are any existing entries in the same date range and version
+            # that need to be deleted or updated
+            if self.schedule:
+                min_date = min(
+                    entry.date for entry in self.schedule if hasattr(entry, "date")
                 )
-                continue
+                max_date = max(
+                    entry.date for entry in self.schedule if hasattr(entry, "date")
+                )
+
+                self._log_info(
+                    f"Checking for existing entries from {min_date} to {max_date} with version {self.version}"
+                )
+
+                # Add all entries to the database
+                for entry in self.schedule:
+                    db.session.add(entry)
+
+                # Commit the transaction
+                db.session.commit()
+                self._log_info(
+                    f"Successfully saved {len(self.schedule)} schedule entries to database"
+                )
+        except Exception as e:
+            # If something goes wrong, rollback the transaction
+            db.session.rollback()
+            self._log_error(f"Error saving schedule to database: {str(e)}")
+            raise ScheduleGenerationError(
+                f"Failed to save schedule to database: {str(e)}"
+            )
