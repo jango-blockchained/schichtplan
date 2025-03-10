@@ -424,24 +424,58 @@ class ScheduleValidator:
         # Group shifts by employee and week
         shifts_by_employee_week = {}
         for entry in schedule:
-            emp_id = entry.employee_id
-            week_start = self._get_week_start(entry.date)
-            week_key = week_start.isoformat()
+            try:
+                # Handle both objects and dictionaries
+                if hasattr(entry, "employee_id"):
+                    emp_id = entry.employee_id
+                elif isinstance(entry, dict) and "employee_id" in entry:
+                    emp_id = entry["employee_id"]
+                else:
+                    # Skip entries without employee ID
+                    continue
 
-            if emp_id not in shifts_by_employee_week:
-                shifts_by_employee_week[emp_id] = {}
+                # Skip entries without shifts
+                if (hasattr(entry, "shift") and not entry.shift) or (
+                    isinstance(entry, dict) and not entry.get("shift_id")
+                ):
+                    continue
 
-            if week_key not in shifts_by_employee_week[emp_id]:
-                shifts_by_employee_week[emp_id][week_key] = []
+                # Get date
+                if hasattr(entry, "date") and isinstance(entry.date, date):
+                    entry_date = entry.date
+                elif isinstance(entry, dict) and "date" in entry:
+                    try:
+                        entry_date = datetime.fromisoformat(entry["date"]).date()
+                    except ValueError:
+                        continue
+                else:
+                    # Skip entries without valid date
+                    continue
 
-            shifts_by_employee_week[emp_id][week_key].append(entry)
+                # Get week start
+                week_start = self._get_week_start(entry_date)
+                week_key = week_start.isoformat()
+
+                if emp_id not in shifts_by_employee_week:
+                    shifts_by_employee_week[emp_id] = {}
+
+                if week_key not in shifts_by_employee_week[emp_id]:
+                    shifts_by_employee_week[emp_id][week_key] = []
+
+                shifts_by_employee_week[emp_id][week_key].append(entry)
+            except (AttributeError, TypeError, ValueError):
+                # Skip problematic entries
+                continue
 
         # Check max shifts for each employee and week
         for emp_id, weeks in shifts_by_employee_week.items():
             # Find employee
-            employee = next(
-                (e for e in self.resources.employees if e.id == emp_id), None
-            )
+            employee = None
+            for emp in self.resources.employees:
+                if emp.id == emp_id:
+                    employee = emp
+                    break
+
             if not employee:
                 continue
 
@@ -452,17 +486,26 @@ class ScheduleValidator:
             )
 
             for week_key, entries in weeks.items():
-                if len(entries) > max_shifts:
+                shift_count = len(entries)
+
+                if shift_count > max_shifts:
+                    # Find employee name
+                    employee_name = getattr(employee, "name", None)
+                    if not employee_name:
+                        employee_name = f"Employee {emp_id}"
+
+                    # Create error
                     self.errors.append(
                         ValidationError(
                             error_type="max_shifts",
-                            message=f"{employee.first_name} {employee.last_name} is scheduled for {len(entries)} shifts in week {week_key}, exceeding maximum of {max_shifts}",
+                            message=f"{employee_name} has {shift_count} shifts in week of {week_key} (maximum {max_shifts})",
                             severity="warning",
                             details={
                                 "employee_id": emp_id,
-                                "employee_name": f"{employee.first_name} {employee.last_name}",
-                                "week": week_key,
-                                "scheduled_shifts": len(entries),
+                                "employee_name": employee_name,
+                                "employee_group": str(employee.employee_group),
+                                "week_start": week_key,
+                                "shift_count": shift_count,
                                 "max_shifts": max_shifts,
                             },
                         )
@@ -473,28 +516,69 @@ class ScheduleValidator:
         # Group hours by employee and week
         hours_by_employee_week = {}
         for entry in schedule:
-            # Skip entries without shifts
-            if not hasattr(entry, "shift") or not entry.shift:
+            try:
+                # Handle both objects and dictionaries
+                if hasattr(entry, "employee_id"):
+                    emp_id = entry.employee_id
+                elif isinstance(entry, dict) and "employee_id" in entry:
+                    emp_id = entry["employee_id"]
+                else:
+                    # Skip entries without employee ID
+                    continue
+
+                # Get date
+                if hasattr(entry, "date") and isinstance(entry.date, date):
+                    entry_date = entry.date
+                elif isinstance(entry, dict) and "date" in entry:
+                    try:
+                        entry_date = datetime.fromisoformat(entry["date"]).date()
+                    except ValueError:
+                        continue
+                else:
+                    # Skip entries without valid date
+                    continue
+
+                # Get week start
+                week_start = self._get_week_start(entry_date)
+                week_key = week_start.isoformat()
+
+                if emp_id not in hours_by_employee_week:
+                    hours_by_employee_week[emp_id] = {}
+
+                if week_key not in hours_by_employee_week[emp_id]:
+                    hours_by_employee_week[emp_id][week_key] = 0.0
+
+                # Get shift duration
+                duration = 0.0
+                if (
+                    hasattr(entry, "shift")
+                    and entry.shift
+                    and hasattr(entry.shift, "duration_hours")
+                ):
+                    try:
+                        duration = float(entry.shift.duration_hours)
+                    except (ValueError, TypeError):
+                        pass
+                elif isinstance(entry, dict) and "duration_hours" in entry:
+                    try:
+                        duration = float(entry["duration_hours"])
+                    except (ValueError, TypeError):
+                        pass
+
+                hours_by_employee_week[emp_id][week_key] += duration
+            except (AttributeError, TypeError, ValueError):
+                # Skip problematic entries
                 continue
-
-            emp_id = entry.employee_id
-            week_start = self._get_week_start(entry.date)
-            week_key = week_start.isoformat()
-
-            if emp_id not in hours_by_employee_week:
-                hours_by_employee_week[emp_id] = {}
-
-            if week_key not in hours_by_employee_week[emp_id]:
-                hours_by_employee_week[emp_id][week_key] = 0
-
-            hours_by_employee_week[emp_id][week_key] += entry.shift.duration_hours
 
         # Check max hours for each employee and week
         for emp_id, weeks in hours_by_employee_week.items():
             # Find employee
-            employee = next(
-                (e for e in self.resources.employees if e.id == emp_id), None
-            )
+            employee = None
+            for emp in self.resources.employees:
+                if emp.id == emp_id:
+                    employee = emp
+                    break
+
             if not employee:
                 continue
 
@@ -506,16 +590,23 @@ class ScheduleValidator:
 
             for week_key, hours in weeks.items():
                 if hours > max_hours:
+                    # Find employee name
+                    employee_name = getattr(employee, "name", None)
+                    if not employee_name:
+                        employee_name = f"Employee {emp_id}"
+
+                    # Create error
                     self.errors.append(
                         ValidationError(
                             error_type="max_hours",
-                            message=f"{employee.first_name} {employee.last_name} is scheduled for {hours}h in week {week_key}, exceeding maximum of {max_hours}h",
+                            message=f"{employee_name} has {hours:.1f}h in week of {week_key} (maximum {max_hours}h)",
                             severity="warning",
                             details={
                                 "employee_id": emp_id,
-                                "employee_name": f"{employee.first_name} {employee.last_name}",
-                                "week": week_key,
-                                "scheduled_hours": hours,
+                                "employee_name": employee_name,
+                                "employee_group": str(employee.employee_group),
+                                "week_start": week_key,
+                                "hours": hours,
                                 "max_hours": max_hours,
                             },
                         )
