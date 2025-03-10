@@ -5,7 +5,7 @@ from app import create_app
 from models.fixed_shift import ShiftTemplate
 from models.employee import Employee
 from models.schedule import Schedule
-from services.schedule_generator import ScheduleGenerator
+from services.scheduler import ScheduleGenerator
 from models import db
 
 # Set up logging

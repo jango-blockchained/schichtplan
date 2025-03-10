@@ -19,7 +19,7 @@ import reportlab.lib.pagesizes as pagesizes
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch
 from flask import current_app
-from services.schedule_generator import ScheduleGenerator, ScheduleGenerationError
+from services.scheduler import ScheduleGenerator, ScheduleGenerationError
 import logging
 
 logger = logging.getLogger(__name__)

@@ -1,5 +1,5 @@
 from datetime import date
-from typing import List, Optional
+from typing import List, Optional, Dict, Tuple
 from models import (
     Employee,
     ShiftTemplate,
@@ -8,6 +8,7 @@ from models import (
     db,
     Absence,
     EmployeeAvailability,
+    Schedule,
 )
 from models.employee import AvailabilityType, EmployeeGroup
 import logging
@@ -38,6 +39,7 @@ class ScheduleResources:
         self.employees: List[Employee] = []
         self.absences: List[Absence] = []
         self.availabilities: List[EmployeeAvailability] = []
+        self.schedule_data: Dict[Tuple[int, date], Schedule] = {}
 
     def load(self):
         """Load all required resources from database"""
@@ -180,3 +182,24 @@ class ScheduleResources:
                 return False
 
         return True
+
+    def get_schedule_data(self) -> Dict[Tuple[int, date], Schedule]:
+        """Get schedule data"""
+        return self.schedule_data
+
+    def add_schedule_entry(self, employee_id: int, date: date, schedule: Schedule):
+        """Add a schedule entry"""
+        self.schedule_data[(employee_id, date)] = schedule
+
+    def get_schedule_entry(self, employee_id: int, date: date) -> Optional[Schedule]:
+        """Get a schedule entry"""
+        return self.schedule_data.get((employee_id, date))
+
+    def remove_schedule_entry(self, employee_id: int, date: date):
+        """Remove a schedule entry"""
+        if (employee_id, date) in self.schedule_data:
+            del self.schedule_data[(employee_id, date)]
+
+    def clear_schedule_data(self):
+        """Clear all schedule data"""
+        self.schedule_data = {}

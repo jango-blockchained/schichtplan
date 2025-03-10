@@ -182,7 +182,7 @@ class ScheduleGenerator:
                             available_employees.append(employee)
 
         # Prioritize keyholders for shifts that require them
-        if getattr(shift, "requires_keyholder", False):
+        if requires_keyholder(shift):
             keyholders = [e for e in available_employees if e.is_keyholder]
             non_keyholders = [e for e in available_employees if not e.is_keyholder]
             available_employees = keyholders + non_keyholders
