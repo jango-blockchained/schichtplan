@@ -203,3 +203,7 @@ class ScheduleResources:
     def clear_schedule_data(self):
         """Clear all schedule data"""
         self.schedule_data = {}
+
+    def get_active_employees(self) -> List[Employee]:
+        """Get list of active employees (for backward compatibility)"""
+        return self.employees
