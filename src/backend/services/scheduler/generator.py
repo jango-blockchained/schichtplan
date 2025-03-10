@@ -376,8 +376,18 @@ class ScheduleGenerator:
 
     def _create_result(self) -> Dict[str, Any]:
         """Create the final result object"""
+        schedule_entries = []
+        for entry in self.schedule:
+            if hasattr(entry, "to_dict") and callable(entry.to_dict):
+                schedule_entries.append(entry.to_dict())
+            elif isinstance(entry, dict):
+                schedule_entries.append(entry)
+            else:
+                # Skip entries that can't be converted to dict
+                continue
+
         return {
-            "schedule": [entry.to_dict() for entry in self.schedule],
+            "schedule": schedule_entries,
             "warnings": self.warnings,
             "version": self.version,
             "generation_time": datetime.now().isoformat(),
