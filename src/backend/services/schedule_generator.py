@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta, date
 import warnings
+import logging
+import traceback
 from typing import List, Dict, Any, Optional, Tuple
 
 # Import from new package
@@ -19,6 +21,18 @@ warnings.warn(
     DeprecationWarning,
     stacklevel=2,
 )
+
+# Log usage for tracking
+from utils.logger import logger
+
+if hasattr(logger, "app_logger"):
+    stack = traceback.extract_stack()
+    caller = stack[-2]  # Get the caller of this module
+    logger.app_logger.warning(
+        f"DEPRECATED MODULE USED: schedule_generator imported from {caller.filename}:{caller.lineno}"
+    )
+else:
+    logging.warning("DEPRECATED MODULE USED: schedule_generator")
 
 # Original imports for backward compatibility
 from models import (
