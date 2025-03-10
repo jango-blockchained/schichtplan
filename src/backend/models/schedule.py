@@ -55,19 +55,19 @@ class Schedule(db.Model):
         self.notes = notes
 
     def to_dict(self):
-        """Convert schedule to dictionary with shift details"""
+        """Convert schedule to dictionary for API response"""
         data = {
             "id": self.id,
             "employee_id": self.employee_id,
             "shift_id": self.shift_id,
-            "date": self.date.isoformat(),
+            "date": self.date.isoformat() if self.date else None,
             "version": self.version,
             "break_start": self.break_start,
             "break_end": self.break_end,
             "notes": self.notes,
-            "status": self.status.value,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
+            "status": self.status.value if self.status else "DRAFT",
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
         # Add shift details if available
@@ -78,19 +78,15 @@ class Schedule(db.Model):
                     "shift_end": self.shift.end_time,
                     "duration_hours": self.shift.duration_hours
                     if hasattr(self.shift, "duration_hours")
-                    else None,
-                    "is_empty": False,
+                    else 0.0,
                 }
             )
-        else:
-            data.update(
-                {
-                    "shift_start": None,
-                    "shift_end": None,
-                    "duration_hours": 0.0,
-                    "is_empty": True,
-                }
-            )
+
+            # Add employee name if available (for convenience)
+            if hasattr(self, "employee") and self.employee:
+                data["employee_name"] = (
+                    f"{self.employee.first_name} {self.employee.last_name}"
+                )
 
         return data
 
