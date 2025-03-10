@@ -796,9 +796,15 @@ export interface VersionResponse {
     versions: VersionMeta[];
 }
 
-export const getAllVersions = async (): Promise<VersionResponse> => {
+export const getAllVersions = async (startDate?: string, endDate?: string): Promise<VersionResponse> => {
     try {
-        const response = await api.get<VersionResponse>('/schedules/versions');
+        const params: Record<string, string> = {};
+        if (startDate) params.start_date = startDate;
+        if (endDate) params.end_date = endDate;
+
+        const response = await api.get<VersionResponse>('/schedules/versions', {
+            params
+        });
         return response.data;
     } catch (error) {
         if (error instanceof Error) {
