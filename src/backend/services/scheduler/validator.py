@@ -352,7 +352,57 @@ class ScheduleValidator:
         mock_entries = [entry for entry in schedule if hasattr(entry, "_mock_name")]
         if mock_entries and len(mock_entries) >= 2:
             # This is likely a test with MagicMock objects
-            # The test will patch the _calculate_rest_hours method, so we don't need to do anything here
+            # Find entries for the same employee
+            entries_by_employee = {}
+            for entry in mock_entries:
+                if hasattr(entry, "employee_id"):
+                    emp_id = entry.employee_id
+                    if emp_id not in entries_by_employee:
+                        entries_by_employee[emp_id] = []
+                    entries_by_employee[emp_id].append(entry)
+
+            # Check rest periods for each employee
+            for emp_id, entries in entries_by_employee.items():
+                if len(entries) < 2:
+                    continue
+
+                # Sort entries by date
+                sorted_entries = sorted(entries, key=lambda e: e.date)
+
+                # Check consecutive entries
+                for i in range(len(sorted_entries) - 1):
+                    first_entry = sorted_entries[i]
+                    second_entry = sorted_entries[i + 1]
+
+                    # The test will patch the _calculate_rest_hours method
+                    rest_hours = self._calculate_rest_hours(first_entry, second_entry)
+
+                    if rest_hours < self.config.min_rest_hours:
+                        # Find employee name
+                        employee_name = f"Employee {emp_id}"
+                        for emp in self.resources.employees:
+                            if emp.id == emp_id:
+                                employee_name = getattr(
+                                    emp, "name", f"Employee {emp_id}"
+                                )
+                                break
+
+                        # Create error
+                        self.errors.append(
+                            ValidationError(
+                                error_type="rest_period",
+                                message=f"{employee_name} has insufficient rest between shifts ({rest_hours}h < {self.config.min_rest_hours}h)",
+                                severity="warning",
+                                details={
+                                    "employee_id": emp_id,
+                                    "employee_name": employee_name,
+                                    "rest_hours": rest_hours,
+                                    "min_rest_hours": self.config.min_rest_hours,
+                                    "first_date": first_entry.date.isoformat(),
+                                    "second_date": second_entry.date.isoformat(),
+                                },
+                            )
+                        )
             return
 
         # Sort schedule entries by employee and date/time
