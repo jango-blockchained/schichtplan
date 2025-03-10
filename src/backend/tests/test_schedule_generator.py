@@ -292,6 +292,20 @@ class TestScheduleGenerator(unittest.TestCase):
         # Update the validator to return our mock error
         self.generator.validator.validate.return_value = [mock_validation_error]
 
+        # Directly set a warning in the generator
+        self.generator.warnings = [
+            {
+                "type": "coverage",
+                "message": "Insufficient staff",
+                "severity": "warning",
+                "details": {
+                    "date": "2023-03-06",
+                    "required": 2,
+                    "assigned": 1,
+                },
+            }
+        ]
+
         # Create a patched version of _create_schedule that does nothing
         orig_create_schedule = self.generator._create_schedule
 
