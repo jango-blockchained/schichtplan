@@ -1,5 +1,26 @@
 from datetime import datetime, timedelta, date
+import warnings
 from typing import List, Dict, Any, Optional, Tuple
+
+# Import from new package
+from .scheduler import (
+    ScheduleGenerator,
+    ScheduleGenerationError,
+    is_early_shift,
+    is_late_shift,
+    requires_keyholder,
+    ScheduleResources,
+)
+
+# Show deprecation warning
+warnings.warn(
+    "The schedule_generator module is deprecated and will be removed in a future version. "
+    "Please use the 'scheduler' package instead (from services.scheduler import ...).",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+# Original imports for backward compatibility
 from models import (
     Employee,
     ShiftTemplate,

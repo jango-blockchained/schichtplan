@@ -1,5 +1,5 @@
 from src.backend.app import create_app
-from src.backend.services.schedule_generator import ScheduleGenerator
+from src.backend.services.scheduler import ScheduleGenerator
 
 
 def test_schedule_generation():

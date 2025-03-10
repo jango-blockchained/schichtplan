@@ -4,7 +4,7 @@ from models import Schedule
 from models.employee import EmployeeGroup
 from dataclasses import dataclass
 from .resources import ScheduleResources
-from .utility import requires_keyholder
+from .utility import requires_keyholder, calculate_rest_hours
 
 
 @dataclass
@@ -705,72 +705,51 @@ class ScheduleValidator:
     def _calculate_rest_hours(
         self, first_entry: Schedule, second_entry: Schedule
     ) -> float:
-        """Calculate rest hours between two schedule entries"""
-        try:
-            # Get first entry end time
-            if hasattr(first_entry, "shift") and first_entry.shift:
-                first_end_time = first_entry.shift.end_time
-            elif isinstance(first_entry, dict) and "end_time" in first_entry:
-                first_end_time = first_entry["end_time"]
-            else:
-                # Default to midnight if no end time
-                first_end_time = "00:00"
+        """Calculate the rest hours between two schedule entries"""
+        # Extract end time from first entry
+        first_end_time = None
+        if (
+            hasattr(first_entry, "shift")
+            and first_entry.shift
+            and hasattr(first_entry.shift, "end_time")
+        ):
+            first_end_time = first_entry.shift.end_time
+        elif hasattr(first_entry, "end_time") and first_entry.end_time:
+            first_end_time = first_entry.end_time
+        elif isinstance(first_entry, dict) and first_entry.get("end_time"):
+            first_end_time = first_entry["end_time"]
+        elif (
+            isinstance(first_entry, dict)
+            and "shift" in first_entry
+            and first_entry["shift"]
+            and "end_time" in first_entry["shift"]
+        ):
+            first_end_time = first_entry["shift"]["end_time"]
 
-            # Get second entry start time
-            if hasattr(second_entry, "shift") and second_entry.shift:
-                second_start_time = second_entry.shift.start_time
-            elif isinstance(second_entry, dict) and "start_time" in second_entry:
-                second_start_time = second_entry["start_time"]
-            else:
-                # Default to midnight if no start time
-                second_start_time = "00:00"
+        # Extract start time from second entry
+        second_start_time = None
+        if (
+            hasattr(second_entry, "shift")
+            and second_entry.shift
+            and hasattr(second_entry.shift, "start_time")
+        ):
+            second_start_time = second_entry.shift.start_time
+        elif hasattr(second_entry, "start_time") and second_entry.start_time:
+            second_start_time = second_entry.start_time
+        elif isinstance(second_entry, dict) and second_entry.get("start_time"):
+            second_start_time = second_entry["start_time"]
+        elif (
+            isinstance(second_entry, dict)
+            and "shift" in second_entry
+            and second_entry["shift"]
+            and "start_time" in second_entry["shift"]
+        ):
+            second_start_time = second_entry["shift"]["start_time"]
 
-            # Get dates
-            if hasattr(first_entry, "date") and isinstance(first_entry.date, date):
-                first_date = first_entry.date
-            elif isinstance(first_entry, dict) and "date" in first_entry:
-                first_date = datetime.fromisoformat(first_entry["date"]).date()
-            else:
-                raise ValueError("Invalid first entry date")
+        if not first_end_time or not second_start_time:
+            raise ValueError("Could not extract times from schedule entries")
 
-            if hasattr(second_entry, "date") and isinstance(second_entry.date, date):
-                second_date = second_entry.date
-            elif isinstance(second_entry, dict) and "date" in second_entry:
-                second_date = datetime.fromisoformat(second_entry["date"]).date()
-            else:
-                raise ValueError("Invalid second entry date")
-
-            # Calculate rest hours
-            first_end_hour, first_end_minute = map(int, first_end_time.split(":"))
-            second_start_hour, second_start_minute = map(
-                int, second_start_time.split(":")
-            )
-
-            first_end_dt = datetime.combine(
-                first_date,
-                datetime.min.time().replace(
-                    hour=first_end_hour, minute=first_end_minute
-                ),
-            )
-            second_start_dt = datetime.combine(
-                second_date,
-                datetime.min.time().replace(
-                    hour=second_start_hour, minute=second_start_minute
-                ),
-            )
-
-            # If second shift starts earlier in the day than first shift ends,
-            # it must be on a later day
-            if second_start_dt <= first_end_dt and second_date == first_date:
-                second_start_dt += timedelta(days=1)
-
-            rest_seconds = (second_start_dt - first_end_dt).total_seconds()
-            rest_hours = rest_seconds / 3600
-
-            return max(0, rest_hours)
-        except (ValueError, AttributeError, TypeError):
-            # Return a large value to avoid false positives
-            return 24.0
+        return calculate_rest_hours(first_end_time, second_start_time)
 
     def _get_week_start(self, day: date) -> date:
         """Get the start of the week (Monday) for a given date"""

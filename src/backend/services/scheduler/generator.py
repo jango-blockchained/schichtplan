@@ -5,7 +5,7 @@ from models.schedule import ScheduleStatus
 from utils.logger import logger
 from .resources import ScheduleResources
 from .validator import ScheduleValidator, ScheduleConfig
-from .utility import requires_keyholder
+from .utility import requires_keyholder, time_to_minutes, shifts_overlap
 from collections import defaultdict
 
 
@@ -356,19 +356,12 @@ class ScheduleGenerator:
         return True
 
     def _shifts_overlap(self, start1: str, end1: str, start2: str, end2: str) -> bool:
-        """Check if two time periods overlap"""
-        # Convert to minutes for easier comparison
-        start1_mins = self._time_to_minutes(start1)
-        end1_mins = self._time_to_minutes(end1)
-        start2_mins = self._time_to_minutes(start2)
-        end2_mins = self._time_to_minutes(end2)
-
-        return max(start1_mins, start2_mins) < min(end1_mins, end2_mins)
+        """Check if two shifts overlap in time"""
+        return shifts_overlap(start1, end1, start2, end2)
 
     def _time_to_minutes(self, time_str: str) -> int:
-        """Convert a time string (HH:MM) to minutes"""
-        parts = time_str.split(":")
-        return int(parts[0]) * 60 + int(parts[1])
+        """Convert a time string (HH:MM) to minutes since midnight"""
+        return time_to_minutes(time_str)
 
     def _is_store_open(self, current_date: date) -> bool:
         """Check if the store is open on the given date"""

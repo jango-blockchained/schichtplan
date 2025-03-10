@@ -239,4 +239,24 @@ This helps prevent confusion between similarly named components and makes the co
 
 ### Logs
 
-- Folder: `./src/logs/` 
+- Folder: `./src/logs/`
+
+## Recent Refactoring
+
+### Scheduler Component
+
+The scheduling system has been refactored from a monolithic design into a modular package structure:
+
+- **Module Structure**: The original `schedule_generator.py` file has been split into separate components:
+  - `generator.py`: Core scheduling algorithm
+  - `resources.py`: Data management
+  - `validator.py`: Schedule validation
+  - `utility.py`: Common utility functions
+
+- **Benefits**:
+  - Improved maintainability
+  - Better separation of concerns
+  - Enhanced testability
+  - Clearer component interfaces
+
+For more details, see the [Scheduler Package Documentation](/src/backend/services/scheduler/README.md). 
