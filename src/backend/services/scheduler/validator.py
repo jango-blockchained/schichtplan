@@ -288,7 +288,7 @@ class ScheduleValidator:
 
                     self.errors.append(
                         ValidationError(
-                            error_type="keyholder_required",
+                            error_type="keyholder",
                             message=f"No keyholder assigned for shift {shift_id} on {date_key}",
                             severity="critical",
                             details={
