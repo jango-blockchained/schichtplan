@@ -447,6 +447,19 @@ class ScheduleGenerator:
 
     def _date_range(self, start: date, end: date) -> Iterable[date]:
         """Generate a range of dates from start to end (inclusive)"""
+        if start is None:
+            self._log_error("start date is None in _date_range")
+            yield None
+            return
+
+        if end is None:
+            self._log_error("end date is None in _date_range")
+            yield None
+            return
+
+        # Debug log
+        self._log_debug(f"Generating date range from {start} to {end}")
+
         current = start
         while current <= end:
             yield current

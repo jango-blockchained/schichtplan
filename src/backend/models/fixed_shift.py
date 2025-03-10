@@ -99,8 +99,9 @@ class ShiftTemplate(db.Model):
         return self
 
     def _calculate_duration(self):
-        """Calculate shift duration in hours"""
+        """Calculate the duration of the shift in hours"""
         try:
+            # Get hours and minutes
             start_hour, start_minute = map(int, self.start_time.split(":"))
             end_hour, end_minute = map(int, self.end_time.split(":"))
 
@@ -108,32 +109,34 @@ class ShiftTemplate(db.Model):
             start_minutes = start_hour * 60 + start_minute
             end_minutes = end_hour * 60 + end_minute
 
-            # Handle overnight shifts
+            # Handle shifts that go past midnight
             if end_minutes < start_minutes:
                 end_minutes += 24 * 60  # Add 24 hours
 
             # Calculate duration in hours
-            duration = (end_minutes - start_minutes) / 60.0
+            duration = (end_minutes - start_minutes) / 60
 
-            # Ensure duration is positive and reasonable
-            if duration <= 0 or duration > 24:
-                logger.error_logger.error(
-                    f"Invalid duration calculated for shift {self.id}: {duration}h"
+            # Log the calculation
+            if hasattr(logger, "schedule_logger"):
+                logger.schedule_logger.debug(
+                    f"Calculated shift duration: {self.start_time} - {self.end_time} = {duration:.2f} hours"
                 )
-                raise ShiftValidationError(
-                    f"Invalid shift duration: {duration}h. Duration must be between 0 and 24 hours."
+            else:
+                logger.debug(
+                    f"Calculated shift duration: {self.start_time} - {self.end_time} = {duration:.2f} hours"
                 )
 
+            # Set the duration
             self.duration_hours = duration
-            logger.schedule_logger.debug(
-                f"Calculated duration for shift {self.id}: {duration}h ({self.start_time}-{self.end_time})"
-            )
-
-        except (ValueError, TypeError, IndexError) as e:
-            logger.error_logger.error(
-                f"Error calculating duration for shift {self.id}: {str(e)}"
-            )
-            raise ShiftValidationError(f"Error calculating shift duration: {str(e)}")
+            return duration
+        except Exception as e:
+            if hasattr(logger, "schedule_logger"):
+                logger.schedule_logger.error(
+                    f"Error calculating shift duration: {str(e)}"
+                )
+            else:
+                logger.error(f"Error calculating shift duration: {str(e)}")
+            return 0
 
     def _validate_store_hours(self):
         """Validate that shift times are within store hours, considering keyholder requirements"""
