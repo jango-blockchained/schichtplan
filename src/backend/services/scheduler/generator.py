@@ -5,6 +5,7 @@ from models.schedule import ScheduleStatus
 from utils.logger import logger
 from .resources import ScheduleResources
 from .validator import ScheduleValidator, ScheduleConfig
+from .utility import requires_keyholder
 from collections import defaultdict
 
 
