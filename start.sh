@@ -59,6 +59,10 @@ find . -name "backend.log" ! -path "./src/logs/*" -delete
 echo "Setting up directory structure..."
 mkdir -p src/logs
 mkdir -p src/instance
+mkdir -p src/scripts
+
+# Ensure menu script is executable
+chmod +x src/scripts/menu.sh
 
 # Kill any existing processes
 kill_port 5000  # Backend port
@@ -80,13 +84,20 @@ tmux send-keys -t schichtplan "export DEBUG_MODE=1" C-m
 tmux send-keys -t schichtplan "echo 'Starting Backend...'" C-m
 tmux send-keys -t schichtplan "python3 run.py" C-m
 
-# Split window vertically
+# Split window vertically for frontend
 tmux split-window -h
 
 # Configure second pane (Frontend)
 tmux send-keys -t schichtplan "cd src/frontend" C-m
 tmux send-keys -t schichtplan "echo 'Starting Frontend...'" C-m
 tmux send-keys -t schichtplan "bun run --watch --hot --bun dev" C-m
+
+# Split horizontally for menu pane with specific size
+tmux split-window -v -l 10
+
+# Configure third pane (Menu)
+tmux send-keys -t schichtplan "cd $(pwd)" C-m
+tmux send-keys -t schichtplan "src/scripts/menu.sh" C-m
 
 # Set window title
 tmux rename-window -t schichtplan "Schichtplan Dev"
@@ -111,6 +122,7 @@ echo "Logs location: src/logs/backend.log"
 echo -e "\nTmux session 'schichtplan' created:"
 echo "- Left pane: Backend"
 echo "- Right pane: Frontend"
+echo "- Bottom pane: Service Control Menu"
 echo -e "\nTo attach to tmux session: tmux attach-session -t schichtplan"
 echo "To detach from tmux: press Ctrl+B, then D"
 echo "To exit completely: press Ctrl+C in this terminal"

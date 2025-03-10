@@ -6,7 +6,7 @@ db = SQLAlchemy()
 from .settings import Settings
 from .fixed_shift import ShiftTemplate, ShiftType
 from .employee import Employee, EmployeeAvailability, EmployeeGroup
-from .schedule import Schedule
+from .schedule import Schedule, ScheduleVersionMeta, ScheduleStatus
 from .absence import Absence
 from .coverage import Coverage
 
@@ -17,6 +17,8 @@ __all__ = [
     "ShiftType",
     "Employee",
     "Schedule",
+    "ScheduleVersionMeta",
+    "ScheduleStatus",
     "EmployeeAvailability",
     "EmployeeGroup",
     "Absence",

@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
-from models import db, Settings, Employee, Coverage, EmployeeAvailability
+from models import db, Settings, Employee, Coverage, EmployeeAvailability, ShiftTemplate
 from models.employee import AvailabilityType
+from models.fixed_shift import ShiftType
 from http import HTTPStatus
 from datetime import datetime
 import random
@@ -324,6 +325,100 @@ def generate_availability_data(employees):
     return availabilities
 
 
+def generate_shift_templates():
+    """Generate demo shift templates"""
+    logging.info("Generating shift templates...")
+
+    # Delete existing shift templates
+    ShiftTemplate.query.delete()
+    db.session.commit()
+
+    shift_templates = [
+        # Full-time shifts (8 hours)
+        ShiftTemplate(
+            start_time="08:00",
+            end_time="16:00",
+            min_employees=2,
+            max_employees=4,
+            requires_break=True,
+            shift_type=ShiftType.EARLY,
+        ),
+        ShiftTemplate(
+            start_time="09:00",
+            end_time="17:00",
+            min_employees=2,
+            max_employees=4,
+            requires_break=True,
+            shift_type=ShiftType.MIDDLE,
+        ),
+        ShiftTemplate(
+            start_time="10:00",
+            end_time="18:00",
+            min_employees=2,
+            max_employees=4,
+            requires_break=True,
+            shift_type=ShiftType.MIDDLE,
+        ),
+        ShiftTemplate(
+            start_time="11:00",
+            end_time="19:00",
+            min_employees=2,
+            max_employees=4,
+            requires_break=True,
+            shift_type=ShiftType.LATE,
+        ),
+        ShiftTemplate(
+            start_time="12:00",
+            end_time="20:00",
+            min_employees=2,
+            max_employees=4,
+            requires_break=True,
+            shift_type=ShiftType.LATE,
+        ),
+        # Part-time shifts (4-6 hours)
+        ShiftTemplate(
+            start_time="08:00",
+            end_time="13:00",
+            min_employees=1,
+            max_employees=2,
+            requires_break=False,
+            shift_type=ShiftType.EARLY,
+        ),
+        ShiftTemplate(
+            start_time="13:00",
+            end_time="18:00",
+            min_employees=1,
+            max_employees=2,
+            requires_break=False,
+            shift_type=ShiftType.MIDDLE,
+        ),
+        ShiftTemplate(
+            start_time="15:00",
+            end_time="20:00",
+            min_employees=1,
+            max_employees=2,
+            requires_break=False,
+            shift_type=ShiftType.LATE,
+        ),
+    ]
+
+    # Calculate durations and validate before adding
+    for template in shift_templates:
+        template._calculate_duration()
+        template.validate()
+        db.session.add(template)
+
+    try:
+        db.session.commit()
+        logging.info(f"Successfully created {len(shift_templates)} shift templates")
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Error creating shift templates: {str(e)}")
+        raise
+
+    return shift_templates
+
+
 @bp.route("/", methods=["POST"])
 def generate_demo_data():
     """Generate demo data"""
@@ -356,6 +451,20 @@ def generate_demo_data():
             except Exception as e:
                 db.session.rollback()
                 logging.error(f"Error cleaning up availabilities: {str(e)}")
+                raise
+
+        if module in ["shifts", "all"]:
+            logging.info("Generating shift templates...")
+            try:
+                shift_templates = generate_shift_templates()
+                db.session.add_all(shift_templates)
+                db.session.commit()
+                logging.info(
+                    f"Successfully created {len(shift_templates)} shift templates"
+                )
+            except Exception as e:
+                db.session.rollback()
+                logging.error(f"Error creating shift templates: {str(e)}")
                 raise
 
         if module in ["employees", "all"]:

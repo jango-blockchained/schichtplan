@@ -321,24 +321,108 @@ export const generateSchedule = async (
     createEmptySchedules: boolean = false
 ): Promise<ScheduleResponse> => {
     try {
-        const response = await api.post<ScheduleResponse>('/schedules/generate/', {
+        console.log('Generating schedule for:', { startDate, endDate, createEmptySchedules });
+
+        // Get all shifts to validate they have durations
+        const shiftsResponse = await api.get<Shift[]>('/shifts/');
+        let shifts = shiftsResponse.data;
+
+        // Check for shifts with missing or invalid duration_hours
+        const invalidShifts = shifts.filter(
+            shift => shift.duration_hours === null ||
+                shift.duration_hours === undefined ||
+                isNaN(shift.duration_hours) ||
+                shift.duration_hours <= 0
+        );
+
+        if (invalidShifts.length > 0) {
+            console.warn(`Found ${invalidShifts.length} shifts with missing or invalid duration_hours:`, invalidShifts);
+
+            // Try to fix shifts with missing duration_hours
+            if (invalidShifts.length > 0) {
+                console.warn('Found shifts with missing duration_hours, attempting to fix using dedicated endpoint');
+
+                try {
+                    // Use the dedicated endpoint to fix all shifts at once
+                    const fixResult = await fixShiftDurations();
+                    console.log('Fixed shift durations:', fixResult);
+                } catch (fixError) {
+                    console.error('Error using fix-durations endpoint:', fixError);
+
+                    // Fall back to the old method of fixing shifts one by one
+                    console.warn('Falling back to fixing shifts one by one');
+
+                    // Fix each invalid shift by calculating duration_hours
+                    for (const shift of invalidShifts) {
+                        try {
+                            // Parse start and end times
+                            const [startHour, startMinute] = shift.start_time.split(':').map(Number);
+                            const [endHour, endMinute] = shift.end_time.split(':').map(Number);
+
+                            if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) {
+                                console.error(`Invalid time format for shift ${shift.id}: ${shift.start_time} - ${shift.end_time}`);
+                                continue;
+                            }
+
+                            // Convert times to minutes for easier calculation
+                            const startMinutes = startHour * 60 + startMinute;
+                            const endMinutes = endHour * 60 + endMinute;
+
+                            // Handle overnight shifts
+                            let durationMinutes = endMinutes - startMinutes;
+                            if (durationMinutes < 0) {
+                                durationMinutes += 24 * 60; // Add 24 hours for overnight shifts
+                            }
+
+                            // Convert to decimal hours
+                            const finalDuration = durationMinutes / 60;
+
+                            console.log(`Calculated duration for shift ${shift.id}: ${finalDuration} hours (from ${shift.start_time} to ${shift.end_time})`);
+
+                            // Update the shift with the calculated duration
+                            await updateShift({
+                                id: shift.id,
+                                duration_hours: finalDuration
+                            });
+
+                            console.log(`Updated shift ${shift.id} with duration_hours = ${finalDuration}`);
+                        } catch (calcError) {
+                            console.error(`Failed to calculate duration for shift ${shift.id}:`, calcError);
+                        }
+                    }
+                }
+
+                // Fetch shifts again to make sure we have the updated data
+                const updatedShiftsResponse = await api.get<Shift[]>('/shifts/');
+                shifts = updatedShiftsResponse.data;
+
+                // Check if we still have invalid shifts
+                const remainingInvalidShifts = shifts.filter(shift =>
+                    shift.duration_hours === null ||
+                    shift.duration_hours === undefined ||
+                    isNaN(shift.duration_hours)
+                );
+
+                if (remainingInvalidShifts.length > 0) {
+                    console.error('Still have invalid shifts after attempting to fix:', remainingInvalidShifts);
+                    throw new Error('Einige Schichten haben immer noch keine gültige Dauer. Bitte überprüfen Sie die Schichteinstellungen manuell.');
+                }
+            }
+        }
+
+        // Now generate the schedule
+        const response = await api.post<ScheduleResponse>('/schedules/generate', {
             start_date: startDate,
             end_date: endDate,
             create_empty_schedules: createEmptySchedules,
         });
 
-        // If we have logs in the response, log them to console for debugging
-        if (response.data.logs) {
-            console.log('Schedule generation logs:', response.data.logs);
-        }
-
         return response.data;
     } catch (error) {
-        if (error instanceof AxiosError && error.response?.data?.logs) {
-            console.error('Schedule generation logs:', error.response.data.logs);
-        }
+        console.error('Schedule generation error:', error);
+
         if (error instanceof Error) {
-            throw new Error(`Schedule generation failed: ${error.message}`);
+            throw new Error(`Failed to generate schedule: ${error.message}`);
         }
         throw error;
     }
@@ -771,8 +855,9 @@ export const deleteLog = async (filename: string): Promise<void> => {
 
 export const publishSchedule = async (version: number) => {
     try {
-        const response = await api.post(`/schedules/${version}/publish`);
-        return response.data;
+        // We'll use the updateVersionStatus endpoint instead
+        const response = await updateVersionStatus(version, { status: 'PUBLISHED' });
+        return response;
     } catch (error) {
         if (error instanceof Error) {
             throw new Error(`Failed to publish schedule: ${error.message}`);
@@ -783,8 +868,9 @@ export const publishSchedule = async (version: number) => {
 
 export const archiveSchedule = async (version: number) => {
     try {
-        const response = await api.post(`/schedules/${version}/archive`);
-        return response.data;
+        // We'll use the updateVersionStatus endpoint instead
+        const response = await updateVersionStatus(version, { status: 'ARCHIVED' });
+        return response;
     } catch (error) {
         if (error instanceof Error) {
             throw new Error(`Failed to archive schedule: ${error.message}`);
@@ -996,6 +1082,18 @@ export const updateVersionNotes = async (version: number, data: UpdateVersionNot
     } catch (error) {
         if (error instanceof Error) {
             throw new Error(`Failed to update version notes: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export const fixShiftDurations = async (): Promise<{ message: string; fixed_count: number }> => {
+    try {
+        const response = await api.post<{ message: string; fixed_count: number }>('/shifts/fix-durations');
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to fix shift durations: ${error.message}`);
         }
         throw error;
     }

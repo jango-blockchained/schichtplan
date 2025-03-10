@@ -7,6 +7,8 @@ from models import (
     Settings,
     EmployeeGroup,
     Coverage,
+    ScheduleVersionMeta,
+    ScheduleStatus,
 )
 from http import HTTPStatus
 from datetime import datetime, timedelta, date
@@ -597,3 +599,387 @@ def test_schedule_generation(client, app):
             # Check shift hours against store hours
             assert shift.start_time >= store_config.store_opening
             assert shift.end_time <= store_config.store_closing
+
+
+@bp.route("/versions", methods=["GET"])
+def get_all_versions():
+    """Get all schedule versions with their metadata"""
+    try:
+        # Get date range from query parameters
+        start_date = request.args.get("start_date")
+        end_date = request.args.get("end_date")
+
+        # If no date range provided, use current week
+        if not start_date or not end_date:
+            today = date.today()
+            start_of_week = today - timedelta(days=today.weekday())
+            end_of_week = start_of_week + timedelta(days=6)
+        else:
+            try:
+                start_of_week = datetime.strptime(start_date, "%Y-%m-%d").date()
+                end_of_week = datetime.strptime(end_date, "%Y-%m-%d").date()
+            except ValueError:
+                return jsonify(
+                    {"error": "Invalid date format, expected YYYY-MM-DD"}
+                ), HTTPStatus.BAD_REQUEST
+
+        # Get all version metadata
+        version_metas = ScheduleVersionMeta.query.all()
+
+        # If no versions exist, return empty list
+        if not version_metas:
+            return jsonify(
+                {
+                    "versions": [],
+                    "date_range": {
+                        "start": start_of_week.isoformat(),
+                        "end": end_of_week.isoformat(),
+                        "week": start_of_week.isocalendar()[1],
+                    },
+                }
+            )
+
+        # Return version information
+        return jsonify(
+            {
+                "versions": [v.to_dict() for v in version_metas],
+                "date_range": {
+                    "start": start_of_week.isoformat(),
+                    "end": end_of_week.isoformat(),
+                    "week": start_of_week.isocalendar()[1],
+                },
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error fetching versions: {str(e)}")
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@bp.route("/version", methods=["POST"])
+def create_new_version():
+    """Create a new schedule version, optionally based on an existing version."""
+    try:
+        data = request.get_json()
+        start_date = data.get("start_date")
+        end_date = data.get("end_date")
+        base_version = data.get("base_version")
+        notes = data.get("notes", "")
+        create_empty = data.get("create_empty_schedules", True)
+
+        # Validate required parameters
+        if not start_date or not end_date:
+            return jsonify(
+                {"error": "start_date and end_date are required"}
+            ), HTTPStatus.BAD_REQUEST
+
+        # Parse dates
+        try:
+            start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+            end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify(
+                {"error": "Invalid date format, expected YYYY-MM-DD"}
+            ), HTTPStatus.BAD_REQUEST
+
+        # Get the current max version from both tables
+        max_schedule_version = (
+            db.session.query(db.func.max(Schedule.version)).scalar() or 0
+        )
+        max_meta_version = (
+            db.session.query(db.func.max(ScheduleVersionMeta.version)).scalar() or 0
+        )
+        new_version = max(max_schedule_version, max_meta_version) + 1
+
+        try:
+            # Create version metadata
+            version_meta = ScheduleVersionMeta(
+                version=new_version,
+                created_at=datetime.utcnow(),
+                status=ScheduleStatus.DRAFT,
+                date_range_start=start_date,
+                date_range_end=end_date,
+                base_version=base_version,
+                notes=notes or f"Created from version {base_version}",
+            )
+            db.session.add(version_meta)
+            logger.info(f"Created version metadata for version {new_version}")
+
+            # If base_version is provided, copy schedules from that version
+            if base_version:
+                base_schedules = Schedule.query.filter_by(version=base_version).all()
+
+                # Only copy if base schedules exist
+                if base_schedules:
+                    for base_schedule in base_schedules:
+                        # Skip if the date is outside our new range
+                        if (
+                            base_schedule.date < start_date
+                            or base_schedule.date > end_date
+                        ):
+                            continue
+
+                        new_schedule = Schedule(
+                            date=base_schedule.date,
+                            employee_id=base_schedule.employee_id,
+                            shift_id=base_schedule.shift_id,
+                            version=new_version,
+                            status=ScheduleStatus.DRAFT,
+                            break_start=base_schedule.break_start,
+                            break_end=base_schedule.break_end,
+                            notes=base_schedule.notes,
+                        )
+                        db.session.add(new_schedule)
+
+            db.session.commit()
+
+            return jsonify(
+                {
+                    "message": "New version created successfully",
+                    "version": new_version,
+                    "status": "DRAFT",
+                    "version_meta": version_meta.to_dict(),
+                }
+            )
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Could not create version metadata: {str(e)}")
+            return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+    except Exception as e:
+        logger.error(f"Error creating new version: {str(e)}")
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@bp.route("/version/<int:version>/status", methods=["PUT"])
+def update_version_status(version):
+    """Update a schedule's status (DRAFT, PUBLISHED, ARCHIVED)"""
+    try:
+        data = request.get_json()
+        new_status_str = data.get("status")
+
+        if not new_status_str:
+            return jsonify({"error": "Status is required"}), HTTPStatus.BAD_REQUEST
+
+        try:
+            new_status = ScheduleStatus(new_status_str)
+        except ValueError:
+            return jsonify(
+                {"error": f"Invalid status: {new_status_str}"}
+            ), HTTPStatus.BAD_REQUEST
+
+        # Get all schedules for this version
+        schedules = Schedule.query.filter_by(version=version).all()
+
+        if not schedules:
+            return jsonify(
+                {"error": "Schedule version not found"}
+            ), HTTPStatus.NOT_FOUND
+
+        # Get version metadata
+        version_meta = ScheduleVersionMeta.query.filter_by(version=version).first()
+
+        if not version_meta:
+            return jsonify(
+                {"error": "Version metadata not found"}
+            ), HTTPStatus.NOT_FOUND
+
+        # Check for valid state transitions
+        current_status = version_meta.status
+        valid_transitions = {
+            ScheduleStatus.DRAFT: [ScheduleStatus.PUBLISHED, ScheduleStatus.ARCHIVED],
+            ScheduleStatus.PUBLISHED: [ScheduleStatus.ARCHIVED],
+            ScheduleStatus.ARCHIVED: [],  # Cannot transition from archived
+        }
+
+        if new_status not in valid_transitions[current_status]:
+            return jsonify(
+                {
+                    "error": f"Invalid state transition from {current_status.value} to {new_status_str}"
+                }
+            ), HTTPStatus.BAD_REQUEST
+
+        try:
+            # Update status for all schedules in this version
+            for schedule in schedules:
+                schedule.status = new_status
+
+            # Update version metadata
+            version_meta.status = new_status
+            version_meta.updated_at = datetime.utcnow()
+
+            # Commit the changes
+            db.session.commit()
+
+            return jsonify(
+                {
+                    "message": f"Version {version} status updated to {new_status.value}",
+                    "version": version,
+                    "status": new_status.value,
+                }
+            )
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error updating version status: {str(e)}")
+            return jsonify(
+                {"error": f"Database error: {str(e)}"}
+            ), HTTPStatus.INTERNAL_SERVER_ERROR
+
+    except Exception as e:
+        logger.error(f"Error in update_version_status: {str(e)}")
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@bp.route("/version/<int:version>/details", methods=["GET"])
+def get_version_details(version):
+    """Get detailed information about a specific schedule version."""
+    try:
+        # Check if version exists
+        schedules = Schedule.query.filter_by(version=version).all()
+
+        # Get version metadata
+        version_meta = ScheduleVersionMeta.query.filter_by(version=version).first()
+
+        if not version_meta:
+            return jsonify(
+                {"error": "Version metadata not found"}
+            ), HTTPStatus.NOT_FOUND
+
+        # Collect basic stats
+        dates = []
+        employees = set()
+        if schedules:
+            dates = sorted(list(set(s.date for s in schedules)))
+            employees = set(s.employee_id for s in schedules)
+
+        # Build response
+        response = {
+            "version": version,
+            "status": version_meta.status.value,
+            "created_at": version_meta.created_at.isoformat()
+            if version_meta.created_at
+            else None,
+            "updated_at": version_meta.updated_at.isoformat()
+            if version_meta.updated_at
+            else None,
+            "date_range": {
+                "start": version_meta.date_range_start.isoformat()
+                if version_meta.date_range_start
+                else None,
+                "end": version_meta.date_range_end.isoformat()
+                if version_meta.date_range_end
+                else None,
+            },
+            "base_version": version_meta.base_version,
+            "notes": version_meta.notes,
+            "schedule_count": len(schedules),
+            "employees_count": len(employees),
+            "days_count": len(dates),
+        }
+
+        return jsonify(response)
+
+    except Exception as e:
+        logger.error(f"Error getting version details: {str(e)}")
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@bp.route("/version/duplicate", methods=["POST"])
+def duplicate_version():
+    """Create a duplicate of an existing schedule version with a new version number."""
+    try:
+        data = request.get_json()
+        source_version = data.get("source_version")
+        start_date = data.get("start_date")
+        end_date = data.get("end_date")
+        notes = data.get("notes", "")
+
+        # Validate required parameters
+        if not source_version or not start_date or not end_date:
+            return jsonify(
+                {"error": "source_version, start_date, and end_date are required"}
+            ), HTTPStatus.BAD_REQUEST
+
+        # Parse dates
+        try:
+            start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+            end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify(
+                {"error": "Invalid date format, expected YYYY-MM-DD"}
+            ), HTTPStatus.BAD_REQUEST
+
+        # Get source schedules
+        source_schedules = Schedule.query.filter_by(version=source_version).all()
+        if not source_schedules:
+            return jsonify(
+                {"error": f"Source version {source_version} not found"}
+            ), HTTPStatus.NOT_FOUND
+
+        # Get source metadata
+        source_meta = ScheduleVersionMeta.query.filter_by(
+            version=source_version
+        ).first()
+
+        # Get next version number
+        max_schedule_version = (
+            db.session.query(db.func.max(Schedule.version)).scalar() or 0
+        )
+        max_meta_version = (
+            db.session.query(db.func.max(ScheduleVersionMeta.version)).scalar() or 0
+        )
+        new_version = max(max_schedule_version, max_meta_version) + 1
+
+        try:
+            # Create new version metadata
+            new_meta = ScheduleVersionMeta(
+                version=new_version,
+                created_at=datetime.utcnow(),
+                status=ScheduleStatus.DRAFT,
+                date_range_start=start_date,
+                date_range_end=end_date,
+                base_version=source_version,
+                notes=notes or f"Duplicated from version {source_version}",
+            )
+            db.session.add(new_meta)
+
+            # Duplicate schedules
+            for schedule in source_schedules:
+                # Skip if the date is outside our new range
+                if schedule.date < start_date or schedule.date > end_date:
+                    continue
+
+                new_schedule = Schedule(
+                    date=schedule.date,
+                    employee_id=schedule.employee_id,
+                    shift_id=schedule.shift_id,
+                    version=new_version,
+                    status=ScheduleStatus.DRAFT,
+                    break_start=schedule.break_start,
+                    break_end=schedule.break_end,
+                    notes=schedule.notes,
+                )
+                db.session.add(new_schedule)
+
+            db.session.commit()
+
+            return jsonify(
+                {
+                    "message": f"Version {source_version} duplicated successfully",
+                    "version": new_version,
+                    "status": "DRAFT",
+                    "version_meta": new_meta.to_dict()
+                    if hasattr(new_meta, "to_dict")
+                    else None,
+                }
+            )
+
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error duplicating version: {str(e)}")
+            return jsonify(
+                {"error": f"Database error: {str(e)}"}
+            ), HTTPStatus.INTERNAL_SERVER_ERROR
+
+    except Exception as e:
+        logger.error(f"Error in duplicate_version: {str(e)}")
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
