@@ -501,11 +501,27 @@ class ScheduleGenerator:
         # Process each date in the range
         for current_date in self._date_range(start_date, end_date):
             # Get all employee IDs that already have a shift on this day
-            employee_ids_with_shifts = {
-                entry.get("employee_id")
-                for entry in self.schedule
-                if entry.get("date") == current_date.isoformat()
-            }
+            employee_ids_with_shifts = set()
+
+            for entry in self.schedule:
+                # Handle both dictionaries and Schedule objects
+                if isinstance(entry, dict):
+                    # Dictionary case
+                    if entry.get("date") == current_date.isoformat():
+                        employee_ids_with_shifts.add(entry.get("employee_id"))
+                else:
+                    # Schedule object case
+                    if hasattr(entry, "date") and entry.date == current_date:
+                        if hasattr(entry, "employee_id"):
+                            employee_ids_with_shifts.add(entry.employee_id)
+                    # Also handle ISO format string dates
+                    elif (
+                        hasattr(entry, "date")
+                        and isinstance(entry.date, str)
+                        and entry.date == current_date.isoformat()
+                    ):
+                        if hasattr(entry, "employee_id"):
+                            employee_ids_with_shifts.add(entry.employee_id)
 
             # Add empty shifts for employees without assignments on this day
             for employee in employees:
