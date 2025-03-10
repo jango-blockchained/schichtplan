@@ -2,6 +2,8 @@
 Utility functions for the scheduler package.
 """
 
+import functools
+
 
 def is_early_shift(shift):
     """Check if a shift starts early in the morning (before 8:00)"""
@@ -20,8 +22,12 @@ def requires_keyholder(shift):
     return is_early_shift(shift) or is_late_shift(shift)
 
 
+@functools.lru_cache(maxsize=128)
 def time_to_minutes(time_str: str) -> int:
-    """Convert a time string (HH:MM) to minutes since midnight"""
+    """
+    Convert a time string (HH:MM) to minutes since midnight.
+    This function is cached for performance with common time values.
+    """
     hours, minutes = map(int, time_str.split(":"))
     return hours * 60 + minutes
 
@@ -43,8 +49,12 @@ def time_overlaps(start1: str, end1: str, start2: str, end2: str) -> bool:
     return shifts_overlap(start1, end1, start2, end2)
 
 
+@functools.lru_cache(maxsize=128)
 def calculate_duration(start_time: str, end_time: str) -> float:
-    """Calculate the duration in hours between two time strings (HH:MM)"""
+    """
+    Calculate the duration in hours between two time strings (HH:MM).
+    This function is cached for performance with common time values.
+    """
     start_minutes = time_to_minutes(start_time)
     end_minutes = time_to_minutes(end_time)
 
@@ -55,8 +65,12 @@ def calculate_duration(start_time: str, end_time: str) -> float:
     return (end_minutes - start_minutes) / 60
 
 
+@functools.lru_cache(maxsize=128)
 def calculate_rest_hours(end_time_str: str, start_time_str: str) -> float:
-    """Calculate the rest hours between the end of one shift and the start of another"""
+    """
+    Calculate the rest hours between the end of one shift and the start of another.
+    This function is cached for performance with common time values.
+    """
     end_minutes = time_to_minutes(end_time_str)
     start_minutes = time_to_minutes(start_time_str)
 
@@ -65,3 +79,11 @@ def calculate_rest_hours(end_time_str: str, start_time_str: str) -> float:
         start_minutes += 24 * 60
 
     return (start_minutes - end_minutes) / 60
+
+
+# Clear caches function (useful for tests)
+def clear_time_caches():
+    """Clear all cached time calculations - useful for testing"""
+    time_to_minutes.cache_clear()
+    calculate_duration.cache_clear()
+    calculate_rest_hours.cache_clear()
