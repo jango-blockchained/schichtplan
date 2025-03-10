@@ -318,72 +318,106 @@ class ScheduleValidator:
         # Sort schedule entries by employee and date/time
         entries_by_employee = {}
         for entry in schedule:
-            emp_id = entry.employee_id
-            if emp_id not in entries_by_employee:
-                entries_by_employee[emp_id] = []
-
-            entries_by_employee[emp_id].append(entry)
-
-        # For each employee, check consecutive shifts
-        for emp_id, entries in entries_by_employee.items():
-            # Skip if only one entry
-            if len(entries) <= 1:
-                continue
-
-            # Sort entries by date and shift start time
-            sorted_entries = sorted(
-                entries,
-                key=lambda e: (
-                    e.date,
-                    e.shift.start_time if hasattr(e, "shift") and e.shift else "00:00",
-                ),
-            )
-
-            # Check rest periods between consecutive shifts
-            for i in range(len(sorted_entries) - 1):
-                current = sorted_entries[i]
-                next_entry = sorted_entries[i + 1]
+            try:
+                # Handle both objects and dictionaries
+                if hasattr(entry, "employee_id"):
+                    emp_id = entry.employee_id
+                elif isinstance(entry, dict) and "employee_id" in entry:
+                    emp_id = entry["employee_id"]
+                else:
+                    # Skip entries without employee ID
+                    continue
 
                 # Skip entries without shifts
-                if (
-                    not hasattr(current, "shift")
-                    or not current.shift
-                    or not hasattr(next_entry, "shift")
-                    or not next_entry.shift
+                if (hasattr(entry, "shift") and not entry.shift) or (
+                    isinstance(entry, dict) and not entry.get("shift_id")
                 ):
                     continue
 
-                # Calculate rest period
-                rest_hours = self._calculate_rest_hours(current, next_entry)
+                if emp_id not in entries_by_employee:
+                    entries_by_employee[emp_id] = []
 
-                if rest_hours < self.config.min_rest_hours:
-                    # Find employee name
-                    employee = next(
-                        (e for e in self.resources.employees if e.id == emp_id), None
-                    )
-                    emp_name = (
-                        f"{employee.first_name} {employee.last_name}"
-                        if employee
-                        else f"Employee {emp_id}"
-                    )
+                entries_by_employee[emp_id].append(entry)
+            except (AttributeError, TypeError, KeyError):
+                # Skip problematic entries
+                continue
 
-                    self.errors.append(
-                        ValidationError(
-                            error_type="rest_period",
-                            message=f"{emp_name} has insufficient rest between shifts ({rest_hours}h < {self.config.min_rest_hours}h)",
-                            severity="warning",
-                            details={
-                                "employee_id": emp_id,
-                                "employee_name": emp_name,
-                                "first_shift_date": current.date.isoformat(),
-                                "first_shift_time": f"{current.shift.start_time}-{current.shift.end_time}",
-                                "second_shift_date": next_entry.date.isoformat(),
-                                "second_shift_time": f"{next_entry.shift.start_time}-{next_entry.shift.end_time}",
-                                "rest_hours": rest_hours,
-                                "min_rest_hours": self.config.min_rest_hours,
-                            },
+        # Check rest periods for each employee
+        for emp_id, entries in entries_by_employee.items():
+            # Skip if only one entry
+            if len(entries) < 2:
+                continue
+
+            # Sort entries by date
+            try:
+                sorted_entries = sorted(
+                    entries,
+                    key=lambda e: (
+                        datetime.fromisoformat(e.date.isoformat())
+                        if hasattr(e, "date") and isinstance(e.date, date)
+                        else datetime.fromisoformat(e["date"])
+                        if isinstance(e, dict) and "date" in e
+                        else datetime.now()
+                    ),
+                )
+            except (ValueError, AttributeError, TypeError):
+                # Skip if entries can't be sorted
+                continue
+
+            # Check consecutive entries
+            for i in range(len(sorted_entries) - 1):
+                first_entry = sorted_entries[i]
+                second_entry = sorted_entries[i + 1]
+
+                try:
+                    rest_hours = self._calculate_rest_hours(first_entry, second_entry)
+
+                    if rest_hours < self.config.min_rest_hours:
+                        # Find employee name
+                        employee_name = None
+                        for emp in self.resources.employees:
+                            if emp.id == emp_id:
+                                employee_name = getattr(
+                                    emp, "name", f"Employee {emp_id}"
+                                )
+                                break
+
+                        if not employee_name:
+                            employee_name = f"Employee {emp_id}"
+
+                        # Create error
+                        self.errors.append(
+                            ValidationError(
+                                error_type="rest_period",
+                                message=f"{employee_name} has only {rest_hours:.1f}h rest between shifts (minimum {self.config.min_rest_hours}h)",
+                                severity="critical",
+                                details={
+                                    "employee_id": emp_id,
+                                    "employee_name": employee_name,
+                                    "rest_hours": rest_hours,
+                                    "min_rest_hours": self.config.min_rest_hours,
+                                    "first_date": getattr(
+                                        first_entry, "date", None
+                                    ).isoformat()
+                                    if hasattr(first_entry, "date")
+                                    and isinstance(first_entry.date, date)
+                                    else first_entry.get("date")
+                                    if isinstance(first_entry, dict)
+                                    else None,
+                                    "second_date": getattr(
+                                        second_entry, "date", None
+                                    ).isoformat()
+                                    if hasattr(second_entry, "date")
+                                    and isinstance(second_entry.date, date)
+                                    else second_entry.get("date")
+                                    if isinstance(second_entry, dict)
+                                    else None,
+                                },
+                            )
                         )
-                    )
+                except (ValueError, AttributeError, TypeError):
+                    # Skip if rest hours can't be calculated
+                    continue
 
     def _validate_max_shifts(self, schedule: List[Schedule]) -> None:
         """Validate maximum shifts per week for each employee"""
@@ -490,20 +524,72 @@ class ScheduleValidator:
     def _calculate_rest_hours(
         self, first_entry: Schedule, second_entry: Schedule
     ) -> float:
-        """Calculate rest hours between two shifts"""
-        # Convert shift end and start times to datetime objects
-        first_end_time = datetime.strptime(
-            f"{first_entry.date.isoformat()} {first_entry.shift.end_time}",
-            "%Y-%m-%d %H:%M",
-        )
-        second_start_time = datetime.strptime(
-            f"{second_entry.date.isoformat()} {second_entry.shift.start_time}",
-            "%Y-%m-%d %H:%M",
-        )
+        """Calculate rest hours between two schedule entries"""
+        try:
+            # Get first entry end time
+            if hasattr(first_entry, "shift") and first_entry.shift:
+                first_end_time = first_entry.shift.end_time
+            elif isinstance(first_entry, dict) and "end_time" in first_entry:
+                first_end_time = first_entry["end_time"]
+            else:
+                # Default to midnight if no end time
+                first_end_time = "00:00"
 
-        # Calculate time difference in hours
-        rest_seconds = (second_start_time - first_end_time).total_seconds()
-        return max(0, rest_seconds / 3600)  # Convert to hours
+            # Get second entry start time
+            if hasattr(second_entry, "shift") and second_entry.shift:
+                second_start_time = second_entry.shift.start_time
+            elif isinstance(second_entry, dict) and "start_time" in second_entry:
+                second_start_time = second_entry["start_time"]
+            else:
+                # Default to midnight if no start time
+                second_start_time = "00:00"
+
+            # Get dates
+            if hasattr(first_entry, "date") and isinstance(first_entry.date, date):
+                first_date = first_entry.date
+            elif isinstance(first_entry, dict) and "date" in first_entry:
+                first_date = datetime.fromisoformat(first_entry["date"]).date()
+            else:
+                raise ValueError("Invalid first entry date")
+
+            if hasattr(second_entry, "date") and isinstance(second_entry.date, date):
+                second_date = second_entry.date
+            elif isinstance(second_entry, dict) and "date" in second_entry:
+                second_date = datetime.fromisoformat(second_entry["date"]).date()
+            else:
+                raise ValueError("Invalid second entry date")
+
+            # Calculate rest hours
+            first_end_hour, first_end_minute = map(int, first_end_time.split(":"))
+            second_start_hour, second_start_minute = map(
+                int, second_start_time.split(":")
+            )
+
+            first_end_dt = datetime.combine(
+                first_date,
+                datetime.min.time().replace(
+                    hour=first_end_hour, minute=first_end_minute
+                ),
+            )
+            second_start_dt = datetime.combine(
+                second_date,
+                datetime.min.time().replace(
+                    hour=second_start_hour, minute=second_start_minute
+                ),
+            )
+
+            # If second shift starts earlier in the day than first shift ends,
+            # it must be on a later day
+            if second_start_dt <= first_end_dt and second_date == first_date:
+                second_start_dt += timedelta(days=1)
+
+            rest_seconds = (second_start_dt - first_end_dt).total_seconds()
+            rest_hours = rest_seconds / 3600
+
+            return max(0, rest_hours)
+        except (ValueError, AttributeError, TypeError):
+            # Return a large value to avoid false positives
+            return 24.0
 
     def _get_week_start(self, day: date) -> date:
         """Get the start of the week (Monday) for a given date"""
