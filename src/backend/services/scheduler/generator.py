@@ -267,28 +267,67 @@ class ScheduleGenerator:
         """Calculate total scheduled hours for an employee in the given week"""
         total_hours = 0.0
 
-        # Check existing schedule entries
-        for entry in self.schedule:
-            if entry.employee_id == employee_id:
-                entry_date = entry.date
-                entry_week_start = self._get_week_start(entry_date)
+        # Get the week end date
+        week_end = week_start + timedelta(days=6)
 
-                if entry_week_start == week_start:
-                    # Safely handle None shifts or missing duration_hours
+        # Instead of checking all entries, we can pre-filter by employee_id
+        employee_entries = [
+            entry
+            for entry in self.schedule
+            if (isinstance(entry, dict) and entry.get("employee_id") == employee_id)
+            or (hasattr(entry, "employee_id") and entry.employee_id == employee_id)
+        ]
+
+        # Then check only those entries against the date range
+        for entry in employee_entries:
+            # Get the entry date
+            if isinstance(entry, dict):
+                # Dictionary case
+                entry_date_str = entry.get("date")
+                if not entry_date_str:
+                    continue
+
+                try:
+                    entry_date = datetime.fromisoformat(entry_date_str).date()
+                except (ValueError, TypeError):
+                    self._log_warning(
+                        f"Invalid date format in schedule entry: {entry_date_str}"
+                    )
+                    continue
+            else:
+                # Schedule object case
+                if not hasattr(entry, "date"):
+                    continue
+
+                if isinstance(entry.date, date):
+                    entry_date = entry.date
+                elif isinstance(entry.date, str):
+                    try:
+                        entry_date = datetime.fromisoformat(entry.date).date()
+                    except (ValueError, TypeError):
+                        self._log_warning(
+                            f"Invalid date format in schedule entry: {entry.date}"
+                        )
+                        continue
+                else:
+                    continue
+
+            # Check if the entry is within the week
+            if week_start <= entry_date <= week_end:
+                # Add the hours from this entry
+                if isinstance(entry, dict):
+                    # Dictionary case
+                    hours = entry.get("duration_hours", 0.0)
+                    if hours:
+                        total_hours += float(hours)
+                else:
+                    # Schedule object case - safely handle shifts and their duration
                     if hasattr(entry, "shift") and entry.shift is not None:
                         if (
                             hasattr(entry.shift, "duration_hours")
                             and entry.shift.duration_hours is not None
                         ):
                             total_hours += entry.shift.duration_hours
-                        else:
-                            self._log_warning(
-                                f"Schedule entry for employee {employee_id} on {entry_date} has shift without duration_hours"
-                            )
-                    else:
-                        self._log_warning(
-                            f"Schedule entry for employee {employee_id} on {entry_date} has no shift"
-                        )
 
         return total_hours
 
