@@ -217,7 +217,7 @@ class ScheduleValidator:
                     continue
 
                 shift = entries[0].shift
-                if not getattr(shift, "requires_keyholder", False):
+                if not requires_keyholder(shift):
                     continue
 
                 # Check if any of the employees is a keyholder
