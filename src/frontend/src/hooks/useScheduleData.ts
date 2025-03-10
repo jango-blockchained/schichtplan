@@ -110,10 +110,14 @@ export function useScheduleData(
     // Convert API Schedule objects to frontend Schedule objects
     const scheduleData = data?.schedules ? data.schedules.map(convertSchedule) : [];
 
+    // Only set error if we actually have an error and data retrieval failed
+    const errorMessage = error instanceof Error && !data ? error.message : null;
+
     console.log('🔄 useScheduleData returning:', {
         scheduleCount: scheduleData.length,
         shiftsWithId: scheduleData.filter(s => s.shift_id !== null).length,
-        date_range: `${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`
+        date_range: `${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`,
+        hasError: !!errorMessage
     });
 
     return {
@@ -121,7 +125,7 @@ export function useScheduleData(
         versions: data?.versions ?? [],
         errors: data?.errors ?? [],
         loading: isLoading,
-        error: error instanceof Error ? error.message : 'An unknown error occurred',
+        error: errorMessage,
         refetch: async () => {
             console.log('🔄 useScheduleData manual refetch triggered');
             await refetch();

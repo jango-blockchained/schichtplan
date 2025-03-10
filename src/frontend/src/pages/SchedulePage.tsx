@@ -4,7 +4,7 @@ import { useScheduleData } from '@/hooks/useScheduleData';
 import { addDays, startOfWeek, endOfWeek, addWeeks, format, getWeek, isBefore } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { useMutation } from '@tanstack/react-query';
-import { generateSchedule, exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, publishSchedule, archiveSchedule, updateVersionStatus, createNewVersion, duplicateVersion, getVersionDetails, compareVersions, updateVersionNotes, getAllVersions, getSettings, updateSettings } from '@/services/api';
+import { generateSchedule, exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, publishSchedule, archiveSchedule, updateVersionStatus, createNewVersion, duplicateVersion, getVersionDetails, compareVersions, updateVersionNotes, getAllVersions, getSettings, updateSettings, fixShiftDurations } from '@/services/api';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, AlertCircle, X, CheckCircle2, Circle, Clock, CheckCircle, XCircle, RefreshCw, Plus, Archive, Calendar, Settings2, Play, FileSpreadsheet, FileDown, History, CalendarIcon, Pencil, Copy, FileText, GitCompare } from 'lucide-react';
@@ -34,6 +34,7 @@ import type { ScheduleResponse, VersionResponse } from '@/services/api';
 import { type Settings } from '@/types';
 import { type Schedule as APISchedule } from '@/services/api';
 import { type UseScheduleDataResult } from '@/hooks/useScheduleData';
+import { DateRangeSelector } from '@/components/DateRangeSelector';
 
 interface GenerationStep {
   id: string;
@@ -45,12 +46,13 @@ interface GenerationStep {
 export function SchedulePage() {
   const today = new Date();
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
-  const [weeksAmount, setWeeksAmount] = useState(1);
   const [selectedVersion, setSelectedVersion] = useState<number | undefined>();
   const [isLayoutCustomizerOpen, setIsLayoutCustomizerOpen] = useState(false);
   const [createEmptySchedules, setCreateEmptySchedules] = useState<boolean>(true);
   const [includeEmpty, setIncludeEmpty] = useState<boolean>(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  // Add state for schedule duration (in weeks)
+  const [scheduleDuration, setScheduleDuration] = useState<number>(1);
   const { toast } = useToast();
 
   // Add state for generation steps and logs
@@ -63,124 +65,41 @@ export function SchedulePage() {
   }[]>([]);
   const [showGenerationOverlay, setShowGenerationOverlay] = useState(false);
 
-  // Add a new state for selected calendar week
-  const [selectedCalendarWeek, setSelectedCalendarWeek] = useState<string>(() => {
-    const currentWeek = getWeek(today, { weekStartsOn: 1 });
-    const currentYear = today.getFullYear();
-    return `${currentYear}-${currentWeek}`;
-  });
-
-  // Initialize date range based on selected calendar week and week amount
+  // Initialize date range with current week
   useEffect(() => {
-    // Ensure we always have a valid dateRange on component mount
     if (!dateRange || !dateRange.from || !dateRange.to) {
-      try {
-        // If we have a selected calendar week, use that
-        if (selectedCalendarWeek) {
-          const [yearStr, weekStr] = selectedCalendarWeek.split('-');
-          const week = parseInt(weekStr, 10);
-
-          if (!isNaN(week) && week >= 1 && week <= 53) {
-            const newDateRange = getDateRangeFromWeekAndCount(week, weeksAmount);
-
-            // Validate and normalize the date range
-            if (newDateRange.from && newDateRange.to &&
-              !isNaN(newDateRange.from.getTime()) && !isNaN(newDateRange.to.getTime())) {
-              const from = new Date(newDateRange.from.getTime());
-              from.setHours(0, 0, 0, 0);
-              const to = new Date(newDateRange.to.getTime());
-              to.setHours(23, 59, 59, 999);
-              setDateRange({ from, to });
-            } else {
-              throw new Error('Invalid date range generated');
-            }
-          } else {
-            console.error('Invalid week value in initialization:', selectedCalendarWeek);
-            // Fallback to current week
-            const currentWeek = getWeek(today, { weekStartsOn: 1 });
-            const newDateRange = getDateRangeFromWeekAndCount(currentWeek, weeksAmount);
-            if (newDateRange.from && newDateRange.to) {
-              const from = new Date(newDateRange.from.getTime());
-              from.setHours(0, 0, 0, 0);
-              const to = new Date(newDateRange.to.getTime());
-              to.setHours(23, 59, 59, 999);
-              setDateRange({ from, to });
-            }
-          }
-        } else {
-          // Fallback to current week if no selection exists
-          const currentWeek = getWeek(today, { weekStartsOn: 1 });
-          const newDateRange = getDateRangeFromWeekAndCount(currentWeek, weeksAmount);
-          if (newDateRange.from && newDateRange.to) {
-            const from = new Date(newDateRange.from.getTime());
-            from.setHours(0, 0, 0, 0);
-            const to = new Date(newDateRange.to.getTime());
-            to.setHours(23, 59, 59, 999);
-            setDateRange({ from, to });
-          }
-        }
-      } catch (error) {
-        console.error('Error during initialization:', error);
-        // Last resort fallback: use current week
-        const fallbackFrom = startOfWeek(today, { weekStartsOn: 1 });
-        fallbackFrom.setHours(0, 0, 0, 0);
-        const fallbackTo = addDays(fallbackFrom, (weeksAmount * 7) - 1);
-        fallbackTo.setHours(23, 59, 59, 999);
-        setDateRange({ from: fallbackFrom, to: fallbackTo });
-      }
+      const today = new Date();
+      const from = startOfWeek(today, { weekStartsOn: 1 });
+      from.setHours(0, 0, 0, 0);
+      const to = addDays(from, 6 * scheduleDuration); // Use scheduleDuration to set the end date
+      to.setHours(23, 59, 59, 999);
+      setDateRange({ from, to });
     }
-  }, []);
+  }, [scheduleDuration]); // Add scheduleDuration as a dependency
 
-  // Update date range when calendar week or week amount changes
-  useEffect(() => {
-    if (selectedCalendarWeek) {
-      try {
-        const [yearStr, weekStr] = selectedCalendarWeek.split('-');
-        const week = parseInt(weekStr, 10);
-
-        if (isNaN(week) || week < 1 || week > 53) {
-          console.error('Invalid week value in calendar week change:', selectedCalendarWeek);
-          return;
-        }
-
-        const newDateRange = getDateRangeFromWeekAndCount(week, weeksAmount);
-
-        // Validate the generated date range
-        if (!newDateRange.from || !newDateRange.to ||
-          isNaN(newDateRange.from.getTime()) || isNaN(newDateRange.to.getTime())) {
-          console.error('Invalid date range generated:', newDateRange);
-          toast({
-            title: "Fehler",
-            description: "Fehler bei der Berechnung des Datumsbereichs",
-            variant: "destructive"
-          });
-          return;
-        }
-
-        // Ensure dates are at the start of their respective days
-        const from = new Date(newDateRange.from);
-        from.setHours(0, 0, 0, 0);
-        const to = new Date(newDateRange.to);
-        to.setHours(23, 59, 59, 999);
-
-        console.log('Setting date range:', {
-          from: from.toISOString(),
-          to: to.toISOString(),
-          week,
-          weeksAmount
-        });
-
-        setDateRange(newDateRange);
-      } catch (error) {
-        console.error('Error during calendar week change:', error);
-        toast({
-          title: "Fehler",
-          description: "Fehler bei der Verarbeitung der Kalenderwoche",
-          variant: "destructive"
-        });
-      }
+  // Function to update date range when selecting a different week
+  const handleWeekChange = (weekOffset: number) => {
+    if (dateRange?.from) {
+      const from = addWeeks(startOfWeek(dateRange.from, { weekStartsOn: 1 }), weekOffset);
+      from.setHours(0, 0, 0, 0);
+      const to = addDays(from, 6 * scheduleDuration);
+      to.setHours(23, 59, 59, 999);
+      setDateRange({ from, to });
     }
-  }, [selectedCalendarWeek, weeksAmount]);
+  };
+
+  // Function to handle schedule duration change
+  const handleDurationChange = (duration: number) => {
+    setScheduleDuration(duration);
+
+    // Update end date based on new duration
+    if (dateRange?.from) {
+      const from = dateRange.from;
+      const to = addDays(startOfWeek(from, { weekStartsOn: 1 }), 6 * duration);
+      to.setHours(23, 59, 59, 999);
+      setDateRange({ from, to });
+    }
+  };
 
   const handleIncludeEmptyChange = (checked: boolean) => {
     console.log("Toggling includeEmpty:", { from: includeEmpty, to: checked });
@@ -196,7 +115,7 @@ export function SchedulePage() {
 
   const queryClient = useQueryClient();
 
-  // Update the useQuery hook with proper types
+  // Update the useQuery hook with proper types and error handling
   const {
     data,
     isLoading,
@@ -219,17 +138,35 @@ export function SchedulePage() {
         };
       }
 
-      const fromStr = format(dateRange.from, 'yyyy-MM-dd');
-      const toStr = format(dateRange.to, 'yyyy-MM-dd');
+      try {
+        const fromStr = format(dateRange.from, 'yyyy-MM-dd');
+        const toStr = format(dateRange.to, 'yyyy-MM-dd');
 
-      return await getSchedules(
-        fromStr,
-        toStr,
-        selectedVersion,
-        includeEmpty
-      );
+        console.log('🔄 Fetching schedules:', { fromStr, toStr, selectedVersion, includeEmpty });
+
+        const response = await getSchedules(
+          fromStr,
+          toStr,
+          selectedVersion,
+          includeEmpty
+        );
+
+        console.log('✅ Received schedule response:', {
+          scheduleCount: response.schedules?.length || 0,
+          versions: response.versions,
+          currentVersion: response.current_version,
+          versionStatuses: response.version_statuses
+        });
+
+        return response;
+      } catch (err) {
+        console.error('❌ Error fetching schedules:', err);
+        throw err;
+      }
     },
     enabled: !!dateRange?.from && !!dateRange?.to,
+    retry: 2, // Retry failed requests twice
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
   });
 
   // Extract schedule data with proper types
@@ -246,10 +183,20 @@ export function SchedulePage() {
   // Log fetch errors
   useEffect(() => {
     if (error) {
+      console.error('Schedule fetch error:', error);
       addGenerationLog('error', 'Error fetching schedule data',
         error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten");
     }
   }, [error]);
+
+  // Add a retry mechanism for failed data fetches
+  const handleRetryFetch = () => {
+    console.log('Retrying data fetch...');
+    // Clear any existing errors
+    setGenerationLogs(prev => prev.filter(log => log.type !== 'error'));
+    // Force refetch
+    refetch();
+  };
 
   const addGenerationLog = (type: 'info' | 'warning' | 'error', message: string, details?: string) => {
     setGenerationLogs(prev => [...prev, {
@@ -327,30 +274,71 @@ export function SchedulePage() {
           const fromStr = format(dateRange.from, 'yyyy-MM-dd');
           const toStr = format(dateRange.to, 'yyyy-MM-dd');
 
-          const result = await generateSchedule(
-            fromStr,
-            toStr,
-            createEmptySchedules
-          );
+          try {
+            const result = await generateSchedule(
+              fromStr,
+              toStr,
+              createEmptySchedules
+            );
 
-          updateGenerationStep("process", "completed");
+            updateGenerationStep("process", "completed");
 
-          // Assign shifts
-          updateGenerationStep("assign", "in-progress");
-          addGenerationLog("info", "Weise Schichten zu");
-          await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate processing
-          updateGenerationStep("assign", "completed");
+            // Assign shifts
+            updateGenerationStep("assign", "in-progress");
+            addGenerationLog("info", "Weise Schichten zu");
+            await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate processing
+            updateGenerationStep("assign", "completed");
 
-          // Finalize
-          updateGenerationStep("finalize", "in-progress");
-          addGenerationLog("info", "Finalisiere Schichtplan");
-          await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate processing
-          updateGenerationStep("finalize", "completed");
+            // Finalize
+            updateGenerationStep("finalize", "in-progress");
+            addGenerationLog("info", "Finalisiere Schichtplan");
+            await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate processing
+            updateGenerationStep("finalize", "completed");
 
-          // Clear the timeout since we finished successfully
-          clearTimeout(timeout);
+            // Clear the timeout since we finished successfully
+            clearTimeout(timeout);
 
-          return result;
+            return result;
+          } catch (apiError) {
+            // Handle API-specific errors
+            console.error("API error during generation:", apiError);
+
+            // Update the appropriate step to error state
+            updateGenerationStep("process", "error", apiError instanceof Error ? apiError.message : "Unbekannter Fehler");
+
+            // Add detailed error log
+            if (apiError instanceof Error) {
+              addGenerationLog("error", apiError.message, "Fehler bei der API-Anfrage");
+
+              // Check for various patterns that indicate duration_hours issues
+              const durationPatterns = [
+                'duration_hours',
+                'schichtdauer',
+                'nonetype',
+                'attribute',
+                'none',
+                'shift',
+                'duration',
+                'has no attribute',
+                'fehlt ein attribut',
+                'missing attribute'
+              ];
+
+              const hasDurationError = durationPatterns.some(pattern =>
+                apiError.message.includes(pattern)
+              );
+
+              if (hasDurationError) {
+                addGenerationLog("error", "Schichtdauer fehlt", "Bitte überprüfen Sie die Schichteinstellungen und stellen Sie sicher, dass alle Schichten eine Dauer haben.");
+              }
+            } else {
+              addGenerationLog("error", "Unbekannter API-Fehler", String(apiError));
+            }
+
+            // Clear the timeout on error
+            clearTimeout(timeout);
+            throw apiError;
+          }
         } catch (error) {
           // Clear the timeout on error
           clearTimeout(timeout);
@@ -539,272 +527,6 @@ export function SchedulePage() {
     await updateBreakNotesMutation.mutateAsync({ employeeId, day, notes });
   };
 
-  // Add a handler for calendar week selection
-  const handleCalendarWeekChange = (weekValue: string) => {
-    setSelectedCalendarWeek(weekValue);
-
-    try {
-      // Parse the selected week value (format: "YYYY-WW")
-      const [yearStr, weekStr] = weekValue.split('-');
-      const year = parseInt(yearStr, 10);
-      const week = parseInt(weekStr, 10);
-
-      if (isNaN(year) || isNaN(week) || week < 1 || week > 53) {
-        console.error('Invalid week value:', weekValue);
-        toast({
-          title: "Fehler",
-          description: "Ungültige Kalenderwoche ausgewählt",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Get date range for the selected week and the current week amount
-      const newDateRange = getDateRangeFromWeekAndCount(week, weeksAmount);
-
-      // Validate the generated date range
-      if (!newDateRange.from || !newDateRange.to ||
-        isNaN(newDateRange.from.getTime()) || isNaN(newDateRange.to.getTime())) {
-        console.error('Invalid date range generated:', newDateRange);
-        toast({
-          title: "Fehler",
-          description: "Fehler bei der Berechnung des Datumsbereichs",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      console.log('Setting date range:', {
-        from: newDateRange.from.toISOString(),
-        to: newDateRange.to.toISOString(),
-        week,
-        weeksAmount
-      });
-
-      setDateRange(newDateRange);
-    } catch (error) {
-      console.error('Error parsing week value:', error);
-      toast({
-        title: "Fehler",
-        description: "Fehler bei der Verarbeitung der Kalenderwoche",
-        variant: "destructive"
-      });
-    }
-  };
-
-  // Update the useQuery hook with proper types
-  const versionsQuery: UseQueryResult<VersionResponse, Error> = useQuery({
-    queryKey: ['versions', dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
-    queryFn: async () => {
-      if (!dateRange?.from || !dateRange?.to) {
-        throw new Error("Date range is required");
-      }
-
-      const fromStr = format(dateRange.from, 'yyyy-MM-dd');
-      const toStr = format(dateRange.to, 'yyyy-MM-dd');
-
-      return await getAllVersions(fromStr, toStr);
-    },
-    enabled: !!dateRange?.from && !!dateRange?.to,
-  });
-
-  // Set selected version to the latest version for this week when versions change or week changes
-  useEffect(() => {
-    if (versionsQuery.data?.versions && versionsQuery.data.versions.length > 0) {
-      // Sort by version number (descending) to get the latest version
-      const sortedVersions = [...versionsQuery.data.versions].sort((a, b) => b.version - a.version);
-      const latestVersion = sortedVersions[0].version;
-
-      // Only update if not already selected or if week has changed
-      if (!selectedVersion || selectedVersion !== latestVersion) {
-        console.log(`🔄 Auto-selecting latest version (${latestVersion}) for week ${selectedCalendarWeek}`);
-        setSelectedVersion(latestVersion);
-      }
-    }
-  }, [versionsQuery.data, selectedCalendarWeek]);
-
-  // Show loading skeleton for initial data fetch
-  if (isLoading && !scheduleData) {
-    return (
-      <div className="container mx-auto py-6 space-y-6">
-        <div className="flex justify-between items-center">
-          <Skeleton className="h-10 w-48" />
-          <div className="flex items-center gap-4">
-            <Skeleton className="h-10 w-64" />
-            <Skeleton className="h-10 w-40" />
-            <Skeleton className="h-10 w-40" />
-            <Skeleton className="h-10 w-32" />
-          </div>
-        </div>
-        <Card className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableCell>
-                  <Skeleton className="h-6 w-32" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-6 w-20" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-6 w-24" />
-                </TableCell>
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <TableCell key={i}>
-                    <Skeleton className="h-6 w-24" />
-                  </TableCell>
-                ))}
-                <TableCell>
-                  <Skeleton className="h-6 w-24" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-6 w-24" />
-                </TableCell>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell>
-                    <Skeleton className="h-24 w-32" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-24 w-20" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-24 w-24" />
-                  </TableCell>
-                  {Array.from({ length: 6 }).map((_, j) => (
-                    <TableCell key={j}>
-                      <Skeleton className="h-24 w-24" />
-                    </TableCell>
-                  ))}
-                  <TableCell>
-                    <Skeleton className="h-24 w-24" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-24 w-24" />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
-      </div>
-    );
-  }
-
-  // Show loading overlay for subsequent data fetches
-  const isUpdating = isLoading || updateShiftMutation.isPending || generateMutation.isPending || exportMutation.isPending;
-
-  // Add this component for the generation overlay
-  const GenerationOverlay = () => (
-    <Dialog open={showGenerationOverlay} onOpenChange={(open) => {
-      // Only allow closing if not in progress
-      if (!open && !generateMutation.isPending) {
-        setShowGenerationOverlay(open);
-      }
-    }}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-center">Generiere Schichtplan</DialogTitle>
-        </DialogHeader>
-        <div className="py-6">
-          <div className="text-center mb-4">
-            Bitte warten Sie, während der Schichtplan generiert wird...
-          </div>
-          <div className="space-y-4">
-            {generationSteps.map((step) => (
-              <div key={step.id} className="flex items-center">
-                <div className="mr-4 flex-shrink-0">
-                  {step.status === "completed" ? (
-                    <CheckCircle className="h-6 w-6 text-green-500" />
-                  ) : step.status === "in-progress" ? (
-                    <Circle className="h-6 w-6 text-blue-500 animate-pulse" />
-                  ) : step.status === "error" ? (
-                    <XCircle className="h-6 w-6 text-red-500" />
-                  ) : (
-                    <Circle className="h-6 w-6 text-gray-300" />
-                  )}
-                </div>
-                <div className="flex-grow">
-                  <div className="font-medium">{step.title}</div>
-                  {step.message && (
-                    <div className="text-sm text-gray-500">{step.message}</div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-          <Progress
-            value={
-              (generationSteps.filter(
-                (step) => step.status === "completed"
-              ).length /
-                generationSteps.length) *
-              100
-            }
-            className="mt-6"
-          />
-
-          {/* Force cancel button - only show if we've been processing for a while or there's an error */}
-          {(generationSteps.some(step => step.status === 'error') || !generateMutation.isPending) && (
-            <div className="mt-4 flex justify-center">
-              <Button
-                variant="outline"
-                onClick={resetGenerationState}
-                className="mt-2"
-              >
-                {generationSteps.some(step => step.status === 'error')
-                  ? 'Abbrechen'
-                  : 'Schließen'}
-              </Button>
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-
-  // Add a component to display schedule generation errors
-  const ScheduleGenerationErrors = ({ errors }: { errors: ScheduleError[] }) => {
-    if (!errors || errors.length === 0) return null;
-
-    return (
-      <Card className="mt-4 border-red-300">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-red-600 flex items-center gap-2">
-            <AlertCircle size={18} />
-            Fehler bei der Schichtplan-Generierung
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {errors.map((error, index) => (
-              <Alert key={index} variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>{error.type === 'critical' ? 'Kritischer Fehler' : 'Warnung'}</AlertTitle>
-                <AlertDescription className="mt-2">
-                  <div>{error.message}</div>
-                  {error.date && (
-                    <div className="text-sm mt-1">
-                      Datum: {format(new Date(error.date), 'dd.MM.yyyy')}
-                    </div>
-                  )}
-                  {error.shift && (
-                    <div className="text-sm">
-                      Schicht: {error.shift}
-                    </div>
-                  )}
-                </AlertDescription>
-              </Alert>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  };
-
   // Version management mutations
   const createVersionMutation = useMutation({
     mutationFn: async () => {
@@ -884,7 +606,7 @@ export function SchedulePage() {
       setSelectedVersion(data.version);
       queryClient.invalidateQueries({ queryKey: ['schedules'] });
       refetch();
-      setDuplicateVersionDialogOpen(false);
+      setIsDuplicateVersionOpen(false);
     },
     onError: (error) => {
       toast({
@@ -895,503 +617,17 @@ export function SchedulePage() {
     }
   });
 
-  const updateVersionNotesMutation = useMutation({
-    mutationFn: (params: { version: number, notes: string }) =>
-      updateVersionNotes(params.version, { notes: params.notes }),
-    onSuccess: (data) => {
-      toast({
-        title: "Success",
-        description: `Notes updated for version ${data.version}`,
-      });
-      queryClient.invalidateQueries({ queryKey: ['schedules'] });
-      refetch();
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: `Failed to update notes: ${error}`,
-        variant: "destructive",
-      });
-    }
-  });
-
   // Add state for version control dialogs
-  const [duplicateVersionDialogOpen, setDuplicateVersionDialogOpen] = useState(false);
-  const [versionToCompare, setVersionToCompare] = useState<number | null>(null);
-  const [comparisonResults, setComparisonResults] = useState<any>(null);
   const [versionNotes, setVersionNotes] = useState<string>('');
-  const [isComparingVersions, setIsComparingVersions] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
 
   // Add state for duplicate version dialog
   const [duplicateSourceVersion, setDuplicateSourceVersion] = useState<number | undefined>();
   const [isDuplicateVersionOpen, setIsDuplicateVersionOpen] = useState(false);
 
-  // Update the fetchData function
-  const fetchData = () => {
-    void queryClient.invalidateQueries({
-      queryKey: ['schedules'],
-      exact: false
-    });
-  };
-
-  // Update the refetchSchedules function
-  const refetchSchedules = () => {
-    if (queryClient && selectedVersion) {
-      void queryClient.invalidateQueries({
-        queryKey: ['schedules', selectedVersion],
-        exact: false
-      });
-    } else {
-      // Manual refetch logic using the existing fetch function
-      if (dateRange?.from && dateRange?.to) {
-        fetchData();
-      }
-    }
-  };
-
   // Version control handlers
   const handleVersionChange = (version: number) => {
     setSelectedVersion(version);
-  };
-
-  const handlePublishVersion = async (version: number) => {
-    if (version) {
-      try {
-        const result = await publishSchedule(version);
-        toast({
-          title: "Version Published",
-          description: `Version ${version} has been published successfully.`,
-        });
-
-        // Refetch schedules to update status
-        refetchSchedules();
-      } catch (error) {
-        toast({
-          title: "Publish Error",
-          description: "Failed to publish version.",
-          variant: "destructive",
-        });
-      }
-    }
-  };
-
-  const handleArchiveVersion = async (version: number) => {
-    if (version) {
-      try {
-        const result = await archiveSchedule(version);
-        toast({
-          title: "Version Archived",
-          description: `Version ${version} has been archived successfully.`,
-        });
-
-        // Refetch schedules to update status
-        refetchSchedules();
-      } catch (error) {
-        toast({
-          title: "Archive Error",
-          description: "Failed to archive version.",
-          variant: "destructive",
-        });
-      }
-    }
-  };
-
-  // Add new version control handlers
-  const handleDuplicateVersion = async (version: number) => {
-    if (version) {
-      try {
-        // Open duplicate dialog with the selected version pre-filled
-        setDuplicateSourceVersion(version);
-        setIsDuplicateVersionOpen(true);
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to prepare version duplication.",
-          variant: "destructive",
-        });
-      }
-    }
-  };
-
-  const handleCompareVersions = async () => {
-    if (!selectedVersion || !versionToCompare) {
-      toast({
-        title: "Error",
-        description: "Please select both versions to compare",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsComparingVersions(true);
-    try {
-      const results = await compareVersions(selectedVersion, versionToCompare);
-      setComparisonResults(results);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: `Failed to compare versions: ${error}`,
-        variant: "destructive",
-      });
-    } finally {
-      setIsComparingVersions(false);
-    }
-  };
-
-  const handleUpdateNotes = () => {
-    if (!selectedVersion) {
-      toast({
-        title: "Error",
-        description: "Please select a version first",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (data?.version_meta?.notes) {
-      setVersionNotes(data.version_meta.notes);
-    } else {
-      setVersionNotes('');
-    }
-    setIsEditingNotes(true);
-  };
-
-  const saveVersionNotes = () => {
-    if (!selectedVersion) return;
-
-    updateVersionNotesMutation.mutate({
-      version: selectedVersion,
-      notes: versionNotes
-    });
-    setIsEditingNotes(false);
-  };
-
-  const confirmDuplicateVersion = () => {
-    if (!selectedVersion || !dateRange?.from || !dateRange?.to) return;
-
-    duplicateVersionMutation.mutate({
-      source_version: selectedVersion,
-      start_date: dateRange.from.toISOString().split('T')[0],
-      end_date: dateRange.to.toISOString().split('T')[0],
-      notes: versionNotes
-    });
-  };
-
-  // Update the ErrorDisplay component to use better styling
-  const ErrorDisplay = ({ error }: { error: any }) => (
-    <Alert variant="destructive">
-      <AlertCircle className="h-4 w-4" />
-      <AlertTitle>Error loading schedule</AlertTitle>
-      <AlertDescription>
-        {error?.message || 'An unknown error occurred. Please try again.'}
-      </AlertDescription>
-    </Alert>
-  );
-
-  // Add a skeleton loader for schedule table
-  const ScheduleTableSkeleton = () => (
-    <div className="space-y-4">
-      <Skeleton className="h-8 w-full" />
-      <div className="grid grid-cols-7 gap-2">
-        {Array(7).fill(0).map((_, i) => (
-          <Skeleton key={i} className="h-10" />
-        ))}
-      </div>
-      {Array(5).fill(0).map((_, i) => (
-        <div key={i} className="grid grid-cols-7 gap-2">
-          {Array(7).fill(0).map((_, j) => (
-            <Skeleton key={j} className="h-16" />
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-
-  const handleGenerateSchedule = async () => {
-    if (!dateRange?.from || !dateRange?.to) {
-      toast({
-        title: "Fehler",
-        description: "Bitte wählen Sie einen Datumsbereich aus",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsGenerating(true);
-    setGenerationSteps([
-      { id: '1', title: 'Initialisiere Generierung', status: 'pending' },
-      { id: '2', title: 'Lade Mitarbeiterdaten', status: 'pending' },
-      { id: '3', title: 'Generiere Schichtplan', status: 'pending' },
-      { id: '4', title: 'Speichere Ergebnisse', status: 'pending' }
-    ]);
-    setGenerationLogs([]);
-    setShowGenerationOverlay(true);
-
-    try {
-      // Update step 1 status
-      setGenerationSteps(prev => prev.map(step =>
-        step.id === '1' ? { ...step, status: 'in-progress' } : step
-      ));
-      addGenerationLog('info', 'Initialisiere Generierung...');
-
-      // Prepare request data
-      const fromStr = format(dateRange.from, 'yyyy-MM-dd');
-      const toStr = format(dateRange.to, 'yyyy-MM-dd');
-
-      // Update step 1 to completed and start step 2
-      setGenerationSteps(prev => prev.map(step =>
-        step.id === '1' ? { ...step, status: 'completed' } :
-          step.id === '2' ? { ...step, status: 'in-progress' } : step
-      ));
-      addGenerationLog('info', 'Lade Mitarbeiterdaten...');
-
-      // Update step 2 to completed and start step 3
-      setGenerationSteps(prev => prev.map(step =>
-        step.id === '2' ? { ...step, status: 'completed' } :
-          step.id === '3' ? { ...step, status: 'in-progress' } : step
-      ));
-      addGenerationLog('info', 'Generiere Schichtplan...');
-
-      // Call the generate schedule API
-      const result = await generateSchedule(
-        fromStr,
-        toStr,
-        createEmptySchedules
-      );
-
-      // Update step 3 to completed and start step 4
-      setGenerationSteps(prev => prev.map(step =>
-        step.id === '3' ? { ...step, status: 'completed' } :
-          step.id === '4' ? { ...step, status: 'in-progress' } : step
-      ));
-      addGenerationLog('info', 'Speichere Ergebnisse...');
-
-      // Process the result
-      if (result.errors && result.errors.length > 0) {
-        result.errors.forEach(error => {
-          addGenerationLog('error', error.message);
-        });
-      }
-
-      // Update step 4 to completed
-      setGenerationSteps(prev => prev.map(step =>
-        step.id === '4' ? { ...step, status: 'completed' } : step
-      ));
-      addGenerationLog('info', 'Generierung abgeschlossen');
-
-      // Refetch the schedule data
-      await refetch();
-
-      // Show success message
-      toast({
-        title: "Erfolg",
-        description: "Schichtplan wurde erfolgreich generiert",
-      });
-
-      // Close the overlay after a short delay
-      setTimeout(() => {
-        setShowGenerationOverlay(false);
-        setGenerationSteps([]);
-        setGenerationLogs([]);
-        setIsGenerating(false);
-      }, 2000);
-
-    } catch (error) {
-      // Update current step to error
-      setGenerationSteps(prev => prev.map(step =>
-        step.status === 'in-progress' ? { ...step, status: 'error' } : step
-      ));
-
-      // Log the error
-      addGenerationLog('error', 'Fehler bei der Generierung',
-        error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten");
-
-      // Show error toast
-      toast({
-        title: "Fehler",
-        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
-        variant: "destructive"
-      });
-
-      setIsGenerating(false);
-    }
-  };
-
-  // Version management functions
-  const handleVersionCreate = async () => {
-    if (!dateRange?.from || !dateRange?.to) {
-      toast({
-        title: "Fehler",
-        description: "Bitte wählen Sie einen Datumsbereich aus",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    try {
-      const result = await createNewVersion({
-        start_date: format(dateRange.from, 'yyyy-MM-dd'),
-        end_date: format(dateRange.to, 'yyyy-MM-dd'),
-        base_version: selectedVersion
-      });
-
-      toast({
-        title: "Erfolg",
-        description: `Neue Version ${result.version} wurde erstellt`
-      });
-
-      setSelectedVersion(result.version);
-      await refetch();
-    } catch (error) {
-      toast({
-        title: "Fehler",
-        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleVersionDuplicate = async () => {
-    if (!dateRange?.from || !dateRange?.to || !selectedVersion) {
-      toast({
-        title: "Fehler",
-        description: "Bitte wählen Sie einen Datumsbereich und eine Version aus",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    try {
-      const result = await duplicateVersion({
-        source_version: selectedVersion,
-        start_date: format(dateRange.from, 'yyyy-MM-dd'),
-        end_date: format(dateRange.to, 'yyyy-MM-dd')
-      });
-
-      toast({
-        title: "Erfolg",
-        description: `Version ${result.version} wurde dupliziert`
-      });
-
-      setSelectedVersion(result.version);
-      await refetch();
-    } catch (error) {
-      toast({
-        title: "Fehler",
-        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleVersionArchive = async () => {
-    if (!selectedVersion) {
-      toast({
-        title: "Fehler",
-        description: "Bitte wählen Sie eine Version aus",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    try {
-      await archiveSchedule(selectedVersion);
-      toast({
-        title: "Erfolg",
-        description: `Version ${selectedVersion} wurde archiviert`
-      });
-      await refetch();
-    } catch (error) {
-      toast({
-        title: "Fehler",
-        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleVersionPublish = async () => {
-    if (!selectedVersion) {
-      toast({
-        title: "Fehler",
-        description: "Bitte wählen Sie eine Version aus",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    try {
-      await publishSchedule(selectedVersion);
-      toast({
-        title: "Erfolg",
-        description: `Version ${selectedVersion} wurde veröffentlicht`
-      });
-      await refetch();
-    } catch (error) {
-      toast({
-        title: "Fehler",
-        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleVersionCompare = async (compareVersion: number) => {
-    if (!selectedVersion) {
-      toast({
-        title: "Fehler",
-        description: "Bitte wählen Sie eine Version aus",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    try {
-      const result = await compareVersions(selectedVersion, compareVersion);
-      // Handle comparison result (e.g., show in a modal)
-      console.log('Version comparison:', result);
-    } catch (error) {
-      toast({
-        title: "Fehler",
-        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleVersionNotesUpdate = async (version: number, notes: string) => {
-    try {
-      await updateVersionNotes(version, { notes });
-      toast({
-        title: "Erfolg",
-        description: "Notizen wurden aktualisiert"
-      });
-      await refetch();
-    } catch (error) {
-      toast({
-        title: "Fehler",
-        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleVersionStatusUpdate = async (version: number, status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED') => {
-    try {
-      await updateVersionStatus(version, { status });
-      toast({
-        title: "Erfolg",
-        description: `Status wurde auf ${status} geändert`
-      });
-      await refetch();
-    } catch (error) {
-      toast({
-        title: "Fehler",
-        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
-        variant: "destructive"
-      });
-    }
   };
 
   // Add schedule update handlers
@@ -1409,14 +645,6 @@ export function SchedulePage() {
         description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
         variant: "destructive"
       });
-    }
-  };
-
-  // Update handleWeeksAmountChange to handle string to number conversion
-  const handleWeeksAmountChange = (amount: string) => {
-    const numAmount = parseInt(amount, 10);
-    if (!isNaN(numAmount) && numAmount >= 1 && numAmount <= 4) {
-      setWeeksAmount(numAmount);
     }
   };
 
@@ -1485,143 +713,529 @@ export function SchedulePage() {
   // Convert schedules for the ScheduleTable
   const convertedSchedules = (data?.schedules ?? []).map((apiSchedule) => convertSchedule(apiSchedule));
 
+  // Update the useQuery hook with proper types
+  const versionsQuery: UseQueryResult<VersionResponse, Error> = useQuery({
+    queryKey: ['versions', dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
+    queryFn: async () => {
+      if (!dateRange?.from || !dateRange?.to) {
+        throw new Error("Date range is required");
+      }
+
+      const fromStr = format(dateRange.from, 'yyyy-MM-dd');
+      const toStr = format(dateRange.to, 'yyyy-MM-dd');
+
+      return await getAllVersions(fromStr, toStr);
+    },
+    enabled: !!dateRange?.from && !!dateRange?.to,
+  });
+
+  // Set selected version to the latest version for this week when versions change or week changes
+  useEffect(() => {
+    if (versionsQuery.data?.versions && versionsQuery.data.versions.length > 0) {
+      // Sort by version number (descending) to get the latest version
+      const sortedVersions = [...versionsQuery.data.versions].sort((a, b) => b.version - a.version);
+      const latestVersion = sortedVersions[0].version;
+
+      // Only update if not already selected
+      if (!selectedVersion || selectedVersion !== latestVersion) {
+        console.log(`🔄 Auto-selecting latest version (${latestVersion})`);
+        setSelectedVersion(latestVersion);
+      }
+    }
+  }, [versionsQuery.data]);
+
+  // Show loading skeleton for initial data fetch
+  if (isLoading && !scheduleData) {
+    return (
+      <div className="container mx-auto py-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-10 w-48" />
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-10 w-64" />
+            <Skeleton className="h-10 w-40" />
+            <Skeleton className="h-10 w-40" />
+            <Skeleton className="h-10 w-32" />
+          </div>
+        </div>
+        <Card className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableCell>
+                  <Skeleton className="h-6 w-32" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-6 w-20" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-6 w-24" />
+                </TableCell>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <TableCell key={i}>
+                    <Skeleton className="h-6 w-24" />
+                  </TableCell>
+                ))}
+                <TableCell>
+                  <Skeleton className="h-6 w-24" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-6 w-24" />
+                </TableCell>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell>
+                    <Skeleton className="h-24 w-32" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-24 w-20" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-24 w-24" />
+                  </TableCell>
+                  {Array.from({ length: 6 }).map((_, j) => (
+                    <TableCell key={j}>
+                      <Skeleton className="h-24 w-24" />
+                    </TableCell>
+                  ))}
+                  <TableCell>
+                    <Skeleton className="h-24 w-24" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-24 w-24" />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show loading overlay for subsequent data fetches
+  const isUpdating = isLoading || updateShiftMutation.isPending || generateMutation.isPending || exportMutation.isPending;
+
+  // Add this component for the generation overlay
+  const GenerationOverlay = () => {
+    // Check if there are any errors in the generation steps
+    const hasErrors = generationSteps.some(step => step.status === 'error');
+    const errorLogs = generationLogs.filter(log => log.type === 'error');
+    const hasDurationError = errorLogs.some(log => {
+      const message = (log.message || '').toLowerCase();
+      const details = (log.details || '').toLowerCase();
+
+      // Check for various patterns that indicate duration_hours issues
+      const durationPatterns = [
+        'duration_hours',
+        'schichtdauer',
+        'nonetype',
+        'attribute',
+        'none',
+        'shift',
+        'duration',
+        'has no attribute',
+        'fehlt ein attribut',
+        'missing attribute'
+      ];
+
+      return durationPatterns.some(pattern =>
+        message.includes(pattern) || details.includes(pattern)
+      );
+    });
+
+    // Function to fix shift durations
+    const handleFixShiftDurations = async () => {
+      try {
+        // Show loading state
+        toast({
+          title: "Schichtdauer wird berechnet",
+          description: "Bitte warten Sie, während die Schichtdauer berechnet wird...",
+        });
+
+        // Add a log to show we're attempting to fix the issue
+        addGenerationLog("info", "Versuche, Schichtdauer zu berechnen",
+          "Die fehlenden Schichtdauern werden automatisch berechnet und aktualisiert.");
+
+        // Call the API to fix shift durations
+        const result = await fixShiftDurations();
+
+        // Show success message
+        toast({
+          title: "Schichtdauer berechnet",
+          description: `${result.fixed_count} Schichten wurden aktualisiert. Bitte versuchen Sie erneut, den Dienstplan zu generieren.`,
+          variant: "default",
+        });
+
+        // Add a success log
+        addGenerationLog("info", "Schichtdauer erfolgreich berechnet",
+          `${result.fixed_count} Schichten wurden aktualisiert. Sie können jetzt den Dienstplan erneut generieren.`);
+
+        // Reset the generation state after a short delay to allow the user to see the success message
+        setTimeout(() => {
+          resetGenerationState();
+        }, 2000);
+      } catch (error) {
+        console.error("Error fixing shift durations:", error);
+
+        // Add an error log
+        addGenerationLog("error", "Fehler bei der Berechnung der Schichtdauer",
+          error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten");
+
+        toast({
+          variant: "destructive",
+          title: "Fehler",
+          description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
+        });
+      }
+    };
+
+    if (!showGenerationOverlay) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full mx-4">
+          <div className="text-center mb-4">
+            <h2 className="text-xl font-semibold">
+              {hasErrors ? (
+                <span className="text-red-500 flex items-center justify-center">
+                  <AlertCircle className="h-5 w-5 mr-2" />
+                  Fehler bei der Generierung
+                </span>
+              ) : (
+                "Generiere Schichtplan"
+              )}
+            </h2>
+          </div>
+
+          <div className="py-4">
+            {!hasErrors ? (
+              <div className="text-center mb-4">
+                Bitte warten Sie, während der Schichtplan generiert wird...
+              </div>
+            ) : (
+              <div className="text-center mb-4 text-red-500">
+                Bei der Generierung des Schichtplans ist ein Fehler aufgetreten.
+              </div>
+            )}
+
+            <div className="space-y-4 mt-4">
+              {generationSteps.map((step) => (
+                <div key={step.id} className="flex items-center">
+                  <div className="mr-4 flex-shrink-0">
+                    {step.status === "completed" ? (
+                      <CheckCircle className="h-6 w-6 text-green-500" />
+                    ) : step.status === "in-progress" ? (
+                      <Circle className="h-6 w-6 text-blue-500 animate-pulse" />
+                    ) : step.status === "error" ? (
+                      <XCircle className="h-6 w-6 text-red-500" />
+                    ) : (
+                      <Circle className="h-6 w-6 text-gray-300" />
+                    )}
+                  </div>
+                  <div className="flex-grow">
+                    <div className="font-medium">{step.title}</div>
+                    {step.message && (
+                      <div className={`text-sm ${step.status === 'error' ? 'text-red-500' : 'text-gray-500'}`}>
+                        {step.message}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Show error details if there are any */}
+            {hasErrors && errorLogs.length > 0 && (
+              <div className="mt-6 p-3 bg-red-50 border border-red-200 rounded-md">
+                <h4 className="font-medium text-red-700 mb-2">Fehlerdetails:</h4>
+                <ul className="space-y-2 text-sm text-red-700">
+                  {errorLogs.map((log, index) => (
+                    <li key={index}>
+                      <div className="font-medium">{log.message}</div>
+                      {log.details && <div className="text-xs mt-1">{log.details}</div>}
+                    </li>
+                  ))}
+                </ul>
+
+                {/* Show specific help for known errors */}
+                {hasDurationError && (
+                  <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded-md text-blue-700 text-sm">
+                    <strong>Tipp:</strong> Es scheint ein Problem mit der Schichtdauer zu geben. Dies kann auftreten, wenn Schichten keine gültige Dauer haben.
+
+                    <p className="mt-1">
+                      Klicken Sie auf die Schaltfläche unten, um die Schichtdauer automatisch zu berechnen.
+                      Dies wird die Dauer für alle Schichten basierend auf deren Start- und Endzeiten berechnen.
+                    </p>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full mt-2 bg-blue-100 hover:bg-blue-200 border-blue-300 flex items-center justify-center"
+                      onClick={handleFixShiftDurations}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Schichtdauer automatisch berechnen
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <Progress
+              value={
+                (generationSteps.filter(
+                  (step) => step.status === "completed"
+                ).length /
+                  generationSteps.length) *
+                100
+              }
+              className={`mt-6 ${hasErrors ? 'bg-red-100' : ''}`}
+            />
+
+            {/* Force cancel button - only show if we've been processing for a while or there's an error */}
+            {(hasErrors || !generateMutation.isPending) && (
+              <div className="mt-6 flex justify-center">
+                <Button
+                  variant={hasErrors ? "destructive" : "outline"}
+                  onClick={resetGenerationState}
+                  className="w-full"
+                >
+                  {hasErrors ? 'Schließen' : 'Fertig'}
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Add a component to display schedule generation errors
+  const ScheduleGenerationErrors = ({ errors }: { errors: ScheduleError[] }) => {
+    if (!errors || errors.length === 0) return null;
+
+    return (
+      <Card className="mt-4 border-red-300">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-red-600 flex items-center gap-2">
+            <AlertCircle size={18} />
+            Fehler bei der Schichtplan-Generierung
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {errors.map((error, index) => (
+              <Alert key={index} variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>{error.type === 'critical' ? 'Kritischer Fehler' : 'Warnung'}</AlertTitle>
+                <AlertDescription className="mt-2">
+                  <div>{error.message}</div>
+                  {error.date && (
+                    <div className="text-sm mt-1">
+                      Datum: {format(new Date(error.date), 'dd.MM.yyyy')}
+                    </div>
+                  )}
+                  {error.shift && (
+                    <div className="text-sm">
+                      Schicht: {error.shift}
+                    </div>
+                  )}
+                </AlertDescription>
+              </Alert>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // Function to handle exporting the schedule
+  const handleExportSchedule = () => {
+    if (dateRange?.from && dateRange?.to) {
+      const fromStr = format(dateRange.from, 'yyyy-MM-dd');
+      const toStr = format(dateRange.to, 'yyyy-MM-dd');
+
+      exportSchedule(fromStr, toStr)
+        .then((blob) => {
+          // Create a download link for the blob
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `schichtplan_${fromStr}_${toStr}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+
+          // Clean up
+          setTimeout(() => {
+            URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+          }, 100);
+
+          toast({
+            title: "Export erfolgreich",
+            description: "Der Dienstplan wurde erfolgreich exportiert."
+          });
+        })
+        .catch((error) => {
+          toast({
+            title: "Export fehlgeschlagen",
+            description: `Fehler beim Exportieren des Dienstplans: ${error}`,
+            variant: "destructive"
+          });
+        });
+    }
+  };
+
   return (
-    <div className="container mx-auto p-4 space-y-4">
-      <PageHeader title="Dienstplan">
+    <div className="container mx-auto py-4 space-y-4">
+      <PageHeader title="Dienstplan" className="mb-4">
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={refetchSchedules}
-            className="flex items-center gap-1"
-          >
-            <RefreshCw className="h-4 w-4" />
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4 mr-2" />
             Aktualisieren
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsLayoutCustomizerOpen(true)}
-            className="flex items-center gap-1"
-          >
-            <Settings2 className="h-4 w-4" />
+          <Button variant="outline" size="sm" onClick={() => setIsLayoutCustomizerOpen(true)}>
+            <Settings2 className="h-4 w-4 mr-2" />
             Layout
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExportSchedule}>
+            <FileDown className="h-4 w-4 mr-2" />
+            Exportieren
           </Button>
         </div>
       </PageHeader>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <div className="lg:col-span-3 space-y-4">
-          <div className="sticky top-4">
-            {settingsQuery.data && (
-              <ScheduleGenerationSettings
-                settings={settingsQuery.data}
-                onUpdate={handleSettingsUpdate}
-                selectedCalendarWeek={selectedCalendarWeek}
-                weeksAmount={weeksAmount}
-                createEmptySchedules={createEmptySchedules}
-                includeEmpty={includeEmpty}
-                onCalendarWeekChange={setSelectedCalendarWeek}
-                onWeeksAmountChange={handleWeeksAmountChange}
-                onCreateEmptyChange={handleCreateEmptyChange}
-                onIncludeEmptyChange={handleIncludeEmptyChange}
-                onGenerateSchedule={handleGenerateSchedule}
-                isGenerating={isGenerating}
-              />
-            )}
+      {/* Add DateRangeSelector */}
+      <DateRangeSelector
+        dateRange={dateRange}
+        scheduleDuration={scheduleDuration}
+        onWeekChange={handleWeekChange}
+        onDurationChange={handleDurationChange}
+      />
 
-            <VersionControl
-              versions={versions}
-              versionStatuses={data?.version_statuses ?? {}}
-              currentVersion={data?.current_version}
-              versionMeta={data?.version_meta}
-              dateRange={dateRange}
-              onVersionChange={setSelectedVersion}
-              onCreateNewVersion={handleVersionCreate}
-              onPublishVersion={handleVersionPublish}
-              onArchiveVersion={handleVersionArchive}
-              onDuplicateVersion={handleVersionDuplicate}
-              isLoading={isLoadingSchedule}
-              hasError={!!scheduleError}
-              schedules={convertedSchedules}
-            />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        {/* Generation Settings */}
+        {settingsQuery.data && (
+          <ScheduleGenerationSettings
+            settings={settingsQuery.data}
+            onUpdate={handleSettingsUpdate}
+            createEmptySchedules={createEmptySchedules}
+            includeEmpty={includeEmpty}
+            onCreateEmptyChange={handleCreateEmptyChange}
+            onIncludeEmptyChange={handleIncludeEmptyChange}
+            onGenerateSchedule={() => generateMutation.mutate()}
+            isGenerating={isGenerating}
+          />
+        )}
+
+        {/* Version Control */}
+        <VersionControl
+          versions={versions}
+          versionStatuses={data?.version_statuses ?? {}}
+          currentVersion={data?.current_version}
+          versionMeta={data?.version_meta}
+          dateRange={dateRange}
+          onVersionChange={setSelectedVersion}
+          onCreateNewVersion={() => createVersionMutation.mutate()}
+          onPublishVersion={(version) => updateVersionStatusMutation.mutate({ version, status: 'PUBLISHED' })}
+          onArchiveVersion={(version) => updateVersionStatusMutation.mutate({ version, status: 'ARCHIVED' })}
+          onDuplicateVersion={(version) => {
+            if (dateRange?.from && dateRange?.to) {
+              duplicateVersionMutation.mutate({
+                source_version: version,
+                start_date: dateRange.from.toISOString().split('T')[0],
+                end_date: dateRange.to.toISOString().split('T')[0]
+              });
+            }
+          }}
+          isLoading={isLoadingSchedule}
+          hasError={isError && !!error && !data}
+          schedules={convertedSchedules}
+          onRetry={handleRetryFetch}
+        />
+      </div>
+
+      {/* Schedule Content */}
+      <DndProvider backend={HTML5Backend}>
+        {isLoading ? (
+          <div className="space-y-4">
+            <Skeleton className="h-[200px] w-full" />
+            <Skeleton className="h-[400px] w-full" />
           </div>
-        </div>
-
-        <div className="lg:col-span-9">
-          <Card className="mb-4">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xl flex items-center justify-between">
-                <div>
-                  Schichtplan
-                  {dateRange?.from && dateRange?.to && (
-                    <span className="ml-2 text-sm text-muted-foreground">
-                      {format(dateRange.from, 'dd.MM.yyyy')} - {format(dateRange.to, 'dd.MM.yyyy')}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant={isLoading || isLoadingSchedule ? "outline" : "default"} className="ml-2">
-                    {isLoading || isLoadingSchedule ? (
-                      <span className="flex items-center gap-1">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Laden...
-                      </span>
-                    ) : (
-                      <span>{convertedSchedules.length} Einträge</span>
-                    )}
-                  </Badge>
-                </div>
-              </CardTitle>
-            </CardHeader>
-          </Card>
-
-          <DndProvider backend={HTML5Backend}>
-            {isLoading ? (
-              <div className="space-y-4">
-                <Skeleton className="h-[200px] w-full" />
-                <Skeleton className="h-[400px] w-full" />
-              </div>
-            ) : isError ? (
-              <Alert variant="destructive">
+        ) : isError ? (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Fehler beim Laden des Dienstplans</AlertTitle>
+            <AlertDescription className="flex flex-col">
+              <div>Failed to fetch schedules: Verbindung zum Server fehlgeschlagen. Bitte überprüfen Sie Ihre Internetverbindung.</div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2 w-fit"
+                onClick={handleRetryFetch}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Erneut versuchen
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <>
+            {scheduleErrors.length > 0 && (
+              <Alert variant="destructive" className="mb-4">
                 <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Error</AlertTitle>
+                <AlertTitle>Fehler im Dienstplan</AlertTitle>
                 <AlertDescription>
-                  {error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten"}
+                  <div className="max-h-40 overflow-y-auto">
+                    <ul className="list-disc pl-4">
+                      {scheduleErrors.map((error, index) => (
+                        <li key={index}>{error.message}</li>
+                      ))}
+                    </ul>
+                  </div>
                 </AlertDescription>
               </Alert>
-            ) : (
-              <>
-                {scheduleErrors.length > 0 && (
-                  <Alert variant="destructive" className="mb-4">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Fehler im Dienstplan</AlertTitle>
-                    <AlertDescription>
-                      <div className="max-h-40 overflow-y-auto">
-                        <ul className="list-disc pl-4">
-                          {scheduleErrors.map((error, index) => (
-                            <li key={index}>{error.message}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                <div className={showGenerationOverlay ? 'relative opacity-30 pointer-events-none' : 'relative'}>
-                  <ScheduleTable
-                    schedules={convertedSchedules}
-                    dateRange={dateRange}
-                    onDrop={handleShiftDrop}
-                    onUpdate={handleShiftUpdate}
-                    isLoading={isLoadingSchedule}
-                  />
-                </div>
-              </>
             )}
-          </DndProvider>
-        </div>
-      </div>
+
+            {convertedSchedules.length === 0 && !isLoading && !isError ? (
+              <Card className="mb-4 border-dashed border-2 border-muted">
+                <CardContent className="flex flex-col items-center justify-center py-8">
+                  <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-2">Keine Einträge gefunden</h3>
+                  <p className="text-muted-foreground text-center mb-4">
+                    Für den ausgewählten Zeitraum wurden keine Schichtplan-Einträge gefunden.
+                  </p>
+                  <Button
+                    onClick={() => generateMutation.mutate()}
+                    disabled={isGenerating}
+                    className="flex items-center gap-2"
+                  >
+                    {isGenerating ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Plus className="h-4 w-4" />
+                    )}
+                    Schichtplan generieren
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="relative">
+                <ScheduleTable
+                  schedules={convertedSchedules}
+                  dateRange={dateRange}
+                  onDrop={handleShiftDrop}
+                  onUpdate={handleShiftUpdate}
+                  isLoading={isLoadingSchedule}
+                />
+              </div>
+            )}
+          </>
+        )}
+      </DndProvider>
 
       {showGenerationOverlay && <GenerationOverlay />}
     </div>

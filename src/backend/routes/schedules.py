@@ -6,10 +6,10 @@ from sqlalchemy import desc, text
 from services.pdf_generator import PDFGenerator
 from http import HTTPStatus
 from utils.logger import logger
-import uuid
 from services.scheduler.generator import ScheduleGenerator, ScheduleGenerationError
 from services.scheduler.resources import ScheduleResources, ScheduleResourceError
 from services.scheduler.validator import ScheduleValidator, ScheduleConfig
+from models.fixed_shift import ShiftTemplate
 
 # Define blueprint
 schedules = Blueprint("schedules", __name__)
@@ -44,6 +44,10 @@ def get_or_create_initial_version(start_date, end_date):
 def get_versions_for_date_range(start_date, end_date):
     """Helper function to get all versions available for a specific date range"""
     try:
+        logger.schedule_logger.info(
+            f"Getting versions for date range: {start_date} to {end_date}"
+        )
+
         # Try to get versions from version_meta first
         versions = (
             ScheduleVersionMeta.query.filter(
@@ -55,9 +59,15 @@ def get_versions_for_date_range(start_date, end_date):
         )
 
         if versions:
+            logger.schedule_logger.info(
+                f"Found {len(versions)} versions in version_meta"
+            )
             return versions
 
         # Fallback: Get versions from schedules
+        logger.schedule_logger.info(
+            "No versions found in version_meta, falling back to schedules table"
+        )
         version_numbers = (
             db.session.query(Schedule.version)
             .filter(Schedule.date >= start_date, Schedule.date <= end_date)
@@ -67,43 +77,71 @@ def get_versions_for_date_range(start_date, end_date):
         )
 
         if not version_numbers:
+            logger.schedule_logger.info("No versions found in schedules table")
             return []
+
+        logger.schedule_logger.info(
+            f"Found {len(version_numbers)} versions in schedules table"
+        )
 
         # Create metadata entries for these versions if they don't exist
         result = []
         for (version,) in version_numbers:
-            # Check if metadata exists
-            meta = ScheduleVersionMeta.query.get(version)
-            if not meta:
-                # Get date range for this version
-                dates = (
-                    db.session.query(
-                        db.func.min(Schedule.date), db.func.max(Schedule.date)
+            try:
+                # Check if metadata exists
+                meta = ScheduleVersionMeta.query.get(version)
+                if not meta:
+                    logger.schedule_logger.info(
+                        f"Creating metadata for version {version}"
                     )
-                    .filter(Schedule.version == version)
-                    .first()
+                    # Get date range for this version
+                    dates = (
+                        db.session.query(
+                            db.func.min(Schedule.date), db.func.max(Schedule.date)
+                        )
+                        .filter(Schedule.version == version)
+                        .first()
+                    )
+                    if dates:
+                        meta = ScheduleVersionMeta(
+                            version=version,
+                            created_at=datetime.utcnow(),
+                            status=ScheduleStatus.DRAFT,
+                            date_range_start=dates[0],
+                            date_range_end=dates[1],
+                            notes=f"Auto-generated metadata for version {version}",
+                        )
+                        db.session.add(meta)
+                        try:
+                            db.session.commit()
+                            logger.schedule_logger.info(
+                                f"Created metadata for version {version}"
+                            )
+                        except Exception as e:
+                            db.session.rollback()
+                            logger.error_logger.error(
+                                f"Failed to create metadata for version {version}: {str(e)}"
+                            )
+                if meta:
+                    result.append(meta)
+            except Exception as e:
+                logger.error_logger.error(
+                    f"Error processing version {version}: {str(e)}"
                 )
-                if dates:
-                    meta = ScheduleVersionMeta(
-                        version=version,
-                        created_at=datetime.utcnow(),
-                        status=ScheduleStatus.DRAFT,
-                        date_range_start=dates[0],
-                        date_range_end=dates[1],
-                        notes=f"Auto-generated metadata for version {version}",
-                    )
-                    db.session.add(meta)
-                    try:
-                        db.session.commit()
-                    except Exception:
-                        db.session.rollback()
-            if meta:
-                result.append(meta)
+                continue
+
+        if not result:
+            logger.schedule_logger.warning("No version metadata could be created")
+        else:
+            logger.schedule_logger.info(
+                f"Successfully processed {len(result)} versions"
+            )
 
         return result
+
     except Exception as e:
         logger.error_logger.error(f"Error in get_versions_for_date_range: {str(e)}")
-        return []
+        raise  # Re-raise the exception to be handled by the route handler
 
 
 @schedules.route("/schedules", methods=["GET"])
@@ -215,205 +253,142 @@ def get_schedules():
 @schedules.route("/schedules/generate", methods=["POST"])
 @schedules.route("/schedules/generate/", methods=["POST"])
 def generate_schedule():
-    """Generate a schedule for a date range"""
-    # Create a unique session ID for this generation request
-    session_id = str(uuid.uuid4())
-
-    # Create a session-specific logger with a memory handler to capture logs
-    from logging import StreamHandler
-    from io import StringIO
-
-    log_stream = StringIO()
-    memory_handler = StreamHandler(log_stream)
-    session_logger = logger.create_session_logger(session_id)
-    session_logger.addHandler(memory_handler)
-
-    session_logger.info(
-        "Schedule generation request received",
-        extra={
-            "action": "generation_request",
-            "request_id": session_id,
-        },
-    )
-
+    """Generate a new schedule for the given date range"""
     try:
         data = request.get_json()
         start_date = data.get("start_date")
         end_date = data.get("end_date")
-
-        # Get the create_empty_schedules parameter, default to True
         create_empty_schedules = data.get("create_empty_schedules", True)
 
-        if not start_date or not end_date:
-            return jsonify(
-                {"error": "start_date and end_date are required"}
-            ), HTTPStatus.BAD_REQUEST
+        # Initialize logs list
+        logs = []
 
+        # Validate input dates
+        if not start_date or not end_date:
+            error_msg = "Missing required parameters: start_date and end_date"
+            logger.error_logger.error(error_msg)
+            return jsonify({"error": error_msg}), 400
+
+        # Convert string dates to date objects
         try:
             start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
             end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
-        except ValueError:
-            return jsonify(
-                {"error": "Invalid date format, expected YYYY-MM-DD"}
-            ), HTTPStatus.BAD_REQUEST
+        except ValueError as e:
+            error_msg = f"Invalid date format: {str(e)}"
+            logger.error_logger.error(error_msg)
+            return jsonify({"error": error_msg}), 400
 
-        session_logger.info(
-            f"Generating schedule for period: {start_date} to {end_date}",
-            extra={
-                "action": "generate_schedule",
-                "start_date": start_date.isoformat(),
-                "end_date": end_date.isoformat(),
-                "create_empty_schedules": create_empty_schedules,
-            },
-        )
+        # Check if end date is after start date
+        if end_date < start_date:
+            error_msg = "End date must be after start date"
+            logger.error_logger.error(error_msg)
+            return jsonify({"error": error_msg}), 400
 
-        # Get the current max version for this date range
-        available_versions = get_versions_for_date_range(start_date, end_date)
-        max_version = (
-            max([v.version for v in available_versions]) if available_versions else 0
-        )
-        new_version = max_version + 1
+        # Get all shifts and validate their durations
+        shifts = ShiftTemplate.query.all()
+        invalid_shifts = []
 
-        session_logger.info(
-            f"Creating new schedule version {new_version}",
-            extra={
-                "action": "new_version",
-                "version": new_version,
-                "previous_version": max_version,
-            },
-        )
+        # First pass: Check all shifts for invalid durations
+        for shift in shifts:
+            try:
+                # Always recalculate duration to ensure it's up to date
+                shift._calculate_duration()
+                if shift.duration_hours is None or shift.duration_hours <= 0:
+                    logger.error_logger.error(
+                        f"Invalid duration for shift {shift.id}: {shift.duration_hours}h"
+                    )
+                    invalid_shifts.append(shift)
+                else:
+                    logger.schedule_logger.debug(
+                        f"Validated shift {shift.id}: {shift.duration_hours}h ({shift.start_time}-{shift.end_time})"
+                    )
+            except Exception as e:
+                logger.error_logger.error(
+                    f"Error validating shift {shift.id}: {str(e)}"
+                )
+                invalid_shifts.append(shift)
 
-        # Generate new schedules
+        # If we found invalid shifts, try to fix them
+        if invalid_shifts:
+            logger.schedule_logger.warning(
+                f"Found {len(invalid_shifts)} shifts with invalid duration_hours, fixing them"
+            )
+            logs.append(
+                f"Found {len(invalid_shifts)} shifts with invalid duration_hours, fixing them"
+            )
+
+            # Fix each invalid shift
+            fixed_shifts = []
+            for shift in invalid_shifts:
+                try:
+                    shift._calculate_duration()
+                    shift.validate()
+                    fixed_shifts.append(shift)
+                    logger.schedule_logger.info(
+                        f"Fixed shift {shift.id}: {shift.start_time}-{shift.end_time}, duration: {shift.duration_hours}h"
+                    )
+                    logs.append(
+                        f"Fixed shift {shift.id}: {shift.start_time}-{shift.end_time}, duration: {shift.duration_hours}h"
+                    )
+                except Exception as e:
+                    logger.error_logger.error(
+                        f"Could not fix shift {shift.id}: {str(e)}"
+                    )
+                    logs.append(f"Could not fix shift {shift.id}: {str(e)}")
+
+            # Commit the changes for fixed shifts
+            if fixed_shifts:
+                try:
+                    db.session.commit()
+                    logger.schedule_logger.info(
+                        f"Fixed {len(fixed_shifts)} shifts with invalid duration_hours"
+                    )
+                    logs.append(
+                        f"Fixed {len(fixed_shifts)} shifts with invalid duration_hours"
+                    )
+                except Exception as e:
+                    db.session.rollback()
+                    error_msg = f"Error saving fixed shifts: {str(e)}"
+                    logger.error_logger.error(error_msg)
+                    logs.append(error_msg)
+                    return jsonify({"error": error_msg, "logs": logs}), 500
+
+            # Check if we still have any invalid shifts
+            remaining_invalid = [
+                s for s in shifts if s.duration_hours is None or s.duration_hours <= 0
+            ]
+            if remaining_invalid:
+                error_msg = f"Still have {len(remaining_invalid)} shifts with invalid durations after fixing attempt"
+                logger.error_logger.error(error_msg)
+                logs.append(error_msg)
+                return jsonify({"error": error_msg, "logs": logs}), 500
+
+        # Create a new schedule version
+        logger.schedule_logger.info("Creating new schedule version 1")
+        logs.append("Creating new schedule version 1")
+
+        # Initialize the schedule generator
         generator = ScheduleGenerator()
+
+        # Generate the schedule
         result = generator.generate_schedule(
-            start_date, end_date, create_empty_schedules, session_id=session_id
+            start_date=start_date,
+            end_date=end_date,
+            create_empty_schedules=create_empty_schedules,
         )
 
-        # Check if there was an error
-        if "error" in result:
-            session_logger.error(
-                f"Schedule generation failed: {result['error']}",
-                extra={
-                    "action": "generation_error",
-                    "error": result["error"],
-                    "session_id": session_id,
-                },
-            )
-            # Get the logs before returning error
-            memory_handler.flush()
-            logs = log_stream.getvalue()
-            return jsonify({"error": result["error"], "logs": logs.splitlines()}), 500
+        # Add logs to the result
+        if "logs" not in result:
+            result["logs"] = []
+        result["logs"].extend(logs)
 
-        # Get the schedules from the result
-        schedules_list = result.get("schedule", [])
-        errors = []  # No errors in new format, but keep variable for compatibility
-
-        session_logger.info(
-            f"Generated {len(schedules_list)} schedules with {len(errors)} errors",
-            extra={
-                "action": "generation_result",
-                "schedule_count": len(schedules_list),
-                "error_count": len(errors),
-                "has_errors": len(errors) > 0,
-            },
-        )
-
-        # Create Schedule objects from the dictionaries
-        schedule_objects = []
-        for schedule_dict in schedules_list:
-            # Create a new Schedule object, including empty schedules
-            schedule = Schedule(
-                date=datetime.strptime(schedule_dict["date"], "%Y-%m-%d").date()
-                if schedule_dict.get("date")
-                else None,
-                employee_id=schedule_dict["employee_id"],
-                shift_id=schedule_dict["shift_id"],
-                version=new_version,
-            )
-            schedule.status = ScheduleStatus.DRAFT  # Always start as DRAFT
-            schedule_objects.append(schedule)
-
-        # Save to database within a transaction
-        try:
-            if schedule_objects:
-                db.session.add_all(schedule_objects)
-
-            # Create version metadata
-            version_meta = ScheduleVersionMeta(
-                version=new_version,
-                created_at=datetime.utcnow(),
-                created_by=None,  # Could be set to user ID if authentication is implemented
-                status=ScheduleStatus.DRAFT,
-                date_range_start=start_date,
-                date_range_end=end_date,
-                notes=f"Auto-generated schedule for week {start_date.isocalendar()[1]} ({start_date.isoformat()} to {end_date.isoformat()})",
-            )
-            db.session.add(version_meta)
-
-            db.session.commit()
-
-            session_logger.info(
-                f"Saved {len(schedule_objects)} schedules to database with version {new_version}",
-                extra={
-                    "action": "save_schedules",
-                    "count": len(schedule_objects),
-                    "version": new_version,
-                },
-            )
-
-            # Get the logs
-            memory_handler.flush()
-            logs = log_stream.getvalue()
-
-            # Return the result with logs
-            return jsonify(
-                {
-                    "schedules": [schedule.to_dict() for schedule in schedule_objects],
-                    "errors": errors,
-                    "total": len(schedule_objects),
-                    "version": new_version,
-                    "version_meta": version_meta.to_dict(),
-                    "logs": logs.splitlines(),
-                    "date_range": {
-                        "start": start_date.isoformat(),
-                        "end": end_date.isoformat(),
-                        "week": start_date.isocalendar()[1],
-                    },
-                }
-            )
-
-        except Exception as e:
-            db.session.rollback()
-            session_logger.error(
-                f"Database error: {str(e)}",
-                extra={
-                    "action": "database_error",
-                    "error": str(e),
-                },
-            )
-            memory_handler.flush()
-            logs = log_stream.getvalue()
-            return jsonify(
-                {"error": f"Database error: {str(e)}", "logs": logs.splitlines()}
-            ), 500
+        return jsonify(result), 200
 
     except Exception as e:
-        import traceback
-
-        session_logger.error(
-            f"Schedule generation failed: {str(e)}",
-            extra={
-                "action": "generation_error",
-                "error": str(e),
-                "traceback": traceback.format_exc(),
-                "session_id": session_id,
-            },
-        )
-        db.session.rollback()
-        # Get the logs before returning error
-        memory_handler.flush()
-        logs = log_stream.getvalue()
-        return jsonify({"error": str(e), "logs": logs.splitlines()}), 500
+        error_msg = f"Failed to generate schedule: {str(e)}"
+        logger.error_logger.error(error_msg)
+        logs.append("Schedule generation failed: " + error_msg)
+        return jsonify({"error": error_msg, "logs": logs}), 500
 
 
 @schedules.route("/schedules/pdf", methods=["GET"])
@@ -1096,58 +1071,55 @@ def update_version_status(version):
                 }
             ), HTTPStatus.BAD_REQUEST
 
-        # Update status for all schedules in this version
-        for schedule in schedules:
-            schedule.status = new_status
-
-        # Check if version_meta table exists
-        has_version_meta = False
         try:
-            test_query = db.session.execute(
-                text("SELECT 1 FROM schedule_version_meta LIMIT 1")
-            )
-            test_query.fetchall()
-            has_version_meta = True
-        except Exception as e:
-            logger.error_logger.error(
-                f"schedule_version_meta table doesn't exist: {str(e)}"
-            )
-            has_version_meta = False
+            # Start a transaction
+            db.session.begin_nested()
 
-        # Update version metadata if table exists
-        if has_version_meta:
-            try:
-                version_meta = ScheduleVersionMeta.query.filter_by(
-                    version=version
-                ).first()
-                if version_meta:
-                    version_meta.status = new_status
-                    version_meta.updated_at = datetime.utcnow()
-                    version_meta.updated_by = (
-                        None  # Could be set to user ID if authentication is implemented
-                    )
-                    logger.schedule_logger.info(
-                        f"Updated version metadata for version {version}"
-                    )
-            except Exception as e:
-                logger.error_logger.warning(
-                    f"Could not update version metadata: {str(e)}"
+            # Update status for all schedules in this version
+            for schedule in schedules:
+                schedule.status = new_status
+
+            # Update or create version metadata
+            version_meta = ScheduleVersionMeta.query.filter_by(version=version).first()
+            if version_meta:
+                version_meta.status = new_status
+                version_meta.updated_at = datetime.utcnow()
+            else:
+                # Create new version metadata if it doesn't exist
+                dates = sorted(list(set(s.date for s in schedules)))
+                start_date = min(dates) if dates else None
+                end_date = max(dates) if dates else None
+
+                version_meta = ScheduleVersionMeta(
+                    version=version,
+                    created_at=datetime.utcnow(),
+                    status=new_status,
+                    date_range_start=start_date,
+                    date_range_end=end_date,
+                    notes=f"Version {version} - {new_status.value}",
                 )
-                # Continue anyway since we successfully updated the schedules
+                db.session.add(version_meta)
 
-        db.session.commit()
+            # Commit the transaction
+            db.session.commit()
 
-        return jsonify(
-            {
-                "message": f"Schedule status updated to {new_status_str}",
-                "version": version,
-                "status": new_status_str,
-            }
-        )
+            return jsonify(
+                {
+                    "message": f"Version {version} status updated to {new_status.value}",
+                    "version": version,
+                    "status": new_status.value,
+                }
+            )
+
+        except Exception as e:
+            db.session.rollback()
+            logger.error_logger.error(f"Error updating version status: {str(e)}")
+            return jsonify(
+                {"error": f"Database error: {str(e)}"}
+            ), HTTPStatus.INTERNAL_SERVER_ERROR
 
     except Exception as e:
-        db.session.rollback()
-        logger.error_logger.error(f"Error updating schedule status: {str(e)}")
+        logger.error_logger.error(f"Error in update_version_status: {str(e)}")
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 

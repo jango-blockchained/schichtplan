@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, date
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple
 from models import (
     Employee,
     ShiftTemplate,
@@ -11,7 +11,6 @@ from models import (
     Absence,
 )
 from models.employee import AvailabilityType, EmployeeGroup
-from flask import current_app
 from utils.logger import logger
 import os
 
@@ -43,80 +42,129 @@ class ScheduleResources:
     """Container for all resources needed in schedule generation"""
 
     def __init__(self):
-        logger.app_logger.info("Initializing schedule resources")
-        self.settings = None
-        self.opening_days_hours = None
-        self.coverage_data = None
-        self.employees = None
-        self.absence_data = None
-        self.availability_data = None
-        self.shifts = None
-        self.schedule_data = {}  # Initialize schedule_data as an empty dictionary
+        self.shifts = []
+        self.employees = []
+        self.availability_data = []
+        self.schedule_data = {}
+        self.coverage_data = []
 
     def load_resources(self):
         """Load all resources from the database. Must be called within app context."""
-        if not current_app:
-            raise ScheduleGenerationError("No Flask application context")
+        try:
+            # Load shifts and validate them
+            self.shifts = ShiftTemplate.query.all()
+            invalid_shifts = []
 
-        logger.app_logger.info("Loading schedule resources")
+            # First pass: Calculate durations for all shifts
+            for shift in self.shifts:
+                try:
+                    # Always recalculate duration to ensure it's up to date
+                    shift._calculate_duration()
+                    if shift.duration_hours is None or shift.duration_hours <= 0:
+                        logger.error_logger.error(
+                            f"Invalid duration for shift {shift.id}: {shift.duration_hours}h"
+                        )
+                        invalid_shifts.append(shift)
+                    else:
+                        logger.schedule_logger.debug(
+                            f"Validated shift {shift.id}: {shift.duration_hours}h ({shift.start_time}-{shift.end_time})"
+                        )
+                except Exception as e:
+                    logger.error_logger.error(
+                        f"Error validating shift {shift.id}: {str(e)}"
+                    )
+                    invalid_shifts.append(shift)
 
-        # Load settings
-        self.settings = Settings.query.first()
-        if not self.settings:
-            logger.error_logger.error("No settings found")
-            raise ScheduleGenerationError("No settings found")
-
-        # Store opening hours
-        self.opening_days_hours = {
-            "opening_time": self.settings.store_opening,
-            "closing_time": self.settings.store_closing,
-            "opening_days": self.settings.opening_days,
-        }
-
-        # Load coverage requirements
-        self.coverage_data = Coverage.query.all()
-        logger.schedule_logger.debug(
-            f"Loaded {len(self.coverage_data)} coverage requirements"
-        )
-
-        # Load shifts
-        self.shifts = ShiftTemplate.query.all()
-        logger.schedule_logger.debug(f"Loaded {len(self.shifts)} shifts")
-
-        # Load employees ordered by type: TL, VZ, TZ, GFB
-        self.employees = (
-            Employee.query.filter_by(is_active=True)
-            .order_by(
-                db.case(
-                    (Employee.employee_group == EmployeeGroup.TL.value, 1),
-                    (Employee.employee_group == EmployeeGroup.VZ.value, 2),
-                    (Employee.employee_group == EmployeeGroup.TZ.value, 3),
-                    (Employee.employee_group == EmployeeGroup.GFB.value, 4),
+            # Remove invalid shifts
+            if invalid_shifts:
+                logger.error_logger.warning(
+                    f"Removing {len(invalid_shifts)} invalid shifts"
                 )
-            )
-            .all()
-        )
-        logger.schedule_logger.debug(f"Loaded {len(self.employees)} active employees")
+                for shift in invalid_shifts:
+                    self.shifts.remove(shift)
 
-        # Load absence data
-        self.absence_data = EmployeeAvailability.query.filter_by(
-            availability_type=AvailabilityType.UNAVAILABLE.value
-        ).all()
-        logger.schedule_logger.debug(f"Loaded {len(self.absence_data)} absence records")
+            logger.schedule_logger.debug(f"Loaded {len(self.shifts)} valid shifts")
 
-        # Load availability data
-        self.availability_data = EmployeeAvailability.query.filter(
-            EmployeeAvailability.availability_type.in_(
-                [
-                    AvailabilityType.AVAILABLE.value,
-                    AvailabilityType.FIXED.value,
-                    AvailabilityType.PROMISE.value,
-                ]
+            # Load employees ordered by type: TL, VZ, TZ, GFB
+            self.employees = (
+                Employee.query.filter_by(is_active=True)
+                .order_by(
+                    db.case(
+                        (Employee.employee_group == EmployeeGroup.TL.value, 1),
+                        (Employee.employee_group == EmployeeGroup.VZ.value, 2),
+                        (Employee.employee_group == EmployeeGroup.TZ.value, 3),
+                        (Employee.employee_group == EmployeeGroup.GFB.value, 4),
+                    )
+                )
+                .all()
             )
-        ).all()
-        logger.schedule_logger.debug(
-            f"Loaded {len(self.availability_data)} availability records"
-        )
+            logger.schedule_logger.debug(
+                f"Loaded {len(self.employees)} active employees"
+            )
+
+            # Load availability data
+            self.availability_data = EmployeeAvailability.query.filter(
+                EmployeeAvailability.availability_type.in_(
+                    [
+                        AvailabilityType.AVAILABLE.value,
+                        AvailabilityType.FIXED.value,
+                        AvailabilityType.PROMISE.value,
+                    ]
+                )
+            ).all()
+            logger.schedule_logger.debug(
+                f"Loaded {len(self.availability_data)} availability records"
+            )
+
+            # Load coverage data
+            self.coverage_data = Coverage.query.all()
+            logger.schedule_logger.debug(
+                f"Loaded {len(self.coverage_data)} coverage records"
+            )
+
+            # Initialize empty schedule data
+            self.schedule_data = {}
+
+        except Exception as e:
+            logger.error_logger.error(f"Error loading resources: {str(e)}")
+            raise
+
+    def get_active_employees(self) -> List[Employee]:
+        """Get list of active employees"""
+        return self.employees
+
+    def get_shifts(self) -> List[ShiftTemplate]:
+        """Get list of shifts"""
+        return self.shifts
+
+    def get_availability_data(self) -> List[EmployeeAvailability]:
+        """Get availability data"""
+        return self.availability_data
+
+    def get_coverage_data(self) -> List[Coverage]:
+        """Get coverage data"""
+        return self.coverage_data
+
+    def get_schedule_data(self) -> Dict[Tuple[int, date], Schedule]:
+        """Get schedule data"""
+        return self.schedule_data
+
+    def add_schedule_entry(self, employee_id: int, date: date, schedule: Schedule):
+        """Add a schedule entry"""
+        self.schedule_data[(employee_id, date)] = schedule
+
+    def get_schedule_entry(self, employee_id: int, date: date) -> Optional[Schedule]:
+        """Get a schedule entry"""
+        return self.schedule_data.get((employee_id, date))
+
+    def remove_schedule_entry(self, employee_id: int, date: date):
+        """Remove a schedule entry"""
+        if (employee_id, date) in self.schedule_data:
+            del self.schedule_data[(employee_id, date)]
+
+    def clear_schedule_data(self):
+        """Clear all schedule data"""
+        self.schedule_data = {}
 
 
 class ScheduleGenerator:
@@ -286,7 +334,7 @@ class ScheduleGenerator:
         Args:
             employee: The employee to check
             date: The date to check
-            coverage: The coverage block to check
+            coverage: The coverage block (used only for min/max employees)
 
         Returns:
             bool: True if employee passes constraints, False otherwise
@@ -304,45 +352,102 @@ class ScheduleGenerator:
                 and week_start <= key[1] <= week_end  # date
             ]
 
-            # Calculate total hours for the week
-            total_hours = sum(
-                next(
-                    (
-                        s.duration_hours
-                        for s in self.resources.shifts
-                        if s.id == schedule.shift_id
-                    ),
-                    0.0,
-                )
-                for schedule in week_schedules
+            logger.schedule_logger.debug(
+                f"Found {len(week_schedules)} schedules for employee {employee.id} in week {week_start} to {week_end}"
             )
 
-            # Add hours for this coverage block
-            matching_shift = next(
-                (
-                    s
-                    for s in self.resources.shifts
-                    if s.start_time == coverage.start_time
-                    and s.end_time == coverage.end_time
-                ),
-                None,
-            )
-            if matching_shift:
-                total_hours += matching_shift.duration_hours
+            # Calculate total hours for the week
+            total_hours = 0.0
+            for schedule in week_schedules:
+                try:
+                    # Skip if schedule has no shift_id
+                    if not hasattr(schedule, "shift_id") or schedule.shift_id is None:
+                        logger.schedule_logger.debug(
+                            f"Schedule for employee {employee.id} has no shift_id"
+                        )
+                        continue
+
+                    # Try to get shift from schedule.shift first
+                    shift = None
+                    if hasattr(schedule, "shift") and schedule.shift is not None:
+                        shift = schedule.shift
+                    else:
+                        # If not found, try to find it in resources.shifts
+                        shift = next(
+                            (
+                                s
+                                for s in self.resources.shifts
+                                if s.id == schedule.shift_id
+                            ),
+                            None,
+                        )
+
+                    # Make a more explicit check for None shift and handle safely
+                    if shift is None:
+                        logger.schedule_logger.debug(
+                            f"Schedule for employee {employee.id} has no matching shift (shift_id: {schedule.shift_id})"
+                        )
+                        continue
+
+                    if (
+                        not hasattr(shift, "duration_hours")
+                        or shift.duration_hours is None
+                    ):
+                        logger.schedule_logger.debug(
+                            f"Shift {shift.id} has no duration_hours attribute or it is None"
+                        )
+                        # Try to calculate duration
+                        try:
+                            duration = self._calculate_duration(
+                                shift.start_time, shift.end_time
+                            )
+                            total_hours += duration
+                            logger.schedule_logger.debug(
+                                f"Calculated duration {duration}h for shift {shift.id}"
+                            )
+                        except Exception as calc_error:
+                            logger.error_logger.error(
+                                f"Error calculating duration for shift {shift.id}: {str(calc_error)}"
+                            )
+                        continue
+
+                    total_hours += shift.duration_hours
+                    logger.schedule_logger.debug(
+                        f"Added {shift.duration_hours}h from shift {shift.id} ({shift.start_time}-{shift.end_time}) for employee {employee.id}"
+                    )
+                except Exception as e:
+                    logger.error_logger.error(
+                        f"Error calculating hours for schedule of employee {employee.id}: {str(e)}"
+                    )
+                    continue
+
+            # Calculate duration of this time slot
+            try:
+                slot_duration = self._calculate_duration(
+                    coverage.start_time, coverage.end_time
+                )
+            except Exception as e:
+                logger.error_logger.error(
+                    f"Error calculating time slot duration: {str(e)}"
+                )
+                return False
+
+            # Add the potential new shift duration to total hours
+            total_hours += slot_duration
 
             # Check against max hours based on employee group
             if employee.employee_group == EmployeeGroup.TZ:
                 # Part-time employees should not exceed 30 hours per week
                 if total_hours > 30:
                     logger.schedule_logger.debug(
-                        f"TZ employee {employee.first_name} {employee.last_name} would exceed 30 hours/week"
+                        f"TZ employee {employee.first_name} {employee.last_name} would exceed 30 hours/week (current: {total_hours}h)"
                     )
                     return False
             elif employee.employee_group == EmployeeGroup.GFB:
                 # Mini-job employees should not exceed 15 hours per week
                 if total_hours > 15:
                     logger.schedule_logger.debug(
-                        f"GFB employee {employee.first_name} {employee.last_name} would exceed 15 hours/week"
+                        f"GFB employee {employee.first_name} {employee.last_name} would exceed 15 hours/week (current: {total_hours}h)"
                     )
                     return False
 
@@ -352,14 +457,14 @@ class ScheduleGenerator:
                 # Part-time employees should not work more than 4 shifts per week
                 if shift_count > 4:
                     logger.schedule_logger.debug(
-                        f"TZ employee {employee.first_name} {employee.last_name} would exceed 4 shifts/week"
+                        f"TZ employee {employee.first_name} {employee.last_name} would exceed 4 shifts/week (current: {shift_count - 1})"
                     )
                     return False
             elif employee.employee_group == EmployeeGroup.GFB:
                 # Mini-job employees should not work more than 3 shifts per week
                 if shift_count > 3:
                     logger.schedule_logger.debug(
-                        f"GFB employee {employee.first_name} {employee.last_name} would exceed 3 shifts/week"
+                        f"GFB employee {employee.first_name} {employee.last_name} would exceed 3 shifts/week (current: {shift_count - 1})"
                     )
                     return False
 
@@ -1031,42 +1136,6 @@ class ScheduleGenerator:
             self.resources.schedule_data = {}
 
         try:
-            # Get the shift template for this time slot
-            shift = next(
-                (
-                    s
-                    for s in self.resources.shifts
-                    if s.start_time == start_time and s.end_time == end_time
-                ),
-                None,
-            )
-
-            if not shift:
-                # Find a shift that covers this time slot
-                try:
-                    shift = next(
-                        (
-                            s
-                            for s in self.resources.shifts
-                            if self._shifts_overlap(
-                                s.start_time, s.end_time, start_time, end_time
-                            )
-                        ),
-                        None,
-                    )
-                except Exception as e:
-                    logger.error_logger.error(
-                        f"Error finding overlapping shift: {str(e)}"
-                    )
-                    shift = None
-
-            # Ensure the shift is valid before proceeding
-            if not self._has_valid_duration(shift):
-                logger.schedule_logger.warning(
-                    f"No valid shift found for time slot {start_time}-{end_time}"
-                )
-                return []
-
             for employee in self.resources.employees:
                 try:
                     # Skip if employee is absent
@@ -1082,11 +1151,10 @@ class ScheduleGenerator:
                     except Exception as e:
                         error_msg = f"Error checking if employee {employee.id} is absent: {str(e)}"
                         logger.error_logger.error(error_msg)
-                        # Assume employee is not absent if there's an error
+                        continue
 
                     # Skip if employee has exceeded weekly hours
                     try:
-                        week_start = date - timedelta(days=date.weekday())
                         current_hours = self._get_employee_total_hours(employee)
 
                         # Calculate max hours based on employee group
@@ -1100,40 +1168,38 @@ class ScheduleGenerator:
                         if current_hours is None:
                             current_hours = 0.0
 
-                        # Make sure shift exists and has duration_hours
-                        if shift is None:
+                        # Calculate duration of this time slot
+                        try:
+                            slot_duration = self._calculate_duration(
+                                start_time, end_time
+                            )
+                            if current_hours + slot_duration > max_hours:
+                                logger.schedule_logger.debug(
+                                    f"Employee {employee.first_name} {employee.last_name} would exceed max hours"
+                                )
+                                continue
+                        except Exception as e:
                             logger.error_logger.error(
-                                f"Shift is None when checking hours for employee {employee.id}"
+                                f"Error calculating time slot duration: {str(e)}"
                             )
                             continue
 
-                        if (
-                            not hasattr(shift, "duration_hours")
-                            or shift.duration_hours is None
-                        ):
-                            logger.error_logger.error(
-                                f"Shift {shift.id} has no duration_hours attribute or it is None"
-                            )
-                            continue
-
-                        # Now we can safely check
-                        if current_hours + shift.duration_hours > max_hours:
-                            logger.schedule_logger.debug(
-                                f"Employee {employee.first_name} {employee.last_name} would exceed max hours "
-                                f"({current_hours + shift.duration_hours} > {max_hours})"
-                            )
-                            continue
                     except Exception as e:
                         error_msg = (
                             f"Error checking employee {employee.id} hours: {str(e)}"
                         )
                         logger.error_logger.error(error_msg)
-                        # Continue with employee if there's an error checking hours
+                        continue
 
                     # Check if employee has enough rest time
                     try:
-                        has_rest = self._has_enough_rest_time(employee, shift, date)
-                        if not has_rest:
+                        # Create a temporary shift object for rest time check
+                        temp_shift = type(
+                            "TempShift",
+                            (),
+                            {"start_time": start_time, "end_time": end_time},
+                        )
+                        if not self._has_enough_rest_time(employee, temp_shift, date):
                             logger.schedule_logger.debug(
                                 f"Employee {employee.first_name} {employee.last_name} doesn't have enough rest time"
                             )
@@ -1141,7 +1207,7 @@ class ScheduleGenerator:
                     except Exception as e:
                         error_msg = f"Error checking rest time for employee {employee.id}: {str(e)}"
                         logger.error_logger.error(error_msg)
-                        # Continue with employee if there's an error checking rest time
+                        continue
 
                     # Check if employee hasn't exceeded max shifts per week
                     try:
@@ -1154,14 +1220,13 @@ class ScheduleGenerator:
                     except Exception as e:
                         error_msg = f"Error checking max shifts for employee {employee.id}: {str(e)}"
                         logger.error_logger.error(error_msg)
-                        # Continue with employee if there's an error checking max shifts
+                        continue
 
                     available_employees.append(employee)
                 except Exception as e:
                     error_msg = f"Error processing employee {employee.id}: {str(e)}"
                     logger.error_logger.error(error_msg)
-                    # Add employee anyway to ensure they're included in the schedule
-                    available_employees.append(employee)
+                    continue
 
             logger.schedule_logger.info(
                 f"Found {len(available_employees)} available employees for {start_time}-{end_time} on {date}"
@@ -1169,11 +1234,7 @@ class ScheduleGenerator:
         except Exception as e:
             error_msg = f"Error in _get_available_employees: {str(e)}"
             logger.error_logger.error(error_msg)
-            # Return all employees if there's a critical error
-            available_employees = self.resources.employees
-            logger.schedule_logger.warning(
-                f"Returning all {len(available_employees)} employees due to error"
-            )
+            available_employees = []
 
         return available_employees
 
@@ -1198,6 +1259,16 @@ class ScheduleGenerator:
                     s.start_time, s.end_time, coverage.start_time, coverage.end_time
                 )
             ]
+
+            # Log found shifts
+            logger.schedule_logger.debug(
+                f"Found {len(matching_shifts)} shifts overlapping with coverage {coverage.start_time}-{coverage.end_time}:"
+            )
+            for shift in matching_shifts:
+                logger.schedule_logger.debug(
+                    f"  - Shift {shift.id}: {shift.start_time}-{shift.end_time} ({shift.duration_hours}h)"
+                )
+
         except Exception as e:
             error_msg = (
                 f"Error finding matching shifts for coverage {coverage.id}: {str(e)}"
@@ -1283,18 +1354,22 @@ class ScheduleGenerator:
 
                 for employee in assigned_employees:
                     try:
+                        # Create schedule entry
                         schedule = Schedule(
                             employee_id=employee.id,
                             shift_id=shift.id,
                             date=date,
                             version=self.version,
                         )
+                        # Set the shift attribute to avoid NoneType errors
+                        schedule.shift = shift
+                        # Add to schedule data
                         self.resources.schedule_data[(employee.id, date, shift.id)] = (
                             schedule
                         )
                         assigned_count += 1
                         logger.schedule_logger.debug(
-                            f"Assigned employee {employee.first_name} {employee.last_name} to shift {shift.id}"
+                            f"Assigned employee {employee.first_name} {employee.last_name} to shift {shift.id} ({shift.start_time}-{shift.end_time})"
                         )
                     except Exception as e:
                         error_msg = f"Error assigning employee {employee.id} to shift {shift.id}: {str(e)}"
@@ -1436,7 +1511,12 @@ class ScheduleGenerator:
 
     def _get_employee_total_hours(self, employee: Employee) -> float:
         """Calculate total scheduled hours for an employee"""
-        schedules = Schedule.query.filter_by(employee_id=employee.id).all()
+        # Get all schedules for this employee from schedule_data
+        schedules = [
+            schedule
+            for key, schedule in self.resources.schedule_data.items()
+            if key[0] == employee.id  # employee_id is first part of key tuple
+        ]
 
         # Add additional logging to debug the issue
         if not schedules:
@@ -1448,29 +1528,63 @@ class ScheduleGenerator:
         total_hours = 0.0
         for schedule in schedules:
             try:
+                # Skip if schedule has no shift_id
+                if not hasattr(schedule, "shift_id") or schedule.shift_id is None:
+                    logger.schedule_logger.debug(
+                        f"Schedule for employee {employee.id} has no shift_id"
+                    )
+                    continue
+
+                # Try to get shift from schedule.shift first
+                shift = None
+                if hasattr(schedule, "shift") and schedule.shift is not None:
+                    shift = schedule.shift
+                else:
+                    # If not found, try to find it in resources.shifts
+                    shift = next(
+                        (s for s in self.resources.shifts if s.id == schedule.shift_id),
+                        None,
+                    )
+
                 # Make a more explicit check for None shift and handle safely
-                if schedule.shift is None:
+                if shift is None:
                     logger.schedule_logger.debug(
-                        f"Schedule {schedule.id} has no shift (shift_id is None)"
+                        f"Schedule for employee {employee.id} has no matching shift (shift_id: {schedule.shift_id})"
                     )
                     continue
 
-                if (
-                    not hasattr(schedule.shift, "duration_hours")
-                    or schedule.shift.duration_hours is None
-                ):
+                if not hasattr(shift, "duration_hours") or shift.duration_hours is None:
                     logger.schedule_logger.debug(
-                        f"Schedule {schedule.id} has shift {schedule.shift_id} with no duration_hours"
+                        f"Shift {shift.id} has no duration_hours attribute or it is None"
                     )
+                    # Try to calculate duration
+                    try:
+                        duration = self._calculate_duration(
+                            shift.start_time, shift.end_time
+                        )
+                        total_hours += duration
+                        logger.schedule_logger.debug(
+                            f"Calculated duration {duration}h for shift {shift.id}"
+                        )
+                    except Exception as calc_error:
+                        logger.error_logger.error(
+                            f"Error calculating duration for shift {shift.id}: {str(calc_error)}"
+                        )
                     continue
 
-                total_hours += schedule.shift.duration_hours
+                total_hours += shift.duration_hours
+                logger.schedule_logger.debug(
+                    f"Added {shift.duration_hours}h from shift {shift.id} ({shift.start_time}-{shift.end_time}) for employee {employee.id}"
+                )
             except Exception as e:
                 logger.error_logger.error(
-                    f"Error calculating hours for schedule {schedule.id}: {str(e)}"
+                    f"Error calculating hours for schedule of employee {employee.id}: {str(e)}"
                 )
                 # Continue with next schedule if there's an error
 
+        logger.schedule_logger.debug(
+            f"Total hours for employee {employee.id}: {total_hours}h"
+        )
         return total_hours
 
     def _calculate_rest_hours(self, end_time_str: str, start_time_str: str) -> float:
@@ -1573,15 +1687,34 @@ class ScheduleGenerator:
         if end2_min <= start2_min:
             end2_min += 1440
 
-        # For overnight shifts, we consider them to overlap with any shifts
-        # that occur within the same 24-hour period
+        # For overnight shifts, we need to check if any part of the shift overlaps
+        # with the coverage block
         if end1_min > 1440 or end2_min > 1440:
-            # At least one shift is overnight
-            # They overlap if they occur within the same 24-hour period
-            return True
+            # If either is an overnight shift, check if they share any time in a 24-hour period
+            # Normalize times to a 24-hour window
+            start1_min = start1_min % 1440
+            end1_min = end1_min % 1440
+            start2_min = start2_min % 1440
+            end2_min = end2_min % 1440
+
+            # Check if either start or end time of one shift falls within the other's range
+            return (
+                (start1_min <= start2_min <= end1_min)
+                or (start1_min <= end2_min <= end1_min)
+                or (start2_min <= start1_min <= end2_min)
+                or (start2_min <= end1_min <= end2_min)
+            )
 
         # For regular shifts, check if they overlap using standard interval overlap
-        return start1_min < end2_min and end1_min > start2_min
+        # A shift overlaps with a coverage block if any part of the shift falls within
+        # the coverage block's time range
+        return (
+            (start1_min <= start2_min < end1_min)  # Shift starts during coverage
+            or (start1_min < end2_min <= end1_min)  # Shift ends during coverage
+            or (start2_min <= start1_min < end2_min)  # Coverage starts during shift
+            or (start2_min < end1_min <= end2_min)  # Coverage ends during shift
+            or (start1_min == start2_min and end1_min == end2_min)  # Exact match
+        )
 
     def _time_overlaps(self, start1: str, end1: str, start2: str, end2: str) -> bool:
         """Check if two time ranges overlap"""
@@ -2354,20 +2487,14 @@ class ScheduleGenerator:
             # Format date for lookup
             date_str = date.strftime("%Y-%m-%d")
 
-            # Check if employee is already assigned in the schedule
-            if resources.schedule_data is not None:
-                # Check if employee has any assignments on this date
-                employee_assignments = resources.schedule_data.get(
-                    (employee.id, date_str), []
-                )
-
-                if employee_assignments and len(employee_assignments) > 0:
+            # Check if employee has any assignments on this date
+            for key, schedule_entry in resources.schedule_data.items():
+                if key[0] == employee.id and key[1] == date:
                     self._log_detailed_debug(
                         f"Employee {employee.id} is already assigned to shifts on {date_str}",
                         action="check_existing_assignments",
                         employee_id=employee.id,
                         date=date_str,
-                        assignments=employee_assignments,
                     )
                     return True
 
@@ -2382,297 +2509,3 @@ class ScheduleGenerator:
                 date=date.strftime("%Y-%m-%d") if date else "None",
             )
             return False  # Safer to assume employee isn't assigned in case of error
-
-    def _get_shifts_for_day(self, date):
-        """
-        Get all shifts that should be scheduled for a specific day
-
-        Args:
-            date: The date to get shifts for
-
-        Returns:
-            list: List of shifts for the day
-        """
-        if date is None:
-            self._log_detailed_warning(
-                "Cannot get shifts for None date", action="get_shifts_for_day"
-            )
-            return []
-
-        try:
-            # Get day of week (0 = Monday, 6 = Sunday)
-            day_of_week = date.weekday()
-
-            # Get all shifts
-            all_shifts = []
-            if hasattr(self.resources, "shifts") and self.resources.shifts is not None:
-                all_shifts = self.resources.shifts
-            else:
-                # Fallback to database query if not in resources
-                all_shifts = ShiftTemplate.query.all()
-
-            # Filter shifts for this day of week
-            day_shifts = []
-            for shift in all_shifts:
-                # Check if shift should be scheduled on this day
-                if hasattr(shift, "days") and shift.days is not None:
-                    if day_of_week in shift.days:
-                        day_shifts.append(shift)
-                else:
-                    # If no days specified, assume all days
-                    day_shifts.append(shift)
-
-            self._log_detailed_debug(
-                f"Found {len(day_shifts)} shifts for {date.strftime('%Y-%m-%d')} (day of week: {day_of_week})",
-                action="get_shifts_for_day",
-                date=date.strftime("%Y-%m-%d"),
-                day_of_week=day_of_week,
-                shift_count=len(day_shifts),
-                shift_ids=[shift.id for shift in day_shifts] if day_shifts else [],
-            )
-
-            return day_shifts
-
-        except Exception as e:
-            self._log_detailed_error(
-                f"Error getting shifts for day {date.strftime('%Y-%m-%d') if date else 'None'}",
-                action="get_shifts_for_day",
-                error=e,
-                date=date.strftime("%Y-%m-%d") if date else "None",
-            )
-            return []
-
-    def _get_active_employees(self):
-        """
-        Get all active employees
-
-        Returns:
-            list: List of active employees
-        """
-        try:
-            # Get all active employees
-            active_employees = []
-            if (
-                hasattr(self.resources, "employees")
-                and self.resources.employees is not None
-            ):
-                # Filter active employees from resources
-                active_employees = [e for e in self.resources.employees if e.is_active]
-            else:
-                # Fallback to database query if not in resources
-                active_employees = Employee.query.filter_by(is_active=True).all()
-
-            self._log_detailed_debug(
-                f"Found {len(active_employees)} active employees",
-                action="get_active_employees",
-                employee_count=len(active_employees),
-                employee_ids=[e.id for e in active_employees]
-                if active_employees
-                else [],
-            )
-
-            return active_employees
-
-        except Exception as e:
-            self._log_detailed_error(
-                "Error getting active employees", action="get_active_employees", error=e
-            )
-            return []
-
-    def _load_resources(self):
-        """
-        Load all resources needed for schedule generation
-        """
-        try:
-            # Create a resources container if it doesn't exist
-            if not hasattr(self, "resources"):
-                self.resources = type("Resources", (), {})()
-
-            # Load employees
-            self.resources.employees = Employee.query.all()
-
-            # Load shifts
-            self.resources.shifts = ShiftTemplate.query.all()
-
-            # Load coverage data
-            self.resources.coverage_data = Coverage.query.all()
-
-            # Load absences
-            absences = Absence.query.all()
-
-            # Create availability data structure for quick lookup
-            self.resources.availability_data = {}
-            for absence in absences:
-                # Convert start and end dates to datetime objects
-                start_date = absence.start_date
-                end_date = absence.end_date
-
-                # Add entries for each day in the absence period
-                current_date = start_date
-                while current_date <= end_date:
-                    date_str = current_date.strftime("%Y-%m-%d")
-                    key = (absence.employee_id, date_str)
-
-                    if key not in self.resources.availability_data:
-                        self.resources.availability_data[key] = []
-
-                    self.resources.availability_data[key].append(
-                        {
-                            "type": "absence",
-                            "reason": absence.reason,
-                            "start_time": "00:00",
-                            "end_time": "23:59",
-                        }
-                    )
-
-                    current_date += timedelta(days=1)
-
-            # Load preferred shifts
-            self.resources.preferred_shifts = {}
-
-            # Initialize empty schedule data
-            self.resources.schedule_data = {}
-
-            self._log_detailed_debug(
-                f"Loaded resources: {len(self.resources.employees)} employees, {len(self.resources.shifts)} shifts, {len(self.resources.coverage_data)} coverage blocks, {len(absences)} absences",
-                action="load_resources",
-                employee_count=len(self.resources.employees),
-                shift_count=len(self.resources.shifts),
-                coverage_count=len(self.resources.coverage_data),
-                absence_count=len(absences),
-            )
-
-        except Exception as e:
-            self._log_detailed_error(
-                f"Error loading resources: {str(e)}", action="load_resources", error=e
-            )
-            # Initialize empty resources to prevent NoneType errors
-            if not hasattr(self, "resources"):
-                self.resources = type("Resources", (), {})()
-
-            self.resources.employees = []
-            self.resources.shifts = []
-            self.resources.coverage_data = []
-            self.resources.availability_data = {}
-            self.resources.preferred_shifts = {}
-            self.resources.schedule_data = {}
-
-    def _has_enough_rest_time(
-        self, employee: Employee, shift: ShiftTemplate, date: date
-    ) -> bool:
-        """
-        Check if an employee has enough rest time between shifts
-
-        Args:
-            employee: The employee to check
-            shift: The shift to check
-            date: The date of the shift
-
-        Returns:
-            bool: True if employee has enough rest time, False otherwise
-        """
-        try:
-            # Get previous day's schedule
-            prev_day = date - timedelta(days=1)
-            prev_schedule = Schedule.query.filter_by(
-                employee_id=employee.id,
-                date=prev_day,
-            ).first()
-
-            # Get next day's schedule
-            next_day = date + timedelta(days=1)
-            next_schedule = Schedule.query.filter_by(
-                employee_id=employee.id,
-                date=next_day,
-            ).first()
-
-            # Check rest time after previous shift
-            if prev_schedule and prev_schedule.shift:
-                rest_hours = self._calculate_rest_hours(
-                    prev_schedule.shift.end_time,
-                    shift.start_time,
-                )
-                if rest_hours < 11:  # Minimum 11 hours rest between shifts
-                    return False
-
-            # Check rest time before next shift
-            if next_schedule and next_schedule.shift:
-                rest_hours = self._calculate_rest_hours(
-                    shift.end_time,
-                    next_schedule.shift.start_time,
-                )
-                if rest_hours < 11:  # Minimum 11 hours rest between shifts
-                    return False
-
-            return True
-
-        except Exception as e:
-            logger.error_logger.error(
-                f"Error checking rest time for employee {employee.id}: {str(e)}"
-            )
-            return False  # Default to no rest time on error
-
-    def _exceeds_max_shifts(self, employee: Employee, date: date) -> bool:
-        """
-        Check if an employee has exceeded their maximum number of shifts per week
-
-        Args:
-            employee: The employee to check
-            date: The date to check
-
-        Returns:
-            bool: True if employee has exceeded max shifts, False otherwise
-        """
-        try:
-            # Get the start of the week (Monday)
-            week_start = date - timedelta(days=date.weekday())
-            week_end = week_start + timedelta(days=6)
-
-            # Get all shifts for this employee in the current week
-            week_schedules = Schedule.query.filter(
-                Schedule.employee_id == employee.id,
-                Schedule.date >= week_start,
-                Schedule.date <= week_end,
-            ).all()
-
-            # Count actual shifts (excluding placeholder shifts)
-            shift_count = len(
-                [s for s in week_schedules if s.shift and s.shift.start_time != "00:00"]
-            )
-
-            # Maximum shifts per week based on employee group
-            max_shifts = {
-                EmployeeGroup.TL: 6,  # Team leaders can work 6 shifts per week
-                EmployeeGroup.VZ: 6,  # Full-time can work 6 shifts per week
-                EmployeeGroup.TZ: 4,  # Part-time limited to 4 shifts per week
-                EmployeeGroup.GFB: 3,  # Mini-job limited to 3 shifts per week
-            }.get(employee.employee_group, 6)  # Default to 6 if group not found
-
-            # Log the check for debugging
-            logger.schedule_logger.debug(
-                f"Checking max shifts for employee {employee.id}: "
-                f"current={shift_count}, max={max_shifts}, "
-                f"week={week_start.strftime('%Y-%m-%d')} to {week_end.strftime('%Y-%m-%d')}",
-                extra={
-                    "action": "check_max_shifts",
-                    "employee_id": employee.id,
-                    "current_shifts": shift_count,
-                    "max_shifts": max_shifts,
-                    "week_start": week_start.strftime("%Y-%m-%d"),
-                    "week_end": week_end.strftime("%Y-%m-%d"),
-                },
-            )
-
-            return shift_count >= max_shifts
-
-        except Exception as e:
-            logger.error_logger.error(
-                f"Error checking max shifts for employee {employee.id}: {str(e)}",
-                extra={
-                    "action": "check_max_shifts_error",
-                    "employee_id": employee.id,
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                },
-            )
-            return True  # Default to exceeded on error for safety

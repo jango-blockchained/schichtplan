@@ -12,6 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { Schedule } from '@/types';
+import { Separator } from './ui/separator';
 
 interface VersionControlProps {
     versions: number[];
@@ -27,6 +28,7 @@ interface VersionControlProps {
     isLoading?: boolean;
     hasError?: boolean;
     schedules?: Schedule[];
+    onRetry?: () => void;
 }
 
 export function VersionControl({
@@ -42,10 +44,87 @@ export function VersionControl({
     onDuplicateVersion,
     isLoading = false,
     hasError = false,
-    schedules = []
+    schedules = [],
+    onRetry
 }: VersionControlProps) {
-    const [isVersionsOpen, setIsVersionsOpen] = useState(true);
     const [selectedTab, setSelectedTab] = useState('selection');
+
+    // Add error handling for missing data
+    if (hasError) {
+        return (
+            <Card className="mb-4">
+                <CardHeader className="py-4 border-b">
+                    <CardTitle className="text-lg">Versionsverwaltung</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6">
+                    <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>Fehler bei der Versionsverwaltung</AlertTitle>
+                        <AlertDescription className="flex flex-col">
+                            <div>Es gab ein Problem beim Laden der Versionen. Bitte versuchen Sie es erneut oder überprüfen Sie die Serververbindung.</div>
+                            {onRetry && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="mt-4 w-fit"
+                                    onClick={onRetry}
+                                >
+                                    <RefreshCw className="h-4 w-4 mr-2" />
+                                    Erneut versuchen
+                                </Button>
+                            )}
+                        </AlertDescription>
+                    </Alert>
+                </CardContent>
+            </Card>
+        );
+    }
+
+    // If no versions are available, show a message but not an error
+    if (versions.length === 0 && !isLoading) {
+        return (
+            <Card className="mb-4">
+                <CardHeader className="py-4 border-b">
+                    <CardTitle className="text-lg">Versionsverwaltung</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6">
+                    <Alert>
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>Keine Versionen verfügbar</AlertTitle>
+                        <AlertDescription className="flex flex-col">
+                            <div>Für den ausgewählten Zeitraum sind keine Versionen verfügbar. Bitte erstellen Sie eine neue Version.</div>
+                            <Button
+                                variant="default"
+                                size="sm"
+                                className="mt-4 w-fit"
+                                onClick={onCreateNewVersion}
+                            >
+                                <Plus className="h-4 w-4 mr-2" />
+                                Neue Version erstellen
+                            </Button>
+                        </AlertDescription>
+                    </Alert>
+                </CardContent>
+            </Card>
+        );
+    }
+
+    // Add loading state
+    if (isLoading) {
+        return (
+            <Card className="mb-4">
+                <CardHeader className="py-4 border-b">
+                    <CardTitle className="text-lg">Versionsverwaltung</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6">
+                    <div className="flex items-center space-x-4">
+                        <div className="w-4 h-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                        <div>Lade Versionen...</div>
+                    </div>
+                </CardContent>
+            </Card>
+        );
+    }
 
     const getStatusBadge = (status: string) => {
         const variants: Record<string, string> = {
@@ -69,14 +148,26 @@ export function VersionControl({
     };
 
     const formatDateRange = () => {
-        if (!dateRange?.from || !dateRange?.to) return 'No date range selected';
+        if (!dateRange?.from || !dateRange?.to) return 'Kein Datumsbereich ausgewählt';
         return `${format(dateRange.from, 'dd.MM.yyyy')} - ${format(dateRange.to, 'dd.MM.yyyy')}`;
     };
 
     const currentStatus = currentVersion ? versionStatuses[currentVersion] : undefined;
 
+    // Define valid status transitions with proper typing
+    const validTransitions: Record<string, readonly string[]> = {
+        'DRAFT': ['PUBLISHED', 'ARCHIVED'] as const,
+        'PUBLISHED': ['ARCHIVED'] as const,
+        'ARCHIVED': [] as const
+    } as const;
+
+    // Check if a status transition is valid
+    const isValidTransition = (fromStatus: string, toStatus: string): boolean => {
+        return (validTransitions[fromStatus] || []).includes(toStatus);
+    };
+
     const canPublish = currentStatus === 'DRAFT';
-    const canArchive = currentStatus === 'DRAFT' || currentStatus === 'PUBLISHED';
+    const canArchive = currentStatus && isValidTransition(currentStatus, 'ARCHIVED');
 
     // Group schedules by version
     const schedulesByVersion = schedules.reduce((acc, schedule) => {
@@ -97,286 +188,120 @@ export function VersionControl({
 
     return (
         <Card className="mb-4">
-            <CardHeader className="py-4">
+            <CardHeader className="py-4 border-b">
                 <CardTitle className="text-lg flex items-center justify-between">
-                    <span>Schedule Version Control</span>
-                    {currentVersion && (
-                        <Badge variant="outline" className="ml-2">
-                            Current: Version {currentVersion} {getStatusBadge(versionStatuses[currentVersion] || 'DRAFT')}
-                        </Badge>
-                    )}
+                    <div className="flex items-center gap-2">
+                        <span>Versionsverwaltung</span>
+                        {currentVersion && (
+                            <Badge variant="outline" className="ml-2 text-sm">
+                                Version {currentVersion} {getStatusBadge(versionStatuses[currentVersion] || 'DRAFT')}
+                            </Badge>
+                        )}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                        {formatDateRange()}
+                    </div>
                 </CardTitle>
             </CardHeader>
-            <CardContent className="pt-0">
-                <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
-                    <TabsList className="grid grid-cols-3 mb-4">
-                        <TabsTrigger value="selection">Selection</TabsTrigger>
-                        <TabsTrigger value="versions">Versions</TabsTrigger>
-                        <TabsTrigger value="actions">Actions</TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="selection" className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                                <div className="text-sm text-muted-foreground mb-1">Version</div>
-                                <div className="flex items-center">
-                                    <Select
-                                        value={currentVersion?.toString() || ''}
-                                        onValueChange={(value) => onVersionChange(Number(value))}
-                                        disabled={isLoading || versions.length === 0}
-                                    >
-                                        <SelectTrigger className="w-full">
-                                            <SelectValue placeholder="Select version" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {versions.map(v => (
-                                                <SelectItem key={v} value={v.toString()} className="flex items-center">
-                                                    <div className="flex items-center justify-between w-full">
-                                                        <span>Version {v}{v === Math.max(...versions) ? " (Latest)" : ""}</span>
-                                                        {versionStatuses[v] && getStatusBadge(versionStatuses[v])}
-                                                    </div>
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-
-                            <div>
-                                <div className="text-sm text-muted-foreground mb-1">Date Range</div>
-                                <div className="text-sm p-2 border rounded-md bg-muted/50">
-                                    <Calendar className="h-4 w-4 inline-block mr-1" />
-                                    {formatDateRange()}
-                                </div>
-                            </div>
-
-                            <div>
-                                <div className="text-sm text-muted-foreground mb-1">Coverage</div>
-                                {currentVersion && (
-                                    <div className="space-y-1">
-                                        <div className="flex items-center justify-between text-sm">
-                                            <span>{getCoveragePercentage(currentVersion)}%</span>
-                                        </div>
-                                        <Progress value={getCoveragePercentage(currentVersion)} className="h-2" />
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="flex space-x-2 mt-4">
-                            <Button
-                                variant="default"
-                                size="sm"
-                                onClick={onCreateNewVersion}
-                                disabled={isLoading}
+            <CardContent className="pt-6">
+                <div className="space-y-6">
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                            <div className="text-sm font-medium">Version</div>
+                            <Select
+                                value={currentVersion?.toString() || ''}
+                                onValueChange={(value) => onVersionChange(Number(value))}
+                                disabled={isLoading || versions.length === 0}
                             >
-                                <Plus className="h-4 w-4 mr-1" />
-                                New Version
-                            </Button>
-
-                            {canPublish && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => currentVersion && onPublishVersion(currentVersion)}
-                                    disabled={isLoading || !currentVersion}
-                                >
-                                    <Check className="h-4 w-4 mr-1" />
-                                    Publish
-                                </Button>
-                            )}
-
-                            {canArchive && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => currentVersion && onArchiveVersion(currentVersion)}
-                                    disabled={isLoading || !currentVersion}
-                                >
-                                    <Archive className="h-4 w-4 mr-1" />
-                                    Archive
-                                </Button>
-                            )}
-
-                            {onDuplicateVersion && currentVersion && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => onDuplicateVersion(currentVersion)}
-                                    disabled={isLoading || !currentVersion}
-                                >
-                                    <Copy className="h-4 w-4 mr-1" />
-                                    Duplicate
-                                </Button>
-                            )}
-                        </div>
-                    </TabsContent>
-
-                    <TabsContent value="versions">
-                        <div className="space-y-4">
-                            {versions.map((version) => {
-                                const coverage = getCoveragePercentage(version);
-                                const status = versionStatuses[version] || 'DRAFT';
-
-                                return (
-                                    <div
-                                        key={version}
-                                        className={`flex items-center justify-between p-4 border rounded-lg ${currentVersion === version ? 'border-primary' : ''}`}
-                                    >
-                                        <div className="space-y-1">
-                                            <div className="flex items-center gap-2">
-                                                <h3 className="font-medium">Version {version}</h3>
-                                                {getStatusBadge(status)}
-                                            </div>
-                                            <p className="text-sm text-muted-foreground">
-                                                Coverage: {coverage}%
-                                                <Progress value={coverage} className="h-2 mt-1" />
-                                            </p>
+                                <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Version auswählen" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {versions.length === 0 ? (
+                                        <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                                            Keine Versionen verfügbar
                                         </div>
-                                        <div className="flex gap-2">
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => onVersionChange(version)}
-                                            >
-                                                {currentVersion === version ? 'Current' : 'Select'}
-                                            </Button>
-
-                                            {status === 'DRAFT' && (
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => onPublishVersion(version)}
-                                                >
-                                                    <Check className="w-4 h-4 mr-1" />
-                                                    Publish
-                                                </Button>
-                                            )}
-
-                                            {status === 'PUBLISHED' && (
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => onArchiveVersion(version)}
-                                                >
-                                                    <Lock className="w-4 h-4 mr-1" />
-                                                    Archive
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                                    ) : (
+                                        versions.map(v => (
+                                            <SelectItem key={v} value={v.toString()} className="flex items-center">
+                                                <div className="flex items-center justify-between w-full">
+                                                    <span>Version {v}{v === Math.max(...versions) ? " (Neueste)" : ""}</span>
+                                                    {versionStatuses[v] && getStatusBadge(versionStatuses[v])}
+                                                </div>
+                                            </SelectItem>
+                                        ))
+                                    )}
+                                </SelectContent>
+                            </Select>
                         </div>
-                    </TabsContent>
 
-                    <TabsContent value="actions">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <Card>
-                                <CardHeader className="py-3">
-                                    <CardTitle className="text-md">Version Management</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-2">
-                                    <Button
-                                        className="w-full justify-start"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={onCreateNewVersion}
-                                    >
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        Create New Version
-                                    </Button>
-
-                                    {onDuplicateVersion && currentVersion && (
-                                        <Button
-                                            className="w-full justify-start"
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => onDuplicateVersion(currentVersion)}
-                                            disabled={!currentVersion}
-                                        >
-                                            <Copy className="h-4 w-4 mr-2" />
-                                            Duplicate Current Version
-                                        </Button>
-                                    )}
-
-                                    {currentVersion && (
-                                        <Button
-                                            className="w-full justify-start"
-                                            variant="outline"
-                                            size="sm"
-                                            disabled={!canPublish}
-                                        >
-                                            <RefreshCw className="h-4 w-4 mr-2" />
-                                            Regenerate Schedule
-                                        </Button>
-                                    )}
-                                </CardContent>
-                            </Card>
-
-                            <Card>
-                                <CardHeader className="py-3">
-                                    <CardTitle className="text-md">Version Status</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-2">
-                                    {currentVersion && canPublish && (
-                                        <Button
-                                            className="w-full justify-start"
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => onPublishVersion(currentVersion)}
-                                        >
-                                            <Check className="h-4 w-4 mr-2" />
-                                            Publish Version
-                                        </Button>
-                                    )}
-
-                                    {currentVersion && canArchive && (
-                                        <Button
-                                            className="w-full justify-start"
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => onArchiveVersion(currentVersion)}
-                                        >
-                                            <Archive className="h-4 w-4 mr-2" />
-                                            Archive Version
-                                        </Button>
-                                    )}
-
-                                    {currentVersion && (
-                                        <Button
-                                            className="w-full justify-start"
-                                            variant="outline"
-                                            size="sm"
-                                        >
-                                            <FileText className="h-4 w-4 mr-2" />
-                                            Edit Version Notes
-                                        </Button>
-                                    )}
-                                </CardContent>
-                            </Card>
-                        </div>
-                    </TabsContent>
-                </Tabs>
-
-                {hasError && (
-                    <Alert variant="destructive" className="mt-4">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>Error</AlertTitle>
-                        <AlertDescription>
-                            There was an error loading or updating the schedule. Please try again.
-                            <div className="mt-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => window.location.reload()}
-                                >
-                                    Refresh Page
-                                </Button>
+                        {currentVersion && (
+                            <div className="space-y-2">
+                                <div className="text-sm font-medium">Abdeckung</div>
+                                <div className="flex items-center gap-4">
+                                    <Progress value={getCoveragePercentage(currentVersion)} className="flex-1 h-2" />
+                                    <span className="text-sm font-medium w-12 text-right">
+                                        {getCoveragePercentage(currentVersion)}%
+                                    </span>
+                                </div>
                             </div>
-                        </AlertDescription>
-                    </Alert>
-                )}
+                        )}
+                    </div>
+
+                    <Separator className="my-6" />
+
+                    <div className="flex flex-wrap items-center gap-3">
+                        <Button
+                            variant="default"
+                            size="sm"
+                            onClick={onCreateNewVersion}
+                            disabled={isLoading}
+                            className="h-9"
+                        >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Neue Version
+                        </Button>
+
+                        {canPublish && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => currentVersion && onPublishVersion(currentVersion)}
+                                disabled={isLoading || !currentVersion}
+                                className="h-9"
+                            >
+                                <Check className="h-4 w-4 mr-2" />
+                                Veröffentlichen
+                            </Button>
+                        )}
+
+                        {canArchive && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => currentVersion && onArchiveVersion(currentVersion)}
+                                disabled={isLoading || !currentVersion}
+                                className="h-9"
+                            >
+                                <Archive className="h-4 w-4 mr-2" />
+                                Archivieren
+                            </Button>
+                        )}
+
+                        {onDuplicateVersion && currentVersion && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => onDuplicateVersion(currentVersion)}
+                                disabled={isLoading || !currentVersion}
+                                className="h-9"
+                            >
+                                <Copy className="h-4 w-4 mr-2" />
+                                Duplizieren
+                            </Button>
+                        )}
+                    </div>
+                </div>
             </CardContent>
         </Card>
     );

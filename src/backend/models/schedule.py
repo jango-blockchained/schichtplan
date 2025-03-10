@@ -30,9 +30,11 @@ class Schedule(db.Model):
         DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
-    # Add simple one-way relationships
-    shift = relationship("ShiftTemplate")
-    employee = relationship("Employee", back_populates="schedule_entries")
+    # Add relationships with eager loading
+    shift = relationship("ShiftTemplate", lazy="joined", innerjoin=False)
+    employee = relationship(
+        "Employee", back_populates="schedule_entries", lazy="joined"
+    )
 
     def __init__(
         self,
@@ -53,7 +55,8 @@ class Schedule(db.Model):
         self.notes = notes
 
     def to_dict(self):
-        return {
+        """Convert schedule to dictionary with shift details"""
+        data = {
             "id": self.id,
             "employee_id": self.employee_id,
             "shift_id": self.shift_id,
@@ -66,6 +69,30 @@ class Schedule(db.Model):
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
+
+        # Add shift details if available
+        if self.shift:
+            data.update(
+                {
+                    "shift_start": self.shift.start_time,
+                    "shift_end": self.shift.end_time,
+                    "duration_hours": self.shift.duration_hours
+                    if hasattr(self.shift, "duration_hours")
+                    else None,
+                    "is_empty": False,
+                }
+            )
+        else:
+            data.update(
+                {
+                    "shift_start": None,
+                    "shift_end": None,
+                    "duration_hours": 0.0,
+                    "is_empty": True,
+                }
+            )
+
+        return data
 
     def __repr__(self):
         return f"<Schedule {self.id}: Employee {self.employee_id} on {self.date}>"

@@ -2,6 +2,9 @@ from . import db
 from datetime import datetime
 from .settings import Settings
 from enum import Enum
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ShiftType(Enum):
@@ -84,32 +87,53 @@ class ShiftTemplate(db.Model):
         else:
             self.shift_type = shift_type
 
+        # Calculate duration and validate
         self._calculate_duration()
-        self._needs_validation = True  # Flag to track if validation is needed
+        self.validate()
 
     def validate(self):
         """Validate shift data. Call this before saving to database."""
-        if self._needs_validation:
-            self._calculate_duration()
-            self._validate_store_hours()
-            self._needs_validation = False
+        # Always recalculate duration before validation
+        self._calculate_duration()
+        self._validate_store_hours()
         return self
 
     def _calculate_duration(self):
         """Calculate shift duration in hours"""
-        start_hour, start_minute = map(int, self.start_time.split(":"))
-        end_hour, end_minute = map(int, self.end_time.split(":"))
+        try:
+            start_hour, start_minute = map(int, self.start_time.split(":"))
+            end_hour, end_minute = map(int, self.end_time.split(":"))
 
-        # Convert to minutes
-        start_minutes = start_hour * 60 + start_minute
-        end_minutes = end_hour * 60 + end_minute
+            # Convert to minutes
+            start_minutes = start_hour * 60 + start_minute
+            end_minutes = end_hour * 60 + end_minute
 
-        # Handle overnight shifts
-        if end_minutes < start_minutes:
-            end_minutes += 24 * 60  # Add 24 hours
+            # Handle overnight shifts
+            if end_minutes < start_minutes:
+                end_minutes += 24 * 60  # Add 24 hours
 
-        # Calculate duration in hours
-        self.duration_hours = (end_minutes - start_minutes) / 60
+            # Calculate duration in hours
+            duration = (end_minutes - start_minutes) / 60.0
+
+            # Ensure duration is positive and reasonable
+            if duration <= 0 or duration > 24:
+                logger.error_logger.error(
+                    f"Invalid duration calculated for shift {self.id}: {duration}h"
+                )
+                raise ShiftValidationError(
+                    f"Invalid shift duration: {duration}h. Duration must be between 0 and 24 hours."
+                )
+
+            self.duration_hours = duration
+            logger.schedule_logger.debug(
+                f"Calculated duration for shift {self.id}: {duration}h ({self.start_time}-{self.end_time})"
+            )
+
+        except (ValueError, TypeError, IndexError) as e:
+            logger.error_logger.error(
+                f"Error calculating duration for shift {self.id}: {str(e)}"
+            )
+            raise ShiftValidationError(f"Error calculating shift duration: {str(e)}")
 
     def _validate_store_hours(self):
         """Validate that shift times are within store hours, considering keyholder requirements"""
@@ -141,6 +165,10 @@ class ShiftTemplate(db.Model):
 
     def to_dict(self):
         """Convert shift to dictionary"""
+        # Ensure duration is calculated before converting to dict
+        if self.duration_hours is None or self.duration_hours <= 0:
+            self._calculate_duration()
+
         return {
             "id": self.id,
             "start_time": self.start_time,

@@ -100,3 +100,34 @@ def delete_shift(shift_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
+
+
+@shifts.route("/shifts/fix-durations", methods=["POST"])
+def fix_shift_durations():
+    """Fix all shifts with missing duration_hours"""
+    try:
+        # Get all shifts
+        shifts = ShiftTemplate.query.all()
+
+        # Count of fixed shifts
+        fixed_count = 0
+
+        # Check each shift
+        for shift in shifts:
+            if shift.duration_hours is None or shift.duration_hours <= 0:
+                # Calculate duration
+                shift._calculate_duration()
+                fixed_count += 1
+
+        # Commit changes
+        db.session.commit()
+
+        return jsonify(
+            {
+                "message": f"Fixed {fixed_count} shifts with missing duration_hours",
+                "fixed_count": fixed_count,
+            }
+        ), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
