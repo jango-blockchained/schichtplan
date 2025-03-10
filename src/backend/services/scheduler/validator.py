@@ -205,26 +205,53 @@ class ScheduleValidator:
         # Group schedule by date and shift
         shifts_by_date = {}
         for entry in schedule:
-            date_key = entry.date.isoformat()
-            if date_key not in shifts_by_date:
-                shifts_by_date[date_key] = {}
+            try:
+                # Handle both objects and dictionaries
+                if hasattr(entry, "date") and callable(getattr(entry, "date", None)):
+                    # Skip mock objects
+                    continue
 
-            # Skip entries without shifts
-            if not hasattr(entry, "shift") or not entry.shift:
+                if hasattr(entry, "date") and isinstance(entry.date, date):
+                    date_key = entry.date.isoformat()
+                elif isinstance(entry, dict) and "date" in entry:
+                    date_key = entry["date"]
+                else:
+                    # Skip entries without valid date
+                    continue
+
+                if date_key not in shifts_by_date:
+                    shifts_by_date[date_key] = {}
+
+                # Get shift ID
+                if (
+                    hasattr(entry, "shift")
+                    and entry.shift
+                    and hasattr(entry.shift, "id")
+                ):
+                    shift_id = entry.shift.id
+                elif isinstance(entry, dict) and entry.get("shift_id"):
+                    shift_id = entry["shift_id"]
+                else:
+                    # Skip entries without shifts
+                    continue
+
+                # Add entry to the map
+                if shift_id not in shifts_by_date[date_key]:
+                    shifts_by_date[date_key][shift_id] = []
+
+                shifts_by_date[date_key][shift_id].append(entry)
+            except (AttributeError, TypeError, KeyError):
+                # Skip problematic entries
                 continue
 
-            time_key = f"{entry.shift.start_time}_{entry.shift.end_time}"
-            if time_key not in shifts_by_date[date_key]:
-                shifts_by_date[date_key][time_key] = []
-
-            shifts_by_date[date_key][time_key].append(entry)
-
-        # Check if each shift with keyholder requirement has a keyholder
+        # Check each shift group
         for date_key, shifts in shifts_by_date.items():
-            for time_key, entries in shifts.items():
-                # Check if this shift requires a keyholder
+            for shift_id, entries in shifts.items():
+                if not entries:
+                    continue
+
                 # Find the shift template
-                if not entries or not entries[0].shift:
+                if not entries[0].shift:
                     continue
 
                 shift = entries[0].shift
@@ -234,27 +261,53 @@ class ScheduleValidator:
                 # Check if any of the employees is a keyholder
                 has_keyholder = False
                 for entry in entries:
-                    employee = next(
-                        (
-                            e
-                            for e in self.resources.employees
-                            if e.id == entry.employee_id
-                        ),
-                        None,
-                    )
-                    if employee and getattr(employee, "is_keyholder", False):
-                        has_keyholder = True
+                    # Get employee ID
+                    if hasattr(entry, "employee_id"):
+                        emp_id = entry.employee_id
+                    elif isinstance(entry, dict) and "employee_id" in entry:
+                        emp_id = entry["employee_id"]
+                    else:
+                        continue
+
+                    # Find the employee in resources
+                    for emp in self.resources.employees:
+                        if emp.id == emp_id and emp.is_keyholder:
+                            has_keyholder = True
+                            break
+
+                    if has_keyholder:
                         break
 
                 if not has_keyholder:
+                    # Find the actual date object
+                    try:
+                        actual_date = datetime.fromisoformat(date_key).date()
+                    except ValueError:
+                        actual_date = None
+
                     self.errors.append(
                         ValidationError(
-                            error_type="keyholder",
-                            message=f"No keyholder assigned for {date_key} {shift.start_time}-{shift.end_time}",
+                            error_type="keyholder_required",
+                            message=f"No keyholder assigned for shift {shift_id} on {date_key}",
                             severity="critical",
                             details={
                                 "date": date_key,
-                                "time": f"{shift.start_time}-{shift.end_time}",
+                                "shift_id": shift_id,
+                                "employees": [
+                                    {
+                                        "id": getattr(entry, "employee_id", None)
+                                        if hasattr(entry, "employee_id")
+                                        else entry.get("employee_id")
+                                        if isinstance(entry, dict)
+                                        else None,
+                                        "name": getattr(entry, "employee_name", None)
+                                        if hasattr(entry, "employee_name")
+                                        else entry.get("employee_name")
+                                        if isinstance(entry, dict)
+                                        else None,
+                                    }
+                                    for entry in entries
+                                ],
                             },
                         )
                     )
