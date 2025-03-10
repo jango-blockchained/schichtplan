@@ -85,6 +85,23 @@ class ScheduleValidator:
         if self.config.enforce_max_hours:
             self._validate_max_hours(schedule)
 
+        # Remove duplicate keyholder errors - keep only one error per shift_id
+        if self.config.enforce_keyholder:
+            seen_shift_ids = set()
+            filtered_errors = []
+            for error in self.errors:
+                if (
+                    error.error_type == "keyholder"
+                    and error.details
+                    and "shift_id" in error.details
+                ):
+                    if error.details["shift_id"] not in seen_shift_ids:
+                        seen_shift_ids.add(error.details["shift_id"])
+                        filtered_errors.append(error)
+                else:
+                    filtered_errors.append(error)
+            self.errors = filtered_errors
+
         return self.errors
 
     def _validate_coverage(self, schedule: List[Schedule]) -> None:
@@ -222,18 +239,31 @@ class ScheduleValidator:
                             break
 
                     if not employee_is_keyholder:
-                        self.errors.append(
-                            ValidationError(
-                                error_type="keyholder",
-                                message=f"No keyholder assigned for shift on {entry.date}",
-                                severity="critical",
-                                details={
-                                    "date": entry.date.isoformat(),
-                                    "shift_id": entry.shift.id,
-                                    "employee_id": entry.employee_id,
-                                },
+                        # Only add the error if it doesn't already exist for this entry
+                        key = f"{entry.date}_{entry.shift.id}"
+                        error_exists = False
+                        for error in self.errors:
+                            if (
+                                error.error_type == "keyholder"
+                                and error.details
+                                and error.details.get("shift_id") == entry.shift.id
+                            ):
+                                error_exists = True
+                                break
+
+                        if not error_exists:
+                            self.errors.append(
+                                ValidationError(
+                                    error_type="keyholder",
+                                    message=f"No keyholder assigned for shift on {entry.date}",
+                                    severity="critical",
+                                    details={
+                                        "date": entry.date.isoformat(),
+                                        "shift_id": entry.shift.id,
+                                        "employee_id": entry.employee_id,
+                                    },
+                                )
                             )
-                        )
                 continue
 
         # Group schedule by date and shift
