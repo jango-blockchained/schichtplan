@@ -12,6 +12,7 @@ from models import (
 )
 from models.employee import AvailabilityType, EmployeeGroup
 import logging
+import functools
 
 
 # Create a standard logger
@@ -40,6 +41,10 @@ class ScheduleResources:
         self.absences: List[Absence] = []
         self.availabilities: List[EmployeeAvailability] = []
         self.schedule_data: Dict[Tuple[int, date], Schedule] = {}
+        # Caches for frequently accessed data
+        self._employee_cache = {}
+        self._coverage_cache = {}
+        self._date_caches_cleared = False
 
     def load(self):
         """Load all required resources from database"""
@@ -102,6 +107,13 @@ class ScheduleResources:
         if not employees:
             logger.warning("No active employees found")
 
+        # Clear the employee cache
+        self._employee_cache = {}
+
+        # Pre-fill employee cache with useful lookups
+        for employee in employees:
+            self._employee_cache[employee.id] = employee
+
         return employees
 
     def _load_absences(self) -> List[Absence]:
@@ -122,15 +134,25 @@ class ScheduleResources:
         """Return employees filtered by employee group"""
         return [emp for emp in self.employees if emp.employee_group == group]
 
+    @functools.lru_cache(maxsize=128)
     def get_daily_coverage(self, day: date) -> List[Coverage]:
         """Get coverage requirements for a specific day"""
-        day_index = day.weekday()
-        return [cov for cov in self.coverage if cov.day_index == day_index]
+        # Reset the cache if we haven't done so yet to avoid old data
+        if not self._date_caches_cleared:
+            self.get_daily_coverage.cache_clear()
+            self._date_caches_cleared = True
+
+        weekday = day.weekday()
+        return [cov for cov in self.coverage if cov.day_index == weekday]
 
     def get_employee_absences(
         self, employee_id: int, start_date: date, end_date: date
     ) -> List[Absence]:
         """Get absences for an employee in a date range"""
+        # Check if employee exists to avoid unnecessary processing
+        if employee_id not in self._employee_cache:
+            return []
+
         return [
             absence
             for absence in self.absences
@@ -142,6 +164,10 @@ class ScheduleResources:
         self, employee_id: int, day_of_week: int
     ) -> List[EmployeeAvailability]:
         """Get availability for an employee on a specific day of week"""
+        # Check if employee exists to avoid unnecessary processing
+        if employee_id not in self._employee_cache:
+            return []
+
         return [
             avail
             for avail in self.availabilities
@@ -207,3 +233,14 @@ class ScheduleResources:
     def get_active_employees(self) -> List[Employee]:
         """Get list of active employees (for backward compatibility)"""
         return self.employees
+
+    def get_employee(self, employee_id: int) -> Optional[Employee]:
+        """Get an employee by ID (cached)"""
+        return self._employee_cache.get(employee_id)
+
+    def clear_caches(self):
+        """Clear all caches"""
+        self.get_daily_coverage.cache_clear()
+        self._employee_cache = {}
+        self._coverage_cache = {}
+        self._date_caches_cleared = False
