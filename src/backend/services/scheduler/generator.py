@@ -225,6 +225,19 @@ class ScheduleGenerator:
         self, employee: Employee, current_date: date, shift: ShiftTemplate
     ) -> bool:
         """Check if this assignment would exceed employee constraints"""
+        # Check if shift is None or missing duration_hours
+        if shift is None:
+            self._log_warning(
+                f"Received None shift when checking constraints for employee {employee.id}"
+            )
+            return True
+
+        if not hasattr(shift, "duration_hours") or shift.duration_hours is None:
+            self._log_warning(
+                f"Shift {getattr(shift, 'id', 'unknown')} has no duration_hours attribute"
+            )
+            return True
+
         # Check weekly hours
         week_start = self._get_week_start(current_date)
         weekly_hours = self._get_weekly_hours(employee.id, week_start)
@@ -261,7 +274,21 @@ class ScheduleGenerator:
                 entry_week_start = self._get_week_start(entry_date)
 
                 if entry_week_start == week_start:
-                    total_hours += entry.shift.duration_hours
+                    # Safely handle None shifts or missing duration_hours
+                    if hasattr(entry, "shift") and entry.shift is not None:
+                        if (
+                            hasattr(entry.shift, "duration_hours")
+                            and entry.shift.duration_hours is not None
+                        ):
+                            total_hours += entry.shift.duration_hours
+                        else:
+                            self._log_warning(
+                                f"Schedule entry for employee {employee_id} on {entry_date} has shift without duration_hours"
+                            )
+                    else:
+                        self._log_warning(
+                            f"Schedule entry for employee {employee_id} on {entry_date} has no shift"
+                        )
 
         return total_hours
 
@@ -294,6 +321,19 @@ class ScheduleGenerator:
         self, employee: Employee, current_date: date, shift: ShiftTemplate
     ) -> bool:
         """Check if employee has enough rest time before this shift"""
+        # Validate inputs
+        if shift is None:
+            self._log_warning(
+                f"Received None shift when checking rest for employee {employee.id}"
+            )
+            return False
+
+        if not hasattr(shift, "start_time") or not hasattr(shift, "end_time"):
+            self._log_warning(
+                f"Shift {getattr(shift, 'id', 'unknown')} missing start/end time"
+            )
+            return False
+
         min_rest_hours = self.config.min_rest_hours
 
         # Get previous assignment for this employee
@@ -309,6 +349,19 @@ class ScheduleGenerator:
         if prev_entry is None:
             return True  # No previous assignment
 
+        # Validate previous entry has a valid shift
+        if not hasattr(prev_entry, "shift") or prev_entry.shift is None:
+            self._log_warning(f"Previous entry for employee {employee.id} has no shift")
+            return True  # Can't enforce rest without a previous shift
+
+        if not hasattr(prev_entry.shift, "start_time") or not hasattr(
+            prev_entry.shift, "end_time"
+        ):
+            self._log_warning(
+                f"Previous shift for employee {employee.id} missing start/end time"
+            )
+            return True  # Can't enforce rest without times
+
         # Calculate rest time
         if prev_entry.date == current_date:
             # Same day - check for shift overlap
@@ -321,37 +374,42 @@ class ScheduleGenerator:
                 return False
         else:
             # Different days - calculate rest period
-            # Extract time components carefully
-            prev_end_hour, prev_end_minute = map(
-                int, prev_entry.shift.end_time.split(":")
-            )
-            current_start_hour, current_start_minute = map(
-                int, shift.start_time.split(":")
-            )
+            try:
+                # Extract time components carefully
+                prev_end_hour, prev_end_minute = map(
+                    int, prev_entry.shift.end_time.split(":")
+                )
+                current_start_hour, current_start_minute = map(
+                    int, shift.start_time.split(":")
+                )
 
-            # Calculate the datetime objects
-            prev_end_dt = datetime(
-                prev_entry.date.year,
-                prev_entry.date.month,
-                prev_entry.date.day,
-                prev_end_hour,
-                prev_end_minute,
-            )
+                # Calculate the datetime objects
+                prev_end_dt = datetime(
+                    prev_entry.date.year,
+                    prev_entry.date.month,
+                    prev_entry.date.day,
+                    prev_end_hour,
+                    prev_end_minute,
+                )
 
-            current_start_dt = datetime(
-                current_date.year,
-                current_date.month,
-                current_date.day,
-                current_start_hour,
-                current_start_minute,
-            )
+                current_start_dt = datetime(
+                    current_date.year,
+                    current_date.month,
+                    current_date.day,
+                    current_start_hour,
+                    current_start_minute,
+                )
 
-            # Calculate rest hours
-            rest_seconds = (current_start_dt - prev_end_dt).total_seconds()
-            rest_hours = rest_seconds / 3600
+                # Calculate rest hours
+                rest_seconds = (current_start_dt - prev_end_dt).total_seconds()
+                rest_hours = rest_seconds / 3600
 
-            if rest_hours < min_rest_hours:
-                return False
+                if rest_hours < min_rest_hours:
+                    return False
+            except (ValueError, TypeError, IndexError) as e:
+                self._log_warning(f"Error calculating rest hours: {str(e)}")
+                # If we can't calculate rest hours properly, assume rest is enough
+                return True
 
         return True
 
