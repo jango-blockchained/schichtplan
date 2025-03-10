@@ -4,7 +4,7 @@ import { useScheduleData } from '@/hooks/useScheduleData';
 import { addDays, startOfWeek, endOfWeek, addWeeks, format, getWeek, isBefore } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { useMutation } from '@tanstack/react-query';
-import { generateSchedule, exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, publishSchedule, archiveSchedule, updateVersionStatus, createNewVersion, duplicateVersion, getVersionDetails, compareVersions, updateVersionNotes } from '@/services/api';
+import { generateSchedule, exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, publishSchedule, archiveSchedule, updateVersionStatus, createNewVersion, duplicateVersion, getVersionDetails, compareVersions, updateVersionNotes, getAllVersions } from '@/services/api';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, AlertCircle, X, CheckCircle2, Circle, Clock, CheckCircle, XCircle, RefreshCw, Plus, Archive, Calendar, Settings2, Play, FileSpreadsheet, FileDown, History, CalendarIcon, Pencil, Copy, FileText, GitCompare } from 'lucide-react';
@@ -738,6 +738,37 @@ export function SchedulePage() {
     loadSchedules();
   }, []);
 
+  // Load versions for the selected week
+  const versionsQuery = useQuery({
+    queryKey: ['versions', dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
+    queryFn: async () => {
+      if (!dateRange?.from || !dateRange?.to) {
+        throw new Error("Date range is required");
+      }
+
+      const fromStr = format(dateRange.from, 'yyyy-MM-dd');
+      const toStr = format(dateRange.to, 'yyyy-MM-dd');
+
+      return await getAllVersions(fromStr, toStr);
+    },
+    enabled: !!dateRange?.from && !!dateRange?.to,
+  });
+
+  // Set selected version to the latest version for this week when versions change or week changes
+  useEffect(() => {
+    if (versionsQuery.data?.versions && versionsQuery.data.versions.length > 0) {
+      // Sort by version number (descending) to get the latest version
+      const sortedVersions = [...versionsQuery.data.versions].sort((a, b) => b.version - a.version);
+      const latestVersion = sortedVersions[0].version;
+
+      // Only update if not already selected or if week has changed
+      if (!selectedVersion || selectedVersion !== latestVersion) {
+        console.log(`🔄 Auto-selecting latest version (${latestVersion}) for week ${selectedCalendarWeek}`);
+        setSelectedVersion(latestVersion);
+      }
+    }
+  }, [versionsQuery.data, selectedCalendarWeek]);
+
   // Show loading skeleton for initial data fetch
   if (isLoading && !scheduleData) {
     return (
@@ -922,24 +953,51 @@ export function SchedulePage() {
 
   // Version management mutations
   const createVersionMutation = useMutation({
-    mutationFn: createNewVersion,
+    mutationFn: async () => {
+      if (!dateRange?.from || !dateRange?.to) {
+        throw new Error("Please select a date range");
+      }
+
+      // Get the date range from the selected week
+      const fromStr = format(dateRange.from, 'yyyy-MM-dd');
+      const toStr = format(dateRange.to, 'yyyy-MM-dd');
+
+      const data = {
+        start_date: fromStr,
+        end_date: toStr,
+        base_version: selectedVersion,
+        notes: `New version for week ${getWeek(dateRange.from)} (${format(dateRange.from, 'dd.MM.yyyy')} - ${format(dateRange.to, 'dd.MM.yyyy')})`
+      };
+
+      return await createNewVersion(data);
+    },
     onSuccess: (data) => {
       toast({
-        title: "Success",
-        description: `New version ${data.version} created successfully`,
+        title: "Neue Version erstellt",
+        description: `Version ${data.version} wurde erfolgreich erstellt.`,
       });
+
+      // Automatically select the new version
       setSelectedVersion(data.version);
-      queryClient.invalidateQueries({ queryKey: ['schedules'] });
+
+      // Refresh the versions list
+      versionsQuery.refetch();
+
+      // Refetch schedule data with the new version
       refetch();
     },
     onError: (error) => {
       toast({
-        title: "Error",
-        description: `Failed to create new version: ${error}`,
+        title: "Fehler",
+        description: `Fehler beim Erstellen der neuen Version: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`,
         variant: "destructive",
       });
     }
   });
+
+  const handleCreateNewVersion = () => {
+    createVersionMutation.mutate();
+  };
 
   const updateVersionStatusMutation = useMutation({
     mutationFn: (params: { version: number, status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED' }) =>
@@ -1015,24 +1073,6 @@ export function SchedulePage() {
   const handleVersionChange = (version: number) => {
     setSelectedVersion(version);
     refetch();
-  };
-
-  const handleCreateNewVersion = () => {
-    if (!dateRange?.from || !dateRange?.to) {
-      toast({
-        title: "Error",
-        description: "Please select a date range first",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    createVersionMutation.mutate({
-      start_date: dateRange.from.toISOString().split('T')[0],
-      end_date: dateRange.to.toISOString().split('T')[0],
-      base_version: selectedVersion,
-      notes: `Created from version ${selectedVersion}`
-    });
   };
 
   const handlePublishVersion = (version: number) => {
@@ -1212,42 +1252,39 @@ export function SchedulePage() {
                   {/* Version Selector */}
                   <div className="md:col-span-4">
                     <div className="space-y-3">
-                      <label className="text-sm font-medium">Version</label>
-                      <Select
-                        value={selectedVersion?.toString() || ''}
-                        onValueChange={(value) => handleVersionChange(Number(value))}
-                        disabled={isLoading || versions.length === 0}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Version wählen" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {versions.map(v => (
-                            <SelectItem key={v} value={v.toString()} className="flex items-center">
-                              <div className="flex items-center justify-between w-full">
-                                <span>Version {v}</span>
-                                {data?.version_statuses?.[v] && (
-                                  <Badge variant={
-                                    data.version_statuses[v] === 'DRAFT' ? 'outline' :
-                                      data.version_statuses[v] === 'PUBLISHED' ? 'outline' :
-                                        'outline'
-                                  } className={`ml-2 flex items-center ${data.version_statuses[v] === 'PUBLISHED'
-                                    ? 'text-green-600'
-                                    : data.version_statuses[v] === 'ARCHIVED'
-                                      ? 'text-gray-500'
-                                      : 'text-blue-600'
-                                    }`}>
-                                    {data.version_statuses[v] === 'DRAFT' && <AlertCircle className="h-3 w-3 mr-1" />}
-                                    {data.version_statuses[v] === 'PUBLISHED' && <CheckCircle2 className="h-3 w-3 mr-1" />}
-                                    {data.version_statuses[v] === 'ARCHIVED' && <Archive className="h-3 w-3 mr-1" />}
-                                    {data.version_statuses[v]}
-                                  </Badge>
-                                )}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex flex-col space-y-1">
+                        <div className="text-sm text-muted-foreground">Kalenderwoche</div>
+                        <div className="flex items-center">
+                          <Select
+                            value={selectedCalendarWeek}
+                            onValueChange={(value) => {
+                              setSelectedCalendarWeek(value);
+                              // Reset selected version when changing week
+                              setSelectedVersion(undefined);
+                            }}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="KW auswählen" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getAvailableCalendarWeeks().map((week) => (
+                                <SelectItem key={week.value} value={week.value}>
+                                  {week.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {versionsQuery.isLoading ? (
+                          <Skeleton className="h-4 w-24" />
+                        ) : versionsQuery.data?.versions?.length ? (
+                          <div className="text-xs text-muted-foreground">
+                            {versionsQuery.data.versions.length} {versionsQuery.data.versions.length === 1 ? 'Version' : 'Versionen'} verfügbar
+                          </div>
+                        ) : (
+                          <div className="text-xs text-muted-foreground">Keine Versionen für diese Woche</div>
+                        )}
+                      </div>
 
                       {/* Primary Version Actions */}
                       {selectedVersion && (
@@ -1368,10 +1405,10 @@ export function SchedulePage() {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <Badge variant="outline" className={`flex items-center ${data.version_statuses[selectedVersion] === 'PUBLISHED'
-                                ? 'text-green-600'
-                                : data.version_statuses[selectedVersion] === 'ARCHIVED'
-                                  ? 'text-gray-500'
-                                  : 'text-blue-600'
+                              ? 'text-green-600'
+                              : data.version_statuses[selectedVersion] === 'ARCHIVED'
+                                ? 'text-gray-500'
+                                : 'text-blue-600'
                               }`}>
                               {data.version_statuses[selectedVersion] === 'DRAFT' && <AlertCircle className="h-3 w-3 mr-1" />}
                               {data.version_statuses[selectedVersion] === 'PUBLISHED' && <CheckCircle2 className="h-3 w-3 mr-1" />}

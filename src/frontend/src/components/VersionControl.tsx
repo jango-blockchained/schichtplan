@@ -79,7 +79,7 @@ export function VersionControl({
                     {/* Version info and status */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
-                            <div className="text-sm text-muted-foreground mb-1">Version</div>
+                            <div className="text-sm text-muted-foreground mb-1">Version für diese Woche</div>
                             <div className="flex items-center">
                                 <Select
                                     value={currentVersion?.toString() || ''}
@@ -87,13 +87,13 @@ export function VersionControl({
                                     disabled={isLoading || versions.length === 0}
                                 >
                                     <SelectTrigger className="w-full">
-                                        <SelectValue placeholder="Select version" />
+                                        <SelectValue placeholder="Version wählen" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {versions.map(v => (
                                             <SelectItem key={v} value={v.toString()} className="flex items-center">
                                                 <div className="flex items-center justify-between w-full">
-                                                    <span>Version {v}</span>
+                                                    <span>Version {v}{v === Math.max(...versions) ? " (Neuste)" : ""}</span>
                                                     {versionStatuses[v] && getStatusBadge(versionStatuses[v])}
                                                 </div>
                                             </SelectItem>
