@@ -434,7 +434,7 @@ class ScheduleGenerator:
     def _add_empty_schedules(self, start_date: date, end_date: date) -> None:
         """Add empty schedule entries for all employees who don't have assignments for each day"""
         # Get all active employees
-        employees = self.resources.get_active_employees()
+        employees = self.resources.employees  # Changed from get_active_employees()
 
         # Process each date in the range
         for current_date in self._date_range(start_date, end_date):
