@@ -91,6 +91,7 @@ export interface ScheduleUpdate {
     date?: string | null;
     break_duration?: number | null;
     notes?: string | null;
+    version?: number | null;
 }
 
 export interface DateRange {

@@ -448,12 +448,17 @@ def update_schedule(schedule_id):
 
         # If schedule_id is 0, create a new schedule
         if schedule_id == 0:
-            logger.schedule_logger.info(f"Creating new schedule: {data}")
+            # Get the version from the data or default to 1
+            version = data.get("version", 1)
+            logger.schedule_logger.info(
+                f"Creating new schedule: {data} with version {version}"
+            )
+
             schedule = Schedule(
                 employee_id=data["employee_id"],
                 shift_id=data.get("shift_id"),  # Use get() to handle None/undefined
                 date=datetime.strptime(data["date"], "%Y-%m-%d").date(),
-                version=1,  # New schedules start at version 1
+                version=version,  # Use the provided version or default to 1
                 notes=data.get("notes"),
             )
 
@@ -492,7 +497,9 @@ def update_schedule(schedule_id):
             db.session.add(schedule)
         else:
             schedule = Schedule.query.get_or_404(schedule_id)
-            logger.schedule_logger.info(f"Updating existing schedule: {schedule_id}")
+            logger.schedule_logger.info(
+                f"Updating existing schedule: {schedule_id}, current version: {schedule.version}"
+            )
             # Update existing schedule
             if "employee_id" in data:
                 schedule.employee_id = data["employee_id"]
@@ -511,6 +518,11 @@ def update_schedule(schedule_id):
                 schedule.date = datetime.strptime(data["date"], "%Y-%m-%d").date()
             if "notes" in data:
                 schedule.notes = data["notes"] if data["notes"] is not None else None
+            if "version" in data:
+                schedule.version = data["version"]
+                logger.schedule_logger.info(
+                    f"Updated schedule version to {schedule.version}"
+                )
 
             # Handle break_duration by converting it to break_start and break_end
             if "break_duration" in data:
@@ -708,6 +720,8 @@ def api_generate_schedule():
         )
         version = data.get("version", 1)
 
+        logger.schedule_logger.info(f"Generating schedule for version {version}")
+
         if not start_date_str:
             # Default to next week
             today = date.today()
@@ -729,11 +743,24 @@ def api_generate_schedule():
         # Create generator
         generator = ScheduleGenerator()
 
+        # Set create_empty_schedules flag
+        create_empty_schedules = data.get("create_empty_schedules", True)
+        generator.create_empty_schedules = create_empty_schedules
+
+        logger.schedule_logger.info(
+            f"Generating schedule for date range {start_date} to {end_date}, version {version}, create_empty_schedules={create_empty_schedules}"
+        )
+
         # Generate schedule
         result = generator.generate(start_date, end_date, version, session_id)
 
+        logger.schedule_logger.info(
+            f"Schedule generation completed for version {version}, entries: {len(result.get('schedules', []))}"
+        )
+
         # Return result
         if "error" in result:
+            logger.error_logger.error(f"Error generating schedule: {result['error']}")
             return jsonify({"error": result["error"]}), 500
 
         return jsonify(result), 200

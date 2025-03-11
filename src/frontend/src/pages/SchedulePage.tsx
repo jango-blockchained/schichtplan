@@ -278,7 +278,8 @@ export function SchedulePage() {
             const result = await generateSchedule(
               fromStr,
               toStr,
-              createEmptySchedules
+              createEmptySchedules,
+              selectedVersion || 1
             );
 
             updateGenerationStep("process", "completed");
@@ -501,25 +502,57 @@ export function SchedulePage() {
     },
   });
 
-  const handleShiftUpdate = async (scheduleId: number, updates: ScheduleUpdate): Promise<void> => {
-    console.log('🔄 handleShiftUpdate called with:', { scheduleId, updates });
+  const handleShiftDrop = async (scheduleId: number, newEmployeeId: number, newDate: Date, newShiftId: number) => {
     try {
-      await updateShiftMutation.mutateAsync({ scheduleId, updates });
-      console.log('🔄 handleShiftUpdate completed successfully');
-
-      // Force a complete refresh of the data after a short delay
-      setTimeout(() => {
-        console.log('🔄 Forcing complete data refresh after shift update');
-        queryClient.invalidateQueries({ queryKey: ['schedules'] });
-        refetch();
-      }, 500);
-    } catch (error) {
-      console.error('🔄 handleShiftUpdate error:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update shift. Please try again.",
-        variant: "destructive",
+      await updateSchedule(scheduleId, {
+        employee_id: newEmployeeId,
+        date: format(newDate, 'yyyy-MM-dd'),
+        shift_id: newShiftId,
+        version: selectedVersion
       });
+
+      console.log(`Updated schedule ${scheduleId} with version ${selectedVersion}`);
+
+      // Force invalidate any cached queries
+      await queryClient.invalidateQueries({ queryKey: ['schedules'] });
+
+      // Immediately refetch to show updated data
+      await refetch();
+
+      toast({
+        title: "Schicht aktualisiert",
+        description: "Die Schicht wurde erfolgreich aktualisiert.",
+      });
+    } catch (error) {
+      console.error('Error updating schedule:', error);
+      toast({
+        title: "Fehler",
+        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleShiftUpdate = async (scheduleId: number, updates: ScheduleUpdate): Promise<void> => {
+    try {
+      // Add the current version to the updates
+      const updatesWithVersion = {
+        ...updates,
+        version: selectedVersion
+      };
+
+      console.log('Updating schedule with:', { scheduleId, updates: updatesWithVersion });
+
+      // Call the mutation
+      await updateShiftMutation.mutateAsync({ scheduleId, updates: updatesWithVersion });
+    } catch (error) {
+      console.error('Error in handleShiftUpdate:', error);
+      toast({
+        title: "Fehler beim Aktualisieren",
+        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
+        variant: "destructive"
+      });
+      throw error; // Re-throw to allow calling code to handle it
     }
   };
 
@@ -628,24 +661,6 @@ export function SchedulePage() {
   // Version control handlers
   const handleVersionChange = (version: number) => {
     setSelectedVersion(version);
-  };
-
-  // Add schedule update handlers
-  const handleShiftDrop = async (scheduleId: number, newEmployeeId: number, newDate: Date, newShiftId: number) => {
-    try {
-      await updateSchedule(scheduleId, {
-        employee_id: newEmployeeId,
-        date: format(newDate, 'yyyy-MM-dd'),
-        shift_id: newShiftId
-      });
-      await queryClient.invalidateQueries({ queryKey: ['schedules'] });
-    } catch (error) {
-      toast({
-        title: "Fehler",
-        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
-        variant: "destructive"
-      });
-    }
   };
 
   // Add settings query
