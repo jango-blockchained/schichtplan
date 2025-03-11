@@ -259,4 +259,49 @@ The scheduling system has been refactored from a monolithic design into a modula
   - Enhanced testability
   - Clearer component interfaces
 
-For more details, see the [Scheduler Package Documentation](/src/backend/services/scheduler/README.md). 
+For more details, see the [Scheduler Package Documentation](/src/backend/services/scheduler/README.md).
+
+## Schedule Generation Tests
+
+The application includes comprehensive tests for the schedule generation functionality:
+
+### Test Modules
+
+- **Extended Schedule Generation Tests**: Tests for basic schedule generation, edge cases, and performance scaling.
+- **Schedule Constraints Tests**: Tests for various constraints like keyholder requirements, weekly hour limits, rest time, employee availability, and shift requirements.
+- **Schedule Generation API Tests**: Tests for the schedule generation API endpoints, including error handling and parameter validation.
+
+### Running Tests
+
+You can run all the schedule generation tests using the provided script:
+
+```bash
+python run_schedule_tests.py
+```
+
+Or run individual test modules:
+
+```bash
+# Run extended schedule generation tests
+python -m src.backend.tests.schedule.test_schedule_generation_extended
+
+# Run schedule constraints tests
+python -m src.backend.tests.schedule.test_schedule_constraints
+
+# Run schedule generation API tests
+python -m pytest src.backend.tests.api.test_schedule_generation_api.py
+```
+
+### Performance Testing
+
+The application includes performance tests for schedule generation with different date ranges:
+
+```bash
+python run_performance_tests.py
+```
+
+This will run schedule generation for different periods (1 day, 1 week, 2 weeks, 1 month, 3 months) and measure performance metrics like generation time and schedules per second.
+
+### Test Documentation
+
+For more detailed information about the schedule generation tests, see the [Schedule Generation Tests README](src/backend/tests/schedule/README.md). 
