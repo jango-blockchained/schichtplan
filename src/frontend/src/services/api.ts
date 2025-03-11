@@ -784,7 +784,7 @@ export const restoreDatabase = async (file: File): Promise<void> => {
 
 export const clearLogs = async () => {
     try {
-        await api.post('/logs/clear');
+        await api.post('/api/logs/clear');
     } catch (error) {
         if (error instanceof Error) {
             throw new Error(`Failed to clear logs: ${error.message}`);

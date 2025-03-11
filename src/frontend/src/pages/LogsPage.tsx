@@ -64,29 +64,51 @@ interface StatsResponse {
     stats: LogStats;
 }
 
-// Function to group similar log entries
+// Function to group consecutive similar log entries
 const groupSimilarLogs = (logs: LogEntry[]): GroupedLogEntry[] => {
-    const groups: { [key: string]: GroupedLogEntry } = {};
+    if (!logs || logs.length === 0) return [];
 
-    logs.forEach(log => {
-        // Create a key based on the message and level (you can modify this to include other fields)
+    const result: GroupedLogEntry[] = [];
+    let currentGroup: GroupedLogEntry | null = null;
+    let currentKey: string | null = null;
+
+    // Process logs in chronological order (oldest first)
+    const sortedLogs = [...logs].sort((a, b) =>
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+
+    for (const log of sortedLogs) {
+        // Create a key based on the message and level
         const key = `${log.level}:${log.message}:${log.module}:${log.action}`;
 
-        if (!groups[key]) {
-            groups[key] = {
+        if (key === currentKey && currentGroup) {
+            // This log is similar to the previous one, add it to the current group
+            currentGroup.count++;
+            currentGroup.timestamps.push(log.timestamp);
+            // Keep the earliest timestamp as the main timestamp for chronological ordering
+            currentGroup.timestamp = currentGroup.timestamps[0];
+        } else {
+            // This is a new type of log, create a new group
+            if (currentGroup) {
+                result.push(currentGroup);
+            }
+
+            currentGroup = {
                 ...log,
                 count: 1,
                 timestamps: [log.timestamp]
             };
-        } else {
-            groups[key].count++;
-            groups[key].timestamps.push(log.timestamp);
-            // Keep the most recent timestamp as the main timestamp
-            groups[key].timestamp = groups[key].timestamps[0];
+            currentKey = key;
         }
-    });
+    }
 
-    return Object.values(groups).sort((a, b) =>
+    // Add the last group
+    if (currentGroup) {
+        result.push(currentGroup);
+    }
+
+    // Sort groups by timestamp (newest first) for display
+    return result.sort((a, b) =>
         new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
 };
@@ -186,7 +208,7 @@ export default function LogsPage() {
     const { data: logs, isLoading: logsLoading } = useQuery<LogResponse, Error, LogResponse>({
         queryKey: ['logs', logType, days, level] as const,
         queryFn: async () => {
-            const response = await api.get<LogResponse>('/logs', {
+            const response = await api.get<LogResponse>('/api/logs', {
                 params: { type: logType, days, level: level === 'all' ? null : level }
             });
             return response.data;
@@ -201,7 +223,7 @@ export default function LogsPage() {
     const { data: stats, isLoading: statsLoading } = useQuery<StatsResponse, Error, StatsResponse>({
         queryKey: ['logStats', days] as const,
         queryFn: async () => {
-            const response = await api.get<StatsResponse>('/logs/stats', {
+            const response = await api.get<StatsResponse>('/api/logs/stats', {
                 params: { days }
             });
             return response.data;
@@ -247,44 +269,61 @@ export default function LogsPage() {
         const key = `${log.level}:${log.message}:${log.module}:${log.action}`;
         const isExpandable = log.count > 1;
 
+        // For grouped entries, show the time range
+        let timeDisplay = formatDate(log.timestamp);
+        if (log.count > 1) {
+            const firstTime = new Date(log.timestamps[0]);
+            const lastTime = new Date(log.timestamps[log.timestamps.length - 1]);
+
+            // If the timestamps span multiple days, show full dates
+            if (firstTime.toDateString() !== lastTime.toDateString()) {
+                timeDisplay = `${formatDate(log.timestamps[0])} - ${formatDate(log.timestamps[log.timestamps.length - 1])}`;
+            } else {
+                // If same day, just show the time range
+                const firstTimeStr = firstTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                const lastTimeStr = lastTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                timeDisplay = `${formatDate(log.timestamps[0])} (${firstTimeStr} - ${lastTimeStr})`;
+            }
+        }
+
         return (
-            <div key={key} className="border-b p-4 hover:bg-white/30 transition-colors duration-200">
+            <div key={key} className="border-b border-gray-200 dark:border-gray-700 p-4 hover:bg-white/30 dark:hover:bg-gray-800/50 transition-colors duration-200">
                 <div className="flex justify-between items-start">
                     <div className="flex-1">
-                        <div className="text-sm text-gray-500 flex items-center gap-2">
-                            {formatDate(log.timestamp)}
+                        <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                            {timeDisplay}
                             {log.count > 1 && (
                                 <Badge
                                     variant="secondary"
-                                    className="cursor-pointer hover:bg-gray-200"
+                                    className="cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
                                     onClick={() => toggleExpand(key)}
                                 >
-                                    {log.count} occurrences
+                                    {log.count} consecutive occurrences
                                 </Badge>
                             )}
                         </div>
-                        <div className="font-medium">{log.message}</div>
+                        <div className="font-medium dark:text-white">{log.message}</div>
                     </div>
                     <div className="text-right">
                         {renderLogLevel(log.level)}
                     </div>
                 </div>
-                <div className="mt-2 text-sm text-gray-600">
+                <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                     <span className="mr-4">Module: {log.module}</span>
                     <span className="mr-4">Action: {log.action}</span>
                     {log.user && <span className="mr-4">User: {log.user}</span>}
                     {log.page && <span>Page: {log.page}</span>}
                 </div>
                 {log.details && (
-                    <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto">
+                    <pre className="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs overflow-auto dark:text-gray-300">
                         {JSON.stringify(log.details, null, 2)}
                     </pre>
                 )}
                 {isExpandable && isExpanded[key] && (
-                    <div className="mt-4 pl-4 border-l-2 border-gray-200">
-                        <div className="text-sm font-medium mb-2">All Occurrences:</div>
+                    <div className="mt-4 pl-4 border-l-2 border-gray-200 dark:border-gray-700">
+                        <div className="text-sm font-medium mb-2 dark:text-gray-300">All Occurrences:</div>
                         {log.timestamps.map((timestamp, idx) => (
-                            <div key={idx} className="text-sm text-gray-500">
+                            <div key={idx} className="text-sm text-gray-500 dark:text-gray-400">
                                 {formatDate(timestamp)}
                             </div>
                         ))}
@@ -301,29 +340,29 @@ export default function LogsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Overview</CardTitle>
+                        <CardTitle>Log Statistics</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-2">
                             <div className="flex justify-between">
                                 <span>Total Logs:</span>
-                                <span>{stats.stats.total_logs}</span>
+                                <span className="font-medium dark:text-white">{stats.stats.total_logs}</span>
                             </div>
                             <div className="flex justify-between">
                                 <span>Errors:</span>
-                                <span className="text-red-500">{stats.stats.errors}</span>
+                                <span className="text-red-500 dark:text-red-400">{stats.stats.errors}</span>
                             </div>
                             <div className="flex justify-between">
                                 <span>Warnings:</span>
-                                <span className="text-yellow-500">{stats.stats.warnings}</span>
+                                <span className="text-yellow-500 dark:text-yellow-400">{stats.stats.warnings}</span>
                             </div>
                             <div className="flex justify-between">
                                 <span>User Actions:</span>
-                                <span>{stats.stats.user_actions}</span>
+                                <span className="dark:text-white">{stats.stats.user_actions}</span>
                             </div>
                             <div className="flex justify-between">
                                 <span>Schedule Operations:</span>
-                                <span>{stats.stats.schedule_operations}</span>
+                                <span className="dark:text-white">{stats.stats.schedule_operations}</span>
                             </div>
                         </div>
                     </CardContent>
@@ -335,16 +374,22 @@ export default function LogsPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-2">
-                            {stats.stats.recent_errors.map((error, index) => (
-                                <Alert key={index} variant="destructive">
-                                    <AlertDescription>
-                                        {error.message}
-                                        <div className="text-xs mt-1">
-                                            {formatDate(error.timestamp)}
-                                        </div>
-                                    </AlertDescription>
-                                </Alert>
-                            ))}
+                            {stats.stats.recent_errors && stats.stats.recent_errors.length > 0 ? (
+                                stats.stats.recent_errors.map((error, index) => (
+                                    <Alert key={index} variant="destructive">
+                                        <AlertDescription>
+                                            {error.message}
+                                            <div className="text-xs mt-1 opacity-80">
+                                                {formatDate(error.timestamp)}
+                                            </div>
+                                        </AlertDescription>
+                                    </Alert>
+                                ))
+                            ) : (
+                                <div className="text-center p-4 text-gray-500 dark:text-gray-400">
+                                    No recent errors found.
+                                </div>
+                            )}
                         </div>
                     </CardContent>
                 </Card>
@@ -477,12 +522,19 @@ export default function LogsPage() {
                         <CardHeader>
                             <CardTitle>Log Entries</CardTitle>
                             <CardDescription>
-                                {groupedLogs.length || 0} entries found
+                                {groupedLogs.length} entries found
+                                {searchTerm && ` matching "${searchTerm}"`}
                             </CardDescription>
                         </CardHeader>
-                        <CardContent>
-                            <div className="divide-y">
-                                {groupedLogs.map(renderLogEntry)}
+                        <CardContent className="p-0">
+                            <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                                {groupedLogs.length > 0 ? (
+                                    groupedLogs.map(renderLogEntry)
+                                ) : (
+                                    <div className="p-6 text-center text-gray-500 dark:text-gray-400">
+                                        No logs found. Try adjusting your filters.
+                                    </div>
+                                )}
                             </div>
                         </CardContent>
                     </Card>
