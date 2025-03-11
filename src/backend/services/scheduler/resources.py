@@ -244,6 +244,23 @@ class ScheduleResources:
         """Get an employee by ID (cached)"""
         return self._employee_cache.get(employee_id)
 
+    def get_employee_availabilities(
+        self, employee_id: int, day: date
+    ) -> List[EmployeeAvailability]:
+        """Get all availabilities for an employee on a specific date"""
+        day_of_week = day.weekday()
+        return [
+            avail
+            for avail in self.availabilities
+            if avail.employee_id == employee_id and avail.day_of_week == day_of_week
+        ]
+
+    def get_shift(self, shift_id: int) -> Optional[ShiftTemplate]:
+        """Get a shift template by ID"""
+        if not shift_id:
+            return None
+        return next((shift for shift in self.shifts if shift.id == shift_id), None)
+
     def clear_caches(self):
         """Clear all caches"""
         self.get_daily_coverage.cache_clear()
