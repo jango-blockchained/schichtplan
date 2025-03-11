@@ -318,10 +318,11 @@ export const getSchedules = async (
 export const generateSchedule = async (
     startDate: string,
     endDate: string,
-    createEmptySchedules: boolean = false
+    createEmptySchedules: boolean = false,
+    version: number
 ): Promise<ScheduleResponse> => {
     try {
-        console.log('Generating schedule for:', { startDate, endDate, createEmptySchedules });
+        console.log('Generating schedule for:', { startDate, endDate, createEmptySchedules, version });
 
         // Get all shifts to validate they have durations
         const shiftsResponse = await api.get<Shift[]>('/shifts/');
@@ -415,6 +416,7 @@ export const generateSchedule = async (
             start_date: startDate,
             end_date: endDate,
             create_empty_schedules: createEmptySchedules,
+            version: version,
         });
 
         return response.data;
