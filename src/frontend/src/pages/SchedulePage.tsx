@@ -7,7 +7,7 @@ import { useMutation } from '@tanstack/react-query';
 import { generateSchedule, exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, publishSchedule, archiveSchedule, updateVersionStatus, createNewVersion, duplicateVersion, getVersionDetails, compareVersions, updateVersionNotes, getAllVersions, getSettings, updateSettings, fixShiftDurations } from '@/services/api';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2, AlertCircle, X, CheckCircle2, Circle, Clock, CheckCircle, XCircle, RefreshCw, Plus, Archive, Calendar, Settings2, Play, FileSpreadsheet, FileDown, History, CalendarIcon, Pencil, Copy, FileText, GitCompare } from 'lucide-react';
+import { Loader2, AlertCircle, X, CheckCircle2, Circle, Clock, CheckCircle, XCircle, RefreshCw, Plus, Archive, Calendar, Settings2, Play, FileSpreadsheet, FileDown, History, CalendarIcon, Pencil, Copy, FileText, GitCompare, ChevronUp, ChevronDown, AlertTriangle, Info } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -362,15 +362,41 @@ export function SchedulePage() {
       }
     },
     onSuccess: (data) => {
-      toast({
-        title: "Erfolg",
-        description: `Schichtplan für ${scheduleData.length} Mitarbeiter generiert`,
-      });
+      // Check if we have any errors in the response
+      if (data.errors && data.errors.length > 0) {
+        // Add errors to logs
+        data.errors.forEach(error => {
+          addGenerationLog("error", error.message, error.date || error.shift);
+        });
 
-      // Allow time for UI update before hiding overlay
-      setTimeout(() => {
-        setShowGenerationOverlay(false);
-      }, 1500);
+        // Update UI to show errors
+        updateGenerationStep("finalize", "error", "Fehler bei der Generierung");
+
+        // Show error toast
+        toast({
+          variant: "destructive",
+          title: "Generierung mit Warnungen",
+          description: `Schichtplan wurde generiert, enthält aber ${data.errors.length} Fehler oder Warnungen.`,
+        });
+      } else {
+        // Show success toast with accurate count
+        const generatedCount = data.schedules ? data.schedules.filter(s => s.shift_id !== null).length : 0;
+        const totalEmployees = data.filtered_schedules || data.schedules?.length || 0;
+
+        toast({
+          title: "Generierung erfolgreich",
+          description: `Schichtplan für ${totalEmployees} Mitarbeiter generiert mit ${generatedCount} zugewiesenen Schichten.`,
+        });
+
+        // Add success log
+        addGenerationLog("info", "Generierung erfolgreich abgeschlossen",
+          `${generatedCount} Schichten wurden ${totalEmployees} Mitarbeitern zugewiesen.`);
+
+        // Allow time for UI update before hiding overlay
+        setTimeout(() => {
+          setShowGenerationOverlay(false);
+        }, 1500);
+      }
     },
     onError: (error: unknown) => {
       const errorMessage = error instanceof Error ? error.message : "Unbekannter Fehler";
@@ -936,9 +962,9 @@ export function SchedulePage() {
 
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full mx-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-md w-full mx-4">
           <div className="text-center mb-4">
-            <h2 className="text-xl font-semibold">
+            <h2 className="text-xl font-semibold dark:text-white">
               {hasErrors ? (
                 <span className="text-red-500 flex items-center justify-center">
                   <AlertCircle className="h-5 w-5 mr-2" />
@@ -952,7 +978,7 @@ export function SchedulePage() {
 
           <div className="py-4">
             {!hasErrors ? (
-              <div className="text-center mb-4">
+              <div className="text-center mb-4 dark:text-gray-200">
                 Bitte warten Sie, während der Schichtplan generiert wird...
               </div>
             ) : (
@@ -972,13 +998,13 @@ export function SchedulePage() {
                     ) : step.status === "error" ? (
                       <XCircle className="h-6 w-6 text-red-500" />
                     ) : (
-                      <Circle className="h-6 w-6 text-gray-300" />
+                      <Circle className="h-6 w-6 text-gray-300 dark:text-gray-500" />
                     )}
                   </div>
                   <div className="flex-grow">
-                    <div className="font-medium">{step.title}</div>
+                    <div className="font-medium dark:text-white">{step.title}</div>
                     {step.message && (
-                      <div className={`text-sm ${step.status === 'error' ? 'text-red-500' : 'text-gray-500'}`}>
+                      <div className={`text-sm ${step.status === 'error' ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'}`}>
                         {step.message}
                       </div>
                     )}
@@ -989,9 +1015,9 @@ export function SchedulePage() {
 
             {/* Show error details if there are any */}
             {hasErrors && errorLogs.length > 0 && (
-              <div className="mt-6 p-3 bg-red-50 border border-red-200 rounded-md">
-                <h4 className="font-medium text-red-700 mb-2">Fehlerdetails:</h4>
-                <ul className="space-y-2 text-sm text-red-700">
+              <div className="mt-6 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                <h4 className="font-medium text-red-700 dark:text-red-400 mb-2">Fehlerdetails:</h4>
+                <ul className="space-y-2 text-sm text-red-700 dark:text-red-400">
                   {errorLogs.map((log, index) => (
                     <li key={index}>
                       <div className="font-medium">{log.message}</div>
@@ -1002,7 +1028,7 @@ export function SchedulePage() {
 
                 {/* Show specific help for known errors */}
                 {hasDurationError && (
-                  <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded-md text-blue-700 text-sm">
+                  <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md text-blue-700 dark:text-blue-400 text-sm">
                     <strong>Tipp:</strong> Es scheint ein Problem mit der Schichtdauer zu geben. Dies kann auftreten, wenn Schichten keine gültige Dauer haben.
 
                     <p className="mt-1">
@@ -1013,7 +1039,7 @@ export function SchedulePage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="w-full mt-2 bg-blue-100 hover:bg-blue-200 border-blue-300 flex items-center justify-center"
+                      className="w-full mt-2 bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-800/50 border-blue-300 dark:border-blue-700 flex items-center justify-center"
                       onClick={handleFixShiftDurations}
                     >
                       <RefreshCw className="h-4 w-4 mr-2" />
@@ -1127,6 +1153,73 @@ export function SchedulePage() {
           });
         });
     }
+  };
+
+  // Add a component to display all generation logs
+  const GenerationLogs = () => {
+    const [isOpen, setIsOpen] = useState(false);
+
+    if (generationLogs.length === 0) return null;
+
+    return (
+      <Card className="mt-4">
+        <CardHeader className="pb-2 cursor-pointer" onClick={() => setIsOpen(!isOpen)}>
+          <CardTitle className="text-sm flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileText size={16} />
+              Generierungs-Logs ({generationLogs.length})
+            </div>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+              {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </Button>
+          </CardTitle>
+        </CardHeader>
+
+        {isOpen && (
+          <CardContent>
+            <div className="space-y-2 max-h-60 overflow-y-auto text-sm">
+              {generationLogs.map((log, index) => (
+                <div
+                  key={index}
+                  className={cn(
+                    "p-2 rounded border",
+                    log.type === 'error' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400' :
+                      log.type === 'warning' ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-400' :
+                        'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400'
+                  )}
+                >
+                  <div className="font-medium flex items-center gap-2">
+                    {log.type === 'error' ? <AlertCircle size={14} /> :
+                      log.type === 'warning' ? <AlertTriangle size={14} /> :
+                        <Info size={14} />}
+                    {log.message}
+                  </div>
+                  {log.details && (
+                    <div className="mt-1 text-xs opacity-80">{log.details}</div>
+                  )}
+                  <div className="text-xs mt-1 opacity-60">
+                    {new Date().toLocaleTimeString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-3 flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  clearGenerationLogs();
+                }}
+              >
+                Logs löschen
+              </Button>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+    );
   };
 
   return (
@@ -1278,6 +1371,8 @@ export function SchedulePage() {
       </DndProvider>
 
       {showGenerationOverlay && <GenerationOverlay />}
+
+      <GenerationLogs />
     </div>
   );
 } 

@@ -54,8 +54,8 @@ class CustomFormatter(logging.Formatter):
 
 class Logger:
     def __init__(self):
-        # Create logs directory in the root folder if it doesn't exist
-        self.logs_dir = ROOT_DIR / "logs"
+        # Create logs directory in the src folder if it doesn't exist
+        self.logs_dir = ROOT_DIR / "src" / "logs"
         self.logs_dir.mkdir(exist_ok=True)
 
         # Create a sessions directory for session-specific logs
