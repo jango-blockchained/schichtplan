@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Optional, cast
 bp = Blueprint("logs", __name__)
 
 
-@bp.route("/logs", methods=["POST"])
+@bp.route("/", methods=["POST"])
 def save_logs():
     """Save logs from frontend"""
     try:
@@ -32,7 +32,7 @@ def save_logs():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-@bp.route("/logs", methods=["GET"])
+@bp.route("/", methods=["GET"])
 def get_logs():
     """Get logs with filtering"""
     try:
@@ -183,7 +183,7 @@ def get_logs():
         ), 500
 
 
-@bp.route("/logs/stats", methods=["GET"])
+@bp.route("/stats", methods=["GET"])
 def get_log_stats():
     """Get log statistics"""
     try:
@@ -287,7 +287,7 @@ def get_log_stats():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-@bp.route("/logs/clear", methods=["POST"])
+@bp.route("/clear", methods=["POST"])
 def clear_logs():
     """Clear all log files"""
     try:

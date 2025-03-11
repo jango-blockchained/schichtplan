@@ -478,3 +478,92 @@ def delete_log(filename):
         ), HTTPStatus.OK
     except Exception as e:
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@settings.route("/settings/scheduling/generation", methods=["GET"])
+def get_generation_settings():
+    """Get schedule generation settings"""
+    try:
+        settings_obj = Settings.query.first()
+        if not settings_obj:
+            settings_obj = Settings.get_default_settings()
+            db.session.add(settings_obj)
+            db.session.commit()
+
+        # Default generation settings
+        default_requirements = {
+            "enforce_minimum_coverage": True,
+            "enforce_contracted_hours": True,
+            "enforce_keyholder_coverage": True,
+            "enforce_rest_periods": True,
+            "enforce_early_late_rules": True,
+            "enforce_employee_group_rules": True,
+            "enforce_break_rules": True,
+            "enforce_max_hours": True,
+            "enforce_consecutive_days": True,
+            "enforce_weekend_distribution": True,
+            "enforce_shift_distribution": True,
+            "enforce_availability": True,
+            "enforce_qualifications": True,
+            "enforce_opening_hours": True,
+        }
+
+        # Try to get settings from scheduling_advanced
+        if (
+            hasattr(settings_obj, "scheduling_advanced")
+            and settings_obj.scheduling_advanced
+        ):
+            scheduling_advanced = settings_obj.scheduling_advanced
+            if (
+                isinstance(scheduling_advanced, dict)
+                and "generation_requirements" in scheduling_advanced
+            ):
+                # Return stored settings with defaults filled in
+                generation_requirements = scheduling_advanced["generation_requirements"]
+                # Ensure all required keys are present
+                for key, value in default_requirements.items():
+                    if key not in generation_requirements:
+                        generation_requirements[key] = value
+                return jsonify(generation_requirements), HTTPStatus.OK
+
+        # If we get here, return default settings
+        return jsonify(default_requirements), HTTPStatus.OK
+    except Exception as e:
+        logging.error(f"Error getting generation settings: {str(e)}")
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@settings.route("/settings/scheduling/generation", methods=["PUT"])
+def update_generation_settings():
+    """Update schedule generation settings"""
+    try:
+        # Get request data
+        data = request.json
+        if not data:
+            return jsonify({"error": "No data provided"}), HTTPStatus.BAD_REQUEST
+
+        # Get settings
+        settings_obj = Settings.query.first()
+        if not settings_obj:
+            settings_obj = Settings.get_default_settings()
+            db.session.add(settings_obj)
+            db.session.commit()
+
+        # Initialize scheduling_advanced if it doesn't exist
+        if settings_obj.scheduling_advanced is None:
+            settings_obj.scheduling_advanced = {}
+
+        # Update generation requirements
+        if "generation_requirements" not in settings_obj.scheduling_advanced:
+            settings_obj.scheduling_advanced["generation_requirements"] = {}
+
+        # Update with new values
+        settings_obj.scheduling_advanced["generation_requirements"].update(data)
+        db.session.commit()
+
+        return jsonify(
+            settings_obj.scheduling_advanced["generation_requirements"]
+        ), HTTPStatus.OK
+    except Exception as e:
+        logging.error(f"Error updating generation settings: {str(e)}")
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR

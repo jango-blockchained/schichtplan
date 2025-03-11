@@ -665,20 +665,28 @@ class ScheduleGenerator:
 
                 if existing_entries:
                     self._log_info(
-                        f"Deleting {len(existing_entries)} existing schedule entries"
+                        f"Deleting {len(existing_entries)} existing schedule entries for version {self.version}"
                     )
                     for entry in existing_entries:
                         db.session.delete(entry)
                     db.session.commit()
+                    self._log_info("Deleted existing entries successfully")
 
                 # Add all entries to the database
+                entry_count = 0
                 for entry in self.schedule:
                     db.session.add(entry)
+                    entry_count += 1
+
+                # Log the number of entries being added
+                self._log_info(
+                    f"Adding {entry_count} new schedule entries for version {self.version}"
+                )
 
                 # Commit the transaction
                 db.session.commit()
                 self._log_info(
-                    f"Successfully saved {len(self.schedule)} schedule entries to database"
+                    f"Successfully saved {entry_count} schedule entries to database"
                 )
         except Exception as e:
             # If something goes wrong, rollback the transaction

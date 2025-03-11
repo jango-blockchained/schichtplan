@@ -214,6 +214,9 @@ class Settings(db.Model):
     # Actions Settings - deferred loading to prevent errors if column doesn't exist
     _actions_demo_data = deferred(Column("actions_demo_data", JSON, nullable=True))
 
+    # Advanced scheduling settings
+    scheduling_advanced = Column(JSON, nullable=True, default=dict)
+
     def get_actions_demo_data(self):
         """Get the actions demo data with fallback to default value"""
         try:
@@ -387,6 +390,12 @@ class Settings(db.Model):
             ),
             "actions": {"demo_data": self.actions_demo_data},
         }
+
+        # Include scheduling_advanced data in the scheduling section if it exists
+        if self.scheduling_advanced and isinstance(self.scheduling_advanced, dict):
+            # Merge with the scheduling section
+            result["scheduling"].update(self.scheduling_advanced)
+
         return result
 
     @classmethod

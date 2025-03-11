@@ -7,7 +7,7 @@ from datetime import datetime
 import random
 import logging
 
-bp = Blueprint("demo_data", __name__, url_prefix="/api/demo_data")
+bp = Blueprint("demo_data", __name__, url_prefix="/demo-data")
 
 
 def generate_employee_types():
@@ -423,7 +423,7 @@ def generate_shift_templates():
 def generate_demo_data():
     """Generate demo data"""
     try:
-        module = request.args.get("module", "all")
+        module = request.json.get("module", "all")
         logging.info(f"Generating demo data for module: {module}")
 
         if module in ["settings", "all"]:
@@ -454,10 +454,9 @@ def generate_demo_data():
                 raise
 
         if module in ["shifts", "all"]:
-            logging.info("Generating optimized shift templates...")
+            logging.info("Generating shift templates...")
             try:
-                # Use the improved shift templates function
-                shift_templates = generate_improved_shift_templates()
+                shift_templates = generate_shift_templates()
                 logging.info(
                     f"Successfully created {len(shift_templates)} shift templates"
                 )
@@ -468,10 +467,9 @@ def generate_demo_data():
 
         if module in ["employees", "all"]:
             # Clear existing employees
-            logging.info("Generating optimized employees...")
+            logging.info("Generating employees...")
             Employee.query.delete()
-            # Use the improved employee data function
-            employees = generate_improved_employee_data()
+            employees = generate_employee_data()
             db.session.add_all(employees)
             try:
                 db.session.commit()
@@ -483,9 +481,8 @@ def generate_demo_data():
 
             if module == "all":
                 # Generate availability for new employees
-                logging.info("Generating optimized availabilities...")
-                # Use the improved availability data function
-                availabilities = generate_improved_availability_data(employees)
+                logging.info("Generating availabilities...")
+                availabilities = generate_availability_data(employees)
                 db.session.add_all(availabilities)
                 try:
                     db.session.commit()
@@ -505,9 +502,8 @@ def generate_demo_data():
                     db.session.commit()
 
                     # Generate and save new coverage data in a new transaction
-                    logging.info("Generating optimized coverage...")
-                    # Use the improved coverage data function
-                    coverage_slots = generate_improved_coverage_data()
+                    logging.info("Generating coverage...")
+                    coverage_slots = generate_coverage_data()
                     db.session.add_all(coverage_slots)
                     db.session.commit()
                     logging.info(
@@ -520,12 +516,9 @@ def generate_demo_data():
 
         elif module == "availability":
             # Generate new availabilities for existing employees
-            logging.info(
-                "Generating optimized availabilities for existing employees..."
-            )
+            logging.info("Generating availabilities for existing employees...")
             employees = Employee.query.all()
-            # Use the improved availability data function
-            availabilities = generate_improved_availability_data(employees)
+            availabilities = generate_availability_data(employees)
             db.session.add_all(availabilities)
             try:
                 db.session.commit()
@@ -545,9 +538,8 @@ def generate_demo_data():
                 db.session.commit()
 
                 # Generate and save new coverage data in a new transaction
-                logging.info("Generating optimized coverage...")
-                # Use the improved coverage data function
-                coverage_slots = generate_improved_coverage_data()
+                logging.info("Generating coverage...")
+                coverage_slots = generate_coverage_data()
                 db.session.add_all(coverage_slots)
                 db.session.commit()
                 logging.info(
@@ -575,7 +567,7 @@ def generate_demo_data():
 
         return jsonify(
             {
-                "message": f"Successfully generated optimized demo data for module: {module}",
+                "message": f"Successfully generated demo data for module: {module}",
                 "timestamp": datetime.utcnow().isoformat(),
             }
         ), HTTPStatus.OK
