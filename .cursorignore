@@ -31,10 +31,10 @@ instance/
 .DS_Store
 
 # Logs and databases
-*.log
-*.sqlite
-*.sqlite3
-*.db
+# *.log
+# *.sqlite
+# *.sqlite3
+# *.db
 
 # Temporary and backup
 backup/
