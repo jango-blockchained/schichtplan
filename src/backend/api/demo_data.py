@@ -454,11 +454,10 @@ def generate_demo_data():
                 raise
 
         if module in ["shifts", "all"]:
-            logging.info("Generating shift templates...")
+            logging.info("Generating optimized shift templates...")
             try:
-                shift_templates = generate_shift_templates()
-                db.session.add_all(shift_templates)
-                db.session.commit()
+                # Use the improved shift templates function
+                shift_templates = generate_improved_shift_templates()
                 logging.info(
                     f"Successfully created {len(shift_templates)} shift templates"
                 )
@@ -469,9 +468,10 @@ def generate_demo_data():
 
         if module in ["employees", "all"]:
             # Clear existing employees
-            logging.info("Generating demo employees...")
+            logging.info("Generating optimized employees...")
             Employee.query.delete()
-            employees = generate_employee_data()
+            # Use the improved employee data function
+            employees = generate_improved_employee_data()
             db.session.add_all(employees)
             try:
                 db.session.commit()
@@ -483,8 +483,9 @@ def generate_demo_data():
 
             if module == "all":
                 # Generate availability for new employees
-                logging.info("Generating demo availabilities...")
-                availabilities = generate_availability_data(employees)
+                logging.info("Generating optimized availabilities...")
+                # Use the improved availability data function
+                availabilities = generate_improved_availability_data(employees)
                 db.session.add_all(availabilities)
                 try:
                     db.session.commit()
@@ -504,8 +505,9 @@ def generate_demo_data():
                     db.session.commit()
 
                     # Generate and save new coverage data in a new transaction
-                    logging.info("Generating demo coverage...")
-                    coverage_slots = generate_coverage_data()
+                    logging.info("Generating optimized coverage...")
+                    # Use the improved coverage data function
+                    coverage_slots = generate_improved_coverage_data()
                     db.session.add_all(coverage_slots)
                     db.session.commit()
                     logging.info(
@@ -518,9 +520,12 @@ def generate_demo_data():
 
         elif module == "availability":
             # Generate new availabilities for existing employees
-            logging.info("Generating demo availabilities for existing employees...")
+            logging.info(
+                "Generating optimized availabilities for existing employees..."
+            )
             employees = Employee.query.all()
-            availabilities = generate_availability_data(employees)
+            # Use the improved availability data function
+            availabilities = generate_improved_availability_data(employees)
             db.session.add_all(availabilities)
             try:
                 db.session.commit()
@@ -540,8 +545,9 @@ def generate_demo_data():
                 db.session.commit()
 
                 # Generate and save new coverage data in a new transaction
-                logging.info("Generating demo coverage...")
-                coverage_slots = generate_coverage_data()
+                logging.info("Generating optimized coverage...")
+                # Use the improved coverage data function
+                coverage_slots = generate_improved_coverage_data()
                 db.session.add_all(coverage_slots)
                 db.session.commit()
                 logging.info(
@@ -569,7 +575,7 @@ def generate_demo_data():
 
         return jsonify(
             {
-                "message": f"Successfully generated demo data for module: {module}",
+                "message": f"Successfully generated optimized demo data for module: {module}",
                 "timestamp": datetime.utcnow().isoformat(),
             }
         ), HTTPStatus.OK
@@ -580,3 +586,500 @@ def generate_demo_data():
         return jsonify(
             {"error": "Failed to generate demo data", "details": str(e)}
         ), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+def generate_improved_employee_data():
+    """Generate optimized employee data with keyholders and proper distribution of types"""
+    settings = Settings.query.first()
+    if not settings:
+        settings = Settings.get_default_settings()
+        db.session.add(settings)
+        db.session.commit()
+
+    # Clear all existing employees first
+    Employee.query.delete()
+    db.session.commit()
+
+    # Define employee types with proper distribution
+    employee_types = [
+        {
+            "id": "TL",
+            "name": "Teamleiter",
+            "min_hours": 35,
+            "max_hours": 40,
+            "count": 3,
+        },
+        {"id": "VZ", "name": "Vollzeit", "min_hours": 35, "max_hours": 40, "count": 7},
+        {"id": "TZ", "name": "Teilzeit", "min_hours": 15, "max_hours": 34, "count": 12},
+        {
+            "id": "GFB",
+            "name": "Geringfügig Beschäftigt",
+            "min_hours": 0,
+            "max_hours": 14,
+            "count": 8,
+        },
+    ]
+
+    first_names = [
+        "Anna",
+        "Max",
+        "Sophie",
+        "Liam",
+        "Emma",
+        "Noah",
+        "Mia",
+        "Lucas",
+        "Maike",
+        "Tim",
+        "Laura",
+        "Jan",
+        "Julia",
+        "David",
+        "Nina",
+        "Thomas",
+        "Sarah",
+        "Felix",
+        "Lisa",
+        "Michael",
+        "Lena",
+        "Daniel",
+        "Hannah",
+        "Paul",
+        "Charlotte",
+        "Elias",
+        "Marie",
+        "Leon",
+        "Victoria",
+        "Ben",
+    ]
+
+    last_names = [
+        "Müller",
+        "Schmidt",
+        "Weber",
+        "Wagner",
+        "Fischer",
+        "Becker",
+        "Maier",
+        "Hoffmann",
+        "Schneider",
+        "Meyer",
+        "Lang",
+        "Klein",
+        "Schulz",
+        "Kowalski",
+        "Huber",
+        "Wolf",
+        "Peters",
+        "Richter",
+        "Lehmann",
+        "Krause",
+        "Schäfer",
+        "König",
+        "Schwarz",
+        "Krüger",
+        "Walter",
+        "Schmitz",
+        "Roth",
+        "Lorenz",
+        "Bauer",
+        "Kaiser",
+    ]
+
+    employees = []
+    employee_id_counter = 1
+
+    # Create employees based on the defined distribution
+    for emp_type in employee_types:
+        for i in range(emp_type["count"]):
+            first_name = random.choice(first_names)
+            last_name = random.choice(last_names)
+
+            # Generate employee_id based on name
+            base_id = f"{first_name[0]}{last_name[:2]}".upper()
+            employee_id = f"{base_id}{employee_id_counter:02d}"
+            employee_id_counter += 1
+
+            # Set contracted hours within valid range for employee type
+            if emp_type["id"] in ["VZ", "TL"]:
+                contracted_hours = 40.0  # Standard full-time hours
+            elif emp_type["id"] == "TZ":
+                contracted_hours = random.randint(20, 34)  # Part-time range
+            else:  # GFB
+                contracted_hours = random.randint(8, 14)  # Mini-job range
+
+            # All TL and first 2 VZ employees are keyholders (ensures enough keyholders)
+            is_keyholder = emp_type["id"] == "TL" or (emp_type["id"] == "VZ" and i < 2)
+
+            employee = Employee(
+                employee_id=employee_id,
+                first_name=first_name,
+                last_name=last_name,
+                employee_group=emp_type["id"],
+                contracted_hours=contracted_hours,
+                is_keyholder=is_keyholder,
+                is_active=True,
+                email=f"employee{len(employees) + 1}@example.com",
+                phone=f"+49 {random.randint(100, 999)} {random.randint(1000000, 9999999)}",
+            )
+            employees.append(employee)
+
+    return employees
+
+
+def generate_improved_coverage_data():
+    """Generate optimized coverage data with reasonable staffing requirements"""
+    # Get store settings
+    settings = Settings.query.first()
+    if not settings:
+        settings = Settings.get_default_settings()
+
+    coverage_slots = []
+    for day_index in range(0, 6):  # Monday (0) to Saturday (5)
+        # Morning slot (9:00-14:00)
+        coverage_slots.append(
+            Coverage(
+                day_index=day_index,
+                start_time="09:00",
+                end_time="14:00",
+                min_employees=2,  # Increased from 1
+                max_employees=4,
+                employee_types=["TL", "VZ", "TZ", "GFB"],
+                requires_keyholder=True,
+                keyholder_before_minutes=settings.keyholder_before_minutes,
+                keyholder_after_minutes=0,
+            )
+        )
+        # Afternoon slot (14:00-20:00)
+        coverage_slots.append(
+            Coverage(
+                day_index=day_index,
+                start_time="14:00",
+                end_time="20:00",
+                min_employees=2,  # Increased from 1
+                max_employees=4,
+                employee_types=["TL", "VZ", "TZ", "GFB"],
+                requires_keyholder=True,
+                keyholder_before_minutes=0,
+                keyholder_after_minutes=settings.keyholder_after_minutes,
+            )
+        )
+
+    return coverage_slots
+
+
+def generate_improved_availability_data(employees):
+    """Generate optimized availability data ensuring coverage requirements are met"""
+    availabilities = []
+
+    # Group employees by type for easier assignment
+    employee_groups = {
+        "TL": [e for e in employees if e.employee_group == "TL"],
+        "VZ": [e for e in employees if e.employee_group == "VZ"],
+        "TZ": [e for e in employees if e.employee_group == "TZ"],
+        "GFB": [e for e in employees if e.employee_group == "GFB"],
+    }
+
+    # Define working days (Monday to Saturday)
+    working_days = range(1, 7)  # 1-6 (Monday-Saturday)
+
+    # Step 1: Ensure keyholders have availability for each time slot
+    # We need at least one keyholder available for each day and time slot
+    keyholders = [e for e in employees if e.is_keyholder]
+
+    # Assign keyholders to ensure coverage for all time slots
+    for day in working_days:
+        # Create a rotation of keyholders for morning and afternoon slots
+        for slot_idx, (start_hour, end_hour) in enumerate([(9, 14), (14, 20)]):
+            # Use a different keyholder for each slot to avoid overloading
+            assigned_keyholders = []
+
+            # Choose 2 keyholders for this slot
+            slot_keyholders = random.sample(keyholders, min(2, len(keyholders)))
+            assigned_keyholders.extend(slot_keyholders)
+
+            # Set availability for chosen keyholders
+            for keyholder in slot_keyholders:
+                for hour in range(start_hour, end_hour):
+                    availability = EmployeeAvailability(
+                        employee_id=keyholder.id,
+                        is_recurring=True,
+                        day_of_week=day,
+                        hour=hour,
+                        is_available=True,
+                        availability_type=AvailabilityType.FIXED,  # Keyholders get fixed schedules
+                    )
+                    availabilities.append(availability)
+
+    # Step 2: Assign regular full-time employees (VZ) to shifts
+    # Each VZ employee works 5 days per week with 8 hour shifts
+    for employee in employee_groups["VZ"]:
+        # Choose 5 random days for this employee
+        work_days = random.sample(list(working_days), 5)
+
+        for day in work_days:
+            # Decide if morning or afternoon shift
+            if random.random() < 0.5:  # Morning shift
+                start_hour, end_hour = 9, 17  # 8-hour shift
+            else:  # Afternoon shift
+                start_hour, end_hour = 12, 20  # 8-hour shift
+
+            for hour in range(start_hour, end_hour):
+                availability = EmployeeAvailability(
+                    employee_id=employee.id,
+                    is_recurring=True,
+                    day_of_week=day,
+                    hour=hour,
+                    is_available=True,
+                    availability_type=AvailabilityType.AVAILABLE,
+                )
+                availabilities.append(availability)
+
+    # Step 3: Assign part-time employees (TZ) to shifts
+    # Each TZ employee works 3-4 days per week with 6-hour shifts
+    for employee in employee_groups["TZ"]:
+        work_days_count = random.randint(3, 4)
+        work_days = random.sample(list(working_days), work_days_count)
+
+        for day in work_days:
+            # Assign to either morning, midday, or afternoon shift
+            shift_type = random.choice(["morning", "midday", "afternoon"])
+
+            if shift_type == "morning":
+                start_hour, end_hour = 9, 15  # 6-hour shift
+            elif shift_type == "midday":
+                start_hour, end_hour = 11, 17  # 6-hour shift
+            else:  # afternoon
+                start_hour, end_hour = 14, 20  # 6-hour shift
+
+            for hour in range(start_hour, end_hour):
+                availability = EmployeeAvailability(
+                    employee_id=employee.id,
+                    is_recurring=True,
+                    day_of_week=day,
+                    hour=hour,
+                    is_available=True,
+                    availability_type=AvailabilityType.AVAILABLE,
+                )
+                availabilities.append(availability)
+
+    # Step 4: Assign mini-job employees (GFB) to shifts
+    # Each GFB employee works 2-3 days per week with 4-hour shifts
+    for employee in employee_groups["GFB"]:
+        work_days_count = random.randint(2, 3)
+        work_days = random.sample(list(working_days), work_days_count)
+
+        for day in work_days:
+            # Assign to either morning or afternoon short shift
+            if random.random() < 0.5:  # Morning shift
+                start_hour, end_hour = 9, 13  # 4-hour shift
+            else:  # Afternoon shift
+                start_hour, end_hour = 16, 20  # 4-hour shift
+
+            for hour in range(start_hour, end_hour):
+                availability = EmployeeAvailability(
+                    employee_id=employee.id,
+                    is_recurring=True,
+                    day_of_week=day,
+                    hour=hour,
+                    is_available=True,
+                    availability_type=AvailabilityType.AVAILABLE,
+                )
+                availabilities.append(availability)
+
+    # Step 5: Add some random promised availability to increase flexibility
+    for employee in employees:
+        # 30% chance to add some promised hours
+        if random.random() < 0.3:
+            # Pick a day they don't already have availability
+            existing_days = set(
+                a.day_of_week for a in availabilities if a.employee_id == employee.id
+            )
+            available_days = [day for day in working_days if day not in existing_days]
+
+            if available_days:
+                extra_day = random.choice(available_days)
+                if random.random() < 0.5:  # Morning shift
+                    start_hour, end_hour = 9, 14
+                else:  # Afternoon shift
+                    start_hour, end_hour = 14, 19
+
+                for hour in range(start_hour, end_hour):
+                    availability = EmployeeAvailability(
+                        employee_id=employee.id,
+                        is_recurring=True,
+                        day_of_week=extra_day,
+                        hour=hour,
+                        is_available=True,
+                        availability_type=AvailabilityType.PROMISE,
+                    )
+                    availabilities.append(availability)
+
+    return availabilities
+
+
+def generate_improved_shift_templates():
+    """Generate optimized shift templates aligned with coverage requirements"""
+    logging.info("Generating optimized shift templates...")
+
+    # Delete existing shift templates
+    ShiftTemplate.query.delete()
+    db.session.commit()
+
+    shift_templates = [
+        # Full-time shifts (8 hours) that align with coverage slots
+        ShiftTemplate(
+            start_time="09:00",
+            end_time="16:00",
+            min_employees=1,
+            max_employees=3,
+            requires_break=True,
+            shift_type=ShiftType.EARLY,
+            active_days={
+                "0": False,
+                "1": True,
+                "2": True,
+                "3": True,
+                "4": True,
+                "5": True,
+                "6": True,
+            },
+        ),
+        ShiftTemplate(
+            start_time="09:00",
+            end_time="17:00",
+            min_employees=1,
+            max_employees=3,
+            requires_break=True,
+            shift_type=ShiftType.MIDDLE,
+            active_days={
+                "0": False,
+                "1": True,
+                "2": True,
+                "3": True,
+                "4": True,
+                "5": True,
+                "6": True,
+            },
+        ),
+        ShiftTemplate(
+            start_time="12:00",
+            end_time="20:00",
+            min_employees=1,
+            max_employees=3,
+            requires_break=True,
+            shift_type=ShiftType.LATE,
+            active_days={
+                "0": False,
+                "1": True,
+                "2": True,
+                "3": True,
+                "4": True,
+                "5": True,
+                "6": True,
+            },
+        ),
+        # Part-time shifts (6 hours)
+        ShiftTemplate(
+            start_time="09:00",
+            end_time="15:00",
+            min_employees=1,
+            max_employees=3,
+            requires_break=False,
+            shift_type=ShiftType.EARLY,
+            active_days={
+                "0": False,
+                "1": True,
+                "2": True,
+                "3": True,
+                "4": True,
+                "5": True,
+                "6": True,
+            },
+        ),
+        ShiftTemplate(
+            start_time="11:00",
+            end_time="17:00",
+            min_employees=1,
+            max_employees=3,
+            requires_break=False,
+            shift_type=ShiftType.MIDDLE,
+            active_days={
+                "0": False,
+                "1": True,
+                "2": True,
+                "3": True,
+                "4": True,
+                "5": True,
+                "6": True,
+            },
+        ),
+        ShiftTemplate(
+            start_time="14:00",
+            end_time="20:00",
+            min_employees=1,
+            max_employees=3,
+            requires_break=False,
+            shift_type=ShiftType.LATE,
+            active_days={
+                "0": False,
+                "1": True,
+                "2": True,
+                "3": True,
+                "4": True,
+                "5": True,
+                "6": True,
+            },
+        ),
+        # Mini-job shifts (4 hours)
+        ShiftTemplate(
+            start_time="09:00",
+            end_time="13:00",
+            min_employees=1,
+            max_employees=2,
+            requires_break=False,
+            shift_type=ShiftType.EARLY,
+            active_days={
+                "0": False,
+                "1": True,
+                "2": True,
+                "3": True,
+                "4": True,
+                "5": True,
+                "6": True,
+            },
+        ),
+        ShiftTemplate(
+            start_time="16:00",
+            end_time="20:00",
+            min_employees=1,
+            max_employees=2,
+            requires_break=False,
+            shift_type=ShiftType.LATE,
+            active_days={
+                "0": False,
+                "1": True,
+                "2": True,
+                "3": True,
+                "4": True,
+                "5": True,
+                "6": True,
+            },
+        ),
+    ]
+
+    # Calculate durations and validate before adding
+    for template in shift_templates:
+        template._calculate_duration()
+        template.validate()
+        db.session.add(template)
+
+    try:
+        db.session.commit()
+        logging.info(f"Successfully created {len(shift_templates)} shift templates")
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Error creating shift templates: {str(e)}")
+        raise
+
+    return shift_templates

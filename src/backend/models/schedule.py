@@ -45,6 +45,7 @@ class Schedule(db.Model):
         break_start=None,
         break_end=None,
         notes=None,
+        status=ScheduleStatus.DRAFT,
     ):
         self.employee_id = employee_id
         self.shift_id = shift_id
@@ -53,6 +54,7 @@ class Schedule(db.Model):
         self.break_start = break_start
         self.break_end = break_end
         self.notes = notes
+        self.status = status
 
     def to_dict(self):
         """Convert schedule to dictionary for API response"""
@@ -115,6 +117,30 @@ class ScheduleVersionMeta(db.Model):
     date_range_end = Column(db.Date, nullable=False)
     base_version = Column(Integer, nullable=True)
     notes = Column(db.Text, nullable=True)
+
+    def __init__(
+        self,
+        version,
+        created_at=None,
+        created_by=None,
+        updated_at=None,
+        updated_by=None,
+        status=ScheduleStatus.DRAFT,
+        date_range_start=None,
+        date_range_end=None,
+        base_version=None,
+        notes=None,
+    ):
+        self.version = version
+        self.created_at = created_at or datetime.utcnow()
+        self.created_by = created_by
+        self.updated_at = updated_at
+        self.updated_by = updated_by
+        self.status = status
+        self.date_range_start = date_range_start
+        self.date_range_end = date_range_end
+        self.base_version = base_version
+        self.notes = notes
 
     def to_dict(self):
         return {
