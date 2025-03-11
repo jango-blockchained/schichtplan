@@ -30,6 +30,14 @@ from utils.logger import (
     CustomFormatter,
 )  # Import Logger class and CustomFormatter
 
+# Import diagnostic tools
+try:
+    from tools.debug.flask_diagnostic import (
+        register_commands as register_diagnostic_commands,
+    )
+except ImportError:
+    register_diagnostic_commands = None
+
 
 def setup_logging(app):
     # Create a new logger instance
@@ -113,6 +121,10 @@ def create_app(config_class=Config):
         register_commands(app)
     except ImportError:
         pass  # Ignore if test_scheduler is not available
+
+    # Register diagnostic commands if available
+    if register_diagnostic_commands:
+        register_diagnostic_commands(app)
 
     @app.errorhandler(Exception)
     def handle_error(error):
