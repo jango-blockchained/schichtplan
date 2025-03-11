@@ -2,10 +2,11 @@ from datetime import datetime, timedelta, date
 from typing import List, Dict, Any, Optional, Iterable
 from models import Employee, ShiftTemplate, Schedule, Coverage, db, Settings
 from models.schedule import ScheduleStatus
+from models.employee import AvailabilityType
 from utils.logger import logger
 from .resources import ScheduleResources
 from .validator import ScheduleValidator, ScheduleConfig
-from .utility import requires_keyholder, time_to_minutes, shifts_overlap
+from .utility import time_to_minutes, shifts_overlap
 from collections import defaultdict
 
 
@@ -114,33 +115,110 @@ class ScheduleGenerator:
 
             # Process each coverage requirement
             for coverage in coverages:
-                self._process_coverage(current_date, coverage)
+                self._process_coverage(coverage, current_date, self.version)
 
-    def _process_coverage(self, current_date: date, coverage: Coverage) -> None:
-        """Process a single coverage requirement"""
-        self._log_debug(
-            f"Processing coverage for {current_date}: {coverage.start_time}-{coverage.end_time}"
+    def _process_coverage(
+        self, coverage: Coverage, current_date: date, version: int
+    ) -> List[Schedule]:
+        """Process a coverage requirement for a given date"""
+        logger.schedule_logger.info(
+            f"Processing coverage for {current_date} {coverage.start_time}-{coverage.end_time}"
         )
 
-        # Find suitable shifts for this coverage
-        shifts = self._find_matching_shifts(coverage)
-        if not shifts:
-            self._log_warning(
+        # Find matching shifts for this coverage period
+        matching_shifts = self._find_matching_shifts(coverage)
+
+        if not matching_shifts:
+            logger.schedule_logger.warning(
                 f"No matching shifts found for coverage {coverage.start_time}-{coverage.end_time}"
             )
-            return
+            return []
+
+        # Sort shifts by priority
+        matching_shifts.sort(key=lambda s: self._get_shift_priority(s, current_date))
 
         # Get available employees for this time slot
-        shift = shifts[0]  # Use the first matching shift
-        employees = self._get_available_employees(current_date, shift)
-        if not employees:
-            self._log_warning(
-                f"No available employees for {current_date} {shift.start_time}-{shift.end_time}"
-            )
-            return
+        available_employees = self._get_available_employees(
+            current_date, coverage.start_time, coverage.end_time
+        )
 
-        # Assign employees based on coverage requirements
-        self._assign_employees(current_date, shift, employees, coverage.min_employees)
+        if not available_employees:
+            logger.schedule_logger.warning(
+                f"No available employees found for {current_date} {coverage.start_time}-{coverage.end_time}"
+            )
+            return []
+
+        # Filter for employees with required skills for the coverage
+        if coverage.requires_keyholder:
+            keyholder_employees = [e for e in available_employees if e.is_keyholder]
+            if not keyholder_employees:
+                logger.schedule_logger.warning(
+                    f"No keyholders available for {current_date} {coverage.start_time}-{coverage.end_time}"
+                )
+            else:
+                # Make sure we have at least one keyholder
+                available_employees = [
+                    e for e in available_employees if e.is_keyholder
+                ] + [e for e in available_employees if not e.is_keyholder]
+
+        # Try to assign enough employees to meet the minimum requirement
+        employees_needed = max(coverage.min_employees, 1)  # Ensure at least 1 employee
+        max_employees = (
+            coverage.max_employees or employees_needed * 2
+        )  # Use reasonable max if not specified
+
+        # Track assigned employees and schedules
+        assigned_employees = set()
+        schedules = []
+
+        # Try each shift until we have enough employees
+        for shift in matching_shifts:
+            # Skip if we've assigned enough employees
+            if len(assigned_employees) >= max_employees:
+                break
+
+            # Get employees who can work this shift and haven't been assigned yet
+            shift_employees = [
+                emp
+                for emp in available_employees
+                if emp.id not in assigned_employees
+                and not self._exceeds_constraints(emp, current_date, shift)
+            ]
+
+            # Sort employees by priority for this specific shift
+            shift_employees.sort(key=lambda e: self._get_employee_priority(e, shift))
+
+            # Calculate how many more employees we need
+            remaining_needed = max_employees - len(assigned_employees)
+
+            # Take only as many employees as we need for this shift
+            employees_to_assign = shift_employees[:remaining_needed]
+
+            # Create schedule entries for assigned employees
+            for employee in employees_to_assign:
+                schedule = Schedule(
+                    employee_id=employee.id,
+                    date=current_date,
+                    shift_id=shift.id,
+                    status=ScheduleStatus.DRAFT,
+                    version=version,
+                )
+                schedules.append(schedule)
+                assigned_employees.add(employee.id)
+                logger.schedule_logger.info(
+                    f"Assigned {employee.first_name} {employee.last_name} "
+                    f"to shift {shift.shift_type} on {current_date}"
+                )
+
+        # Log warning if we couldn't assign enough employees
+        if len(assigned_employees) < employees_needed:
+            logger.schedule_logger.warning(
+                f"Could only assign {len(assigned_employees)} employees "
+                f"(needed {employees_needed}) for {current_date} "
+                f"{coverage.start_time}-{coverage.end_time}"
+            )
+
+        return schedules
 
     def _find_matching_shifts(self, coverage: Coverage) -> List[ShiftTemplate]:
         """Find shifts that match the coverage time period"""
@@ -168,66 +246,77 @@ class ScheduleGenerator:
         return matching_shifts
 
     def _get_available_employees(
-        self, current_date: date, shift: ShiftTemplate
+        self, current_date: date, start_time: str, end_time: str
     ) -> List[Employee]:
-        """Get employees available for the given shift on the specified date"""
+        """Get list of employees available for a given date and time slot"""
         available_employees = []
 
         for employee in self.resources.employees:
-            # Check if employee is available
-            start_hour = int(shift.start_time.split(":")[0])
-            end_hour = int(shift.end_time.split(":")[0])
+            # Skip inactive employees
+            if not employee.is_active:
+                continue
 
-            if self.resources.is_employee_available(
-                employee.id, current_date, start_hour, end_hour
+            # Skip if employee already has a shift on this date
+            if any(
+                s.employee_id == employee.id and s.date == current_date
+                for s in self.schedule
             ):
-                # Check if employee doesn't exceed max hours/shifts
-                if not self._exceeds_constraints(employee, current_date, shift):
-                    # Check if employee has required skills for the shift
-                    if self._has_required_skills(employee, shift):
-                        # Check if this assignment wouldn't violate rest periods
-                        if self._has_enough_rest(employee, current_date, shift):
-                            available_employees.append(employee)
+                continue
 
-        # Prioritize keyholders for shifts that require them
-        if requires_keyholder(shift):
-            keyholders = [e for e in available_employees if e.is_keyholder]
-            non_keyholders = [e for e in available_employees if not e.is_keyholder]
-            available_employees = keyholders + non_keyholders
+            # Skip if employee has worked too many consecutive days
+            if (
+                self._count_consecutive_days(employee.id, current_date) >= 6
+            ):  # Max 6 consecutive days
+                continue
+
+            # Skip if this would exceed weekly hours
+            if self._would_exceed_weekly_hours(
+                employee.id, current_date, start_time, end_time
+            ):
+                continue
+
+            # Check employee's availability for this time slot
+            employee_availabilities = [
+                a
+                for a in self.resources.availabilities
+                if a.employee_id == employee.id
+                and a.day_of_week == current_date.weekday()
+                and a.is_available
+                and a.availability_type
+                in [
+                    AvailabilityType.AVAILABLE,
+                    AvailabilityType.FIXED,
+                    AvailabilityType.PROMISE,
+                ]
+            ]
+
+            # Convert shift times to hours for comparison
+            start_hour = int(start_time.split(":")[0])
+            end_hour = int(end_time.split(":")[0])
+
+            # Check if employee is available for any hour during the shift
+            is_available = False
+            for avail in employee_availabilities:
+                if avail.hour >= start_hour and avail.hour < end_hour:
+                    is_available = True
+                    break
+
+            if is_available:
+                available_employees.append(employee)
+
+        # Sort available employees by priority:
+        # 1. Keyholders first
+        # 2. Higher contracted hours
+        # 3. Employee ID for stable sort
+        available_employees.sort(
+            key=lambda e: (
+                0 if e.is_keyholder else 1,
+                -e.contracted_hours,  # Higher contracted hours = higher priority
+                e.id,  # Stable sort by ID
+            )
+        )
 
         return available_employees
-
-    def _assign_employees(
-        self,
-        current_date: date,
-        shift: ShiftTemplate,
-        employees: List[Employee],
-        min_count: int,
-    ) -> None:
-        """Assign employees to a shift"""
-        assigned_count = 0
-
-        for employee in employees:
-            if assigned_count >= min_count:
-                break
-
-            # Create schedule entry
-            schedule_entry = Schedule(
-                employee_id=employee.id, shift_id=shift.id, date=current_date
-            )
-
-            # Manually set status instead of using constructor
-            schedule_entry.status = ScheduleStatus.DRAFT
-            schedule_entry.version = self.version
-
-            # Add to our schedule collections
-            self.schedule.append(schedule_entry)
-            self.schedule_by_date[current_date].append(schedule_entry)
-
-            self._log_debug(
-                f"Assigned {employee.first_name} {employee.last_name} to shift {shift.id} on {current_date}"
-            )
-            assigned_count += 1
 
     def _exceeds_constraints(
         self,
@@ -237,12 +326,13 @@ class ScheduleGenerator:
     ) -> bool:
         """Check if assigning this shift would exceed employee constraints"""
         # Skip constraints check if employee already has a shift on this date
-        for existing_entry in self.schedule_by_date[current_date.isoformat()]:
-            if existing_entry.get("employee_id") == employee.id:
-                return True
+        if current_date in self.schedule_by_date:
+            for existing_entry in self.schedule_by_date[current_date]:
+                if existing_entry.employee_id == employee.id:
+                    return True
 
         # Check if employee has enough rest hours between shifts
-        if not self._has_enough_rest(employee, current_date, shift):
+        if not self._has_enough_rest(employee, shift, current_date):
             return True
 
         # Skip employee group checks if not enforced
@@ -291,15 +381,6 @@ class ScheduleGenerator:
             if not self._is_employee_available(employee, current_date, shift):
                 return True
 
-        # Check qualifications if configured
-        if (
-            hasattr(self.config, "enforce_qualifications")
-            and self.config.enforce_qualifications
-        ):
-            # Check if employee has required skills
-            if not self._has_required_skills(employee, shift):
-                return True
-
         return False
 
     def _is_employee_available(
@@ -336,7 +417,10 @@ class ScheduleGenerator:
         return True
 
     def _has_enough_rest(
-        self, employee: Employee, current_date: date, shift: ShiftTemplate
+        self,
+        employee: Employee,
+        shift: ShiftTemplate,
+        current_date: date,
     ) -> bool:
         """Check if employee has enough rest between shifts"""
         # Skip rest check if not enforced
@@ -351,14 +435,14 @@ class ScheduleGenerator:
 
         # Get previous day's shift if any
         previous_date = current_date - timedelta(days=1)
-        prev_entries = self.schedule_by_date.get(previous_date.isoformat(), [])
+        prev_entries = self.schedule_by_date.get(previous_date, [])
 
         for entry in prev_entries:
-            if (
-                entry.get("employee_id") == employee.id
-                and entry.get("shift_id") is not None
-            ):
-                prev_shift = self.resources.get_shift(entry.get("shift_id"))
+            if entry.employee_id == employee.id and entry.shift_id is not None:
+                prev_shift = next(
+                    (s for s in self.resources.shifts if s.id == entry.shift_id),
+                    None,
+                )
                 if prev_shift:
                     # Calculate rest hours between shifts
                     prev_end_time = prev_shift.end_time
@@ -374,14 +458,14 @@ class ScheduleGenerator:
 
         # Get next day's shift if any
         next_date = current_date + timedelta(days=1)
-        next_entries = self.schedule_by_date.get(next_date.isoformat(), [])
+        next_entries = self.schedule_by_date.get(next_date, [])
 
         for entry in next_entries:
-            if (
-                entry.get("employee_id") == employee.id
-                and entry.get("shift_id") is not None
-            ):
-                next_shift = self.resources.get_shift(entry.get("shift_id"))
+            if entry.employee_id == employee.id and entry.shift_id is not None:
+                next_shift = next(
+                    (s for s in self.resources.shifts if s.id == entry.shift_id),
+                    None,
+                )
                 if next_shift:
                     # Calculate rest hours between shifts
                     curr_end_time = shift.end_time
@@ -573,71 +657,116 @@ class ScheduleGenerator:
     def generate_schedule(
         self, start_date, end_date, create_empty_schedules=True, session_id=None
     ) -> Dict[str, Any]:
-        """Compatibility method that calls generate to maintain API compatibility"""
-        # Ensure start_date and end_date are date objects
-        if start_date is None:
-            self._log_error("start_date cannot be None")
-            raise ScheduleGenerationError("start_date is required and cannot be None")
-
-        if end_date is None:
-            self._log_error("end_date cannot be None")
-            raise ScheduleGenerationError("end_date is required and cannot be None")
-
-        # Convert string dates to date objects if needed
+        """Generate a schedule for the given date range"""
+        # Convert to date objects if strings
         if isinstance(start_date, str):
-            try:
-                start_date = datetime.fromisoformat(start_date).date()
-            except ValueError:
-                self._log_error(f"Invalid start_date format: {start_date}")
-                raise ScheduleGenerationError(
-                    f"Invalid start_date format: {start_date}"
-                )
-
+            start_date = date.fromisoformat(start_date)
         if isinstance(end_date, str):
-            try:
-                end_date = datetime.fromisoformat(end_date).date()
-            except ValueError:
-                self._log_error(f"Invalid end_date format: {end_date}")
-                raise ScheduleGenerationError(f"Invalid end_date format: {end_date}")
+            end_date = date.fromisoformat(end_date)
 
-        # Pass create_empty_schedules to the generate method
-        self.create_empty_schedules = create_empty_schedules
-        return self.generate(
-            start_date=start_date,
-            end_date=end_date,
-            version=self.version,
-            session_id=session_id,
+        # Initialize resources if not done yet
+        if not hasattr(self, "resources") or self.resources is None:
+            self.resources = ScheduleResources()
+            self.resources.load_all()
+
+        # Log the start of schedule generation
+        logger.schedule_logger.info(
+            f"Generating schedule from {start_date} to {end_date}"
         )
 
+        # Generate schedule
+        result = self.generate(start_date, end_date, session_id=session_id)
+
+        # If no schedules were created but empty schedules are requested
+        if create_empty_schedules and not self.schedule:
+            self._add_empty_schedules(start_date, end_date)
+
+        # Save to database
+        self._save_to_database()
+
+        # Return result with metadata
+        return result
+
     def _add_empty_schedules(self, start_date: date, end_date: date) -> None:
-        """Add empty schedule entries for all employees who don't have assignments for each day"""
-        # Get all active employees
-        active_employees = self.resources.get_active_employees()
+        """Add empty schedule entries for all employees for the given date range"""
+        logger.schedule_logger.info(
+            f"Adding empty schedules from {start_date} to {end_date}"
+        )
 
-        # Loop through each date in the range
-        current_date = start_date
-        while current_date <= end_date:
-            # Get existing assignments for this date
-            existing_assignments = self.schedule_by_date.get(current_date, [])
-            assigned_employee_ids = {
-                entry.employee_id for entry in existing_assignments
-            }
+        # Get default shift if available
+        default_shift = next(iter(self.resources.shifts), None)
 
-            # Create empty schedule entries for unassigned employees
-            for employee in active_employees:
-                if employee.id not in assigned_employee_ids:
-                    empty_schedule = Schedule(
-                        employee_id=employee.id, date=current_date, shift_id=None
+        # For each day in the date range
+        for current_date in self._date_range(start_date, end_date):
+            # Skip if not a work day
+            if not self._is_store_open(current_date):
+                continue
+
+            # For each employee
+            for employee in self.resources.employees:
+                # Skip inactive employees
+                if not employee.is_active:
+                    continue
+
+                # Check if this employee already has a schedule for this date
+                existing_entry = next(
+                    (
+                        s
+                        for s in self.schedule
+                        if s.employee_id == employee.id and s.date == current_date
+                    ),
+                    None,
+                )
+
+                # If no existing entry, create one
+                if not existing_entry:
+                    # Find a suitable shift for this employee
+                    suitable_shift = None
+
+                    # Look for a matching availability to assign an appropriate shift
+                    employee_availabilities = [
+                        a
+                        for a in self.resources.availabilities
+                        if a.employee_id == employee.id
+                        and a.day_of_week == current_date.weekday()
+                        and a.is_available
+                    ]
+
+                    if employee_availabilities:
+                        # Get the earliest availability period
+                        earliest_avail = min(
+                            employee_availabilities, key=lambda a: a.hour
+                        )
+                        earliest_hour = earliest_avail.hour
+
+                        # Try to find a shift that starts close to this hour
+                        for shift in self.resources.shifts:
+                            shift_start_hour = int(shift.start_time.split(":")[0])
+                            if (
+                                abs(shift_start_hour - earliest_hour) <= 1
+                            ):  # Within 1 hour
+                                suitable_shift = shift
+                                break
+
+                    # Use default shift if no suitable shift found
+                    if not suitable_shift and default_shift:
+                        suitable_shift = default_shift
+
+                    # Create schedule entry
+                    schedule_entry = Schedule(
+                        employee_id=employee.id,
+                        date=current_date,
+                        shift_id=suitable_shift.id if suitable_shift else None,
+                        status=ScheduleStatus.DRAFT,
+                        version=self.version,
                     )
-                    empty_schedule.status = ScheduleStatus.DRAFT
-                    empty_schedule.version = self.version
 
-                    # Add to our schedule collections
-                    self.schedule.append(empty_schedule)
-                    self.schedule_by_date[current_date].append(empty_schedule)
+                    self.schedule.append(schedule_entry)
 
-            # Move to next date
-            current_date += timedelta(days=1)
+                    # Add to date-indexed lookup
+                    if current_date not in self.schedule_by_date:
+                        self.schedule_by_date[current_date] = []
+                    self.schedule_by_date[current_date].append(schedule_entry)
 
     def _save_to_database(self) -> None:
         """Save all schedule entries to the database"""
@@ -695,3 +824,108 @@ class ScheduleGenerator:
             raise ScheduleGenerationError(
                 f"Failed to save schedule to database: {str(e)}"
             )
+
+    def _count_consecutive_days(self, employee_id: int, current_date: date) -> int:
+        """Count how many consecutive days an employee has worked up to current_date"""
+        consecutive_days = 0
+        check_date = current_date - timedelta(days=1)
+
+        while check_date >= current_date - timedelta(days=7):  # Check up to 7 days back
+            if any(
+                s.employee_id == employee_id and s.date == check_date
+                for s in self.schedule
+            ):
+                consecutive_days += 1
+                check_date -= timedelta(days=1)
+            else:
+                break
+
+        return consecutive_days
+
+    def _would_exceed_weekly_hours(
+        self, employee_id: int, current_date: date, start_time: str, end_time: str
+    ) -> bool:
+        """Check if adding this shift would exceed the employee's weekly hours"""
+        # Get the start of the week (Monday)
+        week_start = current_date - timedelta(days=current_date.weekday())
+        week_end = week_start + timedelta(days=6)
+
+        # Calculate current weekly hours
+        weekly_hours = 0.0
+        for schedule_entry in self.schedule:
+            if (
+                schedule_entry.employee_id == employee_id
+                and week_start <= schedule_entry.date <= week_end
+                and schedule_entry.shift_id is not None
+            ):
+                # Find the shift template
+                entry_shift = next(
+                    (
+                        s
+                        for s in self.resources.shifts
+                        if s.id == schedule_entry.shift_id
+                    ),
+                    None,
+                )
+                if entry_shift:
+                    weekly_hours += entry_shift.duration_hours
+
+        # Add hours from the new shift
+        weekly_hours += self._calculate_shift_duration(start_time, end_time)
+
+        # Get maximum weekly hours based on employee group
+        max_hours = self.config.max_hours_per_group.get(
+            employee_id,
+            40.0,  # Default to 40 hours if not specified
+        )
+
+        return weekly_hours > max_hours
+
+    def _calculate_shift_duration(self, start_time: str, end_time: str) -> float:
+        """Calculate the duration of a shift"""
+        start_hour = int(start_time.split(":")[0])
+        end_hour = int(end_time.split(":")[0])
+        return (end_hour - start_hour) / 60.0
+
+    def _get_shift_priority(self, shift: ShiftTemplate, current_date: date) -> int:
+        """Get priority for shift scheduling (keyholder shifts first)"""
+        # Get coverage requirements for this time slot
+        coverage = next(
+            (
+                c
+                for c in self.resources.coverage
+                if c.day_index == current_date.weekday()
+                and c.start_time == shift.start_time
+                and c.end_time == shift.end_time
+            ),
+            None,
+        )
+
+        # Prioritize shifts that require keyholders
+        if coverage and coverage.requires_keyholder:
+            return 0
+
+        # Then prioritize shifts with higher minimum employee requirements
+        if coverage:
+            return (
+                -coverage.min_employees
+            )  # Negative so higher min_employees = higher priority
+
+        return 999  # Lowest priority for shifts without coverage requirements
+
+    def _get_employee_priority(self, employee: Employee, shift: ShiftTemplate) -> int:
+        """Get priority for employee scheduling (keyholders first)"""
+        # Prioritize keyholders
+        if employee.is_keyholder:
+            return 0
+
+        # Then prioritize employees with higher contracted hours
+        return (
+            -employee.contracted_hours
+        )  # Negative so higher contracted hours = higher priority
+
+    def _calculate_rest_hours(self, end_time: str, start_time: str) -> float:
+        """Calculate the rest hours between two shifts"""
+        end_hour = int(end_time.split(":")[0])
+        start_hour = int(start_time.split(":")[0])
+        return (end_hour - start_hour) / 60.0
