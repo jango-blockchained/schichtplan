@@ -666,18 +666,43 @@ export function SchedulePage() {
         throw new Error("Settings not loaded");
       }
 
-      const updatedSettings = {
-        ...settingsQuery.data,
-        scheduling: {
-          ...settingsQuery.data.scheduling,
-          generation_requirements: {
-            ...settingsQuery.data.scheduling.generation_requirements,
-            ...updates
-          }
-        }
+      // Create a copy of the current settings
+      const currentSettings = { ...settingsQuery.data };
+
+      // Ensure scheduling_advanced exists
+      if (!currentSettings.scheduling_advanced) {
+        currentSettings.scheduling_advanced = {};
+      }
+
+      // Ensure generation_requirements exists in scheduling_advanced
+      if (!currentSettings.scheduling_advanced.generation_requirements) {
+        currentSettings.scheduling_advanced.generation_requirements = {};
+      }
+
+      // Update the generation_requirements in scheduling_advanced
+      currentSettings.scheduling_advanced.generation_requirements = {
+        ...currentSettings.scheduling_advanced.generation_requirements,
+        ...updates
       };
-      await updateSettings(updatedSettings);
+
+      // Also update the scheduling.generation_requirements for frontend consistency
+      if (!currentSettings.scheduling) {
+        currentSettings.scheduling = {} as Settings['scheduling'];
+      }
+
+      if (!currentSettings.scheduling.generation_requirements) {
+        currentSettings.scheduling.generation_requirements = {} as Settings['scheduling']['generation_requirements'];
+      }
+
+      currentSettings.scheduling.generation_requirements = {
+        ...currentSettings.scheduling.generation_requirements,
+        ...updates
+      };
+
+      // Send the updated settings to the backend
+      await updateSettings(currentSettings);
       await settingsQuery.refetch();
+
       toast({
         title: "Erfolg",
         description: "Einstellungen wurden aktualisiert"
