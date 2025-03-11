@@ -10,7 +10,7 @@ import pytest
 from datetime import datetime, timedelta
 from app import create_app
 from models import db
-from models.employee import Employee
+from models.employee import Employee, EmployeeGroup
 from models.fixed_shift import ShiftTemplate
 from models.settings import Settings
 from models.version import VersionMeta
@@ -100,6 +100,7 @@ def setup_test_data(app):
                 last_name="Doe",
                 email="john.doe@example.com",
                 contracted_hours=40,
+                employee_group=EmployeeGroup.VZ,
                 is_active=True,
                 is_keyholder=True,
             ),
@@ -108,6 +109,7 @@ def setup_test_data(app):
                 last_name="Smith",
                 email="jane.smith@example.com",
                 contracted_hours=30,
+                employee_group=EmployeeGroup.TZ,
                 is_active=True,
                 is_keyholder=False,
             ),
@@ -116,6 +118,7 @@ def setup_test_data(app):
                 last_name="Johnson",
                 email="bob.johnson@example.com",
                 contracted_hours=20,
+                employee_group=EmployeeGroup.GFB,
                 is_active=True,
                 is_keyholder=False,
             ),
@@ -124,6 +127,7 @@ def setup_test_data(app):
                 last_name="Williams",
                 email="alice.williams@example.com",
                 contracted_hours=40,
+                employee_group=EmployeeGroup.TL,
                 is_active=True,
                 is_keyholder=True,
             ),

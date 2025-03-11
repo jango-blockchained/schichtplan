@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 
 from app import create_app
 from models.fixed_shift import ShiftTemplate
-from models.employee import Employee
+from models.employee import Employee, EmployeeGroup
 from models.settings import Settings
 from services.scheduler.generator import ScheduleGenerator
 from services.scheduler.validator import ScheduleValidator, ScheduleConfig
@@ -36,12 +36,107 @@ def get_next_monday():
     return today + timedelta(days=days_ahead)
 
 
+def create_test_data(app_context):
+    """Create test data for schedule generation."""
+    # Create store settings
+    settings = Settings(
+        store_opening="08:00",
+        store_closing="20:00",
+        min_break_duration=60,
+        require_keyholder=True,
+        min_rest_between_shifts=11,
+        max_weekly_hours=40,
+    )
+    db.session.add(settings)
+
+    # Create shifts
+    shifts = [
+        ShiftTemplate(
+            start_time="08:00",
+            end_time="16:00",
+            min_employees=2,
+            max_employees=3,
+            duration_hours=8,
+            requires_break=True,
+            active_days=[0, 1, 2, 3, 4, 5],  # Mon-Sat
+        ),
+        ShiftTemplate(
+            start_time="10:00",
+            end_time="18:00",
+            min_employees=2,
+            max_employees=4,
+            duration_hours=8,
+            requires_break=True,
+            active_days=[0, 1, 2, 3, 4, 5],  # Mon-Sat
+        ),
+        ShiftTemplate(
+            start_time="12:00",
+            end_time="20:00",
+            min_employees=2,
+            max_employees=3,
+            duration_hours=8,
+            requires_break=True,
+            active_days=[0, 1, 2, 3, 4, 5],  # Mon-Sat
+        ),
+    ]
+    for shift in shifts:
+        db.session.add(shift)
+
+    # Create employees
+    employees = [
+        Employee(
+            first_name="John",
+            last_name="Doe",
+            email="john.doe@example.com",
+            contracted_hours=40,
+            employee_group=EmployeeGroup.VZ,
+            is_active=True,
+            is_keyholder=True,
+        ),
+        Employee(
+            first_name="Jane",
+            last_name="Smith",
+            email="jane.smith@example.com",
+            contracted_hours=30,
+            employee_group=EmployeeGroup.TZ,
+            is_active=True,
+            is_keyholder=False,
+        ),
+        Employee(
+            first_name="Bob",
+            last_name="Johnson",
+            email="bob.johnson@example.com",
+            contracted_hours=20,
+            employee_group=EmployeeGroup.GFB,
+            is_active=True,
+            is_keyholder=False,
+        ),
+        Employee(
+            first_name="Alice",
+            last_name="Williams",
+            email="alice.williams@example.com",
+            contracted_hours=40,
+            employee_group=EmployeeGroup.TL,
+            is_active=True,
+            is_keyholder=True,
+        ),
+    ]
+    for employee in employees:
+        db.session.add(employee)
+
+    db.session.commit()
+    return settings, shifts, employees
+
+
 def test_basic_schedule_generation():
     """Test basic schedule generation for a week."""
     logger.info("=== BASIC SCHEDULE GENERATION TEST ===")
 
     app = create_app()
     with app.app_context():
+        # Create test data
+        settings, shifts, employees = create_test_data(app.app_context)
+
         # Calculate dates for next week (Monday to Sunday)
         start_date = get_next_monday()
         end_date = start_date + timedelta(days=6)
@@ -93,8 +188,10 @@ def test_edge_case_no_employees():
 
     app = create_app()
     with app.app_context():
+        # Create test data
+        settings, shifts, employees = create_test_data(app.app_context)
+
         # Save current employee active status
-        employees = Employee.query.all()
         original_status = {emp.id: emp.is_active for emp in employees}
 
         try:
@@ -137,7 +234,7 @@ def test_edge_case_no_employees():
             return result
         finally:
             # Restore original employee active status
-            for emp in Employee.query.all():
+            for emp in employees:
                 emp.is_active = original_status.get(emp.id, True)
             db.session.commit()
 
@@ -148,8 +245,10 @@ def test_edge_case_no_shifts():
 
     app = create_app()
     with app.app_context():
+        # Create test data
+        settings, shifts, employees = create_test_data(app.app_context)
+
         # Save current shift active status (via active_days)
-        shifts = ShiftTemplate.query.all()
         original_active_days = {shift.id: shift.active_days for shift in shifts}
 
         try:
@@ -199,7 +298,7 @@ def test_edge_case_no_shifts():
             return result
         finally:
             # Restore original shift active days
-            for shift in ShiftTemplate.query.all():
+            for shift in shifts:
                 shift.active_days = original_active_days.get(shift.id, [])
             db.session.commit()
 
@@ -210,33 +309,30 @@ def test_schedule_with_specific_constraints():
 
     app = create_app()
     with app.app_context():
-        # Calculate dates for next week
-        start_date = get_next_monday()
-        end_date = start_date + timedelta(days=6)
+        # Create test data
+        settings, shifts, employees = create_test_data(app.app_context)
 
-        logger.info(
-            f"Testing schedule generation with constraints: {start_date} to {end_date}"
-        )
-
-        # Get settings and update for testing
-        settings = Settings.query.first()
-        original_settings = (
-            {
-                "require_keyholder": settings.require_keyholder,
-                "max_weekly_hours": settings.max_weekly_hours,
-                "min_rest_hours": settings.min_rest_hours,
-            }
-            if settings
-            else {}
-        )
+        # Save original settings
+        original_settings = {
+            "require_keyholder": settings.require_keyholder,
+            "max_weekly_hours": settings.max_weekly_hours,
+            "min_rest_between_shifts": settings.min_rest_between_shifts,
+        }
 
         try:
             # Update settings with stricter constraints
-            if settings:
-                settings.require_keyholder = True
-                settings.max_weekly_hours = 30  # Stricter weekly hour limit
-                settings.min_rest_hours = 12  # Longer rest period
-                db.session.commit()
+            settings.require_keyholder = True
+            settings.max_weekly_hours = 30  # Stricter weekly hour limit
+            settings.min_rest_between_shifts = 12  # Longer rest period
+            db.session.commit()
+
+            # Calculate dates for next week
+            start_date = get_next_monday()
+            end_date = start_date + timedelta(days=6)
+
+            logger.info(
+                f"Testing schedule generation with constraints: {start_date} to {end_date}"
+            )
 
             # Initialize schedule generator
             generator = ScheduleGenerator()
@@ -284,10 +380,9 @@ def test_schedule_with_specific_constraints():
             return result
         finally:
             # Restore original settings
-            if settings and original_settings:
-                for key, value in original_settings.items():
-                    setattr(settings, key, value)
-                db.session.commit()
+            for key, value in original_settings.items():
+                setattr(settings, key, value)
+            db.session.commit()
 
 
 def test_schedule_validation():
@@ -296,6 +391,9 @@ def test_schedule_validation():
 
     app = create_app()
     with app.app_context():
+        # Create test data
+        settings, shifts, employees = create_test_data(app.app_context)
+
         # Calculate dates for next week
         start_date = get_next_monday()
         end_date = start_date + timedelta(days=6)
@@ -314,10 +412,7 @@ def test_schedule_validation():
         schedules = result.get("schedule", [])
 
         # Create a validator and config
-        settings = Settings.query.first()
-        config = (
-            ScheduleConfig.from_settings(settings) if settings else ScheduleConfig()
-        )
+        config = ScheduleConfig.from_settings(settings)
         validator = ScheduleValidator(generator.resources)
 
         # Validate the schedule
@@ -342,6 +437,9 @@ def test_performance_scaling():
 
     app = create_app()
     with app.app_context():
+        # Create test data
+        settings, shifts, employees = create_test_data(app.app_context)
+
         # Test with different date ranges
         date_ranges = [(1, "1 day"), (7, "1 week"), (14, "2 weeks"), (30, "1 month")]
 

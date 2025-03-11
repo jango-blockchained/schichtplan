@@ -100,16 +100,19 @@ def create_app(config_class=Config):
     app.register_blueprint(availability, url_prefix="/api")
     app.register_blueprint(absences_bp, url_prefix="/api")
     app.register_blueprint(coverage_bp)
-    app.register_blueprint(demo_data_bp, url_prefix="/api")
+    app.register_blueprint(demo_data_bp, url_prefix="/api/demo-data")
     app.register_blueprint(logs.bp, url_prefix="/api/logs")
     app.register_blueprint(
         api_schedules_bp, name="api_schedules"
     )  # Register with unique name to avoid conflict
 
     # Register CLI commands
-    from test_scheduler import register_commands
+    try:
+        from test_scheduler import register_commands
 
-    register_commands(app)
+        register_commands(app)
+    except ImportError:
+        pass  # Ignore if test_scheduler is not available
 
     @app.errorhandler(Exception)
     def handle_error(error):

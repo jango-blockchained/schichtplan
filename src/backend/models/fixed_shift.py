@@ -78,7 +78,7 @@ class ShiftTemplate(db.Model):
             start_hour = int(start_time.split(":")[0])
             end_hour = int(end_time.split(":")[0])
 
-            if start_hour < 8:
+            if start_hour < 11:
                 self.shift_type = ShiftType.EARLY
             elif end_hour >= 18:
                 self.shift_type = ShiftType.LATE

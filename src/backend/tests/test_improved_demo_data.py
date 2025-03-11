@@ -10,9 +10,16 @@ from datetime import date, timedelta
 import sys
 import logging
 import random
-from models import db, Settings, Employee, Coverage, EmployeeAvailability, ShiftTemplate
-from models.employee import AvailabilityType
-from models.fixed_shift import ShiftType
+from src.backend.models import (
+    db,
+    Settings,
+    Employee,
+    Coverage,
+    EmployeeAvailability,
+    ShiftTemplate,
+)
+from src.backend.models.employee import AvailabilityType
+from src.backend.models.fixed_shift import ShiftType
 
 # Configure logging
 logging.basicConfig(
@@ -544,14 +551,12 @@ def test_improved_demo_data():
     logger.info("Starting improved demo data generation...")
 
     # Create app context
-    app = create_app(
-        testing=True
-    )  # Use testing=True to avoid registering all blueprints
+    app = create_app()  # Remove the testing parameter as it's not supported
     with app.app_context():
         try:
             # Step 1: Clear existing schedule data
             logger.info("Clearing existing schedule data...")
-            from models import Schedule
+            from src.backend.models import Schedule
 
             Schedule.query.delete()
             db.session.commit()
@@ -571,7 +576,7 @@ def test_improved_demo_data():
 
             # Step 3: Test schedule generation
             logger.info("Testing schedule generation...")
-            from services.scheduler import ScheduleGenerator
+            from src.backend.services.scheduler import ScheduleGenerator
 
             generator = ScheduleGenerator()
 

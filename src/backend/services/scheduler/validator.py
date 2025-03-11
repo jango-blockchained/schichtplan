@@ -4,7 +4,11 @@ from models import Schedule
 from models.employee import EmployeeGroup
 from dataclasses import dataclass
 from .resources import ScheduleResources
-from .utility import requires_keyholder, calculate_rest_hours
+from .utility import requires_keyholder, calculate_rest_hours, time_to_minutes
+from collections import defaultdict
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -21,6 +25,7 @@ class ValidationError:
 class ScheduleConfig:
     """Configuration for schedule validation"""
 
+    # Original configuration options
     enforce_min_coverage: bool = True
     enforce_contracted_hours: bool = True
     enforce_keyholder: bool = True
@@ -31,8 +36,29 @@ class ScheduleConfig:
     max_hours_per_group: Dict[EmployeeGroup, int] = None
     max_shifts_per_group: Dict[EmployeeGroup, int] = None
 
+    # New configuration options from frontend
+    enforce_minimum_coverage: bool = True  # Same as enforce_min_coverage
+    enforce_keyholder_coverage: bool = True  # Same as enforce_keyholder
+    enforce_early_late_rules: bool = True
+    enforce_employee_group_rules: bool = True
+    enforce_break_rules: bool = True
+    enforce_consecutive_days: bool = True
+    enforce_weekend_distribution: bool = True
+    enforce_shift_distribution: bool = True
+    enforce_availability: bool = True
+    enforce_qualifications: bool = True
+    enforce_opening_hours: bool = True
+
+    # Advanced configuration options
+    max_consecutive_days: int = 5
+    min_employees_per_shift: int = 1
+    max_employees_per_shift: int = 5
+    min_hours_per_day: int = 4
+    max_hours_per_day: int = 10
+    weekend_rotation_weeks: int = 4  # Number of weeks for fair weekend distribution
+
     def __post_init__(self):
-        """Initialize default values if not provided"""
+        """Initialize default values if not provided and sync duplicate settings"""
         if self.max_hours_per_group is None:
             self.max_hours_per_group = {
                 EmployeeGroup.TZ: 30,
@@ -49,6 +75,59 @@ class ScheduleConfig:
                 EmployeeGroup.TL: 5,
             }
 
+        # Sync duplicate settings for backward compatibility
+        self.enforce_min_coverage = self.enforce_minimum_coverage
+        self.enforce_keyholder = self.enforce_keyholder_coverage
+
+    @classmethod
+    def from_settings(cls, settings):
+        """Create a ScheduleConfig instance from the application settings"""
+        if not settings:
+            return cls()
+
+        # Try to get generation requirements from scheduling_advanced
+        requirements = {}
+        if hasattr(settings, "scheduling_advanced") and settings.scheduling_advanced:
+            if (
+                isinstance(settings.scheduling_advanced, dict)
+                and "generation_requirements" in settings.scheduling_advanced
+            ):
+                requirements = settings.scheduling_advanced["generation_requirements"]
+
+        # Create config with settings values or defaults
+        config = cls(
+            # Map frontend settings to backend config properties
+            enforce_minimum_coverage=requirements.get("enforce_minimum_coverage", True),
+            enforce_contracted_hours=requirements.get("enforce_contracted_hours", True),
+            enforce_keyholder_coverage=requirements.get(
+                "enforce_keyholder_coverage", True
+            ),
+            enforce_rest_periods=requirements.get("enforce_rest_periods", True),
+            enforce_early_late_rules=requirements.get("enforce_early_late_rules", True),
+            enforce_employee_group_rules=requirements.get(
+                "enforce_employee_group_rules", True
+            ),
+            enforce_break_rules=requirements.get("enforce_break_rules", True),
+            enforce_max_hours=requirements.get("enforce_max_hours", True),
+            enforce_consecutive_days=requirements.get("enforce_consecutive_days", True),
+            enforce_weekend_distribution=requirements.get(
+                "enforce_weekend_distribution", True
+            ),
+            enforce_shift_distribution=requirements.get(
+                "enforce_shift_distribution", True
+            ),
+            enforce_availability=requirements.get("enforce_availability", True),
+            enforce_qualifications=requirements.get("enforce_qualifications", True),
+            enforce_opening_hours=requirements.get("enforce_opening_hours", True),
+            # Additional config from settings
+            min_rest_hours=settings.min_rest_between_shifts,
+            max_hours_per_day=settings.max_daily_hours,
+            min_employees_per_shift=requirements.get("min_employees_per_shift", 1),
+            max_employees_per_shift=requirements.get("max_employees_per_shift", 5),
+        )
+
+        return config
+
 
 class ScheduleValidator:
     """Handles validation of scheduling constraints"""
@@ -56,53 +135,58 @@ class ScheduleValidator:
     def __init__(self, resources: ScheduleResources):
         self.resources = resources
         self.errors: List[ValidationError] = []
+        self.warnings: List[ValidationError] = []
+        self.info: List[ValidationError] = []
         self.config = ScheduleConfig()
 
     def validate(
         self, schedule: List[Schedule], config: Optional[ScheduleConfig] = None
     ) -> List[ValidationError]:
-        """Run all validations based on config"""
-        if config:
-            self.config = config
+        """Validate a schedule against various constraints"""
+        if config is None:
+            config = ScheduleConfig()
 
-        self.errors = []  # Reset errors before validation
+        self.errors = []
+        self.warnings = []
+        self.info = []
 
-        if self.config.enforce_min_coverage:
+        # Run validations based on configuration
+        if config.enforce_min_coverage or config.enforce_minimum_coverage:
             self._validate_coverage(schedule)
 
-        if self.config.enforce_contracted_hours:
+        if config.enforce_contracted_hours:
             self._validate_contracted_hours(schedule)
 
-        if self.config.enforce_keyholder:
+        if config.enforce_keyholder or config.enforce_keyholder_coverage:
             self._validate_keyholders(schedule)
 
-        if self.config.enforce_rest_periods:
+        if config.enforce_rest_periods:
             self._validate_rest_periods(schedule)
 
-        if self.config.enforce_max_shifts:
+        if config.enforce_max_shifts:
             self._validate_max_shifts(schedule)
 
-        if self.config.enforce_max_hours:
+        if config.enforce_max_hours:
             self._validate_max_hours(schedule)
 
-        # Remove duplicate keyholder errors - keep only one error per shift_id
-        if self.config.enforce_keyholder:
-            seen_shift_ids = set()
-            filtered_errors = []
-            for error in self.errors:
-                if (
-                    error.error_type == "keyholder"
-                    and error.details
-                    and "shift_id" in error.details
-                ):
-                    if error.details["shift_id"] not in seen_shift_ids:
-                        seen_shift_ids.add(error.details["shift_id"])
-                        filtered_errors.append(error)
-                else:
-                    filtered_errors.append(error)
-            self.errors = filtered_errors
+        # New validations
+        if config.enforce_consecutive_days:
+            self._validate_consecutive_days(schedule)
 
-        return self.errors
+        if config.enforce_weekend_distribution:
+            self._validate_weekend_distribution(schedule)
+
+        if config.enforce_early_late_rules:
+            self._validate_early_late_rules(schedule)
+
+        if config.enforce_break_rules:
+            self._validate_break_rules(schedule)
+
+        if config.enforce_qualifications:
+            self._validate_qualifications(schedule)
+
+        # Return all errors
+        return self.errors + self.warnings + self.info
 
     def _validate_coverage(self, schedule: List[Schedule]) -> None:
         """Validate minimum coverage requirements"""
@@ -815,3 +899,202 @@ class ScheduleValidator:
             "severity": error.severity,
             "details": error.details or {},
         }
+
+    def _validate_consecutive_days(self, schedule: List[Schedule]) -> None:
+        """Validate maximum consecutive working days"""
+        # Group schedules by employee
+        employees_schedules = defaultdict(list)
+        for entry in schedule:
+            if entry.shift_id is not None:  # Only count assigned shifts
+                employees_schedules[entry.employee_id].append(entry)
+
+        # Check consecutive working days for each employee
+        for employee_id, entries in employees_schedules.items():
+            # Sort by date
+            sorted_entries = sorted(entries, key=lambda e: e.date)
+
+            # Find consecutive day sequences
+            consecutive_days = 1
+            max_consecutive = 1
+            for i in range(1, len(sorted_entries)):
+                prev_date = sorted_entries[i - 1].date
+                curr_date = sorted_entries[i].date
+
+                # Check if dates are consecutive
+                if (curr_date - prev_date).days == 1:
+                    consecutive_days += 1
+                    max_consecutive = max(max_consecutive, consecutive_days)
+                else:
+                    consecutive_days = 1
+
+            # Check if max consecutive days are exceeded
+            max_allowed = getattr(self.config, "max_consecutive_days", 5)
+            if max_consecutive > max_allowed:
+                employee = self.resources.get_employee(employee_id)
+                employee_name = (
+                    f"{employee.first_name} {employee.last_name}"
+                    if employee
+                    else f"Employee {employee_id}"
+                )
+
+                self.warnings.append(
+                    ValidationError(
+                        error_type="consecutive_days",
+                        message=f"Employee {employee_name} is scheduled for {max_consecutive} consecutive days (max: {max_allowed})",
+                        severity="warning",
+                        details={
+                            "employee_id": employee_id,
+                            "employee_name": employee_name,
+                            "consecutive_days": max_consecutive,
+                            "max_allowed": max_allowed,
+                        },
+                    )
+                )
+
+    def _validate_weekend_distribution(self, schedule: List[Schedule]) -> None:
+        """Validate fair distribution of weekend shifts"""
+        # Count weekend shifts by employee
+        weekend_shifts = defaultdict(int)
+
+        for entry in schedule:
+            if entry.shift_id is not None:  # Only count assigned shifts
+                # Check if the day is Saturday or Sunday (5 or 6)
+                if entry.date.weekday() in [5, 6]:
+                    weekend_shifts[entry.employee_id] += 1
+
+        # Find employees with significantly more weekend shifts
+        if weekend_shifts:
+            avg_weekend_shifts = sum(weekend_shifts.values()) / len(weekend_shifts)
+            threshold = avg_weekend_shifts * 1.5  # 50% more than average
+
+            for employee_id, count in weekend_shifts.items():
+                if count > threshold and count - avg_weekend_shifts >= 2:
+                    employee = self.resources.get_employee(employee_id)
+                    employee_name = (
+                        f"{employee.first_name} {employee.last_name}"
+                        if employee
+                        else f"Employee {employee_id}"
+                    )
+
+                    self.warnings.append(
+                        ValidationError(
+                            error_type="weekend_distribution",
+                            message=f"Employee {employee_name} has {count:.1f} weekend shifts (avg: {avg_weekend_shifts:.1f})",
+                            severity="warning",
+                            details={
+                                "employee_id": employee_id,
+                                "employee_name": employee_name,
+                                "weekend_shifts": count,
+                                "average": avg_weekend_shifts,
+                            },
+                        )
+                    )
+
+    def _validate_early_late_rules(self, schedule: List[Schedule]) -> None:
+        """Validate early/late shift sequence rules"""
+        # Group schedules by employee
+        employees_schedules = defaultdict(list)
+        for entry in schedule:
+            if entry.shift_id is not None:  # Only count assigned shifts
+                employees_schedules[entry.employee_id].append(entry)
+
+        for employee_id, entries in employees_schedules.items():
+            # Sort by date
+            sorted_entries = sorted(entries, key=lambda e: e.date)
+
+            # Check for late shift followed by early shift
+            for i in range(1, len(sorted_entries)):
+                prev_entry = sorted_entries[i - 1]
+                curr_entry = sorted_entries[i]
+
+                # Check if entries are consecutive days
+                if (curr_entry.date - prev_entry.date).days == 1:
+                    prev_shift = self.resources.get_shift(prev_entry.shift_id)
+                    curr_shift = self.resources.get_shift(curr_entry.shift_id)
+
+                    if prev_shift and curr_shift:
+                        # Check if late shift followed by early shift
+                        is_prev_late = "17:00" <= prev_shift.end_time <= "21:00"
+                        is_curr_early = "06:00" <= curr_shift.start_time <= "09:00"
+
+                        if is_prev_late and is_curr_early:
+                            employee = self.resources.get_employee(employee_id)
+                            employee_name = (
+                                f"{employee.first_name} {employee.last_name}"
+                                if employee
+                                else f"Employee {employee_id}"
+                            )
+
+                            self.warnings.append(
+                                ValidationError(
+                                    error_type="early_late_sequence",
+                                    message=f"Employee {employee_name} has a late shift on {prev_entry.date} followed by an early shift on {curr_entry.date}",
+                                    severity="warning",
+                                    details={
+                                        "employee_id": employee_id,
+                                        "employee_name": employee_name,
+                                        "dates": [
+                                            prev_entry.date.strftime("%Y-%m-%d"),
+                                            curr_entry.date.strftime("%Y-%m-%d"),
+                                        ],
+                                        "shifts": [
+                                            f"{prev_shift.start_time}-{prev_shift.end_time}",
+                                            f"{curr_shift.start_time}-{curr_shift.end_time}",
+                                        ],
+                                    },
+                                )
+                            )
+
+    def _validate_break_rules(self, schedule: List[Schedule]) -> None:
+        """Validate break rules for shifts"""
+        for entry in schedule:
+            if entry.shift_id is not None:
+                shift = self.resources.get_shift(entry.shift_id)
+
+                if shift:
+                    # Calculate shift duration in hours
+                    try:
+                        start_minutes = time_to_minutes(shift.start_time)
+                        end_minutes = time_to_minutes(shift.end_time)
+                        duration_hours = (end_minutes - start_minutes) / 60
+
+                        # Check if shift requires a break
+                        requires_break = (
+                            duration_hours > 6
+                        )  # Shifts over 6 hours require a break
+                        has_break = (
+                            entry.break_start is not None
+                            and entry.break_end is not None
+                        )
+
+                        if requires_break and not has_break:
+                            employee = self.resources.get_employee(entry.employee_id)
+                            employee_name = (
+                                f"{employee.first_name} {employee.last_name}"
+                                if employee
+                                else f"Employee {entry.employee_id}"
+                            )
+
+                            self.warnings.append(
+                                ValidationError(
+                                    error_type="missing_break",
+                                    message=f"Employee {employee_name} has a {duration_hours:.1f} hour shift on {entry.date} without a break",
+                                    severity="warning",
+                                    details={
+                                        "employee_id": entry.employee_id,
+                                        "employee_name": employee_name,
+                                        "date": entry.date.strftime("%Y-%m-%d"),
+                                        "duration": duration_hours,
+                                        "shift": f"{shift.start_time}-{shift.end_time}",
+                                    },
+                                )
+                            )
+                    except Exception as e:
+                        # Log error but continue validation
+                        logger.error(f"Error validating break rules: {str(e)}")
+
+    def _validate_qualifications(self, schedule: List[Schedule]) -> None:
+        """Validate employee qualifications for shifts"""
+        # This would require a qualifications model, which isn't implemented yet
+        # Placeholder for future implementation
+        pass

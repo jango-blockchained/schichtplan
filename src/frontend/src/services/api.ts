@@ -642,7 +642,7 @@ export const updateCoverage = async (coverage: DailyCoverage[]): Promise<void> =
 // Demo Data
 export const generateDemoData = async (module: string): Promise<void | Settings> => {
     try {
-        const response = await api.post('/demo_data/', { module });
+        const response = await api.post('/demo-data/', { module });
 
         // If generating settings data, update the settings in the store
         if (module === 'settings' || module === 'all') {
@@ -782,7 +782,7 @@ export const restoreDatabase = async (file: File): Promise<void> => {
     }
 };
 
-export const clearLogs = async () => {
+export const clearLogs = async (): Promise<void> => {
     try {
         await api.post('/api/logs/clear');
     } catch (error) {
@@ -822,7 +822,12 @@ export interface LogContent {
 
 export const getLogs = async (): Promise<LogFile[]> => {
     try {
-        const response = await api.get<{ logs: LogFile[] }>('/settings/logs/');
+        const response = await api.get<{ logs: LogFile[] }>('/api/logs/', {
+            params: {
+                type: 'all',
+                days: 7
+            }
+        });
         return response.data.logs;
     } catch (error) {
         if (error instanceof Error) {
@@ -834,7 +839,7 @@ export const getLogs = async (): Promise<LogFile[]> => {
 
 export const getLogContent = async (filename: string): Promise<LogContent> => {
     try {
-        const response = await api.get<LogContent>(`/settings/logs/${filename}`);
+        const response = await api.get<LogContent>(`/api/logs/${filename}`);
         return response.data;
     } catch (error) {
         if (error instanceof Error) {
@@ -846,7 +851,7 @@ export const getLogContent = async (filename: string): Promise<LogContent> => {
 
 export const deleteLog = async (filename: string): Promise<void> => {
     try {
-        await api.delete(`/settings/logs/${filename}`);
+        await api.delete(`/api/logs/${filename}`);
     } catch (error) {
         if (error instanceof Error) {
             throw new Error(`Failed to delete log: ${error.message}`);
