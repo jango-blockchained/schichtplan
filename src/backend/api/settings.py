@@ -2,11 +2,67 @@ import os
 import json
 import datetime
 from flask import Blueprint, jsonify, request, send_file
-from models import db
+from models import db, Settings
 from http import HTTPStatus
 from sqlalchemy import inspect
 
 bp = Blueprint("settings", __name__, url_prefix="/api/settings")
+
+
+@bp.route("/", methods=["GET"])
+def get_settings():
+    """Get all settings or initialize with defaults if none exist"""
+    try:
+        settings = Settings.query.first()
+
+        # If no settings exist, initialize with defaults
+        if not settings:
+            settings = Settings.get_default_settings()
+            db.session.add(settings)
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                return jsonify(
+                    {"error": f"Error initializing settings: {str(e)}"}
+                ), HTTPStatus.INTERNAL_SERVER_ERROR
+
+        return jsonify(settings.to_dict())
+    except Exception:
+        # If there's an unexpected error, try to reset and recreate settings
+        try:
+            Settings.query.delete()
+            db.session.commit()
+
+            settings = Settings.get_default_settings()
+            db.session.add(settings)
+            db.session.commit()
+
+            return jsonify(settings.to_dict())
+        except Exception as reset_error:
+            return jsonify(
+                {"error": f"Critical error retrieving settings: {str(reset_error)}"}
+            ), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@bp.route("/", methods=["PUT"])
+def update_settings():
+    """Update settings"""
+    try:
+        data = request.get_json()
+        settings = Settings.query.first()
+
+        if not settings:
+            settings = Settings.get_default_settings()
+            db.session.add(settings)
+
+        settings.update_from_dict(data)
+        db.session.commit()
+
+        return jsonify(settings.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 def serialize_db():

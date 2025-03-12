@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from models import db, ShiftTemplate
-from models.fixed_shift import ShiftValidationError
+from models.fixed_shift import ShiftValidationError, ShiftType
 
 shifts = Blueprint("shifts", __name__)
 
@@ -32,6 +32,8 @@ def create_shift():
             start_time=data["start_time"],
             end_time=data["end_time"],
             requires_break=data.get("requires_break", True),
+            active_days=data.get("active_days"),
+            shift_type_id=data.get("shift_type_id"),
         )
 
         db.session.add(shift)
@@ -73,6 +75,16 @@ def update_shift(shift_id):
 
         if "duration_hours" in data:
             shift.duration_hours = data["duration_hours"]
+
+        if "shift_type_id" in data:
+            shift.shift_type_id = data["shift_type_id"]
+            # Update shift_type based on shift_type_id
+            if data["shift_type_id"] == "EARLY":
+                shift.shift_type = ShiftType.EARLY
+            elif data["shift_type_id"] == "MIDDLE":
+                shift.shift_type = ShiftType.MIDDLE
+            elif data["shift_type_id"] == "LATE":
+                shift.shift_type = ShiftType.LATE
 
         # Duration needs to be calculated or must be valid
         if shift.duration_hours is None or shift.duration_hours <= 0:

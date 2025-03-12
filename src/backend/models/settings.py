@@ -201,6 +201,60 @@ class Settings(db.Model):
         ],
     )
 
+    # Use deferred loading for shift_types to handle the case where the column doesn't exist
+    _shift_types = deferred(Column("shift_types", JSON, nullable=True))
+
+    def get_shift_types(self):
+        """Get the shift types with fallback to default value"""
+        try:
+            return self._shift_types or [
+                {
+                    "id": "EARLY",
+                    "name": "Frühschicht",
+                    "color": "#4CAF50",
+                    "type": "shift",
+                },
+                {
+                    "id": "MIDDLE",
+                    "name": "Mittelschicht",
+                    "color": "#2196F3",
+                    "type": "shift",
+                },
+                {
+                    "id": "LATE",
+                    "name": "Spätschicht",
+                    "color": "#9C27B0",
+                    "type": "shift",
+                },
+            ]
+        except:
+            return [
+                {
+                    "id": "EARLY",
+                    "name": "Frühschicht",
+                    "color": "#4CAF50",
+                    "type": "shift",
+                },
+                {
+                    "id": "MIDDLE",
+                    "name": "Mittelschicht",
+                    "color": "#2196F3",
+                    "type": "shift",
+                },
+                {
+                    "id": "LATE",
+                    "name": "Spätschicht",
+                    "color": "#9C27B0",
+                    "type": "shift",
+                },
+            ]
+
+    def set_shift_types(self, value):
+        """Set the shift types"""
+        self._shift_types = value
+
+    shift_types = hybrid_property(get_shift_types, set_shift_types)
+
     absence_types = Column(
         JSON,
         nullable=False,
@@ -346,6 +400,7 @@ class Settings(db.Model):
             },
             "employee_groups": {
                 "employee_types": self.employee_types,
+                "shift_types": self.shift_types,
                 "absence_types": self.absence_types,
             },
             "availability_types": (
@@ -493,6 +548,17 @@ class Settings(db.Model):
                 "max_hours": 40,
                 "type": "employee",
             },
+        ]
+
+        settings.shift_types = [
+            {"id": "EARLY", "name": "Frühschicht", "color": "#4CAF50", "type": "shift"},
+            {
+                "id": "MIDDLE",
+                "name": "Mittelschicht",
+                "color": "#2196F3",
+                "type": "shift",
+            },
+            {"id": "LATE", "name": "Spätschicht", "color": "#9C27B0", "type": "shift"},
         ]
 
         settings.absence_types = [

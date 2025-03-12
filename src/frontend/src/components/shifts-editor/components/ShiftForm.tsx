@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Settings } from '@/types';
 import { Shift } from '@/services/api';
 import { Trash } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface ShiftFormProps {
     settings?: Settings;
@@ -18,6 +19,7 @@ interface ShiftFormProps {
         end_time: string;
         requires_break: boolean;
         active_days: { [key: string]: boolean };
+        shift_type_id?: string;
     }) => void;
     onDelete?: () => void;
 }
@@ -43,7 +45,12 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, shift, onSave, o
             store_opening: '08:00',
             store_closing: '20:00',
             opening_days: { '1': true, '2': true, '3': true, '4': true, '5': true, '0': false, '6': false }
-        }
+        },
+        shift_types: [
+            { id: 'EARLY', name: 'Frühschicht', color: '#4CAF50', type: 'shift' },
+            { id: 'MIDDLE', name: 'Mittelschicht', color: '#2196F3', type: 'shift' },
+            { id: 'LATE', name: 'Spätschicht', color: '#9C27B0', type: 'shift' }
+        ]
     };
 
     const [formData, setFormData] = useState({
@@ -51,6 +58,7 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, shift, onSave, o
         end_time: shift?.end_time || defaultSettings.general.store_closing,
         requires_break: shift?.requires_break ?? true,
         active_days: normalizeActiveDays(shift?.active_days) || normalizeActiveDays(defaultSettings.general.opening_days),
+        shift_type_id: shift?.shift_type_id || 'EARLY',
     });
 
     useEffect(() => {
@@ -60,6 +68,7 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, shift, onSave, o
                 end_time: shift.end_time,
                 requires_break: shift.requires_break,
                 active_days: normalizeActiveDays(shift.active_days),
+                shift_type_id: shift.shift_type_id || 'EARLY',
             });
         }
     }, [shift]);
@@ -74,6 +83,7 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, shift, onSave, o
             end_time: formData.end_time,
             requires_break: formData.requires_break,
             active_days: formData.active_days,
+            shift_type_id: formData.shift_type_id,
         });
     };
 
@@ -91,6 +101,9 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, shift, onSave, o
         if (duration < 0) duration += 24 * 60; // Handle overnight shifts
         return duration / 60;
     };
+
+    // Get shift types from settings
+    const shiftTypes = settings?.shift_types || defaultSettings.shift_types;
 
     return (
         <Card className="p-6">
@@ -136,6 +149,31 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, shift, onSave, o
                                 />
                             </div>
                         </div>
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label htmlFor="shift_type_id">Schichttyp</Label>
+                        <Select
+                            value={formData.shift_type_id}
+                            onValueChange={(value) => setFormData({ ...formData, shift_type_id: value })}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Schichttyp auswählen" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {shiftTypes.map((type) => (
+                                    <SelectItem key={type.id} value={type.id}>
+                                        <div className="flex items-center">
+                                            <div
+                                                className="w-3 h-3 rounded-full mr-2"
+                                                style={{ backgroundColor: type.color }}
+                                            ></div>
+                                            {type.name}
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     <div className="grid gap-2">

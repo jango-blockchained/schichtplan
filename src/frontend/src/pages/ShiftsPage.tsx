@@ -60,11 +60,17 @@ export const ShiftsPage: React.FC = () => {
     if (!settings) return;
 
     try {
+      // Get the first shift type from settings or use a default
+      const defaultShiftTypeId = settings.shift_types && settings.shift_types.length > 0
+        ? settings.shift_types[0].id
+        : 'EARLY';
+
       const defaultShift = {
         start_time: settings.general.store_opening,
         end_time: settings.general.store_closing,
         requires_break: true,
         active_days: settings.general.opening_days,
+        shift_type_id: defaultShiftTypeId,
       };
 
       const newShift = await createShift(defaultShift);
