@@ -29,8 +29,6 @@ def create_shift():
         shift = ShiftTemplate(
             start_time=data["start_time"],
             end_time=data["end_time"],
-            min_employees=int(data["min_employees"]),
-            max_employees=int(data["max_employees"]),
             requires_break=bool(data.get("requires_break", True)),
             active_days=data.get(
                 "active_days",
@@ -72,10 +70,6 @@ def update_shift(shift_id):
             shift.start_time = data["start_time"]
         if "end_time" in data:
             shift.end_time = data["end_time"]
-        if "min_employees" in data:
-            shift.min_employees = int(data["min_employees"])
-        if "max_employees" in data:
-            shift.max_employees = int(data["max_employees"])
         if "requires_break" in data:
             shift.requires_break = bool(data["requires_break"])
         if "active_days" in data:

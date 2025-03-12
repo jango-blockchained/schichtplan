@@ -14,16 +14,12 @@ interface ShiftFormProps {
     onSave: (data: {
         start_time: string;
         end_time: string;
-        min_employees: number;
-        max_employees: number;
         requires_break: boolean;
         active_days: { [key: string]: boolean };
     }) => void;
     initialData?: {
         start_time?: string;
         end_time?: string;
-        min_employees?: number;
-        max_employees?: number;
         requires_break?: boolean;
         active_days?: { [key: string]: boolean };
     };
@@ -35,8 +31,6 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, onSave, initialD
     const [formData, setFormData] = useState({
         start_time: initialData?.start_time || settings.general.store_opening,
         end_time: initialData?.end_time || settings.general.store_closing,
-        min_employees: initialData?.min_employees || 1,
-        max_employees: initialData?.max_employees || 5,
         requires_break: initialData?.requires_break ?? true,
         active_days: initialData?.active_days || settings.general.opening_days,
     });
@@ -157,30 +151,6 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, onSave, initialD
                     </Card>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <Label htmlFor="min_employees">Min. Mitarbeiter</Label>
-                        <Input
-                            id="min_employees"
-                            type="number"
-                            min="1"
-                            value={formData.min_employees}
-                            onChange={(e) => setFormData({ ...formData, min_employees: parseInt(e.target.value) })}
-                            required
-                        />
-                    </div>
-                    <div>
-                        <Label htmlFor="max_employees">Max. Mitarbeiter</Label>
-                        <Input
-                            id="max_employees"
-                            type="number"
-                            min={formData.min_employees}
-                            value={formData.max_employees}
-                            onChange={(e) => setFormData({ ...formData, max_employees: parseInt(e.target.value) })}
-                            required
-                        />
-                    </div>
-                </div>
                 <div className="flex items-center space-x-2">
                     <Switch
                         id="requires_break"

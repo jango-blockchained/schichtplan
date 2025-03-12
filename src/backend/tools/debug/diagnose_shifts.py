@@ -34,8 +34,6 @@ def diagnose_shifts():
             print(f"  Start time: {shift.start_time}")
             print(f"  End time: {shift.end_time}")
             print(f"  Duration: {shift.duration_hours}")
-            print(f"  Min employees: {shift.min_employees}")
-            print(f"  Max employees: {shift.max_employees}")
             print(f"  Requires break: {shift.requires_break}")
 
             # Check for missing required fields

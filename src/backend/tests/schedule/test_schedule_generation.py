@@ -63,7 +63,7 @@ def main():
             # Log detailed shift information from database
             for shift in shifts:
                 logger.info(
-                    f"DB Shift: {shift.id}, Time: {shift.start_time}-{shift.end_time}, Duration: {shift.duration_hours}h, Min employees: {shift.min_employees}, Max employees: {shift.max_employees}"
+                    f"DB Shift: {shift.id}, Time: {shift.start_time}-{shift.end_time}, Duration: {shift.duration_hours}h"
                 )
 
             employees = Employee.query.filter_by(is_active=True).all()
@@ -90,7 +90,7 @@ def main():
                 )
                 for shift in generator.resources.shifts:
                     logger.info(
-                        f"Generator Shift: {shift.id}, Time: {shift.start_time}-{shift.end_time}, Duration: {shift.duration_hours}h, Min employees: {shift.min_employees}, Max employees: {shift.max_employees}"
+                        f"Generator Shift: {shift.id}, Time: {shift.start_time}-{shift.end_time}, Duration: {shift.duration_hours}h"
                     )
             else:
                 logger.warning("No shift templates available in generator")

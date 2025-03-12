@@ -58,24 +58,30 @@ def update_shift(shift_id):
 
     try:
         if "start_time" in data or "end_time" in data:
-            # If either time is updated, validate both
-            new_start = data.get("start_time", shift.start_time)
-            new_end = data.get("end_time", shift.end_time)
-            # Create a temporary shift to validate times
-            temp_shift = ShiftTemplate(
-                start_time=new_start,
-                end_time=new_end,
-            )
-            # If validation passes, update the actual shift
-            shift.start_time = new_start
-            shift.end_time = new_end
+            start_time = data.get("start_time", shift.start_time)
+            end_time = data.get("end_time", shift.end_time)
+            shift.start_time = start_time
+            shift.end_time = end_time
+            # Recalculate duration when times change
+            shift._calculate_duration()
 
         if "requires_break" in data:
             shift.requires_break = data["requires_break"]
 
-        shift._calculate_duration()  # Recalculate duration after time changes
-        db.session.commit()
+        if "active_days" in data:
+            shift.active_days = data["active_days"]
 
+        if "duration_hours" in data:
+            shift.duration_hours = data["duration_hours"]
+
+        # Duration needs to be calculated or must be valid
+        if shift.duration_hours is None or shift.duration_hours <= 0:
+            shift._calculate_duration()
+
+        # Validate the updated shift
+        shift.validate()
+
+        db.session.commit()
         return jsonify(shift.to_dict())
 
     except ShiftValidationError as e:

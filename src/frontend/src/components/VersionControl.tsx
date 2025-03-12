@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertCircle, Check, Archive, Plus, ChevronDown, ChevronUp, Clock, Calendar, Copy, Pencil, RefreshCw, FileText, Lock } from 'lucide-react';
+import { AlertCircle, Check, Archive, Plus, ChevronDown, ChevronUp, Clock, Calendar, Copy, Pencil, RefreshCw, FileText, Lock, Trash } from 'lucide-react';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { DateRange } from 'react-day-picker';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -13,6 +13,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { Schedule } from '@/types';
 import { Separator } from './ui/separator';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface VersionControlProps {
     versions: number[];
@@ -24,6 +34,7 @@ interface VersionControlProps {
     onCreateNewVersion: () => void;
     onPublishVersion: (version: number) => void;
     onArchiveVersion: (version: number) => void;
+    onDeleteVersion: (version: number) => void;
     onDuplicateVersion?: (version: number) => void;
     isLoading?: boolean;
     hasError?: boolean;
@@ -41,6 +52,7 @@ export function VersionControl({
     onCreateNewVersion,
     onPublishVersion,
     onArchiveVersion,
+    onDeleteVersion,
     onDuplicateVersion,
     isLoading = false,
     hasError = false,
@@ -48,6 +60,7 @@ export function VersionControl({
     onRetry
 }: VersionControlProps) {
     const [selectedTab, setSelectedTab] = useState('selection');
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
     // Add error handling for missing data
     if (hasError) {
@@ -80,7 +93,7 @@ export function VersionControl({
         );
     }
 
-    // If no versions are available, show a message but not an error
+    // If no versions are available, show an improved create version view
     if (versions.length === 0 && !isLoading) {
         return (
             <Card className="mb-4">
@@ -88,22 +101,34 @@ export function VersionControl({
                     <CardTitle className="text-lg">Versionsverwaltung</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-6">
-                    <Alert>
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>Keine Versionen verfügbar</AlertTitle>
-                        <AlertDescription className="flex flex-col">
-                            <div>Für den ausgewählten Zeitraum sind keine Versionen verfügbar. Bitte erstellen Sie eine neue Version.</div>
-                            <Button
-                                variant="default"
-                                size="sm"
-                                className="mt-4 w-fit"
-                                onClick={onCreateNewVersion}
-                            >
-                                <Plus className="h-4 w-4 mr-2" />
-                                Neue Version erstellen
-                            </Button>
-                        </AlertDescription>
-                    </Alert>
+                    <div className="flex flex-col items-center text-center p-6 space-y-6">
+                        <div className="bg-muted/30 p-4 rounded-full">
+                            <Plus className="h-8 w-8 text-primary" />
+                        </div>
+                        <div className="space-y-2">
+                            <h3 className="text-xl font-medium">Keine Versionen vorhanden</h3>
+                            <p className="text-muted-foreground">
+                                Für den ausgewählten Zeitraum {dateRange?.from && dateRange?.to ?
+                                    `(${format(dateRange.from, 'dd.MM.yyyy')} - ${format(dateRange.to, 'dd.MM.yyyy')})` :
+                                    ''} sind noch keine Versionen verfügbar.
+                            </p>
+                        </div>
+                        <Button
+                            variant="default"
+                            className="mt-6"
+                            onClick={onCreateNewVersion}
+                            disabled={!dateRange?.from || !dateRange?.to}
+                            title={!dateRange?.from || !dateRange?.to ? 'Bitte wählen Sie einen Datumsbereich' : undefined}
+                        >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Erste Version erstellen
+                        </Button>
+                        {(!dateRange?.from || !dateRange?.to) && (
+                            <p className="text-sm text-muted-foreground">
+                                Bitte wählen Sie einen Datumsbereich aus, um eine Version zu erstellen.
+                            </p>
+                        )}
+                    </div>
                 </CardContent>
             </Card>
         );
@@ -250,59 +275,102 @@ export function VersionControl({
 
                     <Separator className="my-6" />
 
-                    <div className="flex flex-wrap items-center gap-3">
-                        <Button
-                            variant="default"
-                            size="sm"
-                            onClick={onCreateNewVersion}
-                            disabled={isLoading}
-                            className="h-9"
-                        >
-                            <Plus className="h-4 w-4 mr-2" />
-                            Neue Version
-                        </Button>
-
-                        {canPublish && (
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
                             <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => currentVersion && onPublishVersion(currentVersion)}
-                                disabled={isLoading || !currentVersion}
+                                onClick={onCreateNewVersion}
+                                disabled={isLoading || !dateRange?.from || !dateRange?.to}
                                 className="h-9"
+                                title={!dateRange?.from || !dateRange?.to ? 'Bitte wählen Sie einen Datumsbereich' : undefined}
                             >
-                                <Check className="h-4 w-4 mr-2" />
-                                Veröffentlichen
+                                <Plus className="h-4 w-4 mr-2" />
+                                Neue Version
                             </Button>
-                        )}
 
-                        {canArchive && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => currentVersion && onArchiveVersion(currentVersion)}
-                                disabled={isLoading || !currentVersion}
-                                className="h-9"
-                            >
-                                <Archive className="h-4 w-4 mr-2" />
-                                Archivieren
-                            </Button>
-                        )}
+                            {canPublish && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => currentVersion && onPublishVersion(currentVersion)}
+                                    disabled={isLoading || !currentVersion}
+                                    className="h-9"
+                                >
+                                    <Check className="h-4 w-4 mr-2" />
+                                    Veröffentlichen
+                                </Button>
+                            )}
 
-                        {onDuplicateVersion && currentVersion && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => onDuplicateVersion(currentVersion)}
-                                disabled={isLoading || !currentVersion}
-                                className="h-9"
-                            >
-                                <Copy className="h-4 w-4 mr-2" />
-                                Duplizieren
-                            </Button>
-                        )}
+                            {canArchive && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => currentVersion && onArchiveVersion(currentVersion)}
+                                    disabled={isLoading || !currentVersion}
+                                    className="h-9"
+                                >
+                                    <Archive className="h-4 w-4 mr-2" />
+                                    Archivieren
+                                </Button>
+                            )}
+
+                            {currentVersion && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setIsDeleteDialogOpen(true)}
+                                    disabled={isLoading || !currentVersion}
+                                    className="h-9 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                                >
+                                    <Trash className="h-4 w-4 mr-2" />
+                                    Löschen
+                                </Button>
+                            )}
+
+                            {onDuplicateVersion && currentVersion && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => onDuplicateVersion(currentVersion)}
+                                    disabled={isLoading || !currentVersion}
+                                    className="h-9"
+                                >
+                                    <Copy className="h-4 w-4 mr-2" />
+                                    Duplizieren
+                                </Button>
+                            )}
+                        </div>
                     </div>
                 </div>
             </CardContent>
+
+            {/* Delete confirmation dialog */}
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Version löschen?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Diese Aktion löscht Version {currentVersion} und alle zugehörigen Schichtpläne.
+                            Diese Aktion kann nicht rückgängig gemacht werden.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => {
+                                if (currentVersion) {
+                                    onDeleteVersion(currentVersion);
+                                }
+                                setIsDeleteDialogOpen(false);
+                            }}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            Löschen
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </Card>
     );
 } 

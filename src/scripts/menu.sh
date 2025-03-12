@@ -64,6 +64,67 @@ stop_all() {
     stop_frontend
 }
 
+# Function to close tmux session and stop all services
+close_tmux_session() {
+    echo "Stopping all services and closing tmux session..."
+    
+    # Stop all services first
+    stop_all
+    
+    # Sleep to ensure services have time to stop
+    sleep 2
+    
+    # Kill the tmux session
+    echo "Closing tmux session..."
+    tmux kill-session -t schichtplan 2>/dev/null
+    
+    # Exit the script
+    echo "Session closed."
+    exit 0
+}
+
+# Function to show development statistics using cloc
+show_dev_stats() {
+    clear
+    echo "=== Schichtplan Development Statistics ==="
+    echo ""
+    
+    # Check if cloc is installed
+    if ! command -v cloc &> /dev/null; then
+        echo "Error: 'cloc' is not installed on your system."
+        echo ""
+        echo "Please install cloc first:"
+        echo "  Ubuntu/Debian: sudo apt-get install cloc"
+        echo "  Mac: brew install cloc"
+        echo "  Manual download: https://github.com/AlDanial/cloc"
+        echo ""
+        return
+    fi
+    
+    # Get the absolute path to the project directory
+    # First, get the directory where this script is located
+    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+    # Then determine the project root (2 levels up from scripts directory)
+    PROJECT_ROOT="$( cd "$SCRIPT_DIR/../.." &> /dev/null && pwd )"
+    
+    echo "Project root: $PROJECT_ROOT"
+    echo ""
+    
+    echo "Analyzing backend code..."
+    echo "-------------------------------------"
+    cloc "$PROJECT_ROOT/src/backend" --exclude-dir=__pycache__,instance --exclude-ext=log,pyc
+    
+    echo ""
+    echo "Analyzing frontend code..."
+    echo "-------------------------------------"
+    cloc "$PROJECT_ROOT/src/frontend" --exclude-dir=node_modules,dist,build,public --exclude-ext=log
+    
+    echo ""
+    echo "Overall project statistics (excluding common generated files)..."
+    echo "-------------------------------------"
+    cloc "$PROJECT_ROOT" --exclude-dir=node_modules,dist,build,__pycache__,instance,.venv,.git,.pytest_cache,.mypy_cache --exclude-ext=log,pyc
+}
+
 # Main menu loop
 while true; do
     clear
@@ -74,6 +135,8 @@ while true; do
     echo "4) Stop Backend"
     echo "5) Stop Frontend"
     echo "6) Stop All Services"
+    echo "7) Show Development Statistics"
+    echo "8) Close Tmux Session (Stop All)"
     echo "q) Quit"
     echo "=================================="
     
@@ -87,6 +150,8 @@ while true; do
         4) stop_backend ;;
         5) stop_frontend ;;
         6) stop_all ;;
+        7) show_dev_stats ;;
+        8) close_tmux_session ;;
         q|Q) exit 0 ;;
         *) echo "Invalid option" ;;
     esac

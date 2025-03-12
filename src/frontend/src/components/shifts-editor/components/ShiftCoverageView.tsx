@@ -168,10 +168,9 @@ const ShiftBlock: React.FC<{
     shift: EnhancedShift;
     day: string;
     position: { left: number; width: number; debug?: any };
-    onEmployeeCountChange: (id: number, minEmployees: number, maxEmployees: number) => void;
     index: number;
     totalShifts: number;
-}> = ({ shift, day, position, onEmployeeCountChange, index, totalShifts }) => {
+}> = ({ shift, day, position, index, totalShifts }) => {
     const [showDebug, setShowDebug] = useState(false);
 
     // Use the pre-calculated flags from the enhanced shifts
@@ -214,9 +213,6 @@ const ShiftBlock: React.FC<{
                         <span className="text-xs font-medium whitespace-nowrap">{shift.start_time}-{shift.end_time}</span>
                     </div>
                     <div className="flex items-center gap-1">
-                        <span className="text-xs bg-white/70 px-1 rounded-full font-medium">
-                            {shift.min_employees}-{shift.max_employees}
-                        </span>
                         {(isEarlyShift || isLateShift) && (
                             <span className="text-xs">🔑</span>
                         )}
@@ -234,12 +230,9 @@ const ShiftBlock: React.FC<{
 };
 
 const EmployeeCounter: React.FC<{ shifts: Shift[] }> = ({ shifts }) => {
-    const totalMaxEmployees = shifts.reduce((acc, shift) => acc + shift.max_employees, 0);
     return (
-        <div className="flex items-center justify-end">
-            <span className="text-sm font-medium bg-background/50 px-3 py-1.5 rounded-md">
-                {totalMaxEmployees} Mitarbeiter max
-            </span>
+        <div className="flex items-center gap-2 text-xs">
+            <span className="font-medium">Total Shifts:</span> {shifts.length}
         </div>
     );
 };
@@ -264,25 +257,10 @@ const Legend: React.FC = () => (
 );
 
 export const ShiftCoverageView: React.FC<ShiftCoverageViewProps> = ({ settings, shifts }) => {
-    // Use string keys for the shiftEmployees record to avoid TypeScript errors
-    const [shiftEmployees, setShiftEmployees] = useState<Record<string, { min: number, max: number }>>(
-        shifts.reduce((acc, shift) => ({
-            ...acc,
-            [shift.id.toString()]: { min: shift.min_employees, max: shift.max_employees }
-        }), {})
-    );
-
-    const handleEmployeeCountChange = (shiftId: number, minEmployees: number, maxEmployees: number) => {
-        setShiftEmployees(prev => ({
-            ...prev,
-            [shiftId.toString()]: { min: minEmployees, max: maxEmployees }
-        }));
-    };
-
-    const timeCalculator = useMemo(() => new TimeCalculator(settings), [settings]);
-
-    const timeRange = useMemo(() => timeCalculator.calculateExtendedTimeRange(), [settings]);
-    const timelineLabels = useMemo(() => timeCalculator.calculateTimelineLabels(timeRange), [timeRange]);
+    const [debugInfo, setDebugInfo] = useState<ShiftDebugInfo[]>([]);
+    const calculator = new TimeCalculator(settings);
+    const timeRange = calculator.calculateExtendedTimeRange();
+    const timelineLabels = calculator.calculateTimelineLabels(timeRange);
 
     // Use default keyholder times if not specified
     const keyholderBeforeMinutes = settings.general.keyholder_before_minutes ?? DEFAULT_KEYHOLDER_MINUTES;
@@ -329,12 +307,9 @@ export const ShiftCoverageView: React.FC<ShiftCoverageViewProps> = ({ settings, 
 
     // Fix the type for shiftEmployees access
     const shiftPositions = enhancedShifts.map(shift => {
-        const position = timeCalculator.calculateShiftPosition(shift, timeRange);
-        const shiftIdStr = shift.id.toString();
+        const position = calculator.calculateShiftPosition(shift, timeRange);
         return {
             ...shift,
-            min_employees: shiftEmployees[shiftIdStr]?.min || shift.min_employees,
-            max_employees: shiftEmployees[shiftIdStr]?.max || shift.max_employees,
             position
         };
     });
@@ -395,61 +370,42 @@ export const ShiftCoverageView: React.FC<ShiftCoverageViewProps> = ({ settings, 
                                                         {/* Shifts container */}
                                                         <div className="relative h-full pt-2">
                                                             {dayShifts.map((shift, shiftIndex) => {
-                                                                const position = timeCalculator.calculateShiftPosition(shift, timeRange);
-                                                                const shiftIdStr = shift.id.toString();
+                                                                const position = calculator.calculateShiftPosition(shift, timeRange);
 
-                                                                // Calculate keyholder blocks for early and late shifts
-                                                                const earlyShiftKeyholderBlock = shift.isEarlyShift ? (
-                                                                    <div
-                                                                        key={`keyholder-before-${shift.id}`}
-                                                                        className="absolute bg-yellow-100 border border-yellow-300 rounded-md flex items-center justify-center"
-                                                                        style={{
-                                                                            left: `${position.left - keyholderBeforeWidth}%`,
-                                                                            width: `${keyholderBeforeWidth}%`,
-                                                                            height: `${blockHeight}px`,
-                                                                            top: `${shiftIndex * (blockHeight + spacing)}px`,
-                                                                            zIndex: shiftIndex + 1,
-                                                                        }}
-                                                                        title={`Keyholder time before opening (${keyholderBeforeMinutes} min)`}
-                                                                    >
-                                                                        <span className="text-xs text-yellow-800">🔑</span>
-                                                                    </div>
+                                                                // Calculate if early or late shift
+                                                                const isEarlyShift = shift.isEarlyShift;
+                                                                const isLateShift = shift.isLateShift;
+
+                                                                // Early shift keyholder block
+                                                                const earlyShiftKeyholderBlock = isEarlyShift ? (
+                                                                    <KeyholderTimeBlock
+                                                                        isBefore={true}
+                                                                        widthPercentage={keyholderBeforeWidth}
+                                                                        minutes={keyholderBeforeMinutes}
+                                                                    />
                                                                 ) : null;
 
-                                                                const lateShiftKeyholderBlock = shift.isLateShift ? (
-                                                                    <div
-                                                                        key={`keyholder-after-${shift.id}`}
-                                                                        className="absolute bg-yellow-100 border border-yellow-300 rounded-md flex items-center justify-center"
-                                                                        style={{
-                                                                            left: `${position.left + position.width}%`,
-                                                                            width: `${keyholderAfterWidth}%`,
-                                                                            height: `${blockHeight}px`,
-                                                                            top: `${shiftIndex * (blockHeight + spacing)}px`,
-                                                                            zIndex: shiftIndex + 1,
-                                                                        }}
-                                                                        title={`Keyholder time after closing (${keyholderAfterMinutes} min)`}
-                                                                    >
-                                                                        <span className="text-xs text-yellow-800">🔑</span>
-                                                                    </div>
+                                                                // Late shift keyholder block
+                                                                const lateShiftKeyholderBlock = isLateShift ? (
+                                                                    <KeyholderTimeBlock
+                                                                        isBefore={false}
+                                                                        widthPercentage={keyholderAfterWidth}
+                                                                        minutes={keyholderAfterMinutes}
+                                                                    />
                                                                 ) : null;
 
                                                                 return (
-                                                                    <React.Fragment key={shift.id}>
+                                                                    <div key={shift.id} className="relative">
                                                                         {earlyShiftKeyholderBlock}
                                                                         <ShiftBlock
-                                                                            shift={{
-                                                                                ...shift,
-                                                                                min_employees: shiftEmployees[shiftIdStr]?.min || shift.min_employees,
-                                                                                max_employees: shiftEmployees[shiftIdStr]?.max || shift.max_employees
-                                                                            }}
+                                                                            shift={shift}
                                                                             day={day}
                                                                             position={position}
-                                                                            onEmployeeCountChange={handleEmployeeCountChange}
                                                                             index={shiftIndex}
                                                                             totalShifts={dayShifts.length}
                                                                         />
                                                                         {lateShiftKeyholderBlock}
-                                                                    </React.Fragment>
+                                                                    </div>
                                                                 );
                                                             })}
                                                         </div>
@@ -458,14 +414,7 @@ export const ShiftCoverageView: React.FC<ShiftCoverageViewProps> = ({ settings, 
                                             )}
 
                                             <div className="mt-4 pt-3 border-t">
-                                                <EmployeeCounter shifts={dayShifts.map(shift => {
-                                                    const shiftIdStr = shift.id.toString();
-                                                    return {
-                                                        ...shift,
-                                                        min_employees: shiftEmployees[shiftIdStr]?.min || shift.min_employees,
-                                                        max_employees: shiftEmployees[shiftIdStr]?.max || shift.max_employees
-                                                    };
-                                                })} />
+                                                <EmployeeCounter shifts={dayShifts} />
                                             </div>
                                         </div>
                                     ) : (

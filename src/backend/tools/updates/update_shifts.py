@@ -10,7 +10,8 @@ def update_shifts():
 
         for shift in shifts:
             print(f"Updating shift {shift.id} ({shift.start_time}-{shift.end_time})")
-            shift.min_employees = 0
+            # min_employees has been removed from the ShiftTemplate model
+            # No updates needed
 
         try:
             db.session.commit()

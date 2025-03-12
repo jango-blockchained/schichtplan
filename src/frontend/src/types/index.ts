@@ -43,8 +43,6 @@ export interface Shift {
     id: number;
     start_time: string;
     end_time: string;
-    min_employees: number;
-    max_employees: number;
     duration_hours: number;
     requires_break: boolean;
     active_days: number[];  // Array of weekday indices (0 = Monday, 6 = Sunday)
@@ -129,8 +127,6 @@ export interface ShiftTemplate {
         shift_type: ShiftType;
         start_time: string;
         end_time: string;
-        min_employees: number;
-        max_employees: number;
         days: ('MO' | 'TU' | 'WE' | 'TH' | 'FR' | 'SA')[];
     }[];
     created_at: string | null;

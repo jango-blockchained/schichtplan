@@ -224,24 +224,44 @@ class ScheduleGenerator:
         """Find shifts that match the coverage time period"""
         matching_shifts = []
 
+        # First try to find exact matches
         for shift in self.resources.shifts:
-            # Check for exact matches first
             if (
                 shift.start_time == coverage.start_time
                 and shift.end_time == coverage.end_time
             ):
                 matching_shifts.append(shift)
 
-        # If no exact matches, look for overlapping shifts
-        if not matching_shifts:
+        # If we found exact matches, return them
+        if matching_shifts:
+            return matching_shifts
+
+        # Next, try to find shifts that specifically cover the closing time
+        # This is especially important for late/closing shifts
+        if coverage.end_time >= "18:00":  # If this is a closing coverage period
             for shift in self.resources.shifts:
-                if self._shifts_overlap(
-                    shift.start_time,
-                    shift.end_time,
-                    coverage.start_time,
-                    coverage.end_time,
+                # Look for shifts that end at the same time as the coverage period
+                if shift.end_time == coverage.end_time:
+                    matching_shifts.append(shift)
+                # Or shifts that extend past the coverage end time
+                elif self._time_to_minutes(shift.end_time) >= self._time_to_minutes(
+                    coverage.end_time
                 ):
                     matching_shifts.append(shift)
+
+        # If we found closing shifts, return them
+        if matching_shifts:
+            return matching_shifts
+
+        # If still no matches, look for any overlapping shifts
+        for shift in self.resources.shifts:
+            if self._shifts_overlap(
+                shift.start_time,
+                shift.end_time,
+                coverage.start_time,
+                coverage.end_time,
+            ):
+                matching_shifts.append(shift)
 
         return matching_shifts
 
@@ -888,30 +908,55 @@ class ScheduleGenerator:
         return (end_hour - start_hour) / 60.0
 
     def _get_shift_priority(self, shift: ShiftTemplate, current_date: date) -> int:
-        """Get priority for shift scheduling (keyholder shifts first)"""
-        # Get coverage requirements for this time slot
-        coverage = next(
+        """Get priority for shift scheduling (keyholder shifts first, then closing shifts)"""
+        # Get all coverage requirements for this day
+        day_coverage = [
+            c for c in self.resources.coverage if c.day_index == current_date.weekday()
+        ]
+
+        # Look for exact coverage match first
+        exact_coverage = next(
             (
                 c
-                for c in self.resources.coverage
-                if c.day_index == current_date.weekday()
-                and c.start_time == shift.start_time
-                and c.end_time == shift.end_time
+                for c in day_coverage
+                if c.start_time == shift.start_time and c.end_time == shift.end_time
             ),
             None,
         )
 
-        # Prioritize shifts that require keyholders
-        if coverage and coverage.requires_keyholder:
-            return 0
-
-        # Then prioritize shifts with higher minimum employee requirements
-        if coverage:
+        if exact_coverage:
+            # Prioritize shifts that require keyholders
+            if exact_coverage.requires_keyholder:
+                return 0
+            # Then prioritize shifts with higher minimum employee requirements
             return (
-                -coverage.min_employees
+                -exact_coverage.min_employees
             )  # Negative so higher min_employees = higher priority
 
-        return 999  # Lowest priority for shifts without coverage requirements
+        # Check if this is a late/closing shift (ending at or after 18:00)
+        is_closing_shift = self._time_to_minutes(
+            shift.end_time
+        ) >= self._time_to_minutes("18:00")
+
+        # Find any coverage that overlaps with this shift
+        overlapping_coverage = []
+        for cov in day_coverage:
+            if self._shifts_overlap(
+                shift.start_time, shift.end_time, cov.start_time, cov.end_time
+            ):
+                overlapping_coverage.append(cov)
+
+        if overlapping_coverage:
+            # For closing shifts, prioritize them for afternoon/evening coverage
+            late_coverage = [c for c in overlapping_coverage if c.end_time >= "18:00"]
+            if is_closing_shift and late_coverage:
+                return 10  # Priority for closing shifts for late coverage periods
+
+            # If not closing shift but covers some coverage, medium priority
+            return 50
+
+        # Lowest priority for shifts without any coverage overlap
+        return 999
 
     def _get_employee_priority(self, employee: Employee, shift: ShiftTemplate) -> int:
         """Get priority for employee scheduling (keyholders first)"""

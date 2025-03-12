@@ -1,69 +1,83 @@
+/* REFACTORING PLAN for SchedulePage.tsx
+ * 
+ * Issues:
+ * - File is too large (~1300 lines)
+ * - Too many responsibilities
+ * - Complex state management
+ * - Unused/incomplete features
+ *
+ * Solution:
+ * 1. Extract components:
+ *    - GenerationOverlay → components/Schedule/GenerationOverlay.tsx
+ *    - GenerationLogs → components/Schedule/GenerationLogs.tsx
+ *    - ScheduleErrors → components/Schedule/ScheduleErrors.tsx
+ *    - ScheduleControls → components/Schedule/ScheduleControls.tsx
+ *
+ * 2. Extract hooks:
+ *    - useScheduleGeneration.ts (generation logic)
+ *    - useVersionControl.ts (version management)
+ *
+ * 3. Clean up:
+ *    - Remove isLayoutCustomizerOpen (unused)
+ *    - Remove incomplete version notes editing
+ *    - Remove unused isDuplicateVersionOpen dialog
+ */
+
 import React, { useState, useEffect } from 'react';
 import { ShiftTable } from '@/components/ShiftTable';
 import { useScheduleData } from '@/hooks/useScheduleData';
 import { addDays, startOfWeek, endOfWeek, addWeeks, format, getWeek, isBefore } from 'date-fns';
 import { Button } from '@/components/ui/button';
-import { useMutation } from '@tanstack/react-query';
-import { generateSchedule, exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, publishSchedule, archiveSchedule, updateVersionStatus, createNewVersion, duplicateVersion, getVersionDetails, compareVersions, updateVersionNotes, getAllVersions, getSettings, updateSettings, fixShiftDurations } from '@/services/api';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, getSettings, updateSettings, createSchedule } from '@/services/api';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2, AlertCircle, X, CheckCircle2, Circle, Clock, CheckCircle, XCircle, RefreshCw, Plus, Archive, Calendar, Settings2, Play, FileSpreadsheet, FileDown, History, CalendarIcon, Pencil, Copy, FileText, GitCompare, ChevronUp, ChevronDown, AlertTriangle, Info } from 'lucide-react';
+import { Loader2, AlertCircle, X, Calendar, CheckCircle, XCircle, RefreshCw, Plus } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableHeader, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScheduleTable } from '@/components/ScheduleTable';
 import { ScheduleOverview } from '@/components/Schedule/ScheduleOverview';
 import { Schedule, ScheduleError, ScheduleUpdate } from '@/types';
-import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PageHeader } from '@/components/PageHeader';
-import { Progress } from '@/components/ui/progress';
-import { DateRange } from 'react-day-picker';
 import { getAvailableCalendarWeeks, getDateRangeFromWeekAndCount } from '@/utils/dateUtils';
 import { ScheduleVersions } from '@/components/Schedule/ScheduleVersions';
-import { useQuery, useQueryClient, UseQueryResult } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { VersionControl } from '@/components/VersionControl';
 import { CollapsibleSection } from '@/components/CollapsibleSection';
 import { ScheduleGenerationSettings } from '@/components/ScheduleGenerationSettings';
-import type { ScheduleResponse, VersionResponse } from '@/services/api';
+import type { ScheduleResponse } from '@/services/api';
 import { type Settings } from '@/types';
 import { type Schedule as APISchedule } from '@/services/api';
 import { type UseScheduleDataResult } from '@/hooks/useScheduleData';
 import { DateRangeSelector } from '@/components/DateRangeSelector';
-
-interface GenerationStep {
-  id: string;
-  title: string;
-  status: 'pending' | 'in-progress' | 'completed' | 'error';
-  message?: string;
-}
+// Import the new components and hooks
+import GenerationOverlay from '@/components/Schedule/GenerationOverlay';
+import GenerationLogs from '@/components/Schedule/GenerationLogs';
+import ScheduleErrors from '@/components/Schedule/ScheduleErrors';
+import ScheduleControls from '@/components/Schedule/ScheduleControls';
+import useScheduleGeneration from '@/hooks/useScheduleGeneration';
+import useVersionControl from '@/hooks/useVersionControl';
+import { DateRange } from 'react-day-picker';
+import { ScheduleActions } from '@/components/Schedule/ScheduleActions';
+import { AddScheduleDialog } from '@/components/Schedule/AddScheduleDialog';
 
 export function SchedulePage() {
   const today = new Date();
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
-  const [selectedVersion, setSelectedVersion] = useState<number | undefined>();
-  const [isLayoutCustomizerOpen, setIsLayoutCustomizerOpen] = useState(false);
   const [createEmptySchedules, setCreateEmptySchedules] = useState<boolean>(true);
   const [includeEmpty, setIncludeEmpty] = useState<boolean>(false);
   const [isGenerating, setIsGenerating] = useState(false);
   // Add state for schedule duration (in weeks)
   const [scheduleDuration, setScheduleDuration] = useState<number>(1);
   const { toast } = useToast();
-
-  // Add state for generation steps and logs
-  const [generationSteps, setGenerationSteps] = useState<GenerationStep[]>([]);
-  const [generationLogs, setGenerationLogs] = useState<{
-    type: "info" | "warning" | "error";
-    timestamp: string;
-    message: string;
-    details?: string;
-  }[]>([]);
-  const [showGenerationOverlay, setShowGenerationOverlay] = useState(false);
+  const queryClient = useQueryClient();
+  const [isAddScheduleDialogOpen, setIsAddScheduleDialogOpen] = useState(false);
 
   // Initialize date range with current week
   useEffect(() => {
@@ -113,13 +127,60 @@ export function SchedulePage() {
     addGenerationLog('info', `Will ${checked ? 'create' : 'not create'} empty schedules for all employees during generation`);
   };
 
-  const queryClient = useQueryClient();
+  // Use our version control hook
+  const {
+    selectedVersion,
+    handleVersionChange,
+    handleCreateNewVersion,
+    handlePublishVersion,
+    handleArchiveVersion,
+    handleDeleteVersion,
+    handleDuplicateVersion,
+    versions,
+    versionMetas,
+    isLoading: isLoadingVersions
+  } = useVersionControl({
+    dateRange,
+    onVersionSelected: (version) => {
+      // When a version is selected via the version control, we need to refetch data
+      refetchScheduleData();
+    }
+  });
+
+  // Use our schedule generation hook
+  const {
+    generationSteps,
+    generationLogs,
+    showGenerationOverlay,
+    isPending: isGenerationPending,
+    generate,
+    resetGenerationState,
+    addGenerationLog,
+    clearGenerationLogs
+  } = useScheduleGeneration({
+    dateRange,
+    selectedVersion,
+    createEmptySchedules,
+    onSuccess: () => {
+      // After generation completes successfully, refresh the data
+      refetchScheduleData();
+
+      // Force refresh the versions data as well to ensure we have the latest
+      queryClient.invalidateQueries({ queryKey: ['versions'] });
+
+      // Show a success message
+      toast({
+        title: "Generation Complete",
+        description: "The schedule has been generated successfully."
+      });
+    }
+  });
 
   // Update the useQuery hook with proper types and error handling
   const {
     data,
     isLoading,
-    refetch,
+    refetch: refetchScheduleData,
     isError,
     error,
   } = useQuery<ScheduleResponse, Error>({
@@ -177,7 +238,6 @@ export function SchedulePage() {
     includeEmpty
   );
 
-  const versions = data?.versions || [];
   const errors = data?.errors || [];
 
   // Log fetch errors
@@ -193,223 +253,10 @@ export function SchedulePage() {
   const handleRetryFetch = () => {
     console.log('Retrying data fetch...');
     // Clear any existing errors
-    setGenerationLogs(prev => prev.filter(log => log.type !== 'error'));
+    clearGenerationLogs();
     // Force refetch
-    refetch();
+    refetchScheduleData();
   };
-
-  const addGenerationLog = (type: 'info' | 'warning' | 'error', message: string, details?: string) => {
-    setGenerationLogs(prev => [...prev, {
-      timestamp: new Date().toISOString(),
-      type,
-      message,
-      details
-    }]);
-  };
-
-  const clearGenerationLogs = () => {
-    setGenerationLogs([]);
-  };
-
-  const resetGenerationState = () => {
-    setGenerationSteps([]);
-    setGenerationLogs([]);
-    setShowGenerationOverlay(false);
-  };
-
-  const updateGenerationStep = (stepId: string, status: GenerationStep['status'], message?: string) => {
-    setGenerationSteps(steps =>
-      steps.map(step =>
-        step.id === stepId
-          ? { ...step, status, message }
-          : step
-      )
-    );
-  };
-
-  // Generation mutation with timeout
-  const generateMutation = useMutation({
-    mutationFn: async () => {
-      try {
-        if (!dateRange?.from || !dateRange?.to) {
-          throw new Error("Bitte wählen Sie einen Zeitraum aus");
-        }
-
-        // Set up steps
-        const steps: GenerationStep[] = [
-          { id: "init", title: "Initialisiere Generierung", status: "pending" },
-          { id: "validate", title: "Validiere Eingabedaten", status: "pending" },
-          { id: "process", title: "Verarbeite Schichtplan", status: "pending" },
-          { id: "assign", title: "Weise Schichten zu", status: "pending" },
-          { id: "finalize", title: "Finalisiere Schichtplan", status: "pending" },
-        ];
-        setGenerationSteps(steps);
-        setShowGenerationOverlay(true);
-
-        // Set a timeout to automatically reset if it takes too long
-        const timeout = setTimeout(() => {
-          addGenerationLog('error', 'Zeitüberschreitung', 'Die Generierung dauert länger als erwartet. Bitte versuchen Sie es erneut.');
-          updateGenerationStep('init', 'error', 'Zeitüberschreitung');
-          throw new Error('Die Generierung dauert länger als erwartet.');
-        }, 30000); // 30 second timeout
-
-        try {
-          // Init
-          updateGenerationStep("init", "in-progress");
-          addGenerationLog("info", "Initialisiere Generierung");
-          await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate processing
-          updateGenerationStep("init", "completed");
-
-          // Validate
-          updateGenerationStep("validate", "in-progress");
-          addGenerationLog("info", "Validiere Eingabedaten");
-          await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate processing
-          updateGenerationStep("validate", "completed");
-
-          // Process
-          updateGenerationStep("process", "in-progress");
-          addGenerationLog("info", "Starte Verarbeitung");
-
-          // Call API to generate schedule
-          const fromStr = format(dateRange.from, 'yyyy-MM-dd');
-          const toStr = format(dateRange.to, 'yyyy-MM-dd');
-
-          try {
-            const result = await generateSchedule(
-              fromStr,
-              toStr,
-              createEmptySchedules,
-              selectedVersion || 1
-            );
-
-            updateGenerationStep("process", "completed");
-
-            // Assign shifts
-            updateGenerationStep("assign", "in-progress");
-            addGenerationLog("info", "Weise Schichten zu");
-            await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate processing
-            updateGenerationStep("assign", "completed");
-
-            // Finalize
-            updateGenerationStep("finalize", "in-progress");
-            addGenerationLog("info", "Finalisiere Schichtplan");
-            await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate processing
-            updateGenerationStep("finalize", "completed");
-
-            // Clear the timeout since we finished successfully
-            clearTimeout(timeout);
-
-            return result;
-          } catch (apiError) {
-            // Handle API-specific errors
-            console.error("API error during generation:", apiError);
-
-            // Update the appropriate step to error state
-            updateGenerationStep("process", "error", apiError instanceof Error ? apiError.message : "Unbekannter Fehler");
-
-            // Add detailed error log
-            if (apiError instanceof Error) {
-              addGenerationLog("error", apiError.message, "Fehler bei der API-Anfrage");
-
-              // Check for various patterns that indicate duration_hours issues
-              const durationPatterns = [
-                'duration_hours',
-                'schichtdauer',
-                'nonetype',
-                'attribute',
-                'none',
-                'shift',
-                'duration',
-                'has no attribute',
-                'fehlt ein attribut',
-                'missing attribute'
-              ];
-
-              const hasDurationError = durationPatterns.some(pattern =>
-                apiError.message.includes(pattern)
-              );
-
-              if (hasDurationError) {
-                addGenerationLog("error", "Schichtdauer fehlt", "Bitte überprüfen Sie die Schichteinstellungen und stellen Sie sicher, dass alle Schichten eine Dauer haben.");
-              }
-            } else {
-              addGenerationLog("error", "Unbekannter API-Fehler", String(apiError));
-            }
-
-            // Clear the timeout on error
-            clearTimeout(timeout);
-            throw apiError;
-          }
-        } catch (error) {
-          // Clear the timeout on error
-          clearTimeout(timeout);
-          throw error;
-        }
-      } catch (error) {
-        console.error("Generation error:", error);
-        if (error instanceof Error) {
-          addGenerationLog("error", "Fehler bei der Generierung", error.message);
-        } else {
-          addGenerationLog("error", "Unbekannter Fehler", String(error));
-        }
-
-        // Mark any in-progress steps as error
-        setGenerationSteps(prev =>
-          prev.map(step => step.status === 'in-progress' ? { ...step, status: 'error' } : step)
-        );
-
-        throw error;
-      }
-    },
-    onSuccess: (data) => {
-      // Check if we have any errors in the response
-      if (data.errors && data.errors.length > 0) {
-        // Add errors to logs
-        data.errors.forEach(error => {
-          addGenerationLog("error", error.message, error.date || error.shift);
-        });
-
-        // Update UI to show errors
-        updateGenerationStep("finalize", "error", "Fehler bei der Generierung");
-
-        // Show error toast
-        toast({
-          variant: "destructive",
-          title: "Generierung mit Warnungen",
-          description: `Schichtplan wurde generiert, enthält aber ${data.errors.length} Fehler oder Warnungen.`,
-        });
-      } else {
-        // Show success toast with accurate count
-        const generatedCount = data.schedules ? data.schedules.filter(s => s.shift_id !== null).length : 0;
-        const totalEmployees = data.filtered_schedules || data.schedules?.length || 0;
-
-        toast({
-          title: "Generierung erfolgreich",
-          description: `Schichtplan für ${totalEmployees} Mitarbeiter generiert mit ${generatedCount} zugewiesenen Schichten.`,
-        });
-
-        // Add success log
-        addGenerationLog("info", "Generierung erfolgreich abgeschlossen",
-          `${generatedCount} Schichten wurden ${totalEmployees} Mitarbeitern zugewiesen.`);
-
-        // Allow time for UI update before hiding overlay
-        setTimeout(() => {
-          setShowGenerationOverlay(false);
-        }, 1500);
-      }
-    },
-    onError: (error: unknown) => {
-      const errorMessage = error instanceof Error ? error.message : "Unbekannter Fehler";
-
-      toast({
-        variant: "destructive",
-        title: "Fehler",
-        description: `Fehler bei der Generierung: ${errorMessage}`,
-      });
-
-      // Don't auto-hide the overlay on error so user can see what happened
-    },
-  });
 
   const exportMutation = useMutation({
     mutationFn: async () => {
@@ -469,7 +316,7 @@ export function SchedulePage() {
         queryClient.invalidateQueries({ queryKey: ['schedules'] });
 
         // Immediately refetch to show updated data
-        await refetch();
+        await refetchScheduleData();
 
         console.log('🔶 updateShiftMutation onSuccess - refetch completed');
 
@@ -513,7 +360,7 @@ export function SchedulePage() {
       return updateBreakNotes(employeeId, date.toISOString().split('T')[0], notes);
     },
     onSuccess: () => {
-      refetch();
+      refetchScheduleData();
       toast({
         title: "Erfolg",
         description: "Pausennotizen wurden aktualisiert.",
@@ -543,7 +390,7 @@ export function SchedulePage() {
       await queryClient.invalidateQueries({ queryKey: ['schedules'] });
 
       // Immediately refetch to show updated data
-      await refetch();
+      await refetchScheduleData();
 
       toast({
         title: "Schicht aktualisiert",
@@ -586,109 +433,6 @@ export function SchedulePage() {
     await updateBreakNotesMutation.mutateAsync({ employeeId, day, notes });
   };
 
-  // Version management mutations
-  const createVersionMutation = useMutation({
-    mutationFn: async () => {
-      if (!dateRange?.from || !dateRange?.to) {
-        throw new Error("Please select a date range");
-      }
-
-      // Get the date range from the selected week
-      const fromStr = format(dateRange.from, 'yyyy-MM-dd');
-      const toStr = format(dateRange.to, 'yyyy-MM-dd');
-
-      const data = {
-        start_date: fromStr,
-        end_date: toStr,
-        base_version: selectedVersion,
-        notes: `New version for week ${getWeek(dateRange.from)} (${format(dateRange.from, 'dd.MM.yyyy')} - ${format(dateRange.to, 'dd.MM.yyyy')})`
-      };
-
-      return await createNewVersion(data);
-    },
-    onSuccess: (data) => {
-      toast({
-        title: "Neue Version erstellt",
-        description: `Version ${data.version} wurde erfolgreich erstellt.`,
-      });
-
-      // Automatically select the new version
-      setSelectedVersion(data.version);
-
-      // Refresh the versions list
-      versionsQuery.refetch();
-
-      // Refetch schedule data with the new version
-      refetch();
-    },
-    onError: (error) => {
-      toast({
-        title: "Fehler",
-        description: `Fehler beim Erstellen der neuen Version: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`,
-        variant: "destructive",
-      });
-    }
-  });
-
-  const handleCreateNewVersion = () => {
-    createVersionMutation.mutate();
-  };
-
-  const updateVersionStatusMutation = useMutation({
-    mutationFn: (params: { version: number, status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED' }) =>
-      updateVersionStatus(params.version, { status: params.status }),
-    onSuccess: (data) => {
-      toast({
-        title: "Success",
-        description: `Version ${data.version} status updated to ${data.status}`,
-      });
-      queryClient.invalidateQueries({ queryKey: ['schedules'] });
-      refetch();
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: `Failed to update version status: ${error}`,
-        variant: "destructive",
-      });
-    }
-  });
-
-  // Add new mutations for duplicating version and comparing versions
-  const duplicateVersionMutation = useMutation({
-    mutationFn: duplicateVersion,
-    onSuccess: (data) => {
-      toast({
-        title: "Success",
-        description: `Version ${data.version} created as a duplicate`,
-      });
-      setSelectedVersion(data.version);
-      queryClient.invalidateQueries({ queryKey: ['schedules'] });
-      refetch();
-      setIsDuplicateVersionOpen(false);
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: `Failed to duplicate version: ${error}`,
-        variant: "destructive",
-      });
-    }
-  });
-
-  // Add state for version control dialogs
-  const [versionNotes, setVersionNotes] = useState<string>('');
-  const [isEditingNotes, setIsEditingNotes] = useState(false);
-
-  // Add state for duplicate version dialog
-  const [duplicateSourceVersion, setDuplicateSourceVersion] = useState<number | undefined>();
-  const [isDuplicateVersionOpen, setIsDuplicateVersionOpen] = useState(false);
-
-  // Version control handlers
-  const handleVersionChange = (version: number) => {
-    setSelectedVersion(version);
-  };
-
   // Add settings query
   const settingsQuery = useQuery<Settings, Error>({
     queryKey: ['settings'] as const,
@@ -707,53 +451,83 @@ export function SchedulePage() {
         throw new Error("Settings not loaded");
       }
 
-      // Create a copy of the current settings
-      const currentSettings = { ...settingsQuery.data };
+      console.log('Updating settings with:', updates);
 
-      // Ensure scheduling_advanced exists
-      if (!currentSettings.scheduling_advanced) {
-        currentSettings.scheduling_advanced = {};
-      }
+      // Create a deep copy of current settings to avoid mutation issues
+      const currentSettings = JSON.parse(JSON.stringify(settingsQuery.data));
 
-      // Ensure generation_requirements exists in scheduling_advanced
-      if (!currentSettings.scheduling_advanced.generation_requirements) {
-        currentSettings.scheduling_advanced.generation_requirements = {};
-      }
-
-      // Update the generation_requirements in scheduling_advanced
-      currentSettings.scheduling_advanced.generation_requirements = {
-        ...currentSettings.scheduling_advanced.generation_requirements,
-        ...updates
-      };
-
-      // Also update the scheduling.generation_requirements for frontend consistency
+      // Ensure scheduling exists
       if (!currentSettings.scheduling) {
-        currentSettings.scheduling = {} as Settings['scheduling'];
+        currentSettings.scheduling = {
+          generation_requirements: {}
+        };
       }
 
+      // Ensure generation_requirements exists in scheduling
       if (!currentSettings.scheduling.generation_requirements) {
-        currentSettings.scheduling.generation_requirements = {} as Settings['scheduling']['generation_requirements'];
+        currentSettings.scheduling.generation_requirements = {};
       }
 
+      // Update the primary generation_requirements for API consumption
       currentSettings.scheduling.generation_requirements = {
         ...currentSettings.scheduling.generation_requirements,
         ...updates
       };
 
+      // Also update scheduling_advanced for backward compatibility
+      if (!currentSettings.scheduling_advanced) {
+        currentSettings.scheduling_advanced = {};
+      }
+
+      if (!currentSettings.scheduling_advanced.generation_requirements) {
+        currentSettings.scheduling_advanced.generation_requirements = {};
+      }
+
+      // Update scheduling_advanced.generation_requirements
+      currentSettings.scheduling_advanced.generation_requirements = {
+        ...currentSettings.scheduling_advanced.generation_requirements,
+        ...updates
+      };
+
+      console.log('About to update settings with:', {
+        newSettings: currentSettings,
+        generation: currentSettings.scheduling?.generation_requirements,
+        advanced: currentSettings.scheduling_advanced?.generation_requirements
+      });
+
       // Send the updated settings to the backend
       await updateSettings(currentSettings);
+
+      // Log the update
+      addGenerationLog('info', 'Generation settings updated',
+        Object.entries(updates)
+          .map(([key, value]) => `${key}: ${value ? 'enabled' : 'disabled'}`)
+          .join(', ')
+      );
+
+      // Refresh settings data
       await settingsQuery.refetch();
 
       toast({
-        title: "Erfolg",
-        description: "Einstellungen wurden aktualisiert"
+        title: "Einstellungen gespeichert",
+        description: "Generierungseinstellungen wurden aktualisiert"
       });
+
+      return true;
     } catch (error) {
+      console.error('Error updating settings:', error);
+
+      addGenerationLog('error', 'Failed to update settings',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+
       toast({
-        title: "Fehler",
+        title: "Fehler beim Speichern",
         description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
         variant: "destructive"
       });
+
+      throw error;
     }
   };
 
@@ -778,37 +552,6 @@ export function SchedulePage() {
 
   // Convert schedules for the ScheduleTable
   const convertedSchedules = (data?.schedules ?? []).map((apiSchedule) => convertSchedule(apiSchedule));
-
-  // Update the useQuery hook with proper types
-  const versionsQuery: UseQueryResult<VersionResponse, Error> = useQuery({
-    queryKey: ['versions', dateRange?.from?.toISOString(), dateRange?.to?.toISOString()],
-    queryFn: async () => {
-      if (!dateRange?.from || !dateRange?.to) {
-        throw new Error("Date range is required");
-      }
-
-      const fromStr = format(dateRange.from, 'yyyy-MM-dd');
-      const toStr = format(dateRange.to, 'yyyy-MM-dd');
-
-      return await getAllVersions(fromStr, toStr);
-    },
-    enabled: !!dateRange?.from && !!dateRange?.to,
-  });
-
-  // Set selected version to the latest version for this week when versions change or week changes
-  useEffect(() => {
-    if (versionsQuery.data?.versions && versionsQuery.data.versions.length > 0) {
-      // Sort by version number (descending) to get the latest version
-      const sortedVersions = [...versionsQuery.data.versions].sort((a, b) => b.version - a.version);
-      const latestVersion = sortedVersions[0].version;
-
-      // Only update if not already selected
-      if (!selectedVersion || selectedVersion !== latestVersion) {
-        console.log(`🔄 Auto-selecting latest version (${latestVersion})`);
-        setSelectedVersion(latestVersion);
-      }
-    }
-  }, [versionsQuery.data]);
 
   // Show loading skeleton for initial data fetch
   if (isLoading && !scheduleData) {
@@ -881,364 +624,194 @@ export function SchedulePage() {
     );
   }
 
-  // Show loading overlay for subsequent data fetches
-  const isUpdating = isLoading || updateShiftMutation.isPending || generateMutation.isPending || exportMutation.isPending;
-
-  // Add this component for the generation overlay
-  const GenerationOverlay = () => {
-    // Check if there are any errors in the generation steps
-    const hasErrors = generationSteps.some(step => step.status === 'error');
-    const errorLogs = generationLogs.filter(log => log.type === 'error');
-    const hasDurationError = errorLogs.some(log => {
-      const message = (log.message || '').toLowerCase();
-      const details = (log.details || '').toLowerCase();
-
-      // Check for various patterns that indicate duration_hours issues
-      const durationPatterns = [
-        'duration_hours',
-        'schichtdauer',
-        'nonetype',
-        'attribute',
-        'none',
-        'shift',
-        'duration',
-        'has no attribute',
-        'fehlt ein attribut',
-        'missing attribute'
-      ];
-
-      return durationPatterns.some(pattern =>
-        message.includes(pattern) || details.includes(pattern)
-      );
-    });
-
-    // Function to fix shift durations
-    const handleFixShiftDurations = async () => {
-      try {
-        // Show loading state
-        toast({
-          title: "Schichtdauer wird berechnet",
-          description: "Bitte warten Sie, während die Schichtdauer berechnet wird...",
-        });
-
-        // Add a log to show we're attempting to fix the issue
-        addGenerationLog("info", "Versuche, Schichtdauer zu berechnen",
-          "Die fehlenden Schichtdauern werden automatisch berechnet und aktualisiert.");
-
-        // Call the API to fix shift durations
-        const result = await fixShiftDurations();
-
-        // Show success message
-        toast({
-          title: "Schichtdauer berechnet",
-          description: `${result.fixed_count} Schichten wurden aktualisiert. Bitte versuchen Sie erneut, den Dienstplan zu generieren.`,
-          variant: "default",
-        });
-
-        // Add a success log
-        addGenerationLog("info", "Schichtdauer erfolgreich berechnet",
-          `${result.fixed_count} Schichten wurden aktualisiert. Sie können jetzt den Dienstplan erneut generieren.`);
-
-        // Reset the generation state after a short delay to allow the user to see the success message
-        setTimeout(() => {
-          resetGenerationState();
-        }, 2000);
-      } catch (error) {
-        console.error("Error fixing shift durations:", error);
-
-        // Add an error log
-        addGenerationLog("error", "Fehler bei der Berechnung der Schichtdauer",
-          error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten");
-
-        toast({
-          variant: "destructive",
-          title: "Fehler",
-          description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
-        });
-      }
-    };
-
-    if (!showGenerationOverlay) return null;
-
-    return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-md w-full mx-4">
-          <div className="text-center mb-4">
-            <h2 className="text-xl font-semibold dark:text-white">
-              {hasErrors ? (
-                <span className="text-red-500 flex items-center justify-center">
-                  <AlertCircle className="h-5 w-5 mr-2" />
-                  Fehler bei der Generierung
-                </span>
-              ) : (
-                "Generiere Schichtplan"
-              )}
-            </h2>
-          </div>
-
-          <div className="py-4">
-            {!hasErrors ? (
-              <div className="text-center mb-4 dark:text-gray-200">
-                Bitte warten Sie, während der Schichtplan generiert wird...
-              </div>
-            ) : (
-              <div className="text-center mb-4 text-red-500">
-                Bei der Generierung des Schichtplans ist ein Fehler aufgetreten.
-              </div>
-            )}
-
-            <div className="space-y-4 mt-4">
-              {generationSteps.map((step) => (
-                <div key={step.id} className="flex items-center">
-                  <div className="mr-4 flex-shrink-0">
-                    {step.status === "completed" ? (
-                      <CheckCircle className="h-6 w-6 text-green-500" />
-                    ) : step.status === "in-progress" ? (
-                      <Circle className="h-6 w-6 text-blue-500 animate-pulse" />
-                    ) : step.status === "error" ? (
-                      <XCircle className="h-6 w-6 text-red-500" />
-                    ) : (
-                      <Circle className="h-6 w-6 text-gray-300 dark:text-gray-500" />
-                    )}
-                  </div>
-                  <div className="flex-grow">
-                    <div className="font-medium dark:text-white">{step.title}</div>
-                    {step.message && (
-                      <div className={`text-sm ${step.status === 'error' ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'}`}>
-                        {step.message}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Show error details if there are any */}
-            {hasErrors && errorLogs.length > 0 && (
-              <div className="mt-6 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-                <h4 className="font-medium text-red-700 dark:text-red-400 mb-2">Fehlerdetails:</h4>
-                <ul className="space-y-2 text-sm text-red-700 dark:text-red-400">
-                  {errorLogs.map((log, index) => (
-                    <li key={index}>
-                      <div className="font-medium">{log.message}</div>
-                      {log.details && <div className="text-xs mt-1">{log.details}</div>}
-                    </li>
-                  ))}
-                </ul>
-
-                {/* Show specific help for known errors */}
-                {hasDurationError && (
-                  <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md text-blue-700 dark:text-blue-400 text-sm">
-                    <strong>Tipp:</strong> Es scheint ein Problem mit der Schichtdauer zu geben. Dies kann auftreten, wenn Schichten keine gültige Dauer haben.
-
-                    <p className="mt-1">
-                      Klicken Sie auf die Schaltfläche unten, um die Schichtdauer automatisch zu berechnen.
-                      Dies wird die Dauer für alle Schichten basierend auf deren Start- und Endzeiten berechnen.
-                    </p>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full mt-2 bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-800/50 border-blue-300 dark:border-blue-700 flex items-center justify-center"
-                      onClick={handleFixShiftDurations}
-                    >
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Schichtdauer automatisch berechnen
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <Progress
-              value={
-                (generationSteps.filter(
-                  (step) => step.status === "completed"
-                ).length /
-                  generationSteps.length) *
-                100
-              }
-              className={`mt-6 ${hasErrors ? 'bg-red-100' : ''}`}
-            />
-
-            {/* Force cancel button - only show if we've been processing for a while or there's an error */}
-            {(hasErrors || !generateMutation.isPending) && (
-              <div className="mt-6 flex justify-center">
-                <Button
-                  variant={hasErrors ? "destructive" : "outline"}
-                  onClick={resetGenerationState}
-                  className="w-full"
-                >
-                  {hasErrors ? 'Schließen' : 'Fertig'}
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Add a component to display schedule generation errors
-  const ScheduleGenerationErrors = ({ errors }: { errors: ScheduleError[] }) => {
-    if (!errors || errors.length === 0) return null;
-
-    return (
-      <Card className="mt-4 border-red-300">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-red-600 flex items-center gap-2">
-            <AlertCircle size={18} />
-            Fehler bei der Schichtplan-Generierung
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {errors.map((error, index) => (
-              <Alert key={index} variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>{error.type === 'critical' ? 'Kritischer Fehler' : 'Warnung'}</AlertTitle>
-                <AlertDescription className="mt-2">
-                  <div>{error.message}</div>
-                  {error.date && (
-                    <div className="text-sm mt-1">
-                      Datum: {format(new Date(error.date), 'dd.MM.yyyy')}
-                    </div>
-                  )}
-                  {error.shift && (
-                    <div className="text-sm">
-                      Schicht: {error.shift}
-                    </div>
-                  )}
-                </AlertDescription>
-              </Alert>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  };
-
   // Function to handle exporting the schedule
   const handleExportSchedule = () => {
-    if (dateRange?.from && dateRange?.to) {
-      const fromStr = format(dateRange.from, 'yyyy-MM-dd');
-      const toStr = format(dateRange.to, 'yyyy-MM-dd');
+    exportMutation.mutate();
+  };
 
-      exportSchedule(fromStr, toStr)
-        .then((blob) => {
-          // Create a download link for the blob
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `schichtplan_${fromStr}_${toStr}.pdf`;
-          document.body.appendChild(a);
-          a.click();
+  // Show loading overlay for subsequent data fetches
+  const isUpdating = isLoading || updateShiftMutation.isPending || isGenerationPending || exportMutation.isPending;
 
-          // Clean up
-          setTimeout(() => {
-            URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-          }, 100);
-
-          toast({
-            title: "Export erfolgreich",
-            description: "Der Dienstplan wurde erfolgreich exportiert."
-          });
-        })
-        .catch((error) => {
-          toast({
-            title: "Export fehlgeschlagen",
-            description: `Fehler beim Exportieren des Dienstplans: ${error}`,
-            variant: "destructive"
-          });
+  // Function to handle the generate action with better error handling
+  const handleGenerateSchedule = () => {
+    try {
+      // Validate date range
+      if (!dateRange?.from || !dateRange?.to) {
+        toast({
+          title: "Zeitraum erforderlich",
+          description: "Bitte wählen Sie einen Zeitraum aus bevor Sie den Dienstplan generieren.",
+          variant: "destructive"
         });
+        return;
+      }
+
+      // Validate version selection
+      if (!selectedVersion) {
+        toast({
+          title: "Version erforderlich",
+          description: "Bitte wählen Sie eine Version aus bevor Sie den Dienstplan generieren.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Make sure version data is loaded
+      if (isLoadingVersions) {
+        toast({
+          title: "Versionen werden geladen",
+          description: "Bitte warten Sie, bis die Versionen geladen sind.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Make sure the date range and version match
+      console.log("📋 Generating schedule with:", {
+        dateRange: {
+          from: dateRange.from.toISOString(),
+          to: dateRange.to.toISOString()
+        },
+        selectedVersion,
+        versionMetas,
+        createEmptySchedules
+      });
+
+      // Log detailed information about the generation request
+      const formattedFromDate = format(dateRange.from, 'yyyy-MM-dd');
+      const formattedToDate = format(dateRange.to, 'yyyy-MM-dd');
+
+      addGenerationLog('info', 'Starting schedule generation',
+        `Version: ${selectedVersion}, Date range: ${formattedFromDate} - ${formattedToDate}`);
+
+      // Call the generate function from the hook
+      generate();
+    } catch (error) {
+      console.error("Generation error:", error);
+      addGenerationLog('error', 'Fehler bei der Generierung',
+        error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten");
+
+      toast({
+        title: "Fehler bei der Generierung",
+        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
+        variant: "destructive"
+      });
     }
   };
 
-  // Add a component to display all generation logs
-  const GenerationLogs = () => {
-    const [isOpen, setIsOpen] = useState(false);
+  // Handler for adding a new empty schedule
+  const handleAddSchedule = () => {
+    if (!selectedVersion) {
+      toast({
+        title: "Keine Version ausgewählt",
+        description: "Bitte wählen Sie zuerst eine Version aus.",
+        variant: "destructive"
+      });
+      return;
+    }
 
-    if (generationLogs.length === 0) return null;
-
-    return (
-      <Card className="mt-4">
-        <CardHeader className="pb-2 cursor-pointer" onClick={() => setIsOpen(!isOpen)}>
-          <CardTitle className="text-sm flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <FileText size={16} />
-              Generierungs-Logs ({generationLogs.length})
-            </div>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-            </Button>
-          </CardTitle>
-        </CardHeader>
-
-        {isOpen && (
-          <CardContent>
-            <div className="space-y-2 max-h-60 overflow-y-auto text-sm">
-              {generationLogs.map((log, index) => (
-                <div
-                  key={index}
-                  className={cn(
-                    "p-2 rounded border",
-                    log.type === 'error' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400' :
-                      log.type === 'warning' ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-400' :
-                        'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400'
-                  )}
-                >
-                  <div className="font-medium flex items-center gap-2">
-                    {log.type === 'error' ? <AlertCircle size={14} /> :
-                      log.type === 'warning' ? <AlertTriangle size={14} /> :
-                        <Info size={14} />}
-                    {log.message}
-                  </div>
-                  {log.details && (
-                    <div className="mt-1 text-xs opacity-80">{log.details}</div>
-                  )}
-                  <div className="text-xs mt-1 opacity-60">
-                    {new Date().toLocaleTimeString()}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-3 flex justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  clearGenerationLogs();
-                }}
-              >
-                Logs löschen
-              </Button>
-            </div>
-          </CardContent>
-        )}
-      </Card>
-    );
+    setIsAddScheduleDialogOpen(true);
   };
+
+  // Function to handle the actual schedule creation
+  const handleCreateSchedule = async (scheduleData: {
+    employee_id: number;
+    date: string;
+    shift_id: number;
+    version: number;
+  }) => {
+    try {
+      await createSchedule(scheduleData);
+
+      // Refetch schedule data to reflect changes
+      refetchScheduleData();
+
+      toast({
+        title: "Schichtplan erstellt",
+        description: `Ein neuer Schichtplan wurde erfolgreich erstellt.`,
+      });
+    } catch (error) {
+      console.error('Error creating schedule:', error);
+      toast({
+        title: "Fehler beim Erstellen",
+        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
+        variant: "destructive"
+      });
+      throw error;
+    }
+  };
+
+  // Handler for deleting the current schedule
+  const handleDeleteSchedule = () => {
+    if (!selectedVersion) {
+      toast({
+        title: "Keine Version ausgewählt",
+        description: "Bitte wählen Sie zuerst eine Version aus.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (convertedSchedules.length === 0) {
+      toast({
+        title: "Keine Schichtpläne",
+        description: "Es gibt keine Schichtpläne zum Löschen.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Create confirmation dialog
+    setConfirmDeleteMessage({
+      title: "Schichtplan löschen?",
+      message: "Möchten Sie wirklich alle Schichtpläne für die aktuelle Auswahl löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+      onConfirm: async () => {
+        try {
+          // Delete all schedules in the current view
+          const deletePromises = convertedSchedules.map(schedule =>
+            updateSchedule(schedule.id, { shift_id: null, version: selectedVersion })
+          );
+
+          await Promise.all(deletePromises);
+
+          // Refetch schedule data
+          await refetchScheduleData();
+
+          toast({
+            title: "Schichtpläne gelöscht",
+            description: `${deletePromises.length} Schichtpläne wurden erfolgreich gelöscht.`,
+          });
+        } catch (error) {
+          console.error('Error deleting schedules:', error);
+          toast({
+            title: "Fehler beim Löschen",
+            description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
+            variant: "destructive"
+          });
+        } finally {
+          setConfirmDeleteMessage(null);
+        }
+      },
+      onCancel: () => {
+        setConfirmDeleteMessage(null);
+      }
+    });
+  };
+
+  // Add state for confirmation dialog
+  const [confirmDeleteMessage, setConfirmDeleteMessage] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+  } | null>(null);
 
   return (
     <div className="container mx-auto py-4 space-y-4">
       <PageHeader title="Dienstplan" className="mb-4">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Aktualisieren
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setIsLayoutCustomizerOpen(true)}>
-            <Settings2 className="h-4 w-4 mr-2" />
-            Layout
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleExportSchedule}>
-            <FileDown className="h-4 w-4 mr-2" />
-            Exportieren
-          </Button>
-        </div>
+        <ScheduleControls
+          onRefresh={handleRetryFetch}
+          onExport={handleExportSchedule}
+        />
       </PageHeader>
 
       {/* Add DateRangeSelector */}
@@ -1259,8 +832,8 @@ export function SchedulePage() {
             includeEmpty={includeEmpty}
             onCreateEmptyChange={handleCreateEmptyChange}
             onIncludeEmptyChange={handleIncludeEmptyChange}
-            onGenerateSchedule={() => generateMutation.mutate()}
-            isGenerating={isGenerating}
+            onGenerateSchedule={handleGenerateSchedule}
+            isGenerating={isGenerationPending}
           />
         )}
 
@@ -1271,23 +844,27 @@ export function SchedulePage() {
           currentVersion={data?.current_version}
           versionMeta={data?.version_meta}
           dateRange={dateRange}
-          onVersionChange={setSelectedVersion}
-          onCreateNewVersion={() => createVersionMutation.mutate()}
-          onPublishVersion={(version) => updateVersionStatusMutation.mutate({ version, status: 'PUBLISHED' })}
-          onArchiveVersion={(version) => updateVersionStatusMutation.mutate({ version, status: 'ARCHIVED' })}
-          onDuplicateVersion={(version) => {
-            if (dateRange?.from && dateRange?.to) {
-              duplicateVersionMutation.mutate({
-                source_version: version,
-                start_date: dateRange.from.toISOString().split('T')[0],
-                end_date: dateRange.to.toISOString().split('T')[0]
-              });
-            }
-          }}
-          isLoading={isLoadingSchedule}
+          onVersionChange={handleVersionChange}
+          onCreateNewVersion={handleCreateNewVersion}
+          onPublishVersion={handlePublishVersion}
+          onArchiveVersion={handleArchiveVersion}
+          onDeleteVersion={handleDeleteVersion}
+          onDuplicateVersion={handleDuplicateVersion}
+          isLoading={isLoadingVersions || isLoadingSchedule}
           hasError={isError && !!error && !data}
           schedules={convertedSchedules}
           onRetry={handleRetryFetch}
+        />
+      </div>
+
+      {/* Schedule Actions */}
+      <div className="flex justify-end mb-4">
+        <ScheduleActions
+          onAddSchedule={handleAddSchedule}
+          onDeleteSchedule={handleDeleteSchedule}
+          isLoading={isLoadingSchedule || isLoadingVersions || isGenerationPending}
+          canAdd={!!selectedVersion}
+          canDelete={!!selectedVersion && convertedSchedules.length > 0}
         />
       </div>
 
@@ -1317,21 +894,7 @@ export function SchedulePage() {
           </Alert>
         ) : (
           <>
-            {scheduleErrors.length > 0 && (
-              <Alert variant="destructive" className="mb-4">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Fehler im Dienstplan</AlertTitle>
-                <AlertDescription>
-                  <div className="max-h-40 overflow-y-auto">
-                    <ul className="list-disc pl-4">
-                      {scheduleErrors.map((error, index) => (
-                        <li key={index}>{error.message}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </AlertDescription>
-              </Alert>
-            )}
+            {scheduleErrors.length > 0 && <ScheduleErrors errors={scheduleErrors} />}
 
             {convertedSchedules.length === 0 && !isLoading && !isError ? (
               <Card className="mb-4 border-dashed border-2 border-muted">
@@ -1339,20 +902,43 @@ export function SchedulePage() {
                   <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
                   <h3 className="text-lg font-medium mb-2">Keine Einträge gefunden</h3>
                   <p className="text-muted-foreground text-center mb-4">
-                    Für den ausgewählten Zeitraum wurden keine Schichtplan-Einträge gefunden.
+                    {versions.length === 0
+                      ? "Für den ausgewählten Zeitraum wurde noch keine Version erstellt."
+                      : "Für den ausgewählten Zeitraum wurden keine Schichtplan-Einträge gefunden."}
                   </p>
-                  <Button
-                    onClick={() => generateMutation.mutate()}
-                    disabled={isGenerating}
-                    className="flex items-center gap-2"
-                  >
-                    {isGenerating ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
+                  {versions.length === 0 ? (
+                    <Button
+                      onClick={handleCreateNewVersion}
+                      disabled={isLoadingVersions || !dateRange?.from || !dateRange?.to}
+                      className="flex items-center gap-2"
+                    >
                       <Plus className="h-4 w-4" />
-                    )}
-                    Schichtplan generieren
-                  </Button>
+                      Erste Version erstellen
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={handleGenerateSchedule}
+                      disabled={isGenerationPending || !selectedVersion}
+                      className="flex items-center gap-2"
+                    >
+                      {isGenerationPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Plus className="h-4 w-4" />
+                      )}
+                      Schichtplan generieren
+                    </Button>
+                  )}
+                  {!selectedVersion && versions.length > 0 && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Bitte wählen Sie eine Version aus, um den Dienstplan zu generieren.
+                    </p>
+                  )}
+                  {(!dateRange?.from || !dateRange?.to) && versions.length === 0 && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Bitte wählen Sie einen Datumsbereich aus, um eine Version zu erstellen.
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             ) : (
@@ -1370,9 +956,51 @@ export function SchedulePage() {
         )}
       </DndProvider>
 
-      {showGenerationOverlay && <GenerationOverlay />}
+      {/* Use our extracted components */}
+      <GenerationOverlay
+        generationSteps={generationSteps}
+        generationLogs={generationLogs}
+        showGenerationOverlay={showGenerationOverlay}
+        isPending={isGenerationPending}
+        resetGenerationState={resetGenerationState}
+        addGenerationLog={addGenerationLog}
+      />
 
-      <GenerationLogs />
+      <GenerationLogs
+        logs={generationLogs}
+        clearLogs={clearGenerationLogs}
+      />
+
+      {/* Add Schedule Dialog */}
+      {isAddScheduleDialogOpen && selectedVersion && (
+        <AddScheduleDialog
+          isOpen={isAddScheduleDialogOpen}
+          onClose={() => setIsAddScheduleDialogOpen(false)}
+          onAddSchedule={handleCreateSchedule}
+          version={selectedVersion}
+          defaultDate={dateRange?.from}
+        />
+      )}
+
+      {/* Confirmation Dialog */}
+      {confirmDeleteMessage && (
+        <Dialog open={!!confirmDeleteMessage} onOpenChange={(open) => !open && confirmDeleteMessage?.onCancel()}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{confirmDeleteMessage.title}</DialogTitle>
+              <DialogDescription>{confirmDeleteMessage.message}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={confirmDeleteMessage.onCancel}>
+                Abbrechen
+              </Button>
+              <Button variant="destructive" onClick={confirmDeleteMessage.onConfirm}>
+                Löschen
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 } 

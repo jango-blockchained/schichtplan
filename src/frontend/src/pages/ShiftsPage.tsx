@@ -63,8 +63,6 @@ export const ShiftsPage: React.FC = () => {
       const defaultShift = {
         start_time: settings.general.store_opening,
         end_time: settings.general.store_closing,
-        min_employees: 1,
-        max_employees: 3,
         requires_break: true,
         active_days: settings.general.opening_days,
       };
@@ -79,7 +77,7 @@ export const ShiftsPage: React.FC = () => {
       console.error('Error creating shift:', error);
       toast({
         title: 'Error',
-        description: 'Failed to create shift',
+        description: error instanceof Error ? error.message : 'Failed to create shift',
         variant: 'destructive',
       });
     }
