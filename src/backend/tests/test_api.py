@@ -1,4 +1,12 @@
-from models import Employee, EmployeeGroup, ShiftTemplate, ShiftType, Settings, Schedule
+from models import (
+    Employee,
+    EmployeeGroup,
+    ShiftTemplate,
+    ShiftType,
+    Settings,
+    Schedule,
+    db,
+)
 from datetime import datetime, date, time, timedelta
 
 
@@ -55,8 +63,6 @@ def test_create_shift(client):
     data = {
         "start_time": "08:00",
         "end_time": "16:00",
-        "min_employees": 2,
-        "max_employees": 5,
         "requires_break": True,
     }
     response = client.post("/api/shifts/", json=data)
@@ -68,41 +74,53 @@ def test_create_shift(client):
 def test_get_shifts(client, app):
     """Test getting all shifts"""
     with app.app_context():
-        shift = ShiftTemplate(
+        # Create test shifts
+        shift1 = ShiftTemplate(
             start_time="08:00",
             end_time="16:00",
-            min_employees=2,
-            max_employees=5,
             requires_break=True,
+            active_days=[0, 1, 2, 3, 4],
         )
-        db.session.add(shift)
+        shift2 = ShiftTemplate(
+            start_time="12:00",
+            end_time="20:00",
+            requires_break=True,
+            active_days=[0, 1, 2, 3, 4],
+        )
+        db.session.add(shift1)
+        db.session.add(shift2)
         db.session.commit()
 
     response = client.get("/api/shifts/")
     assert response.status_code == 200
-    assert len(response.json) > 0
-    assert response.json[0]["start_time"] == "08:00"
+    assert len(response.json) == 2
 
 
 def test_update_shift(client, app):
     """Test updating a shift"""
     with app.app_context():
+        # Create test shift
         shift = ShiftTemplate(
             start_time="08:00",
             end_time="16:00",
-            min_employees=2,
-            max_employees=5,
             requires_break=True,
+            active_days=[0, 1, 2, 3, 4],
         )
         db.session.add(shift)
         db.session.commit()
         shift_id = shift.id
 
-    data = {"start_time": "09:00", "end_time": "17:00"}
-    response = client.put(f"/api/shifts/{shift_id}", json=data)
+    # Update the shift
+    update_data = {
+        "start_time": "09:00",
+        "end_time": "17:00",
+        "requires_break": False,
+    }
+    response = client.put(f"/api/shifts/{shift_id}", json=update_data)
     assert response.status_code == 200
     assert response.json["start_time"] == "09:00"
     assert response.json["end_time"] == "17:00"
+    assert response.json["requires_break"] is False
 
 
 def test_delete_shift(client, app):
@@ -177,34 +195,26 @@ def test_schedule_generation(client, app):
         opening_shift = ShiftTemplate(
             start_time="08:00",
             end_time="16:00",
-            min_employees=2,
-            max_employees=3,
-            duration_hours=8,
             requires_break=True,
-            active_days=[0, 1, 2, 3, 4, 5],  # Mon-Sat
+            active_days=[0, 1, 2, 3, 4],
         )
+        db.session.add(opening_shift)
 
         middle_shift = ShiftTemplate(
             start_time="10:00",
             end_time="18:00",
-            min_employees=2,
-            max_employees=4,
-            duration_hours=8,
             requires_break=True,
-            active_days=[0, 1, 2, 3, 4, 5],  # Mon-Sat
+            active_days=[0, 1, 2, 3, 4],
         )
+        db.session.add(middle_shift)
 
         closing_shift = ShiftTemplate(
             start_time="12:00",
             end_time="20:00",
-            min_employees=2,
-            max_employees=3,
-            duration_hours=8,
             requires_break=True,
-            active_days=[0, 1, 2, 3, 4, 5],  # Mon-Sat
+            active_days=[0, 1, 2, 3, 4],
         )
-
-        db.session.add_all([opening_shift, middle_shift, closing_shift])
+        db.session.add(closing_shift)
 
         # Create employees
         keyholder1 = Employee(
@@ -506,31 +516,28 @@ def test_break_time_requirements(client, session):
 
     # Create shifts with different durations
     short_shift = ShiftTemplate(  # 6 hours - no break required
-        shift_type=ShiftType.EARLY,
-        start_time=time(9, 0),
-        end_time=time(15, 0),
-        min_employees=1,
-        max_employees=2,
+        start_time="09:00",
+        end_time="15:00",
+        requires_break=False,
+        active_days=[0, 1, 2, 3, 4, 5],
     )
-    session.add(short_shift)
+    db.session.add(short_shift)
 
     medium_shift = ShiftTemplate(  # 8 hours - 30 minute break required
-        shift_type=ShiftType.MIDDLE,
-        start_time=time(10, 0),
-        end_time=time(18, 0),
-        min_employees=1,
-        max_employees=2,
+        start_time="09:00",
+        end_time="17:00",
+        requires_break=True,
+        active_days=[0, 1, 2, 3, 4, 5],
     )
-    session.add(medium_shift)
+    db.session.add(medium_shift)
 
     long_shift = ShiftTemplate(  # 10 hours - 45 minute break required
-        shift_type=ShiftType.LATE,
-        start_time=time(12, 0),
-        end_time=time(22, 0),
-        min_employees=1,
-        max_employees=2,
+        start_time="08:00",
+        end_time="18:00",
+        requires_break=True,
+        active_days=[0, 1, 2, 3, 4, 5],
     )
-    session.add(long_shift)
+    db.session.add(long_shift)
 
     config = Settings.get_default_config()
     session.add(config)
@@ -616,9 +623,8 @@ def test_schedule_shift(client, app):
         shift = ShiftTemplate(
             start_time="08:00",
             end_time="16:00",
-            min_employees=2,
-            max_employees=5,
             requires_break=True,
+            active_days=[0, 1, 2, 3, 4],
         )
         db.session.add(employee)
         db.session.add(shift)
@@ -644,9 +650,8 @@ def test_update_schedule(client, app):
         shift = ShiftTemplate(
             start_time="08:00",
             end_time="16:00",
-            min_employees=2,
-            max_employees=5,
             requires_break=True,
+            active_days=[0, 1, 2, 3, 4],
         )
         schedule = Schedule(
             employee=employee,

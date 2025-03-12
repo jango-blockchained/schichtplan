@@ -1155,7 +1155,7 @@ class ScheduleGenerator:
                 f"Filtering out shift {shift.id} ({shift.start_time}-{shift.end_time}) with invalid duration: {shift.duration_hours}h"
             )
             logger.schedule_logger.warning(
-                f"Shift details - min_employees: {shift.min_employees}, max_employees: {shift.max_employees}"
+                f"Shift details - {shift.start_time}-{shift.end_time}, duration: {shift.duration_hours}h"
             )
             return False
         return True
@@ -1851,9 +1851,11 @@ class ScheduleGenerator:
         available_employees.sort(key=lambda e: e.contracted_hours or 0, reverse=True)
         logger.debug("Sorted employees by contracted hours")
 
-        assigned_employees = available_employees[: shift.max_employees]
+        # Use default max_employees from settings
+        max_employees = self.settings.get("max_employees_per_shift", 3)
+        assigned_employees = available_employees[:max_employees]
         logger.debug(
-            f"Assigned {len(assigned_employees)} employees to shift (max allowed: {shift.max_employees})"
+            f"Assigned {len(assigned_employees)} employees to shift (max allowed: {max_employees})"
         )
 
         return assigned_employees
@@ -1945,8 +1947,10 @@ class ScheduleGenerator:
             keyholder_assigned = any(e.is_keyholder for e in shift.assigned_employees)
 
             error_msg = []
-            if assigned_count < shift.min_employees:
-                error_msg.append(f"minimum {shift.min_employees} employees")
+            # Use default min_employees from settings
+            min_employees = self.settings.get("min_employees_per_shift", 1)
+            if assigned_count < min_employees:
+                error_msg.append(f"minimum {min_employees} employees")
 
             if requires_keyholder(shift) and not keyholder_assigned:
                 error_msg.append("keyholder")
@@ -2542,5 +2546,15 @@ class ScheduleGenerator:
                 error=e,
                 employee_id=employee.id if employee else "None",
                 date=date.strftime("%Y-%m-%d") if date else "None",
+            )
+            return False  # Safer to assume employee isn't assigned in case of error
+
+    def _is_employee_assigned(self, employee_id, date):
+        """Check if an employee is already assigned to a shift on the given date"""
+        try:
+            return self.resources.get_schedule_entry(employee_id, date) is not None
+        except Exception as e:
+            logger.schedule_logger.error(
+                f"Error checking if employee {employee_id} is assigned on {date}: {str(e)}"
             )
             return False  # Safer to assume employee isn't assigned in case of error

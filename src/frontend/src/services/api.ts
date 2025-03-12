@@ -200,8 +200,6 @@ export interface Shift {
     id: number;
     start_time: string;
     end_time: string;
-    min_employees: number;
-    max_employees: number;
     duration_hours: number;
     requires_break: boolean;
     active_days: { [key: string]: boolean };
@@ -556,7 +554,7 @@ export const updateEmployeeAvailability = async (employeeId: number, availabilit
 
 export const updateSchedule = async (scheduleId: number, update: ScheduleUpdate): Promise<Schedule> => {
     try {
-        console.log('🔴 updateSchedule API call:', {
+        console.log('🟩 updateSchedule API call:', {
             scheduleId,
             update,
             shift_id_type: update.shift_id === null ? 'null' : (update.shift_id === undefined ? 'undefined' : typeof update.shift_id)
@@ -1101,6 +1099,48 @@ export const fixShiftDurations = async (): Promise<{ message: string; fixed_coun
     } catch (error) {
         if (error instanceof Error) {
             throw new Error(`Failed to fix shift durations: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export interface DeleteVersionResponse {
+    message: string;
+    deleted_schedules_count: number;
+}
+
+export const deleteVersion = async (version: number): Promise<DeleteVersionResponse> => {
+    try {
+        const response = await api.delete<DeleteVersionResponse>(`/schedules/version/${version}`);
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to delete version: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export interface CreateScheduleRequest {
+    employee_id: number;
+    date: string;
+    shift_id: number;
+    version: number;
+    break_start?: string;
+    break_end?: string;
+    notes?: string;
+}
+
+export const createSchedule = async (data: CreateScheduleRequest): Promise<Schedule> => {
+    try {
+        console.log('Creating new schedule with data:', data);
+        const response = await api.post<Schedule>('/schedules/', data);
+        console.log('Schedule created successfully:', response.data);
+        return response.data;
+    } catch (error) {
+        console.error('Failed to create schedule:', error);
+        if (error instanceof Error) {
+            throw new Error(`Failed to create schedule: ${error.message}`);
         }
         throw error;
     }

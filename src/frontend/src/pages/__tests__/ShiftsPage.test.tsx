@@ -8,8 +8,6 @@ const mockShift = {
   id: 1,
   start_time: '08:00',
   end_time: '16:00',
-  min_employees: 2,
-  max_employees: 4,
   duration_hours: 8,
   requires_break: true,
   active_days: { '0': true, '1': true, '2': true, '3': true, '4': true },
@@ -57,12 +55,6 @@ describe('ShiftsPage', () => {
 
     const endTimeInput = screen.getByLabelText(/end time/i);
     fireEvent.change(endTimeInput, { target: { value: '17:00' } });
-
-    const minEmployeesInput = screen.getByLabelText(/minimum employees/i);
-    fireEvent.change(minEmployeesInput, { target: { value: '2' } });
-
-    const maxEmployeesInput = screen.getByLabelText(/maximum employees/i);
-    fireEvent.change(maxEmployeesInput, { target: { value: '4' } });
 
     // Submit the form
     const submitButton = screen.getByText(/save/i);

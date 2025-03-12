@@ -16,8 +16,6 @@ interface ShiftFormProps {
     onSave: (data: {
         start_time: string;
         end_time: string;
-        min_employees: number;
-        max_employees: number;
         requires_break: boolean;
         active_days: { [key: string]: boolean };
     }) => void;
@@ -51,8 +49,6 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, shift, onSave, o
     const [formData, setFormData] = useState({
         start_time: shift?.start_time || defaultSettings.general.store_opening,
         end_time: shift?.end_time || defaultSettings.general.store_closing,
-        min_employees: shift?.min_employees || 1,
-        max_employees: shift?.max_employees || 5,
         requires_break: shift?.requires_break ?? true,
         active_days: normalizeActiveDays(shift?.active_days) || normalizeActiveDays(defaultSettings.general.opening_days),
     });
@@ -62,8 +58,6 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, shift, onSave, o
             setFormData({
                 start_time: shift.start_time,
                 end_time: shift.end_time,
-                min_employees: shift.min_employees,
-                max_employees: shift.max_employees,
                 requires_break: shift.requires_break,
                 active_days: normalizeActiveDays(shift.active_days),
             });
@@ -75,7 +69,12 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, shift, onSave, o
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave(formData);
+        onSave({
+            start_time: formData.start_time,
+            end_time: formData.end_time,
+            requires_break: formData.requires_break,
+            active_days: formData.active_days,
+        });
     };
 
     // Convert time string to minutes for calculations
@@ -198,32 +197,6 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, shift, onSave, o
                         </Card>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <Label htmlFor="min_employees">Min. Mitarbeiter</Label>
-                            <Input
-                                id="min_employees"
-                                type="number"
-                                min="1"
-                                value={formData.min_employees}
-                                onChange={(e) => setFormData({ ...formData, min_employees: parseInt(e.target.value) })}
-                                required
-                                disabled={isEmployeeInputsDisabled}
-                            />
-                        </div>
-                        <div>
-                            <Label htmlFor="max_employees">Max. Mitarbeiter</Label>
-                            <Input
-                                id="max_employees"
-                                type="number"
-                                min={formData.min_employees}
-                                value={formData.max_employees}
-                                onChange={(e) => setFormData({ ...formData, max_employees: parseInt(e.target.value) })}
-                                required
-                                disabled={isEmployeeInputsDisabled}
-                            />
-                        </div>
-                    </div>
                     <div className="flex items-center space-x-2">
                         <Switch
                             id="requires_break"

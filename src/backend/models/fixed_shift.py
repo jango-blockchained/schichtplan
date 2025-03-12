@@ -25,8 +25,6 @@ class ShiftTemplate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     start_time = db.Column(db.String(5), nullable=False)  # Format: "HH:MM"
     end_time = db.Column(db.String(5), nullable=False)  # Format: "HH:MM"
-    min_employees = db.Column(db.Integer, nullable=False)
-    max_employees = db.Column(db.Integer, nullable=False)
     duration_hours = db.Column(db.Float, nullable=False)
     requires_break = db.Column(db.Boolean, nullable=False, default=True)
     shift_type = db.Column(db.Enum(ShiftType), nullable=False)
@@ -52,16 +50,12 @@ class ShiftTemplate(db.Model):
         self,
         start_time,
         end_time,
-        min_employees=1,
-        max_employees=5,
         requires_break=True,
         active_days=None,
         shift_type=None,
     ):
         self.start_time = start_time
         self.end_time = end_time
-        self.min_employees = min_employees
-        self.max_employees = max_employees
         self.requires_break = requires_break
         self.active_days = active_days or {
             "0": False,  # Sunday
@@ -176,8 +170,6 @@ class ShiftTemplate(db.Model):
             "id": self.id,
             "start_time": self.start_time,
             "end_time": self.end_time,
-            "min_employees": self.min_employees,
-            "max_employees": self.max_employees,
             "duration_hours": self.duration_hours,
             "requires_break": self.requires_break,
             "shift_type": self.shift_type.value if self.shift_type else None,
@@ -228,60 +220,44 @@ class ShiftTemplate(db.Model):
             ShiftTemplate(
                 start_time="08:00",
                 end_time="16:00",
-                min_employees=2,
-                max_employees=4,
                 requires_break=True,
             ),
             ShiftTemplate(
                 start_time="09:00",
                 end_time="17:00",
-                min_employees=2,
-                max_employees=4,
                 requires_break=True,
             ),
             # Midday shifts
             ShiftTemplate(
                 start_time="10:00",
                 end_time="18:00",
-                min_employees=2,
-                max_employees=4,
                 requires_break=True,
             ),
             ShiftTemplate(
                 start_time="11:00",
                 end_time="19:00",
-                min_employees=2,
-                max_employees=4,
                 requires_break=True,
             ),
             # Evening shifts
             ShiftTemplate(
                 start_time="12:00",
                 end_time="20:00",
-                min_employees=2,
-                max_employees=4,
                 requires_break=True,
             ),
             # Part-time shifts
             ShiftTemplate(
                 start_time="08:00",
                 end_time="12:00",
-                min_employees=1,
-                max_employees=2,
                 requires_break=False,
             ),
             ShiftTemplate(
                 start_time="12:00",
                 end_time="16:00",
-                min_employees=1,
-                max_employees=2,
                 requires_break=False,
             ),
             ShiftTemplate(
                 start_time="16:00",
                 end_time="20:00",
-                min_employees=1,
-                max_employees=2,
                 requires_break=False,
             ),
         ]

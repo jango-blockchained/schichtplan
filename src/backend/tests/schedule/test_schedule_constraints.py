@@ -455,148 +455,16 @@ def test_employee_availability_constraint():
             db.session.commit()
 
 
-def test_shift_requirements_constraint():
-    """Test that the schedule generator respects shift minimum employee requirements."""
-    logger.info("=== SHIFT REQUIREMENTS CONSTRAINT TEST ===")
-
-    app = create_app()
-    with app.app_context():
-        # Get all shifts
-        shifts = ShiftTemplate.query.all()
-
-        if not shifts:
-            logger.warning("No shifts found for testing")
-            return None
-
-        # Save original min_employees values
-        original_min_employees = {shift.id: shift.min_employees for shift in shifts}
-
-        try:
-            # Set higher minimum employee requirements for all shifts
-            for shift in shifts:
-                shift.min_employees = 3  # Require at least 3 employees per shift
-            db.session.commit()
-
-            # Calculate dates for next week
-            start_date = get_next_monday()
-            end_date = start_date + timedelta(days=6)
-
-            logger.info(
-                f"Testing shift requirements constraint for period: {start_date} to {end_date}"
-            )
-
-            # Initialize schedule generator
-            generator = ScheduleGenerator()
-
-            # Generate schedules
-            result = generator.generate_schedule(
-                start_date, end_date, create_empty_schedules=True
-            )
-
-            # Get the schedules from the result
-            schedules = result.get("schedule", [])
-            warnings = result.get("warnings", [])
-
-            # Count employees per shift per day
-            shift_counts = {}
-
-            for schedule in schedules:
-                if not schedule.get("is_empty") and schedule.get("shift_id"):
-                    shift_id = schedule.get("shift_id")
-                    schedule_date = schedule.get("date")
-
-                    key = f"{schedule_date}_{shift_id}"
-
-                    if key not in shift_counts:
-                        shift_counts[key] = 0
-
-                    shift_counts[key] += 1
-
-            # Check if all shifts meet minimum requirements
-            shifts_below_minimum = []
-
-            for key, count in shift_counts.items():
-                date_str, shift_id_str = key.split("_")
-                shift_id = int(shift_id_str)
-                shift = ShiftTemplate.query.get(shift_id)
-
-                if shift and count < shift.min_employees:
-                    shifts_below_minimum.append(
-                        {
-                            "date": date_str,
-                            "shift_id": shift_id,
-                            "shift_time": f"{shift.start_time}-{shift.end_time}",
-                            "min_required": shift.min_employees,
-                            "actual": count,
-                        }
-                    )
-
-            # Log results
-            if shifts_below_minimum:
-                logger.warning(
-                    f"Found {len(shifts_below_minimum)} shifts below minimum requirements:"
-                )
-                for shift_info in shifts_below_minimum:
-                    logger.warning(
-                        f"  {shift_info['date']} Shift {shift_info['shift_id']} ({shift_info['shift_time']}): {shift_info['actual']}/{shift_info['min_required']} employees"
-                    )
-            else:
-                logger.info("All shifts meet minimum employee requirements")
-
-            # Check for shift requirement warnings
-            requirement_warnings = [
-                w
-                for w in warnings
-                if "minimum" in str(w).lower() or "requirement" in str(w).lower()
-            ]
-            logger.info(
-                f"Shift requirement-related warnings: {len(requirement_warnings)}"
-            )
-
-            # Assert that all shifts meet minimum requirements or there are warnings about them
-            assert len(shifts_below_minimum) == 0 or len(requirement_warnings) > 0
-
-            return result
-        finally:
-            # Restore original min_employees values
-            for shift in ShiftTemplate.query.all():
-                if shift.id in original_min_employees:
-                    shift.min_employees = original_min_employees[shift.id]
-
-            db.session.commit()
-
-
 def run_all_tests():
-    """Run all schedule constraint tests."""
-    logger.info("Starting schedule constraint tests...")
+    """Run all test functions"""
+    print("\n=== Running Schedule Constraint Tests ===")
 
-    tests = [
-        ("Keyholder Constraint", test_keyholder_constraint),
-        ("Weekly Hours Constraint", test_weekly_hours_constraint),
-        ("Rest Time Constraint", test_rest_time_constraint),
-        ("Employee Availability Constraint", test_employee_availability_constraint),
-        ("Shift Requirements Constraint", test_shift_requirements_constraint),
-    ]
+    test_keyholder_constraint()
+    test_weekly_hours_constraint()
+    test_rest_time_constraint()
+    test_employee_availability_constraint()
 
-    results = {}
-
-    for name, test_func in tests:
-        logger.info(f"\nRunning test: {name}")
-        try:
-            result = test_func()
-            results[name] = {"status": "Success", "result": result}
-            logger.info(f"Test '{name}' completed successfully")
-        except Exception as e:
-            logger.error(f"Test '{name}' failed: {str(e)}")
-            results[name] = {"status": "Failed", "error": str(e)}
-
-    # Print summary
-    logger.info("\n=== TEST SUMMARY ===")
-    for name, result in results.items():
-        status = result["status"]
-        logger.info(f"{name}: {status}")
-
-    return results
+    print("\nAll tests completed successfully!\n")
 
 
 if __name__ == "__main__":

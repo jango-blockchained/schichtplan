@@ -1,3 +1,4 @@
+# For backend
 flask==3.0.0
 flask-sqlalchemy==3.1.1
 flask-migrate==4.0.5
@@ -14,4 +15,7 @@ python-dateutil==2.8.2
 SQLAlchemy==2.0.25
 gunicorn==21.2.0 
 ruff==0.9.7
-harlequin==0.1.0
+cloc==0.2.5
+
+# For SQL
+harlequin

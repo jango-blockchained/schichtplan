@@ -58,9 +58,6 @@ export const ShiftEditor: React.FC<ShiftEditorProps> = ({
                                     <span className="font-medium">Active Days:</span> {getDayNames(shift.active_days)}
                                 </div>
                                 <div>
-                                    <span className="font-medium">Employees:</span> {shift.min_employees} - {shift.max_employees}
-                                </div>
-                                <div>
                                     <span className="font-medium">Break Required:</span> {shift.requires_break ? 'Yes' : 'No'}
                                 </div>
                             </div>

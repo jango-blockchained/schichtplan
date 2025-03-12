@@ -4,6 +4,9 @@ import traceback
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 import os
+from datetime import date, datetime, timedelta
+import uuid
+import click
 
 # Add the parent directory to Python path
 current_dir = Path(__file__).resolve().parent
@@ -140,6 +143,78 @@ def create_app(config_class=Config):
             ),
             500,
         )
+
+    # Add diagnostic command
+    @app.cli.command("run-diagnostic")
+    @click.option("--start-date", type=str, help="Start date in YYYY-MM-DD format")
+    @click.option("--end-date", type=str, help="End date in YYYY-MM-DD format")
+    @click.option(
+        "--days", type=int, default=7, help="Number of days if no dates provided"
+    )
+    def run_diagnostic(start_date=None, end_date=None, days=7):
+        """Run the schedule generator diagnostic"""
+        from models import Employee, ShiftTemplate, Coverage
+        from services.scheduler import ScheduleGenerator
+
+        session_id = str(uuid.uuid4())[:8]
+        app.logger.info(f"Starting diagnostic session {session_id}")
+
+        try:
+            # Set up dates
+            if not start_date:
+                start_date = date.today()
+            elif isinstance(start_date, str):
+                start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+
+            if not end_date:
+                end_date = start_date + timedelta(days=days - 1)
+            elif isinstance(end_date, str):
+                end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+
+            app.logger.info(f"Schedule date range: {start_date} to {end_date}")
+
+            # Check database state
+            employee_count = Employee.query.count()
+            active_employees = Employee.query.filter_by(is_active=True).count()
+            keyholders = Employee.query.filter_by(is_keyholder=True).count()
+            shift_count = ShiftTemplate.query.count()
+            coverage_count = Coverage.query.count()
+
+            app.logger.info(f"Total employees: {employee_count}")
+            app.logger.info(f"Active employees: {active_employees}")
+            app.logger.info(f"Keyholders: {keyholders}")
+            app.logger.info(f"Shift templates: {shift_count}")
+            app.logger.info(f"Coverage requirements: {coverage_count}")
+
+            if employee_count == 0:
+                app.logger.warning("No employees found in database")
+            if shift_count == 0:
+                app.logger.warning("No shift templates found in database")
+            if coverage_count == 0:
+                app.logger.warning("No coverage requirements found in database")
+
+            # Generate schedule
+            app.logger.info("Generating schedule")
+            generator = ScheduleGenerator()
+            result = generator.generate(
+                start_date=start_date,
+                end_date=end_date,
+                version=1,
+                session_id=session_id,
+            )
+            app.logger.info("Schedule generation completed")
+
+            print("\n" + "=" * 80)
+            print(f"Diagnostic completed successfully. Session ID: {session_id}")
+            print("=" * 80 + "\n")
+
+        except Exception as e:
+            app.logger.error(f"Diagnostic failed: {str(e)}")
+            app.logger.error(traceback.format_exc())
+            print("\n" + "=" * 80)
+            print(f"Diagnostic failed. Session ID: {session_id}")
+            print(f"Error: {str(e)}")
+            print("=" * 80 + "\n")
 
     return app
 
