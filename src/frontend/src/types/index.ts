@@ -5,7 +5,9 @@ export enum EmployeeGroup {
     TL = "TL"
 }
 
-export enum ShiftType {
+export type ShiftType = string;
+
+export enum LegacyShiftType {
     EARLY = "Frühschicht",
     MIDDLE = "Mittelschicht",
     LATE = "Spätschicht"
@@ -48,6 +50,7 @@ export interface Shift {
     active_days: number[];  // Array of weekday indices (0 = Monday, 6 = Sunday)
     created_at?: string;
     updated_at?: string;
+    shift_type_id?: string;
 }
 
 export interface Schedule {
@@ -163,6 +166,12 @@ export interface Settings {
             is_available: boolean;
         }>;
     };
+    shift_types: Array<{
+        id: string;
+        name: string;
+        color: string;
+        type: string;
+    }>;
     general: {
         store_name: string;
         store_address: string;
@@ -283,6 +292,12 @@ export interface Settings {
             min_hours: number;
             max_hours: number;
             type: 'employee';
+        }>;
+        shift_types: Array<{
+            id: string;
+            name: string;
+            color: string;
+            type: 'shift';
         }>;
         absence_types: Array<{
             id: string;

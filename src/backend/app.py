@@ -26,6 +26,7 @@ from routes.availability import availability
 from routes.absences import bp as absences_bp
 from api.coverage import bp as coverage_bp
 from api.schedules import bp as api_schedules_bp
+from api.settings import bp as api_settings_bp
 from api.demo_data import bp as demo_data_bp
 from routes import logs  # Add logs import
 from utils.logger import (
@@ -111,6 +112,9 @@ def create_app(config_class=Config):
     app.register_blueprint(availability, url_prefix="/api")
     app.register_blueprint(absences_bp, url_prefix="/api")
     app.register_blueprint(coverage_bp)
+    app.register_blueprint(
+        api_settings_bp, name="api_settings"
+    )  # Register API settings blueprint
     app.register_blueprint(demo_data_bp, url_prefix="/api/demo-data")
     app.register_blueprint(logs.bp, url_prefix="/api/logs")
     app.register_blueprint(

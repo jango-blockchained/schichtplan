@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { getSettings, updateSettings } from '@/services/api';
 import EmployeeSettingsEditor, { EmployeeType, AbsenceType } from '@/components/EmployeeSettingsEditor';
+import ShiftTypesEditor, { ShiftType as ShiftTypeOption } from '@/components/ShiftTypesEditor';
 import { Pencil } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -58,6 +59,13 @@ export default function OptionsPage() {
             setAvailabilityTypes(types);
         }
     }, [settings]);
+
+    // Ensure shift_types exists in settings
+    const shiftTypes = settings?.employee_groups?.shift_types ?? [
+        { id: "EARLY", name: "Frühschicht", color: "#4CAF50", type: "shift" },
+        { id: "MIDDLE", name: "Mittelschicht", color: "#2196F3", type: "shift" },
+        { id: "LATE", name: "Spätschicht", color: "#9C27B0", type: "shift" }
+    ];
 
     const updateMutation = useMutation({
         mutationFn: updateSettings,
@@ -143,6 +151,19 @@ export default function OptionsPage() {
             employee_groups: {
                 ...settings.employee_groups,
                 absence_types: absenceTypes
+            }
+        });
+
+        updateMutation.mutate(updatedSettings);
+    };
+
+    const handleShiftTypesChange = (shiftTypes: Array<{ id: string; name: string; color: string; }>) => {
+        if (!settings) return;
+
+        const updatedSettings = Object.assign({}, settings, {
+            employee_groups: {
+                ...settings.employee_groups,
+                shift_types: shiftTypes
             }
         });
 
@@ -276,6 +297,25 @@ export default function OptionsPage() {
                                         .filter((group): group is AbsenceType => group.type === 'absence')
                                         .map(({ type, ...rest }) => rest);
                                     handleAbsenceTypesChange(absenceTypes);
+                                }}
+                            />
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Shift Types</CardTitle>
+                            <CardDescription>Manage shift types and their color coding</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <ShiftTypesEditor
+                                shiftTypes={shiftTypes.map(type => ({
+                                    ...type,
+                                    type: 'shift' as const
+                                }))}
+                                onChange={(types: ShiftTypeOption[]) => {
+                                    const shiftTypes = types.map(({ type, ...rest }) => rest);
+                                    handleShiftTypesChange(shiftTypes);
                                 }}
                             />
                         </CardContent>

@@ -7,6 +7,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+# Keep the enum for backward compatibility but prefer settings-based shift types
 class ShiftType(Enum):
     EARLY = "early"
     MIDDLE = "middle"
@@ -28,6 +29,9 @@ class ShiftTemplate(db.Model):
     duration_hours = db.Column(db.Float, nullable=False)
     requires_break = db.Column(db.Boolean, nullable=False, default=True)
     shift_type = db.Column(db.Enum(ShiftType), nullable=False)
+    shift_type_id = db.Column(
+        db.String(50), nullable=True
+    )  # Store the ID from settings.shift_types
     active_days = db.Column(
         db.JSON,
         nullable=False,
@@ -53,6 +57,7 @@ class ShiftTemplate(db.Model):
         requires_break=True,
         active_days=None,
         shift_type=None,
+        shift_type_id=None,
     ):
         self.start_time = start_time
         self.end_time = end_time
@@ -66,20 +71,56 @@ class ShiftTemplate(db.Model):
             "5": True,  # Friday
             "6": True,  # Saturday
         }
+        self.shift_type_id = shift_type_id
 
         # Determine shift type based on time if not provided
         if shift_type is None:
             start_hour = int(start_time.split(":")[0])
             end_hour = int(end_time.split(":")[0])
 
-            if start_hour < 11:
-                self.shift_type = ShiftType.EARLY
-            elif end_hour >= 18:
-                self.shift_type = ShiftType.LATE
+            # Get settings-based shift types if available
+            settings = Settings.query.first()
+            if settings and hasattr(settings, "shift_types") and settings.shift_types:
+                # Determine the shift type ID and enum based on time
+                if start_hour < 11:
+                    self.shift_type = ShiftType.EARLY
+                    # If shift_type_id wasn't explicitly provided, set it to "EARLY"
+                    if not self.shift_type_id:
+                        self.shift_type_id = "EARLY"
+                elif end_hour >= 18:
+                    self.shift_type = ShiftType.LATE
+                    # If shift_type_id wasn't explicitly provided, set it to "LATE"
+                    if not self.shift_type_id:
+                        self.shift_type_id = "LATE"
+                else:
+                    self.shift_type = ShiftType.MIDDLE
+                    # If shift_type_id wasn't explicitly provided, set it to "MIDDLE"
+                    if not self.shift_type_id:
+                        self.shift_type_id = "MIDDLE"
             else:
-                self.shift_type = ShiftType.MIDDLE
+                # Fall back to enum-based ShiftType
+                if start_hour < 11:
+                    self.shift_type = ShiftType.EARLY
+                    if not self.shift_type_id:
+                        self.shift_type_id = "EARLY"
+                elif end_hour >= 18:
+                    self.shift_type = ShiftType.LATE
+                    if not self.shift_type_id:
+                        self.shift_type_id = "LATE"
+                else:
+                    self.shift_type = ShiftType.MIDDLE
+                    if not self.shift_type_id:
+                        self.shift_type_id = "MIDDLE"
         else:
             self.shift_type = shift_type
+            # Set the shift_type_id based on the enum if not provided
+            if not self.shift_type_id:
+                if self.shift_type == ShiftType.EARLY:
+                    self.shift_type_id = "EARLY"
+                elif self.shift_type == ShiftType.MIDDLE:
+                    self.shift_type_id = "MIDDLE"
+                elif self.shift_type == ShiftType.LATE:
+                    self.shift_type_id = "LATE"
 
         # Calculate duration and validate
         self._calculate_duration()
@@ -166,13 +207,41 @@ class ShiftTemplate(db.Model):
         if self.duration_hours is None or self.duration_hours <= 0:
             self._calculate_duration()
 
+        # Try to get settings-based shift type first
+        settings = Settings.query.first()
+        shift_type_value = self.shift_type.value if self.shift_type else None
+        shift_type_data = None
+
+        # If settings exist, try to find a matching shift type by ID
+        if settings and hasattr(settings, "shift_types") and settings.shift_types:
+            # Try to find a matching shift type from settings using shift_type_id
+            if self.shift_type_id:
+                shift_type_data = next(
+                    (t for t in settings.shift_types if t["id"] == self.shift_type_id),
+                    None,
+                )
+
+            # If no match found or no shift_type_id provided, fall back to mapping from enum
+            if not shift_type_data and shift_type_value:
+                shift_type_map = {"early": "EARLY", "middle": "MIDDLE", "late": "LATE"}
+                if shift_type_value in shift_type_map:
+                    shift_id = shift_type_map[shift_type_value]
+                    shift_type_data = next(
+                        (t for t in settings.shift_types if t["id"] == shift_id), None
+                    )
+
+            # If we found shift type data, use the name
+            if shift_type_data:
+                shift_type_value = shift_type_data["name"]
+
         return {
             "id": self.id,
             "start_time": self.start_time,
             "end_time": self.end_time,
             "duration_hours": self.duration_hours,
             "requires_break": self.requires_break,
-            "shift_type": self.shift_type.value if self.shift_type else None,
+            "shift_type": shift_type_value,
+            "shift_type_id": self.shift_type_id,
             "active_days": self.active_days,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
