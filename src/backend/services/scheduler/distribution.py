@@ -4,7 +4,7 @@ from collections import defaultdict
 import functools
 import logging
 
-from models import Employee, ShiftTemplate, ScheduleEntry
+from models import Employee, ShiftTemplate, Schedule
 from .utility import time_to_minutes, calculate_duration
 
 logger = logging.getLogger(__name__)
@@ -43,7 +43,7 @@ class DistributionManager:
     def initialize(
         self,
         employees: List[Employee],
-        historical_data: Optional[List[ScheduleEntry]] = None,
+        historical_data: Optional[List[Schedule]] = None,
     ):
         """Initialize the distribution manager with employees and optionally historical data"""
         self._initialize_employee_data(employees)
@@ -103,7 +103,7 @@ class DistributionManager:
         if hasattr(prefs, "avoid_shifts"):
             self.employee_preferences[employee.id]["avoid_shifts"] = prefs.avoid_shifts
 
-    def _load_historical_data(self, schedule_entries: List[ScheduleEntry]):
+    def _load_historical_data(self, schedule_entries: List[Schedule]):
         """Load historical schedule data to build distribution metrics"""
         for entry in schedule_entries:
             employee_id = entry.employee_id
@@ -112,15 +112,33 @@ class DistributionManager:
             if employee_id not in self.employee_history:
                 continue
 
+            # Get the shift template for this schedule entry
+            if hasattr(entry, "shift") and entry.shift is not None:
+                shift_template = entry.shift
+            elif hasattr(entry, "shift_id") and entry.shift_id is not None:
+                # We need to retrieve the shift template from database or cache
+                # For now we'll skip this entry if shift is not directly available
+                continue
+            else:
+                continue
+
             # Track shift type counts
-            shift_category = self._categorize_shift(entry.shift_template, shift_date)
+            shift_category = self._categorize_shift(shift_template, shift_date)
             self.employee_history[employee_id][shift_category] += 1
             self.employee_history[employee_id]["total"] += 1
 
             # Track hours
-            duration = calculate_duration(
-                entry.shift_template.start_time, entry.shift_template.end_time
-            )
+            if (
+                hasattr(shift_template, "duration_hours")
+                and shift_template.duration_hours is not None
+            ):
+                duration = shift_template.duration_hours
+            else:
+                # Try to calculate from start/end time
+                duration = calculate_duration(
+                    shift_template.start_time, shift_template.end_time
+                )
+
             self.employee_history[employee_id]["hours"] += duration
 
     def _categorize_shift(self, shift: ShiftTemplate, shift_date: date) -> str:

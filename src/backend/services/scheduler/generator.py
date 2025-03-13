@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, date
 from typing import List, Dict, Any, Optional, Iterable
 from models import Employee, ShiftTemplate, Schedule, Coverage, db, Settings
-from models.schedule import ScheduleStatus, ScheduleEntry
+from models.schedule import ScheduleStatus
 from models.employee import AvailabilityType
 from utils.logger import logger
 from .resources import ScheduleResources
@@ -1008,8 +1008,8 @@ class ScheduleGenerator:
             # Get schedules from the last 3 months
             three_months_ago = datetime.now().date() - timedelta(days=90)
             historical_entries = (
-                db.session.query(ScheduleEntry)
-                .filter(ScheduleEntry.date >= three_months_ago)
+                db.session.query(Schedule)
+                .filter(Schedule.date >= three_months_ago)
                 .all()
             )
 
