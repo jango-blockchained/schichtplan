@@ -1,12 +1,13 @@
 from datetime import datetime, timedelta, date
 from typing import List, Dict, Any, Optional, Iterable
 from models import Employee, ShiftTemplate, Schedule, Coverage, db, Settings
-from models.schedule import ScheduleStatus
+from models.schedule import ScheduleStatus, ScheduleEntry
 from models.employee import AvailabilityType
 from utils.logger import logger
 from .resources import ScheduleResources
 from .validator import ScheduleValidator, ScheduleConfig
 from .utility import time_to_minutes, shifts_overlap
+from .distribution import DistributionManager
 from collections import defaultdict
 
 
@@ -22,6 +23,7 @@ class ScheduleGenerator:
     def __init__(self):
         self.resources = ScheduleResources()
         self.validator = None
+        self.distribution_manager = DistributionManager()
         self.schedule = []
         self.schedule_by_date = defaultdict(list)
         self.config = None
@@ -29,6 +31,7 @@ class ScheduleGenerator:
         self.warnings = []
         self.session_id = None
         self.create_empty_schedules = True
+        self.use_fair_distribution = True
 
     def generate(
         self,
@@ -36,6 +39,7 @@ class ScheduleGenerator:
         end_date: date,
         version: int = 1,
         session_id: Optional[str] = None,
+        use_fair_distribution: bool = True,
     ) -> Dict[str, Any]:
         """Main entry point for schedule generation"""
         try:
@@ -44,6 +48,7 @@ class ScheduleGenerator:
             self.schedule = []
             self.schedule_by_date = defaultdict(list)
             self.warnings = []
+            self.use_fair_distribution = use_fair_distribution
 
             # Load resources
             self._log_info("Loading resources for schedule generation")
@@ -974,3 +979,175 @@ class ScheduleGenerator:
         end_hour = int(end_time.split(":")[0])
         start_hour = int(start_time.split(":")[0])
         return (end_hour - start_hour) / 60.0
+
+    def _initialize_schedule_generation(self, start_date, end_date):
+        """Initialize the schedule generation process"""
+        self._log_info(
+            f"Initializing schedule generation from {start_date} to {end_date}"
+        )
+
+        # Create the validator with appropriate settings
+        self.validator = ScheduleValidator(self.resources)
+
+        # Initialize configuration
+        self._initialize_config()
+
+        # Initialize the distribution manager if fair distribution is enabled
+        if self.use_fair_distribution:
+            self._log_info(
+                "Initializing distribution manager for fair shift allocation"
+            )
+            historical_data = self._get_historical_schedules()
+            self.distribution_manager.initialize(
+                self.resources.employees, historical_data
+            )
+
+    def _get_historical_schedules(self):
+        """Retrieve historical schedule data for distribution analysis"""
+        try:
+            # Get schedules from the last 3 months
+            three_months_ago = datetime.now().date() - timedelta(days=90)
+            historical_entries = (
+                db.session.query(ScheduleEntry)
+                .filter(ScheduleEntry.date >= three_months_ago)
+                .all()
+            )
+
+            self._log_info(
+                f"Retrieved {len(historical_entries)} historical schedule entries for distribution analysis"
+            )
+            return historical_entries
+        except Exception as e:
+            self._log_warning(f"Could not retrieve historical schedule data: {str(e)}")
+            return []
+
+    def _get_best_employee_for_shift(
+        self, shift_template, shift_date, scheduled_employees
+    ):
+        """Get the best employee for a given shift based on constraints and fairness"""
+        available_employees = self._get_available_employees(shift_template, shift_date)
+
+        # Filter out already scheduled employees for this shift
+        available_employees = [
+            e for e in available_employees if e.id not in scheduled_employees
+        ]
+
+        if not available_employees:
+            return None
+
+        # If fair distribution is disabled, use original method
+        if not self.use_fair_distribution:
+            return self._get_best_employee_by_availability(
+                available_employees, shift_template, shift_date
+            )
+
+        # Get the best employee based on fair distribution
+        return self._get_best_employee_by_distribution(
+            available_employees, shift_template, shift_date
+        )
+
+    def _get_best_employee_by_distribution(
+        self, available_employees, shift_template, shift_date
+    ):
+        """Select the best employee based on distribution metrics"""
+        if not available_employees:
+            return None
+
+        # Get current schedule context for week
+        week_start = shift_date - timedelta(days=shift_date.weekday())
+        week_end = week_start + timedelta(days=6)
+        weekly_context = self._get_weekly_schedule_context(week_start, week_end)
+
+        # Calculate scores for each employee
+        employee_scores = []
+        for employee in available_employees:
+            # Skip if not qualified for the shift
+            if not self._is_employee_qualified(employee, shift_template):
+                continue
+
+            # Check if assigning this shift would violate constraints
+            if not self._can_assign_shift(employee, shift_template, shift_date):
+                continue
+
+            # Calculate assignment score from distribution manager
+            score = self.distribution_manager.calculate_assignment_score(
+                employee.id, shift_template, shift_date, context=weekly_context
+            )
+
+            employee_scores.append((employee, score))
+
+        # Sort by score (lower is better)
+        employee_scores.sort(key=lambda x: x[1])
+
+        if not employee_scores:
+            return None
+
+        # Log assignment decision for debugging
+        best_employee, score = employee_scores[0]
+        self._log_info(
+            f"Selected employee {best_employee.id} for shift on {shift_date} with score {score:.2f}"
+        )
+
+        return best_employee
+
+    def _get_weekly_schedule_context(self, week_start, week_end):
+        """Get context information about the current schedule for this week"""
+        context = {
+            "weekly_hours": defaultdict(float),
+            "weekly_shifts": defaultdict(int),
+            "shift_types": defaultdict(lambda: defaultdict(int)),
+        }
+
+        # Collect information from already scheduled shifts in this period
+        for day in self.schedule_by_date:
+            if week_start <= day <= week_end:
+                for assignment in self.schedule_by_date[day]:
+                    employee_id = assignment["employee_id"]
+                    shift = assignment["shift_template"]
+
+                    # Track weekly hours
+                    duration = self.resources.calculate_shift_duration(shift)
+                    context["weekly_hours"][employee_id] += duration
+
+                    # Track weekly shift count
+                    context["weekly_shifts"][employee_id] += 1
+
+                    # Track shift types
+                    shift_category = self.distribution_manager._categorize_shift(
+                        shift, day
+                    )
+                    context["shift_types"][employee_id][shift_category] += 1
+
+        return context
+
+    def _assign_employee_to_shift(self, employee, shift_template, shift_date):
+        """Assign an employee to a shift and update all tracking data"""
+        # Create the shift entry
+        shift_entry = {
+            "employee_id": employee.id,
+            "employee_name": f"{employee.first_name} {employee.last_name}",
+            "shift_template_id": shift_template.id,
+            "shift_template": shift_template,
+            "date": shift_date,
+        }
+
+        # Add to schedule
+        self.schedule.append(shift_entry)
+        self.schedule_by_date[shift_date].append(shift_entry)
+
+        # Update distribution manager if using fair distribution
+        if self.use_fair_distribution:
+            self.distribution_manager.update_with_assignment(
+                employee.id, shift_template, shift_date
+            )
+
+        return shift_entry
+
+    def get_distribution_metrics(self):
+        """Get metrics about shift distribution fairness"""
+        if not self.use_fair_distribution:
+            return {
+                "error": "Fair distribution not enabled for this schedule generation"
+            }
+
+        return self.distribution_manager.get_distribution_metrics()
