@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, Fragment } from 'react';
 import { format, addDays, parseISO, startOfWeek } from 'date-fns';
 import { useDrag, useDrop } from 'react-dnd';
 import { Schedule, Employee, ScheduleUpdate } from '@/types';
@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
 import { useQuery } from '@tanstack/react-query';
 import { getSettings, getEmployees } from '@/services/api';
-import { Edit2, Trash2, Plus } from 'lucide-react';
+import { Edit2, Trash2, Plus, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ShiftEditModal } from './ShiftEditModal';
 import {
@@ -20,6 +20,8 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { EmployeeStatistics } from './Schedule/EmployeeStatistics';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface ScheduleTableProps {
     schedules: Schedule[];
@@ -41,6 +43,10 @@ interface DragItem {
 type ExtendedSchedule = Schedule & {
     break_duration?: number | null;
     notes?: string | null;
+    is_fixed?: boolean;
+    is_promised?: boolean;
+    is_availability_coverage?: boolean;
+    shift_type?: 'fixed' | 'promised' | 'availability' | 'regular';
 };
 
 const isEmptySchedule = (schedule: Schedule | undefined) => {
@@ -54,6 +60,13 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
 }) => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [showActions, setShowActions] = useState(false);
+
+    // Add debug logging to help understand when cells are empty
+    useEffect(() => {
+        if (schedule && schedule.shift_id !== null && schedule.shift_start) {
+            console.log(`ScheduleCell: Valid shift found for date ${schedule.date} - ${schedule.shift_start} to ${schedule.shift_end}`);
+        }
+    }, [schedule]);
 
     const [{ isDragging }, drag] = useDrag(() => ({
         type: 'SCHEDULE',
@@ -107,10 +120,9 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
         const emptySchedule: Schedule = {
             id: 0,
             employee_id: schedule?.employee_id ?? 0,
-            // Remove the employee_name field since it's not in the Schedule type
-            shift_id: null, // Use null instead of undefined to match the type
-            shift_start: null, // Use null instead of undefined to match the type
-            shift_end: null, // Use null instead of undefined to match the type
+            shift_id: null,
+            shift_start: null,
+            shift_end: null,
             date: schedule?.date ?? new Date().toISOString().split('T')[0],
             version: schedule?.version ?? 1,
             is_empty: true,
@@ -120,8 +132,9 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
         return (
             <div
                 ref={drop}
+                style={{ width: '150px', height: '100px' }}
                 className={cn(
-                    'h-full w-full flex items-center justify-center text-muted-foreground relative min-h-[100px]',
+                    'flex items-center justify-center text-muted-foreground relative',
                     'border border-dashed border-muted-foreground/20 rounded-md',
                     'hover:border-primary/50 transition-colors duration-200',
                     isOver && 'border-primary border-solid'
@@ -188,13 +201,17 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
 
     // Cast the schedule to ExtendedSchedule to access the additional properties
     const extendedSchedule = schedule as ExtendedSchedule;
+    const shiftType = determineShiftType(schedule);
+    const shiftTypeColor = getShiftTypeColor(shiftType);
 
     return (
         <>
             <div
                 ref={(node) => drag(drop(node))}
+                style={{ width: '150px', height: '100px' }}
                 className={cn(
-                    'p-2 rounded border transition-all duration-200 group min-h-[100px] relative',
+                    'p-2 rounded border transition-all duration-200 group relative',
+                    'flex flex-col items-center justify-center',
                     isDragging && 'opacity-50 bg-primary/10',
                     isOver && 'ring-2 ring-primary/50',
                     'hover:bg-primary/5'
@@ -202,7 +219,16 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
                 onMouseEnter={() => setShowActions(true)}
                 onMouseLeave={() => setShowActions(false)}
             >
-                <div className="flex flex-col space-y-1">
+                {/* Shift type indicator - colored line at top of cell */}
+                <div
+                    className={cn(
+                        'absolute top-0 left-0 right-0 h-1 rounded-t',
+                        shiftTypeColor
+                    )}
+                    title={`Shift type: ${shiftType}`}
+                />
+
+                <div className="flex flex-col space-y-1 items-center">
                     <Badge variant="secondary" className="text-xs w-fit">
                         {schedule.shift_start} - {schedule.shift_end}
                     </Badge>
@@ -212,7 +238,7 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
                         </div>
                     )}
                     {extendedSchedule.notes && (
-                        <div className="text-xs text-muted-foreground italic">
+                        <div className="text-xs text-muted-foreground italic text-center">
                             {extendedSchedule.notes}
                         </div>
                     )}
@@ -257,7 +283,54 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
     );
 };
 
+// Helper function to determine shift type based on properties
+const determineShiftType = (schedule: Schedule): 'fixed' | 'promised' | 'availability' | 'regular' => {
+    // Cast to extended schedule to access potential properties
+    const extSchedule = schedule as ExtendedSchedule;
+
+    // Check for explicit type indicators
+    if (extSchedule.shift_type) return extSchedule.shift_type;
+    if (extSchedule.is_fixed) return 'fixed';
+    if (extSchedule.is_promised) return 'promised';
+    if (extSchedule.is_availability_coverage) return 'availability';
+
+    // If no explicit type, use some heuristics based on notes or other properties
+    if (extSchedule.notes) {
+        const notes = extSchedule.notes.toLowerCase();
+        if (notes.includes('fix') || notes.includes('fest')) return 'fixed';
+        if (notes.includes('wunsch') || notes.includes('promised') || notes.includes('pref')) return 'promised';
+        if (notes.includes('verfügbar') || notes.includes('avail')) return 'availability';
+    }
+
+    // Default case
+    return 'regular';
+};
+
+// Function to get color based on shift type
+const getShiftTypeColor = (type: 'fixed' | 'promised' | 'availability' | 'regular'): string => {
+    switch (type) {
+        case 'fixed':
+            return 'bg-blue-500'; // Blue for fixed shifts
+        case 'promised':
+            return 'bg-green-500'; // Green for promised/preferred shifts
+        case 'availability':
+            return 'bg-amber-500'; // Amber for availability coverage
+        default:
+            return 'bg-gray-300'; // Gray for regular shifts
+    }
+};
+
 export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoading }: ScheduleTableProps) {
+    const [expandedEmployees, setExpandedEmployees] = useState<number[]>([]);
+
+    const toggleEmployeeExpand = (employeeId: number) => {
+        setExpandedEmployees(prev =>
+            prev.includes(employeeId)
+                ? prev.filter(id => id !== employeeId)
+                : [...prev, employeeId]
+        );
+    };
+
     // Fetch settings
     const { data: settings } = useQuery({
         queryKey: ['settings'],
@@ -265,10 +338,14 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
     });
 
     // Fetch employee data to display names properly
-    const { data: employees, isLoading: loadingEmployees } = useQuery({
+    const { data: employeesData, isLoading: loadingEmployees } = useQuery({
         queryKey: ['employees'],
         queryFn: getEmployees,
     });
+
+    const employees = useMemo(() => {
+        return employeesData || [];
+    }, [employeesData]);
 
     // Employee lookup for quick access
     const employeeLookup = useMemo(() => {
@@ -387,6 +464,76 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
         return Array.from(employeeSet);
     }, [schedules]);
 
+    const uniqueEmployeeIds = useMemo(() => {
+        const ids = [...new Set(schedules.map(s => s.employee_id))];
+        return ids;
+    }, [schedules]);
+
+    const groupedSchedules = useMemo(() => {
+        const grouped: Record<number, Record<string, Schedule>> = {};
+
+        // Make sure we have valid schedules
+        if (!schedules || schedules.length === 0) {
+            console.log('Warning: No schedules provided to ScheduleTable');
+            return grouped;
+        }
+
+        console.log(`ScheduleTable: Processing ${schedules.length} total schedules`);
+
+        // Count schedules with shift_id
+        const schedulesWithShifts = schedules.filter(s => s.shift_id !== null);
+        console.log(`ScheduleTable: Found ${schedulesWithShifts.length} schedules with shift_id`);
+
+        // Group schedules by employee ID and then by date for quick lookup
+        uniqueEmployeeIds.forEach(employeeId => {
+            const employeeSchedules = schedules.filter(s => s.employee_id === employeeId);
+            grouped[employeeId] = {};
+
+            // Index each schedule by date for easy lookup
+            employeeSchedules.forEach(schedule => {
+                // Normalize date format by removing time component
+                const dateKey = schedule.date.split('T')[0];
+                grouped[employeeId][dateKey] = schedule;
+
+                // Log the schedule date for debugging
+                if (schedule.shift_id !== null) {
+                    console.log(`Employee ${employeeId} has shift on ${dateKey}: ${schedule.shift_start} - ${schedule.shift_end}`);
+                }
+            });
+
+            // Log schedules with shifts for this employee
+            const shiftsForEmployee = employeeSchedules.filter(s => s.shift_id !== null);
+            if (shiftsForEmployee.length === 0) {
+                console.log(`Note: No shifts assigned for employee ID ${employeeId}`);
+            } else {
+                console.log(`Found ${shiftsForEmployee.length} shifts for employee ID ${employeeId}`);
+            }
+        });
+
+        return grouped;
+    }, [schedules, uniqueEmployeeIds]);
+
+    // Improve the employee details lookup with fallbacks
+    const getEmployeeDetails = (employeeId: number) => {
+        // First try to find the employee in the employees data
+        const employee = employees.find(e => e.id === employeeId);
+
+        // Use fallback values if employee not found
+        if (!employee) {
+            console.log(`Warning: Employee with ID ${employeeId} not found in employees data`);
+            return {
+                contractedHours: 40,
+                employeeGroup: 'VZ'
+            };
+        }
+
+        // Return actual values with fallbacks for missing fields
+        return {
+            contractedHours: employee.contracted_hours || 40,
+            employeeGroup: employee.employee_group || 'VZ'
+        };
+    };
+
     if (isLoading) {
         return <Skeleton className="w-full h-[400px]" />;
     }
@@ -400,66 +547,119 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
     }
 
     return (
-        <div className="schedule-table-container">
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                        <CardTitle>Schichtplan</CardTitle>
-                        {dateRange?.from && dateRange?.to && (
-                            <div className="text-sm text-muted-foreground mt-1">
-                                {format(dateRange.from, 'dd.MM.yyyy')} - {format(dateRange.to, 'dd.MM.yyyy')}
-                            </div>
-                        )}
+        <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                    <CardTitle>Schichtplan</CardTitle>
+                    {dateRange?.from && dateRange?.to && (
+                        <div className="text-sm text-muted-foreground mt-1">
+                            {format(dateRange.from, 'dd.MM.yyyy')} - {format(dateRange.to, 'dd.MM.yyyy')}
+                        </div>
+                    )}
+                </div>
+
+                {/* Add shift type legend */}
+                <div className="flex items-center gap-3 text-sm">
+                    <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                        <span>Fest</span>
                     </div>
-                </CardHeader>
-                <CardContent>
-                    <div className="overflow-x-auto">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="w-[200px]">Mitarbeiter</TableHead>
-                                    {days.map(day => (
-                                        <TableHead key={day.toISOString()} className="min-w-[150px]">
-                                            <div className="font-semibold">
-                                                {weekdayAbbr[format(day, 'EEEE')]}
-                                            </div>
-                                            <div className="text-xs text-muted-foreground">
-                                                {format(day, 'dd.MM')}
-                                            </div>
-                                        </TableHead>
-                                    ))}
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {uniqueEmployees.map(employeeId => (
-                                    <TableRow key={employeeId}>
-                                        <TableCell className="font-medium">
-                                            {formatEmployeeName(employeeId)}
-                                        </TableCell>
-                                        {days.map(day => {
-                                            // Format the date for lookup
-                                            const dateStr = format(day, 'yyyy-MM-dd');
-
-                                            // Get the schedule for this employee and date
-                                            const schedule = scheduleMap[employeeId]?.[dateStr];
-
-                                            return (
-                                                <TableCell key={day.toISOString()}>
-                                                    <ScheduleCell
-                                                        schedule={schedule}
-                                                        onDrop={onDrop}
-                                                        onUpdate={onUpdate}
-                                                    />
-                                                </TableCell>
-                                            );
-                                        })}
-                                    </TableRow>
+                    <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                        <span>Wunsch</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                        <span>Verfügbarkeit</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-full bg-gray-300"></div>
+                        <span>Standard</span>
+                    </div>
+                </div>
+            </CardHeader>
+            <CardContent className="p-0">
+                <div className="w-full overflow-x-auto" style={{ maxWidth: '100%' }}>
+                    <table className="w-full border-collapse">
+                        <thead>
+                            <tr className="border-b">
+                                <th className="w-[220px] sticky left-0 z-20 bg-background text-left p-4 font-medium text-muted-foreground">
+                                    Mitarbeiter
+                                </th>
+                                {days.map(day => (
+                                    <th key={day.toISOString()} className="w-[150px] text-center p-4 font-medium text-muted-foreground">
+                                        <div className="font-semibold">
+                                            {weekdayAbbr[format(day, 'EEEE')]}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                            {format(day, 'dd.MM')}
+                                        </div>
+                                    </th>
                                 ))}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {uniqueEmployeeIds.map(employeeId => {
+                                const employeeSchedules = groupedSchedules[employeeId] || {};
+                                const { contractedHours, employeeGroup } = getEmployeeDetails(employeeId);
+                                const isExpanded = expandedEmployees.includes(employeeId);
+
+                                return (
+                                    <React.Fragment key={employeeId}>
+                                        <tr className="hover:bg-muted/40 border-b">
+                                            <td className="font-medium sticky left-0 z-10 bg-background w-[220px] p-2">
+                                                <div className="flex items-center gap-2">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-6 w-6"
+                                                        onClick={() => toggleEmployeeExpand(employeeId)}
+                                                    >
+                                                        {isExpanded ? (
+                                                            <ChevronDown className="h-3 w-3" />
+                                                        ) : (
+                                                            <ChevronRight className="h-3 w-3" />
+                                                        )}
+                                                    </Button>
+                                                    <span className="truncate max-w-[180px]">
+                                                        {formatEmployeeName(employeeId)}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            {days.map((day) => {
+                                                const dateString = format(day, 'yyyy-MM-dd');
+                                                const daySchedule = employeeSchedules[dateString];
+
+                                                return (
+                                                    <td key={`${employeeId}-${dateString}`} className="text-center p-0 w-[150px]">
+                                                        <ScheduleCell
+                                                            schedule={daySchedule}
+                                                            onDrop={onDrop}
+                                                            onUpdate={onUpdate}
+                                                        />
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                        {isExpanded && (
+                                            <tr>
+                                                <td colSpan={days.length + 1} className="bg-slate-50 p-4">
+                                                    <EmployeeStatistics
+                                                        employeeId={employeeId}
+                                                        schedules={schedules}
+                                                        contractedHours={contractedHours}
+                                                        employeeGroup={employeeGroup}
+                                                    />
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </React.Fragment>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            </CardContent>
+        </Card>
     );
 } 

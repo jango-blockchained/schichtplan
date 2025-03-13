@@ -59,7 +59,14 @@ class ScheduleGenerationError(Exception):
 def is_early_shift(shift):
     """Check if a shift starts early in the morning (before 8:00)"""
     start_hour = int(shift.start_time.split(":")[0])
-    return start_hour < 8
+    return start_hour <= 10
+
+
+def is_middle_shift(shift):
+    """Check if a shift is a middle shift (starts after 10:00 and ends before 18:00)"""
+    start_hour = int(shift.start_time.split(":")[0])
+    end_hour = int(shift.end_time.split(":")[0])
+    return 10 < start_hour < 18 and 10 < end_hour < 18
 
 
 def is_late_shift(shift):
@@ -1916,7 +1923,7 @@ class ScheduleGenerator:
                 .filter(
                     Schedule.employee_id == employee.id,
                     Schedule.date == next_day,
-                    Schedule.shift.has(ShiftTemplate.start_time < "08:00"),
+                    Schedule.shift.has(ShiftTemplate.start_time <= "10:00"),
                 )
                 .first()
             )

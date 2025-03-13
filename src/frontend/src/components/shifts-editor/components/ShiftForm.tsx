@@ -103,7 +103,11 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, shift, onSave, o
     };
 
     // Get shift types from settings
-    const shiftTypes = settings?.shift_types || defaultSettings.shift_types;
+    const shiftTypes = settings?.shift_types || defaultSettings.shift_types || [
+        { id: 'EARLY', name: 'Frühschicht', color: '#4CAF50', type: 'shift' },
+        { id: 'MIDDLE', name: 'Mittelschicht', color: '#2196F3', type: 'shift' },
+        { id: 'LATE', name: 'Spätschicht', color: '#9C27B0', type: 'shift' }
+    ];
 
     return (
         <Card className="p-6">

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getSettings, updateSettings, generateDemoData, backupDatabase, restoreDatabase, wipeTables } from "@/services/api";
+import { getSettings, updateSettings, generateDemoData, generateOptimizedDemoData, backupDatabase, restoreDatabase, wipeTables } from "@/services/api";
 import type { Settings } from "@/types/index";
 import {
   Card,
@@ -571,6 +571,40 @@ export function SettingsPage() {
                       >
                         Generate Demo Data
                       </Button>
+
+                      <Separator className="my-4" />
+
+                      <div className="flex flex-col space-y-4">
+                        <div>
+                          <h3 className="text-lg font-semibold">Optimized Schedule Generation</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Generate optimized demo data with more diverse shift patterns and granular coverage requirements
+                          </p>
+                        </div>
+
+                        <Button
+                          onClick={async () => {
+                            try {
+                              await generateOptimizedDemoData();
+                              await queryClient.invalidateQueries({ queryKey: ["settings"] });
+                              toast({
+                                title: "Success",
+                                description: "Optimized demo data generated with diverse shift patterns",
+                              });
+                            } catch (error) {
+                              toast({
+                                title: "Error",
+                                description: error instanceof Error ? error.message : "Failed to generate optimized demo data",
+                                variant: "destructive",
+                              });
+                            }
+                          }}
+                          variant="outline"
+                          className="w-full"
+                        >
+                          Generate Optimized Schedule Data
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

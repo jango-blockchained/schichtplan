@@ -205,6 +205,7 @@ export interface Shift {
     active_days: { [key: string]: boolean };
     created_at?: string;
     updated_at?: string;
+    shift_type_id?: string;
 }
 
 export const getShifts = async (): Promise<Shift[]> => {
@@ -652,6 +653,22 @@ export const generateDemoData = async (module: string): Promise<void | Settings>
     } catch (error) {
         if (error instanceof Error) {
             throw new Error(`Failed to generate demo data: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+// Generate optimized demo data with more diverse shift patterns
+export const generateOptimizedDemoData = async (): Promise<void | Settings> => {
+    try {
+        const response = await api.post('/demo-data/optimized/');
+
+        // Always refresh settings after optimized data generation
+        const settings = await getSettings();
+        return settings;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to generate optimized demo data: ${error.message}`);
         }
         throw error;
     }
