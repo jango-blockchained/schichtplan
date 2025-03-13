@@ -306,7 +306,15 @@ class DistributionManager:
         self.calculate_assignment_score.cache_clear()
 
     def get_distribution_metrics(self) -> Dict[str, Any]:
-        """Get current distribution metrics for analysis"""
+        """Get current distribution metrics for analysis
+        
+        Returns a comprehensive dictionary of metrics for analyzing shift distribution:
+        - employee_distribution: Per-employee metrics including counts and percentages
+        - category_totals: Total counts for each shift category
+        - overall_percentages: Percentage distribution across all shift categories
+        - fairness_metrics: Metrics to evaluate distribution fairness
+        - workload_distribution: Analysis of workload across employees
+        """
         metrics = {
             "employee_distribution": {},
             "category_totals": {
@@ -316,21 +324,41 @@ class DistributionManager:
                 "standard": 0,
                 "total": 0,
             },
+            "fairness_metrics": {
+                "gini_coefficient": 0.0,
+                "category_variance": {},
+                "equity_score": 0.0
+            },
+            "workload_distribution": {
+                "max_shifts": 0,
+                "min_shifts": 0,
+                "avg_shifts": 0.0,
+                "employee_counts": []
+            }
         }
+        
+        # Skip calculation if no history data is available
+        if not self.employee_history:
+            return metrics
 
         # Calculate overall and per-employee metrics
+        all_shift_counts = []
+        
         for employee_id, history in self.employee_history.items():
             metrics["employee_distribution"][employee_id] = {
                 "percentages": {},
                 "counts": history.copy(),
+                "score": self._calculate_fairness_score(history)
             }
+            
+            all_shift_counts.append(history["total"])
 
             # Calculate percentages
             if history["total"] > 0:
                 for category in ["early", "late", "weekend", "standard"]:
                     metrics["employee_distribution"][employee_id]["percentages"][
                         category
-                    ] = history[category] / history["total"] * 100
+                    ] = round(history[category] / history["total"] * 100, 2)
 
                     # Add to category totals
                     metrics["category_totals"][category] += history[category]
@@ -342,13 +370,95 @@ class DistributionManager:
         if metrics["category_totals"]["total"] > 0:
             metrics["overall_percentages"] = {}
             for category in ["early", "late", "weekend", "standard"]:
-                metrics["overall_percentages"][category] = (
+                metrics["overall_percentages"][category] = round(
                     metrics["category_totals"][category]
                     / metrics["category_totals"]["total"]
-                    * 100
+                    * 100, 2
                 )
+        
+        # Calculate workload distribution metrics
+        if all_shift_counts:
+            metrics["workload_distribution"]["max_shifts"] = max(all_shift_counts)
+            metrics["workload_distribution"]["min_shifts"] = min(all_shift_counts)
+            metrics["workload_distribution"]["avg_shifts"] = round(
+                sum(all_shift_counts) / len(all_shift_counts), 2
+            )
+            metrics["workload_distribution"]["employee_counts"] = all_shift_counts
+            
+            # Calculate fairness metrics
+            metrics["fairness_metrics"]["gini_coefficient"] = self._calculate_gini_coefficient(all_shift_counts)
+            metrics["fairness_metrics"]["equity_score"] = self._calculate_equity_score(metrics)
+            
+            # Calculate category variance
+            for category in ["early", "late", "weekend", "standard"]:
+                category_percentages = []
+                for emp_id, dist in metrics["employee_distribution"].items():
+                    if "percentages" in dist and category in dist["percentages"]:
+                        category_percentages.append(dist["percentages"][category])
+                if category_percentages:
+                    metrics["fairness_metrics"]["category_variance"][category] = round(
+                        self._calculate_variance(category_percentages), 2
+                    )
 
         return metrics
+        
+    def _calculate_fairness_score(self, history: Dict[str, int]) -> float:
+        """Calculate a fairness score for an employee based on their shift history"""
+        if history["total"] == 0:
+            return 0.0
+            
+        # Calculate how balanced the distribution is across categories
+        categories = ["early", "late", "weekend", "standard"]
+        percentages = [history[cat] / history["total"] * 100 for cat in categories]
+        ideal_percentage = 25.0  # Ideally equal distribution
+        
+        # The closer to ideal distribution, the higher the score
+        deviations = [abs(p - ideal_percentage) for p in percentages]
+        avg_deviation = sum(deviations) / len(deviations)
+        
+        # Normalize to a 0-10 scale where 10 is perfect distribution
+        return round(10 - min(avg_deviation / 5, 10), 2)
+    
+    def _calculate_gini_coefficient(self, values: List[int]) -> float:
+        """Calculate Gini coefficient as a measure of inequality
+        0 = perfect equality, 1 = perfect inequality
+        """
+        if not values or sum(values) == 0:
+            return 0.0
+            
+        sorted_values = sorted(values)
+        n = len(sorted_values)
+        cumsum = 0
+        for i, value in enumerate(sorted_values):
+            cumsum += (i + 1) * value
+            
+        return round((2 * cumsum / (n * sum(sorted_values))) - (n + 1) / n, 2)
+    
+    def _calculate_variance(self, values: List[float]) -> float:
+        """Calculate variance of a list of values"""
+        if not values:
+            return 0.0
+            
+        mean = sum(values) / len(values)
+        squared_diffs = [(x - mean) ** 2 for x in values]
+        return sum(squared_diffs) / len(values)
+        
+    def _calculate_equity_score(self, metrics: Dict[str, Any]) -> float:
+        """Calculate an overall equity score based on multiple fairness metrics
+        Returns a score from 0-10 where 10 is perfect equity
+        """
+        if not metrics["employee_distribution"]:
+            return 0.0
+            
+        # Use Gini coefficient (inverted since lower is better)
+        gini_score = 10 * (1 - metrics["fairness_metrics"]["gini_coefficient"])
+        
+        # Calculate average employee fairness score
+        employee_scores = [dist["score"] for _, dist in metrics["employee_distribution"].items()]
+        avg_employee_score = sum(employee_scores) / len(employee_scores) if employee_scores else 0
+        
+        # Combine metrics with weights
+        return round(0.6 * gini_score + 0.4 * avg_employee_score, 2)
 
     def clear_caches(self):
         """Clear all caches"""

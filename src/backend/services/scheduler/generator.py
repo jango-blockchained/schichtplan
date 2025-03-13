@@ -1,20 +1,46 @@
-from datetime import datetime, timedelta, date
-from typing import List, Dict, Any, Optional, Iterable
-from models import Employee, ShiftTemplate, Schedule, Coverage, db, Settings
-from models.schedule import ScheduleStatus
-from models.employee import AvailabilityType
-from utils.logger import logger
-from .resources import ScheduleResources
-from .validator import ScheduleValidator, ScheduleConfig
-from .utility import time_to_minutes, shifts_overlap
-from .distribution import DistributionManager
+"""Schedule generator module for creating employee work schedules"""
+
+# Standard library imports
+import logging
+import sys
 from collections import defaultdict
+from datetime import datetime, timedelta, date
+from pathlib import Path
+from typing import List, Dict, Any, Optional, Iterable
+
+# Add backend to Python path to ensure imports work correctly
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+# Create relative imports for both package and direct execution
+try:
+    # When running as part of the backend package
+    from backend.models import Employee, ShiftTemplate, Schedule, Coverage, db, Settings
+    from backend.models.schedule import ScheduleStatus
+    from backend.models.employee import AvailabilityType
+    from backend.utils.logger import logger
+    from backend.services.scheduler.resources import ScheduleResources
+    from backend.services.scheduler.validator import ScheduleValidator, ScheduleConfig
+    from backend.services.scheduler.utility import time_to_minutes, shifts_overlap
+    from backend.services.scheduler.distribution import DistributionManager
+except ImportError:
+    # When running directly or as part of a different path structure
+    try:
+        from models import Employee, ShiftTemplate, Schedule, Coverage, db, Settings
+        from models.schedule import ScheduleStatus
+        from models.employee import AvailabilityType
+        from utils.logger import logger
+        from .resources import ScheduleResources
+        from .validator import ScheduleValidator, ScheduleConfig
+        from .utility import time_to_minutes, shifts_overlap
+        from .distribution import DistributionManager
+    except ImportError as e:
+        # Fallback logging if everything fails
+        print(f"Failed to import required modules in generator.py: {e}")
+        logger = logging.getLogger(__name__)
 
 
 class ScheduleGenerationError(Exception):
     """Custom exception for schedule generation errors"""
-
-    pass
 
 
 class ScheduleGenerator:
@@ -99,7 +125,9 @@ class ScheduleGenerator:
 
         except Exception as e:
             self._log_error(f"Error generating schedule: {str(e)}")
-            raise ScheduleGenerationError(f"Failed to generate schedule: {str(e)}")
+            raise ScheduleGenerationError(
+                f"Failed to generate schedule: {str(e)}"
+            ) from e
 
     def _create_schedule(self, start_date: date, end_date: date) -> None:
         """Create the schedule for the given date range"""
@@ -167,7 +195,7 @@ class ScheduleGenerator:
                 ] + [e for e in available_employees if not e.is_keyholder]
 
         # Try to assign enough employees to meet the minimum requirement
-        employees_needed = max(coverage.min_employees, 1)  # Ensure at least 1 employee
+        employees_needed = max(coverage.min_employees, 1)
         max_employees = (
             coverage.max_employees or employees_needed * 2
         )  # Use reasonable max if not specified
@@ -176,10 +204,33 @@ class ScheduleGenerator:
         assigned_employees = set()
         schedules = []
 
+        # Check which employees have already been assigned to other shifts on this date
+        already_assigned_employee_ids = set()
+        for entry in self.schedule:
+            if isinstance(entry, dict):
+                if (
+                    entry.get("date") == current_date
+                    and entry.get("employee_id") is not None
+                ):
+                    already_assigned_employee_ids.add(entry.get("employee_id"))
+            elif hasattr(entry, "date") and hasattr(entry, "employee_id"):
+                if entry.date == current_date and entry.employee_id is not None:
+                    already_assigned_employee_ids.add(entry.employee_id)
+
+        # Filter out employees who are already assigned to other shifts on this date
+        available_employees = [
+            e for e in available_employees if e.id not in already_assigned_employee_ids
+        ]
+
+        # Sort employees by priority
+        available_employees.sort(
+            key=lambda e: self._get_employee_priority(e, matching_shifts[0])
+        )
+
         # Try each shift until we have enough employees
         for shift in matching_shifts:
             # Skip if we've assigned enough employees
-            if len(assigned_employees) >= max_employees:
+            if len(assigned_employees) >= min(max_employees, employees_needed):
                 break
 
             # Get employees who can work this shift and haven't been assigned yet
@@ -193,11 +244,15 @@ class ScheduleGenerator:
             # Sort employees by priority for this specific shift
             shift_employees.sort(key=lambda e: self._get_employee_priority(e, shift))
 
-            # Calculate how many more employees we need
-            remaining_needed = max_employees - len(assigned_employees)
+            # Calculate how many more employees we need for this specific shift
+            employees_to_add = min(
+                employees_needed
+                - len(assigned_employees),  # How many we still need to meet minimum
+                min(max_employees, len(shift_employees)),  # Don't exceed max allowed
+            )
 
             # Take only as many employees as we need for this shift
-            employees_to_assign = shift_employees[:remaining_needed]
+            employees_to_assign = shift_employees[:employees_to_add]
 
             # Create schedule entries for assigned employees
             for employee in employees_to_assign:
@@ -672,6 +727,23 @@ class ScheduleGenerator:
         else:
             logger.warning(f"ScheduleGenerator: {message}")
 
+    def _get_shift_available_employees(self, shift_date, shift_template):
+        """Get employees available for the given shift"""
+        # Get all employees
+        employees = self.resources.employees
+        available_employees = []
+
+        for employee in employees:
+            # Skip employees who are not active
+            if not employee.is_active:
+                continue
+
+            # Check if employee is available on this date and time
+            if self._is_employee_available(employee, shift_date, shift_template):
+                available_employees.append(employee)
+
+        return available_employees
+
     def _log_error(self, message: str) -> None:
         """Log error message"""
         if hasattr(logger, "app_logger"):
@@ -692,7 +764,7 @@ class ScheduleGenerator:
         # Initialize resources if not done yet
         if not hasattr(self, "resources") or self.resources is None:
             self.resources = ScheduleResources()
-            self.resources.load_all()
+            self.resources.load()
 
         # Log the start of schedule generation
         logger.schedule_logger.info(
@@ -848,7 +920,7 @@ class ScheduleGenerator:
             self._log_error(f"Error saving schedule to database: {str(e)}")
             raise ScheduleGenerationError(
                 f"Failed to save schedule to database: {str(e)}"
-            )
+            ) from e
 
     def _count_consecutive_days(self, employee_id: int, current_date: date) -> int:
         """Count how many consecutive days an employee has worked up to current_date"""
@@ -974,11 +1046,37 @@ class ScheduleGenerator:
             -employee.contracted_hours
         )  # Negative so higher contracted hours = higher priority
 
+    def _get_best_employee_by_availability(
+        self, available_employees, shift_template, shift_date
+    ):
+        """Select the best employee based on availability and priority"""
+        if not available_employees:
+            return None
+
+        # Sort by priority
+        sorted_employees = sorted(
+            available_employees,
+            key=lambda emp: self._get_employee_priority(emp, shift_template),
+        )
+
+        # Return the highest priority employee
+        return sorted_employees[0] if sorted_employees else None
+
     def _calculate_rest_hours(self, end_time: str, start_time: str) -> float:
         """Calculate the rest hours between two shifts"""
         end_hour = int(end_time.split(":")[0])
         start_hour = int(start_time.split(":")[0])
-        return (end_hour - start_hour) / 60.0
+        return (start_hour - end_hour) / 60.0
+
+    def _calculate_shift_template_duration(self, shift_template):
+        """Calculate shift duration in minutes from shift template"""
+        try:
+            return time_to_minutes(shift_template.end_time) - time_to_minutes(
+                shift_template.start_time
+            )
+        except Exception as e:
+            self._log_error(f"Error calculating shift duration: {str(e)}")
+            return 0
 
     def _initialize_schedule_generation(self, start_date, end_date):
         """Initialize the schedule generation process"""
@@ -989,8 +1087,8 @@ class ScheduleGenerator:
         # Create the validator with appropriate settings
         self.validator = ScheduleValidator(self.resources)
 
-        # Initialize configuration
-        self._initialize_config()
+        # Initialize configuration from settings using the initialize_config_from_settings method
+        self._initialize_config_from_settings()
 
         # Initialize the distribution manager if fair distribution is enabled
         if self.use_fair_distribution:
@@ -1021,11 +1119,26 @@ class ScheduleGenerator:
             self._log_warning(f"Could not retrieve historical schedule data: {str(e)}")
             return []
 
+    def _get_best_employee_by_availability(
+        self, available_employees, shift_template, shift_date
+    ):
+        """Get the best employee based on availability and priority"""
+        if not available_employees:
+            return None
+        # Sort employees by priority
+        available_employees.sort(
+            key=lambda e: self._get_employee_priority(e, shift_template)
+        )
+        # Return the highest priority employee
+        return available_employees[0] if available_employees else None
+
     def _get_best_employee_for_shift(
         self, shift_template, shift_date, scheduled_employees
     ):
         """Get the best employee for a given shift based on constraints and fairness"""
-        available_employees = self._get_available_employees(shift_template, shift_date)
+        available_employees = self._get_available_employees(
+            shift_date, shift_template.start_time, shift_template.end_time
+        )
 
         # Filter out already scheduled employees for this shift
         available_employees = [
@@ -1106,19 +1219,79 @@ class ScheduleGenerator:
                     shift = assignment["shift_template"]
 
                     # Track weekly hours
-                    duration = self.resources.calculate_shift_duration(shift)
+                    # Calculate shift duration
+                    if hasattr(self.resources, "calculate_shift_duration"):
+                        duration = self.resources.calculate_shift_duration(shift)
+                    else:
+                        duration = self._calculate_shift_template_duration(shift)
                     context["weekly_hours"][employee_id] += duration
 
                     # Track weekly shift count
                     context["weekly_shifts"][employee_id] += 1
 
                     # Track shift types
-                    shift_category = self.distribution_manager._categorize_shift(
-                        shift, day
-                    )
+                    # Categorize shift based on time of day
+                    shift_category = self._categorize_shift(shift, day)
                     context["shift_types"][employee_id][shift_category] += 1
 
         return context
+
+    def _is_employee_qualified(self, employee, shift_template):
+        """Check if employee is qualified for the given shift template"""
+        # Check if employee has required roles/skills for this shift
+        if (
+            shift_template.required_role
+            and shift_template.required_role not in employee.roles
+        ):
+            return False
+
+        # Check if employee is keyholder if required
+        if shift_template.requires_keyholder and not employee.is_keyholder:
+            return False
+
+        # Check if employee has required skills for the shift
+        if hasattr(self, "_has_required_skills"):
+            return self._has_required_skills(employee, shift_template)
+
+        return True
+
+    def _can_assign_shift(self, employee, shift_template, shift_date):
+        """Check if employee can be assigned to the specified shift"""
+        # Check if employee is available and qualified
+        if not self._is_employee_available(employee, shift_date, shift_template):
+            return False
+
+        if not self._is_employee_qualified(employee, shift_template):
+            return False
+
+        # Check if employee has other shifts on this date
+        employee_shifts = self._get_employee_shifts_for_date(employee, shift_date)
+
+        # Check for overlapping shifts
+        for existing_shift in employee_shifts:
+            if shifts_overlap(existing_shift, shift_template):
+                return False
+
+        # Check if assignment would exceed constraints
+        if hasattr(self, "_exceeds_constraints") and self._exceeds_constraints(
+            employee, shift_date, shift_template
+        ):
+            return False
+
+        return True
+
+    def _categorize_shift(self, shift, day):
+        """Categorize a shift based on time of day (morning, afternoon, evening)"""
+        # Extract hour from start time
+        start_hour = int(shift.start_time.split(":")[0])
+
+        # Categorize based on start hour
+        if start_hour < 12:
+            return "morning"
+        elif start_hour < 16:
+            return "afternoon"
+        else:
+            return "evening"
 
     def _assign_employee_to_shift(self, employee, shift_template, shift_date):
         """Assign an employee to a shift and update all tracking data"""
