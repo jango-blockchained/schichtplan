@@ -1,12 +1,28 @@
 from datetime import datetime, timedelta, date
-from typing import List, Dict, Any, Optional
-from models import Schedule
-from models.employee import EmployeeGroup
-from dataclasses import dataclass
-from .resources import ScheduleResources
-from .utility import requires_keyholder, calculate_rest_hours, time_to_minutes
-from collections import defaultdict
+# Standard library imports
 import logging
+from collections import defaultdict
+from dataclasses import dataclass
+from typing import List, Dict, Any, Optional
+
+# Create relative imports for both package and direct execution
+try:
+    # When running as part of the backend package
+    from backend.models import Schedule
+    from backend.models.employee import EmployeeGroup
+    from backend.services.scheduler.resources import ScheduleResources
+    from backend.services.scheduler.utility import requires_keyholder, calculate_rest_hours, time_to_minutes
+except ImportError:
+    # When running directly or as part of a different path structure
+    try:
+        from models import Schedule
+        from models.employee import EmployeeGroup
+        from .resources import ScheduleResources
+        from .utility import requires_keyholder, calculate_rest_hours, time_to_minutes
+    except ImportError:
+        # Log error if imports fail
+        logger = logging.getLogger(__name__)
+        logger.error("Failed to import required modules in validator.py")
 
 logger = logging.getLogger(__name__)
 

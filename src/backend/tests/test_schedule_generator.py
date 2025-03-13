@@ -208,7 +208,9 @@ class TestScheduleGenerator(unittest.TestCase):
             date_to_test = self.start_date
             shift = self.mock_shifts[0]
 
-            employees = self.generator._get_available_employees(date_to_test, shift)
+            employees = self.generator._get_shift_available_employees(
+                date_to_test, shift
+            )
             self.assertEqual(len(employees), len(self.mock_employees))
 
             # Test with some employees unavailable
@@ -216,7 +218,9 @@ class TestScheduleGenerator(unittest.TestCase):
                 lambda emp_id, date, start, end: emp_id < 3
             )
 
-            employees = self.generator._get_available_employees(date_to_test, shift)
+            employees = self.generator._get_shift_available_employees(
+                date_to_test, shift
+            )
             self.assertEqual(len(employees), 2)  # Only employees 1 and 2 available
         finally:
             # Restore original methods

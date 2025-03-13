@@ -3,6 +3,7 @@ import warnings
 import logging
 import traceback
 from typing import List, Dict, Any, Optional, Tuple
+import os
 
 # Import from new package
 from .scheduler import (
@@ -47,7 +48,6 @@ from models import (
 )
 from models.employee import AvailabilityType, EmployeeGroup
 from utils.logger import logger
-import os
 
 
 class ScheduleGenerationError(Exception):
@@ -1319,33 +1319,35 @@ class ScheduleGenerator:
             # Try to continue with all shifts
             matching_shifts = self.resources.shifts
 
+        # Check if we have shifts
         if not matching_shifts:
-            logger.error_logger.error(
-                f"No matching shifts found for coverage {coverage.id}"
+            logger.schedule_logger.warning(
+                f"No matching shifts found for coverage {coverage.start_time}-{coverage.end_time}"
             )
             return False
 
-        # Sort shifts by priority (e.g., early shifts first)
+        # Sort shifts by better match with coverage time (closest to exact match)
         try:
-            matching_shifts.sort(key=lambda s: s.shift_type.value)
+            matching_shifts.sort(
+                key=lambda s: abs(
+                    self.time_to_minutes(s.start_time)
+                    - self.time_to_minutes(coverage.start_time)
+                )
+                + abs(
+                    self.time_to_minutes(s.end_time)
+                    - self.time_to_minutes(coverage.end_time)
+                )
+            )
         except Exception as e:
-            error_msg = f"Error sorting shifts: {str(e)}"
-            logger.error_logger.error(error_msg)
-            # Continue with unsorted shifts
+            logger.error_logger.error(
+                f"Error sorting shifts by coverage match: {str(e)}"
+            )
 
-        # Sort candidates by priority (keyholders first if required)
-        try:
-            if coverage.requires_keyholder:
-                candidates.sort(key=lambda e: not e.is_keyholder)
-        except Exception as e:
-            error_msg = f"Error sorting candidates by keyholder status: {str(e)}"
-            logger.error_logger.error(error_msg)
-            # Continue with unsorted candidates
-
-        # Filter out candidates who have overlapping shifts this day
+        # Get available employees after filtering constraints
         filtered_candidates = []
         for candidate in candidates:
             try:
+                # Check if candidate already has a shift that overlaps with this coverage
                 has_overlap = False
                 for key, schedule_entry in self.resources.schedule_data.items():
                     if key[1] == date and key[0] == candidate.id:
@@ -1385,14 +1387,58 @@ class ScheduleGenerator:
             f"Found {len(filtered_candidates)} candidates after filtering overlapping shifts"
         )
 
+        # Check if we've already met the minimum requirement for this coverage slot
+        # through previously assigned shifts
+        already_assigned_count = 0
+        try:
+            for key, entry in self.resources.schedule_data.items():
+                if key[1] == date:  # Matching date
+                    shift = next(
+                        (s for s in self.resources.shifts if s.id == entry.shift_id),
+                        None,
+                    )
+                    if shift and self._shifts_overlap(
+                        shift.start_time,
+                        shift.end_time,
+                        coverage.start_time,
+                        coverage.end_time,
+                    ):
+                        already_assigned_count += 1
+        except Exception as e:
+            logger.error_logger.error(
+                f"Error checking already assigned employees: {str(e)}"
+            )
+
+        # Calculate how many more employees we need
+        employees_still_needed = max(0, coverage.min_employees - already_assigned_count)
+        max_to_assign = min(
+            coverage.max_employees - already_assigned_count, len(filtered_candidates)
+        )
+
+        # If we've already met or exceeded the max employees, don't assign more
+        if already_assigned_count >= coverage.max_employees:
+            logger.schedule_logger.info(
+                f"Already assigned maximum ({coverage.max_employees}) employees to coverage {coverage.start_time}-{coverage.end_time}"
+            )
+            return True  # We've met the maximum, consider this a success
+
+        # Prioritize candidates before assigning
+        try:
+            # Sort by contracted hours (higher hours first)
+            filtered_candidates.sort(
+                key=lambda e: getattr(e, "contracted_hours", 0) or 0, reverse=True
+            )
+        except Exception as e:
+            logger.error_logger.error(f"Error sorting candidates: {str(e)}")
+
         # Try each shift template until we find one that works
         for shift in matching_shifts:
             # Check if we can assign enough employees to this shift
-            if len(filtered_candidates) >= coverage.min_employees:
+            if len(filtered_candidates) >= employees_still_needed:
                 # Assign employees to the shift
                 assigned_count = 0
-                max_to_assign = min(len(filtered_candidates), coverage.max_employees)
-                assigned_employees = filtered_candidates[:max_to_assign]
+                employees_to_assign = min(max_to_assign, employees_still_needed)
+                assigned_employees = filtered_candidates[:employees_to_assign]
 
                 for employee in assigned_employees:
                     try:
@@ -1413,6 +1459,8 @@ class ScheduleGenerator:
                         logger.schedule_logger.debug(
                             f"Assigned employee {employee.first_name} {employee.last_name} to shift {shift.id} ({shift.start_time}-{shift.end_time})"
                         )
+                        # Remove this employee from candidates for subsequent shifts
+                        filtered_candidates.remove(employee)
                     except Exception as e:
                         error_msg = f"Error assigning employee {employee.id} to shift {shift.id}: {str(e)}"
                         logger.error_logger.error(error_msg)
@@ -1421,10 +1469,12 @@ class ScheduleGenerator:
                 logger.schedule_logger.info(
                     f"Assigned {assigned_count} employees to shift {shift.id}"
                 )
-                return (
-                    assigned_count > 0
-                )  # Return true if at least one employee was assigned
 
+                # If we've met the minimum requirement, return success
+                if assigned_count + already_assigned_count >= coverage.min_employees:
+                    return True
+
+        # If we didn't return yet, we couldn't assign enough employees
         logger.schedule_logger.warning(
             f"Could not assign enough employees to coverage {coverage.id}"
         )
@@ -2565,3 +2615,14 @@ class ScheduleGenerator:
                 f"Error checking if employee {employee_id} is assigned on {date}: {str(e)}"
             )
             return False  # Safer to assume employee isn't assigned in case of error
+
+    def time_to_minutes(self, time_str: str) -> int:
+        """Convert a time string in format 'HH:MM' to minutes since midnight"""
+        try:
+            if not time_str:
+                return 0
+            hours, minutes = map(int, time_str.split(":"))
+            return hours * 60 + minutes
+        except Exception as e:
+            logger.error_logger.error(f"Error converting time to minutes: {str(e)}")
+            return 0
