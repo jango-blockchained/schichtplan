@@ -12,6 +12,7 @@ from sqlalchemy import (
     Enum as SQLEnum,
 )
 from sqlalchemy.orm import relationship
+import logging
 
 
 class AvailabilityType(str, Enum):
@@ -116,20 +117,41 @@ class Employee(db.Model):
 
     def validate_hours(self) -> bool:
         """Validate contracted hours based on employee group and legal limits"""
+        logging.info(
+            f"Validating hours for employee: {self.first_name} {self.last_name}"
+        )
+        logging.info(
+            f"Employee group: {self.employee_group}, type: {type(self.employee_group)}"
+        )
+        logging.info(f"Contracted hours: {self.contracted_hours}")
+
         if not 0 <= self.contracted_hours <= 48:  # German labor law maximum
+            logging.warning(
+                f"Contracted hours outside of legal limit: {self.contracted_hours}"
+            )
             return False
 
         if self.employee_group in [EmployeeGroup.VZ, EmployeeGroup.TL]:
             # Full-time employees should work between 35 and 48 hours
-            return 35 <= self.contracted_hours <= 48
+            valid = 35 <= self.contracted_hours <= 48
+            logging.info(f"VZ/TL validation result: {valid}")
+            return valid
         elif self.employee_group == EmployeeGroup.TZ:
             # Part-time employees should work between 10 and 35 hours
-            return 10 <= self.contracted_hours <= 35
+            valid = 10 <= self.contracted_hours <= 35
+            logging.info(f"TZ validation result: {valid}")
+            return valid
         elif self.employee_group == EmployeeGroup.GFB:
             # Geringfügig Beschäftigt employees must stay under the monthly limit (556 EUR / 12.41 EUR minimum wage)
             max_monthly_hours = 556 / 12.41  # ~44.8 hours per month
             max_weekly_hours = max_monthly_hours / 4.33  # Convert to weekly hours
-            return 0 <= self.contracted_hours <= max_weekly_hours
+            valid = 0 <= self.contracted_hours <= max_weekly_hours
+            logging.info(
+                f"GFB validation result: {valid}, max_weekly_hours: {max_weekly_hours}"
+            )
+            return valid
+
+        logging.warning(f"Unknown employee group: {self.employee_group}")
         return False
 
     def get_max_daily_hours(self) -> float:

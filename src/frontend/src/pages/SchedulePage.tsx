@@ -29,7 +29,7 @@ import { useScheduleData } from '@/hooks/useScheduleData';
 import { addDays, startOfWeek, endOfWeek, addWeeks, format, getWeek, isBefore } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, getSettings, updateSettings, createSchedule } from '@/services/api';
+import { exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, getSettings, updateSettings, createSchedule, getEmployees } from '@/services/api';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, AlertCircle, X, Calendar, CheckCircle, XCircle, RefreshCw, Plus } from 'lucide-react';
@@ -66,12 +66,13 @@ import useVersionControl from '@/hooks/useVersionControl';
 import { DateRange } from 'react-day-picker';
 import { ScheduleActions } from '@/components/Schedule/ScheduleActions';
 import { AddScheduleDialog } from '@/components/Schedule/AddScheduleDialog';
+import { ScheduleStatistics } from '@/components/Schedule/ScheduleStatistics';
 
 export function SchedulePage() {
   const today = new Date();
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [createEmptySchedules, setCreateEmptySchedules] = useState<boolean>(true);
-  const [includeEmpty, setIncludeEmpty] = useState<boolean>(false);
+  const [includeEmpty, setIncludeEmpty] = useState<boolean>(true);
   const [isGenerating, setIsGenerating] = useState(false);
   // Add state for schedule duration (in weeks)
   const [scheduleDuration, setScheduleDuration] = useState<number>(1);
@@ -212,11 +213,14 @@ export function SchedulePage() {
           includeEmpty
         );
 
-        console.log('✅ Received schedule response:', {
-          scheduleCount: response.schedules?.length || 0,
-          versions: response.versions,
-          currentVersion: response.current_version,
-          versionStatuses: response.version_statuses
+        console.log('📊 Schedule details:', {
+          totalSchedules: response.schedules?.length || 0,
+          schedulesWithShifts: response.schedules?.filter(s => s.shift_id !== null)?.length || 0,
+          uniqueEmployees: [...new Set(response.schedules?.map(s => s.employee_id) || [])].length,
+          firstSchedule: response.schedules?.[0] || 'No schedules found',
+          dateRange: { fromStr, toStr },
+          includeEmpty,
+          selectedVersion
         });
 
         return response;
@@ -553,6 +557,12 @@ export function SchedulePage() {
   // Convert schedules for the ScheduleTable
   const convertedSchedules = (data?.schedules ?? []).map((apiSchedule) => convertSchedule(apiSchedule));
 
+  // Fetch employee data for statistics
+  const { data: employees } = useQuery({
+    queryKey: ['employees'],
+    queryFn: getEmployees,
+  });
+
   // Show loading skeleton for initial data fetch
   if (isLoading && !scheduleData) {
     return (
@@ -821,6 +831,16 @@ export function SchedulePage() {
         onWeekChange={handleWeekChange}
         onDurationChange={handleDurationChange}
       />
+
+      {/* Add Schedule Statistics if we have data */}
+      {!isLoading && !isError && convertedSchedules.length > 0 && dateRange?.from && dateRange?.to && (
+        <ScheduleStatistics
+          schedules={convertedSchedules}
+          employees={employees || []}
+          startDate={format(dateRange.from, 'yyyy-MM-dd')}
+          endDate={format(dateRange.to, 'yyyy-MM-dd')}
+        />
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         {/* Generation Settings */}

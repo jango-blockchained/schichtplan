@@ -67,6 +67,7 @@ export interface Schedule {
     break_end?: string | null;
     notes?: string | null;
     employee_name?: string;
+    shift_type?: 'fixed' | 'promised' | 'availability' | 'regular';
 }
 
 export interface ScheduleError {
@@ -93,6 +94,7 @@ export interface ScheduleUpdate {
     break_duration?: number | null;
     notes?: string | null;
     version?: number | null;
+    shift_type?: 'fixed' | 'promised' | 'availability' | 'regular' | null;
 }
 
 export interface DateRange {
