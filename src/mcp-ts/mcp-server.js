@@ -566,7 +566,7 @@ server.resource("systemInfo", "/resources/systemInfo", async (uri) => {
     };
 });
 // Display banner
-displayBanner();
+//displayBanner();
 // Start receiving messages on stdio
 (async () => {
     try {

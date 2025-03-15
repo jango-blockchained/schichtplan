@@ -523,6 +523,13 @@ def update_schedule(schedule_id):
                 logger.schedule_logger.info(
                     f"Updated schedule version to {schedule.version}"
                 )
+            if "shift_type" in data:
+                schedule.shift_type = (
+                    data["shift_type"] if data["shift_type"] is not None else None
+                )
+                logger.schedule_logger.info(
+                    f"Updated schedule shift_type to {schedule.shift_type}"
+                )
 
             # Handle break_duration by converting it to break_start and break_end
             if "break_duration" in data:

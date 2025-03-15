@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
 import { useQuery } from '@tanstack/react-query';
 import { getSettings, getEmployees } from '@/services/api';
-import { Edit2, Trash2, Plus, ChevronDown, ChevronRight } from 'lucide-react';
+import { Edit2, Trash2, Plus, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ShiftEditModal } from './ShiftEditModal';
 import {
@@ -29,6 +29,13 @@ interface ScheduleTableProps {
     onDrop: (scheduleId: number, newEmployeeId: number, newDate: Date, newShiftId: number) => Promise<void>;
     onUpdate: (scheduleId: number, updates: ScheduleUpdate) => Promise<void>;
     isLoading: boolean;
+    employeeAbsences?: Record<number, any[]>;
+    absenceTypes?: Array<{
+        id: string;
+        name: string;
+        color: string;
+        type: 'absence';
+    }>;
 }
 
 interface DragItem {
@@ -53,10 +60,11 @@ const isEmptySchedule = (schedule: Schedule | undefined) => {
     return !schedule || !schedule.shift_id;
 };
 
-const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
+const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence }: {
     schedule: Schedule | undefined;
     onDrop: (scheduleId: number, newEmployeeId: number, newDate: Date, newShiftId: number) => Promise<void>;
     onUpdate: (scheduleId: number, updates: ScheduleUpdate) => Promise<void>;
+    hasAbsence?: boolean;
 }) => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [showActions, setShowActions] = useState(false);
@@ -80,12 +88,13 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
         collect: (monitor) => ({
             isDragging: !!monitor.isDragging(),
         }),
-    }), [schedule]);
+        canDrag: !hasAbsence, // Prevent dragging if there's an absence
+    }), [schedule, hasAbsence]);
 
     const [{ isOver }, drop] = useDrop(() => ({
         accept: 'SCHEDULE',
         drop: (item: DragItem) => {
-            if (schedule) {
+            if (schedule && !hasAbsence) { // Prevent dropping if there's an absence
                 onDrop(
                     item.scheduleId,
                     schedule.employee_id,
@@ -97,7 +106,8 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
         collect: (monitor) => ({
             isOver: !!monitor.isOver(),
         }),
-    }), [schedule, onDrop]);
+        canDrop: () => !hasAbsence, // Prevent dropping if there's an absence
+    }), [schedule, onDrop, hasAbsence]);
 
     const handleDelete = async () => {
         if (!schedule) return;
@@ -112,6 +122,7 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
     };
 
     const handleAdd = () => {
+        if (hasAbsence) return; // Prevent adding if there's an absence
         setIsEditModalOpen(true);
     };
 
@@ -137,12 +148,13 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
                     'flex items-center justify-center text-muted-foreground relative',
                     'border border-dashed border-muted-foreground/20 rounded-md',
                     'hover:border-primary/50 transition-colors duration-200',
-                    isOver && 'border-primary border-solid'
+                    isOver && 'border-primary border-solid',
+                    hasAbsence && 'cursor-not-allowed opacity-0' // Hide completely if absence
                 )}
                 onMouseEnter={() => setShowActions(true)}
                 onMouseLeave={() => setShowActions(false)}
             >
-                {showActions ? (
+                {showActions && !hasAbsence ? (
                     <Button
                         variant="ghost"
                         size="icon"
@@ -152,9 +164,9 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
                         <Plus className="h-4 w-4" />
                     </Button>
                 ) : (
-                    <span className="text-sm">-</span>
+                    <span className="text-sm">{hasAbsence ? "" : "-"}</span>
                 )}
-                {isEditModalOpen && (
+                {isEditModalOpen && !hasAbsence && (
                     <ShiftEditModal
                         isOpen={isEditModalOpen}
                         onClose={() => setIsEditModalOpen(false)}
@@ -214,7 +226,8 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
                     'flex flex-col items-center justify-center',
                     isDragging && 'opacity-50 bg-primary/10',
                     isOver && 'ring-2 ring-primary/50',
-                    'hover:bg-primary/5'
+                    'hover:bg-primary/5',
+                    hasAbsence && 'opacity-0' // Hide completely if absence
                 )}
                 onMouseEnter={() => setShowActions(true)}
                 onMouseLeave={() => setShowActions(false)}
@@ -222,14 +235,21 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
                 {/* Shift type indicator - colored line at top of cell */}
                 <div
                     className={cn(
-                        'absolute top-0 left-0 right-0 h-1 rounded-t',
+                        'absolute top-0 left-0 right-0 h-2 rounded-t',
                         shiftTypeColor
                     )}
                     title={`Shift type: ${shiftType}`}
                 />
 
                 <div className="flex flex-col space-y-1 items-center">
-                    <Badge variant="secondary" className="text-xs w-fit">
+                    <Badge
+                        variant="outline"
+                        style={{
+                            backgroundColor: getShiftTypeRGBColor(shiftType).bg,
+                            color: getShiftTypeRGBColor(shiftType).text
+                        }}
+                        className="text-xs w-fit flex items-center justify-center font-medium"
+                    >
                         {schedule.shift_start} - {schedule.shift_end}
                     </Badge>
                     {extendedSchedule.break_duration && extendedSchedule.break_duration > 0 && (
@@ -243,7 +263,7 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
                         </div>
                     )}
                 </div>
-                {showActions && (
+                {showActions && !hasAbsence && (
                     <div className="absolute top-1 right-1 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                         <Button
                             variant="ghost"
@@ -271,7 +291,7 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
                 )}
                 <div className="absolute inset-0 cursor-move pointer-events-none" />
             </div>
-            {isEditModalOpen && (
+            {isEditModalOpen && !hasAbsence && (
                 <ShiftEditModal
                     isOpen={isEditModalOpen}
                     onClose={() => setIsEditModalOpen(false)}
@@ -285,25 +305,47 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate }: {
 
 // Helper function to determine shift type based on properties
 const determineShiftType = (schedule: Schedule): 'fixed' | 'promised' | 'availability' | 'regular' => {
+    // For debugging
+    const logShiftType = (source: string, type: 'fixed' | 'promised' | 'availability' | 'regular') => {
+        console.log(`Determined shift type for schedule ${schedule.id}: ${type} (source: ${source})`);
+        return type;
+    };
+
+    // First priority: check explicit shift_type property if it exists
+    if (schedule.shift_type) {
+        return logShiftType('explicit shift_type property', schedule.shift_type);
+    }
+
     // Cast to extended schedule to access potential properties
     const extSchedule = schedule as ExtendedSchedule;
 
-    // Check for explicit type indicators
-    if (extSchedule.shift_type) return extSchedule.shift_type;
-    if (extSchedule.is_fixed) return 'fixed';
-    if (extSchedule.is_promised) return 'promised';
-    if (extSchedule.is_availability_coverage) return 'availability';
-
-    // If no explicit type, use some heuristics based on notes or other properties
-    if (extSchedule.notes) {
-        const notes = extSchedule.notes.toLowerCase();
-        if (notes.includes('fix') || notes.includes('fest')) return 'fixed';
-        if (notes.includes('wunsch') || notes.includes('promised') || notes.includes('pref')) return 'promised';
-        if (notes.includes('verfügbar') || notes.includes('avail')) return 'availability';
+    // Second priority: check explicit boolean flag properties
+    if (extSchedule.is_fixed) {
+        return logShiftType('is_fixed flag', 'fixed');
+    }
+    if (extSchedule.is_promised) {
+        return logShiftType('is_promised flag', 'promised');
+    }
+    if (extSchedule.is_availability_coverage) {
+        return logShiftType('is_availability_coverage flag', 'availability');
     }
 
-    // Default case
-    return 'regular';
+    // Third priority: try to determine from notes
+    if (extSchedule.notes) {
+        const notes = extSchedule.notes.toLowerCase();
+        if (notes.includes('fix') || notes.includes('fest')) {
+            return logShiftType('notes containing fix/fest', 'fixed');
+        }
+        if (notes.includes('wunsch') || notes.includes('promised') || notes.includes('pref')) {
+            return logShiftType('notes containing wunsch/promised/pref', 'promised');
+        }
+        if (notes.includes('verfügbar') || notes.includes('avail')) {
+            return logShiftType('notes containing verfügbar/avail', 'availability');
+        }
+    }
+
+    // Default case: regular shift
+    return logShiftType('default fallback', 'regular');
 };
 
 // Function to get color based on shift type
@@ -320,7 +362,64 @@ const getShiftTypeColor = (type: 'fixed' | 'promised' | 'availability' | 'regula
     }
 };
 
-export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoading }: ScheduleTableProps) {
+// Function to get direct CSS color values based on shift type
+const getShiftTypeRGBColor = (type: 'fixed' | 'promised' | 'availability' | 'regular'): { bg: string, text: string } => {
+    switch (type) {
+        case 'fixed':
+            return {
+                bg: 'rgba(59, 130, 246, 0.2)', // Light blue background
+                text: 'rgb(37, 99, 235)'       // Blue text
+            };
+        case 'promised':
+            return {
+                bg: 'rgba(34, 197, 94, 0.2)',  // Light green background
+                text: 'rgb(22, 163, 74)'       // Green text
+            };
+        case 'availability':
+            return {
+                bg: 'rgba(245, 158, 11, 0.2)', // Light amber background
+                text: 'rgb(217, 119, 6)'       // Amber text
+            };
+        default:
+            return {
+                bg: 'rgba(203, 213, 225, 0.2)', // Light gray background
+                text: 'rgb(100, 116, 139)'      // Gray text
+            };
+    }
+};
+
+// Helper function to check if an employee has an absence for a given date
+const checkForAbsence = (
+    employeeId: number,
+    dateString: string,
+    employeeAbsences?: Record<number, any[]>,
+    absenceTypes?: Array<{ id: string; name: string; color: string; type: string; }>
+) => {
+    if (!employeeAbsences || !absenceTypes) return null;
+
+    const absences = employeeAbsences[employeeId] || [];
+    const matchingAbsence = absences.find(absence => {
+        const absenceStartDate = absence.start_date.split('T')[0];
+        const absenceEndDate = absence.end_date.split('T')[0];
+        const checkDate = dateString;
+
+        return checkDate >= absenceStartDate && checkDate <= absenceEndDate;
+    });
+
+    if (matchingAbsence) {
+        const absenceType = absenceTypes.find(type => type.id === matchingAbsence.absence_type_id);
+        if (absenceType) {
+            return {
+                absence: matchingAbsence,
+                type: absenceType
+            };
+        }
+    }
+
+    return null;
+};
+
+export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoading, employeeAbsences, absenceTypes }: ScheduleTableProps) {
     const [expandedEmployees, setExpandedEmployees] = useState<number[]>([]);
 
     const toggleEmployeeExpand = (employeeId: number) => {
@@ -558,24 +657,42 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
                     )}
                 </div>
 
-                {/* Add shift type legend */}
-                <div className="flex items-center gap-3 text-sm">
-                    <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                        <span>Fest</span>
+                {/* Add shift type legend and absence type legend */}
+                <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-3 text-sm">
+                        <div className="flex items-center gap-1">
+                            <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                            <span>Fest</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                            <span>Wunsch</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                            <span>Verfügbarkeit</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <div className="w-3 h-3 rounded-full bg-gray-300"></div>
+                            <span>Standard</span>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                        <span>Wunsch</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-                        <span>Verfügbarkeit</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-full bg-gray-300"></div>
-                        <span>Standard</span>
-                    </div>
+
+                    {/* Absence type legend */}
+                    {absenceTypes && absenceTypes.length > 0 && (
+                        <div className="flex items-center gap-3 text-sm">
+                            <span className="text-muted-foreground mr-1">Absenz:</span>
+                            {absenceTypes.map(type => (
+                                <div key={type.id} className="flex items-center gap-1">
+                                    <div
+                                        className="w-3 h-3 rounded-full"
+                                        style={{ backgroundColor: type.color }}
+                                    ></div>
+                                    <span>{type.name}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -629,13 +746,51 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
                                             {days.map((day) => {
                                                 const dateString = format(day, 'yyyy-MM-dd');
                                                 const daySchedule = employeeSchedules[dateString];
+                                                // Check for absence
+                                                const absenceInfo = checkForAbsence(employeeId, dateString, employeeAbsences, absenceTypes);
+
+                                                const cellStyle = absenceInfo ? {
+                                                    backgroundColor: `${absenceInfo.type.color}25`, // 25 is hex for 15% opacity
+                                                    position: 'relative' as const
+                                                } : {};
 
                                                 return (
-                                                    <td key={`${employeeId}-${dateString}`} className="text-center p-0 w-[150px]">
+                                                    <td
+                                                        key={`${employeeId}-${dateString}`}
+                                                        className={cn(
+                                                            "text-center p-0 w-[150px]",
+                                                            absenceInfo ? "relative border-2 border-dashed" : ""
+                                                        )}
+                                                        style={{
+                                                            ...cellStyle,
+                                                            borderColor: absenceInfo ? `${absenceInfo.type.color}80` : undefined // 80 is hex for 50% opacity
+                                                        }}
+                                                        title={absenceInfo ? `${absenceInfo.type.name}` : undefined}
+                                                    >
+                                                        {absenceInfo && (
+                                                            <>
+                                                                <div
+                                                                    className="absolute top-0 left-0 right-0 px-2 py-1 text-sm font-semibold z-10 text-center"
+                                                                    style={{
+                                                                        backgroundColor: absenceInfo.type.color,
+                                                                        color: '#fff'
+                                                                    }}
+                                                                >
+                                                                    {absenceInfo.type.name}
+                                                                </div>
+                                                                <div className="absolute inset-0 mt-8 flex flex-col items-center justify-center space-y-2 pt-4">
+                                                                    <AlertTriangle className="h-5 w-5 text-amber-500" />
+                                                                    <span className="text-xs text-muted-foreground font-medium text-center px-2">
+                                                                        No shifts allowed<br />during absence
+                                                                    </span>
+                                                                </div>
+                                                            </>
+                                                        )}
                                                         <ScheduleCell
                                                             schedule={daySchedule}
                                                             onDrop={onDrop}
                                                             onUpdate={onUpdate}
+                                                            hasAbsence={!!absenceInfo}
                                                         />
                                                     </td>
                                                 );

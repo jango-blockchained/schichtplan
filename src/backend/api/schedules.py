@@ -1187,6 +1187,7 @@ def create_schedule():
             break_start=data.get("break_start"),
             break_end=data.get("break_end"),
             notes=data.get("notes"),
+            shift_type=data.get("shift_type"),
             status=ScheduleStatus.DRAFT,
         )
 

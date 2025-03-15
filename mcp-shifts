@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# Script to start the MCP server for Schichtplan
+
+# Get the directory of this script
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Activate the virtual environment
+source "$SCRIPT_DIR/.venv/bin/activate"
+
+# Determine if we should run in dev mode or regular mode
+MODE="dev"
+if [ "$1" == "run" ]; then
+  MODE="run"
+fi
+
+# Run the MCP server
+cd "$SCRIPT_DIR"
+if [ "$MODE" == "dev" ]; then
+  echo "Starting MCP server in development mode..."
+  mcp dev "src/mcp/server.py"
+else
+  echo "Starting MCP server in regular mode..."
+  mcp run "src/mcp/server.py"
+fi 

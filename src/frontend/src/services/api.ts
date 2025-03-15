@@ -21,6 +21,7 @@ export interface Schedule {
     is_empty?: boolean;
     shift_start?: string | null;
     shift_end?: string | null;
+    shift_type?: 'fixed' | 'promised' | 'availability' | 'regular';
 }
 
 export interface ScheduleResponse {
@@ -1146,6 +1147,7 @@ export interface CreateScheduleRequest {
     break_start?: string;
     break_end?: string;
     notes?: string;
+    shift_type?: 'fixed' | 'promised' | 'availability' | 'regular';
 }
 
 export const createSchedule = async (data: CreateScheduleRequest): Promise<Schedule> => {

@@ -29,7 +29,7 @@ import { useScheduleData } from '@/hooks/useScheduleData';
 import { addDays, startOfWeek, endOfWeek, addWeeks, format, getWeek, isBefore } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, getSettings, updateSettings, createSchedule, getEmployees } from '@/services/api';
+import { exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, getSettings, updateSettings, createSchedule, getEmployees, getAbsences } from '@/services/api';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, AlertCircle, X, Calendar, CheckCircle, XCircle, RefreshCw, Plus } from 'lucide-react';
@@ -79,6 +79,7 @@ export function SchedulePage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isAddScheduleDialogOpen, setIsAddScheduleDialogOpen] = useState(false);
+  const [employeeAbsences, setEmployeeAbsences] = useState<Record<number, any[]>>({});
 
   // Initialize date range with current week
   useEffect(() => {
@@ -537,6 +538,11 @@ export function SchedulePage() {
 
   // Convert API Schedule to frontend Schedule
   const convertSchedule = (apiSchedule: APISchedule): Schedule => {
+    // Log for debugging shift_type
+    if (apiSchedule.shift_id && !apiSchedule.shift_type) {
+      console.log('Schedule without shift_type:', apiSchedule);
+    }
+
     return {
       id: apiSchedule.id,
       employee_id: apiSchedule.employee_id,
@@ -550,7 +556,8 @@ export function SchedulePage() {
       break_start: apiSchedule.break_start ?? null,
       break_end: apiSchedule.break_end ?? null,
       notes: apiSchedule.notes ?? null,
-      employee_name: undefined
+      employee_name: undefined,
+      shift_type: apiSchedule.shift_type ?? undefined
     };
   };
 
@@ -562,6 +569,37 @@ export function SchedulePage() {
     queryKey: ['employees'],
     queryFn: getEmployees,
   });
+
+  // Fetch settings to get absence types
+  const { data: settingsData } = useQuery({
+    queryKey: ['settings'],
+    queryFn: getSettings
+  });
+
+  // Fetch employee absences when date range changes
+  useEffect(() => {
+    if (dateRange?.from && dateRange?.to) {
+      const fetchAbsences = async () => {
+        // Get all employees
+        const employees = await getEmployees();
+        const absences: Record<number, any[]> = {};
+
+        // Fetch absences for each employee
+        for (const employee of employees) {
+          try {
+            const employeeAbsences = await getAbsences(employee.id);
+            absences[employee.id] = employeeAbsences;
+          } catch (error) {
+            console.error(`Failed to fetch absences for employee ${employee.id}:`, error);
+          }
+        }
+
+        setEmployeeAbsences(absences);
+      };
+
+      fetchAbsences();
+    }
+  }, [dateRange]);
 
   // Show loading skeleton for initial data fetch
   if (isLoading && !scheduleData) {
@@ -969,6 +1007,8 @@ export function SchedulePage() {
                   onDrop={handleShiftDrop}
                   onUpdate={handleShiftUpdate}
                   isLoading={isLoadingSchedule}
+                  employeeAbsences={employeeAbsences}
+                  absenceTypes={settingsData?.employee_groups?.absence_types || []}
                 />
               </div>
             )}
