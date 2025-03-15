@@ -22,6 +22,7 @@ class Schedule(db.Model):
     break_start = Column(db.String(5), nullable=True)
     break_end = Column(db.String(5), nullable=True)
     notes = Column(db.Text, nullable=True)
+    shift_type = Column(db.String(20), nullable=True)
     status = Column(
         SQLEnum(ScheduleStatus), nullable=False, default=ScheduleStatus.DRAFT
     )
@@ -45,6 +46,7 @@ class Schedule(db.Model):
         break_start=None,
         break_end=None,
         notes=None,
+        shift_type=None,
         status=ScheduleStatus.DRAFT,
     ):
         self.employee_id = employee_id
@@ -54,6 +56,7 @@ class Schedule(db.Model):
         self.break_start = break_start
         self.break_end = break_end
         self.notes = notes
+        self.shift_type = shift_type
         self.status = status
 
     def to_dict(self):
@@ -67,6 +70,7 @@ class Schedule(db.Model):
             "break_start": self.break_start,
             "break_end": self.break_end,
             "notes": self.notes,
+            "shift_type": self.shift_type,
             "status": self.status.value if self.status else "DRAFT",
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
