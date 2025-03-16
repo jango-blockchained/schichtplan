@@ -6,7 +6,7 @@ from sqlalchemy import desc, text
 from services.pdf_generator import PDFGenerator
 from http import HTTPStatus
 from utils.logger import logger
-from services.scheduler.generator import ScheduleGenerator, ScheduleGenerationError
+from services.scheduler.generator import ScheduleGenerator
 from services.scheduler.resources import ScheduleResources, ScheduleResourceError
 from services.scheduler.validator import ScheduleValidator, ScheduleConfig
 from models.fixed_shift import ShiftTemplate
@@ -747,7 +747,10 @@ def api_generate_schedule():
         if start_date > end_date:
             return jsonify({"error": "Start date must be before end date"}), 400
 
-        # Create generator
+        # Make sure we're using the current Flask application context
+        from flask import current_app
+
+        # Create generator within the application context
         generator = ScheduleGenerator()
 
         # Set create_empty_schedules flag
@@ -758,12 +761,19 @@ def api_generate_schedule():
             f"Generating schedule for date range {start_date} to {end_date}, version {version}, create_empty_schedules={create_empty_schedules}"
         )
 
-        # Generate schedule
-        result = generator.generate(start_date, end_date, version, session_id)
+        # Ensure we're in an application context for the entire operation
+        with current_app.app_context():
+            # Generate schedule
+            result = generator.generate(start_date, end_date, version, session_id)
 
-        logger.schedule_logger.info(
-            f"Schedule generation completed for version {version}, entries: {len(result.get('schedules', []))}"
-        )
+            # Now explicitly save the generated schedules to the database
+            if hasattr(generator, "_save_to_database"):
+                logger.schedule_logger.info("Saving generated schedules to database")
+                generator._save_to_database()
+
+            logger.schedule_logger.info(
+                f"Schedule generation completed for version {version}, entries: {len(result.get('schedules', []))}"
+            )
 
         # Return result
         if "error" in result:
@@ -772,13 +782,12 @@ def api_generate_schedule():
 
         return jsonify(result), 200
 
-    except ScheduleGenerationError as e:
-        return jsonify({"error": f"Failed to generate schedule: {str(e)}"}), 500
-    except ScheduleResourceError as e:
-        return jsonify({"error": f"Resource error: {str(e)}"}), 400
     except Exception as e:
-        current_app.logger.error(f"Error generating schedule: {str(e)}")
-        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+        logger.error_logger.error(f"Failed to generate schedule: {str(e)}")
+        import traceback
+
+        logger.error_logger.error(traceback.format_exc())
+        return jsonify({"error": f"Failed to generate schedule: {str(e)}"}), 500
 
 
 @schedules.route("/schedules/validate", methods=["POST"])

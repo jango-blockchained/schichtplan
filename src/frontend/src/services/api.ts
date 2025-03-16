@@ -322,11 +322,19 @@ export const generateSchedule = async (
     version: number
 ): Promise<ScheduleResponse> => {
     try {
-        console.log('Generating schedule for:', { startDate, endDate, createEmptySchedules, version });
+        console.log('📆 Generating schedule with parameters:', {
+            startDate,
+            endDate,
+            createEmptySchedules,
+            version,
+            timestamp: new Date().toISOString()
+        });
 
         // Get all shifts to validate they have durations
         const shiftsResponse = await api.get<Shift[]>('/shifts/');
         let shifts = shiftsResponse.data;
+
+        console.log(`📊 Loaded ${shifts.length} shifts from the server`);
 
         // Check for shifts with missing or invalid duration_hours
         const invalidShifts = shifts.filter(
@@ -337,18 +345,20 @@ export const generateSchedule = async (
         );
 
         if (invalidShifts.length > 0) {
-            console.warn(`Found ${invalidShifts.length} shifts with missing or invalid duration_hours:`, invalidShifts);
+            console.warn(`⚠️ Found ${invalidShifts.length} shifts with missing or invalid duration_hours:`,
+                invalidShifts.map(s => ({ id: s.id, start: s.start_time, end: s.end_time }))
+            );
 
             // Try to fix shifts with missing duration_hours
             if (invalidShifts.length > 0) {
-                console.warn('Found shifts with missing duration_hours, attempting to fix using dedicated endpoint');
+                console.warn('🔧 Attempting to fix shifts with missing duration_hours using dedicated endpoint');
 
                 try {
                     // Use the dedicated endpoint to fix all shifts at once
                     const fixResult = await fixShiftDurations();
-                    console.log('Fixed shift durations:', fixResult);
+                    console.log('✅ Fixed shift durations:', fixResult);
                 } catch (fixError) {
-                    console.error('Error using fix-durations endpoint:', fixError);
+                    console.error('❌ Error using fix-durations endpoint:', fixError);
 
                     // Fall back to the old method of fixing shifts one by one
                     console.warn('Falling back to fixing shifts one by one');
@@ -396,6 +406,7 @@ export const generateSchedule = async (
                 // Fetch shifts again to make sure we have the updated data
                 const updatedShiftsResponse = await api.get<Shift[]>('/shifts/');
                 shifts = updatedShiftsResponse.data;
+                console.log(`📊 Reloaded ${shifts.length} shifts after fixing durations`);
 
                 // Check if we still have invalid shifts
                 const remainingInvalidShifts = shifts.filter(shift =>
@@ -405,13 +416,22 @@ export const generateSchedule = async (
                 );
 
                 if (remainingInvalidShifts.length > 0) {
-                    console.error('Still have invalid shifts after attempting to fix:', remainingInvalidShifts);
+                    console.error('❌ Still have invalid shifts after attempting to fix:',
+                        remainingInvalidShifts.map(s => ({ id: s.id, start: s.start_time, end: s.end_time }))
+                    );
                     throw new Error('Einige Schichten haben immer noch keine gültige Dauer. Bitte überprüfen Sie die Schichteinstellungen manuell.');
                 }
             }
         }
 
         // Now generate the schedule
+        console.log('🚀 Calling backend /schedules/generate endpoint with:', {
+            start_date: startDate,
+            end_date: endDate,
+            create_empty_schedules: createEmptySchedules,
+            version: version,
+        });
+
         const response = await api.post<ScheduleResponse>('/schedules/generate', {
             start_date: startDate,
             end_date: endDate,
@@ -419,9 +439,23 @@ export const generateSchedule = async (
             version: version,
         });
 
+        // Log generation success details
+        console.log('✅ Schedule generation successful:', {
+            'Total schedules': response.data.schedules?.length || 0,
+            'With shift_id': response.data.schedules?.filter(s => s.shift_id !== null).length || 0,
+            'Empty schedules': response.data.schedules?.filter(s => s.shift_id === null).length || 0,
+            'With shift_type': response.data.schedules?.filter(s => s.shift_type).length || 0,
+            'Unique employee count': new Set(response.data.schedules?.map(s => s.employee_id)).size,
+            'Error count': response.data.errors?.length || 0
+        });
+
+        if (response.data.errors && response.data.errors.length > 0) {
+            console.warn('⚠️ Schedule generation completed with errors:', response.data.errors);
+        }
+
         return response.data;
     } catch (error) {
-        console.error('Schedule generation error:', error);
+        console.error('❌ Schedule generation error:', error);
 
         if (error instanceof Error) {
             throw new Error(`Failed to generate schedule: ${error.message}`);

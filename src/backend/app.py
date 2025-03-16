@@ -88,7 +88,11 @@ def create_app(config_class=Config):
 
     # Initialize extensions
     db.init_app(app)
-    migrate = Migrate(app, db)
+    # Use the consolidated migrations directory
+    migrations_dir = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), "instance", "migrations"
+    )
+    migrate = Migrate(app, db, directory=migrations_dir)
 
     # Ensure the instance folder exists
     try:
