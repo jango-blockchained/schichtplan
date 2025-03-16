@@ -98,7 +98,8 @@ tmux send-keys -t schichtplan "export FLASK_APP=run.py" C-m
 tmux send-keys -t schichtplan "export FLASK_ENV=development" C-m
 tmux send-keys -t schichtplan "export DEBUG_MODE=1" C-m
 tmux send-keys -t schichtplan "echo 'Starting Backend...'" C-m
-tmux send-keys -t schichtplan "python3 run.py" C-m
+# Use --auto-port and --kill options to handle port conflicts automatically
+tmux send-keys -t schichtplan "python3 run.py --auto-port --kill" C-m
 
 # Split window vertically for frontend
 tmux split-window -h
@@ -118,21 +119,65 @@ tmux send-keys -t schichtplan "src/scripts/menu.sh" C-m
 # Set window title
 tmux rename-window -t schichtplan "Schichtplan Dev"
 
-# Wait for services to be ready
+# Wait for the backend to be ready (on any port)
 echo "Waiting for services to start..."
+max_attempts=30
+attempt=0
+backend_ready=false
 
-while ! check_port 5000; do
-    echo "Waiting for backend..."
-    sleep 1
+while [ $attempt -lt $max_attempts ] && [ "$backend_ready" = false ]; do
+    # Check if backend is running
+    if curl -s http://localhost:5000/api/health >/dev/null 2>&1; then
+        backend_ready=true
+        backend_port=5000
+    else
+        # Check other potential ports if 5000 isn't available
+        for port in {5001..5020}; do
+            if curl -s http://localhost:$port/api/health >/dev/null 2>&1; then
+                backend_ready=true
+                backend_port=$port
+                break
+            fi
+        done
+    fi
+    
+    if [ "$backend_ready" = false ]; then
+        echo "Waiting for backend..."
+        sleep 1
+        attempt=$((attempt + 1))
+    fi
 done
 
-while ! check_port 5173; do
-    echo "Waiting for frontend..."
-    sleep 1
+if [ "$backend_ready" = false ]; then
+    echo "Backend did not start within the timeout period."
+    echo "Check the backend logs for errors."
+else
+    echo "Backend started on port $backend_port"
+fi
+
+# Wait for frontend to be ready
+attempt=0
+frontend_ready=false
+
+while [ $attempt -lt $max_attempts ] && [ "$frontend_ready" = false ]; do
+    if check_port 5173; then
+        frontend_ready=true
+    else
+        echo "Waiting for frontend..."
+        sleep 1
+        attempt=$((attempt + 1))
+    fi
 done
+
+if [ "$frontend_ready" = false ]; then
+    echo "Frontend did not start within the timeout period."
+    echo "Check the frontend logs for errors."
+else
+    echo "Frontend started on port 5173"
+fi
 
 echo -e "\nApplication started successfully!"
-echo "Backend: http://localhost:5000"
+echo "Backend: http://localhost:${backend_port:-5000}"
 echo "Frontend: http://localhost:5173"
 echo "Logs location: src/logs/backend.log"
 echo -e "\nTmux session 'schichtplan' created:"

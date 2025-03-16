@@ -13,7 +13,7 @@ current_dir = Path(__file__).resolve().parent
 if str(current_dir) not in sys.path:
     sys.path.append(str(current_dir))
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_migrate import Migrate
 from models import db
@@ -76,7 +76,7 @@ def create_app(config_class=Config):
         app,
         resources={
             r"/api/*": {
-                "origins": ["http://localhost:5173"],
+                "origins": "*",  # Allow all origins for API endpoints
                 "supports_credentials": True,
                 "allow_credentials": True,
                 "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -136,6 +136,18 @@ def create_app(config_class=Config):
     # Register diagnostic commands if available
     if register_diagnostic_commands:
         register_diagnostic_commands(app)
+
+    # Health check endpoint for monitoring and port detection
+    @app.route("/api/health", methods=["GET"])
+    def health_check():
+        return jsonify(
+            {
+                "status": "ok",
+                "timestamp": datetime.now().isoformat(),
+                "version": "1.0.0",
+                "port": request.environ.get("SERVER_PORT", 5000),
+            }
+        )
 
     @app.errorhandler(Exception)
     def handle_error(error):

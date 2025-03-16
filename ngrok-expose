@@ -1,0 +1,200 @@
+#!/bin/bash
+
+# ngrok-expose: Simple script to expose a local port using ngrok
+# Default port is 5173 (Vite frontend server)
+
+# Function to show usage
+show_usage() {
+    echo "Expose a local port with ngrok"
+    echo "============================="
+    echo ""
+    echo "Usage: $(basename $0) [PORT] [OPTIONS]"
+    echo ""
+    echo "Arguments:"
+    echo "  PORT              Port to expose (default: 5173)"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help        Show this help message and exit"
+    echo "  -s, --stop        Stop the ngrok tunnel for the specified port"
+    echo "  -o, --open        Open the public URL in the default browser"
+    echo ""
+    echo "Examples:"
+    echo "  $(basename $0)             # Expose port 5173 (frontend)"
+    echo "  $(basename $0) 5000        # Expose port 5000 (backend)"
+    echo "  $(basename $0) 5173 --open # Expose and open in browser"
+    echo "  $(basename $0) 5000 --stop # Stop ngrok for port 5000"
+    echo ""
+}
+
+# Function to check if a command exists
+check_command() {
+    command -v "$1" &> /dev/null
+}
+
+# Function to check if ngrok is installed
+check_ngrok_installed() {
+    if ! check_command ngrok; then
+        echo "Error: ngrok is not installed on your system."
+        echo ""
+        echo "Please install ngrok first:"
+        echo "  1. Download from https://ngrok.com/download"
+        echo "  2. Extract the archive: unzip /path/to/ngrok.zip"
+        echo "  3. Move ngrok to a directory in your PATH: sudo mv ngrok /usr/local/bin"
+        echo "  4. Set up your authtoken: ngrok config add-authtoken YOUR_AUTHTOKEN"
+        echo ""
+        echo "For more details, visit: https://ngrok.com/docs/getting-started/"
+        return 1
+    fi
+    return 0
+}
+
+# Function to check if ngrok is already running for a port
+check_ngrok_running() {
+    local port=$1
+    if pgrep -f "ngrok.*$port" > /dev/null; then
+        return 0 # Running
+    else
+        return 1 # Not running
+    fi
+}
+
+# Function to get the public URL for a tunnel
+get_ngrok_url() {
+    local port=$1
+    local url=$(curl -s http://localhost:4040/api/tunnels | grep -o '"public_url":"[^"]*' | grep -o 'http[^"]*' | head -1)
+    echo "$url"
+}
+
+# Function to open URL in browser
+open_in_browser() {
+    local url=$1
+    echo "Opening $url in browser..."
+    
+    if check_command xdg-open; then
+        xdg-open "$url" &> /dev/null &
+    elif check_command open; then
+        open "$url" &> /dev/null &
+    else
+        echo "Could not open browser automatically. Please open this URL manually:"
+        echo "$url"
+    fi
+}
+
+# Default values
+PORT=5173
+OPEN_BROWSER=false
+STOP_TUNNEL=false
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            show_usage
+            exit 0
+            ;;
+        -s|--stop)
+            STOP_TUNNEL=true
+            shift
+            ;;
+        -o|--open)
+            OPEN_BROWSER=true
+            shift
+            ;;
+        -*)
+            echo "Unknown option: $1"
+            show_usage
+            exit 1
+            ;;
+        *)
+            # Check if it's a valid port number
+            if [[ $1 =~ ^[0-9]+$ ]]; then
+                PORT=$1
+            else
+                echo "Invalid port number: $1"
+                show_usage
+                exit 1
+            fi
+            shift
+            ;;
+    esac
+done
+
+# Check if ngrok is installed
+if ! check_ngrok_installed; then
+    exit 1
+fi
+
+# Check if port is valid
+if [[ $PORT -lt 1 || $PORT -gt 65535 ]]; then
+    echo "Error: Invalid port number. Port must be between 1 and 65535."
+    exit 1
+fi
+
+# Determine if we should stop or start the tunnel
+if [ "$STOP_TUNNEL" = true ]; then
+    # Stop the tunnel
+    if check_ngrok_running $PORT; then
+        echo "Stopping ngrok tunnel for port $PORT..."
+        pkill -f "ngrok.*$PORT"
+        echo "✓ Tunnel stopped"
+    else
+        echo "No ngrok tunnel running for port $PORT"
+    fi
+else
+    # Check if port is in use locally
+    if ! nc -z localhost $PORT &> /dev/null; then
+        echo "Warning: No service detected on port $PORT."
+        echo "Make sure your application is running before exposing it."
+        read -p "Continue anyway? (y/n): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
+    fi
+    
+    # Start the tunnel if not already running
+    if check_ngrok_running $PORT; then
+        echo "ngrok is already running for port $PORT"
+        URL=$(get_ngrok_url $PORT)
+        echo "Public URL: $URL"
+    else
+        echo "Starting ngrok tunnel for port $PORT..."
+        ngrok http $PORT --log=stdout > /tmp/ngrok_${PORT}.log 2>&1 &
+        
+        # Wait for ngrok to start
+        echo "Waiting for tunnel to be established..."
+        MAX_WAIT=10
+        COUNT=0
+        while [ $COUNT -lt $MAX_WAIT ]; do
+            sleep 1
+            if check_ngrok_running $PORT; then
+                break
+            fi
+            COUNT=$((COUNT + 1))
+        done
+        
+        # Check if tunnel was established
+        if check_ngrok_running $PORT; then
+            echo "✓ Tunnel established"
+            
+            # Get and display the URL
+            sleep 2 # Give ngrok API time to become available
+            URL=$(get_ngrok_url $PORT)
+            if [ -n "$URL" ]; then
+                echo "Public URL: $URL"
+                
+                # Open in browser if requested
+                if [ "$OPEN_BROWSER" = true ]; then
+                    open_in_browser "$URL"
+                fi
+            else
+                echo "! Could not retrieve public URL. Check tunnel status."
+            fi
+        else
+            echo "✗ Failed to establish tunnel"
+            exit 1
+        fi
+    fi
+fi
+
+exit 0 

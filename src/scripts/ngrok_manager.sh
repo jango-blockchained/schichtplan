@@ -29,10 +29,38 @@ check_ngrok_running() {
     fi
 }
 
+# Function to ensure Vite config allows ngrok hosts
+ensure_vite_config() {
+    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+    PROJECT_ROOT="$( cd "$SCRIPT_DIR/../.." &> /dev/null && pwd )"
+    VITE_CONFIG="$PROJECT_ROOT/src/frontend/vite.config.ts"
+    
+    echo "Checking Vite configuration for ngrok compatibility..."
+    
+    # Check if the vite.config.ts file exists
+    if [ -f "$VITE_CONFIG" ]; then
+        # Check if allowedHosts is already set to true
+        if grep -q "allowedHosts: true" "$VITE_CONFIG"; then
+            echo "✓ Vite configuration already allows all hosts"
+        else
+            echo "! Vite configuration may need to be updated to work with ngrok"
+            echo "  The configuration should include: allowedHosts: true"
+            echo "  Please refer to docs/ngrok_usage.md for more details"
+        fi
+    else
+        echo "! Vite configuration file not found at $VITE_CONFIG"
+    fi
+}
+
 # Function to start ngrok tunnel
 start_ngrok_tunnel() {
     local port=$1
     local service_name=$2
+    
+    # Ensure Vite config is correct for frontend
+    if [ "$port" -eq 5173 ]; then
+        ensure_vite_config
+    fi
     
     if check_ngrok_running $port; then
         echo "ngrok is already running for $service_name on port $port"

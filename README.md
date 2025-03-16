@@ -304,4 +304,35 @@ This will run schedule generation for different periods (1 day, 1 week, 2 weeks,
 
 ### Test Documentation
 
-For more detailed information about the schedule generation tests, see the [Schedule Generation Tests README](src/backend/tests/schedule/README.md). 
+For more detailed information about the schedule generation tests, see the [Schedule Generation Tests README](src/backend/tests/schedule/README.md).
+
+## Public Access with ngrok
+
+The application now provides integrated ngrok support for exposing your local development server to the public internet. This is useful for:
+
+- Demoing the application to clients
+- Testing on different devices
+- Sharing your work with remote team members
+- Developing webhook integrations
+
+### Quick Start with ngrok
+
+1. Install ngrok from [ngrok.com/download](https://ngrok.com/download)
+2. Set up with your authtoken: `ngrok config add-authtoken YOUR_TOKEN`
+
+Three ways to use ngrok with Schichtplan:
+
+1. **Via the Control Menu**: Start the app with `./start.sh` and select option 8
+2. **Expose Frontend Directly**: Use `./src/scripts/expose_frontend.sh`
+3. **Flexible Port Exposure**: Use `./ngrok-expose [PORT]`
+
+Example:
+```bash
+# Expose frontend and open in browser
+./ngrok-expose --open
+
+# Expose backend API
+./ngrok-expose 5000
+```
+
+For detailed information, see the [ngrok usage documentation](docs/ngrok_usage.md). 

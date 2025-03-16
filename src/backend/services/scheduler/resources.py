@@ -288,3 +288,12 @@ class ScheduleResources:
         self._employee_cache = {}
         self._coverage_cache = {}
         self._date_caches_cleared = False
+
+    def is_employee_on_leave(self, employee_id: int, date: date) -> bool:
+        """Check if employee is on leave for given date"""
+        return any(
+            leave
+            for leave in self.absences
+            if leave.employee_id == employee_id
+            and leave.start_date <= date <= leave.end_date
+        )
