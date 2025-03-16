@@ -54,10 +54,74 @@ type ExtendedSchedule = Schedule & {
     is_promised?: boolean;
     is_availability_coverage?: boolean;
     shift_type?: 'fixed' | 'promised' | 'availability' | 'regular';
+    additional_slots?: TimeSlot[];
 };
+
+interface TimeSlot {
+    start: string;
+    end: string;
+}
 
 const isEmptySchedule = (schedule: Schedule | undefined) => {
     return !schedule || !schedule.shift_id;
+};
+
+// Add this component above the ScheduleCell component
+interface TimeSlotDisplayProps {
+    startTime: string;
+    endTime: string;
+    shiftType?: string | 'fixed' | 'promised' | 'availability' | 'regular';
+    settings?: any;
+    schedule?: Schedule;
+}
+
+const TimeSlotDisplay = ({ startTime, endTime, shiftType, settings, schedule }: TimeSlotDisplayProps) => {
+    // This function determines the background color of the time slot pill
+    // Based on shift type (fixed, promised, availability, regular)
+    const getBackgroundColor = () => {
+        if (typeof shiftType === 'string') {
+            // First map the string shift type to our enum values
+            let mappedType: 'fixed' | 'promised' | 'availability' | 'regular' = 'regular';
+
+            // Map various string representations to our standard types
+            if (shiftType === 'EARLY' || shiftType === 'early' || shiftType === 'fixed') {
+                mappedType = 'fixed';
+            } else if (shiftType === 'LATE' || shiftType === 'late' || shiftType === 'availability') {
+                mappedType = 'availability';
+            } else if (shiftType === 'MIDDLE' || shiftType === 'middle' || shiftType === 'promised') {
+                mappedType = 'promised';
+            }
+
+            // Get color based on shift type - THESE ARE THE PILL COLORS FOR SHIFT TIMES
+            switch (mappedType) {
+                case 'fixed':
+                    return '#3b82f6'; // Blue for fixed shifts
+                case 'promised':
+                    return '#22c55e'; // Green for promised shifts
+                case 'availability':
+                    return '#f59e0b'; // Amber for availability shifts
+                default:
+                    return '#64748b'; // Slate gray for regular/unknown shifts
+            }
+        }
+
+        // Fallback to using the time slot to determine the shift type
+        const timeSlot = `${startTime}-${endTime}`;
+        if (timeSlot === '09:00-14:00') return '#3b82f6'; // Early shift (blue)
+        if (timeSlot === '15:00-20:00') return '#f59e0b'; // Late shift (amber)
+        if (timeSlot === '12:00-16:00') return '#22c55e'; // Mid shift (green)
+
+        return '#64748b'; // Default slate gray
+    };
+
+    return (
+        <div
+            className="px-4 py-1 rounded-full text-sm font-medium text-white w-fit"
+            style={{ backgroundColor: getBackgroundColor() }}
+        >
+            {startTime} - {endTime}
+        </div>
+    );
 };
 
 const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence }: {
@@ -135,9 +199,9 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence }: {
         return (
             <div
                 ref={(node) => drag(drop(node))}
-                style={{ width: '150px', height: '100px' }}
+                style={{ width: '100%', height: '100%' }}
                 className={cn(
-                    'p-2 rounded border border-dashed border-gray-300 transition-all duration-200',
+                    'p-2 rounded-md border border-dashed border-gray-300 transition-all duration-200',
                     'flex flex-col items-center justify-center',
                     isDragging && 'opacity-50 bg-primary/10',
                     isOver && 'ring-2 ring-primary/50',
@@ -145,7 +209,7 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence }: {
                     hasAbsence && 'opacity-0' // Hide completely if absence
                 )}
             >
-                <div className="text-xs text-muted-foreground">
+                <div className="text-sm text-muted-foreground">
                     {hasAbsence ? 'Absence' : 'No shift assigned'}
                 </div>
             </div>
@@ -230,10 +294,10 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence }: {
         <>
             <div
                 ref={(node) => drag(drop(node))}
-                style={{ width: '150px', height: '100px' }}
+                style={{ width: '100%', height: '100%' }}
                 className={cn(
-                    'p-2 rounded border transition-all duration-200 group relative',
-                    'flex flex-col items-center justify-center',
+                    'p-2 rounded-md border transition-all duration-200 group relative',
+                    'flex flex-col gap-2 items-center justify-center',
                     isDragging && 'opacity-50 bg-primary/10',
                     isOver && 'ring-2 ring-primary/50',
                     'hover:bg-primary/5',
@@ -242,37 +306,49 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence }: {
                 onMouseEnter={() => setShowActions(true)}
                 onMouseLeave={() => setShowActions(false)}
             >
-                {/* Shift type indicator - colored line at top of cell */}
+                {/* Top colored line - using availability type color */}
                 <div
-                    className={cn(
-                        'absolute top-0 left-0 right-0 h-2 rounded-t',
-                        shiftTypeColor
-                    )}
-                    title={`Shift type: ${shiftType}`}
+                    className="absolute top-0 left-0 right-0 h-2 rounded-t"
+                    style={{
+                        backgroundColor: availabilityColor // Uses the availability type color
+                    }}
+                    title={`Availability type: ${availabilityType}`}
                 />
 
-                <div className="flex flex-col space-y-1 items-center">
-                    <Badge
-                        variant="outline"
-                        style={{
-                            backgroundColor: availabilityColor,
-                            color: '#ffffff'
-                        }}
-                        className="text-xs w-fit flex items-center justify-center font-medium"
-                    >
-                        {schedule.shift_start} - {schedule.shift_end}
-                    </Badge>
+                <div className="flex flex-col w-full space-y-2 items-center mt-2">
+                    {/* Time display - uses shift type color */}
+                    <TimeSlotDisplay
+                        startTime={schedule.shift_start || '00:00'}
+                        endTime={schedule.shift_end || '00:00'}
+                        shiftType={shiftType} // Pass the shift type for color
+                        settings={settings}
+                        schedule={schedule}
+                    />
+
+                    {/* Add additional time slots if needed */}
+                    {(extendedSchedule.additional_slots || []).map((slot: TimeSlot, index: number) => (
+                        <TimeSlotDisplay
+                            key={index}
+                            startTime={slot.start}
+                            endTime={slot.end}
+                            shiftType={shiftType}
+                            settings={settings}
+                            schedule={schedule}
+                        />
+                    ))}
+
                     {extendedSchedule.break_duration && extendedSchedule.break_duration > 0 && (
                         <div className="text-xs text-muted-foreground">
                             Pause: {extendedSchedule.break_duration} min
                         </div>
                     )}
                     {extendedSchedule.notes && (
-                        <div className="text-xs text-muted-foreground italic text-center">
+                        <div className="text-xs text-muted-foreground italic text-center max-w-full truncate">
                             {extendedSchedule.notes}
                         </div>
                     )}
                 </div>
+
                 {showActions && !hasAbsence && (
                     <div className="absolute top-1 right-1 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                         <Button
@@ -723,7 +799,7 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
                             settings.shift_types.map((type: any) => (
                                 <div key={type.id} className="flex items-center gap-1">
                                     <div
-                                        className="w-3 h-3 rounded-full"
+                                        className="w-4 h-4 rounded"
                                         style={{ backgroundColor: type.color }}
                                     ></div>
                                     <span>{type.name}</span>
@@ -733,19 +809,19 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
                             // Fallback to hardcoded colors
                             <>
                                 <div className="flex items-center gap-1">
-                                    <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                                    <div className="w-4 h-4 rounded bg-blue-500"></div>
                                     <span>Fest</span>
                                 </div>
                                 <div className="flex items-center gap-1">
-                                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                                    <div className="w-4 h-4 rounded bg-green-500"></div>
                                     <span>Wunsch</span>
                                 </div>
                                 <div className="flex items-center gap-1">
-                                    <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                                    <div className="w-4 h-4 rounded bg-amber-500"></div>
                                     <span>Verfügbarkeit</span>
                                 </div>
                                 <div className="flex items-center gap-1">
-                                    <div className="w-3 h-3 rounded-full bg-gray-300"></div>
+                                    <div className="w-4 h-4 rounded bg-gray-300"></div>
                                     <span>Standard</span>
                                 </div>
                             </>
@@ -759,7 +835,7 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
                             {absenceTypes.map(type => (
                                 <div key={type.id} className="flex items-center gap-1">
                                     <div
-                                        className="w-3 h-3 rounded-full"
+                                        className="w-4 h-4 rounded"
                                         style={{ backgroundColor: type.color }}
                                     ></div>
                                     <span>{type.name}</span>
@@ -778,11 +854,11 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
                                     Mitarbeiter
                                 </th>
                                 {days.map(day => (
-                                    <th key={day.toISOString()} className="w-[150px] text-center p-4 font-medium text-muted-foreground">
-                                        <div className="font-semibold">
+                                    <th key={day.toISOString()} className="w-[160px] text-center p-4 font-medium text-muted-foreground">
+                                        <div className="font-semibold text-base">
                                             {weekdayAbbr[format(day, 'EEEE')]}
                                         </div>
-                                        <div className="text-xs text-muted-foreground">
+                                        <div className="text-sm text-muted-foreground">
                                             {format(day, 'dd.MM')}
                                         </div>
                                     </th>
@@ -824,7 +900,7 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
                                                 const absenceInfo = checkForAbsence(employeeId, dateString, employeeAbsences, absenceTypes);
 
                                                 const cellStyle = absenceInfo ? {
-                                                    backgroundColor: `${absenceInfo.type.color}25`, // 25 is hex for 15% opacity
+                                                    backgroundColor: `${absenceInfo.type.color}15`, // 15 is hex for 10% opacity
                                                     position: 'relative' as const
                                                 } : {};
 
@@ -832,22 +908,24 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
                                                     <td
                                                         key={`${employeeId}-${dateString}`}
                                                         className={cn(
-                                                            "text-center p-0 w-[150px]",
-                                                            absenceInfo ? "relative border-2 border-dashed" : ""
+                                                            "text-center p-0 w-[160px] h-[130px]", // Fixed height for consistency
+                                                            absenceInfo ? "relative" : ""
                                                         )}
                                                         style={{
                                                             ...cellStyle,
-                                                            borderColor: absenceInfo ? `${absenceInfo.type.color}80` : undefined // 80 is hex for 50% opacity
+                                                            borderColor: absenceInfo ? `${absenceInfo.type.color}` : undefined
                                                         }}
                                                         title={absenceInfo ? `${absenceInfo.type.name}` : undefined}
                                                     >
                                                         {absenceInfo && (
                                                             <>
                                                                 <div
-                                                                    className="absolute top-0 left-0 right-0 px-2 py-1 text-sm font-semibold z-10 text-center"
+                                                                    className="absolute top-0 left-0 right-0 px-2 py-1 text-base font-semibold z-10 text-center"
                                                                     style={{
                                                                         backgroundColor: absenceInfo.type.color,
-                                                                        color: '#fff'
+                                                                        color: '#fff',
+                                                                        borderTopLeftRadius: '0.25rem',
+                                                                        borderTopRightRadius: '0.25rem'
                                                                     }}
                                                                 >
                                                                     {absenceInfo.type.name}
