@@ -259,6 +259,7 @@ def generate_schedule():
         start_date = data.get("start_date")
         end_date = data.get("end_date")
         create_empty_schedules = data.get("create_empty_schedules", True)
+        version = data.get("version", 1)  # Get version from request, default to 1
 
         # Initialize logs list
         logs = []
@@ -364,8 +365,8 @@ def generate_schedule():
                 return jsonify({"error": error_msg, "logs": logs}), 500
 
         # Create a new schedule version
-        logger.schedule_logger.info("Creating new schedule version 1")
-        logs.append("Creating new schedule version 1")
+        logger.schedule_logger.info(f"Creating new schedule version {version}")
+        logs.append(f"Creating new schedule version {version}")
 
         # Initialize the schedule generator
         generator = ScheduleGenerator()
@@ -375,6 +376,7 @@ def generate_schedule():
             start_date=start_date,
             end_date=end_date,
             create_empty_schedules=create_empty_schedules,
+            version=version,  # Pass the version to the generator
         )
 
         # Add logs to the result
