@@ -768,7 +768,12 @@ class ScheduleGenerator:
             logger.error(f"ScheduleGenerator: {message}")
 
     def generate_schedule(
-        self, start_date, end_date, create_empty_schedules=True, session_id=None
+        self,
+        start_date,
+        end_date,
+        create_empty_schedules=True,
+        session_id=None,
+        version=1,
     ) -> Dict[str, Any]:
         """Generate a schedule for the given date range"""
         # Convert to date objects if strings
@@ -784,19 +789,20 @@ class ScheduleGenerator:
 
         # Log the start of schedule generation
         logger.schedule_logger.info(
-            f"Generating schedule from {start_date} to {end_date}"
+            f"Generating schedule from {start_date} to {end_date} with version {version}"
         )
 
-        # Generate schedule
-        result = self.generate(start_date, end_date, session_id=session_id)
+        # Generate schedule with the specified version
+        result = self.generate(
+            start_date, end_date, version=version, session_id=session_id
+        )
 
         # If no schedules were created but empty schedules are requested
         if create_empty_schedules and not self.schedule:
             self._add_empty_schedules(start_date, end_date)
 
-        # Don't save to database here - let the calling code handle it
-        # within the appropriate application context
-        # self._save_to_database()
+        # Save the schedules to the database
+        self._save_to_database()
 
         # Return result with metadata
         return result
@@ -901,8 +907,8 @@ class ScheduleGenerator:
                     entry.date for entry in self.schedule if hasattr(entry, "date")
                 )
 
-                self._log_info(
-                    f"Checking for existing entries from {min_date} to {max_date} with version {self.version}"
+                logger.schedule_logger.info(
+                    f"Saving schedules to database: {len(self.schedule)} entries from {min_date} to {max_date} with version {self.version}"
                 )
 
                 # Delete existing entries for this date range and version
@@ -913,37 +919,49 @@ class ScheduleGenerator:
                 ).all()
 
                 if existing_entries:
-                    self._log_info(
+                    logger.schedule_logger.info(
                         f"Deleting {len(existing_entries)} existing schedule entries for version {self.version}"
                     )
                     for entry in existing_entries:
                         db.session.delete(entry)
                     db.session.commit()
-                    self._log_info("Deleted existing entries successfully")
+                    logger.schedule_logger.info("Deleted existing entries successfully")
 
                 # Add all entries to the database
                 entry_count = 0
                 for entry in self.schedule:
+                    # Log a sample of entries being added
+                    if entry_count < 5:
+                        logger.schedule_logger.info(
+                            f"Adding schedule: employee_id={entry.employee_id}, date={entry.date}, shift_id={entry.shift_id}, version={entry.version}"
+                        )
                     db.session.add(entry)
                     entry_count += 1
 
                 # Log the number of entries being added
-                self._log_info(
+                logger.schedule_logger.info(
                     f"Adding {entry_count} new schedule entries for version {self.version}"
                 )
 
                 # Commit the transaction
                 db.session.commit()
-                self._log_info(
+                logger.schedule_logger.info(
                     f"Successfully saved {entry_count} schedule entries to database"
+                )
+            else:
+                logger.schedule_logger.warning(
+                    "No schedules to save to database - schedule list is empty"
                 )
         except Exception as e:
             # If something goes wrong, rollback the transaction
             db.session.rollback()
-            self._log_error(f"Error saving schedule to database: {str(e)}")
-            raise ScheduleGenerationError(
-                f"Failed to save schedule to database: {str(e)}"
-            ) from e
+            logger.schedule_logger.error(f"Error saving schedule to database: {str(e)}")
+            # Log the full exception for debugging
+            import traceback
+
+            logger.schedule_logger.error(
+                f"Exception traceback: {traceback.format_exc()}"
+            )
 
     def _count_consecutive_days(self, employee_id: int, current_date: date) -> int:
         """Count how many consecutive days an employee has worked up to current_date"""
