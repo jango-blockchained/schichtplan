@@ -131,6 +131,8 @@ class ScheduleGenerator:
 
     def _create_schedule(self, start_date: date, end_date: date) -> None:
         """Create the schedule for the given date range"""
+        self._log_info(f"Starting schedule creation from {start_date} to {end_date}")
+
         # Process each date in the range
         for current_date in self._date_range(start_date, end_date):
             self._log_debug(f"Processing date: {current_date}")
@@ -146,9 +148,23 @@ class ScheduleGenerator:
                 self._log_warning(f"No coverage defined for {current_date}")
                 continue
 
+            self._log_info(
+                f"Found {len(coverages)} coverage periods for {current_date}"
+            )
+
             # Process each coverage requirement
             for coverage in coverages:
-                self._process_coverage(coverage, current_date, self.version)
+                self._log_debug(
+                    f"Processing coverage {coverage.id}: {coverage.start_time}-{coverage.end_time}"
+                )
+                schedules = self._process_coverage(coverage, current_date, self.version)
+                self._log_info(
+                    f"Assigned {len(schedules)} shifts for coverage {coverage.id}"
+                )
+
+        self._log_info(
+            f"Schedule creation completed with {len(self.schedule)} total assignments"
+        )
 
     def _process_coverage(
         self, coverage: Coverage, current_date: date, version: int
@@ -336,11 +352,17 @@ class ScheduleGenerator:
         self, current_date: date, start_time: str, end_time: str
     ) -> List[Employee]:
         """Get list of employees available for a given date and time slot"""
+        self._log_info(
+            f"Finding available employees for {current_date} {start_time}-{end_time}"
+        )
         available_employees = []
+        total_checked = 0
 
         for employee in self.resources.employees:
+            total_checked += 1
             # Skip inactive employees
             if not employee.is_active:
+                self._log_debug(f"Skipping inactive employee {employee.id}")
                 continue
 
             # Skip if employee already has a shift on this date
@@ -348,48 +370,47 @@ class ScheduleGenerator:
                 s.employee_id == employee.id and s.date == current_date
                 for s in self.schedule
             ):
+                self._log_debug(
+                    f"Employee {employee.id} already has a shift on {current_date}"
+                )
                 continue
 
             # Skip if employee has worked too many consecutive days
             if (
                 self._count_consecutive_days(employee.id, current_date) >= 6
             ):  # Max 6 consecutive days
+                self._log_debug(
+                    f"Employee {employee.id} has worked too many consecutive days"
+                )
                 continue
 
             # Skip if this would exceed weekly hours
             if self._would_exceed_weekly_hours(
                 employee.id, current_date, start_time, end_time
             ):
+                self._log_debug(
+                    f"Assigning shift would exceed weekly hours for employee {employee.id}"
+                )
                 continue
 
-            # Check employee's availability for this time slot
-            employee_availabilities = [
-                a
-                for a in self.resources.availabilities
-                if a.employee_id == employee.id
-                and a.day_of_week == current_date.weekday()
-                and a.is_available
-                and a.availability_type
-                in [
-                    AvailabilityType.AVAILABLE,
-                    AvailabilityType.FIXED,
-                    AvailabilityType.PROMISE,
-                ]
-            ]
-
-            # Convert shift times to hours for comparison
+            # Check employee's availability for this time slot using the resources method
+            # which properly handles the is_available flag and availability_type
             start_hour = int(start_time.split(":")[0])
             end_hour = int(end_time.split(":")[0])
 
-            # Check if employee is available for any hour during the shift
-            is_available = False
-            for avail in employee_availabilities:
-                if avail.hour >= start_hour and avail.hour < end_hour:
-                    is_available = True
-                    break
-
-            if is_available:
+            # Use our fixed is_employee_available method that checks both
+            # is_available flag and availability_type consistently
+            if self.resources.is_employee_available(
+                employee.id, current_date, start_hour, end_hour
+            ):
+                self._log_debug(
+                    f"Employee {employee.id} is available for {current_date} {start_time}-{end_time}"
+                )
                 available_employees.append(employee)
+            else:
+                self._log_debug(
+                    f"Employee {employee.id} is NOT available for {current_date} {start_time}-{end_time}"
+                )
 
         # Sort available employees by priority:
         # 1. Keyholders first
@@ -403,6 +424,9 @@ class ScheduleGenerator:
             )
         )
 
+        self._log_info(
+            f"Found {len(available_employees)} available employees out of {total_checked} total"
+        )
         return available_employees
 
     def _exceeds_constraints(
@@ -474,16 +498,7 @@ class ScheduleGenerator:
         self, employee: Employee, current_date: date, shift: ShiftTemplate
     ) -> bool:
         """Check if employee is available for this shift based on employee availability records"""
-        # Find relevant availability records
-        availabilities = self.resources.get_employee_availabilities(
-            employee.id, current_date
-        )
-
-        if not availabilities:
-            # No availability records means employee is not explicitly available
-            return False
-
-        # Check if employee is available for the entire shift
+        # Extract shift hours
         shift_start_hour = int(shift.start_time.split(":")[0])
         shift_end_hour = int(shift.end_time.split(":")[0])
 
@@ -491,17 +506,11 @@ class ScheduleGenerator:
         if shift.end_time.endswith(":00") and shift_end_hour > 0:
             shift_end_hour -= 1
 
-        # Check availability for each hour of the shift
-        for hour in range(shift_start_hour, shift_end_hour + 1):
-            hour_available = False
-            for availability in availabilities:
-                if availability.hour == hour and availability.is_available:
-                    hour_available = True
-                    break
-            if not hour_available:
-                return False
-
-        return True
+        # Delegate to the resources method which properly checks both
+        # is_available flag and availability_type
+        return self.resources.is_employee_available(
+            employee.id, current_date, shift_start_hour, shift_end_hour + 1
+        )
 
     def _has_enough_rest(
         self,
