@@ -70,6 +70,16 @@ import { ScheduleStatistics } from '@/components/Schedule/ScheduleStatistics';
 import { EnhancedDateRangeSelector } from '@/components/EnhancedDateRangeSelector';
 import { VersionTable } from '@/components/Schedule/VersionTable';
 import { ScheduleManager } from '@/components/ScheduleManager';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export function SchedulePage() {
   const today = new Date();
@@ -802,25 +812,26 @@ export function SchedulePage() {
       return;
     }
 
-    // Create confirmation dialog
+    // Create confirmation dialog with detailed information
     setConfirmDeleteMessage({
-      title: "Schichtplan löschen?",
-      message: "Möchten Sie wirklich alle Schichtpläne für die aktuelle Auswahl löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+      title: "Schichtplan endgültig löschen?",
+      message: `Sie sind dabei, alle ${convertedSchedules.length} Schichtpläne der Version ${selectedVersion} zu löschen. Diese Aktion betrifft:`,
+      details: [
+        `• ${new Set(convertedSchedules.map(s => s.employee_id)).size} Mitarbeiter`,
+        `• Zeitraum: ${format(dateRange?.from || new Date(), 'dd.MM.yyyy')} - ${format(dateRange?.to || new Date(), 'dd.MM.yyyy')}`,
+        `• ${convertedSchedules.filter(s => s.shift_id !== null).length} zugewiesene Schichten`
+      ],
       onConfirm: async () => {
         try {
-          // Delete all schedules in the current view
           const deletePromises = convertedSchedules.map(schedule =>
             updateSchedule(schedule.id, { shift_id: null, version: selectedVersion })
           );
-
           await Promise.all(deletePromises);
-
-          // Refetch schedule data
           await refetchScheduleData();
 
           toast({
             title: "Schichtpläne gelöscht",
-            description: `${deletePromises.length} Schichtpläne wurden erfolgreich gelöscht.`,
+            description: `${deletePromises.length} Einträge wurden entfernt.`,
           });
         } catch (error) {
           console.error('Error deleting schedules:', error);
@@ -843,6 +854,7 @@ export function SchedulePage() {
   const [confirmDeleteMessage, setConfirmDeleteMessage] = useState<{
     title: string;
     message: string;
+    details?: string[];
     onConfirm: () => void;
     onCancel: () => void;
   } | null>(null);
@@ -1088,22 +1100,41 @@ export function SchedulePage() {
 
       {/* Confirmation Dialog */}
       {confirmDeleteMessage && (
-        <Dialog open={!!confirmDeleteMessage} onOpenChange={(open) => !open && confirmDeleteMessage?.onCancel()}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{confirmDeleteMessage.title}</DialogTitle>
-              <DialogDescription>{confirmDeleteMessage.message}</DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={confirmDeleteMessage.onCancel}>
-                Abbrechen
-              </Button>
-              <Button variant="destructive" onClick={confirmDeleteMessage.onConfirm}>
-                Löschen
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <AlertDialog open={!!confirmDeleteMessage} onOpenChange={(open) => !open && confirmDeleteMessage?.onCancel()}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-destructive">
+                {confirmDeleteMessage.title}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                <div className="space-y-2">
+                  <p>{confirmDeleteMessage.message}</p>
+
+                  {confirmDeleteMessage.details && (
+                    <div className="mt-3 text-sm border-l-4 border-destructive pl-3 py-1 bg-destructive/5">
+                      {confirmDeleteMessage.details.map((detail, i) => (
+                        <p key={i}>{detail}</p>
+                      ))}
+                    </div>
+                  )}
+
+                  <p className="mt-3 font-medium text-destructive">
+                    Möchten Sie diesen Vorgang wirklich fortsetzen?
+                  </p>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDeleteMessage.onConfirm}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Endgültig löschen
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
     </div>
   );

@@ -1,11 +1,11 @@
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 from datetime import date
 from collections import defaultdict
 import functools
 import logging
 
 from models import Employee, ShiftTemplate, Schedule
-from .utility import time_to_minutes, calculate_duration
+from .utility import calculate_duration
 
 logger = logging.getLogger(__name__)
 
@@ -39,20 +39,96 @@ class DistributionManager:
         self.fair_distribution_weight = 1.0
         self.preference_weight = 1.0
         self.seniority_weight = 0.5
+        self.assignments = {}
 
-    def initialize(
-        self,
-        employees: List[Employee],
-        historical_data: Optional[List[Schedule]] = None,
-    ):
-        """Initialize the distribution manager with employees and optionally historical data"""
-        self._initialize_employee_data(employees)
+    def initialize(self, employees, historical_data=None, shifts=None, resources=None):
+        """Initialize the distribution manager with employee and historical data"""
+        self.employees = employees or []
+        self.historical_data = historical_data or []
+        self.shifts = shifts or []
+        self.resources = resources
+        self.assignments = {}
 
-        if historical_data:
-            self._load_historical_data(historical_data)
+        # Log initialization
+        self.logger.info(
+            f"Initializing distribution manager with {len(self.employees)} employees "
+            f"and {len(self.historical_data)} historical entries"
+        )
 
-        self._calculate_shift_scores()
-        logger.info(f"Distribution manager initialized with {len(employees)} employees")
+        # Initialize shift scores dictionary
+        self.shift_scores = {}
+
+        # Calculate shift scores based on types and timings
+        if self.shifts:
+            self._calculate_shift_scores()
+
+        # Load historical assignments
+        if self.historical_data:
+            self._load_historical_assignments()
+
+        return self
+
+    def _load_historical_assignments(self):
+        """Process historical data and load into assignments"""
+        for entry in self.historical_data:
+            employee_id = None
+            shift_id = None
+            entry_date = None
+
+            # Extract data from different possible formats
+            if isinstance(entry, dict):
+                employee_id = entry.get("employee_id")
+                shift_id = entry.get("shift_id")
+                entry_date = entry.get("date")
+            elif (
+                hasattr(entry, "employee_id")
+                and hasattr(entry, "shift_id")
+                and hasattr(entry, "date")
+            ):
+                employee_id = entry.employee_id
+                shift_id = entry.shift_id
+                entry_date = entry.date
+
+            if not (employee_id and shift_id and entry_date):
+                continue
+
+            # Find shift details
+            shift = None
+            for s in self.shifts:
+                if s.id == shift_id:
+                    shift = s
+                    break
+
+            if not shift:
+                continue
+
+            # Record the assignment
+            if employee_id not in self.assignments:
+                self.assignments[employee_id] = []
+
+            assignment = {
+                "shift_id": shift_id,
+                "date": entry_date,
+                "start_time": shift.start_time
+                if hasattr(shift, "start_time")
+                else "00:00",
+                "end_time": shift.end_time if hasattr(shift, "end_time") else "00:00",
+            }
+
+            # Add shift type if available
+            if shift_id in self.shift_scores:
+                assignment["shift_type"] = self.shift_scores[shift_id].get(
+                    "type", "unknown"
+                )
+
+            self.assignments[employee_id].append(assignment)
+
+        # Log loaded assignments
+        total_assignments = sum(len(a) for a in self.assignments.values())
+        self.logger.info(
+            f"Loaded {total_assignments} historical assignments for "
+            f"{len(self.assignments)} employees"
+        )
 
     def _initialize_employee_data(self, employees: List[Employee]):
         """Initialize employee data structures"""
@@ -124,7 +200,7 @@ class DistributionManager:
                 continue
 
             # Track shift type counts
-            shift_category = self._categorize_shift(shift_template, shift_date)
+            shift_category = self._categorize_shift(shift_template)
             self.employee_history[employee_id][shift_category] += 1
             self.employee_history[employee_id]["total"] += 1
 
@@ -142,36 +218,135 @@ class DistributionManager:
 
             self.employee_history[employee_id]["hours"] += duration
 
-    def _categorize_shift(self, shift: ShiftTemplate, shift_date: date) -> str:
-        """Categorize a shift as early, middle, late, weekend, holiday, or standard"""
-        # Check if weekend
-        if shift_date.weekday() >= 5:  # Saturday (5) or Sunday (6)
-            return "weekend"
+    def _categorize_shift(self, shift):
+        """Categorize a shift based on its characteristics
 
-        # Get time in minutes for easier comparison
-        start_minutes = time_to_minutes(shift.start_time)
+        Categories:
+        - early: starts before 10:00
+        - middle: starts between 10:00-14:00
+        - late: starts at or after 14:00
+        """
+        # Default category if we can't determine
+        category = "unknown"
 
-        # Adjusted categorization to create better balance
-        # Early shift - starts before 11:00
-        if start_minutes < time_to_minutes("11:00"):
-            return "early"
+        # Extract start hour
+        if hasattr(shift, "start_time") and shift.start_time:
+            try:
+                start_hour = int(shift.start_time.split(":")[0])
 
-        # Middle shift - starts between 11:00 and 14:00
-        if time_to_minutes("11:00") <= start_minutes < time_to_minutes("14:00"):
-            return "middle"
+                # Categorize based on start hour
+                if start_hour < 10:
+                    category = "early"
+                elif 10 <= start_hour < 14:
+                    category = "middle"
+                else:
+                    category = "late"
+            except (ValueError, IndexError):
+                pass
 
-        # Late shift - starts at/after 14:00
-        if start_minutes >= time_to_minutes("14:00"):
-            return "late"
-
-        # Default to standard (should rarely happen with this logic)
-        return "standard"
+        return category
 
     def _calculate_shift_scores(self):
-        """Calculate scores for shift templates based on their characteristics"""
-        # This implementation will be expanded in future versions
-        # For now we'll use simple base scores
-        pass
+        """Calculate scores for all shift types based on their characteristics.
+
+        Lower scores are better (more desirable shifts).
+        Higher scores are worse (less desirable shifts).
+        """
+        self.shift_scores = {}
+
+        for shift in self.shifts:
+            score = 0
+
+            # Start with a base score
+            start_hour = int(shift.start_time.split(":")[0])
+            end_hour = int(shift.end_time.split(":")[0])
+
+            # Calculate shift type based on start time
+            # Early shift (starts before 10:00)
+            if start_hour < 10:
+                shift_type = "early"
+                # Check current distribution and adjust score
+                early_ratio = self._get_shift_type_ratio("early")
+                # Higher penalty for early shifts if their proportion is already high
+                if early_ratio > 0.50:  # More than 50% early shifts
+                    score += 50  # Significant penalty
+                elif early_ratio > 0.40:  # More than 40% early shifts
+                    score += 30  # Medium penalty
+                elif early_ratio > 0.33:  # Slightly above ideal (33%)
+                    score += 10  # Small penalty
+            # Middle shift (starts between 10:00 and 14:00)
+            elif 10 <= start_hour < 14:
+                shift_type = "middle"
+                # Check current distribution and adjust score
+                middle_ratio = self._get_shift_type_ratio("middle")
+                # Bonus for middle shifts if their proportion is low
+                if middle_ratio < 0.20:  # Less than 20% middle shifts
+                    score -= 40  # Significant bonus (lower scores are better)
+                elif (
+                    middle_ratio < 0.30
+                ):  # Less than 30% middle shifts (still below ideal)
+                    score -= 20  # Medium bonus
+            # Late shift (starts at or after 14:00)
+            else:
+                shift_type = "late"
+                # Check current distribution and adjust score
+                late_ratio = self._get_shift_type_ratio("late")
+                # Bonus for late shifts if their proportion is low
+                if late_ratio < 0.20:  # Less than 20% late shifts
+                    score -= 40  # Significant bonus
+                elif late_ratio < 0.30:  # Less than 30% late shifts (still below ideal)
+                    score -= 20  # Medium bonus
+
+            # Add to score based on early/late hours (outside 9-18)
+            early_hours = max(0, 9 - start_hour)
+            late_hours = max(0, end_hour - 18)
+
+            score += early_hours * 5  # Penalty for very early hours
+            score += late_hours * 7  # Higher penalty for late hours
+
+            # Bonus for standard business hours (most employees prefer these)
+            if 9 <= start_hour and end_hour <= 18:
+                score -= 5
+
+            # Weekend penalty - not applied here, will be applied in assignment score
+
+            # Store the score and type
+            self.shift_scores[shift.id] = {
+                "score": score,
+                "type": shift_type,
+                "start_hour": start_hour,
+                "end_hour": end_hour,
+            }
+
+        self.logger.info(f"Calculated scores for {len(self.shift_scores)} shifts")
+        for shift_id, data in list(self.shift_scores.items())[
+            :5
+        ]:  # Log first 5 for debugging
+            self.logger.debug(
+                f"Shift {shift_id} ({data['type']}): score {data['score']}"
+            )
+
+    def _get_shift_type_ratio(self, shift_type):
+        """Calculate the ratio of a specific shift type in current assignments."""
+        total_shifts = 0
+        type_count = 0
+
+        # Count shifts by type in current assignments
+        for employee_id, assignments in self.assignments.items():
+            for assignment in assignments:
+                total_shifts += 1
+                shift_id = assignment.get("shift_id")
+                if (
+                    shift_id in self.shift_scores
+                    and self.shift_scores[shift_id]["type"] == shift_type
+                ):
+                    type_count += 1
+
+        # Handle case with no assignments
+        if total_shifts == 0:
+            return 0.33  # Default to ideal distribution
+
+        return type_count / total_shifts
 
     @functools.lru_cache(maxsize=256)
     def calculate_assignment_score(
@@ -181,39 +356,96 @@ class DistributionManager:
         shift_date: date,
         context: Dict[str, Any] = None,
     ) -> float:
+        """Calculate a score for assigning this employee to this shift
+
+        Lower scores are better - employee with lowest score should be assigned.
         """
-        Calculate a score for assigning this shift to this employee
-        Lower scores indicate better assignments
-        """
-        if not context:
-            context = {}
+        base_score = 100  # Start with a base score
 
-        base_score = self._calculate_base_score(shift, shift_date)
+        # Get shift details (use cached shift scores)
+        shift_id = shift.id
+        shift_data = self.shift_scores.get(shift_id, {})
+        shift_score = shift_data.get("score", 0)
+        shift_type = shift_data.get("type", "unknown")
 
-        # Apply employee history adjustments
-        history_adjustment = self._calculate_history_adjustment(
-            employee_id, shift, shift_date
-        )
+        # Get employee's existing assignments
+        employee_assignments = self.assignments.get(employee_id, [])
 
-        # Apply preference adjustments
-        preference_adjustment = self._calculate_preference_adjustment(
-            employee_id, shift, shift_date
-        )
+        # Employee's workload factor (penalize employees with more assignments)
+        workload_factor = len(employee_assignments) * 5
 
-        # Apply seniority adjustment if available
-        seniority_adjustment = self._calculate_seniority_adjustment(
-            employee_id, context
-        )
+        # Get employee's contracted hours
+        contracted_hours = 0
+        for employee in self.employees:
+            if employee.id == employee_id:
+                contracted_hours = employee.contracted_hours
+                break
 
-        # Calculate final score with weightings - increase fair distribution weight
-        # Triple the weight to make distribution even more important
-        self.fair_distribution_weight = 3.0
+        # Adjust workload based on contracted hours (higher hours = can take more shifts)
+        if contracted_hours > 0:
+            workload_factor = workload_factor * (40 / contracted_hours)
 
-        final_score = (
-            base_score
-            + (history_adjustment * self.fair_distribution_weight)
-            + (preference_adjustment * self.preference_weight)
-            + (seniority_adjustment * self.seniority_weight)
+        # Count shift types this employee already has
+        employee_shift_types = {"early": 0, "middle": 0, "late": 0}
+
+        for assignment in employee_assignments:
+            assigned_shift_id = assignment.get("shift_id")
+            if assigned_shift_id in self.shift_scores:
+                assigned_type = self.shift_scores[assigned_shift_id].get(
+                    "type", "unknown"
+                )
+                if assigned_type in employee_shift_types:
+                    employee_shift_types[assigned_type] += 1
+
+        # Calculate employee shift type balance factor
+        total_shifts = sum(employee_shift_types.values())
+        if total_shifts > 0:
+            # Calculate current percentages
+            type_percentages = {
+                t: (count / total_shifts * 100)
+                for t, count in employee_shift_types.items()
+            }
+
+            # Ideal distribution would be ~33% of each type
+            # Penalize already overrepresented shift types for this employee
+            current_type_percentage = type_percentages.get(shift_type, 0)
+
+            # Apply heavier penalties for unbalanced distributions
+            if shift_type == "early" and current_type_percentage > 50:
+                # If employee already has too many early shifts
+                base_score += 50
+            elif shift_type == "early" and current_type_percentage > 33:
+                base_score += 25
+            elif shift_type == "middle" and current_type_percentage < 20:
+                # If employee doesn't have enough middle shifts
+                base_score -= 30
+            elif shift_type == "late" and current_type_percentage < 20:
+                # If employee doesn't have enough late shifts
+                base_score -= 30
+
+        # Add weekend/holiday factors if applicable
+        shift_day = shift_date.weekday()
+        weekend_penalty = 0
+        if shift_day >= 5:  # Saturday or Sunday
+            weekend_penalty = 15
+
+            # Check how many weekend shifts the employee already has
+            weekend_shifts = sum(
+                1
+                for a in employee_assignments
+                if a.get("date") and a.get("date").weekday() >= 5
+            )
+
+            # Higher penalty if employee already has weekend shifts
+            weekend_penalty += weekend_shifts * 10
+
+        # Calculate final score
+        final_score = base_score + shift_score + workload_factor + weekend_penalty
+
+        # Log assignment consideration
+        self.logger.debug(
+            f"Employee {employee_id} assignment score for shift {shift_id} ({shift_type}): {final_score:.2f} "
+            f"(base={base_score}, shift={shift_score}, workload={workload_factor}, weekend={weekend_penalty})"
         )
 
         return final_score
@@ -225,7 +457,7 @@ class DistributionManager:
 
         # We don't need to calculate these as we'll use _categorize_shift directly
         # Let's use the shift categorization we already have
-        shift_type = self._categorize_shift(shift, shift_date)
+        shift_type = self._categorize_shift(shift)
 
         # Adjust base scores to create better distribution
         if shift_type == "early":
@@ -255,7 +487,7 @@ class DistributionManager:
             return 0.0
 
         history = self.employee_history[employee_id]
-        category = self._categorize_shift(shift, shift_date)
+        category = self._categorize_shift(shift)
 
         # If employee has done very few of these shifts, encourage assignment
         if history["total"] > 0:
@@ -327,122 +559,83 @@ class DistributionManager:
         # For now, return a neutral adjustment
         return 0.0
 
-    def update_with_assignment(
-        self, employee_id: int, shift: ShiftTemplate, shift_date: date
-    ):
-        """Update distribution metrics with a new assignment"""
-        if employee_id not in self.employee_history:
-            return
+    def update_with_assignment(self, employee_id, shift, shift_date):
+        """Update the distribution manager with a new assignment"""
+        self.logger.info(
+            f"Recording assignment: Employee {employee_id} to shift {shift.id} on {shift_date}"
+        )
 
-        category = self._categorize_shift(shift, shift_date)
-        self.employee_history[employee_id][category] += 1
-        self.employee_history[employee_id]["total"] += 1
+        # Initialize assignment list for employee if not exists
+        if employee_id not in self.assignments:
+            self.assignments[employee_id] = []
 
-        duration = calculate_duration(shift.start_time, shift.end_time)
-        self.employee_history[employee_id]["hours"] += duration
-
-        # Clear the cache since history has changed
-        self.calculate_assignment_score.cache_clear()
-
-    def get_distribution_metrics(self) -> Dict[str, Any]:
-        """Get current distribution metrics for analysis
-
-        Returns a comprehensive dictionary of metrics for analyzing shift distribution:
-        - employee_distribution: Per-employee metrics including counts and percentages
-        - category_totals: Total counts for each shift category
-        - overall_percentages: Percentage distribution across all shift categories
-        - fairness_metrics: Metrics to evaluate distribution fairness
-        - workload_distribution: Analysis of workload across employees
-        """
-        metrics = {
-            "employee_distribution": {},
-            "category_totals": {
-                "early": 0,
-                "late": 0,
-                "weekend": 0,
-                "standard": 0,
-                "total": 0,
-            },
-            "fairness_metrics": {
-                "gini_coefficient": 0.0,
-                "category_variance": {},
-                "equity_score": 0.0,
-            },
-            "workload_distribution": {
-                "max_shifts": 0,
-                "min_shifts": 0,
-                "avg_shifts": 0.0,
-                "employee_counts": [],
-            },
+        # Record the assignment
+        assignment = {
+            "shift_id": shift.id,
+            "date": shift_date,
+            "start_time": shift.start_time,
+            "end_time": shift.end_time,
         }
 
-        # Skip calculation if no history data is available
-        if not self.employee_history:
-            return metrics
+        # Add additional info if available in shift_scores
+        if shift.id in self.shift_scores:
+            shift_data = self.shift_scores[shift.id]
+            assignment["shift_type"] = shift_data.get("type", "unknown")
 
-        # Calculate overall and per-employee metrics
-        all_shift_counts = []
+        # Add the assignment to the employee's list
+        self.assignments[employee_id].append(assignment)
 
-        for employee_id, history in self.employee_history.items():
-            metrics["employee_distribution"][employee_id] = {
-                "percentages": {},
-                "counts": history.copy(),
-                "score": self._calculate_fairness_score(history),
-            }
+        # Update any caches
+        for func in [self.calculate_assignment_score]:
+            if hasattr(func, "cache_clear"):
+                func.cache_clear()
 
-            all_shift_counts.append(history["total"])
+        self.logger.debug(
+            f"Employee {employee_id} now has {len(self.assignments[employee_id])} assignments"
+        )
 
-            # Calculate percentages
-            if history["total"] > 0:
-                for category in ["early", "late", "weekend", "standard"]:
-                    metrics["employee_distribution"][employee_id]["percentages"][
-                        category
-                    ] = round(history[category] / history["total"] * 100, 2)
+    def get_distribution_metrics(self) -> Dict[str, Any]:
+        """Get distribution metrics for all employees"""
+        metrics = {
+            "total_employees": len(self.employees),
+            "total_shifts": 0,
+            "shift_types": {"early": 0, "middle": 0, "late": 0},
+            "employee_metrics": {},
+            "fairness_metrics": {},
+        }
 
-                    # Add to category totals
-                    metrics["category_totals"][category] += history[category]
+        # Count totals by employee and shift type
+        for employee_id, assignments in self.assignments.items():
+            metrics["total_shifts"] += len(assignments)
 
-            # Add to total count
-            metrics["category_totals"]["total"] += history["total"]
+            # Initialize employee metrics
+            if employee_id not in metrics["employee_metrics"]:
+                metrics["employee_metrics"][employee_id] = {
+                    "total_shifts": 0,
+                    "shift_types": {"early": 0, "middle": 0, "late": 0},
+                }
 
-        # Calculate overall percentages
-        if metrics["category_totals"]["total"] > 0:
-            metrics["overall_percentages"] = {}
-            for category in ["early", "late", "weekend", "standard"]:
-                metrics["overall_percentages"][category] = round(
-                    metrics["category_totals"][category]
-                    / metrics["category_totals"]["total"]
-                    * 100,
-                    2,
+            # Count shift types
+            for assignment in assignments:
+                shift_type = assignment.get("shift_type", "unknown")
+                if shift_type in metrics["shift_types"]:
+                    metrics["shift_types"][shift_type] += 1
+                    metrics["employee_metrics"][employee_id]["shift_types"][
+                        shift_type
+                    ] += 1
+                    metrics["employee_metrics"][employee_id]["total_shifts"] += 1
+
+        # Calculate percentages
+        if metrics["total_shifts"] > 0:
+            for shift_type in metrics["shift_types"]:
+                count = metrics["shift_types"][shift_type]
+                metrics["shift_types"][shift_type + "_percent"] = round(
+                    count / metrics["total_shifts"] * 100, 1
                 )
 
-        # Calculate workload distribution metrics
-        if all_shift_counts:
-            metrics["workload_distribution"]["max_shifts"] = max(all_shift_counts)
-            metrics["workload_distribution"]["min_shifts"] = min(all_shift_counts)
-            metrics["workload_distribution"]["avg_shifts"] = round(
-                sum(all_shift_counts) / len(all_shift_counts), 2
-            )
-            metrics["workload_distribution"]["employee_counts"] = all_shift_counts
-
-            # Calculate fairness metrics
-            metrics["fairness_metrics"]["gini_coefficient"] = (
-                self._calculate_gini_coefficient(all_shift_counts)
-            )
-            metrics["fairness_metrics"]["equity_score"] = self._calculate_equity_score(
-                metrics
-            )
-
-            # Calculate category variance
-            for category in ["early", "late", "weekend", "standard"]:
-                category_percentages = []
-                for emp_id, dist in metrics["employee_distribution"].items():
-                    if "percentages" in dist and category in dist["percentages"]:
-                        category_percentages.append(dist["percentages"][category])
-                if category_percentages:
-                    metrics["fairness_metrics"]["category_variance"][category] = round(
-                        self._calculate_variance(category_percentages), 2
-                    )
+        # Calculate fairness metrics
+        fairness = self._calculate_fairness_metrics()
+        metrics["fairness_metrics"] = fairness
 
         return metrics
 
@@ -511,3 +704,95 @@ class DistributionManager:
     def clear_caches(self):
         """Clear all caches"""
         self.calculate_assignment_score.cache_clear()
+
+    def _calculate_fairness_metrics(self):
+        """Calculate metrics to measure fairness of shift distribution"""
+        metrics = {"gini_coefficient": 0.0, "type_variance": {}, "equity_score": 0.0}
+
+        # Skip if no assignments
+        if not self.assignments:
+            return metrics
+
+        # Calculate total assignments per employee
+        shift_counts = []
+        for employee_id, assignments in self.assignments.items():
+            shift_counts.append(len(assignments))
+
+        # Skip if no shift counts
+        if not shift_counts:
+            return metrics
+
+        # Calculate Gini coefficient (measure of inequality)
+        # 0 = perfect equality, 1 = perfect inequality
+        gini = self._calculate_gini_coefficient(shift_counts)
+        metrics["gini_coefficient"] = round(gini, 3)
+
+        # Calculate variance in shift type distribution
+        for shift_type in ["early", "middle", "late"]:
+            type_percentages = []
+            for employee_id, assignments in self.assignments.items():
+                # Count shifts of this type
+                type_count = sum(
+                    1 for a in assignments if a.get("shift_type") == shift_type
+                )
+                total_shifts = len(assignments)
+
+                if total_shifts > 0:
+                    type_percent = (type_count / total_shifts) * 100
+                    type_percentages.append(type_percent)
+
+            if type_percentages:
+                # Calculate variance (lower is better)
+                variance = self._calculate_variance(type_percentages)
+                metrics["type_variance"][shift_type] = round(variance, 2)
+
+        # Calculate overall equity score (0-100, higher is better)
+        # Based on Gini coefficient and type variances
+        if "early" in metrics["type_variance"]:
+            # Convert Gini to 0-100 scale (0 = worst, 100 = best)
+            gini_score = (1 - metrics["gini_coefficient"]) * 100
+
+            # Average the variances
+            avg_variance = sum(metrics["type_variance"].values()) / len(
+                metrics["type_variance"]
+            )
+
+            # Convert variance to 0-100 scale (lower variance is better)
+            # Assume max reasonable variance is 40
+            variance_score = max(0, 100 - (avg_variance * 2.5))
+
+            # Combine scores (gini is more important for fairness)
+            metrics["equity_score"] = round(
+                (gini_score * 0.6) + (variance_score * 0.4), 1
+            )
+
+        return metrics
+
+    def _calculate_gini_coefficient(self, values):
+        """Calculate Gini coefficient to measure inequality
+
+        0 = perfect equality, 1 = perfect inequality
+        """
+        if not values or len(values) < 2:
+            return 0.0
+
+        # Sort values
+        sorted_values = sorted(values)
+        n = len(sorted_values)
+
+        # Calculate Gini coefficient
+        cumsum = 0
+        for i, value in enumerate(sorted_values):
+            cumsum += (i + 1) * value
+
+        # Normalize
+        return (2 * cumsum) / (n * sum(sorted_values)) - (n + 1) / n
+
+    def _calculate_variance(self, values):
+        """Calculate variance of a list of values"""
+        if not values or len(values) < 2:
+            return 0.0
+
+        mean = sum(values) / len(values)
+        variance = sum((x - mean) ** 2 for x in values) / len(values)
+        return variance

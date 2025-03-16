@@ -68,7 +68,10 @@ export function ScheduleActions({
                                 <AlertDialogTitle>Schichtplan löschen?</AlertDialogTitle>
                                 <AlertDialogDescription>
                                     Diese Aktion löscht den aktuellen Schichtplan und alle darin enthaltenen Schichten.
-                                    Diese Aktion kann nicht rückgängig gemacht werden.
+                                    <br /><br />
+                                    <span className="font-semibold text-destructive">
+                                        Diese Aktion kann nicht rückgängig gemacht werden!
+                                    </span>
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
@@ -77,7 +80,7 @@ export function ScheduleActions({
                                     onClick={onDeleteSchedule}
                                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                 >
-                                    Löschen
+                                    Endgültig löschen
                                 </AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>
