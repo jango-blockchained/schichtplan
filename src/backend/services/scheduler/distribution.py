@@ -59,6 +59,7 @@ class DistributionManager:
         for employee in employees:
             self.employee_history[employee.id] = {
                 "early": 0,
+                "middle": 0,  # Add middle type explicitly
                 "late": 0,
                 "weekend": 0,
                 "holiday": 0,
@@ -142,22 +143,28 @@ class DistributionManager:
             self.employee_history[employee_id]["hours"] += duration
 
     def _categorize_shift(self, shift: ShiftTemplate, shift_date: date) -> str:
-        """Categorize a shift as early, late, weekend, holiday, or standard"""
+        """Categorize a shift as early, middle, late, weekend, holiday, or standard"""
         # Check if weekend
         if shift_date.weekday() >= 5:  # Saturday (5) or Sunday (6)
             return "weekend"
 
-        # Check if early shift
+        # Get time in minutes for easier comparison
         start_minutes = time_to_minutes(shift.start_time)
-        if start_minutes < time_to_minutes("08:00"):
+
+        # Adjusted categorization to create better balance
+        # Early shift - starts before 11:00
+        if start_minutes < time_to_minutes("11:00"):
             return "early"
 
-        # Check if late shift
-        end_minutes = time_to_minutes(shift.end_time)
-        if end_minutes > time_to_minutes("20:00"):
+        # Middle shift - starts between 11:00 and 14:00
+        if time_to_minutes("11:00") <= start_minutes < time_to_minutes("14:00"):
+            return "middle"
+
+        # Late shift - starts at/after 14:00
+        if start_minutes >= time_to_minutes("14:00"):
             return "late"
 
-        # Default to standard
+        # Default to standard (should rarely happen with this logic)
         return "standard"
 
     def _calculate_shift_scores(self):
@@ -198,7 +205,10 @@ class DistributionManager:
             employee_id, context
         )
 
-        # Calculate final score with weightings
+        # Calculate final score with weightings - increase fair distribution weight
+        # Triple the weight to make distribution even more important
+        self.fair_distribution_weight = 3.0
+
         final_score = (
             base_score
             + (history_adjustment * self.fair_distribution_weight)
@@ -213,18 +223,23 @@ class DistributionManager:
         # Start with standard score
         score = ShiftScore.STANDARD
 
-        start_minutes = time_to_minutes(shift.start_time)
-        end_minutes = time_to_minutes(shift.end_time)
+        # We don't need to calculate these as we'll use _categorize_shift directly
+        # Let's use the shift categorization we already have
+        shift_type = self._categorize_shift(shift, shift_date)
 
-        # Check if early morning
-        if start_minutes < time_to_minutes("08:00"):
-            score = ShiftScore.EARLY_MORNING
+        # Adjust base scores to create better distribution
+        if shift_type == "early":
+            # Make early shifts have a higher score (less desirable)
+            # because we have too many of them
+            score = ShiftScore.EARLY_MORNING + 2.0
+        elif shift_type == "middle":
+            # Make middle shifts more desirable with lower score
+            score = ShiftScore.STANDARD - 1.0
+        elif shift_type == "late":
+            # Make late shifts more desirable with lower score
+            score = ShiftScore.STANDARD - 1.0
 
-        # Check if late night
-        elif end_minutes > time_to_minutes("20:00"):
-            score = ShiftScore.LATE_NIGHT
-
-        # Weekend adjustment
+        # Weekend shifts are still special
         if shift_date.weekday() >= 5:  # Saturday (5) or Sunday (6)
             score = ShiftScore.WEEKEND
 
@@ -246,13 +261,37 @@ class DistributionManager:
         if history["total"] > 0:
             category_ratio = history[category] / history["total"]
 
-            # If this employee has a low ratio of this shift type, make it more appealing
-            if category_ratio < 0.2:  # Less than 20% of shifts are this type
-                return -1.0
+            # Check overall distribution of shift types in employee history
+            early_ratio = history["early"] / max(history["total"], 1)
+            middle_ratio = history["middle"] / max(history["total"], 1)
+            late_ratio = history["late"] / max(history["total"], 1)
 
-            # If this employee has a high ratio of this shift type, make it less appealing
-            if category_ratio > 0.4:  # More than 40% of shifts are this type
-                return 1.0
+            # Get ideal distribution - balanced across shift types
+            ideal = {
+                "early": 0.34,
+                "middle": 0.33,
+                "late": 0.33,
+            }
+
+            # Calculate adjustment based on how far this employee is from the ideal
+            # distribution for this shift type
+            if category in ideal:
+                target_ratio = ideal[category]
+
+                # If this is an "early" shift and employee already has too many
+                if category == "early" and early_ratio > ideal["early"] + 0.1:
+                    # Apply a larger penalty to discourage more early shifts
+                    return 5.0 * (early_ratio - ideal["early"])
+
+                # If this is a "middle" or "late" shift and employee has too few
+                if (category == "middle" and middle_ratio < ideal["middle"] - 0.1) or (
+                    category == "late" and late_ratio < ideal["late"] - 0.1
+                ):
+                    # Apply a larger bonus to encourage more of these shifts
+                    return -5.0 * (ideal[category] - category_ratio)
+
+                # Regular adjustment based on distance from ideal ratio
+                return 3.0 * (category_ratio - target_ratio)
 
         return 0.0
 
@@ -307,7 +346,7 @@ class DistributionManager:
 
     def get_distribution_metrics(self) -> Dict[str, Any]:
         """Get current distribution metrics for analysis
-        
+
         Returns a comprehensive dictionary of metrics for analyzing shift distribution:
         - employee_distribution: Per-employee metrics including counts and percentages
         - category_totals: Total counts for each shift category
@@ -327,30 +366,30 @@ class DistributionManager:
             "fairness_metrics": {
                 "gini_coefficient": 0.0,
                 "category_variance": {},
-                "equity_score": 0.0
+                "equity_score": 0.0,
             },
             "workload_distribution": {
                 "max_shifts": 0,
                 "min_shifts": 0,
                 "avg_shifts": 0.0,
-                "employee_counts": []
-            }
+                "employee_counts": [],
+            },
         }
-        
+
         # Skip calculation if no history data is available
         if not self.employee_history:
             return metrics
 
         # Calculate overall and per-employee metrics
         all_shift_counts = []
-        
+
         for employee_id, history in self.employee_history.items():
             metrics["employee_distribution"][employee_id] = {
                 "percentages": {},
                 "counts": history.copy(),
-                "score": self._calculate_fairness_score(history)
+                "score": self._calculate_fairness_score(history),
             }
-            
+
             all_shift_counts.append(history["total"])
 
             # Calculate percentages
@@ -373,9 +412,10 @@ class DistributionManager:
                 metrics["overall_percentages"][category] = round(
                     metrics["category_totals"][category]
                     / metrics["category_totals"]["total"]
-                    * 100, 2
+                    * 100,
+                    2,
                 )
-        
+
         # Calculate workload distribution metrics
         if all_shift_counts:
             metrics["workload_distribution"]["max_shifts"] = max(all_shift_counts)
@@ -384,11 +424,15 @@ class DistributionManager:
                 sum(all_shift_counts) / len(all_shift_counts), 2
             )
             metrics["workload_distribution"]["employee_counts"] = all_shift_counts
-            
+
             # Calculate fairness metrics
-            metrics["fairness_metrics"]["gini_coefficient"] = self._calculate_gini_coefficient(all_shift_counts)
-            metrics["fairness_metrics"]["equity_score"] = self._calculate_equity_score(metrics)
-            
+            metrics["fairness_metrics"]["gini_coefficient"] = (
+                self._calculate_gini_coefficient(all_shift_counts)
+            )
+            metrics["fairness_metrics"]["equity_score"] = self._calculate_equity_score(
+                metrics
+            )
+
             # Calculate category variance
             for category in ["early", "late", "weekend", "standard"]:
                 category_percentages = []
@@ -401,62 +445,66 @@ class DistributionManager:
                     )
 
         return metrics
-        
+
     def _calculate_fairness_score(self, history: Dict[str, int]) -> float:
         """Calculate a fairness score for an employee based on their shift history"""
         if history["total"] == 0:
             return 0.0
-            
+
         # Calculate how balanced the distribution is across categories
         categories = ["early", "late", "weekend", "standard"]
         percentages = [history[cat] / history["total"] * 100 for cat in categories]
         ideal_percentage = 25.0  # Ideally equal distribution
-        
+
         # The closer to ideal distribution, the higher the score
         deviations = [abs(p - ideal_percentage) for p in percentages]
         avg_deviation = sum(deviations) / len(deviations)
-        
+
         # Normalize to a 0-10 scale where 10 is perfect distribution
         return round(10 - min(avg_deviation / 5, 10), 2)
-    
+
     def _calculate_gini_coefficient(self, values: List[int]) -> float:
         """Calculate Gini coefficient as a measure of inequality
         0 = perfect equality, 1 = perfect inequality
         """
         if not values or sum(values) == 0:
             return 0.0
-            
+
         sorted_values = sorted(values)
         n = len(sorted_values)
         cumsum = 0
         for i, value in enumerate(sorted_values):
             cumsum += (i + 1) * value
-            
+
         return round((2 * cumsum / (n * sum(sorted_values))) - (n + 1) / n, 2)
-    
+
     def _calculate_variance(self, values: List[float]) -> float:
         """Calculate variance of a list of values"""
         if not values:
             return 0.0
-            
+
         mean = sum(values) / len(values)
         squared_diffs = [(x - mean) ** 2 for x in values]
         return sum(squared_diffs) / len(values)
-        
+
     def _calculate_equity_score(self, metrics: Dict[str, Any]) -> float:
         """Calculate an overall equity score based on multiple fairness metrics
         Returns a score from 0-10 where 10 is perfect equity
         """
         if not metrics["employee_distribution"]:
             return 0.0
-            
+
         # Use Gini coefficient (inverted since lower is better)
         gini_score = 10 * (1 - metrics["fairness_metrics"]["gini_coefficient"])
-        
+
         # Calculate average employee fairness score
-        employee_scores = [dist["score"] for _, dist in metrics["employee_distribution"].items()]
-        avg_employee_score = sum(employee_scores) / len(employee_scores) if employee_scores else 0
-        
+        employee_scores = [
+            dist["score"] for _, dist in metrics["employee_distribution"].items()
+        ]
+        avg_employee_score = (
+            sum(employee_scores) / len(employee_scores) if employee_scores else 0
+        )
+
         # Combine metrics with weights
         return round(0.6 * gini_score + 0.4 * avg_employee_score, 2)
 

@@ -175,6 +175,7 @@ class Settings(db.Model):
                 "name": "Vollzeit",
                 "min_hours": 35,
                 "max_hours": 40,
+                "max_daily_hours": 8.0,
                 "type": "employee",
             },
             {
@@ -182,6 +183,7 @@ class Settings(db.Model):
                 "name": "Teilzeit",
                 "min_hours": 15,
                 "max_hours": 34,
+                "max_daily_hours": 6.0,
                 "type": "employee",
             },
             {
@@ -189,6 +191,7 @@ class Settings(db.Model):
                 "name": "Geringfügig Beschäftigt",
                 "min_hours": 0,
                 "max_hours": 14,
+                "max_daily_hours": 5.0,
                 "type": "employee",
             },
             {
@@ -196,6 +199,7 @@ class Settings(db.Model):
                 "name": "Teamleiter",
                 "min_hours": 35,
                 "max_hours": 40,
+                "max_daily_hours": 8.0,
                 "type": "employee",
             },
         ],
@@ -213,39 +217,75 @@ class Settings(db.Model):
                     "name": "Frühschicht",
                     "color": "#4CAF50",
                     "type": "shift",
+                    "hourConditions": {
+                        "startTime": "08:30",
+                        "endTime": "14:00",
+                        "minDuration": 5.0,
+                        "maxDuration": 6.0,
+                    },
                 },
                 {
                     "id": "MIDDLE",
                     "name": "Mittelschicht",
                     "color": "#2196F3",
                     "type": "shift",
+                    "hourConditions": {
+                        "startTime": "11:00",
+                        "endTime": "17:00",
+                        "minDuration": 5.0,
+                        "maxDuration": 6.0,
+                    },
                 },
                 {
                     "id": "LATE",
                     "name": "Spätschicht",
                     "color": "#9C27B0",
                     "type": "shift",
+                    "hourConditions": {
+                        "startTime": "14:00",
+                        "endTime": "20:00",
+                        "minDuration": 5.0,
+                        "maxDuration": 6.0,
+                    },
                 },
             ]
-        except:
+        except Exception:
             return [
                 {
                     "id": "EARLY",
                     "name": "Frühschicht",
                     "color": "#4CAF50",
                     "type": "shift",
+                    "hourConditions": {
+                        "startTime": "08:30",
+                        "endTime": "14:00",
+                        "minDuration": 5.0,
+                        "maxDuration": 6.0,
+                    },
                 },
                 {
                     "id": "MIDDLE",
                     "name": "Mittelschicht",
                     "color": "#2196F3",
                     "type": "shift",
+                    "hourConditions": {
+                        "startTime": "11:00",
+                        "endTime": "17:00",
+                        "minDuration": 5.0,
+                        "maxDuration": 6.0,
+                    },
                 },
                 {
                     "id": "LATE",
                     "name": "Spätschicht",
                     "color": "#9C27B0",
                     "type": "shift",
+                    "hourConditions": {
+                        "startTime": "14:00",
+                        "endTime": "20:00",
+                        "minDuration": 5.0,
+                        "maxDuration": 6.0,
+                    },
                 },
             ]
 
@@ -525,6 +565,7 @@ class Settings(db.Model):
                 "name": "Vollzeit",
                 "min_hours": 35,
                 "max_hours": 40,
+                "max_daily_hours": 8.0,
                 "type": "employee",
             },
             {
@@ -532,6 +573,7 @@ class Settings(db.Model):
                 "name": "Teilzeit",
                 "min_hours": 15,
                 "max_hours": 34,
+                "max_daily_hours": 6.0,
                 "type": "employee",
             },
             {
@@ -539,6 +581,7 @@ class Settings(db.Model):
                 "name": "Geringfügig Beschäftigt",
                 "min_hours": 0,
                 "max_hours": 14,
+                "max_daily_hours": 5.0,
                 "type": "employee",
             },
             {
@@ -546,6 +589,7 @@ class Settings(db.Model):
                 "name": "Teamleiter",
                 "min_hours": 35,
                 "max_hours": 40,
+                "max_daily_hours": 8.0,
                 "type": "employee",
             },
         ]

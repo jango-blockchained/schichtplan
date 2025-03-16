@@ -14,6 +14,8 @@ import { AlertCircle, Edit2, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
+import { useQuery } from '@tanstack/react-query';
+import { getSettings } from '@/services/api';
 
 interface ShiftTableProps {
   weekStart: Date;
@@ -143,6 +145,12 @@ const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeI
   const [isUpdating, setIsUpdating] = useState(false);
   const { toast } = useToast();
 
+  // Fetch settings to get shift type details
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: getSettings,
+  });
+
   if (!shift) return null;
 
   const dailyHours = calculateDailyHours(shift);
@@ -152,6 +160,33 @@ const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeI
   const hasBreakViolation = shiftHours > 6 && !shift.break;
   const hasLongBreakViolation = shiftHours > 9 && (!shift.break?.notes?.includes('Second break:'));
   const hasHoursViolation = shiftHours > 10;
+
+  // Determine shift type based on time
+  const determineShiftType = () => {
+    // If the shift has a shift_type_id, use that
+    if (shift.shift_type_id) {
+      return shift.shift_type_id;
+    }
+
+    // Otherwise guess based on start time
+    const startHour = parseInt(shift.start?.split(':')[0] || '0');
+    if (startHour < 11) return 'EARLY';
+    if (startHour >= 16) return 'LATE';
+    return 'MIDDLE';
+  };
+
+  const shiftTypeId = determineShiftType();
+
+  // Find the shift type details in settings
+  const shiftTypeInfo = settings?.shift_types?.find(type => type.id === shiftTypeId);
+
+  // Get the color and name for the shift type
+  const shiftTypeColor = shiftTypeInfo?.color || '#64748b'; // Default slate gray
+  const shiftTypeName = shiftTypeInfo?.name || (
+    shiftTypeId === 'EARLY' ? 'Frühschicht' :
+      shiftTypeId === 'MIDDLE' ? 'Mittelschicht' :
+        shiftTypeId === 'LATE' ? 'Spätschicht' : 'Schicht'
+  );
 
   const handleNotesUpdate = async () => {
     if (!onBreakNotesUpdate || !employeeId || shift.day === undefined || !shift.break) {
@@ -186,6 +221,19 @@ const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeI
       "p-2 rounded border border-border",
       (hasBreakViolation || hasLongBreakViolation || hasHoursViolation) ? "border-destructive" : "hover:border-primary"
     )}>
+      {/* Display shift type in badge with the correct color */}
+      <div className="mb-2">
+        <Badge
+          variant="outline"
+          style={{
+            backgroundColor: `${shiftTypeColor}20`, // Add transparency
+            color: shiftTypeColor,
+            borderColor: shiftTypeColor
+          }}
+        >
+          {shiftTypeName}
+        </Badge>
+      </div>
       <SubRow>Beginn: {shift.start}</SubRow>
       {shift.break && (
         <>
