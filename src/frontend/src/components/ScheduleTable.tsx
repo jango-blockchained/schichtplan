@@ -76,38 +76,43 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence }: {
         }
     }, [schedule]);
 
-    const [{ isDragging }, drag] = useDrag(() => ({
+    const [{ isDragging }, drag] = useDrag({
         type: 'SCHEDULE',
-        item: schedule && !isEmptySchedule(schedule) ? {
+        item: schedule ? {
             type: 'SCHEDULE',
             scheduleId: schedule.id,
             employeeId: schedule.employee_id,
-            shiftId: schedule.shift_id,
-            date: schedule.date,
+            shiftId: schedule.shift_id || 0,
+            date: schedule.date
         } : undefined,
+        canDrag: !!schedule && !hasAbsence,
         collect: (monitor) => ({
-            isDragging: !!monitor.isDragging(),
-        }),
-        canDrag: !hasAbsence, // Prevent dragging if there's an absence
-    }), [schedule, hasAbsence]);
+            isDragging: monitor.isDragging()
+        })
+    });
 
-    const [{ isOver }, drop] = useDrop(() => ({
+    const [{ isOver }, drop] = useDrop({
         accept: 'SCHEDULE',
         drop: (item: DragItem) => {
-            if (schedule && !hasAbsence) { // Prevent dropping if there's an absence
-                onDrop(
-                    item.scheduleId,
-                    schedule.employee_id,
-                    parseISO(schedule.date),
-                    item.shiftId
-                );
-            }
+            if (!schedule) return;
+            onDrop(
+                item.scheduleId,
+                schedule.employee_id,
+                new Date(schedule.date),
+                schedule.shift_id || 0
+            );
         },
         collect: (monitor) => ({
-            isOver: !!monitor.isOver(),
+            isOver: monitor.isOver()
         }),
-        canDrop: () => !hasAbsence, // Prevent dropping if there's an absence
-    }), [schedule, onDrop, hasAbsence]);
+        canDrop: () => !!schedule && !hasAbsence
+    });
+
+    // Fetch settings to get availability type colors
+    const { data: settings } = useQuery({
+        queryKey: ['settings'],
+        queryFn: getSettings,
+    });
 
     const handleDelete = async () => {
         if (!schedule) return;
@@ -127,86 +132,22 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence }: {
     };
 
     if (!schedule || isEmptySchedule(schedule)) {
-        // Create empty schedule object with safe defaults
-        const emptySchedule: Schedule = {
-            id: 0,
-            employee_id: schedule?.employee_id ?? 0,
-            shift_id: null,
-            shift_start: null,
-            shift_end: null,
-            date: schedule?.date ?? new Date().toISOString().split('T')[0],
-            version: schedule?.version ?? 1,
-            is_empty: true,
-            status: 'DRAFT'
-        };
-
         return (
             <div
-                ref={drop}
+                ref={(node) => drag(drop(node))}
                 style={{ width: '150px', height: '100px' }}
                 className={cn(
-                    'flex items-center justify-center text-muted-foreground relative',
-                    'border border-dashed border-muted-foreground/20 rounded-md',
-                    'hover:border-primary/50 transition-colors duration-200',
-                    isOver && 'border-primary border-solid',
-                    hasAbsence && 'cursor-not-allowed opacity-0' // Hide completely if absence
+                    'p-2 rounded border border-dashed border-gray-300 transition-all duration-200',
+                    'flex flex-col items-center justify-center',
+                    isDragging && 'opacity-50 bg-primary/10',
+                    isOver && 'ring-2 ring-primary/50',
+                    'hover:bg-primary/5',
+                    hasAbsence && 'opacity-0' // Hide completely if absence
                 )}
-                onMouseEnter={() => setShowActions(true)}
-                onMouseLeave={() => setShowActions(false)}
             >
-                {showActions && !hasAbsence ? (
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={handleAdd}
-                        className="absolute inset-0 w-full h-full flex items-center justify-center rounded-none"
-                    >
-                        <Plus className="h-4 w-4" />
-                    </Button>
-                ) : (
-                    <span className="text-sm">{hasAbsence ? "" : "-"}</span>
-                )}
-                {isEditModalOpen && !hasAbsence && (
-                    <ShiftEditModal
-                        isOpen={isEditModalOpen}
-                        onClose={() => setIsEditModalOpen(false)}
-                        schedule={emptySchedule}
-                        onSave={async (_, updates) => {
-                            try {
-                                console.log('🟣 ScheduleTable empty cell onSave called with:', { updates });
-
-                                if (!emptySchedule.employee_id || !emptySchedule.date) {
-                                    throw new Error('Missing required fields: employee_id or date');
-                                }
-
-                                console.log('🟣 About to call onUpdate with:', {
-                                    scheduleId: 0,
-                                    updates: {
-                                        ...updates,
-                                        employee_id: emptySchedule.employee_id,
-                                        date: emptySchedule.date,
-                                    }
-                                });
-
-                                // Create a new schedule instead of updating
-                                // Don't close the modal until we're sure the update succeeded
-                                await onUpdate(0, {
-                                    ...updates,
-                                    employee_id: emptySchedule.employee_id,
-                                    date: emptySchedule.date,
-                                });
-
-                                console.log('🟣 onUpdate completed successfully');
-
-                                // Only close modal after successful save
-                                setIsEditModalOpen(false);
-                            } catch (error) {
-                                console.error('🟣 Error in empty cell onSave:', error);
-                                // Don't close the modal if there's an error
-                            }
-                        }}
-                    />
-                )}
+                <div className="text-xs text-muted-foreground">
+                    {hasAbsence ? 'Absence' : 'No shift assigned'}
+                </div>
             </div>
         );
     }
@@ -214,7 +155,76 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence }: {
     // Cast the schedule to ExtendedSchedule to access the additional properties
     const extendedSchedule = schedule as ExtendedSchedule;
     const shiftType = determineShiftType(schedule);
-    const shiftTypeColor = getShiftTypeColor(shiftType);
+    const shiftTypeColor = getShiftTypeColor(shiftType, schedule, settings?.shift_types);
+
+    // Get availability type color from settings
+    const getAvailabilityTypeColor = (availabilityType: string) => {
+        if (!settings?.availability_types?.types) return '#22c55e'; // Default green
+
+        const typeInfo = settings.availability_types.types.find(
+            (type: any) => type.id === availabilityType
+        );
+
+        return typeInfo?.color || '#22c55e'; // Default to green if not found
+    };
+
+    // Get the availability type from the schedule
+    // If not provided, use a default based on the shift type
+    const getDefaultAvailabilityType = (schedule: Schedule, shiftType: 'fixed' | 'promised' | 'availability' | 'regular'): string => {
+        // First check if the schedule has an explicit availability_type
+        if (schedule.availability_type) {
+            return schedule.availability_type;
+        }
+
+        // If the shift_type is explicitly set, use that to determine availability_type
+        if (schedule.shift_type) {
+            switch (schedule.shift_type) {
+                case 'fixed':
+                    return 'FIX';
+                case 'promised':
+                    return 'PRM';
+                case 'availability':
+                    return 'AVL';
+                default:
+                    return 'AVL';
+            }
+        }
+
+        // Check notes for keywords that might indicate fixed shifts
+        if (schedule.notes) {
+            const notes = schedule.notes.toLowerCase();
+            if (notes.includes('fix') || notes.includes('fest')) {
+                return 'FIX';
+            }
+            if (notes.includes('wunsch') || notes.includes('promised') || notes.includes('pref')) {
+                return 'PRM';
+            }
+        }
+
+        // Check for specific time patterns that might indicate fixed shifts
+        // This is a temporary solution until the backend properly provides availability_type
+        if (schedule.shift_start && schedule.shift_end) {
+            // Example: Consider specific shift patterns as fixed
+            if (schedule.shift_start === '12:00' && schedule.shift_end === '16:00') {
+                return 'FIX'; // Consider afternoon shifts as fixed
+            }
+        }
+
+        // Default based on shift type as a last resort
+        switch (shiftType) {
+            case 'fixed':
+                return 'FIX';
+            case 'promised':
+                return 'PRM';
+            case 'availability':
+                return 'AVL';
+            default:
+                return 'AVL';
+        }
+    };
+
+    const availabilityType = getDefaultAvailabilityType(schedule, shiftType);
+    const availabilityColor = getAvailabilityTypeColor(availabilityType);
 
     return (
         <>
@@ -245,8 +255,8 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence }: {
                     <Badge
                         variant="outline"
                         style={{
-                            backgroundColor: getShiftTypeRGBColor(shiftType).bg,
-                            color: getShiftTypeRGBColor(shiftType).text
+                            backgroundColor: availabilityColor,
+                            color: '#ffffff'
                         }}
                         className="text-xs w-fit flex items-center justify-center font-medium"
                     >
@@ -349,7 +359,27 @@ const determineShiftType = (schedule: Schedule): 'fixed' | 'promised' | 'availab
 };
 
 // Function to get color based on shift type
-const getShiftTypeColor = (type: 'fixed' | 'promised' | 'availability' | 'regular'): string => {
+const getShiftTypeColor = (type: 'fixed' | 'promised' | 'availability' | 'regular', schedule?: Schedule, settingsData?: any): string => {
+    // First try to get color from settings based on the shift_type mapping
+    if (settingsData && schedule?.shift_id) {
+        // Map the inferred shift type to its corresponding ID in settings
+        let shiftTypeId = null;
+
+        if (type === 'fixed') shiftTypeId = 'EARLY';
+        else if (type === 'promised') shiftTypeId = 'MIDDLE';
+        else if (type === 'availability') shiftTypeId = 'LATE';
+
+        // Try to find the shift type in settings
+        const shiftTypeData = settingsData.find(
+            (t: any) => t.id === shiftTypeId
+        );
+
+        if (shiftTypeData?.color) {
+            return `bg-[${shiftTypeData.color}]`; // Use color from settings
+        }
+    }
+
+    // Fall back to the hardcoded colors if settings or shift_type_id not available
     switch (type) {
         case 'fixed':
             return 'bg-blue-500'; // Blue for fixed shifts
@@ -363,7 +393,35 @@ const getShiftTypeColor = (type: 'fixed' | 'promised' | 'availability' | 'regula
 };
 
 // Function to get direct CSS color values based on shift type
-const getShiftTypeRGBColor = (type: 'fixed' | 'promised' | 'availability' | 'regular'): { bg: string, text: string } => {
+const getShiftTypeRGBColor = (type: 'fixed' | 'promised' | 'availability' | 'regular', schedule?: Schedule, settingsData?: any): { bg: string, text: string } => {
+    // First try to get color from settings based on the shift_type mapping
+    if (settingsData && schedule?.shift_id) {
+        // Map the inferred shift type to its corresponding ID in settings
+        let shiftTypeId = null;
+
+        if (type === 'fixed') shiftTypeId = 'EARLY';
+        else if (type === 'promised') shiftTypeId = 'MIDDLE';
+        else if (type === 'availability') shiftTypeId = 'LATE';
+
+        // Try to find the shift type in settings
+        const shiftTypeData = settingsData.find(
+            (t: any) => t.id === shiftTypeId
+        );
+
+        if (shiftTypeData?.color) {
+            // Convert hex color to rgba for background with transparency
+            const hex = shiftTypeData.color.replace('#', '');
+            const r = parseInt(hex.substring(0, 2), 16);
+            const g = parseInt(hex.substring(2, 4), 16);
+            const b = parseInt(hex.substring(4, 6), 16);
+            return {
+                bg: `rgba(${r}, ${g}, ${b}, 0.2)`,
+                text: shiftTypeData.color
+            };
+        }
+    }
+
+    // Fall back to the hardcoded colors if settings or mapping not available
     switch (type) {
         case 'fixed':
             return {
@@ -660,22 +718,38 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
                 {/* Add shift type legend and absence type legend */}
                 <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-3 text-sm">
-                        <div className="flex items-center gap-1">
-                            <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                            <span>Fest</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                            <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                            <span>Wunsch</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                            <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-                            <span>Verfügbarkeit</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                            <div className="w-3 h-3 rounded-full bg-gray-300"></div>
-                            <span>Standard</span>
-                        </div>
+                        {settings?.shift_types ? (
+                            // Use colors from settings if available
+                            settings.shift_types.map((type: any) => (
+                                <div key={type.id} className="flex items-center gap-1">
+                                    <div
+                                        className="w-3 h-3 rounded-full"
+                                        style={{ backgroundColor: type.color }}
+                                    ></div>
+                                    <span>{type.name}</span>
+                                </div>
+                            ))
+                        ) : (
+                            // Fallback to hardcoded colors
+                            <>
+                                <div className="flex items-center gap-1">
+                                    <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                                    <span>Fest</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                                    <span>Wunsch</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                                    <span>Verfügbarkeit</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <div className="w-3 h-3 rounded-full bg-gray-300"></div>
+                                    <span>Standard</span>
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     {/* Absence type legend */}

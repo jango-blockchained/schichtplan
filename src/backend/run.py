@@ -1,6 +1,14 @@
 import os
 import socket
 import time
+import sys
+from pathlib import Path
+
+# Add the current directory to the Python path
+current_dir = Path(__file__).resolve().parent
+if str(current_dir) not in sys.path:
+    sys.path.append(str(current_dir))
+
 from app import create_app
 from werkzeug.serving import is_running_from_reloader
 

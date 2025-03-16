@@ -67,6 +67,8 @@ import { DateRange } from 'react-day-picker';
 import { ScheduleActions } from '@/components/Schedule/ScheduleActions';
 import { AddScheduleDialog } from '@/components/Schedule/AddScheduleDialog';
 import { ScheduleStatistics } from '@/components/Schedule/ScheduleStatistics';
+import { EnhancedDateRangeSelector } from '@/components/EnhancedDateRangeSelector';
+import { VersionTable } from '@/components/Schedule/VersionTable';
 
 export function SchedulePage() {
   const today = new Date();
@@ -117,18 +119,6 @@ export function SchedulePage() {
     }
   };
 
-  const handleIncludeEmptyChange = (checked: boolean) => {
-    console.log("Toggling includeEmpty:", { from: includeEmpty, to: checked });
-    setIncludeEmpty(checked);
-    addGenerationLog('info', `Will ${checked ? 'show' : 'hide'} empty schedules`);
-  };
-
-  const handleCreateEmptyChange = (checked: boolean) => {
-    console.log("Toggling createEmptySchedules:", { from: createEmptySchedules, to: checked });
-    setCreateEmptySchedules(checked);
-    addGenerationLog('info', `Will ${checked ? 'create' : 'not create'} empty schedules for all employees during generation`);
-  };
-
   // Use our version control hook
   const {
     selectedVersion,
@@ -138,6 +128,7 @@ export function SchedulePage() {
     handleArchiveVersion,
     handleDeleteVersion,
     handleDuplicateVersion,
+    handleCreateNewVersionWithOptions: versionControlCreateWithOptions,
     versions,
     versionMetas,
     isLoading: isLoadingVersions
@@ -853,6 +844,32 @@ export function SchedulePage() {
     onCancel: () => void;
   } | null>(null);
 
+  const handleIncludeEmptyChange = (checked: boolean) => {
+    console.log("Toggling includeEmpty:", { from: includeEmpty, to: checked });
+    setIncludeEmpty(checked);
+    addGenerationLog('info', `Will ${checked ? 'show' : 'hide'} empty schedules`);
+  };
+
+  const handleCreateEmptyChange = (checked: boolean) => {
+    console.log("Toggling createEmptySchedules:", { from: createEmptySchedules, to: checked });
+    setCreateEmptySchedules(checked);
+    addGenerationLog('info', `Will ${checked ? 'create' : 'not create'} empty schedules for all employees during generation`);
+  };
+
+  // Function to handle creating a new version with custom options
+  const handleCreateNewVersionWithOptions = (options: { dateRange: DateRange; weekAmount: number }) => {
+    console.log('Creating new version with custom options:', options);
+
+    // First update the UI state
+    if (options.dateRange.from && options.dateRange.to) {
+      setDateRange(options.dateRange);
+      setScheduleDuration(options.weekAmount);
+
+      // Then use the version control hook's function directly
+      versionControlCreateWithOptions(options);
+    }
+  };
+
   return (
     <div className="container mx-auto py-4 space-y-4">
       <PageHeader title="Dienstplan" className="mb-4">
@@ -862,12 +879,15 @@ export function SchedulePage() {
         />
       </PageHeader>
 
-      {/* Add DateRangeSelector */}
-      <DateRangeSelector
+      {/* Enhanced Date Range Selector with version confirmation */}
+      <EnhancedDateRangeSelector
         dateRange={dateRange}
         scheduleDuration={scheduleDuration}
         onWeekChange={handleWeekChange}
         onDurationChange={handleDurationChange}
+        hasVersions={versions.length > 0}
+        onCreateNewVersion={handleCreateNewVersion}
+        onCreateNewVersionWithOptions={handleCreateNewVersionWithOptions}
       />
 
       {/* Add Schedule Statistics if we have data */}
@@ -914,6 +934,19 @@ export function SchedulePage() {
           onRetry={handleRetryFetch}
         />
       </div>
+
+      {/* Version Table */}
+      {versionMetas && versionMetas.length > 0 && (
+        <VersionTable
+          versions={versionMetas}
+          selectedVersion={selectedVersion}
+          onSelectVersion={handleVersionChange}
+          onPublishVersion={handlePublishVersion}
+          onArchiveVersion={handleArchiveVersion}
+          onDeleteVersion={handleDeleteVersion}
+          onDuplicateVersion={handleDuplicateVersion}
+        />
+      )}
 
       {/* Schedule Actions */}
       <div className="flex justify-end mb-4">

@@ -131,12 +131,31 @@ export function useScheduleGeneration({
 
                     try {
                         // Always use the explicit selectedVersion, no fallback to 1
+                        console.log('🚀 Calling generateSchedule API with:', {
+                            fromStr,
+                            toStr,
+                            createEmptySchedules,
+                            selectedVersion,
+                            'Request will include shift_type values': true
+                        });
+
                         const result = await generateSchedule(
                             fromStr,
                             toStr,
                             createEmptySchedules,
                             selectedVersion  // Use the selected version without fallback
                         );
+
+                        // Log the response to help with debugging
+                        console.log('✅ GenerateSchedule API response:', {
+                            'Total schedules': result.schedules?.length || 0,
+                            'Schedules with shifts': result.schedules?.filter(s => s.shift_id !== null)?.length || 0,
+                            'Unique employees': [...new Set(result.schedules?.map(s => s.employee_id) || [])].length,
+                            'Has errors': result.errors && result.errors.length > 0,
+                            'Error count': result.errors?.length || 0,
+                            'First error': result.errors?.[0] || 'No errors',
+                            'First schedule': result.schedules?.[0] || 'No schedules'
+                        });
 
                         updateGenerationStep("process", "completed");
 

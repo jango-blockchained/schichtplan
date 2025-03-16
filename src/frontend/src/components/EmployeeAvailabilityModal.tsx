@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
-import { Check } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
@@ -218,13 +218,18 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
 
     const handleToggleDay = (day: string) => {
         const newSelectedCells = new Map(selectedCells);
-        const isDaySelected = timeSlots.every(({ time }) =>
-            newSelectedCells.has(`${day}-${time}`)
-        );
 
-        timeSlots.forEach(({ time }) => {
-            const cellId = `${day}-${time}`;
-            if (isDaySelected) {
+        // Count how many cells are selected for this day
+        const dayCells = timeSlots.map(({ time }) => `${day}-${time}`);
+        const selectedDayCells = dayCells.filter(cellId => selectedCells.has(cellId));
+        const selectedRatio = selectedDayCells.length / dayCells.length;
+
+        // If more than 50% are selected, deselect all cells for the day
+        // Otherwise, select all cells for the day with current type
+        const shouldClear = selectedRatio >= 0.5;
+
+        dayCells.forEach(cellId => {
+            if (shouldClear) {
                 newSelectedCells.delete(cellId);
             } else {
                 newSelectedCells.set(cellId, currentType);
@@ -236,7 +241,21 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
     };
 
     const handleSave = async () => {
-        const availabilityData = Array.from(selectedCells.entries()).map(([cellId, type]) => {
+        // Create a Set of all possible cell IDs for quick lookup
+        const allPossibleCellIds = new Set<string>();
+        timeSlots.forEach(({ time }) => {
+            activeDays.forEach(day => {
+                allPossibleCellIds.add(`${day}-${time}`);
+            });
+        });
+
+        // Get all time slots that were not selected
+        const unselectedCellIds = Array.from(allPossibleCellIds).filter(
+            cellId => !selectedCells.has(cellId)
+        );
+
+        // Prepare availability data for selected cells
+        const selectedAvailabilityData = Array.from(selectedCells.entries()).map(([cellId, type]) => {
             const [day, timeRange] = cellId.split('-');
             const frontendDayIndex = ALL_DAYS.indexOf(day);
             const backendDayIndex = convertFrontendDayToBackend(frontendDayIndex);
@@ -252,6 +271,27 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
             };
         });
 
+        // Prepare availability data for unselected cells
+        const unavailableAvailabilityData = unselectedCellIds.map(cellId => {
+            const [day, timeRange] = cellId.split('-');
+            const frontendDayIndex = ALL_DAYS.indexOf(day);
+            const backendDayIndex = convertFrontendDayToBackend(frontendDayIndex);
+            const [startTime] = timeRange.trim().split(' - ');
+            const [hour] = startTime.split(':').map(Number);
+
+            return {
+                employee_id: employeeId,
+                day_of_week: backendDayIndex,
+                hour: hour,
+                is_available: false,  // Mark as unavailable explicitly through the flag
+                availability_type: 'UNV'  // Also set type to UNV for clarity
+            };
+        });
+
+        // Combine both selected and unselected availability data
+        const availabilityData = [...selectedAvailabilityData, ...unavailableAvailabilityData];
+
+        // Send the combined data to the backend
         await updateEmployeeAvailability(employeeId, availabilityData);
         await refetchAvailabilities();
         onClose();
@@ -295,6 +335,9 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
                         Availability for {employeeName}
                     </DialogTitle>
                     <div className="flex flex-col gap-2 mt-2">
+                        <div className="text-sm text-muted-foreground mb-2">
+                            Select time slots when the employee is available. Unselected time slots will be marked as unavailable.
+                        </div>
                         <div className="flex items-center gap-2">
                             <Badge variant="outline" className="text-sm">
                                 {employeeGroup}
@@ -372,24 +415,31 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
                                         <TableCell className="font-medium">{time}</TableCell>
                                         {activeDays.map(day => {
                                             const cellId = `${day}-${time}`;
+                                            const isSelected = selectedCells.has(cellId);
+                                            const cellType = isSelected ? selectedCells.get(cellId) : 'UNV';
+                                            const cellColor = isSelected
+                                                ? getCellColor(cellId)
+                                                : settings?.availability_types?.types.find(t => t.id === 'UNV')?.color || '#ef4444';
+
+                                            // Calculate cumulative hours for this day up to current hour for the selected type
                                             const cumulativeHours = calculateCumulativeHours(day, hour);
-                                            const cellType = selectedCells.get(cellId);
+
                                             return (
                                                 <TableCell
-                                                    key={cellId}
+                                                    key={`${day}-${time}`}
                                                     className={cn(
-                                                        'cursor-pointer select-none transition-colors text-center relative',
-                                                        selectedCells.has(cellId)
-                                                            ? 'hover:brightness-90'
-                                                            : 'hover:bg-muted'
+                                                        'relative p-0 h-12 w-12 transition-colors cursor-pointer',
+                                                        isSelected ? 'border-2 border-primary' : 'border border-muted'
                                                     )}
                                                     style={{
-                                                        backgroundColor: getCellColor(cellId)
+                                                        backgroundColor: isSelected
+                                                            ? `${cellColor}80` // Selected cells with 50% opacity 
+                                                            : `${cellColor}20`, // Unselected cells with 12.5% opacity to indicate "unavailable"
                                                     }}
                                                     onMouseDown={() => handleCellMouseDown(day, time)}
                                                     onMouseEnter={() => handleCellMouseEnter(day, time)}
                                                 >
-                                                    {selectedCells.has(cellId) && (
+                                                    {isSelected ? (
                                                         <>
                                                             <Check className="h-4 w-4 mx-auto text-white" />
                                                             <div className="absolute bottom-0 right-1 text-[10px] text-white">
@@ -398,6 +448,8 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
                                                                 )).filter(Boolean).join('')}
                                                             </div>
                                                         </>
+                                                    ) : (
+                                                        <X className="h-3 w-3 mx-auto text-gray-400 opacity-25" />
                                                     )}
                                                 </TableCell>
                                             );

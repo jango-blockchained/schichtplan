@@ -68,6 +68,7 @@ export interface Schedule {
     notes?: string | null;
     employee_name?: string;
     shift_type?: 'fixed' | 'promised' | 'availability' | 'regular';
+    availability_type?: string; // AVL, FIX, PRM, UNV
 }
 
 export interface ScheduleError {

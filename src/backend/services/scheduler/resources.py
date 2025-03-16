@@ -204,12 +204,16 @@ class ScheduleResources:
         for hour in range(start_hour, end_hour):
             hour_available = False
             for avail in availabilities:
-                if (
-                    avail.hour == hour
-                    and avail.availability_type != AvailabilityType.UNAVAILABLE
-                ):
-                    hour_available = True
-                    break
+                if avail.hour == hour:
+                    # Employee is available if both:
+                    # 1. is_available flag is true AND
+                    # 2. availability_type is not UNAVAILABLE
+                    if (
+                        avail.is_available
+                        and avail.availability_type != AvailabilityType.UNAVAILABLE
+                    ):
+                        hour_available = True
+                        break
             if not hour_available:
                 return False
 

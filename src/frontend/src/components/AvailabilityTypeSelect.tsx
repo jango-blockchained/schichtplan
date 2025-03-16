@@ -9,6 +9,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { getSettings } from '@/services/api';
 import type { Settings } from '@/types/index';
+import { cn } from '@/lib/utils';
 
 interface AvailabilityType {
     id: string;
@@ -22,17 +23,22 @@ interface AvailabilityType {
 interface AvailabilityTypeSelectProps {
     value: string;
     onChange: (value: string) => void;
+    showUnavailable?: boolean;
 }
 
-export function AvailabilityTypeSelect({ value, onChange }: AvailabilityTypeSelectProps) {
+export function AvailabilityTypeSelect({
+    value,
+    onChange,
+    showUnavailable = true
+}: AvailabilityTypeSelectProps) {
     const { data: settings } = useQuery<Settings>({
         queryKey: ['settings'],
         queryFn: getSettings,
     });
 
-    // Filter out UNAVAILABLE type and sort by priority
+    // Filter out UNAVAILABLE type unless showUnavailable is true
     const availabilityTypes = (settings?.availability_types?.types || [])
-        .filter((type: AvailabilityType) => type.is_available)
+        .filter((type: AvailabilityType) => showUnavailable || type.is_available)
         .sort((a: AvailabilityType, b: AvailabilityType) => a.priority - b.priority);
 
     return (
@@ -55,7 +61,10 @@ export function AvailabilityTypeSelect({ value, onChange }: AvailabilityTypeSele
                     <SelectItem
                         key={type.id}
                         value={type.id}
-                        className="flex items-center gap-2"
+                        className={cn(
+                            "flex items-center gap-2",
+                            type.id === value && "bg-secondary"
+                        )}
                     >
                         <div
                             className="w-3 h-3 rounded-full"

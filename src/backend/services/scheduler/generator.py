@@ -256,12 +256,19 @@ class ScheduleGenerator:
 
             # Create schedule entries for assigned employees
             for employee in employees_to_assign:
+                # Determine availability type for this schedule
+                availability_type = self._determine_availability_type(
+                    employee, shift, current_date
+                )
+
+                # Create schedule entry with availability_type
                 schedule = Schedule(
                     employee_id=employee.id,
                     date=current_date,
                     shift_id=shift.id,
                     status=ScheduleStatus.DRAFT,
                     version=version,
+                    availability_type=availability_type,
                 )
                 schedules.append(schedule)
                 assigned_employees.add(employee.id)
@@ -778,8 +785,9 @@ class ScheduleGenerator:
         if create_empty_schedules and not self.schedule:
             self._add_empty_schedules(start_date, end_date)
 
-        # Save to database
-        self._save_to_database()
+        # Don't save to database here - let the calling code handle it
+        # within the appropriate application context
+        # self._save_to_database()
 
         # Return result with metadata
         return result
@@ -819,6 +827,7 @@ class ScheduleGenerator:
                 if not existing_entry:
                     # Find a suitable shift for this employee
                     suitable_shift = None
+                    availability_type = AvailabilityType.AVAILABLE.value  # Default
 
                     # Look for a matching availability to assign an appropriate shift
                     employee_availabilities = [
@@ -835,6 +844,10 @@ class ScheduleGenerator:
                             employee_availabilities, key=lambda a: a.hour
                         )
                         earliest_hour = earliest_avail.hour
+
+                        # Check if we can determine availability type
+                        if hasattr(earliest_avail, "availability_type"):
+                            availability_type = earliest_avail.availability_type.value
 
                         # Try to find a shift that starts close to this hour
                         for shift in self.resources.shifts:
@@ -856,6 +869,7 @@ class ScheduleGenerator:
                         shift_id=suitable_shift.id if suitable_shift else None,
                         status=ScheduleStatus.DRAFT,
                         version=self.version,
+                        availability_type=availability_type,
                     )
 
                     self.schedule.append(schedule_entry)
@@ -1295,6 +1309,19 @@ class ScheduleGenerator:
 
     def _assign_employee_to_shift(self, employee, shift_template, shift_date):
         """Assign an employee to a shift and update all tracking data"""
+        # Determine availability_type based on employee availabilities
+        availability_type = self._determine_availability_type(
+            employee, shift_template, shift_date
+        )
+
+        # If employee is unavailable for this shift, don't assign
+        if availability_type == AvailabilityType.UNAVAILABLE.value:
+            self._log_info(
+                f"Employee {employee.first_name} {employee.last_name} is unavailable "
+                f"for shift {shift_template.id} on {shift_date}"
+            )
+            return None
+
         # Create the shift entry
         shift_entry = {
             "employee_id": employee.id,
@@ -1302,6 +1329,7 @@ class ScheduleGenerator:
             "shift_template_id": shift_template.id,
             "shift_template": shift_template,
             "date": shift_date,
+            "availability_type": availability_type,
         }
 
         # Add to schedule
@@ -1315,6 +1343,64 @@ class ScheduleGenerator:
             )
 
         return shift_entry
+
+    def _determine_availability_type(self, employee, shift_template, shift_date):
+        """Determine the availability type for a schedule based on employee availabilities"""
+        # Get employee availabilities for this day and shift hours
+        availabilities = self.resources.get_employee_availabilities(
+            employee.id, shift_date
+        )
+
+        if not availabilities:
+            return AvailabilityType.AVAILABLE.value
+
+        # Check availabilities for the shift hours
+        shift_start_hour = int(shift_template.start_time.split(":")[0])
+        shift_end_hour = int(shift_template.end_time.split(":")[0])
+
+        # Adjust end hour if it ends on the hour boundary
+        if shift_template.end_time.endswith(":00") and shift_end_hour > 0:
+            shift_end_hour -= 1
+
+        # Count availability types for the shift hours
+        type_counts = {
+            AvailabilityType.FIXED.value: 0,
+            AvailabilityType.PROMISE.value: 0,
+            AvailabilityType.AVAILABLE.value: 0,
+            AvailabilityType.UNAVAILABLE.value: 0,  # Add UNAVAILABLE type
+        }
+
+        # Check each hour in the shift
+        for hour in range(shift_start_hour, shift_end_hour + 1):
+            for avail in availabilities:
+                if avail.hour == hour:
+                    # Check both is_available flag and availability_type
+                    is_unavailable = (
+                        not avail.is_available
+                        or avail.availability_type.value
+                        == AvailabilityType.UNAVAILABLE.value
+                    )
+
+                    if is_unavailable:
+                        type_counts[AvailabilityType.UNAVAILABLE.value] += 1
+                        break
+                    else:
+                        # If available, count the specific type
+                        avail_type = avail.availability_type.value
+                        type_counts[avail_type] += 1
+                        break
+
+        # If any hour is unavailable, the whole shift should be considered unavailable
+        if type_counts[AvailabilityType.UNAVAILABLE.value] > 0:
+            return AvailabilityType.UNAVAILABLE.value
+
+        # Determine dominant type (give priority to FIX > PRM > AVL)
+        if type_counts[AvailabilityType.FIXED.value] > 0:
+            return AvailabilityType.FIXED.value
+        elif type_counts[AvailabilityType.PROMISE.value] > 0:
+            return AvailabilityType.PROMISE.value
+        else:
+            return AvailabilityType.AVAILABLE.value
 
     def get_distribution_metrics(self):
         """Get metrics about shift distribution fairness"""

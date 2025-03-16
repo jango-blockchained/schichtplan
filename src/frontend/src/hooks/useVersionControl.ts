@@ -68,23 +68,32 @@ export function useVersionControl({ dateRange, onVersionSelected }: UseVersionCo
 
     // Create version mutation
     const createVersionMutation = useMutation({
-        mutationFn: async () => {
-            if (!dateRange?.from || !dateRange?.to) {
+        mutationFn: async (params?: { startDate?: string; endDate?: string; }) => {
+            if (params?.startDate && params?.endDate) {
+                // Use provided date range from params
+                const data = {
+                    start_date: params.startDate,
+                    end_date: params.endDate,
+                    base_version: selectedVersion,
+                    notes: `New version for ${params.startDate} - ${params.endDate}`
+                };
+                return await createNewVersion(data);
+            } else if (dateRange?.from && dateRange?.to) {
+                // Use the date range from the component state
+                const fromStr = format(dateRange.from, 'yyyy-MM-dd');
+                const toStr = format(dateRange.to, 'yyyy-MM-dd');
+
+                const data = {
+                    start_date: fromStr,
+                    end_date: toStr,
+                    base_version: selectedVersion,
+                    notes: `New version for week ${getWeek(dateRange.from)} (${format(dateRange.from, 'dd.MM.yyyy')} - ${format(dateRange.to, 'dd.MM.yyyy')})`
+                };
+
+                return await createNewVersion(data);
+            } else {
                 throw new Error("Please select a date range");
             }
-
-            // Get the date range from the selected week
-            const fromStr = format(dateRange.from, 'yyyy-MM-dd');
-            const toStr = format(dateRange.to, 'yyyy-MM-dd');
-
-            const data = {
-                start_date: fromStr,
-                end_date: toStr,
-                base_version: selectedVersion,
-                notes: `New version for week ${getWeek(dateRange.from)} (${format(dateRange.from, 'dd.MM.yyyy')} - ${format(dateRange.to, 'dd.MM.yyyy')})`
-            };
-
-            return await createNewVersion(data);
         },
         onSuccess: (data) => {
             toast({
@@ -215,6 +224,29 @@ export function useVersionControl({ dateRange, onVersionSelected }: UseVersionCo
         createVersionMutation.mutate();
     };
 
+    const handleCreateNewVersionWithOptions = (options: { dateRange: DateRange; weekAmount: number }) => {
+        if (!options.dateRange.from || !options.dateRange.to) {
+            toast({
+                title: "Fehler",
+                description: "Bitte wählen Sie einen gültigen Zeitraum aus.",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        console.log(`🆕 Creating new version with custom options:`, options);
+
+        // Format dates for API
+        const fromStr = format(options.dateRange.from, 'yyyy-MM-dd');
+        const toStr = format(options.dateRange.to, 'yyyy-MM-dd');
+
+        // Create with the specific date range
+        createVersionMutation.mutate({
+            startDate: fromStr,
+            endDate: toStr
+        });
+    };
+
     const handlePublishVersion = (version: number) => {
         updateVersionStatusMutation.mutate({ version, status: 'PUBLISHED' });
     };
@@ -253,6 +285,7 @@ export function useVersionControl({ dateRange, onVersionSelected }: UseVersionCo
         refetch: versionsQuery.refetch,
         handleVersionChange,
         handleCreateNewVersion,
+        handleCreateNewVersionWithOptions,
         handlePublishVersion,
         handleArchiveVersion,
         handleDeleteVersion,
