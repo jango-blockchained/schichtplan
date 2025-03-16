@@ -122,9 +122,9 @@ class ScheduleResources:
 
     def _load_availabilities(self) -> List[EmployeeAvailability]:
         """Load availabilities with error handling"""
-        return EmployeeAvailability.query.filter(
-            EmployeeAvailability.availability_type != AvailabilityType.UNAVAILABLE
-        ).all()
+        # MODIFIED: Now loading ALL availabilities, including UNAVAILABLE ones
+        # This ensures that the availability records are properly checked
+        return EmployeeAvailability.query.all()
 
     def get_keyholders(self) -> List[Employee]:
         """Return a list of keyholder employees"""
@@ -185,11 +185,13 @@ class ScheduleResources:
                 absence.employee_id == employee_id
                 and absence.start_date <= day <= absence.end_date
             ):
+                logger.info(f"Employee {employee_id} is absent on {day}")
                 return False
 
         # Check if employee exists in the system - skip this check in test environments
         # where we may not have loaded employees but still need to test availability
         if self._employee_cache and employee_id not in self._employee_cache:
+            logger.info(f"Employee {employee_id} not found in cache")
             return False
 
         # Check availability
@@ -198,6 +200,9 @@ class ScheduleResources:
 
         # If no availabilities are set, employee is unavailable
         if not availabilities:
+            logger.info(
+                f"Employee {employee_id} has no availability records for day {day_of_week}"
+            )
             return False
 
         # Check if employee is available for all hours in the range
@@ -205,18 +210,30 @@ class ScheduleResources:
             hour_available = False
             for avail in availabilities:
                 if avail.hour == hour:
-                    # Employee is available if both:
-                    # 1. is_available flag is true AND
+                    # MODIFIED: Employee is available if EITHER:
+                    # 1. is_available flag is true OR
                     # 2. availability_type is not UNAVAILABLE
-                    if (
-                        avail.is_available
+                    if avail.is_available or (
+                        avail.availability_type
                         and avail.availability_type != AvailabilityType.UNAVAILABLE
                     ):
                         hour_available = True
                         break
+                    else:
+                        logger.info(
+                            f"Employee {employee_id} is unavailable at hour {hour}. "
+                            f"is_available={avail.is_available}, "
+                            f"type={avail.availability_type.value if avail.availability_type else 'None'}"
+                        )
             if not hour_available:
+                logger.info(
+                    f"Employee {employee_id} is not available at hour {hour} on day {day}"
+                )
                 return False
 
+        logger.info(
+            f"Employee {employee_id} is available on {day} from {start_hour} to {end_hour}"
+        )
         return True
 
     def get_schedule_data(self) -> Dict[Tuple[int, date], Schedule]:
