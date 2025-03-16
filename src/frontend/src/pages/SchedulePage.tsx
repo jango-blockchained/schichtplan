@@ -69,6 +69,7 @@ import { AddScheduleDialog } from '@/components/Schedule/AddScheduleDialog';
 import { ScheduleStatistics } from '@/components/Schedule/ScheduleStatistics';
 import { EnhancedDateRangeSelector } from '@/components/EnhancedDateRangeSelector';
 import { VersionTable } from '@/components/Schedule/VersionTable';
+import { ScheduleManager } from '@/components/ScheduleManager';
 
 export function SchedulePage() {
   const today = new Date();
@@ -82,6 +83,8 @@ export function SchedulePage() {
   const queryClient = useQueryClient();
   const [isAddScheduleDialogOpen, setIsAddScheduleDialogOpen] = useState(false);
   const [employeeAbsences, setEmployeeAbsences] = useState<Record<number, any[]>>({});
+  // Add a state for tracking the active view
+  const [activeView, setActiveView] = useState<'table' | 'grid'>('table');
 
   // Initialize date range with current week
   useEffect(() => {
@@ -870,6 +873,11 @@ export function SchedulePage() {
     }
   };
 
+  // Add a handler for view changes
+  const handleViewChange = (newView: 'table' | 'grid') => {
+    setActiveView(newView);
+  };
+
   return (
     <div className="container mx-auto py-4 space-y-4">
       <PageHeader title="Dienstplan" className="mb-4">
@@ -956,6 +964,8 @@ export function SchedulePage() {
           isLoading={isLoadingSchedule || isLoadingVersions || isGenerationPending}
           canAdd={!!selectedVersion}
           canDelete={!!selectedVersion && convertedSchedules.length > 0}
+          activeView={activeView}
+          onViewChange={handleViewChange}
         />
       </div>
 
@@ -1034,7 +1044,7 @@ export function SchedulePage() {
               </Card>
             ) : (
               <div className="relative">
-                <ScheduleTable
+                <ScheduleManager
                   schedules={convertedSchedules}
                   dateRange={dateRange}
                   onDrop={handleShiftDrop}
@@ -1042,6 +1052,7 @@ export function SchedulePage() {
                   isLoading={isLoadingSchedule}
                   employeeAbsences={employeeAbsences}
                   absenceTypes={settingsData?.employee_groups?.absence_types || []}
+                  activeView={activeView}
                 />
               </div>
             )}
