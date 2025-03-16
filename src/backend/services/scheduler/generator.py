@@ -436,63 +436,165 @@ class ScheduleGenerator:
         shift: ShiftTemplate,
     ) -> bool:
         """Check if assigning this shift would exceed employee constraints"""
-        # Skip constraints check if employee already has a shift on this date
-        if current_date in self.schedule_by_date:
-            for existing_entry in self.schedule_by_date[current_date]:
-                if existing_entry.employee_id == employee.id:
-                    return True
+        try:
+            # Check general constraints like max consecutive days, rest time, etc.
+            # Log what we're checking for debugging
+            self._log_debug(
+                f"Checking constraints for employee {employee.id} on {current_date} "
+                f"for shift {shift.id} ({shift.start_time}-{shift.end_time})"
+            )
 
-        # Check if employee has enough rest hours between shifts
-        if not self._has_enough_rest(employee, shift, current_date):
-            return True
+            # Check if employee has already worked too many consecutive days
+            consecutive_days = self._count_consecutive_days(employee.id, current_date)
+            if consecutive_days >= self.config.max_consecutive_days:
+                self._log_debug(
+                    f"Employee {employee.id} has worked {consecutive_days} consecutive days, "
+                    f"which exceeds max of {self.config.max_consecutive_days}"
+                )
+                return True
 
-        # Skip employee group checks if not enforced
-        if (
-            hasattr(self.config, "enforce_employee_group_rules")
-            and self.config.enforce_employee_group_rules
-        ):
-            # Check constraints based on employee group
-            week_start = self._get_week_start(current_date)
+            # Check if employee would have enough rest between shifts
+            if not self._has_enough_rest(employee, shift, current_date):
+                self._log_debug(
+                    f"Employee {employee.id} would not have enough rest "
+                    f"between shifts on {current_date}"
+                )
+                return True
 
-            # Get hours worked in this week excluding this shift
-            hours_worked = self._get_weekly_hours(employee.id, week_start)
+            # Check weekly hours
+            weekly_hours = self._get_weekly_hours(employee.id, current_date)
 
-            # Add hours for this shift
-            if hasattr(shift, "duration_hours") and shift.duration_hours:
-                shift_hours = shift.duration_hours
+            # Calculate shift duration
+            shift_duration = 0
+            if hasattr(shift, "duration_hours") and shift.duration_hours is not None:
+                shift_duration = shift.duration_hours
             else:
-                # Calculate shift duration
-                start_minutes = time_to_minutes(shift.start_time)
-                end_minutes = time_to_minutes(shift.end_time)
-                shift_hours = (end_minutes - start_minutes) / 60
+                # Calculate from start and end time
+                shift_duration = self._calculate_shift_duration(
+                    shift.start_time, shift.end_time
+                )
 
-            total_hours = hours_worked + shift_hours
+            total_hours = weekly_hours + shift_duration
+
+            # Check if adding this shift would exceed daily hours limit for employee group
+            # First try to get max_daily_hours from employee settings
+            max_daily_hours = None
+
+            # Get employee group settings
+            if hasattr(self, "config") and hasattr(self.config, "employee_types"):
+                # Try to find employee group in config
+                for group in self.config.employee_types:
+                    if group.get("id") == employee.employee_group:
+                        max_daily_hours = group.get("max_daily_hours")
+                        break
+
+            # If no specific setting, use general setting or default
+            if max_daily_hours is None:
+                if hasattr(self.config, "max_daily_hours"):
+                    max_daily_hours = self.config.max_daily_hours
+                else:
+                    # Default values based on employee group
+                    if employee.employee_group in ["VZ", "TL"]:
+                        max_daily_hours = 8.0
+                    elif employee.employee_group == "TZ":
+                        max_daily_hours = 6.0
+                    else:
+                        max_daily_hours = 5.0
+
+            # Check if shift duration would exceed max daily hours
+            if shift_duration > max_daily_hours:
+                self._log_debug(
+                    f"Shift duration {shift_duration}h exceeds max daily hours "
+                    f"{max_daily_hours}h for employee {employee.id} in group "
+                    f"{employee.employee_group}"
+                )
+                return True
+
+            # Also check if already has shifts on this day, and would exceed combined
+            daily_hours = 0
+            for entry in self.schedule:
+                if isinstance(entry, dict):
+                    if (
+                        entry.get("date") == current_date
+                        and entry.get("employee_id") == employee.id
+                        and entry.get("shift_id") is not None
+                    ):
+                        # Find shift to calculate hours
+                        entry_shift = next(
+                            (
+                                s
+                                for s in self.resources.shifts
+                                if s.id == entry.get("shift_id")
+                            ),
+                            None,
+                        )
+                        if entry_shift:
+                            if hasattr(entry_shift, "duration_hours"):
+                                daily_hours += entry_shift.duration_hours
+                            else:
+                                daily_hours += self._calculate_shift_duration(
+                                    entry_shift.start_time, entry_shift.end_time
+                                )
+                elif hasattr(entry, "date") and hasattr(entry, "employee_id"):
+                    if (
+                        entry.date == current_date
+                        and entry.employee_id == employee.id
+                        and entry.shift_id is not None
+                    ):
+                        # Find shift to calculate hours
+                        entry_shift = next(
+                            (
+                                s
+                                for s in self.resources.shifts
+                                if s.id == entry.shift_id
+                            ),
+                            None,
+                        )
+                        if entry_shift:
+                            if hasattr(entry_shift, "duration_hours"):
+                                daily_hours += entry_shift.duration_hours
+                            else:
+                                daily_hours += self._calculate_shift_duration(
+                                    entry_shift.start_time, entry_shift.end_time
+                                )
+
+            # Check if combined daily hours would exceed limit
+            if daily_hours + shift_duration > max_daily_hours:
+                self._log_debug(
+                    f"Combined daily hours ({daily_hours}h + {shift_duration}h) would exceed "
+                    f"max daily hours {max_daily_hours}h for employee {employee.id}"
+                )
+                return True
 
             # Check if adding this shift would exceed weekly hours limit
             if employee.employee_group in self.config.max_hours_per_group:
                 max_hours = self.config.max_hours_per_group[employee.employee_group]
                 if total_hours > max_hours:
+                    self._log_debug(
+                        f"Weekly hours ({total_hours}h) would exceed max "
+                        f"({max_hours}h) for employee {employee.id}"
+                    )
                     return True
 
-            # Get number of shifts worked this week
-            shifts_worked = self._count_weekly_shifts(employee.id, week_start)
-
             # Check if adding this shift would exceed weekly shifts limit
+            shifts_worked = self._count_weekly_shifts(employee.id, current_date)
             if employee.employee_group in self.config.max_shifts_per_group:
                 max_shifts = self.config.max_shifts_per_group[employee.employee_group]
                 if shifts_worked + 1 > max_shifts:
+                    self._log_debug(
+                        f"Weekly shifts ({shifts_worked + 1}) would exceed max "
+                        f"({max_shifts}) for employee {employee.id}"
+                    )
                     return True
 
-        # Check availability only if configured
-        if (
-            not hasattr(self.config, "enforce_availability")
-            or self.config.enforce_availability
-        ):
-            # Check if employee is available for this shift
-            if not self._is_employee_available(employee, current_date, shift):
-                return True
+            # All constraints satisfied
+            return False
 
-        return False
+        except Exception as e:
+            self._log_warning(
+                f"Error checking constraints for employee {employee.id}: {str(e)}"
+            )
+            return True  # Safer to assume constraints are exceeded if check fails
 
     def _is_employee_available(
         self, employee: Employee, current_date: date, shift: ShiftTemplate
@@ -1212,6 +1314,68 @@ class ScheduleGenerator:
         week_end = week_start + timedelta(days=6)
         weekly_context = self._get_weekly_schedule_context(week_start, week_end)
 
+        # Get shift category to aid in balancing shift types
+        shift_category = self._categorize_shift(shift_template, shift_date)
+        self._log_info(f"Processing shift of type {shift_category} for {shift_date}")
+
+        # Check current distribution of shift types in the schedule
+        current_distribution = self._get_current_shift_distribution()
+        total_shifts = sum(current_distribution.values()) or 1
+
+        early_percent = current_distribution.get("early", 0) / total_shifts * 100
+        middle_percent = current_distribution.get("middle", 0) / total_shifts * 100
+        late_percent = current_distribution.get("late", 0) / total_shifts * 100
+
+        self._log_info(
+            f"Current distribution: Early: {early_percent:.1f}%, "
+            f"Middle: {middle_percent:.1f}%, Late: {late_percent:.1f}%"
+        )
+
+        # Target a more balanced distribution (roughly equal thirds)
+        ideal_distribution = {"early": 34, "middle": 33, "late": 33}
+
+        # See if we need to prioritize certain shift types - make adjustments stronger
+        distribution_priority = 0
+        if shift_category == "early" and early_percent > 50:
+            # We have far too many early shifts
+            distribution_priority = -20  # Much lower priority (higher score)
+            self._log_info(
+                f"Extremely deprioritizing early shifts (currently {early_percent:.1f}%)"
+            )
+        elif (
+            shift_category == "early"
+            and early_percent > ideal_distribution["early"] + 10
+        ):
+            # We have too many early shifts
+            distribution_priority = -10  # Lower priority (higher score)
+            self._log_info(
+                f"Strongly deprioritizing early shifts (currently {early_percent:.1f}%)"
+            )
+        elif shift_category == "middle" and middle_percent < 20:
+            # We need many more middle shifts
+            distribution_priority = 20  # Much higher priority (lower score)
+            self._log_info(
+                f"Extremely prioritizing middle shifts (currently {middle_percent:.1f}%)"
+            )
+        elif (
+            shift_category == "middle" and middle_percent < ideal_distribution["middle"]
+        ):
+            # We need more middle shifts
+            distribution_priority = 10  # Higher priority (lower score)
+            self._log_info(
+                f"Prioritizing middle shifts (currently {middle_percent:.1f}%)"
+            )
+        elif shift_category == "late" and late_percent < 20:
+            # We need many more late shifts
+            distribution_priority = 20  # Much higher priority (lower score)
+            self._log_info(
+                f"Extremely prioritizing late shifts (currently {late_percent:.1f}%)"
+            )
+        elif shift_category == "late" and late_percent < ideal_distribution["late"]:
+            # We need more late shifts
+            distribution_priority = 10  # Higher priority (lower score)
+            self._log_info(f"Prioritizing late shifts (currently {late_percent:.1f}%)")
+
         # Calculate scores for each employee
         employee_scores = []
         for employee in available_employees:
@@ -1224,11 +1388,14 @@ class ScheduleGenerator:
                 continue
 
             # Calculate assignment score from distribution manager
-            score = self.distribution_manager.calculate_assignment_score(
+            base_score = self.distribution_manager.calculate_assignment_score(
                 employee.id, shift_template, shift_date, context=weekly_context
             )
 
-            employee_scores.append((employee, score))
+            # Apply distribution priority adjustment
+            adjusted_score = base_score - distribution_priority
+
+            employee_scores.append((employee, adjusted_score))
 
         # Sort by score (lower is better)
         employee_scores.sort(key=lambda x: x[1])
@@ -1239,10 +1406,68 @@ class ScheduleGenerator:
         # Log assignment decision for debugging
         best_employee, score = employee_scores[0]
         self._log_info(
-            f"Selected employee {best_employee.id} for shift on {shift_date} with score {score:.2f}"
+            f"Selected employee {best_employee.id} for {shift_category} shift on {shift_date} with score {score:.2f}"
         )
 
         return best_employee
+
+    def _get_current_shift_distribution(self):
+        """Calculate the current distribution of shift types in the schedule"""
+        distribution = {"early": 0, "middle": 0, "late": 0, "weekend": 0, "standard": 0}
+
+        for entry in self.schedule:
+            if isinstance(entry, dict) and entry.get("shift_id"):
+                # Find the shift template
+                shift = next(
+                    (s for s in self.resources.shifts if s.id == entry.get("shift_id")),
+                    None,
+                )
+                if shift and entry.get("date"):
+                    category = self._categorize_shift(shift, entry.get("date"))
+                    distribution[category] += 1
+            elif hasattr(entry, "shift_id") and hasattr(entry, "date"):
+                # Find the shift template
+                shift = next(
+                    (s for s in self.resources.shifts if s.id == entry.shift_id), None
+                )
+                if shift:
+                    category = self._categorize_shift(shift, entry.date)
+                    distribution[category] += 1
+
+        return distribution
+
+    def _categorize_shift(self, shift, day):
+        """Categorize shift by type (early, middle, late, etc.)"""
+        # Delegate to distribution manager if available
+        if hasattr(self, "distribution_manager"):
+            return self.distribution_manager._categorize_shift(shift, day)
+
+        # Fallback implementation
+        start_minutes = self._time_to_minutes(shift.start_time)
+
+        # Check if weekend
+        if isinstance(day, date) and day.weekday() >= 5:
+            return "weekend"
+
+        # Adjusted categorization to create better balance
+        # Early shift - starts before 11:00
+        if start_minutes < self._time_to_minutes("11:00"):
+            return "early"
+
+        # Middle shift - starts between 11:00 and 14:00
+        if (
+            self._time_to_minutes("11:00")
+            <= start_minutes
+            < self._time_to_minutes("14:00")
+        ):
+            return "middle"
+
+        # Late shift - starts at/after 14:00
+        if start_minutes >= self._time_to_minutes("14:00"):
+            return "late"
+
+        # Default to standard (should rarely happen with this logic)
+        return "standard"
 
     def _get_weekly_schedule_context(self, week_start, week_end):
         """Get context information about the current schedule for this week"""
@@ -1320,19 +1545,6 @@ class ScheduleGenerator:
             return False
 
         return True
-
-    def _categorize_shift(self, shift, day):
-        """Categorize a shift based on time of day (morning, afternoon, evening)"""
-        # Extract hour from start time
-        start_hour = int(shift.start_time.split(":")[0])
-
-        # Categorize based on start hour
-        if start_hour < 12:
-            return "morning"
-        elif start_hour < 16:
-            return "afternoon"
-        else:
-            return "evening"
 
     def _assign_employee_to_shift(self, employee, shift_template, shift_date):
         """Assign an employee to a shift and update all tracking data"""

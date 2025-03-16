@@ -44,6 +44,13 @@ cleanup() {
         echo "✓ Frontend is not running"
     fi
     
+    # Kill ngrok if running
+    if pgrep -f "ngrok" > /dev/null; then
+        echo "Stopping ngrok tunnels..."
+        pkill -f "ngrok"
+        echo "✓ Ngrok tunnels stopped"
+    fi
+    
     # Kill tmux session
     tmux kill-session -t schichtplan 2>/dev/null
     
@@ -61,12 +68,21 @@ mkdir -p src/logs
 mkdir -p src/instance
 mkdir -p src/scripts
 
-# Ensure menu script is executable
+# Ensure menu and ngrok scripts are executable
 chmod +x src/scripts/menu.sh
+if [ -f src/scripts/ngrok_manager.sh ]; then
+    chmod +x src/scripts/ngrok_manager.sh
+fi
 
 # Kill any existing processes
 kill_port 5000  # Backend port
 kill_port 5173  # Frontend port
+
+# Kill existing ngrok processes
+if pgrep -f "ngrok" > /dev/null; then
+    echo "Stopping existing ngrok processes..."
+    pkill -f "ngrok"
+fi
 
 # Kill existing tmux session if it exists
 tmux kill-session -t schichtplan 2>/dev/null
@@ -126,6 +142,7 @@ echo "- Bottom pane: Service Control Menu"
 echo -e "\nTo attach to tmux session: tmux attach-session -t schichtplan"
 echo "To detach from tmux: press Ctrl+B, then D"
 echo "To exit completely: press Ctrl+C in this terminal"
+echo -e "\nFor public access via ngrok, use option 8 in the Service Control Menu"
 echo ""
 
 # Attach to tmux session

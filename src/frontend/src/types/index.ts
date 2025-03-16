@@ -403,6 +403,7 @@ export interface WeeklyShift {
     };
     start?: string;
     end?: string;
+    shift_type_id?: string;
 }
 
 export interface WeeklySchedule {

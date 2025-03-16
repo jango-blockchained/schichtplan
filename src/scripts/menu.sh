@@ -125,6 +125,45 @@ show_dev_stats() {
     cloc "$PROJECT_ROOT" --exclude-dir=node_modules,dist,build,__pycache__,instance,.venv,.git,.pytest_cache,.mypy_cache --exclude-ext=log,pyc
 }
 
+# Source the ngrok manager script
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+source "$SCRIPT_DIR/ngrok_manager.sh"
+
+# Function to show the ngrok menu
+show_ngrok_menu() {
+    while true; do
+        clear
+        echo "=== Ngrok Public Access Menu ==="
+        echo "1) Start Backend Public Access"
+        echo "2) Start Frontend Public Access"
+        echo "3) Start All Public Access"
+        echo "4) Stop Backend Public Access"
+        echo "5) Stop Frontend Public Access"
+        echo "6) Stop All Public Access"
+        echo "7) Show Public URLs"
+        echo "8) Back to Main Menu"
+        echo "=================================="
+        
+        read -n 1 -p "Select an option: " choice
+        echo ""
+        
+        case $choice in
+            1) ngrok_main start backend ;;
+            2) ngrok_main start frontend ;;
+            3) ngrok_main start ;;
+            4) ngrok_main stop backend ;;
+            5) ngrok_main stop frontend ;;
+            6) ngrok_main stop ;;
+            7) ngrok_main status ;;
+            8) return ;;
+            *) echo "Invalid option" ;;
+        esac
+        
+        echo ""
+        read -n 1 -p "Press any key to continue..."
+    done
+}
+
 # Main menu loop
 while true; do
     clear
@@ -136,7 +175,8 @@ while true; do
     echo "5) Stop Frontend"
     echo "6) Stop All Services"
     echo "7) Show Development Statistics"
-    echo "8) Close Tmux Session (Stop All)"
+    echo "8) Public Access (Ngrok)"
+    echo "9) Close Tmux Session (Stop All)"
     echo "q) Quit"
     echo "=================================="
     
@@ -151,7 +191,8 @@ while true; do
         5) stop_frontend ;;
         6) stop_all ;;
         7) show_dev_stats ;;
-        8) close_tmux_session ;;
+        8) show_ngrok_menu ;;
+        9) close_tmux_session ;;
         q|Q) exit 0 ;;
         *) echo "Invalid option" ;;
     esac
