@@ -208,10 +208,7 @@ const TimeSlotCell = ({
                                     hasAbsence && "opacity-50 cursor-not-allowed"
                                 )}
                                 style={{
-                                    backgroundColor: schedule.shift_type === 'fixed' ? '#3b82f6' :
-                                        schedule.shift_type === 'promised' ? '#22c55e' :
-                                            schedule.shift_type === 'availability' ? '#f59e0b' :
-                                                '#64748b',
+                                    backgroundColor: getShiftTypeColor(schedule, settings),
                                     color: 'white'
                                 }}
                                 onClick={(e) => {
@@ -225,9 +222,21 @@ const TimeSlotCell = ({
                             >
                                 {formatEmployeeName(employee)}
                                 {schedule.shift_start && schedule.shift_end && (
-                                    <span className="text-[10px] ml-1 bg-black/20 px-1 rounded">
-                                        {schedule.shift_start}-{schedule.shift_end}
-                                    </span>
+                                    <div className="flex flex-col items-start mt-1">
+                                        <span className="text-[10px] px-1 rounded"
+                                            style={{
+                                                backgroundColor: getShiftTypeColor(schedule, settings),
+                                                color: 'white'
+                                            }}>
+                                            {schedule.shift_start}-{schedule.shift_end}
+                                        </span>
+                                        <span className="text-[8px] ml-1 mt-1 font-medium"
+                                            style={{
+                                                color: getShiftTypeColor(schedule, settings)
+                                            }}>
+                                            {getShiftTypeName(schedule)}
+                                        </span>
+                                    </div>
                                 )}
                             </div>
                         );
@@ -510,4 +519,39 @@ export function TimeGridScheduleTable({
             </CardContent>
         </Card>
     );
+}
+
+function determineShiftType(startTime: string): 'EARLY' | 'MIDDLE' | 'LATE' {
+    if (!startTime) return 'MIDDLE';
+    const startHour = parseInt(startTime.split(':')[0]);
+    if (startHour < 10) return 'EARLY';
+    if (startHour >= 14) return 'LATE';
+    return 'MIDDLE';
+}
+
+// Helper function to get shift type color
+function getShiftTypeColor(schedule: Schedule, settings: any): string {
+    // First try to get color from shift_type_id
+    if (schedule.shift_type_id && settings?.shift_types) {
+        const shiftType = settings.shift_types.find(
+            (type: any) => type.id === schedule.shift_type_id
+        );
+        if (shiftType?.color) return shiftType.color;
+    }
+
+    // Fallback to determining type from start time
+    const determinedType = determineShiftType(schedule.shift_start || '');
+    const shiftType = settings?.shift_types?.find(
+        (type: any) => type.id === determinedType
+    );
+    return shiftType?.color || '#64748b';
+}
+
+// Helper function to get shift type name
+function getShiftTypeName(schedule: Schedule): string {
+    // First try to get name from shift_type_name
+    if (schedule.shift_type_name) return schedule.shift_type_name;
+
+    // Fallback to determining type from start time
+    return determineShiftType(schedule.shift_start || '');
 } 

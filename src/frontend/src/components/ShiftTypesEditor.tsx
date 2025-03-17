@@ -17,11 +17,16 @@ import {
 } from "./ui/table";
 
 export interface ShiftType {
-    id: string;
+    id: 'EARLY' | 'MIDDLE' | 'LATE';
     name: string;
     color: string;
-    type: 'shift';
 }
+
+const defaultShiftTypes: ShiftType[] = [
+    { id: 'EARLY', name: 'Früh', color: '#22c55e' },
+    { id: 'MIDDLE', name: 'Mitte', color: '#3b82f6' },
+    { id: 'LATE', name: 'Spät', color: '#f59e0b' },
+];
 
 interface ShiftTypesEditorProps {
     shiftTypes: ShiftType[];
@@ -44,10 +49,9 @@ export default function ShiftTypesEditor({ shiftTypes, onChange }: ShiftTypesEdi
 
     function getDefaultShiftType(): ShiftType {
         return {
-            id: '',
+            id: 'EARLY',
             name: '',
             color: '#4CAF50',
-            type: 'shift'
         };
     }
 
@@ -93,7 +97,7 @@ export default function ShiftTypesEditor({ shiftTypes, onChange }: ShiftTypesEdi
         handleCloseModal();
     };
 
-    const handleDeleteType = (typeId: string) => {
+    const handleDeleteType = (typeId: 'EARLY' | 'MIDDLE' | 'LATE') => {
         const updatedTypes = localShiftTypes.filter(t => t.id !== typeId);
         setLocalShiftTypes(updatedTypes);
         onChange(updatedTypes);
@@ -178,7 +182,7 @@ export default function ShiftTypesEditor({ shiftTypes, onChange }: ShiftTypesEdi
                                 <Label>ID</Label>
                                 <Input
                                     value={editingType?.id || ''}
-                                    onChange={(e) => setEditingType(prev => prev ? { ...prev, id: e.target.value } : null)}
+                                    onChange={(e) => setEditingType(prev => prev ? { ...prev, id: e.target.value as 'EARLY' | 'MIDDLE' | 'LATE' } : null)}
                                 />
                             </div>
 

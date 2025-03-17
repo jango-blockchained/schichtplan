@@ -7,7 +7,13 @@ import logging
 from models import Employee, ShiftTemplate, Schedule
 from .utility import calculate_duration
 
+# Configure logger
 logger = logging.getLogger(__name__)
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+handler = logging.StreamHandler()
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
 
 class ShiftScore:
@@ -40,6 +46,7 @@ class DistributionManager:
         self.preference_weight = 1.0
         self.seniority_weight = 0.5
         self.assignments = {}
+        self.logger = logger
 
     def initialize(self, employees, historical_data=None, shifts=None, resources=None):
         """Initialize the distribution manager with employee and historical data"""
@@ -134,12 +141,11 @@ class DistributionManager:
         """Initialize employee data structures"""
         for employee in employees:
             self.employee_history[employee.id] = {
-                "early": 0,
-                "middle": 0,  # Add middle type explicitly
-                "late": 0,
+                "EARLY": 0,
+                "MIDDLE": 0,
+                "LATE": 0,
                 "weekend": 0,
                 "holiday": 0,
-                "standard": 0,
                 "total": 0,
                 "hours": 0.0,
             }
@@ -204,6 +210,10 @@ class DistributionManager:
             self.employee_history[employee_id][shift_category] += 1
             self.employee_history[employee_id]["total"] += 1
 
+            # Track weekend and holiday shifts
+            if shift_date.weekday() >= 5:  # Saturday or Sunday
+                self.employee_history[employee_id]["weekend"] += 1
+
             # Track hours
             if (
                 hasattr(shift_template, "duration_hours")
@@ -222,12 +232,17 @@ class DistributionManager:
         """Categorize a shift based on its characteristics
 
         Categories:
-        - early: starts before 10:00
-        - middle: starts between 10:00-14:00
-        - late: starts at or after 14:00
+        - EARLY: starts before 10:00
+        - MIDDLE: starts between 10:00-14:00
+        - LATE: starts at or after 14:00
         """
+        # First check if shift_type_id is available
+        if hasattr(shift, "shift_type_id") and shift.shift_type_id:
+            if shift.shift_type_id in ["EARLY", "MIDDLE", "LATE"]:
+                return shift.shift_type_id
+
         # Default category if we can't determine
-        category = "unknown"
+        category = "EARLY"  # Default to EARLY if we can't determine
 
         # Extract start hour
         if hasattr(shift, "start_time") and shift.start_time:
@@ -236,95 +251,56 @@ class DistributionManager:
 
                 # Categorize based on start hour
                 if start_hour < 10:
-                    category = "early"
+                    category = "EARLY"
                 elif 10 <= start_hour < 14:
-                    category = "middle"
+                    category = "MIDDLE"
                 else:
-                    category = "late"
+                    category = "LATE"
             except (ValueError, IndexError):
                 pass
 
         return category
 
     def _calculate_shift_scores(self):
-        """Calculate scores for all shift types based on their characteristics.
-
-        Lower scores are better (more desirable shifts).
-        Higher scores are worse (less desirable shifts).
-        """
-        self.shift_scores = {}
-
+        """Calculate scores for all shift types based on their characteristics"""
         for shift in self.shifts:
-            score = 0
-
-            # Start with a base score
-            start_hour = int(shift.start_time.split(":")[0])
-            end_hour = int(shift.end_time.split(":")[0])
-
-            # Calculate shift type based on start time
-            # Early shift (starts before 10:00)
-            if start_hour < 10:
-                shift_type = "early"
-                # Check current distribution and adjust score
-                early_ratio = self._get_shift_type_ratio("early")
-                # Higher penalty for early shifts if their proportion is already high
-                if early_ratio > 0.50:  # More than 50% early shifts
-                    score += 50  # Significant penalty
-                elif early_ratio > 0.40:  # More than 40% early shifts
-                    score += 30  # Medium penalty
-                elif early_ratio > 0.33:  # Slightly above ideal (33%)
-                    score += 10  # Small penalty
-            # Middle shift (starts between 10:00 and 14:00)
-            elif 10 <= start_hour < 14:
-                shift_type = "middle"
-                # Check current distribution and adjust score
-                middle_ratio = self._get_shift_type_ratio("middle")
-                # Bonus for middle shifts if their proportion is low
-                if middle_ratio < 0.20:  # Less than 20% middle shifts
-                    score -= 40  # Significant bonus (lower scores are better)
-                elif (
-                    middle_ratio < 0.30
-                ):  # Less than 30% middle shifts (still below ideal)
-                    score -= 20  # Medium bonus
-            # Late shift (starts at or after 14:00)
-            else:
-                shift_type = "late"
-                # Check current distribution and adjust score
-                late_ratio = self._get_shift_type_ratio("late")
-                # Bonus for late shifts if their proportion is low
-                if late_ratio < 0.20:  # Less than 20% late shifts
-                    score -= 40  # Significant bonus
-                elif late_ratio < 0.30:  # Less than 30% late shifts (still below ideal)
-                    score -= 20  # Medium bonus
-
-            # Add to score based on early/late hours (outside 9-18)
-            early_hours = max(0, 9 - start_hour)
-            late_hours = max(0, end_hour - 18)
-
-            score += early_hours * 5  # Penalty for very early hours
-            score += late_hours * 7  # Higher penalty for late hours
-
-            # Bonus for standard business hours (most employees prefer these)
-            if 9 <= start_hour and end_hour <= 18:
-                score -= 5
-
-            # Weekend penalty - not applied here, will be applied in assignment score
-
-            # Store the score and type
-            self.shift_scores[shift.id] = {
-                "score": score,
-                "type": shift_type,
-                "start_hour": start_hour,
-                "end_hour": end_hour,
+            score = {
+                "type": "EARLY",  # Default type
+                "base_score": ShiftScore.STANDARD,
+                "modifiers": [],
             }
 
-        self.logger.info(f"Calculated scores for {len(self.shift_scores)} shifts")
-        for shift_id, data in list(self.shift_scores.items())[
-            :5
-        ]:  # Log first 5 for debugging
-            self.logger.debug(
-                f"Shift {shift_id} ({data['type']}): score {data['score']}"
-            )
+            if hasattr(shift, "start_time") and shift.start_time:
+                try:
+                    start_hour = int(shift.start_time.split(":")[0])
+
+                    # First check if shift has explicit type
+                    if hasattr(shift, "shift_type_id") and shift.shift_type_id in [
+                        "EARLY",
+                        "MIDDLE",
+                        "LATE",
+                    ]:
+                        score["type"] = shift.shift_type_id
+                        if shift.shift_type_id == "EARLY":
+                            score["base_score"] = ShiftScore.EARLY_MORNING
+                        elif shift.shift_type_id == "LATE":
+                            score["base_score"] = ShiftScore.LATE_NIGHT
+                    else:
+                        # Determine type based on start time
+                        if start_hour < 10:
+                            score["type"] = "EARLY"
+                            score["base_score"] = ShiftScore.EARLY_MORNING
+                        elif 10 <= start_hour < 14:
+                            score["type"] = "MIDDLE"
+                            score["base_score"] = ShiftScore.STANDARD
+                        else:
+                            score["type"] = "LATE"
+                            score["base_score"] = ShiftScore.LATE_NIGHT
+
+                except (ValueError, IndexError):
+                    pass
+
+            self.shift_scores[shift.id] = score
 
     def _get_shift_type_ratio(self, shift_type):
         """Calculate the ratio of a specific shift type in current assignments."""
@@ -386,7 +362,7 @@ class DistributionManager:
             workload_factor = workload_factor * (40 / contracted_hours)
 
         # Count shift types this employee already has
-        employee_shift_types = {"early": 0, "middle": 0, "late": 0}
+        employee_shift_types = {"EARLY": 0, "MIDDLE": 0, "LATE": 0}
 
         for assignment in employee_assignments:
             assigned_shift_id = assignment.get("shift_id")
@@ -411,12 +387,12 @@ class DistributionManager:
             current_type_percentage = type_percentages.get(shift_type, 0)
 
             # Apply heavier penalties for unbalanced distributions
-            if shift_type == "early" and current_type_percentage > 50:
+            if shift_type == "EARLY" and current_type_percentage > 50:
                 # If employee already has too many early shifts
                 base_score += 50
-            elif shift_type == "early" and current_type_percentage > 33:
+            elif shift_type == "EARLY" and current_type_percentage > 33:
                 base_score += 25
-            elif shift_type == "middle" and current_type_percentage < 20:
+            elif shift_type == "MIDDLE" and current_type_percentage < 20:
                 # If employee doesn't have enough middle shifts
                 base_score -= 30
             elif shift_type == "late" and current_type_percentage < 20:
@@ -494,9 +470,9 @@ class DistributionManager:
             category_ratio = history[category] / history["total"]
 
             # Check overall distribution of shift types in employee history
-            early_ratio = history["early"] / max(history["total"], 1)
-            middle_ratio = history["middle"] / max(history["total"], 1)
-            late_ratio = history["late"] / max(history["total"], 1)
+            early_ratio = history["EARLY"] / max(history["total"], 1)
+            middle_ratio = history["MIDDLE"] / max(history["total"], 1)
+            late_ratio = history["LATE"] / max(history["total"], 1)
 
             # Get ideal distribution - balanced across shift types
             ideal = {
@@ -595,49 +571,40 @@ class DistributionManager:
         )
 
     def get_distribution_metrics(self) -> Dict[str, Any]:
-        """Get distribution metrics for all employees"""
-        metrics = {
-            "total_employees": len(self.employees),
-            "total_shifts": 0,
-            "shift_types": {"early": 0, "middle": 0, "late": 0},
-            "employee_metrics": {},
-            "fairness_metrics": {},
-        }
+        """Get metrics about the current shift distribution"""
+        total_shifts = 0
+        type_counts = {"EARLY": 0, "MIDDLE": 0, "LATE": 0, "weekend": 0}
 
-        # Count totals by employee and shift type
+        # Count shifts by type
         for employee_id, assignments in self.assignments.items():
-            metrics["total_shifts"] += len(assignments)
-
-            # Initialize employee metrics
-            if employee_id not in metrics["employee_metrics"]:
-                metrics["employee_metrics"][employee_id] = {
-                    "total_shifts": 0,
-                    "shift_types": {"early": 0, "middle": 0, "late": 0},
-                }
-
-            # Count shift types
             for assignment in assignments:
-                shift_type = assignment.get("shift_type", "unknown")
-                if shift_type in metrics["shift_types"]:
-                    metrics["shift_types"][shift_type] += 1
-                    metrics["employee_metrics"][employee_id]["shift_types"][
-                        shift_type
-                    ] += 1
-                    metrics["employee_metrics"][employee_id]["total_shifts"] += 1
+                total_shifts += 1
+                shift_type = assignment.get(
+                    "shift_type", "EARLY"
+                )  # Default to EARLY if not specified
+                if shift_type in type_counts:
+                    type_counts[shift_type] += 1
+
+                # Check for weekend shifts
+                if isinstance(assignment.get("date"), date):
+                    if assignment["date"].weekday() >= 5:  # Saturday = 5, Sunday = 6
+                        type_counts["weekend"] += 1
 
         # Calculate percentages
-        if metrics["total_shifts"] > 0:
-            for shift_type in metrics["shift_types"]:
-                count = metrics["shift_types"][shift_type]
-                metrics["shift_types"][shift_type + "_percent"] = round(
-                    count / metrics["total_shifts"] * 100, 1
-                )
+        percentages = {}
+        if total_shifts > 0:
+            for shift_type, count in type_counts.items():
+                percentages[shift_type] = (count / total_shifts) * 100
 
         # Calculate fairness metrics
-        fairness = self._calculate_fairness_metrics()
-        metrics["fairness_metrics"] = fairness
+        fairness_metrics = self._calculate_fairness_metrics()
 
-        return metrics
+        return {
+            "total_shifts": total_shifts,
+            "type_counts": type_counts,
+            "overall_percentages": percentages,
+            "fairness_metrics": fairness_metrics,
+        }
 
     def _calculate_fairness_score(self, history: Dict[str, int]) -> float:
         """Calculate a fairness score for an employee based on their shift history"""
@@ -767,32 +734,3 @@ class DistributionManager:
             )
 
         return metrics
-
-    def _calculate_gini_coefficient(self, values):
-        """Calculate Gini coefficient to measure inequality
-
-        0 = perfect equality, 1 = perfect inequality
-        """
-        if not values or len(values) < 2:
-            return 0.0
-
-        # Sort values
-        sorted_values = sorted(values)
-        n = len(sorted_values)
-
-        # Calculate Gini coefficient
-        cumsum = 0
-        for i, value in enumerate(sorted_values):
-            cumsum += (i + 1) * value
-
-        # Normalize
-        return (2 * cumsum) / (n * sum(sorted_values)) - (n + 1) / n
-
-    def _calculate_variance(self, values):
-        """Calculate variance of a list of values"""
-        if not values or len(values) < 2:
-            return 0.0
-
-        mean = sum(values) / len(values)
-        variance = sum((x - mean) ** 2 for x in values) / len(values)
-        return variance

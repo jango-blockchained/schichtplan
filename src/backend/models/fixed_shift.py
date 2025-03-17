@@ -9,9 +9,24 @@ logger = logging.getLogger(__name__)
 
 # Keep the enum for backward compatibility but prefer settings-based shift types
 class ShiftType(Enum):
-    EARLY = "early"
-    MIDDLE = "middle"
-    LATE = "late"
+    EARLY = "EARLY"
+    MIDDLE = "MIDDLE"
+    LATE = "LATE"
+
+    def __str__(self):
+        return self.value
+
+    @classmethod
+    def from_time(cls, time_str: str) -> "ShiftType":
+        if not time_str:
+            return cls.EARLY
+
+        hour = int(time_str.split(":")[0])
+        if hour < 10:
+            return cls.EARLY
+        if hour < 14:
+            return cls.MIDDLE
+        return cls.LATE
 
 
 class ShiftValidationError(Exception):

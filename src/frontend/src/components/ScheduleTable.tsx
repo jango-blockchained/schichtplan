@@ -42,18 +42,15 @@ interface DragItem {
     type: 'SCHEDULE';
     scheduleId: number;
     employeeId: number;
-    shiftId: number;
+    shiftId: number | null;
     date: string;
+    shift_type_id?: string; // EARLY, MIDDLE, LATE
 }
 
 // Define an extended type for Schedule that includes the break duration
 type ExtendedSchedule = Schedule & {
     break_duration?: number | null;
     notes?: string | null;
-    is_fixed?: boolean;
-    is_promised?: boolean;
-    is_availability_coverage?: boolean;
-    shift_type?: 'fixed' | 'promised' | 'availability' | 'regular';
     additional_slots?: TimeSlot[];
 };
 
@@ -70,38 +67,26 @@ const isEmptySchedule = (schedule: Schedule | undefined) => {
 interface TimeSlotDisplayProps {
     startTime: string;
     endTime: string;
-    shiftType?: string | 'fixed' | 'promised' | 'availability' | 'regular';
+    shiftType?: string;
     settings?: any;
     schedule?: Schedule;
 }
 
 const TimeSlotDisplay = ({ startTime, endTime, shiftType, settings, schedule }: TimeSlotDisplayProps) => {
     // This function determines the background color of the time slot pill
-    // Based on shift type (fixed, promised, availability, regular)
+    // Based on shift type (EARLY, MIDDLE, LATE)
     const getBackgroundColor = () => {
         if (typeof shiftType === 'string') {
-            // First map the string shift type to our enum values
-            let mappedType: 'fixed' | 'promised' | 'availability' | 'regular' = 'regular';
-
-            // Map various string representations to our standard types
-            if (shiftType === 'EARLY' || shiftType === 'early' || shiftType === 'fixed') {
-                mappedType = 'fixed';
-            } else if (shiftType === 'LATE' || shiftType === 'late' || shiftType === 'availability') {
-                mappedType = 'availability';
-            } else if (shiftType === 'MIDDLE' || shiftType === 'middle' || shiftType === 'promised') {
-                mappedType = 'promised';
-            }
-
-            // Get color based on shift type - THESE ARE THE PILL COLORS FOR SHIFT TIMES
-            switch (mappedType) {
-                case 'fixed':
-                    return '#3b82f6'; // Blue for fixed shifts
-                case 'promised':
-                    return '#22c55e'; // Green for promised shifts
-                case 'availability':
-                    return '#f59e0b'; // Amber for availability shifts
-                default:
-                    return '#64748b'; // Slate gray for regular/unknown shifts
+            // First check if we have a valid shift type
+            if (['EARLY', 'MIDDLE', 'LATE'].includes(shiftType)) {
+                switch (shiftType) {
+                    case 'EARLY':
+                        return '#3b82f6'; // Blue for early shifts
+                    case 'MIDDLE':
+                        return '#22c55e'; // Green for middle shifts
+                    case 'LATE':
+                        return '#f59e0b'; // Amber for late shifts
+                }
             }
         }
 
@@ -114,12 +99,44 @@ const TimeSlotDisplay = ({ startTime, endTime, shiftType, settings, schedule }: 
         return '#64748b'; // Default slate gray
     };
 
+    // Helper function to get a formatted display name for the shift type
+    const getShiftTypeDisplay = () => {
+        if (schedule?.shift_type_name) {
+            return schedule.shift_type_name;
+        }
+
+        if (typeof shiftType === 'string') {
+            // Map shift types to display names
+            switch (shiftType) {
+                case 'EARLY':
+                    return 'Früh';
+                case 'LATE':
+                    return 'Spät';
+                case 'MIDDLE':
+                    return 'Mitte';
+                default:
+                    return shiftType;
+            }
+        }
+        return null;
+    };
+
+    const bgColor = getBackgroundColor();
+    const shiftTypeDisplay = getShiftTypeDisplay();
+
     return (
-        <div
-            className="px-4 py-1 rounded-full text-sm font-medium text-white w-fit"
-            style={{ backgroundColor: getBackgroundColor() }}
-        >
-            {startTime} - {endTime}
+        <div className="flex flex-col items-center">
+            <div
+                className="px-4 py-1 rounded-full text-sm font-medium text-white w-fit"
+                style={{ backgroundColor: bgColor }}
+            >
+                {startTime} - {endTime}
+            </div>
+            {shiftTypeDisplay && (
+                <div className="text-xs mt-1 font-medium" style={{ color: bgColor }}>
+                    {shiftTypeDisplay}
+                </div>
+            )}
         </div>
     );
 };
@@ -146,8 +163,9 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence }: {
             type: 'SCHEDULE',
             scheduleId: schedule.id,
             employeeId: schedule.employee_id,
-            shiftId: schedule.shift_id || 0,
-            date: schedule.date
+            shiftId: schedule.shift_id || null,
+            date: schedule.date,
+            shift_type_id: schedule.shift_type_id
         } : undefined,
         canDrag: !!schedule && !hasAbsence,
         collect: (monitor) => ({
@@ -163,7 +181,7 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence }: {
                 item.scheduleId,
                 schedule.employee_id,
                 new Date(schedule.date),
-                schedule.shift_id || 0
+                item.shiftId || 0
             );
         },
         collect: (monitor) => ({
@@ -219,7 +237,7 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence }: {
     // Cast the schedule to ExtendedSchedule to access the additional properties
     const extendedSchedule = schedule as ExtendedSchedule;
     const shiftType = determineShiftType(schedule);
-    const shiftTypeColor = getShiftTypeColor(shiftType, schedule, settings?.shift_types);
+    const shiftTypeColor = getShiftTypeColor(shiftType, settings?.shift_types);
 
     // Get availability type color from settings
     const getAvailabilityTypeColor = (availabilityType: string) => {
@@ -234,24 +252,15 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence }: {
 
     // Get the availability type from the schedule
     // If not provided, use a default based on the shift type
-    const getDefaultAvailabilityType = (schedule: Schedule, shiftType: 'fixed' | 'promised' | 'availability' | 'regular'): string => {
+    const getDefaultAvailabilityType = (schedule: Schedule, shiftType: string): string => {
         // First check if the schedule has an explicit availability_type
         if (schedule.availability_type) {
             return schedule.availability_type;
         }
 
-        // If the shift_type is explicitly set, use that to determine availability_type
-        if (schedule.shift_type) {
-            switch (schedule.shift_type) {
-                case 'fixed':
-                    return 'FIX';
-                case 'promised':
-                    return 'PRM';
-                case 'availability':
-                    return 'AVL';
-                default:
-                    return 'AVL';
-            }
+        // If the shift_type_id is explicitly set, use that to determine availability_type
+        if (schedule.shift_type_id) {
+            return schedule.shift_type_id;
         }
 
         // Check notes for keywords that might indicate fixed shifts
@@ -275,16 +284,7 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence }: {
         }
 
         // Default based on shift type as a last resort
-        switch (shiftType) {
-            case 'fixed':
-                return 'FIX';
-            case 'promised':
-                return 'PRM';
-            case 'availability':
-                return 'AVL';
-            default:
-                return 'AVL';
-        }
+        return shiftType;
     };
 
     const availabilityType = getDefaultAvailabilityType(schedule, shiftType);
@@ -390,98 +390,47 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence }: {
 };
 
 // Helper function to determine shift type based on properties
-const determineShiftType = (schedule: Schedule): 'fixed' | 'promised' | 'availability' | 'regular' => {
-    // For debugging
-    const logShiftType = (source: string, type: 'fixed' | 'promised' | 'availability' | 'regular') => {
-        console.log(`Determined shift type for schedule ${schedule.id}: ${type} (source: ${source})`);
-        return type;
-    };
-
-    // First priority: check explicit shift_type property if it exists
-    if (schedule.shift_type) {
-        return logShiftType('explicit shift_type property', schedule.shift_type);
+const determineShiftType = (schedule: Schedule): ShiftType => {
+    if (schedule.shift_type_id) {
+        return schedule.shift_type_id;
     }
 
-    // Cast to extended schedule to access potential properties
-    const extSchedule = schedule as ExtendedSchedule;
+    const startTime = schedule.shift_start;
+    if (!startTime) return 'EARLY';
 
-    // Second priority: check explicit boolean flag properties
-    if (extSchedule.is_fixed) {
-        return logShiftType('is_fixed flag', 'fixed');
-    }
-    if (extSchedule.is_promised) {
-        return logShiftType('is_promised flag', 'promised');
-    }
-    if (extSchedule.is_availability_coverage) {
-        return logShiftType('is_availability_coverage flag', 'availability');
-    }
-
-    // Third priority: try to determine from notes
-    if (extSchedule.notes) {
-        const notes = extSchedule.notes.toLowerCase();
-        if (notes.includes('fix') || notes.includes('fest')) {
-            return logShiftType('notes containing fix/fest', 'fixed');
-        }
-        if (notes.includes('wunsch') || notes.includes('promised') || notes.includes('pref')) {
-            return logShiftType('notes containing wunsch/promised/pref', 'promised');
-        }
-        if (notes.includes('verfügbar') || notes.includes('avail')) {
-            return logShiftType('notes containing verfügbar/avail', 'availability');
-        }
-    }
-
-    // Default case: regular shift
-    return logShiftType('default fallback', 'regular');
+    const hour = parseInt(startTime.split(':')[0]);
+    if (hour < 10) return 'EARLY';
+    if (hour < 14) return 'MIDDLE';
+    return 'LATE';
 };
 
-// Function to get color based on shift type
-const getShiftTypeColor = (type: 'fixed' | 'promised' | 'availability' | 'regular', schedule?: Schedule, settingsData?: any): string => {
-    // First try to get color from settings based on the shift_type mapping
-    if (settingsData && schedule?.shift_id) {
-        // Map the inferred shift type to its corresponding ID in settings
-        let shiftTypeId = null;
-
-        if (type === 'fixed') shiftTypeId = 'EARLY';
-        else if (type === 'promised') shiftTypeId = 'MIDDLE';
-        else if (type === 'availability') shiftTypeId = 'LATE';
-
-        // Try to find the shift type in settings
-        const shiftTypeData = settingsData.find(
-            (t: any) => t.id === shiftTypeId
-        );
-
-        if (shiftTypeData?.color) {
-            return `bg-[${shiftTypeData.color}]`; // Use color from settings
-        }
+const getShiftTypeDisplay = (shiftType: ShiftType): string => {
+    switch (shiftType) {
+        case 'EARLY': return 'Früh';
+        case 'MIDDLE': return 'Mitte';
+        case 'LATE': return 'Spät';
+        default: return 'Früh';
     }
+};
 
-    // Fall back to the hardcoded colors if settings or shift_type_id not available
-    switch (type) {
-        case 'fixed':
-            return 'bg-blue-500'; // Blue for fixed shifts
-        case 'promised':
-            return 'bg-green-500'; // Green for promised/preferred shifts
-        case 'availability':
-            return 'bg-amber-500'; // Amber for availability coverage
-        default:
-            return 'bg-gray-300'; // Gray for regular shifts
+const getShiftTypeColor = (shiftType: ShiftType, settings?: Settings): string => {
+    const shiftTypeInfo = settings?.shift_types?.find(type => type.id === shiftType);
+    if (shiftTypeInfo?.color) return shiftTypeInfo.color;
+
+    switch (shiftType) {
+        case 'EARLY': return '#22c55e';
+        case 'MIDDLE': return '#3b82f6';
+        case 'LATE': return '#f59e0b';
+        default: return '#64748b';
     }
 };
 
 // Function to get direct CSS color values based on shift type
-const getShiftTypeRGBColor = (type: 'fixed' | 'promised' | 'availability' | 'regular', schedule?: Schedule, settingsData?: any): { bg: string, text: string } => {
-    // First try to get color from settings based on the shift_type mapping
-    if (settingsData && schedule?.shift_id) {
-        // Map the inferred shift type to its corresponding ID in settings
-        let shiftTypeId = null;
-
-        if (type === 'fixed') shiftTypeId = 'EARLY';
-        else if (type === 'promised') shiftTypeId = 'MIDDLE';
-        else if (type === 'availability') shiftTypeId = 'LATE';
-
-        // Try to find the shift type in settings
+const getShiftTypeRGBColor = (type: string, schedule?: Schedule, settingsData?: any): { bg: string, text: string } => {
+    // First try to get color from settings based on the shift_type_id
+    if (settingsData && schedule?.shift_type_id) {
         const shiftTypeData = settingsData.find(
-            (t: any) => t.id === shiftTypeId
+            (t: any) => t.id === schedule.shift_type_id
         );
 
         if (shiftTypeData?.color) {
@@ -497,27 +446,27 @@ const getShiftTypeRGBColor = (type: 'fixed' | 'promised' | 'availability' | 'reg
         }
     }
 
-    // Fall back to the hardcoded colors if settings or mapping not available
+    // Fall back to default colors based on shift type
     switch (type) {
-        case 'fixed':
+        case 'EARLY':
             return {
-                bg: 'rgba(59, 130, 246, 0.2)', // Light blue background
-                text: 'rgb(37, 99, 235)'       // Blue text
+                bg: 'rgba(59, 130, 246, 0.2)',
+                text: 'rgb(37, 99, 235)'
             };
-        case 'promised':
+        case 'MIDDLE':
             return {
-                bg: 'rgba(34, 197, 94, 0.2)',  // Light green background
-                text: 'rgb(22, 163, 74)'       // Green text
+                bg: 'rgba(34, 197, 94, 0.2)',
+                text: 'rgb(22, 163, 74)'
             };
-        case 'availability':
+        case 'LATE':
             return {
-                bg: 'rgba(245, 158, 11, 0.2)', // Light amber background
-                text: 'rgb(217, 119, 6)'       // Amber text
+                bg: 'rgba(245, 158, 11, 0.2)',
+                text: 'rgb(217, 119, 6)'
             };
         default:
             return {
-                bg: 'rgba(203, 213, 225, 0.2)', // Light gray background
-                text: 'rgb(100, 116, 139)'      // Gray text
+                bg: 'rgba(203, 213, 225, 0.2)',
+                text: 'rgb(100, 116, 139)'
             };
     }
 };

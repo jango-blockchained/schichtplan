@@ -5,13 +5,7 @@ export enum EmployeeGroup {
     TL = "TL"
 }
 
-export type ShiftType = string;
-
-export enum LegacyShiftType {
-    EARLY = "Frühschicht",
-    MIDDLE = "Mittelschicht",
-    LATE = "Spätschicht"
-}
+export type ShiftType = 'EARLY' | 'MIDDLE' | 'LATE';
 
 export interface TimeSlot {
     day: 'MO' | 'DI' | 'MI' | 'DO' | 'FR' | 'SA';
@@ -67,8 +61,9 @@ export interface Schedule {
     break_end?: string | null;
     notes?: string | null;
     employee_name?: string;
-    shift_type?: 'fixed' | 'promised' | 'availability' | 'regular';
-    availability_type?: string; // AVL, FIX, PRM, UNV
+    availability_type?: 'AVL' | 'FIX' | 'PRM' | 'UNV';
+    shift_type_id?: ShiftType;
+    shift_type_name?: string;
 }
 
 export interface ScheduleError {
@@ -95,7 +90,7 @@ export interface ScheduleUpdate {
     break_duration?: number | null;
     notes?: string | null;
     version?: number | null;
-    shift_type?: 'fixed' | 'promised' | 'availability' | 'regular' | null;
+    availability_type?: 'AVL' | 'FIX' | 'PRM' | 'UNV' | null;
 }
 
 export interface DateRange {

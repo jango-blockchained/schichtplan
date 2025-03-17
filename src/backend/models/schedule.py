@@ -89,6 +89,10 @@ class Schedule(db.Model):
                     "duration_hours": self.shift.duration_hours
                     if hasattr(self.shift, "duration_hours")
                     else 0.0,
+                    "shift_type_id": self.shift.shift_type_id,
+                    "shift_type_name": self.shift.shift_type.value
+                    if self.shift.shift_type
+                    else None,
                 }
             )
 
