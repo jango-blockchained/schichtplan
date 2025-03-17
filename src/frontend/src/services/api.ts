@@ -21,7 +21,9 @@ export interface Schedule {
     is_empty?: boolean;
     shift_start?: string | null;
     shift_end?: string | null;
-    shift_type?: 'fixed' | 'promised' | 'availability' | 'regular';
+    availability_type?: 'AVL' | 'FIX' | 'PRM' | 'UNV';
+    shift_type_id?: string; // EARLY, MIDDLE, LATE
+    shift_type_name?: string; // early, middle, late
 }
 
 export interface ScheduleResponse {
@@ -444,7 +446,7 @@ export const generateSchedule = async (
             'Total schedules': response.data.schedules?.length || 0,
             'With shift_id': response.data.schedules?.filter(s => s.shift_id !== null).length || 0,
             'Empty schedules': response.data.schedules?.filter(s => s.shift_id === null).length || 0,
-            'With shift_type': response.data.schedules?.filter(s => s.shift_type).length || 0,
+            'With shift_type': response.data.schedules?.filter(s => s.availability_type).length || 0,
             'Unique employee count': new Set(response.data.schedules?.map(s => s.employee_id)).size,
             'Error count': response.data.errors?.length || 0
         });
@@ -1181,7 +1183,7 @@ export interface CreateScheduleRequest {
     break_start?: string;
     break_end?: string;
     notes?: string;
-    shift_type?: 'fixed' | 'promised' | 'availability' | 'regular';
+    availability_type?: 'AVL' | 'FIX' | 'PRM' | 'UNV';
 }
 
 export const createSchedule = async (data: CreateScheduleRequest): Promise<Schedule> => {

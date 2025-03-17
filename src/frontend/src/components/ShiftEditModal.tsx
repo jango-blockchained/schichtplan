@@ -24,7 +24,6 @@ export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditM
     const [selectedShiftId, setSelectedShiftId] = useState<string>(schedule.shift_id?.toString() ?? '');
     const [breakDuration, setBreakDuration] = useState<number>((schedule as any).break_duration ?? 0);
     const [notes, setNotes] = useState(schedule.notes ?? '');
-    const [shiftType, setShiftType] = useState<'regular' | 'fixed' | 'promised' | 'availability'>((schedule.shift_type || 'regular') as 'regular' | 'fixed' | 'promised' | 'availability');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
 
@@ -39,28 +38,24 @@ export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditM
         }
         setBreakDuration((schedule as any).break_duration ?? 0);
         setNotes(schedule.notes ?? '');
-        setShiftType((schedule.shift_type || 'regular') as 'regular' | 'fixed' | 'promised' | 'availability');
-        console.log('📋 ShiftEditModal initialized with shift_type:', schedule.shift_type || 'regular');
+        console.log('📋 ShiftEditModal initialized with availability_type:', schedule.availability_type || 'AVL');
     }, [schedule]);
 
     const handleSave = async () => {
         console.log('🟢 ShiftEditModal handleSave called');
         setIsSubmitting(true);
         try {
-            const shift_type = schedule.shift_type || shiftType;
-
             const updates: ScheduleUpdate = {
                 shift_id: selectedShiftId ? parseInt(selectedShiftId, 10) : null,
                 break_duration: breakDuration || null,
                 notes: notes || null,
-                shift_type: shift_type,
+                availability_type: schedule.availability_type || 'AVL',
             };
 
             console.log('🟢 Calling onSave with:', {
                 scheduleId: schedule.id,
                 updates,
-                shift_type,
-                originalShiftType: schedule.shift_type
+                availability_type: schedule.availability_type
             });
             await onSave(schedule.id, updates);
             console.log('🟢 onSave completed successfully');
@@ -110,12 +105,6 @@ export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditM
                         </Select>
                     </div>
 
-                    {/* 
-                      Shift type dropdown was removed as requested.
-                      The shift type is not meant to be manually changed as it corresponds
-                      to the availability types automatically and should not be edited directly.
-                    */}
-
                     <div className="space-y-2">
                         <Label htmlFor="breakDuration">Pausenlänge: {breakDuration} Minuten</Label>
                         <Slider
@@ -136,15 +125,6 @@ export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditM
                             onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setNotes(e.target.value)}
                             placeholder="Notizen zur Schicht..."
                         />
-                    </div>
-
-                    {/* 
-                      Shift type dropdown was removed as requested.
-                      The shift type is not meant to be manually changed as it corresponds
-                      to the availability types automatically and should not be edited directly.
-                    */}
-
-                    <div className="space-y-2">
                     </div>
                 </div>
 

@@ -43,6 +43,23 @@ class ScheduleGenerationError(Exception):
     """Custom exception for schedule generation errors"""
 
 
+class SchedulerConfig:
+    """Configuration class for the scheduler"""
+
+    def __init__(self):
+        self.max_consecutive_days: int = 5
+        self.min_rest_hours: int = 11
+        self.enforce_rest_periods: bool = True
+        self.max_hours_per_group: dict = {"TL": 40, "VZ": 40, "TZ": 30, "GFB": 20}
+        self.max_shifts_per_group: dict = {"TL": 5, "VZ": 5, "TZ": 4, "GFB": 3}
+        self.employee_types: list = [
+            {"id": "TL", "max_daily_hours": 8.0},
+            {"id": "VZ", "max_daily_hours": 8.0},
+            {"id": "TZ", "max_daily_hours": 6.0},
+            {"id": "GFB", "max_daily_hours": 4.0},
+        ]
+
+
 class ScheduleGenerator:
     """Generates employee schedules with proper constraints"""
 
@@ -52,7 +69,7 @@ class ScheduleGenerator:
         self.distribution_manager = DistributionManager()
         self.schedule = []
         self.schedule_by_date = defaultdict(list)
-        self.config = None
+        self.config: SchedulerConfig = None
         self.version = 1
         self.warnings = []
         self.session_id = None
@@ -68,9 +85,9 @@ class ScheduleGenerator:
     }
 
     SHIFT_TYPE_CAPS = {
-        "early": 0.2,  # Max 50%
-        "middle": 0.3,
-        "late": 0.3,
+        "EARLY": 0.2,  # Max 20%
+        "MIDDLE": 0.3,  # Max 30%
+        "LATE": 0.3,  # Max 30%
     }
 
     def generate(
@@ -499,15 +516,15 @@ class ScheduleGenerator:
             return True  # Safer to assume constraints are exceeded if check fails
 
     def _is_employee_available(
-        self, employee: Employee, current_date: date, shift: ShiftTemplate
+        self, employee: Employee, current_date: date, start_time: str, end_time: str
     ) -> bool:
-        """Check if employee is available for this shift based on employee availability records"""
+        """Check if employee is available for this time period based on availability records"""
         # Extract shift hours
-        shift_start_hour = int(shift.start_time.split(":")[0])
-        shift_end_hour = int(shift.end_time.split(":")[0])
+        shift_start_hour = int(start_time.split(":")[0])
+        shift_end_hour = int(end_time.split(":")[0])
 
         # Adjust end hour if it ends on the hour boundary
-        if shift.end_time.endswith(":00") and shift_end_hour > 0:
+        if end_time.endswith(":00") and shift_end_hour > 0:
             shift_end_hour -= 1
 
         # Delegate to the resources method which properly checks both
@@ -688,23 +705,55 @@ class ScheduleGenerator:
         return current_date.weekday() != 6
 
     def _create_result(self) -> Dict[str, Any]:
-        """Create the final result object"""
+        """Create the final result object with properly serialized schedule entries"""
         schedule_entries = []
+
         for entry in self.schedule:
-            if hasattr(entry, "to_dict") and callable(entry.to_dict):
-                schedule_entries.append(entry.to_dict())
+            if isinstance(entry, Schedule):
+                # Convert Schedule object to dictionary
+                entry_dict = {
+                    "id": entry.id if hasattr(entry, "id") else None,
+                    "employee_id": entry.employee_id,
+                    "date": entry.date.isoformat()
+                    if isinstance(entry.date, date)
+                    else str(entry.date),
+                    "shift_id": entry.shift_id,
+                    "status": entry.status.value
+                    if hasattr(entry.status, "value")
+                    else str(entry.status),
+                    "version": entry.version,
+                    "availability_type": entry.availability_type,
+                }
+                schedule_entries.append(entry_dict)
             elif isinstance(entry, dict):
-                schedule_entries.append(entry)
+                # If it's already a dict, ensure date is serialized
+                entry_copy = entry.copy()
+                if "date" in entry_copy and isinstance(entry_copy["date"], date):
+                    entry_copy["date"] = entry_copy["date"].isoformat()
+                schedule_entries.append(entry_copy)
             else:
-                # Skip entries that can't be converted to dict
+                # Skip entries that can't be converted
+                self._log_warning(
+                    f"Skipping non-serializable schedule entry of type {type(entry)}"
+                )
                 continue
 
-        return {
+        result = {
             "schedule": schedule_entries,
             "warnings": self.warnings,
             "version": self.version,
             "generation_time": datetime.now().isoformat(),
         }
+
+        # Add distribution metrics if available
+        if hasattr(self, "use_fair_distribution") and self.use_fair_distribution:
+            try:
+                metrics = self.distribution_manager.get_distribution_metrics()
+                result["distribution_metrics"] = metrics
+            except Exception as e:
+                self._log_warning(f"Failed to get distribution metrics: {str(e)}")
+
+        return result
 
     def _date_range(self, start: date, end: date) -> Iterable[date]:
         """Generate a range of dates from start to end (inclusive)"""
@@ -759,7 +808,9 @@ class ScheduleGenerator:
                 continue
 
             # Check if employee is available on this date and time
-            if self._is_employee_available(employee, shift_date, shift_template):
+            if self._is_employee_available(
+                employee, shift_date, shift_template.start_time, shift_template.end_time
+            ):
                 available_employees.append(employee)
 
         return available_employees
@@ -1086,19 +1137,37 @@ class ScheduleGenerator:
             self._log_error(f"Error calculating shift duration: {str(e)}")
             return 0.0
 
-    def _get_shift_priority(self, shift: ShiftTemplate, current_date: date) -> int:
-        """Enhanced priority with hard caps"""
+    def _get_shift_priority(self, shift, current_date):
+        """Get priority for scheduling this shift"""
+        priority = 0
+
+        # Get shift type
+        shift_type = None
+        if hasattr(shift, "shift_type_id"):
+            shift_type = shift.shift_type_id
+        else:
+            # Determine from start time
+            start_hour = int(shift.start_time.split(":")[0])
+            if start_hour < 10:
+                shift_type = "EARLY"
+            elif 10 <= start_hour < 14:
+                shift_type = "MIDDLE"
+            else:
+                shift_type = "LATE"
+
+        # Prioritize based on current distribution
         current_dist = self._get_current_shift_distribution()
-        total = sum(current_dist.values()) or 1
-        shift_type = self._categorize_shift(shift, current_date)
+        total_shifts = sum(current_dist.values()) or 1
 
-        # Enforce hard caps
-        current_percent = current_dist.get(shift_type, 0) / total
-        if current_percent > self.SHIFT_TYPE_CAPS[shift_type]:
-            return 9999  # Lowest priority
+        # Calculate current percentage of this shift type
+        type_count = current_dist.get(shift_type, 0)
+        current_percent = type_count / total_shifts
 
-        # Existing priority logic
-        return super()._get_shift_priority(shift, current_date)
+        # Check against caps
+        if current_percent >= self.SHIFT_TYPE_CAPS.get(shift_type, 0.33):
+            priority += 100  # Heavily deprioritize if we're at or over the cap
+
+        return priority
 
     def _get_employee_priority(self, employee: Employee, shift: ShiftTemplate) -> int:
         """Get priority for employee scheduling (keyholders first)"""
@@ -1114,7 +1183,7 @@ class ScheduleGenerator:
     def _get_best_employee_by_availability(
         self, available_employees, shift_template, shift_date
     ):
-        """Select the best employee based on availability and priority"""
+        """Get the best employee based on availability and priority"""
         if not available_employees:
             return None
 
@@ -1204,19 +1273,6 @@ class ScheduleGenerator:
         except Exception as e:
             self._log_warning(f"Could not retrieve historical schedule data: {str(e)}")
             return []
-
-    def _get_best_employee_by_availability(
-        self, available_employees, shift_template, shift_date
-    ):
-        """Get the best employee based on availability and priority"""
-        if not available_employees:
-            return None
-        # Sort employees by priority
-        available_employees.sort(
-            key=lambda e: self._get_employee_priority(e, shift_template)
-        )
-        # Return the highest priority employee
-        return available_employees[0] if available_employees else None
 
     def _get_best_employee_for_shift(
         self, shift_template, shift_date, scheduled_employees
@@ -1574,7 +1630,9 @@ class ScheduleGenerator:
     def _can_assign_shift(self, employee, shift_template, shift_date):
         """Check if employee can be assigned to the specified shift"""
         # Check if employee is available and qualified
-        if not self._is_employee_available(employee, shift_date, shift_template):
+        if not self._is_employee_available(
+            employee, shift_date, shift_template.start_time, shift_template.end_time
+        ):
             return False
 
         if not self._is_employee_qualified(employee, shift_template):
@@ -1585,19 +1643,40 @@ class ScheduleGenerator:
 
         # Check for overlapping shifts
         for existing_shift in employee_shifts:
-            if shifts_overlap(existing_shift, shift_template):
-                return False
+            if hasattr(existing_shift, "start_time") and hasattr(
+                existing_shift, "end_time"
+            ):
+                if shifts_overlap(
+                    existing_shift.start_time,
+                    existing_shift.end_time,
+                    shift_template.start_time,
+                    shift_template.end_time,
+                ):
+                    return False
 
         # Check if assignment would exceed constraints
-        if hasattr(self, "_exceeds_constraints") and self._exceeds_constraints(
-            employee, shift_date, shift_template
-        ):
-            return False
-
-        return True
+        return not self._exceeds_constraints(employee, shift_date, shift_template)
 
     def _assign_employee_to_shift(self, employee, shift_template, shift_date):
         """Assign an employee to a shift and update all tracking data"""
+        # First check if employee is on leave
+        if self.resources.is_employee_on_leave(employee.id, shift_date):
+            self._log_warning(
+                f"Cannot assign employee {employee.first_name} {employee.last_name} "
+                f"to shift {shift_template.id} on {shift_date} - employee is on leave"
+            )
+            return None
+
+        # Check if employee is available for this time period
+        if not self._is_employee_available(
+            employee, shift_date, shift_template.start_time, shift_template.end_time
+        ):
+            self._log_warning(
+                f"Cannot assign employee {employee.first_name} {employee.last_name} "
+                f"to shift {shift_template.id} on {shift_date} - employee is not available"
+            )
+            return None
+
         # Determine availability_type based on employee availabilities
         availability_type = self._determine_availability_type(
             employee, shift_template, shift_date
@@ -1605,9 +1684,9 @@ class ScheduleGenerator:
 
         # If employee is unavailable for this shift, don't assign
         if availability_type == AvailabilityType.UNAVAILABLE.value:
-            self._log_info(
-                f"Employee {employee.first_name} {employee.last_name} is unavailable "
-                f"for shift {shift_template.id} on {shift_date}"
+            self._log_warning(
+                f"Cannot assign employee {employee.first_name} {employee.last_name} "
+                f"to shift {shift_template.id} on {shift_date} - availability type is UNAVAILABLE"
             )
             return None
 
@@ -1631,16 +1710,45 @@ class ScheduleGenerator:
                 employee.id, shift_template, shift_date
             )
 
+        self._log_info(
+            f"Successfully assigned {employee.first_name} {employee.last_name} "
+            f"to shift {shift_template.id} on {shift_date}"
+        )
+
         return shift_entry
 
     def _determine_availability_type(self, employee, shift_template, shift_date):
-        """Determine availability type with absence check"""
+        """Determine availability type with thorough absence and availability checks"""
         # First check if employee is on leave
         if self.resources.is_employee_on_leave(employee.id, shift_date):
             return AvailabilityType.UNAVAILABLE.value
 
-        # Existing availability type determination
-        # ... rest of existing logic ...
+        # Check if employee is available for this time period
+        if not self._is_employee_available(
+            employee, shift_date, shift_template.start_time, shift_template.end_time
+        ):
+            return AvailabilityType.UNAVAILABLE.value
+
+        # Get employee's availability records for this day
+        availabilities = [
+            a
+            for a in self.resources.availabilities
+            if a.employee_id == employee.id and a.day_of_week == shift_date.weekday()
+        ]
+
+        # If no availability records exist, consider unavailable
+        if not availabilities:
+            return AvailabilityType.UNAVAILABLE.value
+
+        # Check each availability record
+        for availability in availabilities:
+            if not availability.is_available:
+                return AvailabilityType.UNAVAILABLE.value
+            if hasattr(availability, "availability_type"):
+                return availability.availability_type.value
+
+        # Default to AVAILABLE if no specific type is found but employee is available
+        return AvailabilityType.AVAILABLE.value
 
     def _add_absence_warnings(self):
         """Check for scheduled shifts conflicting with absences"""
@@ -1693,3 +1801,76 @@ class ScheduleGenerator:
     def _validate_qualifications(self, schedule):
         # Implementation of _validate_qualifications method
         pass
+
+    def _find_matching_shifts(self, coverage):
+        """Find shifts that match the coverage requirements"""
+        matching_shifts = []
+        for shift in self.resources.shifts:
+            if shifts_overlap(
+                shift.start_time, shift.end_time, coverage.start_time, coverage.end_time
+            ):
+                matching_shifts.append(shift)
+        return matching_shifts
+
+    def _create_schedule_entries(
+        self, assigned_employees, matching_shifts, current_date, version
+    ):
+        """Create schedule entries for assigned employees"""
+        entries = []
+        for employee_id in assigned_employees:
+            # Find best matching shift for this employee
+            best_shift = None
+            for shift in matching_shifts:
+                if self._is_employee_available(
+                    next(e for e in self.resources.employees if e.id == employee_id),
+                    current_date,
+                    shift.start_time,
+                    shift.end_time,
+                ):
+                    best_shift = shift
+                    break
+
+            if best_shift:
+                # Create a dictionary instead of Schedule object for better serialization
+                entry = {
+                    "employee_id": employee_id,
+                    "date": current_date,
+                    "shift_id": best_shift.id,
+                    "status": ScheduleStatus.DRAFT.value,
+                    "version": version,
+                    "availability_type": AvailabilityType.AVAILABLE.value,
+                    "shift_template": {
+                        "id": best_shift.id,
+                        "start_time": best_shift.start_time,
+                        "end_time": best_shift.end_time,
+                    },
+                }
+                entries.append(entry)
+                self.schedule.append(entry)
+                self.schedule_by_date[current_date].append(entry)
+
+        return entries
+
+    def _prioritize_keyholders(self, candidates):
+        """Prioritize keyholder employees in the candidate list"""
+        return sorted(candidates, key=lambda e: not e.is_keyholder)
+
+    def _initialize_config_from_settings(self) -> SchedulerConfig:
+        """Initialize configuration from settings"""
+        if not hasattr(self, "config") or self.config is None:
+            self.config = SchedulerConfig()
+
+            # Load any custom settings here if needed
+            # For example:
+            # if settings.get('max_consecutive_days'):
+            #     self.config.max_consecutive_days = settings['max_consecutive_days']
+
+        return self.config
+
+    def _get_employee_shifts_for_date(self, employee, date):
+        """Get all shifts assigned to an employee on a specific date"""
+        return [
+            entry.shift
+            for entry in self.schedule_by_date.get(date, [])
+            if entry.employee_id == employee.id and hasattr(entry, "shift")
+        ]
