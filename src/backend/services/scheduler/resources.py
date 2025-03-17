@@ -76,6 +76,33 @@ class ScheduleResources:
         coverage = Coverage.query.all()
         if not coverage:
             logger.warning("No coverage requirements found")
+            return []
+
+        # Log coverage requirements by day
+        by_day = {}
+        for cov in coverage:
+            if cov.day_index not in by_day:
+                by_day[cov.day_index] = []
+            by_day[cov.day_index].append(cov)
+
+        days = [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+        ]
+
+        for day_idx, day_coverage in by_day.items():
+            total_employees = sum(c.employees_needed for c in day_coverage)
+            logger.info(
+                f"Coverage for {days[day_idx]}: "
+                f"{len(day_coverage)} shifts, "
+                f"{total_employees} total employees needed"
+            )
+
         return coverage
 
     def _load_shifts(self) -> List[ShiftTemplate]:
@@ -84,6 +111,14 @@ class ScheduleResources:
         if not shifts:
             logger.error("No shift templates found in database")
             raise ScheduleResourceError("No shift templates found")
+
+        # Log shift details
+        for shift in shifts:
+            logger.info(
+                f"Loaded shift template: ID={shift.id}, "
+                f"start={shift.start_hour}:00, end={shift.end_hour}:00, "
+                f"type={shift.shift_type_id}"
+            )
         return shifts
 
     def _load_employees(self) -> List[Employee]:
@@ -106,12 +141,18 @@ class ScheduleResources:
 
         if not employees:
             logger.warning("No active employees found")
+            return []
 
         # Clear the employee cache
         self._employee_cache = {}
 
-        # Pre-fill employee cache with useful lookups
+        # Log employee details and pre-fill cache
         for employee in employees:
+            logger.info(
+                f"Loaded employee: ID={employee.id}, "
+                f"group={employee.employee_group}, "
+                f"keyholder={employee.is_keyholder}"
+            )
             self._employee_cache[employee.id] = employee
 
         return employees
@@ -122,9 +163,25 @@ class ScheduleResources:
 
     def _load_availabilities(self) -> List[EmployeeAvailability]:
         """Load availabilities with error handling"""
-        # MODIFIED: Now loading ALL availabilities, including UNAVAILABLE ones
-        # This ensures that the availability records are properly checked
-        return EmployeeAvailability.query.all()
+        availabilities = EmployeeAvailability.query.all()
+
+        # Group availabilities by employee for better logging
+        by_employee = {}
+        for avail in availabilities:
+            if avail.employee_id not in by_employee:
+                by_employee[avail.employee_id] = []
+            by_employee[avail.employee_id].append(avail)
+
+        # Log availability summary for each employee
+        for emp_id, emp_avails in by_employee.items():
+            available_hours = sum(1 for a in emp_avails if a.is_available)
+            total_hours = len(emp_avails)
+            logger.info(
+                f"Employee {emp_id} availability: "
+                f"{available_hours}/{total_hours} hours available"
+            )
+
+        return availabilities
 
     def get_keyholders(self) -> List[Employee]:
         """Return a list of keyholder employees"""
