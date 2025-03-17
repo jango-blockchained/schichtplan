@@ -71,8 +71,8 @@ class Logger:
         self.user_logger.propagate = False  # Prevent propagation to root logger
         user_handler = RotatingFileHandler(
             self.logs_dir / "user_actions.log",
-            maxBytes=10485760,  # 10MB
-            backupCount=5,
+            maxBytes=1048576,  # 1MB
+            backupCount=3,
             encoding="utf-8",
         )
         user_handler.setFormatter(formatter)
@@ -86,8 +86,8 @@ class Logger:
         self.error_logger.propagate = False
         error_handler = RotatingFileHandler(
             self.logs_dir / "errors.log",
-            maxBytes=10485760,  # 10MB
-            backupCount=5,
+            maxBytes=1048576,  # 1MB
+            backupCount=3,
             encoding="utf-8",
         )
         error_handler.setFormatter(formatter)
@@ -101,8 +101,8 @@ class Logger:
         self.schedule_logger.propagate = False
         schedule_handler = RotatingFileHandler(
             self.logs_dir / "schedule.log",
-            maxBytes=10485760,  # 10MB
-            backupCount=5,
+            maxBytes=1048576,  # 1MB
+            backupCount=3,
             encoding="utf-8",
         )
         schedule_handler.setFormatter(formatter)
@@ -116,8 +116,8 @@ class Logger:
         self.app_logger.propagate = False
         app_handler = RotatingFileHandler(
             self.logs_dir / "app.log",
-            maxBytes=10485760,  # 10MB
-            backupCount=5,
+            maxBytes=1048576,  # 1MB
+            backupCount=3,
             encoding="utf-8",
         )
         app_handler.setFormatter(formatter)
@@ -135,7 +135,7 @@ class Logger:
         session_file = self.sessions_dir / f"{session_id}.log"
         handler = RotatingFileHandler(
             session_file,
-            maxBytes=10485760,  # 10MB
+            maxBytes=1048576,  # 1MB
             backupCount=2,
             encoding="utf-8",
         )
