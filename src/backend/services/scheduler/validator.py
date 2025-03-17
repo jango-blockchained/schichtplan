@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, date
+
 # Standard library imports
 import logging
 from collections import defaultdict
@@ -11,7 +12,11 @@ try:
     from backend.models import Schedule
     from backend.models.employee import EmployeeGroup
     from backend.services.scheduler.resources import ScheduleResources
-    from backend.services.scheduler.utility import requires_keyholder, calculate_rest_hours, time_to_minutes
+    from backend.services.scheduler.utility import (
+        requires_keyholder,
+        calculate_rest_hours,
+        time_to_minutes,
+    )
 except ImportError:
     # When running directly or as part of a different path structure
     try:
@@ -25,6 +30,13 @@ except ImportError:
         logger.error("Failed to import required modules in validator.py")
 
 logger = logging.getLogger(__name__)
+
+# Frontend -> Backend field mapping
+FRONTEND_TO_BACKEND_MAP = {
+    "enforce_minimum_coverage": "enforce_min_coverage",
+    "enforce_keyholder_coverage": "enforce_keyholder",
+    # ... other mappings
+}
 
 
 @dataclass
@@ -72,6 +84,10 @@ class ScheduleConfig:
     min_hours_per_day: int = 4
     max_hours_per_day: int = 10
     weekend_rotation_weeks: int = 4  # Number of weeks for fair weekend distribution
+
+    # Add this new configuration option
+    enforce_rest_days: bool = True
+    min_days_off_per_week: int = 2
 
     def __post_init__(self):
         """Initialize default values if not provided and sync duplicate settings"""
@@ -929,7 +945,7 @@ class ScheduleValidator:
             # Sort by date
             sorted_entries = sorted(entries, key=lambda e: e.date)
 
-            # Find consecutive day sequences
+            # Find consecutive working day sequences
             consecutive_days = 1
             max_consecutive = 1
             for i in range(1, len(sorted_entries)):
@@ -1108,6 +1124,12 @@ class ScheduleValidator:
                     except Exception as e:
                         # Log error but continue validation
                         logger.error(f"Error validating break rules: {str(e)}")
+
+    def _validate_qualifications(self, schedule: List[Schedule]) -> None:
+        """Validate employee qualifications for shifts"""
+        # This would require a qualifications model, which isn't implemented yet
+        # Placeholder for future implementation
+        pass
 
     def _validate_qualifications(self, schedule: List[Schedule]) -> None:
         """Validate employee qualifications for shifts"""

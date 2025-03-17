@@ -68,7 +68,7 @@ class ScheduleGenerator:
     }
 
     SHIFT_TYPE_CAPS = {
-        "early": 0.5,  # Max 50%
+        "early": 0.2,  # Max 50%
         "middle": 0.3,
         "late": 0.3,
     }
@@ -77,7 +77,7 @@ class ScheduleGenerator:
         self,
         start_date: date,
         end_date: date,
-        version: int = 1,
+        version: int,
         session_id: Optional[str] = None,
         use_fair_distribution: bool = True,
     ) -> Dict[str, Any]:
@@ -153,9 +153,7 @@ class ScheduleGenerator:
 
             # Add distribution metrics to result if available
             if self.use_fair_distribution:
-                result["distribution_metrics"] = (
-                    self.distribution_manager.get_distribution_metrics()
-                )
+                result["distribution_metrics"] = metrics
 
             return result
 
@@ -278,15 +276,25 @@ class ScheduleGenerator:
         return assigned
 
     def _get_sorted_candidates(self, employees, shift, date, assigned):
-        """Improved sorting with fairness factors"""
-        return sorted(
-            [e for e in employees if e.id not in assigned],
-            key=lambda e: (
-                self._group_utilization_factor(e.employee_group),
-                self._shift_type_availability(e, shift),
-                -e.contracted_hours,
-            ),
-        )
+        """Get a sorted list of candidate employees for a shift"""
+        candidates = []
+
+        for employee in employees:
+            if employee.id in assigned:
+                continue
+
+            # Check if this employee really needs to work this day
+            # Give priority to employees who have had fewer shifts recently
+            consecutive_days = self._count_consecutive_days(employee.id, date)
+
+            # Skip this employee if they've worked many days in a row
+            # and we don't absolutely need them for coverage
+            if consecutive_days >= 4 and len(candidates) > 0:
+                continue
+
+            # ... existing sorting logic ...
+
+        return candidates
 
     def _group_utilization_factor(self, group: str) -> float:
         """Priority factor based on group utilization"""
@@ -1637,16 +1645,14 @@ class ScheduleGenerator:
     def _add_absence_warnings(self):
         """Check for scheduled shifts conflicting with absences"""
         for entry in self.schedule:
-            employee_id = entry.employee_id
-            shift_date = entry.date
-            if self.resources.is_employee_on_leave(employee_id, shift_date):
+            if self.resources.is_employee_on_leave(entry.employee_id, entry.date):
                 self.warnings.append(
                     {
                         "type": "absence_conflict",
-                        "message": f"Employee {employee_id} scheduled during leave on {shift_date}",
+                        "message": f"Employee {entry.employee_id} scheduled during leave on {entry.date}",
                         "severity": "error",
-                        "employee_id": employee_id,
-                        "date": str(shift_date),
+                        "employee_id": entry.employee_id,
+                        "date": str(entry.date),
                     }
                 )
 
@@ -1668,3 +1674,22 @@ class ScheduleGenerator:
         if group_utilization > 1.0:
             return int(100 * group_utilization)  # Higher penalty for overutilization
         return 0
+
+    def _get_available_employees(
+        self, current_date: date, start_time: str, end_time: str
+    ):
+        """Get employees available for a specific time period"""
+        return [
+            e
+            for e in self.resources.employees
+            if not self.resources.is_employee_on_leave(e.id, current_date)
+            and self._is_employee_available(e, current_date, start_time, end_time)
+        ]
+
+    def _validate_break_rules(self, schedule):
+        # Implementation of _validate_break_rules method
+        pass
+
+    def _validate_qualifications(self, schedule):
+        # Implementation of _validate_qualifications method
+        pass
