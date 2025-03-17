@@ -7,6 +7,8 @@ from collections import defaultdict
 from datetime import datetime, timedelta, date
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Iterable
+import uuid
+from logging.handlers import RotatingFileHandler
 
 # Add backend to Python path to ensure imports work correctly
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
@@ -75,6 +77,7 @@ class ScheduleGenerator:
         self.session_id = None
         self.create_empty_schedules = True
         self.use_fair_distribution = True
+        self.logger = None
 
     # Add to class constants
     MAX_GROUP_UTILIZATION = {
@@ -89,6 +92,63 @@ class ScheduleGenerator:
         "MIDDLE": 0.3,  # Max 30%
         "LATE": 0.3,  # Max 30%
     }
+
+    def _setup_diagnostic_logging(self):
+        """Set up diagnostic logging for detailed schedule generation tracking"""
+        if not self.session_id:
+            self.session_id = str(uuid.uuid4())[:8]
+
+        # Create diagnostics directory if it doesn't exist
+        diagnostic_dir = (
+            Path(__file__).resolve().parent.parent.parent.parent
+            / "logs"
+            / "diagnostics"
+        )
+        diagnostic_dir.mkdir(exist_ok=True)
+
+        # Create a logger for this generation session
+        self.logger = logging.getLogger(f"schedule_generator_{self.session_id}")
+        self.logger.setLevel(logging.DEBUG)
+        self.logger.propagate = False
+
+        # Create handlers
+        log_file = diagnostic_dir / f"schedule_diagnostic_{self.session_id}.log"
+        file_handler = RotatingFileHandler(
+            log_file,
+            maxBytes=10485760,  # 10MB
+            backupCount=3,
+            encoding="utf-8",
+        )
+
+        # Create and set formatter
+        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        file_handler.setFormatter(formatter)
+
+        # Add handlers to logger
+        self.logger.handlers = []  # Clear any existing handlers
+        self.logger.addHandler(file_handler)
+
+    def _log_debug(self, message: str) -> None:
+        """Log debug message with diagnostic information"""
+        if self.logger:
+            self.logger.debug(message)
+
+    def _log_info(self, message: str) -> None:
+        """Log info message with diagnostic information"""
+        if self.logger:
+            self.logger.info(message)
+
+    def _log_warning(self, message: str) -> None:
+        """Log warning message with diagnostic information"""
+        if self.logger:
+            self.logger.warning(message)
+            self.warnings.append({"type": "warning", "message": message})
+
+    def _log_error(self, message: str) -> None:
+        """Log error message with diagnostic information"""
+        if self.logger:
+            self.logger.error(message)
+            self.warnings.append({"type": "error", "message": message})
 
     def generate(
         self,
@@ -107,9 +167,34 @@ class ScheduleGenerator:
             self.warnings = []
             self.use_fair_distribution = use_fair_distribution
 
+            # Set up diagnostic logging
+            self._setup_diagnostic_logging()
+            self._log_info(
+                f"Starting schedule generation for period {start_date} to {end_date}"
+            )
+            self._log_info(f"Session ID: {self.session_id}")
+
             # Load resources
             self._log_info("Loading resources for schedule generation")
             self.resources.load()
+
+            # Log loaded resources
+            self._log_info(f"Loaded {len(self.resources.employees)} employees")
+            self._log_info(f"Loaded {len(self.resources.shifts)} shift templates")
+            self._log_info(
+                f"Loaded {len(self.resources.availabilities)} availability records"
+            )
+            self._log_info(
+                f"Loaded {len(self.resources.coverage_requirements)} coverage requirements"
+            )
+
+            # Log active employees
+            active_employees = [e for e in self.resources.employees if e.is_active]
+            self._log_info(f"Found {len(active_employees)} active employees")
+            for emp in active_employees:
+                self._log_debug(
+                    f"Active employee: {emp.id} - Group: {emp.group} - Keyholder: {emp.is_keyholder}"
+                )
 
             # Initialize schedule generation
             self._initialize_schedule_generation(start_date, end_date)
@@ -118,12 +203,25 @@ class ScheduleGenerator:
             self._log_info(f"Generating schedule from {start_date} to {end_date}")
             self._create_schedule(start_date, end_date)
 
+            # Log schedule creation results
+            self._log_info(f"Created {len(self.schedule)} schedule entries")
+
             # Add empty schedules for all employees if needed
-            if hasattr(self, "create_empty_schedules") and self.create_empty_schedules:
+            if self.create_empty_schedules:
                 self._log_info(
                     "Adding empty schedules for employees with no assignments"
                 )
                 self._add_empty_schedules(start_date, end_date)
+
+            # Convert Schedule objects to dictionaries
+            self.schedule = [
+                self._convert_schedule_to_dict(entry) for entry in self.schedule
+            ]
+            for date in self.schedule_by_date:
+                self.schedule_by_date[date] = [
+                    self._convert_schedule_to_dict(entry)
+                    for entry in self.schedule_by_date[date]
+                ]
 
             # Validate final schedule
             self._log_info("Validating final schedule")
@@ -139,38 +237,15 @@ class ScheduleGenerator:
                     }
                 )
 
-            # Log distribution metrics if fair distribution is enabled
-            if self.use_fair_distribution:
-                self._log_info("Calculating distribution metrics")
-                metrics = self.distribution_manager.get_distribution_metrics()
-
-                # Log overall percentages
-                if "overall_percentages" in metrics:
-                    percentages = metrics["overall_percentages"]
-                    self._log_info(
-                        f"Shift distribution: "
-                        f"Early: {percentages.get('early', 0):.1f}%, "
-                        f"Middle: {percentages.get('middle', 0):.1f}%, "
-                        f"Late: {percentages.get('late', 0):.1f}%, "
-                        f"Weekend: {percentages.get('weekend', 0):.1f}%"
-                    )
-
-                # Log fairness metrics
-                if (
-                    "fairness_metrics" in metrics
-                    and "equity_score" in metrics["fairness_metrics"]
-                ):
-                    self._log_info(
-                        f"Schedule equity score: "
-                        f"{metrics['fairness_metrics']['equity_score']:.2f}"
-                    )
-
-            # Create result
+            # Create result with serializable data
             result = self._create_result()
 
-            # Add distribution metrics to result if available
-            if self.use_fair_distribution:
-                result["distribution_metrics"] = metrics
+            # Log final statistics
+            self._log_info(
+                f"Final schedule contains {len(result['schedule'])} assignments"
+            )
+            if result.get("warnings"):
+                self._log_info(f"Found {len(result['warnings'])} warnings/errors")
 
             return result
 
@@ -181,10 +256,63 @@ class ScheduleGenerator:
             self._log_error(traceback.format_exc())
             return {
                 "error": f"Failed to generate schedule: {str(e)}",
-                "schedule": self.schedule or [],
+                "schedule": [],
                 "warnings": self.warnings,
                 "version": self.version,
             }
+
+    def _convert_schedule_to_dict(self, entry) -> dict:
+        """Convert a Schedule object or dict to a fully serializable dictionary"""
+        if isinstance(entry, dict):
+            # If it's already a dict, ensure all values are serializable
+            result = entry.copy()
+
+            # Convert date to ISO format string if it's a date object
+            if "date" in result and isinstance(result["date"], date):
+                result["date"] = result["date"].isoformat()
+
+            # Convert shift template if present
+            if "shift_template" in result and isinstance(
+                result["shift_template"], ShiftTemplate
+            ):
+                result["shift_template"] = {
+                    "id": result["shift_template"].id,
+                    "start_time": result["shift_template"].start_time,
+                    "end_time": result["shift_template"].end_time,
+                }
+
+            # Convert status to string value if it's an enum
+            if "status" in result and hasattr(result["status"], "value"):
+                result["status"] = result["status"].value
+
+            return result
+
+        elif isinstance(entry, Schedule):
+            # Convert Schedule object to dictionary
+            return {
+                "id": entry.id if hasattr(entry, "id") else None,
+                "employee_id": entry.employee_id,
+                "date": entry.date.isoformat()
+                if isinstance(entry.date, date)
+                else str(entry.date),
+                "shift_id": entry.shift_id,
+                "status": entry.status.value
+                if hasattr(entry.status, "value")
+                else str(entry.status),
+                "version": entry.version,
+                "availability_type": entry.availability_type,
+                "shift_template": {
+                    "id": entry.shift.id,
+                    "start_time": entry.shift.start_time,
+                    "end_time": entry.shift.end_time,
+                }
+                if hasattr(entry, "shift") and entry.shift
+                else None,
+            }
+        else:
+            # If it's neither a dict nor a Schedule, return a minimal dict
+            self._log_warning(f"Unknown entry type {type(entry)} in schedule")
+            return {"error": f"Invalid entry type: {type(entry)}", "data": str(entry)}
 
     def _create_schedule(self, start_date: date, end_date: date) -> None:
         """Create the schedule for the given date range"""
@@ -229,11 +357,15 @@ class ScheduleGenerator:
     ) -> List[Schedule]:
         """Process a coverage requirement for a given date"""
         self._log_info(
-            f"Processing coverage for {current_date} {coverage.start_time}-{coverage.end_time}"
+            f"Processing coverage for {current_date} "
+            f"{coverage.start_time}-{coverage.end_time}, "
+            f"min employees={coverage.min_employees}"
         )
 
         # Find matching shifts using simplified matching logic
         matching_shifts = self._find_matching_shifts(coverage)
+        self._log_info(f"Found {len(matching_shifts)} matching shifts for coverage")
+
         if not matching_shifts:
             self._log_warning(f"No matching shifts found for coverage {coverage.id}")
             return []
@@ -242,12 +374,26 @@ class ScheduleGenerator:
         available_employees = self._get_available_employees(
             current_date, coverage.start_time, coverage.end_time
         )
+
+        # Log detailed employee availability
+        for emp in available_employees:
+            self._log_info(
+                f"Employee {emp.id} available: "
+                f"group={emp.employee_group}, "
+                f"keyholder={emp.is_keyholder}"
+            )
+
         if not available_employees:
-            self._log_warning(f"No available employees for {current_date}")
+            self._log_warning(
+                f"No available employees for {current_date} "
+                f"({coverage.start_time}-{coverage.end_time})"
+            )
             return []
 
         # New distribution priority system
         employees_needed = max(coverage.min_employees, 1)
+        self._log_info(f"Need to assign {employees_needed} employees")
+
         assigned_employees = self._assign_employees_with_distribution(
             matching_shifts,
             available_employees,
@@ -256,41 +402,132 @@ class ScheduleGenerator:
             employees_needed,
         )
 
-        return self._create_schedule_entries(
+        self._log_info(f"Successfully assigned {len(assigned_employees)} employees")
+
+        # Log assigned employee details
+        for emp in assigned_employees:
+            self._log_info(f"Assigned employee {emp.id} to coverage {coverage.id}")
+
+        schedule_entries = self._create_schedule_entries(
             assigned_employees, matching_shifts, current_date, version
         )
 
-    def _assign_employees_with_distribution(
-        self, shifts, employees, date, coverage, needed
-    ):
-        """New method handling fair employee assignment"""
-        assigned = set()
-        remaining = needed
+        # Log created schedule entries
+        for entry in schedule_entries:
+            self._log_info(
+                f"Created schedule entry: "
+                f"employee={entry.employee_id}, "
+                f"shift={entry.shift_id}, "
+                f"type={entry.availability_type}"
+            )
 
-        for shift in sorted(shifts, key=lambda s: self._get_shift_priority(s, date)):
-            if remaining <= 0:
+        return schedule_entries
+
+    def _assign_employees_with_distribution(
+        self, date: date, shifts: List[Dict], employees_needed: int
+    ) -> List[Dict]:
+        """Assign employees to shifts using fair distribution"""
+        self._log_info(
+            f"Starting employee assignment for date {date}, need {employees_needed} employees"
+        )
+
+        assigned_employees = []
+        available_employees = self._get_available_employees(date, shifts)
+
+        self._log_debug(
+            f"Found {len(available_employees)} potentially available employees for {date}"
+        )
+
+        if not available_employees:
+            self._log_warning(f"No available employees found for date {date}")
+            return []
+
+        # Get employee assignments for this date
+        existing_assignments = self._get_employee_shifts_for_date(date)
+        self._log_debug(
+            f"Found {len(existing_assignments)} existing assignments for {date}"
+        )
+
+        # Track assignments by type
+        assignments_by_type = defaultdict(int)
+        for shift in shifts:
+            shift_type = shift.get("type", "EARLY")  # Default to EARLY if not specified
+            assignments_by_type[shift_type] += 1
+
+        self._log_debug(f"Assignments by type: {dict(assignments_by_type)}")
+
+        # Try to assign employees while respecting constraints
+        for employee in available_employees:
+            if len(assigned_employees) >= employees_needed:
+                self._log_debug("Reached required number of employees")
                 break
 
-            # Get employees sorted by distribution score
-            candidates = self._get_sorted_candidates(employees, shift, date, assigned)
+            self._log_debug(
+                f"Evaluating employee {employee.id} - Group: {employee.group}"
+            )
 
-            # Ensure keyholder if required
-            if coverage.requires_keyholder and not any(
-                e.is_keyholder for e in assigned
-            ):
-                candidates = self._prioritize_keyholders(candidates)
+            # Check if employee already has shifts on this date
+            if any(assg["employee_id"] == employee.id for assg in existing_assignments):
+                self._log_debug(f"Employee {employee.id} already has shifts on {date}")
+                continue
 
-            # Select top candidates for this shift
-            assign_count = min(remaining, len(candidates))
-            for emp in candidates[:assign_count]:
-                assigned.add(emp.id)
-                remaining -= 1
-                if self.use_fair_distribution:
-                    self.distribution_manager.update_with_assignment(
-                        emp.id, shift, date
+            # Check consecutive days constraint
+            if not self._check_consecutive_days(employee, date):
+                self._log_debug(
+                    f"Employee {employee.id} would exceed consecutive days limit"
+                )
+                continue
+
+            # Check rest period constraint
+            if not self._check_rest_period(employee, date, shifts[0]):
+                self._log_debug(f"Employee {employee.id} would violate rest period")
+                continue
+
+            # Find best matching shift based on availability
+            best_shift = None
+            best_match_score = -1
+
+            for shift in shifts:
+                if self._is_employee_available(employee, date, shift):
+                    # Calculate match score based on distribution
+                    match_score = self.distribution_manager.calculate_match_score(
+                        employee, date, shift
+                    )
+                    self._log_debug(
+                        f"Match score for employee {employee.id} with shift {shift.get('id')}: {match_score}"
                     )
 
-        return assigned
+                    if match_score > best_match_score:
+                        best_match_score = match_score
+                        best_shift = shift
+
+            if best_shift:
+                self._log_info(
+                    f"Assigning employee {employee.id} to shift {best_shift.get('id')} on {date}"
+                )
+                assignment = {
+                    "employee_id": employee.id,
+                    "shift_id": best_shift["id"],
+                    "date": date,
+                    "shift_template": best_shift,
+                    "availability_type": "AVAILABLE",
+                    "status": ScheduleStatus.DRAFT,
+                    "version": self.version,
+                }
+                assigned_employees.append(assignment)
+
+                # Update distribution tracking
+                self.distribution_manager.record_assignment(employee, date, best_shift)
+            else:
+                self._log_debug(f"No suitable shift found for employee {employee.id}")
+
+        if len(assigned_employees) < employees_needed:
+            self._log_warning(
+                f"Could not assign enough employees for {date}. "
+                f"Needed: {employees_needed}, Assigned: {len(assigned_employees)}"
+            )
+
+        return assigned_employees
 
     def _get_sorted_candidates(self, employees, shift, date, assigned):
         """Get a sorted list of candidate employees for a shift"""
@@ -515,23 +752,88 @@ class ScheduleGenerator:
             )
             return True  # Safer to assume constraints are exceeded if check fails
 
-    def _is_employee_available(
-        self, employee: Employee, current_date: date, start_time: str, end_time: str
-    ) -> bool:
-        """Check if employee is available for this time period based on availability records"""
-        # Extract shift hours
-        shift_start_hour = int(start_time.split(":")[0])
-        shift_end_hour = int(end_time.split(":")[0])
-
-        # Adjust end hour if it ends on the hour boundary
-        if end_time.endswith(":00") and shift_end_hour > 0:
-            shift_end_hour -= 1
-
-        # Delegate to the resources method which properly checks both
-        # is_available flag and availability_type
-        return self.resources.is_employee_available(
-            employee.id, current_date, shift_start_hour, shift_end_hour + 1
+    def _is_employee_available(self, employee, date: date, shift: Dict) -> bool:
+        """Check if an employee is available for a given shift"""
+        self._log_debug(
+            f"Checking availability for employee {employee.id} on {date} for shift {shift.get('id')}"
         )
+
+        # Check if employee is on leave
+        if self._is_employee_on_leave(employee, date):
+            self._log_debug(f"Employee {employee.id} is on leave on {date}")
+            return False
+
+        # Get availability records for the date
+        availability = self.resources.get_availability(employee.id, date)
+        if not availability:
+            self._log_debug(
+                f"No availability record found for employee {employee.id} on {date}"
+            )
+            return False
+
+        # Get shift hours
+        start_time = shift.get("start_time")
+        end_time = shift.get("end_time")
+        if not start_time or not end_time:
+            self._log_warning(
+                f"Invalid shift times for shift {shift.get('id')}: {start_time} - {end_time}"
+            )
+            return False
+
+        self._log_debug(f"Checking availability for hours {start_time} - {end_time}")
+
+        # Check each hour of the shift
+        shift_hours = self._get_shift_hours(start_time, end_time)
+        for hour in shift_hours:
+            if not self._is_hour_available(employee, date, hour, availability):
+                self._log_debug(f"Employee {employee.id} not available at hour {hour}")
+                return False
+
+        self._log_debug(
+            f"Employee {employee.id} is available for shift {shift.get('id')} on {date}"
+        )
+        return True
+
+    def _is_hour_available(self, employee, date: date, hour: int, availability) -> bool:
+        """Check if an employee is available for a specific hour"""
+        # Convert availability type to uppercase for consistency
+        availability_type = availability.get("type", "").upper()
+
+        self._log_debug(
+            f"Checking hour {hour} for employee {employee.id} - Availability type: {availability_type}"
+        )
+
+        if availability_type == "AVAILABLE":
+            return True
+        elif availability_type == "UNAVAILABLE":
+            return False
+        elif availability_type == "PREFERRED":
+            return True
+        elif availability_type == "NOT_PREFERRED":
+            # Allow assignment but with lower priority
+            return True
+        else:
+            self._log_warning(
+                f"Unknown availability type {availability_type} for employee {employee.id}"
+            )
+            return False
+
+    def _get_shift_hours(self, start_time: str, end_time: str) -> List[int]:
+        """Get list of hours covered by a shift"""
+        try:
+            start_hour = int(start_time.split(":")[0])
+            end_hour = int(end_time.split(":")[0])
+
+            # Handle shifts that span midnight
+            if end_hour <= start_hour:
+                end_hour += 24
+
+            return list(range(start_hour, end_hour))
+        except (ValueError, IndexError) as e:
+            self._log_error(
+                f"Error parsing shift hours: {start_time} - {end_time}: {str(e)}"
+            )
+            return []
 
     def _has_enough_rest(
         self,
@@ -1787,12 +2089,34 @@ class ScheduleGenerator:
         self, current_date: date, start_time: str, end_time: str
     ):
         """Get employees available for a specific time period"""
-        return [
-            e
-            for e in self.resources.employees
-            if not self.resources.is_employee_on_leave(e.id, current_date)
-            and self._is_employee_available(e, current_date, start_time, end_time)
-        ]
+        all_employees = [e for e in self.resources.employees if e.is_active]
+        self._log_info(f"Total active employees: {len(all_employees)}")
+
+        available_employees = []
+        for employee in all_employees:
+            # Check leave first
+            if self.resources.is_employee_on_leave(employee.id, current_date):
+                self._log_debug(
+                    f"Employee {employee.id} is on leave for {current_date}"
+                )
+                continue
+
+            # Then check availability
+            if self._is_employee_available(
+                employee, current_date, start_time, end_time
+            ):
+                available_employees.append(employee)
+            else:
+                self._log_debug(
+                    f"Employee {employee.id} is not available for "
+                    f"{start_time}-{end_time} on {current_date}"
+                )
+
+        self._log_info(
+            f"Found {len(available_employees)} available employees out of "
+            f"{len(all_employees)} total active employees"
+        )
+        return available_employees
 
     def _validate_break_rules(self, schedule):
         # Implementation of _validate_break_rules method
@@ -1803,53 +2127,85 @@ class ScheduleGenerator:
         pass
 
     def _find_matching_shifts(self, coverage):
-        """Find shifts that match the coverage requirements"""
+        """Find shift templates that match coverage requirements"""
         matching_shifts = []
         for shift in self.resources.shifts:
-            if shifts_overlap(
-                shift.start_time, shift.end_time, coverage.start_time, coverage.end_time
+            # Check if shift times overlap with coverage
+            if self._shifts_overlap(
+                coverage.start_time,
+                coverage.end_time,
+                shift.start_time,
+                shift.end_time,
             ):
                 matching_shifts.append(shift)
+                self._log_info(
+                    f"Found matching shift: ID={shift.id}, "
+                    f"type={shift.shift_type_id}, "
+                    f"time={shift.start_time}-{shift.end_time}"
+                )
+            else:
+                self._log_debug(
+                    f"Shift {shift.id} does not match coverage "
+                    f"{coverage.start_time}-{coverage.end_time}"
+                )
+
         return matching_shifts
 
     def _create_schedule_entries(
         self, assigned_employees, matching_shifts, current_date, version
     ):
         """Create schedule entries for assigned employees"""
-        entries = []
-        for employee_id in assigned_employees:
-            # Find best matching shift for this employee
+        schedule_entries = []
+
+        self._log_info(
+            f"Creating schedule entries for {len(assigned_employees)} employees"
+        )
+
+        for employee in assigned_employees:
+            # Find best matching shift for employee
             best_shift = None
+            best_score = float("-inf")
+
             for shift in matching_shifts:
-                if self._is_employee_available(
-                    next(e for e in self.resources.employees if e.id == employee_id),
-                    current_date,
-                    shift.start_time,
-                    shift.end_time,
-                ):
+                score = self._get_shift_priority(shift, current_date)
+                if score > best_score:
                     best_shift = shift
-                    break
+                    best_score = score
 
             if best_shift:
-                # Create a dictionary instead of Schedule object for better serialization
-                entry = {
-                    "employee_id": employee_id,
-                    "date": current_date,
-                    "shift_id": best_shift.id,
-                    "status": ScheduleStatus.DRAFT.value,
-                    "version": version,
-                    "availability_type": AvailabilityType.AVAILABLE.value,
-                    "shift_template": {
-                        "id": best_shift.id,
-                        "start_time": best_shift.start_time,
-                        "end_time": best_shift.end_time,
-                    },
-                }
-                entries.append(entry)
-                self.schedule.append(entry)
-                self.schedule_by_date[current_date].append(entry)
+                self._log_info(
+                    f"Best shift for employee {employee.id}: "
+                    f"shift={best_shift.id}, score={best_score}"
+                )
 
-        return entries
+                # Determine availability type
+                availability_type = self._determine_availability_type(
+                    employee, best_shift, current_date
+                )
+
+                # Create schedule entry
+                schedule_entry = Schedule(
+                    employee_id=employee.id,
+                    shift_id=best_shift.id,
+                    date=current_date,
+                    version=version,
+                    availability_type=availability_type,
+                )
+
+                schedule_entries.append(schedule_entry)
+                self.schedule.append(schedule_entry)
+                self.schedule_by_date[current_date].append(schedule_entry)
+
+                self._log_info(
+                    f"Created schedule entry: "
+                    f"employee={employee.id}, "
+                    f"shift={best_shift.id}, "
+                    f"type={availability_type}"
+                )
+            else:
+                self._log_warning(f"No suitable shift found for employee {employee.id}")
+
+        return schedule_entries
 
     def _prioritize_keyholders(self, candidates):
         """Prioritize keyholder employees in the candidate list"""
