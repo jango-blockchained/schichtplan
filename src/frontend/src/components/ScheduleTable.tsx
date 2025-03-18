@@ -270,7 +270,7 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence }: {
                 return 'FIX';
             }
             if (notes.includes('wunsch') || notes.includes('promised') || notes.includes('pref')) {
-                return 'PRM';
+                return 'PRF';
             }
         }
 

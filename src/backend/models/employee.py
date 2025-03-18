@@ -18,13 +18,13 @@ import logging
 class AvailabilityType(str, Enum):
     AVAILABLE = "AVL"  # Available for work
     FIXED = "FIX"  # Fixed working hours
-    PROMISE = "PRM"  # Promised/preferred hours
+    PREFERRED = "PRF"  # Preferred hours
     UNAVAILABLE = "UNV"  # Not available
 
     @property
     def is_available(self):
         """Check if this availability type counts as available for scheduling"""
-        return self in [self.AVAILABLE, self.FIXED, self.PROMISE]
+        return self in [self.AVAILABLE, self.FIXED, self.PREFERRED]
 
     @property
     def priority(self):
@@ -32,7 +32,7 @@ class AvailabilityType(str, Enum):
         priorities = {
             self.FIXED: 1,
             self.AVAILABLE: 2,
-            self.PROMISE: 3,
+            self.PREFERRED: 3,
             self.UNAVAILABLE: 4,
         }
         return priorities.get(self, 4)
@@ -280,8 +280,11 @@ class EmployeeAvailability(db.Model):
         if shift_start is None or shift_end is None:
             return self.is_available is True
 
-        # For FIXED and PROMISE availability types, they are available for any shift time
-        if self.availability_type in [AvailabilityType.FIXED, AvailabilityType.PROMISE]:
+        # For FIXED and PREFERRED availability types, they are available for any shift time
+        if self.availability_type in [
+            AvailabilityType.FIXED,
+            AvailabilityType.PREFERRED,
+        ]:
             return self.is_available is True
 
         # Convert shift times to hours

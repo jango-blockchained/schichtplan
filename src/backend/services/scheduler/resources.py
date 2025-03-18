@@ -1,16 +1,48 @@
 from datetime import date
 from typing import List, Optional, Dict, Tuple
-from models import (
-    Employee,
-    ShiftTemplate,
-    Settings,
-    Coverage,
-    db,
-    Absence,
-    EmployeeAvailability,
-    Schedule,
-)
-from models.employee import AvailabilityType, EmployeeGroup
+
+try:
+    from src.backend.models import (
+        Employee,
+        ShiftTemplate,
+        Settings,
+        Coverage,
+        db,
+        Absence,
+        EmployeeAvailability,
+        Schedule,
+    )
+    from src.backend.models.employee import AvailabilityType, EmployeeGroup
+except ImportError:
+    try:
+        from backend.models import (
+            Employee,
+            ShiftTemplate,
+            Settings,
+            Coverage,
+            db,
+            Absence,
+            EmployeeAvailability,
+            Schedule,
+        )
+        from backend.models.employee import AvailabilityType, EmployeeGroup
+    except ImportError:
+        try:
+            from models import (
+                Employee,
+                ShiftTemplate,
+                Settings,
+                Coverage,
+                db,
+                Absence,
+                EmployeeAvailability,
+                Schedule,
+            )
+            from models.employee import AvailabilityType, EmployeeGroup
+        except ImportError:
+            # Create placeholder classes for standalone testing
+            pass
+
 import logging
 import functools
 
@@ -25,7 +57,7 @@ logger.setLevel(logging.INFO)
 
 
 class ScheduleResourceError(Exception):
-    """Exception raised for errors in the ScheduleResources class"""
+    """Exception raised for errors related to scheduler resources."""
 
     pass
 
@@ -96,7 +128,7 @@ class ScheduleResources:
         ]
 
         for day_idx, day_coverage in by_day.items():
-            total_employees = sum(c.employees_needed for c in day_coverage)
+            total_employees = sum(c.min_employees for c in day_coverage)
             logger.info(
                 f"Coverage for {days[day_idx]}: "
                 f"{len(day_coverage)} shifts, "
@@ -116,7 +148,7 @@ class ScheduleResources:
         for shift in shifts:
             logger.info(
                 f"Loaded shift template: ID={shift.id}, "
-                f"start={shift.start_hour}:00, end={shift.end_hour}:00, "
+                f"start={shift.start_time}, end={shift.end_time}, "
                 f"type={shift.shift_type_id}"
             )
         return shifts

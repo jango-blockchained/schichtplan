@@ -21,7 +21,7 @@ export interface Schedule {
     is_empty?: boolean;
     shift_start?: string | null;
     shift_end?: string | null;
-    availability_type?: 'AVL' | 'FIX' | 'PRM' | 'UNV';
+    availability_type?: 'AVL' | 'FIX' | 'PRF' | 'UNV';
     shift_type_id?: string; // EARLY, MIDDLE, LATE
     shift_type_name?: string; // early, middle, late
 }
@@ -528,7 +528,7 @@ export interface Availability {
     end_date: string;
     start_time?: string;
     end_time?: string;
-    availability_type: 'AVL' | 'FIX' | 'PRM' | 'UNV';
+    availability_type: 'AVL' | 'FIX' | 'PRF' | 'UNV';
     reason?: string;
     is_recurring: boolean;
     recurrence_day?: number;
@@ -1183,7 +1183,7 @@ export interface CreateScheduleRequest {
     break_start?: string;
     break_end?: string;
     notes?: string;
-    availability_type?: 'AVL' | 'FIX' | 'PRM' | 'UNV';
+    availability_type?: 'AVL' | 'FIX' | 'PRF' | 'UNV';
 }
 
 export const createSchedule = async (data: CreateScheduleRequest): Promise<Schedule> => {

@@ -19,14 +19,14 @@ type AvailabilityType = {
     name: string;
     color: string;
     description: string;
-    type: 'AVL' | 'FIX' | 'PRM' | 'UNV';
+    type: 'AVL' | 'FIX' | 'PRF' | 'UNV';
     priority?: number;
 };
 
 const defaultAvailabilityTypes: AvailabilityType[] = [
     { code: 'FIX', name: 'Fixed', color: '#3b82f6', description: 'Fixed schedule', type: 'FIX' },
     { code: 'AVL', name: 'Available', color: '#22c55e', description: 'Available for scheduling', type: 'AVL' },
-    { code: 'PRM', name: 'Promised', color: '#f59e0b', description: 'Preferred hours', type: 'PRM' },
+    { code: 'PRF', name: 'Preferred', color: '#f59e0b', description: 'Preferred hours', type: 'PRF' },
     { code: 'UNV', name: 'Unavailable', color: '#ef4444', description: 'Not available', type: 'UNV' },
 ];
 
@@ -53,7 +53,7 @@ export default function OptionsPage() {
                 type: type.is_available
                     ? type.priority === 1 ? 'FIX' as const
                         : type.priority === 2 ? 'AVL' as const
-                            : type.priority === 3 ? 'PRM' as const
+                            : type.priority === 3 ? 'PRF' as const
                                 : 'UNV' as const
                     : 'UNV' as const
             }));
@@ -110,7 +110,7 @@ export default function OptionsPage() {
                 name: type.name,
                 description: type.description,
                 color: type.color,
-                priority: type.type === 'FIX' ? 1 : type.type === 'AVL' ? 2 : type.type === 'PRM' ? 3 : 4,
+                priority: type.type === 'FIX' ? 1 : type.type === 'AVL' ? 2 : type.type === 'PRF' ? 3 : 4,
                 is_available: type.type !== 'UNV'
             }));
 
