@@ -78,8 +78,8 @@ class Settings(db.Model):
                 },
                 {
                     "id": "PRM",
-                    "name": "Promised",
-                    "description": "Promised/preferred hours",
+                    "name": "Preferred",
+                    "description": "Preferred hours",
                     "color": "#f59e0b",
                     "priority": 3,
                     "is_available": True,
@@ -466,8 +466,8 @@ class Settings(db.Model):
                         },
                         {
                             "id": "PRM",
-                            "name": "Promised",
-                            "description": "Promised/preferred hours",
+                            "name": "Preferred",
+                            "description": "Preferred hours",
                             "color": "#f59e0b",
                             "priority": 3,
                             "is_available": True,

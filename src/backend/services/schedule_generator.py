@@ -150,7 +150,7 @@ class ScheduleResources:
                     [
                         AvailabilityType.AVAILABLE.value,
                         AvailabilityType.FIXED.value,
-                        AvailabilityType.PROMISE.value,
+                        AvailabilityType.PREFERRED.value,
                     ]
                 )
             ).all()

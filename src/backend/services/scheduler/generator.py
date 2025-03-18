@@ -26,26 +26,23 @@ from .availability import AvailabilityChecker
 from .distribution import DistributionManager
 from .serialization import ScheduleSerializer
 from .logging_utils import LoggingManager
-from src.backend.models.employee import AvailabilityType
+from .resources import ScheduleResources
 
 # Try to handle imports in different environments
 try:
     from models.employee import AvailabilityType
     from models import Employee, ShiftTemplate, Schedule
     from utils.logger import logger
-    from services.scheduler.resources import ScheduleResources
 except ImportError:
     try:
         from backend.models.employee import AvailabilityType
         from backend.models import Employee, ShiftTemplate, Schedule
         from backend.utils.logger import logger
-        from backend.services.scheduler.resources import ScheduleResources
     except ImportError:
         try:
             from src.backend.models.employee import AvailabilityType
             from src.backend.models import Employee, ShiftTemplate, Schedule
             from src.backend.utils.logger import logger
-            from src.backend.services.scheduler.resources import ScheduleResources
         except ImportError:
             # Create placeholder logger and classes for standalone testing
             logger = logging.getLogger(__name__)
@@ -69,29 +66,17 @@ except ImportError:
                 """Type hint class for ShiftTemplate"""
 
                 id: int
+                name: str
+                start_time: str
+                end_time: str
+                shift_type: str
+                duration_hours: float
 
             class Schedule:
                 """Type hint class for Schedule"""
 
                 id: int
                 entries = []
-
-            # Define a basic ScheduleResources class
-            class ScheduleResources:
-                """Minimal ScheduleResources for standalone testing"""
-
-                def __init__(self):
-                    self.employees = []
-                    self.shifts = []
-                    self.availabilities = []
-                    self.coverage = []
-                    self.leaves = []
-
-                def is_loaded(self):
-                    return len(self.employees) > 0
-
-                def load(self):
-                    pass
 
 
 class ScheduleAssignment:

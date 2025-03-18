@@ -304,9 +304,9 @@ def generate_availability_data(employees):
                             block_length = random.randint(2, min(4, remaining_hours))
 
                         block_end = current_hour + block_length
-                        # Assign type - higher chance of AVAILABLE, lower chance of PROMISE
+                        # Assign type - higher chance of AVAILABLE, lower chance of PREFERRED
                         block_type = (
-                            AvailabilityType.PROMISE
+                            AvailabilityType.PREFERRED
                             if random.random() < 0.3
                             else AvailabilityType.AVAILABLE
                         )
@@ -924,9 +924,9 @@ def generate_improved_availability_data(employees):
                 )
                 availabilities.append(availability)
 
-    # Step 5: Add some random promised availability to increase flexibility
+    # Step 5: Add some random preferred availability to increase flexibility
     for employee in employees:
-        # 30% chance to add some promised hours
+        # 30% chance to add some preferred hours
         if random.random() < 0.3:
             # Pick a day they don't already have availability
             existing_days = set(
@@ -948,7 +948,7 @@ def generate_improved_availability_data(employees):
                         day_of_week=extra_day,
                         hour=hour,
                         is_available=True,
-                        availability_type=AvailabilityType.PROMISE,
+                        availability_type=AvailabilityType.PREFERRED,
                     )
                     availabilities.append(availability)
 
