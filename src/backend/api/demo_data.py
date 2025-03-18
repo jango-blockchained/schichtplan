@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from models import (
     db,
     Settings,
@@ -14,6 +14,9 @@ from http import HTTPStatus
 from datetime import datetime, date, timedelta
 import random
 import logging
+from sqlalchemy import text
+import uuid
+from threading import Thread
 
 bp = Blueprint("demo_data", __name__, url_prefix="/demo-data")
 
@@ -878,7 +881,15 @@ def generate_improved_availability_data(employees):
     }
 
     # Define working days (Monday to Saturday)
-    working_days = range(1, 7)  # 1-6 (Monday-Saturday)
+    working_days = list(range(1, 7))  # 1-6 (Monday-Saturday)
+
+    def calculate_weekly_hours(employee_availabilities):
+        """Calculate total weekly available hours for an employee"""
+        # Count unique day-hour combinations
+        unique_slots = set()
+        for avail in employee_availabilities:
+            unique_slots.add((avail.day_of_week, avail.hour))
+        return len(unique_slots)
 
     # Step 1: Ensure keyholders have availability for each time slot
     keyholders = [e for e in employees if e.is_keyholder]
@@ -897,81 +908,93 @@ def generate_improved_availability_data(employees):
                     )
                     availabilities.append(availability)
 
-    # Step 2: Assign regular full-time employees (VZ) to shifts
-    for employee in employee_groups["VZ"]:
-        work_days = random.sample(list(working_days), 5)
-        for day in work_days:
-            if random.random() < 0.5:
-                start_hour, end_hour = 9, 17
-            else:
-                start_hour, end_hour = 12, 20
+    # Process each employee type
+    for employee_type, group_employees in employee_groups.items():
+        for employee in group_employees:
+            employee_availabilities = []
+            target_hours = employee.contracted_hours * (
+                2.5 if employee.contracted_hours <= 20 else 1.5
+            )
 
-            for hour in range(start_hour, end_hour):
-                availability = EmployeeAvailability(
-                    employee_id=employee.id,
-                    is_recurring=True,
-                    day_of_week=day,
-                    hour=hour,
-                    is_available=True,
-                    availability_type=AvailabilityType.AVAILABLE,
-                )
-                availabilities.append(availability)
-
-    # Step 3: Assign part-time employees (TZ) with increased flexibility for those with ≤20 hours
-    for employee in employee_groups["TZ"]:
-        # Determine number of available days based on contracted hours
-        if employee.contracted_hours <= 20:
-            # More available days for flexible part-timers
-            work_days_count = random.randint(4, 5)  # Increased from 3-4
-            preferred_days_count = random.randint(2, 3)  # Additional preferred days
-        else:
-            work_days_count = random.randint(3, 4)
-            preferred_days_count = random.randint(1, 2)
-
-        # Regular availability
-        work_days = random.sample(list(working_days), work_days_count)
-        for day in work_days:
-            # More shift options for flexible employees
+            # Determine number of working days based on target hours
             if employee.contracted_hours <= 20:
-                shift_options = [
-                    (9, 15),  # Morning
-                    (11, 17),  # Midday
+                min_days = 4  # More days for flexibility
+                max_days = 6
+            else:
+                min_days = max(3, int(employee.contracted_hours / 8))  # At least 3 days
+                max_days = 6
+
+            work_days_count = random.randint(min_days, max_days)
+            work_days = random.sample(working_days, work_days_count)
+
+            # Generate availability blocks for each working day
+            for day in work_days:
+                # Multiple blocks per day for flexible employees
+                if employee.contracted_hours <= 20:
+                    num_blocks = random.randint(2, 3)  # More blocks for flexibility
+                else:
+                    num_blocks = random.randint(1, 2)
+
+                # Available time slots
+                time_slots = [
+                    (9, 14),  # Morning
+                    (11, 16),  # Mid-day
                     (14, 20),  # Afternoon
                     (9, 13),  # Short morning
                     (16, 20),  # Short afternoon
+                    (12, 17),  # Mid-shift
                 ]
-                start_hour, end_hour = random.choice(shift_options)
-            else:
-                shift_type = random.choice(["morning", "midday", "afternoon"])
-                if shift_type == "morning":
-                    start_hour, end_hour = 9, 15
-                elif shift_type == "midday":
-                    start_hour, end_hour = 11, 17
-                else:
-                    start_hour, end_hour = 14, 20
 
-            for hour in range(start_hour, end_hour):
-                availability = EmployeeAvailability(
-                    employee_id=employee.id,
-                    is_recurring=True,
-                    day_of_week=day,
-                    hour=hour,
-                    is_available=True,
-                    availability_type=AvailabilityType.AVAILABLE,
+                # Select random blocks for this day
+                day_slots = random.sample(time_slots, num_blocks)
+
+                for start_hour, end_hour in day_slots:
+                    for hour in range(start_hour, end_hour):
+                        availability = EmployeeAvailability(
+                            employee_id=employee.id,
+                            is_recurring=True,
+                            day_of_week=day,
+                            hour=hour,
+                            is_available=True,
+                            availability_type=AvailabilityType.AVAILABLE,
+                        )
+                        employee_availabilities.append(availability)
+
+            # Add preferred availability on additional days
+            remaining_days = [d for d in working_days if d not in work_days]
+            if remaining_days:
+                preferred_days_count = random.randint(
+                    2 if employee.contracted_hours <= 20 else 1,
+                    min(3, len(remaining_days)),
                 )
-                availabilities.append(availability)
+                preferred_days = random.sample(remaining_days, preferred_days_count)
 
-        # Add preferred availability on additional days
-        remaining_days = [d for d in working_days if d not in work_days]
-        if remaining_days and preferred_days_count > 0:
-            preferred_days = random.sample(
-                remaining_days, min(preferred_days_count, len(remaining_days))
-            )
-            for day in preferred_days:
-                if random.random() < 0.5:
-                    start_hour, end_hour = 9, 14
-                else:
-                    start_hour, end_hour = 14, 19
+                for day in preferred_days:
+                    num_slots = random.randint(1, 2)
+                    preferred_slots = random.sample(
+                        [(9, 13), (13, 17), (16, 20)], num_slots
+                    )
+
+                    for start_hour, end_hour in preferred_slots:
+                        for hour in range(start_hour, end_hour):
+                            availability = EmployeeAvailability(
+                                employee_id=employee.id,
+                                is_recurring=True,
+                                day_of_week=day,
+                                hour=hour,
+                                is_available=True,
+                                availability_type=AvailabilityType.PREFERRED,
+                            )
+                            employee_availabilities.append(availability)
+
+            # Check if we have enough hours
+            weekly_hours = calculate_weekly_hours(employee_availabilities)
+
+            # If we don't have enough hours, add more availability
+            while weekly_hours < target_hours and len(remaining_days) > 0:
+                day = random.choice(remaining_days)
+                start_hour, end_hour = random.choice(time_slots)
+
                 for hour in range(start_hour, end_hour):
                     availability = EmployeeAvailability(
                         employee_id=employee.id,
@@ -981,76 +1004,20 @@ def generate_improved_availability_data(employees):
                         is_available=True,
                         availability_type=AvailabilityType.PREFERRED,
                     )
-                    availabilities.append(availability)
+                    employee_availabilities.append(availability)
 
-    # Step 4: Assign mini-job employees (GFB) with high flexibility
-    for employee in employee_groups["GFB"]:
-        # Increased number of available days for all GFB employees
-        work_days_count = random.randint(3, 4)  # Increased from 2-3
-        preferred_days_count = random.randint(2, 3)  # Additional preferred days
+                weekly_hours = calculate_weekly_hours(employee_availabilities)
 
-        # Regular availability
-        work_days = random.sample(list(working_days), work_days_count)
-        for day in work_days:
-            # Multiple shift options per day
-            shift_options = [
-                (9, 13),  # Morning
-                (11, 15),  # Midday
-                (16, 20),  # Afternoon
-                (9, 11),  # Short morning
-                (18, 20),  # Short evening
-            ]
-            # Add 1-2 availability blocks per day
-            num_blocks = random.randint(1, 2)
-            day_shifts = random.sample(shift_options, num_blocks)
+            # Add all availabilities for this employee
+            availabilities.extend(employee_availabilities)
 
-            for start_hour, end_hour in day_shifts:
-                for hour in range(start_hour, end_hour):
-                    availability = EmployeeAvailability(
-                        employee_id=employee.id,
-                        is_recurring=True,
-                        day_of_week=day,
-                        hour=hour,
-                        is_available=True,
-                        availability_type=AvailabilityType.AVAILABLE,
-                    )
-                    availabilities.append(availability)
-
-        # Add preferred availability on additional days
-        remaining_days = [d for d in working_days if d not in work_days]
-        if remaining_days and preferred_days_count > 0:
-            preferred_days = random.sample(
-                remaining_days, min(preferred_days_count, len(remaining_days))
+            # Log availability statistics
+            logging.info(
+                f"Employee {employee.employee_id} ({employee.employee_group}): "
+                f"Contracted={employee.contracted_hours:.1f}h/week, "
+                f"Target={target_hours:.1f}h/week, "
+                f"Available={weekly_hours}h/week"
             )
-            for day in preferred_days:
-                # Multiple preferred time slots possible
-                num_slots = random.randint(1, 2)
-                preferred_slots = random.sample(
-                    [(9, 13), (13, 17), (16, 20)], num_slots
-                )
-
-                for start_hour, end_hour in preferred_slots:
-                    for hour in range(start_hour, end_hour):
-                        availability = EmployeeAvailability(
-                            employee_id=employee.id,
-                            is_recurring=True,
-                            day_of_week=day,
-                            hour=hour,
-                            is_available=True,
-                            availability_type=AvailabilityType.PREFERRED,
-                        )
-                        availabilities.append(availability)
-
-    # Log availability statistics
-    for employee in employees:
-        available_hours = len(
-            [a for a in availabilities if a.employee_id == employee.id]
-        )
-        logging.info(
-            f"Employee {employee.employee_id} ({employee.employee_group}): "
-            f"Contracted={employee.contracted_hours:.1f}h/week, "
-            f"Available={available_hours}h total"
-        )
 
     return availabilities
 
@@ -1370,31 +1337,37 @@ def generate_improved_absences(employees):
     # Define absence types with their probabilities and typical durations
     absence_types = {
         "URL": {  # Vacation
-            "prob": 0.7,  # 70% of employees will have vacation
+            "prob": 1.0,  # 100% of employees will have vacation
             "min_duration": 5,
             "max_duration": 14,
-            "instances": (1, 2),  # 1-2 vacation periods
+            "min_instances": 1,  # At least 1 vacation period
+            "max_instances": 2,  # Up to 2 vacation periods
         },
-        "ABW": {  # Absent
-            "prob": 0.3,  # 30% chance of being absent
+        "ABW": {  # Absent/Sick
+            "prob": 0.8,  # 80% chance of being absent
             "min_duration": 1,
-            "max_duration": 3,
-            "instances": (0, 2),  # 0-2 absences
+            "max_duration": 5,
+            "min_instances": 1,  # At least 1 absence
+            "max_instances": 3,  # Up to 3 absences
         },
         "SLG": {  # Training
-            "prob": 0.4,  # 40% chance of training
+            "prob": 0.9,  # 90% chance of training
             "min_duration": 1,
             "max_duration": 3,
-            "instances": (0, 1),  # 0-1 training periods
+            "min_instances": 1,  # At least 1 training
+            "max_instances": 2,  # Up to 2 trainings
         },
     }
 
     for employee in employees:
+        employee_absences = []
         # Process each absence type
         for absence_type, config in absence_types.items():
             if random.random() < config["prob"]:
                 # Determine number of instances for this absence type
-                num_instances = random.randint(*config["instances"])
+                num_instances = random.randint(
+                    config["min_instances"], config["max_instances"]
+                )
 
                 for _ in range(num_instances):
                     # Determine duration
@@ -1404,7 +1377,7 @@ def generate_improved_absences(employees):
 
                     # Find a suitable start date
                     attempts = 0
-                    max_attempts = 10
+                    max_attempts = 20  # Increased attempts to ensure we find a slot
                     valid_date_found = False
 
                     while attempts < max_attempts and not valid_date_found:
@@ -1416,8 +1389,8 @@ def generate_improved_absences(employees):
 
                         # Check if this period overlaps with existing absences
                         overlaps = False
-                        for existing in absences:
-                            if existing.employee_id == employee.id and not (
+                        for existing in employee_absences:
+                            if not (
                                 end_date < existing.start_date
                                 or start_date > existing.end_date
                             ):
@@ -1428,18 +1401,62 @@ def generate_improved_absences(employees):
                             valid_date_found = True
                             absence = Absence(
                                 employee_id=employee.id,
-                                absence_type=absence_type,
+                                absence_type_id=absence_type,
                                 start_date=start_date,
                                 end_date=end_date,
-                                comment=f"Generated {absence_type} absence",
+                                note=f"Generated {absence_type} absence for {employee.first_name} {employee.last_name}",
                             )
+                            employee_absences.append(absence)
                             absences.append(absence)
                             logging.info(
                                 f"Created {absence_type} absence for {employee.employee_id} "
+                                f"({employee.first_name} {employee.last_name}) "
                                 f"from {start_date} to {end_date}"
                             )
 
                         attempts += 1
+
+                    if not valid_date_found:
+                        logging.warning(
+                            f"Could not find suitable dates for {absence_type} absence "
+                            f"for employee {employee.employee_id} after {max_attempts} attempts"
+                        )
+
+        # Ensure at least one absence of any type if none were generated
+        if not employee_absences:
+            absence_type = random.choice(list(absence_types.keys()))
+            duration = random.randint(1, 5)
+            start_date = today + timedelta(
+                days=random.randint(1, date_range - duration)
+            )
+            end_date = start_date + timedelta(days=duration - 1)
+
+            absence = Absence(
+                employee_id=employee.id,
+                absence_type_id=absence_type,
+                start_date=start_date,
+                end_date=end_date,
+                note=f"Generated fallback {absence_type} absence for {employee.first_name} {employee.last_name}",
+            )
+            absences.append(absence)
+            logging.info(
+                f"Created fallback {absence_type} absence for {employee.employee_id} "
+                f"({employee.first_name} {employee.last_name}) "
+                f"from {start_date} to {end_date}"
+            )
+
+    # Log summary statistics
+    absence_stats = {}
+    for absence in absences:
+        if absence.absence_type_id not in absence_stats:
+            absence_stats[absence.absence_type_id] = 0
+        absence_stats[absence.absence_type_id] += 1
+
+    logging.info("Absence generation summary:")
+    for absence_type, count in absence_stats.items():
+        logging.info(f"{absence_type}: {count} absences generated")
+    logging.info(f"Total absences generated: {len(absences)}")
+    logging.info(f"Average absences per employee: {len(absences) / len(employees):.1f}")
 
     return absences
 
@@ -1448,98 +1465,180 @@ def generate_improved_absences(employees):
 def generate_optimized_demo_data():
     """Generate optimized demo data with more diverse shifts and granular coverage"""
     try:
-        logging.info("Generating optimized demo data with diverse shift patterns")
+        # Start a background task and return immediately
+        task_id = str(uuid.uuid4())
+        app = current_app._get_current_object()  # Get the actual app instance
 
-        # Update settings first
+        # Store task info in the database
         settings = Settings.query.first()
         if not settings:
             settings = Settings.get_default_settings()
 
-        settings.employee_types = generate_employee_types()
-        settings.absence_types = generate_absence_types()
-        db.session.commit()
-        logging.info("Successfully updated employee and absence types")
-
-        # Clear existing data
-        logging.info("Cleaning up existing data...")
-        EmployeeAvailability.query.delete()
-        Coverage.query.delete()
-        ShiftTemplate.query.delete()
-        Employee.query.delete()
-        Absence.query.delete()  # Add this line to clear existing absences
-        db.session.commit()
-        logging.info("Successfully cleaned up existing data")
-
-        # Generate new optimized data
-        try:
-            logging.info("Generating improved employee data...")
-            employees = generate_improved_employee_data()
-            logging.info(f"Created {len(employees)} employees, adding to session...")
-            db.session.add_all(employees)
-            logging.info("Committing employees to database...")
-            db.session.commit()
-            logging.info(f"Successfully created {len(employees)} employees")
-        except Exception as e:
-            logging.error(f"Error in generate_improved_employee_data: {str(e)}")
-            db.session.rollback()
-            raise
-
-        # Generate granular coverage
-        try:
-            logging.info("Generating granular coverage data...")
-            coverage_slots = generate_granular_coverage_data()
-            db.session.add_all(coverage_slots)
-            db.session.commit()
-            logging.info(
-                f"Successfully created {len(coverage_slots)} granular coverage slots"
-            )
-        except Exception as e:
-            logging.error(f"Error in generate_granular_coverage_data: {str(e)}")
-            db.session.rollback()
-            raise
-
-        # Generate diverse shift templates
-        shift_templates = generate_optimized_shift_templates()
-        logging.info(
-            f"Successfully created {len(shift_templates)} diverse shift templates"
-        )
-
-        # Generate optimized availability data
-        availabilities = generate_improved_availability_data(employees)
-        db.session.add_all(availabilities)
-        db.session.commit()
-        logging.info(f"Successfully created {len(availabilities)} availabilities")
-
-        # Generate absences
-        try:
-            logging.info("Generating employee absences...")
-            absences = generate_improved_absences(employees)
-            db.session.add_all(absences)
-            db.session.commit()
-            logging.info(f"Successfully created {len(absences)} absences")
-        except Exception as e:
-            logging.error(f"Error in generate_improved_absences: {str(e)}")
-            db.session.rollback()
-            raise
-
-        # Update settings to record the execution
         settings.actions_demo_data = {
             "selected_module": "optimized",
-            "last_execution": datetime.utcnow().isoformat(),
+            "task_id": task_id,
+            "status": "started",
+            "start_time": datetime.utcnow().isoformat(),
+            "progress": 0,
         }
         db.session.commit()
-        logging.info("Successfully updated settings")
+
+        # Start the background task with app instance
+        thread = Thread(target=generate_demo_data_background, args=(app, task_id))
+        thread.daemon = True
+        thread.start()
 
         return jsonify(
             {
-                "message": "Successfully generated optimized demo data with diverse shift patterns",
-                "timestamp": datetime.utcnow().isoformat(),
+                "message": "Demo data generation started",
+                "task_id": task_id,
+                "status": "started",
+            }
+        ), HTTPStatus.ACCEPTED
+
+    except Exception as e:
+        logging.error(f"Failed to start demo data generation: {str(e)}")
+        return jsonify(
+            {"error": "Failed to start demo data generation", "details": str(e)}
+        ), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@bp.route("/optimized/status/<task_id>", methods=["GET"])
+def get_generation_status(task_id):
+    """Get the status of a demo data generation task"""
+    try:
+        settings = Settings.query.first()
+        if not settings or "actions_demo_data" not in settings.__dict__:
+            return jsonify({"error": "Task not found"}), HTTPStatus.NOT_FOUND
+
+        task_info = settings.actions_demo_data
+        if task_info.get("task_id") != task_id:
+            return jsonify({"error": "Task not found"}), HTTPStatus.NOT_FOUND
+
+        return jsonify(
+            {
+                "task_id": task_id,
+                "status": task_info.get("status"),
+                "progress": task_info.get("progress"),
+                "start_time": task_info.get("start_time"),
+                "end_time": task_info.get("end_time"),
+                "error": task_info.get("error"),
             }
         ), HTTPStatus.OK
 
     except Exception as e:
-        db.session.rollback()
-        logging.error(f"Failed to generate optimized demo data: {str(e)}")
+        logging.error(f"Failed to get task status: {str(e)}")
         return jsonify(
-            {"error": "Failed to generate optimized demo data", "details": str(e)}
+            {"error": "Failed to get task status", "details": str(e)}
         ), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+def generate_demo_data_background(app, task_id):
+    """Background task to generate demo data"""
+    with app.app_context():
+        try:
+            logging.info(f"Starting background demo data generation task {task_id}")
+
+            def update_progress(progress, status="running", error=None):
+                settings = Settings.query.first()
+                if settings:
+                    settings.actions_demo_data.update(
+                        {"status": status, "progress": progress, "error": error}
+                    )
+                    if status == "completed":
+                        settings.actions_demo_data["end_time"] = (
+                            datetime.utcnow().isoformat()
+                        )
+                    db.session.commit()
+
+            # Update settings first
+            update_progress(5, "updating_settings")
+            settings = Settings.query.first()
+            if not settings:
+                settings = Settings.get_default_settings()
+
+            employee_types = generate_employee_types()
+            absence_types = generate_absence_types()
+            settings.employee_types = employee_types
+            settings.absence_types = absence_types
+            db.session.commit()
+
+            # Generate data structures
+            update_progress(10, "generating_data")
+            employees = generate_improved_employee_data()
+            update_progress(20)
+            coverage_slots = generate_granular_coverage_data()
+            update_progress(30)
+            shift_templates = generate_optimized_shift_templates()
+            update_progress(40)
+
+            # Clear existing data
+            update_progress(45, "clearing_data")
+            db.session.execute(text("PRAGMA foreign_keys = OFF"))
+            tables = [EmployeeAvailability, Coverage, ShiftTemplate, Employee, Absence]
+            for table in tables:
+                db.session.execute(text(f"DELETE FROM {table.__table__.name}"))
+            db.session.execute(text("PRAGMA foreign_keys = ON"))
+            db.session.commit()
+
+            # Insert data in chunks
+            update_progress(50, "inserting_data")
+
+            # Insert employees
+            db.session.bulk_save_objects(employees)
+            db.session.flush()
+            update_progress(60)
+
+            # Generate and insert availabilities
+            availabilities = generate_improved_availability_data(employees)
+            chunk_size = 1000
+            total_chunks = len(availabilities) // chunk_size + (
+                1 if len(availabilities) % chunk_size else 0
+            )
+
+            for i in range(0, len(availabilities), chunk_size):
+                chunk = availabilities[i : i + chunk_size]
+                db.session.bulk_save_objects(chunk)
+                db.session.flush()
+                progress = 60 + (i / len(availabilities)) * 20
+                update_progress(progress)
+
+            # Generate and insert absences
+            update_progress(80, "generating_absences")
+            absences = generate_improved_absences(employees)
+            for i in range(0, len(absences), chunk_size):
+                chunk = absences[i : i + chunk_size]
+                db.session.bulk_save_objects(chunk)
+                db.session.flush()
+                progress = 80 + (i / len(absences)) * 10
+                update_progress(progress)
+
+            # Insert remaining data
+            update_progress(90, "finalizing")
+            db.session.bulk_save_objects(coverage_slots)
+            db.session.bulk_save_objects(shift_templates)
+
+            # Update settings
+            settings.actions_demo_data.update(
+                {
+                    "statistics": {
+                        "employees": len(employees),
+                        "availabilities": len(availabilities),
+                        "absences": len(absences),
+                        "coverage_slots": len(coverage_slots),
+                        "shift_templates": len(shift_templates),
+                    }
+                }
+            )
+
+            # Final commit
+            db.session.commit()
+            update_progress(100, "completed")
+            logging.info(
+                f"Background demo data generation task {task_id} completed successfully"
+            )
+
+        except Exception as e:
+            logging.error(f"Background task failed: {str(e)}")
+            update_progress(0, "failed", str(e))
+            db.session.rollback()
