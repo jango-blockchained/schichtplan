@@ -23,7 +23,9 @@ class Schedule(db.Model):
     break_end = Column(db.String(5), nullable=True)
     notes = Column(db.Text, nullable=True)
     shift_type = Column(db.String(20), nullable=True)
-    availability_type = Column(db.String(3), nullable=True)  # AVL, FIX, PRM, UNV
+    availability_type = Column(
+        db.String(15), nullable=True
+    )  # AVAILABLE, FIXED, PREFERRED, UNAVAILABLE
     status = Column(
         SQLEnum(ScheduleStatus), nullable=False, default=ScheduleStatus.DRAFT
     )

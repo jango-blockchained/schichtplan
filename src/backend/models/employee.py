@@ -16,10 +16,10 @@ import logging
 
 
 class AvailabilityType(str, Enum):
-    AVAILABLE = "AVL"  # Available for work
-    FIXED = "FIX"  # Fixed working hours
-    PREFERRED = "PRF"  # Preferred hours
-    UNAVAILABLE = "UNV"  # Not available
+    AVAILABLE = "AVAILABLE"  # Available for work
+    FIXED = "FIXED"  # Fixed working hours
+    PREFERRED = "PREFERRED"  # Preferred hours
+    UNAVAILABLE = "UNAVAILABLE"  # Not available
 
     @property
     def is_available(self):

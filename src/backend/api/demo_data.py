@@ -57,28 +57,28 @@ def generate_availability_types():
     """Generate demo availability types"""
     return [
         {
-            "id": "AVL",
+            "id": "AVAILABLE",
             "name": "Available",
             "color": "#22c55e",
             "description": "Employee is available for work",
             "type": "availability",
         },
         {
-            "id": "FIX",
+            "id": "FIXED",
             "name": "Fixed",
             "color": "#3b82f6",
             "description": "Fixed/regular schedule",
             "type": "availability",
         },
         {
-            "id": "PRM",
-            "name": "Promised",
+            "id": "PREFERRED",
+            "name": "Preferred",
             "color": "#f59e0b",
-            "description": "Promised/preferred hours",
+            "description": "Preferred hours",
             "type": "availability",
         },
         {
-            "id": "UNV",
+            "id": "UNAVAILABLE",
             "name": "Unavailable",
             "color": "#ef4444",
             "description": "Not available for work",
