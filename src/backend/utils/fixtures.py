@@ -92,7 +92,7 @@ def load_availabilities():
         type_mapping = {
             "REGULAR": AvailabilityType.AVAILABLE,
             "FIXED": AvailabilityType.FIXED,
-            "PROMISE": AvailabilityType.PROMISE,
+            "PREFERRED": AvailabilityType.PREFERRED,
         }
 
         # Add weekday availabilities (Monday to Friday)
