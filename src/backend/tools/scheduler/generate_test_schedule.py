@@ -67,12 +67,22 @@ def generate_schedule(start_date_str=None, end_date_str=None):
             json_data = {
                 "schedule": [
                     {
-                        "employee_id": entry.get("employee_id"),
-                        "shift_id": entry.get("shift_id"),
-                        "date": entry.get("date"),
-                        "status": entry.get("status", ScheduleStatus.DRAFT.value),
+                        "employee_id": entry.get("employee_id")
+                        if isinstance(entry, dict)
+                        else getattr(entry, "employee_id", None),
+                        "shift_id": entry.get("shift_id")
+                        if isinstance(entry, dict)
+                        else getattr(entry, "shift_id", None),
+                        "date": entry.get("date")
+                        if isinstance(entry, dict)
+                        else getattr(entry, "date", None),
+                        "status": entry.get("status", ScheduleStatus.DRAFT.value)
+                        if isinstance(entry, dict)
+                        else getattr(entry, "status", ScheduleStatus.DRAFT.value),
                     }
-                    for entry in result.get("schedule", [])
+                    for entry in result.get(
+                        "entries", []
+                    )  # Changed from schedule to entries
                 ],
                 "warnings": result.get("warnings", []),
                 "version": result.get("version", 1),
@@ -83,30 +93,11 @@ def generate_schedule(start_date_str=None, end_date_str=None):
             json.dump(json_data, f, indent=2)
 
         logger.info(f"Schedule saved to {filename}")
-
-        # Print summary
-        schedule_entries = result.get("schedule", [])
-        warnings = result.get("warnings", [])
-
-        logger.info(f"Generated {len(schedule_entries)} schedule entries")
-        logger.info(f"Found {len(warnings)} warnings")
-
-        # Print warning summary by type if there are any
-        if warnings:
-            warning_types = {}
-            for warning in warnings:
-                warning_type = warning.get("type", "unknown")
-                warning_types[warning_type] = warning_types.get(warning_type, 0) + 1
-
-            logger.info("Warning summary:")
-            for warning_type, count in warning_types.items():
-                logger.info(f"  - {warning_type}: {count}")
-
-        return result
+        return json_data
 
     except Exception as e:
         logger.error(f"Error generating schedule: {str(e)}")
-        return {"error": str(e)}
+        raise
 
 
 if __name__ == "__main__":

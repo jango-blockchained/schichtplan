@@ -79,6 +79,20 @@ class ScheduleSerializer:
     def __init__(self, logger):
         self.logger = logger
 
+    def serialize_schedule(self, schedule) -> str:
+        """Convert a schedule object to a JSON string"""
+        try:
+            # First convert to dictionary
+            schedule_dict = self.convert_schedule_to_dict(schedule)
+
+            # Convert to JSON string
+            import json
+
+            return json.dumps(schedule_dict)
+        except Exception as e:
+            self.log_error(f"Error serializing schedule: {str(e)}")
+            raise
+
     def convert_schedule_to_dict(self, schedule) -> Dict[str, Any]:
         """Convert a schedule object to a dictionary for API responses"""
         if not schedule:
