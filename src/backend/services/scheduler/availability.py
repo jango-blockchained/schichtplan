@@ -237,28 +237,12 @@ class AvailabilityChecker:
 
     def is_employee_on_leave(self, employee_id: int, date_to_check: date) -> bool:
         """Check if employee is on leave for the given date"""
-        # Check leaves from resources
-        for leave in self.resources.leaves:
-            if leave.employee_id == employee_id:
-                if (
-                    isinstance(leave.start_date, date)
-                    and isinstance(leave.end_date, date)
-                    and leave.start_date <= date_to_check <= leave.end_date
-                ):
-                    return True
-                # Handle string dates
-                elif isinstance(leave.start_date, str) and isinstance(
-                    leave.end_date, str
-                ):
-                    try:
-                        start = datetime.fromisoformat(leave.start_date).date()
-                        end = datetime.fromisoformat(leave.end_date).date()
-                        if start <= date_to_check <= end:
-                            return True
-                    except (ValueError, TypeError):
-                        self.log_warning(
-                            f"Invalid date format in leave record for employee {employee_id}"
-                        )
+        # Check absences from resources
+        if self.resources.is_employee_on_leave(employee_id, date_to_check):
+            self.log_debug(
+                f"Employee {employee_id} is on leave/absence for {date_to_check}"
+            )
+            return True
 
         return False
 
@@ -309,6 +293,38 @@ class AvailabilityChecker:
             return availability.day_of_week == date_to_check.weekday()
 
         # Default - availability doesn't apply to this date
+        return False
+
+    def check_availability(self, employee_id: int, date: date) -> bool:
+        """Check if an employee is available on a given date"""
+        # Check absences from resources
+        if self.resources.is_employee_on_leave(employee_id, date):
+            self.logger.debug(f"Employee {employee_id} is on leave/absence for {date}")
+            return False
+
+        # Get employee's availability for this day
+        day_of_week = date.weekday()
+        availabilities = self.resources.get_employee_availability(
+            employee_id, day_of_week
+        )
+
+        # If no availabilities are set, employee is unavailable
+        if not availabilities:
+            self.logger.debug(
+                f"No availability records found for employee {employee_id} on {date}"
+            )
+            return False
+
+        # Check if employee is available for any shift on this date
+        for shift in self.resources.shifts:
+            start_hour = int(shift.start_time.split(":")[0])
+            end_hour = int(shift.end_time.split(":")[0])
+
+            if self.resources.is_employee_available(
+                employee_id, date, start_hour, end_hour
+            ):
+                return True
+
         return False
 
     # Logging methods
