@@ -4,7 +4,6 @@ from typing import Dict, List, Any
 from datetime import date, datetime, timedelta
 from collections import defaultdict
 import functools
-import random
 import sys
 import os
 
@@ -90,7 +89,8 @@ class DistributionManager:
         self.availability_checker = availability_checker
         self.config = config
         self.logger = logger
-        self.assignments = {}  # Changed from list to dict
+        self.assignments = []  # List of assignments
+        self.assignments_by_employee = {}  # Dictionary for quick employee lookup
         self.schedule_by_date = {}
         self.employee_history = defaultdict(lambda: defaultdict(int))
         self.shift_scores = {}
@@ -106,7 +106,7 @@ class DistributionManager:
         self.historical_data = historical_data or []
         self.shifts = shifts or []
         self.resources = resources
-        self.assignments = {}
+        self.assignments = []
 
         # Log initialization
         self.logger.info(
@@ -162,8 +162,8 @@ class DistributionManager:
                 continue
 
             # Record the assignment
-            if employee_id not in self.assignments:
-                self.assignments[employee_id] = []
+            if employee_id not in self.assignments_by_employee:
+                self.assignments_by_employee[employee_id] = []
 
             assignment = {
                 "shift_id": shift_id,
@@ -180,13 +180,13 @@ class DistributionManager:
                     "type", "unknown"
                 )
 
-            self.assignments[employee_id].append(assignment)
+            self.assignments_by_employee[employee_id].append(assignment)
 
         # Log loaded assignments
-        total_assignments = sum(len(a) for a in self.assignments.values())
+        total_assignments = sum(len(a) for a in self.assignments_by_employee.values())
         self.logger.info(
             f"Loaded {total_assignments} historical assignments for "
-            f"{len(self.assignments)} employees"
+            f"{len(self.assignments_by_employee)} employees"
         )
 
     def _initialize_employee_data(self, employees: List[Employee]):
@@ -360,7 +360,7 @@ class DistributionManager:
         type_count = 0
 
         # Count shifts by type in current assignments
-        for employee_id, assignments in self.assignments.items():
+        for employee_id, assignments in self.assignments_by_employee.items():
             for assignment in assignments:
                 total_shifts += 1
                 shift_id = assignment.get("shift_id")
@@ -397,7 +397,7 @@ class DistributionManager:
         shift_type = shift_data.get("type", "unknown")
 
         # Get employee's existing assignments
-        employee_assignments = self.assignments.get(employee_id, [])
+        employee_assignments = self.assignments_by_employee.get(employee_id, [])
 
         # Employee's workload factor (penalize employees with more assignments)
         workload_factor = len(employee_assignments) * 5
@@ -594,8 +594,8 @@ class DistributionManager:
         )
 
         # Initialize assignment list for employee if not exists
-        if employee_id not in self.assignments:
-            self.assignments[employee_id] = []
+        if employee_id not in self.assignments_by_employee:
+            self.assignments_by_employee[employee_id] = []
 
         # Record the assignment
         assignment = {
@@ -611,7 +611,7 @@ class DistributionManager:
             assignment["shift_type"] = shift_data.get("type", "unknown")
 
         # Add the assignment to the employee's list
-        self.assignments[employee_id].append(assignment)
+        self.assignments_by_employee[employee_id].append(assignment)
 
         # Update any caches
         for func in [self.calculate_assignment_score]:
@@ -619,7 +619,7 @@ class DistributionManager:
                 func.cache_clear()
 
         self.logger.debug(
-            f"Employee {employee_id} now has {len(self.assignments[employee_id])} assignments"
+            f"Employee {employee_id} now has {len(self.assignments_by_employee[employee_id])} assignments"
         )
 
     def get_distribution_metrics(self) -> Dict[str, Any]:
@@ -628,7 +628,7 @@ class DistributionManager:
         type_counts = {"EARLY": 0, "MIDDLE": 0, "LATE": 0, "weekend": 0}
 
         # Count shifts by type
-        for employee_id, assignments in self.assignments.items():
+        for employee_id, assignments in self.assignments_by_employee.items():
             for assignment in assignments:
                 total_shifts += 1
                 shift_type = assignment.get(
@@ -729,12 +729,12 @@ class DistributionManager:
         metrics = {"gini_coefficient": 0.0, "type_variance": {}, "equity_score": 0.0}
 
         # Skip if no assignments
-        if not self.assignments:
+        if not self.assignments_by_employee:
             return metrics
 
         # Calculate total assignments per employee
         shift_counts = []
-        for employee_id, assignments in self.assignments.items():
+        for employee_id, assignments in self.assignments_by_employee.items():
             shift_counts.append(len(assignments))
 
         # Skip if no shift counts
@@ -749,7 +749,7 @@ class DistributionManager:
         # Calculate variance in shift type distribution
         for shift_type in ["early", "middle", "late"]:
             type_percentages = []
-            for employee_id, assignments in self.assignments.items():
+            for employee_id, assignments in self.assignments_by_employee.items():
                 # Count shifts of this type
                 type_count = sum(
                     1 for a in assignments if a.get("shift_type") == shift_type
@@ -789,7 +789,7 @@ class DistributionManager:
 
     def set_schedule(self, assignments, schedule_by_date):
         """Set the current assignments to enable constraint checking"""
-        self.assignments = assignments
+        self.assignments_by_employee = assignments
         self.schedule_by_date = schedule_by_date
         self.constraint_checker.set_schedule(assignments, schedule_by_date)
 
@@ -811,9 +811,13 @@ class DistributionManager:
 
             assigned_employees = []
 
-            # Define a preference order for assigning shifts
-            # Prioritize shifts that need keyholder, night shifts, then day shifts
-            shift_types = ["NIGHT", "EVENING", "DAY"]
+            # Get all available shift types from the coverage data
+            shift_types = list(employees_needed.keys())
+            if not shift_types:
+                self.logger.warning(
+                    f"No shift types found in coverage data for {date_to_schedule}"
+                )
+                return assigned_employees
 
             # Find all available employees for this date to simplify repeated checks
             available_employees = self.get_available_employees(date_to_schedule)
@@ -917,7 +921,7 @@ class DistributionManager:
 
         except Exception as e:
             self.logger.error(f"Error assigning employees: {str(e)}")
-            return []
+            raise  # Re-raise the exception to be caught by the caller
 
     def get_available_employees(self, date_to_check: date) -> List[Employee]:
         """Get all employees available on the given date"""
@@ -979,7 +983,7 @@ class DistributionManager:
         week_start = today - timedelta(days=today.weekday())  # Monday of this week
 
         weekly_count = 0
-        for assignment in self.assignments:
+        for assignment in self.assignments_by_employee[employee_id]:
             if (
                 isinstance(assignment, dict)
                 and assignment.get("employee_id") == employee_id
@@ -1043,7 +1047,7 @@ class DistributionManager:
 
     def is_employee_assigned_on_date(self, employee_id: int, day: date) -> bool:
         """Check if employee is assigned to any shift on the given date"""
-        for assignment in self.assignments:
+        for assignment in self.assignments_by_employee[employee_id]:
             if (
                 isinstance(assignment, dict)
                 and assignment.get("employee_id") == employee_id
@@ -1198,7 +1202,7 @@ class DistributionManager:
                 )
 
                 # Add this assignment to our tracking to update constraints
-                self.assignments.append(assignment)
+                self.assignments_by_employee[employee.id].append(assignment)
 
                 # Remove this shift from available shifts
                 type_shifts = [s for s in type_shifts if s.get("shift_id") != shift_id]
@@ -1312,7 +1316,7 @@ class DistributionManager:
                 )
 
                 # Add this assignment to our tracking to update constraints
-                self.assignments.append(assignment)
+                self.assignments_by_employee[employee.id].append(assignment)
 
                 # Remove this shift from available shifts
                 type_shifts = [s for s in type_shifts if s.get("shift_id") != shift_id]
@@ -1328,35 +1332,31 @@ class DistributionManager:
     def calculate_shift_match_score(
         self, employee: Employee, shift: ShiftTemplate, availability_type: str
     ) -> float:
-        """
-        Calculate a match score between employee and shift
-        Higher scores indicate better matches
-        """
-        score = 10.0  # Base score
+        """Calculate how well an employee matches a shift"""
+        score = 0.0
 
-        # Adjust score based on availability type
+        # Base score based on availability type
         if availability_type == AvailabilityType.PREFERRED.value:
-            score += 15.0
+            score += 2.0
         elif availability_type == AvailabilityType.AVAILABLE.value:
-            score -= 5.0
+            score += 1.0
 
-        # Check if employee has skills matching shift requirements
+        # Check if employee has required skills
         if hasattr(shift, "required_skills") and shift.required_skills:
             if hasattr(employee, "skills") and employee.skills:
                 matching_skills = set(shift.required_skills).intersection(
-                    set(employee.skills)
-                score += len(matching_skills) * 2.0
+                    employee.skills
+                )
+                score += len(matching_skills)
 
         # Check if shift type matches employee preferences
         if (
-            hasattr(employee, "preferred_shift_types")
-            and hasattr(shift, "shift_type")
-            and shift.shift_type in employee.preferred_shift_types
+            hasattr(shift, "shift_type")
+            and hasattr(employee, "preferred_shift_types")
+            and employee.preferred_shift_types
         ):
-            score += 5.0
-
-        # Add a small random factor to break ties
-        score += random.random()
+            if shift.shift_type in employee.preferred_shift_types:
+                score += 1.0
 
         return score
 
