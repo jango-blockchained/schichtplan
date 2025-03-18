@@ -12,13 +12,6 @@ src_backend_dir = os.path.abspath(os.path.join(current_dir, "..", ".."))
 if src_backend_dir not in sys.path:
     sys.path.insert(0, src_backend_dir)
 
-
-class ScheduleGenerationError(Exception):
-    """Exception raised for errors during schedule generation."""
-
-    pass
-
-
 # Import the extracted modules
 from .config import SchedulerConfig
 from .constraints import ConstraintChecker
@@ -28,55 +21,103 @@ from .serialization import ScheduleSerializer
 from .logging_utils import LoggingManager
 from .resources import ScheduleResources
 
-# Try to handle imports in different environments
-try:
-    from models.employee import AvailabilityType
-    from models import Employee, ShiftTemplate, Schedule
-    from utils.logger import logger
-except ImportError:
+# Set up placeholder logger
+logger = logging.getLogger(__name__)
+
+# Setup for imports - we'll try different import paths
+import importlib.util
+from enum import Enum
+
+# First, define fallback classes to use if imports fail
+# pylint: disable=redefined-outer-name, duplicate-code
+
+
+class _AvailabilityType(str, Enum):
+    """Fallback enum for availability types"""
+
+    AVAILABLE = "AVL"
+    FIXED = "FIX"
+    PREFERRED = "PRF"
+    UNAVAILABLE = "UNV"
+
+
+class _Employee:
+    """Fallback Employee class"""
+
+    id: int
+
+
+class _ShiftTemplate:
+    """Fallback ShiftTemplate class"""
+
+    id: int
+    name: str
+    start_time: str
+    end_time: str
+    shift_type: str
+    duration_hours: float
+
+
+class _Schedule:
+    """Fallback Schedule class"""
+
+    id: int
+    entries = []
+
+
+# Function to dynamically import a module
+def try_import(module_name, class_name=None):
     try:
-        from backend.models.employee import AvailabilityType
-        from backend.models import Employee, ShiftTemplate, Schedule
-        from backend.utils.logger import logger
-    except ImportError:
-        try:
-            from src.backend.models.employee import AvailabilityType
-            from src.backend.models import Employee, ShiftTemplate, Schedule
-            from src.backend.utils.logger import logger
-        except ImportError:
-            # Create placeholder logger and classes for standalone testing
-            logger = logging.getLogger(__name__)
+        module = importlib.import_module(module_name)
+        return module if class_name is None else getattr(module, class_name)
+    except (ImportError, AttributeError):
+        return None
 
-            from enum import Enum
 
-            class AvailabilityType(str, Enum):
-                """Mock enum for availability types"""
+# Try to import the required classes, falling back on our defined classes if needed
+models_module = try_import("models")
+if models_module is None:
+    models_module = try_import("backend.models")
+if models_module is None:
+    models_module = try_import("src.backend.models")
 
-                AVAILABLE = "AVL"
-                FIXED = "FIX"
-                PREFERRED = "PRF"
-                UNAVAILABLE = "UNV"
+# Now try to import employee module
+employee_module = try_import("models.employee")
+if employee_module is None:
+    employee_module = try_import("backend.models.employee")
+if employee_module is None:
+    employee_module = try_import("src.backend.models.employee")
 
-            class Employee:
-                """Type hint class for Employee"""
+# Try to import logger
+utils_logger = try_import("utils.logger")
+if utils_logger is None:
+    utils_logger = try_import("backend.utils.logger")
+if utils_logger is None:
+    utils_logger = try_import("src.backend.utils.logger")
 
-                id: int
+# Set up our classes based on successful imports or fallbacks
+if employee_module and hasattr(employee_module, "AvailabilityType"):
+    AvailabilityType = employee_module.AvailabilityType
+else:
+    AvailabilityType = _AvailabilityType
 
-            class ShiftTemplate:
-                """Type hint class for ShiftTemplate"""
+if models_module:
+    Employee = getattr(models_module, "Employee", _Employee)
+    ShiftTemplate = getattr(models_module, "ShiftTemplate", _ShiftTemplate)
+    Schedule = getattr(models_module, "Schedule", _Schedule)
+else:
+    Employee = _Employee
+    ShiftTemplate = _ShiftTemplate
+    Schedule = _Schedule
 
-                id: int
-                name: str
-                start_time: str
-                end_time: str
-                shift_type: str
-                duration_hours: float
+if utils_logger:
+    logger = getattr(utils_logger, "logger", logger)
 
-            class Schedule:
-                """Type hint class for Schedule"""
 
-                id: int
-                entries = []
+class ScheduleGenerationError(Exception):
+    """Exception raised for errors during schedule generation."""
+
+    pass
 
 
 class ScheduleAssignment:
@@ -99,6 +140,17 @@ class ScheduleAssignment:
         self.availability_type = availability_type or AvailabilityType.AVAILABLE.value
         self.status = status
         self.version = version
+
+
+class ScheduleContainer:
+    """Container class for schedule metadata"""
+
+    def __init__(self, start_date, end_date, status="DRAFT", version=1):
+        self.start_date = start_date
+        self.end_date = end_date
+        self.status = status
+        self.version = version
+        self.entries = []
 
 
 class ScheduleGenerator:
@@ -178,28 +230,17 @@ class ScheduleGenerator:
             )
             self.logger.info(f"Diagnostic logs will be written to {log_path}")
 
-            # Update config if provided
-            if config:
-                self.config.update_from_dict(config)
-
             # Load resources if not already loaded
             if not self.resources.is_loaded():
                 self.logger.info("Loading resources...")
                 self.resources.load()
+                self.logger.info("Resources loaded successfully.")
 
-            # Log resource counts
-            self.logger.info(
-                f"Loaded {len(self.resources.employees)} employees, "
-                f"{len(self.resources.shifts)} shifts, "
-                f"{len(self.resources.availabilities)} availability records, "
-                f"{len(self.resources.coverage)} coverage records"
-            )
-
-            # Validate shift templates have durations
+            # Validate shifts have duration information
             self._validate_shift_durations()
 
-            # Create a new schedule
-            self.schedule = Schedule(
+            # Create a new schedule container
+            self.schedule = ScheduleContainer(
                 start_date=start_date,
                 end_date=end_date,
                 status="DRAFT",

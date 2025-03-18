@@ -123,7 +123,7 @@ def get_employee_availabilities(employee_id):
                 "is_available": availability.is_available,
                 "availability_type": availability.availability_type.value
                 if availability.availability_type
-                else "AVL",
+                else "AVLAILABLE",
                 "created_at": availability.created_at.isoformat()
                 if availability.created_at
                 else None,

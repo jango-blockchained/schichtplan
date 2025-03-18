@@ -61,7 +61,7 @@ class Settings(db.Model):
         default=lambda: {
             "types": [
                 {
-                    "id": "AVL",
+                    "id": "AVAILABLE",
                     "name": "Available",
                     "description": "Available for work",
                     "color": "#22c55e",
@@ -69,7 +69,7 @@ class Settings(db.Model):
                     "is_available": True,
                 },
                 {
-                    "id": "FIX",
+                    "id": "FIXED",
                     "name": "Fixed",
                     "description": "Fixed working hours",
                     "color": "#3b82f6",
@@ -77,7 +77,7 @@ class Settings(db.Model):
                     "is_available": True,
                 },
                 {
-                    "id": "PRM",
+                    "id": "PREFERRED",
                     "name": "Preferred",
                     "description": "Preferred hours",
                     "color": "#f59e0b",
@@ -85,9 +85,9 @@ class Settings(db.Model):
                     "is_available": True,
                 },
                 {
-                    "id": "UNV",
+                    "id": "UNAVAILABLE",
                     "name": "Unavailable",
-                    "description": "Not available",
+                    "description": "Not available for work",
                     "color": "#ef4444",
                     "priority": 4,
                     "is_available": False,
@@ -449,7 +449,7 @@ class Settings(db.Model):
                 else {
                     "types": [
                         {
-                            "id": "AVL",
+                            "id": "AVAILABLE",
                             "name": "Available",
                             "description": "Available for work",
                             "color": "#22c55e",
@@ -457,7 +457,7 @@ class Settings(db.Model):
                             "is_available": True,
                         },
                         {
-                            "id": "FIX",
+                            "id": "FIXED",
                             "name": "Fixed",
                             "description": "Fixed working hours",
                             "color": "#3b82f6",
@@ -465,7 +465,7 @@ class Settings(db.Model):
                             "is_available": True,
                         },
                         {
-                            "id": "PRM",
+                            "id": "PREFERRED",
                             "name": "Preferred",
                             "description": "Preferred hours",
                             "color": "#f59e0b",
@@ -473,9 +473,9 @@ class Settings(db.Model):
                             "is_available": True,
                         },
                         {
-                            "id": "UNV",
+                            "id": "UNAVAILABLE",
                             "name": "Unavailable",
-                            "description": "Not available",
+                            "description": "Not available for work",
                             "color": "#ef4444",
                             "priority": 4,
                             "is_available": False,

@@ -89,10 +89,11 @@ def load_availabilities():
         group_avail = data["availabilities"][group_key]
 
         # Map fixture availability types to AvailabilityType enum
-        type_mapping = {
+        availability_type_map = {
             "REGULAR": AvailabilityType.AVAILABLE,
             "FIXED": AvailabilityType.FIXED,
             "PREFERRED": AvailabilityType.PREFERRED,
+            "UNAVAILABLE": AvailabilityType.UNAVAILABLE,
         }
 
         # Add weekday availabilities (Monday to Friday)
@@ -110,7 +111,9 @@ def load_availabilities():
                     day_of_week=day,
                     hour=hour,
                     is_available=True,
-                    availability_type=type_mapping[group_avail["weekdays"]["type"]],
+                    availability_type=availability_type_map[
+                        group_avail["weekdays"]["type"]
+                    ],
                 )
                 db.session.add(availability)
 
@@ -124,7 +127,9 @@ def load_availabilities():
                 day_of_week=6,
                 hour=hour,
                 is_available=True,
-                availability_type=type_mapping[group_avail["saturday"]["type"]],
+                availability_type=availability_type_map[
+                    group_avail["saturday"]["type"]
+                ],
             )
             db.session.add(availability)
 
