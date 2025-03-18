@@ -1,19 +1,55 @@
+"""Distribution module for fair employee assignment across shifts."""
+
 from typing import Dict, List, Any
-from datetime import date
+from datetime import date, datetime, timedelta
 from collections import defaultdict
 import functools
-import logging
+import random
+from src.backend.models.employee import AvailabilityType
 
-from models import Employee, ShiftTemplate, Schedule
-from .utility import calculate_duration
+# Try to handle imports in different environments
+try:
+    from src.backend.models import Employee, ShiftTemplate, Schedule
+    from src.backend.utils.logger import logger
+except ImportError:
+    try:
+        from backend.models import Employee, ShiftTemplate, Schedule
+        from backend.models.employee import AvailabilityType
+        from backend.utils.logger import logger
+    except ImportError:
+        try:
+            from models import Employee, ShiftTemplate, Schedule
+            from models.employee import AvailabilityType
+        except ImportError:
+            # Create type hint classes for standalone testing
+            class Employee:
+                """Type hint class for Employee"""
 
-# Configure logger
-logger = logging.getLogger(__name__)
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-handler = logging.StreamHandler()
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-logger.setLevel(logging.INFO)
+                id: int
+                employee_group: str
+                skills: List[str]
+                preferred_shift_types: List[str]
+                is_keyholder: bool = False
+
+            class ShiftTemplate:
+                """Type hint class for ShiftTemplate"""
+
+                id: int
+                start_time: str
+                end_time: str
+                shift_type: str
+                duration_hours: float
+                required_skills: List[str] = []
+
+            class Schedule:
+                """Type hint class for Schedule"""
+
+                id: int
+                employee_id: int
+                shift_id: int
+                date: date
+                status: str = "PENDING"
+                version: int = 1
 
 
 class ShiftScore:
@@ -37,7 +73,16 @@ class ShiftScore:
 class DistributionManager:
     """Manages fair distribution of shifts among employees"""
 
-    def __init__(self):
+    def __init__(
+        self, resources, constraint_checker, availability_checker, config, logger
+    ):
+        self.resources = resources
+        self.constraint_checker = constraint_checker
+        self.availability_checker = availability_checker
+        self.config = config
+        self.logger = logger
+        self.assignments = []
+        self.schedule_by_date = {}
         self.employee_history = defaultdict(lambda: defaultdict(int))
         self.shift_scores = {}
         self.employee_preferences = {}
@@ -45,8 +90,6 @@ class DistributionManager:
         self.fair_distribution_weight = 1.0
         self.preference_weight = 1.0
         self.seniority_weight = 0.5
-        self.assignments = {}
-        self.logger = logger
 
     def initialize(self, employees, historical_data=None, shifts=None, resources=None):
         """Initialize the distribution manager with employee and historical data"""
@@ -222,7 +265,7 @@ class DistributionManager:
                 duration = shift_template.duration_hours
             else:
                 # Try to calculate from start/end time
-                duration = calculate_duration(
+                duration = self.calculate_duration(
                     shift_template.start_time, shift_template.end_time
                 )
 
@@ -734,3 +777,627 @@ class DistributionManager:
             )
 
         return metrics
+
+    def set_schedule(self, assignments, schedule_by_date):
+        """Set the current assignments to enable constraint checking"""
+        self.assignments = assignments
+        self.schedule_by_date = schedule_by_date
+        self.constraint_checker.set_schedule(assignments, schedule_by_date)
+
+    def assign_employees_with_distribution(
+        self,
+        date_to_schedule: date,
+        shifts: List[Dict],
+        employees_needed: Dict[str, int],
+    ) -> List[Dict]:
+        """
+        Assign employees to shifts using fair distribution logic
+        Returns a list of assignment dictionaries
+        """
+        try:
+            self.logger.info(
+                f"Assigning employees for {date_to_schedule}, employees needed: {employees_needed}"
+            )
+
+            assigned_employees = []
+
+            # Define a preference order for assigning shifts
+            # Prioritize shifts that need keyholder, night shifts, then day shifts
+            shift_types = ["NIGHT", "EVENING", "DAY"]
+
+            # Find all available employees for this date to simplify repeated checks
+            available_employees = self.get_available_employees(date_to_schedule)
+            self.logger.debug(
+                f"Found {len(available_employees)} available employees for {date_to_schedule}"
+            )
+
+            if not available_employees:
+                self.logger.warning(
+                    f"No available employees found for {date_to_schedule}"
+                )
+                return assigned_employees
+
+            # Sort employees by number of shifts already assigned to ensure fair distribution
+            # Also prioritize employees who haven't worked in a while
+            employee_stats = self.get_employee_assignment_stats(available_employees)
+
+            # Track how many employees we've already assigned to various shift types today
+            assigned_by_type = {shift_type: 0 for shift_type in shift_types}
+
+            # Get the list of shifts for this date
+            date_shifts = [s for s in shifts if s.get("date") == date_to_schedule]
+            self.logger.debug(f"Found {len(date_shifts)} shifts for {date_to_schedule}")
+
+            # First, assign keyholders if needed
+            self.logger.debug("Assigning keyholders...")
+            for shift_type in shift_types:
+                if shift_type in employees_needed:
+                    keyholders_needed = self.get_keyholders_needed(
+                        shift_type, date_to_schedule
+                    )
+                    if keyholders_needed > 0:
+                        self.logger.debug(
+                            f"Need {keyholders_needed} keyholders for {shift_type}"
+                        )
+                        keyholder_assignments = self.assign_keyholders(
+                            date_to_schedule,
+                            shift_type,
+                            keyholders_needed,
+                            available_employees,
+                            employee_stats,
+                            date_shifts,
+                        )
+                        assigned_employees.extend(keyholder_assignments)
+                        assigned_by_type[shift_type] += len(keyholder_assignments)
+
+                        # Update the list of available employees
+                        assigned_ids = [
+                            a.get("employee_id") for a in keyholder_assignments
+                        ]
+                        available_employees = [
+                            e for e in available_employees if e.id not in assigned_ids
+                        ]
+
+            # Then assign regular employees by shift type
+            self.logger.debug("Assigning regular employees...")
+            for shift_type in shift_types:
+                if shift_type in employees_needed:
+                    # How many more employees do we need of this type?
+                    employees_to_assign = (
+                        employees_needed[shift_type] - assigned_by_type[shift_type]
+                    )
+                    if employees_to_assign > 0:
+                        self.logger.debug(
+                            f"Need {employees_to_assign} more employees for {shift_type}"
+                        )
+                        type_assignments = self.assign_employees_by_type(
+                            date_to_schedule,
+                            shift_type,
+                            employees_to_assign,
+                            available_employees,
+                            employee_stats,
+                            date_shifts,
+                        )
+                        assigned_employees.extend(type_assignments)
+                        assigned_by_type[shift_type] += len(type_assignments)
+
+                        # Update the list of available employees
+                        assigned_ids = [a.get("employee_id") for a in type_assignments]
+                        available_employees = [
+                            e for e in available_employees if e.id not in assigned_ids
+                        ]
+
+            # Log final assignment results
+            for shift_type in shift_types:
+                if shift_type in employees_needed:
+                    if assigned_by_type[shift_type] < employees_needed[shift_type]:
+                        self.logger.warning(
+                            f"Could only assign {assigned_by_type[shift_type]} of {employees_needed[shift_type]} "
+                            f"needed employees for {shift_type} on {date_to_schedule}"
+                        )
+                    else:
+                        self.logger.info(
+                            f"Successfully assigned {assigned_by_type[shift_type]} employees for {shift_type} "
+                            f"on {date_to_schedule}"
+                        )
+
+            return assigned_employees
+
+        except Exception as e:
+            self.logger.error(f"Error assigning employees: {str(e)}")
+            return []
+
+    def get_available_employees(self, date_to_check: date) -> List[Employee]:
+        """Get all employees available on the given date"""
+        available_employees = []
+
+        for employee in self.resources.employees:
+            # Skip inactive employees
+            if hasattr(employee, "is_active") and not employee.is_active:
+                continue
+
+            # Check if employee is on leave
+            if self.availability_checker.is_employee_on_leave(
+                employee.id, date_to_check
+            ):
+                continue
+
+            # Add to available list - more detailed availability checks will happen later
+            available_employees.append(employee)
+
+        return available_employees
+
+    def get_employee_assignment_stats(
+        self, employees: List[Employee]
+    ) -> Dict[int, Dict]:
+        """
+        Calculate assignment statistics for each employee
+        Returns dictionary of employee_id -> stats
+        """
+        stats = {}
+
+        for employee in employees:
+            # Count how many shifts assigned in past week
+            weekly_shifts = self.count_weekly_shifts(employee.id)
+
+            # Count consecutive days worked
+            consecutive_days = self.count_consecutive_days(employee.id)
+
+            # Check days since last shift
+            days_since_last = self.get_days_since_last_shift(employee.id)
+
+            # Calculate a priority score (lower is higher priority)
+            # Prioritize employees with fewer weekly shifts and those who haven't worked in a while
+            priority_score = weekly_shifts * 10 - days_since_last
+
+            stats[employee.id] = {
+                "employee": employee,
+                "weekly_shifts": weekly_shifts,
+                "consecutive_days": consecutive_days,
+                "days_since_last": days_since_last,
+                "priority_score": priority_score,
+                "is_keyholder": getattr(employee, "is_keyholder", False),
+            }
+
+        return stats
+
+    def count_weekly_shifts(self, employee_id: int) -> int:
+        """Count how many shifts an employee has in the current week"""
+        today = datetime.now().date()
+        week_start = today - timedelta(days=today.weekday())  # Monday of this week
+
+        weekly_count = 0
+        for assignment in self.assignments:
+            if (
+                isinstance(assignment, dict)
+                and assignment.get("employee_id") == employee_id
+            ) or (
+                hasattr(assignment, "employee_id")
+                and assignment.employee_id == employee_id
+            ):
+                # Get the assignment date
+                assignment_date = None
+                if isinstance(assignment, dict):
+                    date_str = assignment.get("date")
+                    if date_str:
+                        try:
+                            assignment_date = datetime.fromisoformat(date_str).date()
+                        except (ValueError, TypeError):
+                            continue
+                else:
+                    if hasattr(assignment, "date"):
+                        if isinstance(assignment.date, date):
+                            assignment_date = assignment.date
+                        elif isinstance(assignment.date, str):
+                            try:
+                                assignment_date = datetime.fromisoformat(
+                                    assignment.date
+                                ).date()
+                            except (ValueError, TypeError):
+                                continue
+
+                if assignment_date and assignment_date >= week_start:
+                    weekly_count += 1
+
+        return weekly_count
+
+    def count_consecutive_days(self, employee_id: int) -> int:
+        """Count consecutive days worked by an employee up to today"""
+        today = datetime.now().date()
+        consecutive = 0
+        day = today - timedelta(days=1)  # Start from yesterday
+
+        while day >= today - timedelta(days=7):  # Look back at most 7 days
+            if self.is_employee_assigned_on_date(employee_id, day):
+                consecutive += 1
+                day -= timedelta(days=1)
+            else:
+                break
+
+        return consecutive
+
+    def get_days_since_last_shift(self, employee_id: int) -> int:
+        """Calculate days since employee's last assigned shift"""
+        today = datetime.now().date()
+
+        # Look back up to 30 days
+        for days_back in range(1, 31):
+            check_date = today - timedelta(days=days_back)
+            if self.is_employee_assigned_on_date(employee_id, check_date):
+                return days_back
+
+        # If no shifts found in the past 30 days, return a high number
+        return 30
+
+    def is_employee_assigned_on_date(self, employee_id: int, day: date) -> bool:
+        """Check if employee is assigned to any shift on the given date"""
+        for assignment in self.assignments:
+            if (
+                isinstance(assignment, dict)
+                and assignment.get("employee_id") == employee_id
+            ) or (
+                hasattr(assignment, "employee_id")
+                and assignment.employee_id == employee_id
+            ):
+                # Get the assignment date
+                assignment_date = None
+                if isinstance(assignment, dict):
+                    date_str = assignment.get("date")
+                    if date_str:
+                        try:
+                            assignment_date = datetime.fromisoformat(date_str).date()
+                        except (ValueError, TypeError):
+                            continue
+                else:
+                    if hasattr(assignment, "date"):
+                        if isinstance(assignment.date, date):
+                            assignment_date = assignment.date
+                        elif isinstance(assignment.date, str):
+                            try:
+                                assignment_date = datetime.fromisoformat(
+                                    assignment.date
+                                ).date()
+                            except (ValueError, TypeError):
+                                continue
+
+                if assignment_date and assignment_date == day:
+                    return True
+
+        return False
+
+    def get_keyholders_needed(self, shift_type: str, date_to_check: date) -> int:
+        """Determine how many keyholders are needed for this shift type and date"""
+        # Check if keyholder requirements are in the config
+        if hasattr(self.config, "keyholder_requirements") and isinstance(
+            self.config.keyholder_requirements, dict
+        ):
+            return self.config.keyholder_requirements.get(shift_type, 1)
+
+        # Default to requiring one keyholder per shift type
+        return 1
+
+    def assign_keyholders(
+        self,
+        date_to_schedule: date,
+        shift_type: str,
+        keyholders_needed: int,
+        available_employees: List[Employee],
+        employee_stats: Dict[int, Dict],
+        shifts: List[Dict],
+    ) -> List[Dict]:
+        """Assign keyholder employees to shifts of a specific type"""
+        assignments = []
+
+        # Filter available employees to only keyholders
+        keyholder_employees = [
+            e for e in available_employees if getattr(e, "is_keyholder", False)
+        ]
+
+        if not keyholder_employees:
+            self.logger.warning(f"No keyholders available for {date_to_schedule}")
+            return assignments
+
+        # Get all shifts of this type for this date
+        type_shifts = [s for s in shifts if s.get("shift_type") == shift_type]
+
+        if not type_shifts:
+            self.logger.warning(f"No {shift_type} shifts found for {date_to_schedule}")
+            return assignments
+
+        # Sort keyholders by priority score (lower is better)
+        sorted_keyholders = sorted(
+            [e.id for e in keyholder_employees],
+            key=lambda eid: employee_stats[eid]["priority_score"],
+        )
+
+        # Try to assign keyholders
+        keyholders_assigned = 0
+        for employee_id in sorted_keyholders:
+            if keyholders_assigned >= keyholders_needed:
+                break
+
+            employee = employee_stats[employee_id]["employee"]
+
+            # Find best matching shift for this employee
+            best_shift = None
+            best_match_score = -1
+            best_availability = None
+
+            for shift in type_shifts:
+                # Get the shift template
+                shift_template = next(
+                    (s for s in self.resources.shifts if s.id == shift.get("shift_id")),
+                    None,
+                )
+
+                if not shift_template:
+                    continue
+
+                # Check if employee is available for this shift
+                is_available, avail_type = (
+                    self.availability_checker.is_employee_available(
+                        employee.id, date_to_schedule, shift_template
+                    )
+                )
+
+                if not is_available:
+                    continue
+
+                # Check constraints
+                if self.constraint_checker.exceeds_constraints(
+                    employee, date_to_schedule, shift_template
+                ):
+                    self.logger.debug(
+                        f"Keyholder {employee.id} exceeds constraints for shift {shift_template.id}"
+                    )
+                    continue
+
+                # Calculate a match score for this shift
+                match_score = self.calculate_shift_match_score(
+                    employee, shift_template, avail_type
+                )
+
+                if match_score > best_match_score:
+                    best_match_score = match_score
+                    best_shift = shift
+                    best_availability = avail_type
+
+            # If we found a good shift match, assign the employee
+            if best_shift and best_match_score > 0:
+                shift_id = best_shift.get("shift_id")
+                shift_template = next(
+                    (s for s in self.resources.shifts if s.id == shift_id), None
+                )
+
+                assignment = {
+                    "employee_id": employee.id,
+                    "shift_id": shift_id,
+                    "date": date_to_schedule,
+                    "shift_template": shift_template,
+                    "availability_type": best_availability,
+                    "status": "ASSIGNED",
+                    "version": 1,
+                }
+
+                assignments.append(assignment)
+                keyholders_assigned += 1
+                self.logger.debug(
+                    f"Assigned keyholder {employee.id} to {shift_type} shift on {date_to_schedule}"
+                )
+
+                # Add this assignment to our tracking to update constraints
+                self.assignments.append(assignment)
+
+                # Remove this shift from available shifts
+                type_shifts = [s for s in type_shifts if s.get("shift_id") != shift_id]
+
+        if keyholders_assigned < keyholders_needed:
+            self.logger.warning(
+                f"Could only assign {keyholders_assigned} of {keyholders_needed} "
+                f"keyholders needed for {shift_type} on {date_to_schedule}"
+            )
+
+        return assignments
+
+    def assign_employees_by_type(
+        self,
+        date_to_schedule: date,
+        shift_type: str,
+        employees_needed: int,
+        available_employees: List[Employee],
+        employee_stats: Dict[int, Dict],
+        shifts: List[Dict],
+    ) -> List[Dict]:
+        """Assign regular employees to shifts of a specific type"""
+        assignments = []
+
+        # Get all shifts of this type for this date
+        type_shifts = [s for s in shifts if s.get("shift_type") == shift_type]
+
+        if not type_shifts:
+            self.logger.warning(f"No {shift_type} shifts found for {date_to_schedule}")
+            return assignments
+
+        # Get employees sorted by priority score (lower is better)
+        sorted_employees = sorted(
+            [e.id for e in available_employees],
+            key=lambda eid: employee_stats[eid]["priority_score"],
+        )
+
+        # Try to assign employees
+        employees_assigned = 0
+        for employee_id in sorted_employees:
+            if employees_assigned >= employees_needed:
+                break
+
+            employee = employee_stats[employee_id]["employee"]
+
+            # Find best matching shift for this employee
+            best_shift = None
+            best_match_score = -1
+            best_availability = None
+
+            for shift in type_shifts:
+                # Get the shift template
+                shift_template = next(
+                    (s for s in self.resources.shifts if s.id == shift.get("shift_id")),
+                    None,
+                )
+
+                if not shift_template:
+                    continue
+
+                # Check if employee is available for this shift
+                is_available, avail_type = (
+                    self.availability_checker.is_employee_available(
+                        employee.id, date_to_schedule, shift_template
+                    )
+                )
+
+                if not is_available:
+                    continue
+
+                # Check constraints
+                if self.constraint_checker.exceeds_constraints(
+                    employee, date_to_schedule, shift_template
+                ):
+                    self.logger.debug(
+                        f"Employee {employee.id} exceeds constraints for shift {shift_template.id}"
+                    )
+                    continue
+
+                # Calculate a match score for this shift
+                match_score = self.calculate_shift_match_score(
+                    employee, shift_template, avail_type
+                )
+
+                if match_score > best_match_score:
+                    best_match_score = match_score
+                    best_shift = shift
+                    best_availability = avail_type
+
+            # If we found a good shift match, assign the employee
+            if best_shift and best_match_score > 0:
+                shift_id = best_shift.get("shift_id")
+                shift_template = next(
+                    (s for s in self.resources.shifts if s.id == shift_id), None
+                )
+
+                assignment = {
+                    "employee_id": employee.id,
+                    "shift_id": shift_id,
+                    "date": date_to_schedule,
+                    "shift_template": shift_template,
+                    "availability_type": best_availability,
+                    "status": "ASSIGNED",
+                    "version": 1,
+                }
+
+                assignments.append(assignment)
+                employees_assigned += 1
+                self.logger.debug(
+                    f"Assigned employee {employee.id} to {shift_type} shift on {date_to_schedule}"
+                )
+
+                # Add this assignment to our tracking to update constraints
+                self.assignments.append(assignment)
+
+                # Remove this shift from available shifts
+                type_shifts = [s for s in type_shifts if s.get("shift_id") != shift_id]
+
+        if employees_assigned < employees_needed:
+            self.logger.warning(
+                f"Could only assign {employees_assigned} of {employees_needed} "
+                f"employees needed for {shift_type} on {date_to_schedule}"
+            )
+
+        return assignments
+
+    def calculate_shift_match_score(
+        self, employee: Employee, shift: ShiftTemplate, availability_type: str
+    ) -> float:
+        """
+        Calculate a match score between employee and shift
+        Higher scores indicate better matches
+        """
+        score = 10.0  # Base score
+
+        # Adjust score based on availability type
+        if availability_type == AvailabilityType.PREFERRED.value:
+            score += 15.0
+        elif availability_type == AvailabilityType.AVAILABLE.value:
+            score -= 5.0
+
+        # Check if employee has skills matching shift requirements
+        if hasattr(shift, "required_skills") and shift.required_skills:
+            if hasattr(employee, "skills") and employee.skills:
+                matching_skills = set(shift.required_skills).intersection(
+                    set(employee.skills)
+                )
+                score += len(matching_skills) * 2.0
+
+        # Check if shift type matches employee preferences
+        if (
+            hasattr(employee, "preferred_shift_types")
+            and hasattr(shift, "shift_type")
+            and shift.shift_type in employee.preferred_shift_types
+        ):
+            score += 5.0
+
+        # Add a small random factor to break ties
+        score += random.random()
+
+        return score
+
+    def get_shift_duration(self, shift):
+        """Calculate the duration of a shift"""
+        if hasattr(shift, "duration_hours") and shift.duration_hours is not None:
+            return shift.duration_hours
+        elif hasattr(shift, "start_time") and hasattr(shift, "end_time"):
+            return self.calculate_duration(shift.start_time, shift.end_time)
+        return 0.0
+
+    def calculate_duration(self, start_time, end_time):
+        """Calculate duration between two time strings in hours"""
+        try:
+            # Parse the times
+            start_parts = start_time.split(":")
+            end_parts = end_time.split(":")
+
+            start_hour = int(start_parts[0])
+            start_min = int(start_parts[1]) if len(start_parts) > 1 else 0
+
+            end_hour = int(end_parts[0])
+            end_min = int(end_parts[1]) if len(end_parts) > 1 else 0
+
+            # Calculate minutes
+            start_minutes = start_hour * 60 + start_min
+            end_minutes = end_hour * 60 + end_min
+
+            # Handle overnight shifts
+            if end_minutes < start_minutes:
+                end_minutes += 24 * 60
+
+            # Convert to hours
+            duration = (end_minutes - start_minutes) / 60.0
+            return duration
+        except Exception as e:
+            self.logger.error(f"Error calculating duration: {str(e)}")
+            return 0.0
+
+    # Logging methods
+    def log_debug(self, message):
+        if hasattr(self.logger, "debug"):
+            self.logger.debug(message)
+
+    def log_info(self, message):
+        if hasattr(self.logger, "info"):
+            self.logger.info(message)
+
+    def log_warning(self, message):
+        if hasattr(self.logger, "warning"):
+            self.logger.warning(message)
+
+    def log_error(self, message):
+        if hasattr(self.logger, "error"):
+            self.logger.error(message)

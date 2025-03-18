@@ -5,7 +5,7 @@ class AvailabilityType(TypedDict):
     name: str
     color: str
     description: str
-    type: Literal['AVL', 'FIX', 'PRM', 'UNV']
+    type: Literal['AVL', 'FIX', 'PRF', 'UNV']
 
 AVAILABILITY_TYPES: list[AvailabilityType] = [
     {
@@ -34,7 +34,7 @@ AVAILABILITY_TYPES: list[AvailabilityType] = [
         'name': 'Preferred',
         'color': '#8b5cf6',
         'description': 'Preferred working time',
-        'type': 'PRM'
+        'type': 'PRF'
     }
 ]
 

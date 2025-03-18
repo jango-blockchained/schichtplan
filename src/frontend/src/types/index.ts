@@ -61,7 +61,7 @@ export interface Schedule {
     break_end?: string | null;
     notes?: string | null;
     employee_name?: string;
-    availability_type?: 'AVL' | 'FIX' | 'PRM' | 'UNV';
+    availability_type?: 'AVL' | 'FIX' | 'PRF' | 'UNV';
     shift_type_id?: ShiftType;
     shift_type_name?: string;
 }
@@ -90,7 +90,7 @@ export interface ScheduleUpdate {
     break_duration?: number | null;
     notes?: string | null;
     version?: number | null;
-    availability_type?: 'AVL' | 'FIX' | 'PRM' | 'UNV' | null;
+    availability_type?: 'AVL' | 'FIX' | 'PRF' | 'UNV' | null;
 }
 
 export interface DateRange {
