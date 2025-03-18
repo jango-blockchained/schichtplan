@@ -28,15 +28,15 @@ class Coverage(db.Model):
     keyholder_after_minutes = Column(
         Integer, nullable=True
     )  # Minutes keyholder needs to stay after
-
+    is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def __init__(
         self,
-        day_index=None,
-        start_time=None,
-        end_time=None,
+        day_index,
+        start_time,
+        end_time,
         min_employees=1,
         max_employees=3,
         employee_types=None,
@@ -57,9 +57,10 @@ class Coverage(db.Model):
         self.requires_keyholder = requires_keyholder
         self.keyholder_before_minutes = keyholder_before_minutes
         self.keyholder_after_minutes = keyholder_after_minutes
+        self.is_active = True
 
     def to_dict(self):
-        """Convert coverage object to dictionary for JSON serialization"""
+        """Convert coverage to dictionary"""
         return {
             "id": self.id,
             "day_index": self.day_index,
@@ -72,6 +73,7 @@ class Coverage(db.Model):
             "requires_keyholder": self.requires_keyholder,
             "keyholder_before_minutes": self.keyholder_before_minutes,
             "keyholder_after_minutes": self.keyholder_after_minutes,
+            "is_active": self.is_active,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

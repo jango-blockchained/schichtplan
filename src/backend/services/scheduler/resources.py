@@ -133,37 +133,49 @@ class ScheduleResources:
 
     def _load_coverage(self) -> List[Coverage]:
         """Load coverage with error handling"""
-        coverage = Coverage.query.all()
-        if not coverage:
-            logger.warning("No coverage requirements found")
+        try:
+            coverage = Coverage.query.filter_by(is_active=True).all()
+            if not coverage:
+                self.logger.warning("No active coverage requirements found")
+                return []
+
+            # Log coverage requirements by day
+            by_day = {}
+            for cov in coverage:
+                day_index = getattr(cov, "day_index", None)
+                if day_index is None and hasattr(cov, "day_of_week"):
+                    day_index = cov.day_of_week
+
+                if day_index not in by_day:
+                    by_day[day_index] = []
+                by_day[day_index].append(cov)
+
+            days = [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday",
+            ]
+
+            for day_idx, day_coverage in by_day.items():
+                if day_idx is not None and 0 <= day_idx < len(days):
+                    total_min_employees = sum(c.min_employees for c in day_coverage)
+                    total_max_employees = sum(c.max_employees for c in day_coverage)
+                    self.logger.info(
+                        f"Coverage for {days[day_idx]}: "
+                        f"{len(day_coverage)} blocks, "
+                        f"min employees: {total_min_employees}, "
+                        f"max employees: {total_max_employees}"
+                    )
+
+            return coverage
+
+        except Exception as e:
+            self.logger.error(f"Error loading coverage: {str(e)}")
             return []
-
-        # Log coverage requirements by day
-        by_day = {}
-        for cov in coverage:
-            if cov.day_index not in by_day:
-                by_day[cov.day_index] = []
-            by_day[cov.day_index].append(cov)
-
-        days = [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
-        ]
-
-        for day_idx, day_coverage in by_day.items():
-            total_employees = sum(c.min_employees for c in day_coverage)
-            logger.info(
-                f"Coverage for {days[day_idx]}: "
-                f"{len(day_coverage)} shifts, "
-                f"{total_employees} total employees needed"
-            )
-
-        return coverage
 
     def _load_shifts(self) -> List[ShiftTemplate]:
         """Load shifts with error handling"""
@@ -414,3 +426,73 @@ class ScheduleResources:
             if leave.employee_id == employee_id
             and leave.start_date <= date <= leave.end_date
         )
+
+    def verify_loaded_resources(self):
+        """Verify that all required resources are loaded correctly"""
+        if not self._loaded:
+            self.logger.error("Resources not loaded yet")
+            return False
+
+        # Check employees
+        if not self.employees:
+            self.logger.error("No employees loaded")
+            return False
+        self.logger.info(f"Verified {len(self.employees)} employees")
+
+        # Check shifts
+        if not self.shifts:
+            self.logger.error("No shifts loaded")
+            return False
+        self.logger.info(f"Verified {len(self.shifts)} shifts")
+
+        # Check coverage
+        if not self.coverage:
+            self.logger.error("No coverage data loaded")
+            return False
+        self.logger.info(f"Verified {len(self.coverage)} coverage records")
+
+        # Check settings
+        if not self.settings:
+            self.logger.error("No settings loaded")
+            return False
+        self.logger.info("Verified settings")
+
+        return True
+
+    def _load_employees(self):
+        """Load employees from database"""
+        try:
+            from models import Employee
+
+            employees = Employee.query.filter_by(is_active=True).all()
+            self.logger.debug(f"Loaded {len(employees)} active employees from database")
+            return employees
+        except Exception as e:
+            self.logger.error(f"Error loading employees: {str(e)}")
+            return []
+
+    def _load_shifts(self):
+        """Load shift templates from database"""
+        try:
+            from models import ShiftTemplate
+
+            shifts = ShiftTemplate.query.filter_by(is_active=True).all()
+            self.logger.debug(f"Loaded {len(shifts)} active shifts from database")
+            return shifts
+        except Exception as e:
+            self.logger.error(f"Error loading shifts: {str(e)}")
+            return []
+
+    def _load_coverage(self):
+        """Load coverage requirements from database"""
+        try:
+            from models import Coverage
+
+            coverage = Coverage.query.filter_by(is_active=True).all()
+            self.logger.debug(
+                f"Loaded {len(coverage)} active coverage records from database"
+            )
+            return coverage
+        except Exception as e:
+            self.logger.error(f"Error loading coverage: {str(e)}")
+            return []
