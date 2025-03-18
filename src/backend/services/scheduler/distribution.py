@@ -807,6 +807,7 @@ class DistributionManager:
             self.logger.info(
                 f"Assigning employees for {date_to_schedule}, employees needed: {employees_needed}"
             )
+            self.logger.debug(f"Available shifts: {len(shifts)}")
 
             assigned_employees = []
 
@@ -829,6 +830,7 @@ class DistributionManager:
             # Sort employees by number of shifts already assigned to ensure fair distribution
             # Also prioritize employees who haven't worked in a while
             employee_stats = self.get_employee_assignment_stats(available_employees)
+            self.logger.debug(f"Employee stats: {employee_stats}")
 
             # Track how many employees we've already assigned to various shift types today
             assigned_by_type = {shift_type: 0 for shift_type in shift_types}
@@ -910,6 +912,7 @@ class DistributionManager:
                             f"on {date_to_schedule}"
                         )
 
+            self.logger.debug(f"Final assignments: {assigned_employees}")
             return assigned_employees
 
         except Exception as e:
@@ -1342,7 +1345,6 @@ class DistributionManager:
             if hasattr(employee, "skills") and employee.skills:
                 matching_skills = set(shift.required_skills).intersection(
                     set(employee.skills)
-                )
                 score += len(matching_skills) * 2.0
 
         # Check if shift type matches employee preferences

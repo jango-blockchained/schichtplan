@@ -500,6 +500,9 @@ class ScheduleGenerator:
         """Process coverage records to determine staffing needs for a date"""
         coverage_for_date = {}
 
+        self.logger.debug(f"Processing coverage for date {current_date}")
+        self.logger.debug(f"Available coverage records: {len(self.resources.coverage)}")
+
         # Find coverage records for this date or day of week
         for coverage in self.resources.coverage:
             # Check if this coverage applies to this date
@@ -512,12 +515,19 @@ class ScheduleGenerator:
                 if not employees_needed and hasattr(coverage, "employees_needed"):
                     employees_needed = coverage.employees_needed
 
+                self.logger.debug(
+                    f"Found coverage: {shift_type} needs {employees_needed} employees"
+                )
+
                 # Add to coverage dictionary, combining if already exists
                 if shift_type in coverage_for_date:
                     coverage_for_date[shift_type] += employees_needed
                 else:
                     coverage_for_date[shift_type] = employees_needed
 
+        self.logger.debug(
+            f"Final coverage for date {current_date}: {coverage_for_date}"
+        )
         return coverage_for_date
 
     def _coverage_applies_to_date(self, coverage, check_date: date) -> bool:
@@ -544,9 +554,11 @@ class ScheduleGenerator:
         """Create shift instances for a specific date based on shift templates"""
         date_shifts = []
 
+        self.logger.debug(f"Creating shifts for date {current_date}")
+        self.logger.debug(f"Available shift templates: {len(self.resources.shifts)}")
+
         for shift_template in self.resources.shifts:
             # Check if this shift template should be used for this date
-            # (could be based on day of week, etc.)
             if self._shift_applies_to_date(shift_template, current_date):
                 # Create a shift instance
                 shift = {
@@ -556,7 +568,9 @@ class ScheduleGenerator:
                     "shift_type": getattr(shift_template, "shift_type", "DAY"),
                 }
                 date_shifts.append(shift)
+                self.logger.debug(f"Created shift: {shift}")
 
+        self.logger.debug(f"Created {len(date_shifts)} shifts for date {current_date}")
         return date_shifts
 
     def _shift_applies_to_date(self, shift: ShiftTemplate, check_date: date) -> bool:
@@ -569,19 +583,41 @@ class ScheduleGenerator:
         self, current_date: date, coverage: Dict[str, int]
     ) -> List[Dict]:
         """Generate assignments for a specific date based on coverage"""
-        assignments = []
+        try:
+            # Create shifts for this date
+            date_shifts = self._create_date_shifts(current_date)
 
-        for shift_type, employees_needed in coverage.items():
-            for _ in range(employees_needed):
-                assignment = {
-                    "date": current_date,
-                    "shift_type": shift_type,
-                    "status": "ASSIGNED",
-                    "version": 1,
-                }
-                assignments.append(assignment)
+            if not date_shifts:
+                self.logger.warning(f"No shifts available for date {current_date}")
+                return []
 
-        return assignments
+            # Use the distribution manager to assign employees
+            assignments = self.distribution_manager.assign_employees_with_distribution(
+                current_date, date_shifts, coverage
+            )
+
+            if not assignments:
+                self.logger.warning(
+                    f"No assignments could be made for date {current_date}"
+                )
+                return []
+
+            # Add assignments to schedule container
+            for assignment in assignments:
+                self.schedule.entries.append(assignment)
+
+                # Update schedule_by_date for constraint checking
+                if current_date not in self.schedule_by_date:
+                    self.schedule_by_date[current_date] = []
+                self.schedule_by_date[current_date].append(assignment)
+
+            return assignments
+
+        except Exception as e:
+            self.logger.error(
+                f"Error generating assignments for date {current_date}: {str(e)}"
+            )
+            return []
 
     def _create_empty_schedule_entries(self, current_date: date):
         """Create empty schedule entries for a specific date"""
