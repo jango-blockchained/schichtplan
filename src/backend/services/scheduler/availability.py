@@ -3,16 +3,24 @@
 from datetime import date, datetime
 from typing import Dict, Any, List, Tuple
 import logging
+import sys
+import os
+
+# Add parent directories to path if needed
+current_dir = os.path.dirname(os.path.abspath(__file__))
+src_backend_dir = os.path.abspath(os.path.join(current_dir, "..", ".."))
+if src_backend_dir not in sys.path:
+    sys.path.insert(0, src_backend_dir)
 
 # Try to handle imports in different environments
 try:
-    from src.backend.models.employee import AvailabilityType
+    from models.employee import AvailabilityType
 except ImportError:
     try:
         from backend.models.employee import AvailabilityType
     except ImportError:
         try:
-            from models.employee import AvailabilityType
+            from src.backend.models.employee import AvailabilityType
         except ImportError:
             # Create a placeholder enum for standalone testing
             from enum import Enum
@@ -28,13 +36,13 @@ except ImportError:
 
 # Try to handle imports in different environments
 try:
-    from src.backend.models import Employee, ShiftTemplate, Schedule
+    from models import Employee, ShiftTemplate, Schedule
 except ImportError:
     try:
         from backend.models import Employee, ShiftTemplate, Schedule
     except ImportError:
         try:
-            from models import Employee, ShiftTemplate, Schedule
+            from src.backend.models import Employee, ShiftTemplate, Schedule
         except ImportError:
             # Create type hint classes for standalone testing
             class Employee:

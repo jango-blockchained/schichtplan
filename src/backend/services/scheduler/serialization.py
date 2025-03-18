@@ -2,12 +2,20 @@
 
 from datetime import date, datetime
 from typing import Dict, List, Any, Optional
+import sys
+import os
+
+# Add parent directories to path if needed
+current_dir = os.path.dirname(os.path.abspath(__file__))
+src_backend_dir = os.path.abspath(os.path.join(current_dir, "..", ".."))
+if src_backend_dir not in sys.path:
+    sys.path.insert(0, src_backend_dir)
 
 # Try to handle imports in different environments
 try:
-    from src.backend.models import Employee, ShiftTemplate, Schedule
-    from src.backend.models.employee import AvailabilityType
-    from src.backend.utils.logger import logger
+    from models import Employee, ShiftTemplate, Schedule
+    from models.employee import AvailabilityType
+    from utils.logger import logger
 except ImportError:
     try:
         from backend.models import Employee, ShiftTemplate, Schedule
@@ -15,8 +23,9 @@ except ImportError:
         from backend.utils.logger import logger
     except ImportError:
         try:
-            from models import Employee, ShiftTemplate, Schedule
-            from models.employee import AvailabilityType
+            from src.backend.models import Employee, ShiftTemplate, Schedule
+            from src.backend.models.employee import AvailabilityType
+            from src.backend.utils.logger import logger
         except ImportError:
             # Create type hint classes for standalone testing
             class AvailabilityType:
@@ -145,7 +154,7 @@ class ScheduleSerializer:
         return shift_dict
 
     def create_schedule_entries(
-        self, employees_assigned, schedule_id=None, status="DRAFT"
+        self, employees_assigned, schedule_id=None, status="DRAFT", version=None
     ) -> List[Any]:
         """
         Create schedule entries from assigned employees
@@ -163,7 +172,7 @@ class ScheduleSerializer:
                     "availability_type", AvailabilityType.AVAILABLE.value
                 )
                 assignment_status = assignment.get("status", status)
-                version = assignment.get("version", 1)
+                assignment_version = assignment.get("version", version or 1)
             else:
                 employee_id = assignment.id
                 shift_id = None  # Will be determined based on best match
@@ -171,7 +180,7 @@ class ScheduleSerializer:
                 shift_template = None
                 availability_type = AvailabilityType.AVAILABLE.value
                 assignment_status = status
-                version = 1
+                assignment_version = version or 1
 
             try:
                 # For cases where we need to find the best matching shift
@@ -193,7 +202,7 @@ class ScheduleSerializer:
                         shift_id=best_shift.id,
                         date=assignment_date,
                         status="PENDING",
-                        version=1,
+                        version=assignment_version,
                         availability_type=best_availability,
                     )
                     entries.append(entry)
