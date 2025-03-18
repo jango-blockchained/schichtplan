@@ -247,6 +247,29 @@ def generate_coverage_data():
     return coverage_slots
 
 
+def calculate_weekly_availability_hours(blocks, days_available):
+    """Calculate total weekly availability hours from blocks"""
+    total_hours = 0
+    for start_hour, end_hour, _ in blocks:
+        total_hours += (end_hour - start_hour) * days_available
+    return total_hours
+
+
+def validate_availability_vs_contracted(employee, blocks, days_available):
+    """Validate that availability hours are sufficient for contracted hours"""
+    weekly_availability = calculate_weekly_availability_hours(blocks, days_available)
+    # Add 20% buffer to contracted hours to ensure enough availability
+    min_required_hours = employee.contracted_hours * 1.2
+
+    logging.info(
+        f"Employee {employee.employee_id}: "
+        f"Contracted={employee.contracted_hours:.1f}h/week, "
+        f"Available={weekly_availability:.1f}h/week"
+    )
+
+    return weekly_availability >= min_required_hours
+
+
 def generate_availability_data(employees):
     """Generate demo availability data with continuous blocks without gaps"""
     availabilities = []
@@ -262,79 +285,105 @@ def generate_availability_data(employees):
         for employee in employees
         if employee.employee_group in ["VZ", "TL"]
         and employee not in random_pattern_employees
-        and random.random()
-        < 0.4  # 40% of remaining full-time employees get fixed schedules
+        and random.random() < 0.4
     )
 
     for employee in employees:
-        # Generate recurring availability for each employee
-        for day_of_week in range(7):  # 0-6 (Sunday-Saturday)
-            if day_of_week != 0:  # Skip Sunday
-                # Determine the daily schedule pattern
-                if employee in fixed_schedule_employees:
-                    # Fixed schedule employees have set blocks
-                    if employee.employee_group == "TL":
-                        # Team leaders work one solid block morning to mid-afternoon
-                        blocks = [(8, 16, AvailabilityType.FIXED)]
-                    else:  # VZ with fixed schedule
-                        # Alternate between morning and afternoon blocks
-                        if day_of_week % 2 == 0:
-                            blocks = [(9, 15, AvailabilityType.FIXED)]  # Morning block
-                        else:
-                            blocks = [
-                                (14, 20, AvailabilityType.FIXED)
-                            ]  # Afternoon block
+        valid_blocks = False
+        while not valid_blocks:
+            temp_availabilities = []
+            blocks = []
+            days_available = 0
 
-                elif employee in random_pattern_employees:
-                    # Create 2-3 continuous blocks with different types, NO GAPS
-                    blocks = []
-                    if random.random() < 0.7:  # 70% chance of starting in the morning
-                        current_hour = 9
+            # Generate recurring availability for each employee
+            for day_of_week in range(7):  # 0-6 (Sunday-Saturday)
+                if day_of_week != 0:  # Skip Sunday
+                    days_available += 1
+                    # Determine the daily schedule pattern
+                    if employee in fixed_schedule_employees:
+                        # Fixed schedule employees have set blocks
+                        if employee.employee_group == "TL":
+                            # Team leaders work one solid block morning to mid-afternoon
+                            blocks = [(8, 16, AvailabilityType.FIXED)]
+                        else:  # VZ with fixed schedule
+                            # Alternate between morning and afternoon blocks
+                            if day_of_week % 2 == 0:
+                                blocks = [
+                                    (9, 15, AvailabilityType.FIXED)
+                                ]  # Morning block
+                            else:
+                                blocks = [
+                                    (14, 20, AvailabilityType.FIXED)
+                                ]  # Afternoon block
+
+                    elif employee in random_pattern_employees:
+                        # Create 2-3 continuous blocks with different types, NO GAPS
+                        blocks = []
+                        if (
+                            random.random() < 0.7
+                        ):  # 70% chance of starting in the morning
+                            current_hour = 9
+                        else:
+                            current_hour = 14  # Start in the afternoon
+
+                        end_hour = 20  # Latest possible end time
+
+                        while current_hour < end_hour:
+                            remaining_hours = end_hour - current_hour
+                            if remaining_hours <= 4:
+                                block_length = remaining_hours
+                            else:
+                                block_length = random.randint(
+                                    2, min(4, remaining_hours)
+                                )
+
+                            block_end = current_hour + block_length
+                            block_type = (
+                                AvailabilityType.PREFERRED
+                                if random.random() < 0.3
+                                else AvailabilityType.AVAILABLE
+                            )
+                            blocks.append((current_hour, block_end, block_type))
+                            current_hour = block_end
+
                     else:
-                        current_hour = 14  # Start in the afternoon
+                        # Regular employees get one continuous block
+                        if (
+                            random.random() < 0.8
+                        ):  # Increased chance of full day for sufficient hours
+                            blocks = [(9, 20, AvailabilityType.AVAILABLE)]
+                        else:  # Morning or afternoon block, but not both
+                            if random.random() < 0.5:
+                                blocks = [
+                                    (9, 15, AvailabilityType.AVAILABLE)
+                                ]  # Extended morning
+                            else:
+                                blocks = [
+                                    (14, 20, AvailabilityType.AVAILABLE)
+                                ]  # Afternoon
 
-                    end_hour = 20  # Latest possible end time
+                    # Create availability records for each block
+                    for start_hour, end_hour, availability_type in blocks:
+                        for hour in range(start_hour, end_hour):
+                            availability = EmployeeAvailability(
+                                employee_id=employee.id,
+                                is_recurring=True,
+                                day_of_week=day_of_week,
+                                hour=hour,
+                                is_available=True,
+                                availability_type=availability_type,
+                            )
+                            temp_availabilities.append(availability)
 
-                    while current_hour < end_hour:
-                        # Determine block length - between 2 and 4 hours, but must reach end_hour
-                        remaining_hours = end_hour - current_hour
-                        if remaining_hours <= 4:
-                            block_length = remaining_hours
-                        else:
-                            block_length = random.randint(2, min(4, remaining_hours))
-
-                        block_end = current_hour + block_length
-                        # Assign type - higher chance of AVAILABLE, lower chance of PREFERRED
-                        block_type = (
-                            AvailabilityType.PREFERRED
-                            if random.random() < 0.3
-                            else AvailabilityType.AVAILABLE
-                        )
-                        blocks.append((current_hour, block_end, block_type))
-                        current_hour = block_end
-
-                else:
-                    # Regular employees get one continuous block
-                    if random.random() < 0.6:  # 60% chance of full day
-                        blocks = [(9, 20, AvailabilityType.AVAILABLE)]
-                    else:  # Morning or afternoon block, but not both
-                        if random.random() < 0.5:
-                            blocks = [(9, 14, AvailabilityType.AVAILABLE)]  # Morning
-                        else:
-                            blocks = [(14, 20, AvailabilityType.AVAILABLE)]  # Afternoon
-
-                # Create availability records for each block
-                for start_hour, end_hour, availability_type in blocks:
-                    for hour in range(start_hour, end_hour):
-                        availability = EmployeeAvailability(
-                            employee_id=employee.id,
-                            is_recurring=True,
-                            day_of_week=day_of_week,
-                            hour=hour,
-                            is_available=True,
-                            availability_type=availability_type,
-                        )
-                        availabilities.append(availability)
+            # Validate that the generated availability is sufficient
+            if validate_availability_vs_contracted(employee, blocks, days_available):
+                valid_blocks = True
+                availabilities.extend(temp_availabilities)
+            else:
+                logging.warning(
+                    f"Regenerating availability for {employee.employee_id} - "
+                    f"insufficient hours"
+                )
 
     return availabilities
 
@@ -734,11 +783,13 @@ def generate_improved_employee_data():
                     f"GFB employee: {first_name} {last_name}, contracted_hours: {contracted_hours}"
                 )
 
-            # All TL and first 2 VZ employees are keyholders (ensures enough keyholders)
-            is_keyholder = emp_type["id"] == "TL" or (emp_type["id"] == "VZ" and i < 2)
+            # Make all employees with more than 20 contracted hours keyholders
+            is_keyholder = contracted_hours > 20
 
             logging.info(
-                f"Creating employee: {first_name} {last_name}, group: {emp_type['id']}, hours: {contracted_hours}, keyholder: {is_keyholder}"
+                f"Creating employee: {first_name} {last_name}, "
+                f"group: {emp_type['id']}, hours: {contracted_hours}, "
+                f"keyholder: {is_keyholder}"
             )
 
             try:
@@ -757,7 +808,8 @@ def generate_improved_employee_data():
             except Exception as e:
                 logging.error(f"Error creating employee: {e}")
                 logging.error(
-                    f"Employee details: group={emp_type['id']}, type={type(emp_type['id'])}, hours={contracted_hours}"
+                    f"Employee details: group={emp_type['id']}, "
+                    f"type={type(emp_type['id'])}, hours={contracted_hours}"
                 )
                 raise
 
@@ -821,21 +873,10 @@ def generate_improved_availability_data(employees):
     working_days = range(1, 7)  # 1-6 (Monday-Saturday)
 
     # Step 1: Ensure keyholders have availability for each time slot
-    # We need at least one keyholder available for each day and time slot
     keyholders = [e for e in employees if e.is_keyholder]
-
-    # Assign keyholders to ensure coverage for all time slots
     for day in working_days:
-        # Create a rotation of keyholders for morning and afternoon slots
         for slot_idx, (start_hour, end_hour) in enumerate([(9, 14), (14, 20)]):
-            # Use a different keyholder for each slot to avoid overloading
-            assigned_keyholders = []
-
-            # Choose 2 keyholders for this slot
             slot_keyholders = random.sample(keyholders, min(2, len(keyholders)))
-            assigned_keyholders.extend(slot_keyholders)
-
-            # Set availability for chosen keyholders
             for keyholder in slot_keyholders:
                 for hour in range(start_hour, end_hour):
                     availability = EmployeeAvailability(
@@ -844,22 +885,18 @@ def generate_improved_availability_data(employees):
                         day_of_week=day,
                         hour=hour,
                         is_available=True,
-                        availability_type=AvailabilityType.FIXED,  # Keyholders get fixed schedules
+                        availability_type=AvailabilityType.FIXED,
                     )
                     availabilities.append(availability)
 
     # Step 2: Assign regular full-time employees (VZ) to shifts
-    # Each VZ employee works 5 days per week with 8 hour shifts
     for employee in employee_groups["VZ"]:
-        # Choose 5 random days for this employee
         work_days = random.sample(list(working_days), 5)
-
         for day in work_days:
-            # Decide if morning or afternoon shift
-            if random.random() < 0.5:  # Morning shift
-                start_hour, end_hour = 9, 17  # 8-hour shift
-            else:  # Afternoon shift
-                start_hour, end_hour = 12, 20  # 8-hour shift
+            if random.random() < 0.5:
+                start_hour, end_hour = 9, 17
+            else:
+                start_hour, end_hour = 12, 20
 
             for hour in range(start_hour, end_hour):
                 availability = EmployeeAvailability(
@@ -872,22 +909,38 @@ def generate_improved_availability_data(employees):
                 )
                 availabilities.append(availability)
 
-    # Step 3: Assign part-time employees (TZ) to shifts
-    # Each TZ employee works 3-4 days per week with 6-hour shifts
+    # Step 3: Assign part-time employees (TZ) with increased flexibility for those with ≤20 hours
     for employee in employee_groups["TZ"]:
-        work_days_count = random.randint(3, 4)
+        # Determine number of available days based on contracted hours
+        if employee.contracted_hours <= 20:
+            # More available days for flexible part-timers
+            work_days_count = random.randint(4, 5)  # Increased from 3-4
+            preferred_days_count = random.randint(2, 3)  # Additional preferred days
+        else:
+            work_days_count = random.randint(3, 4)
+            preferred_days_count = random.randint(1, 2)
+
+        # Regular availability
         work_days = random.sample(list(working_days), work_days_count)
-
         for day in work_days:
-            # Assign to either morning, midday, or afternoon shift
-            shift_type = random.choice(["morning", "midday", "afternoon"])
-
-            if shift_type == "morning":
-                start_hour, end_hour = 9, 15  # 6-hour shift
-            elif shift_type == "midday":
-                start_hour, end_hour = 11, 17  # 6-hour shift
-            else:  # afternoon
-                start_hour, end_hour = 14, 20  # 6-hour shift
+            # More shift options for flexible employees
+            if employee.contracted_hours <= 20:
+                shift_options = [
+                    (9, 15),  # Morning
+                    (11, 17),  # Midday
+                    (14, 20),  # Afternoon
+                    (9, 13),  # Short morning
+                    (16, 20),  # Short afternoon
+                ]
+                start_hour, end_hour = random.choice(shift_options)
+            else:
+                shift_type = random.choice(["morning", "midday", "afternoon"])
+                if shift_type == "morning":
+                    start_hour, end_hour = 9, 15
+                elif shift_type == "midday":
+                    start_hour, end_hour = 11, 17
+                else:
+                    start_hour, end_hour = 14, 20
 
             for hour in range(start_hour, end_hour):
                 availability = EmployeeAvailability(
@@ -900,57 +953,96 @@ def generate_improved_availability_data(employees):
                 )
                 availabilities.append(availability)
 
-    # Step 4: Assign mini-job employees (GFB) to shifts
-    # Each GFB employee works 2-3 days per week with 4-hour shifts
-    for employee in employee_groups["GFB"]:
-        work_days_count = random.randint(2, 3)
-        work_days = random.sample(list(working_days), work_days_count)
-
-        for day in work_days:
-            # Assign to either morning or afternoon short shift
-            if random.random() < 0.5:  # Morning shift
-                start_hour, end_hour = 9, 13  # 4-hour shift
-            else:  # Afternoon shift
-                start_hour, end_hour = 16, 20  # 4-hour shift
-
-            for hour in range(start_hour, end_hour):
-                availability = EmployeeAvailability(
-                    employee_id=employee.id,
-                    is_recurring=True,
-                    day_of_week=day,
-                    hour=hour,
-                    is_available=True,
-                    availability_type=AvailabilityType.AVAILABLE,
-                )
-                availabilities.append(availability)
-
-    # Step 5: Add some random preferred availability to increase flexibility
-    for employee in employees:
-        # 30% chance to add some preferred hours
-        if random.random() < 0.3:
-            # Pick a day they don't already have availability
-            existing_days = set(
-                a.day_of_week for a in availabilities if a.employee_id == employee.id
+        # Add preferred availability on additional days
+        remaining_days = [d for d in working_days if d not in work_days]
+        if remaining_days and preferred_days_count > 0:
+            preferred_days = random.sample(
+                remaining_days, min(preferred_days_count, len(remaining_days))
             )
-            available_days = [day for day in working_days if day not in existing_days]
-
-            if available_days:
-                extra_day = random.choice(available_days)
-                if random.random() < 0.5:  # Morning shift
+            for day in preferred_days:
+                if random.random() < 0.5:
                     start_hour, end_hour = 9, 14
-                else:  # Afternoon shift
+                else:
                     start_hour, end_hour = 14, 19
-
                 for hour in range(start_hour, end_hour):
                     availability = EmployeeAvailability(
                         employee_id=employee.id,
                         is_recurring=True,
-                        day_of_week=extra_day,
+                        day_of_week=day,
                         hour=hour,
                         is_available=True,
                         availability_type=AvailabilityType.PREFERRED,
                     )
                     availabilities.append(availability)
+
+    # Step 4: Assign mini-job employees (GFB) with high flexibility
+    for employee in employee_groups["GFB"]:
+        # Increased number of available days for all GFB employees
+        work_days_count = random.randint(3, 4)  # Increased from 2-3
+        preferred_days_count = random.randint(2, 3)  # Additional preferred days
+
+        # Regular availability
+        work_days = random.sample(list(working_days), work_days_count)
+        for day in work_days:
+            # Multiple shift options per day
+            shift_options = [
+                (9, 13),  # Morning
+                (11, 15),  # Midday
+                (16, 20),  # Afternoon
+                (9, 11),  # Short morning
+                (18, 20),  # Short evening
+            ]
+            # Add 1-2 availability blocks per day
+            num_blocks = random.randint(1, 2)
+            day_shifts = random.sample(shift_options, num_blocks)
+
+            for start_hour, end_hour in day_shifts:
+                for hour in range(start_hour, end_hour):
+                    availability = EmployeeAvailability(
+                        employee_id=employee.id,
+                        is_recurring=True,
+                        day_of_week=day,
+                        hour=hour,
+                        is_available=True,
+                        availability_type=AvailabilityType.AVAILABLE,
+                    )
+                    availabilities.append(availability)
+
+        # Add preferred availability on additional days
+        remaining_days = [d for d in working_days if d not in work_days]
+        if remaining_days and preferred_days_count > 0:
+            preferred_days = random.sample(
+                remaining_days, min(preferred_days_count, len(remaining_days))
+            )
+            for day in preferred_days:
+                # Multiple preferred time slots possible
+                num_slots = random.randint(1, 2)
+                preferred_slots = random.sample(
+                    [(9, 13), (13, 17), (16, 20)], num_slots
+                )
+
+                for start_hour, end_hour in preferred_slots:
+                    for hour in range(start_hour, end_hour):
+                        availability = EmployeeAvailability(
+                            employee_id=employee.id,
+                            is_recurring=True,
+                            day_of_week=day,
+                            hour=hour,
+                            is_available=True,
+                            availability_type=AvailabilityType.PREFERRED,
+                        )
+                        availabilities.append(availability)
+
+    # Log availability statistics
+    for employee in employees:
+        available_hours = len(
+            [a for a in availabilities if a.employee_id == employee.id]
+        )
+        logging.info(
+            f"Employee {employee.employee_id} ({employee.employee_group}): "
+            f"Contracted={employee.contracted_hours:.1f}h/week, "
+            f"Available={available_hours}h total"
+        )
 
     return availabilities
 
