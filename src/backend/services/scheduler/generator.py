@@ -378,11 +378,41 @@ class ScheduleGenerator:
             invalid_count = 0
 
             for assignment in self.schedule.get_assignments():
-                validity = self.constraint_checker.validate_assignment(assignment)
-                if validity.is_valid:
-                    valid_count += 1
-                else:
-                    invalid_count += 1
+                # Skip empty schedule entries
+                if isinstance(assignment, dict) and assignment.get("status") == "EMPTY":
+                    continue
+
+                # Get employee_id and shift_id based on type
+                employee_id = (
+                    assignment.get("employee_id")
+                    if isinstance(assignment, dict)
+                    else assignment.employee_id
+                )
+                shift_id = (
+                    assignment.get("shift_id")
+                    if isinstance(assignment, dict)
+                    else assignment.shift_id
+                )
+                assignment_date = (
+                    assignment.get("date")
+                    if isinstance(assignment, dict)
+                    else assignment.date
+                )
+
+                if employee_id and shift_id:
+                    # Get the employee and shift from the assignment
+                    employee = self.resources.get_employee(employee_id)
+                    shift = self.resources.get_shift(shift_id)
+
+                    if employee and shift:
+                        # Check if the assignment exceeds constraints
+                        exceeds = self.constraint_checker.exceeds_constraints(
+                            employee, assignment_date, shift
+                        )
+                        if not exceeds:
+                            valid_count += 1
+                        else:
+                            invalid_count += 1
 
             serialized_result["validation"] = {
                 "valid_assignments": valid_count,

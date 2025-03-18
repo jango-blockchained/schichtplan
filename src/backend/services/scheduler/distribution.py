@@ -90,7 +90,7 @@ class DistributionManager:
         self.availability_checker = availability_checker
         self.config = config
         self.logger = logger
-        self.assignments = []
+        self.assignments = {}  # Changed from list to dict
         self.schedule_by_date = {}
         self.employee_history = defaultdict(lambda: defaultdict(int))
         self.shift_scores = {}
