@@ -5,21 +5,30 @@ from datetime import date, datetime, timedelta
 from collections import defaultdict
 import functools
 import random
-from src.backend.models.employee import AvailabilityType
+import sys
+import os
+
+# Add parent directories to path if needed
+current_dir = os.path.dirname(os.path.abspath(__file__))
+src_backend_dir = os.path.abspath(os.path.join(current_dir, "..", ".."))
+if src_backend_dir not in sys.path:
+    sys.path.insert(0, src_backend_dir)
 
 # Try to handle imports in different environments
 try:
-    from src.backend.models import Employee, ShiftTemplate, Schedule
-    from src.backend.utils.logger import logger
+    from models.employee import AvailabilityType
+    from models import Employee, ShiftTemplate, Schedule
+    from utils.logger import logger
 except ImportError:
     try:
-        from backend.models import Employee, ShiftTemplate, Schedule
         from backend.models.employee import AvailabilityType
+        from backend.models import Employee, ShiftTemplate, Schedule
         from backend.utils.logger import logger
     except ImportError:
         try:
-            from models import Employee, ShiftTemplate, Schedule
-            from models.employee import AvailabilityType
+            from src.backend.models.employee import AvailabilityType
+            from src.backend.models import Employee, ShiftTemplate, Schedule
+            from src.backend.utils.logger import logger
         except ImportError:
             # Create type hint classes for standalone testing
             class Employee:

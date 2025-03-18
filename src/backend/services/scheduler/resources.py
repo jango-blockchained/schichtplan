@@ -1,8 +1,21 @@
+"""Resource management for the scheduler"""
+
 from datetime import date
 from typing import List, Optional, Dict, Tuple
+import logging
+import functools
+import sys
+import os
 
+# Add parent directories to path if needed
+current_dir = os.path.dirname(os.path.abspath(__file__))
+src_backend_dir = os.path.abspath(os.path.join(current_dir, "..", ".."))
+if src_backend_dir not in sys.path:
+    sys.path.insert(0, src_backend_dir)
+
+# Try to handle imports in different environments
 try:
-    from src.backend.models import (
+    from models import (
         Employee,
         ShiftTemplate,
         Settings,
@@ -12,7 +25,7 @@ try:
         EmployeeAvailability,
         Schedule,
     )
-    from src.backend.models.employee import AvailabilityType, EmployeeGroup
+    from models.employee import AvailabilityType, EmployeeGroup
 except ImportError:
     try:
         from backend.models import (
@@ -28,7 +41,7 @@ except ImportError:
         from backend.models.employee import AvailabilityType, EmployeeGroup
     except ImportError:
         try:
-            from models import (
+            from src.backend.models import (
                 Employee,
                 ShiftTemplate,
                 Settings,
@@ -38,14 +51,10 @@ except ImportError:
                 EmployeeAvailability,
                 Schedule,
             )
-            from models.employee import AvailabilityType, EmployeeGroup
+            from src.backend.models.employee import AvailabilityType, EmployeeGroup
         except ImportError:
             # Create placeholder classes for standalone testing
             pass
-
-import logging
-import functools
-
 
 # Create a standard logger
 logger = logging.getLogger(__name__)
@@ -77,6 +86,10 @@ class ScheduleResources:
         self._employee_cache = {}
         self._coverage_cache = {}
         self._date_caches_cleared = False
+
+    def is_loaded(self):
+        """Check if resources have already been loaded"""
+        return len(self.employees) > 0
 
     def load(self):
         """Load all required resources from database"""

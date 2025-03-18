@@ -766,7 +766,12 @@ def api_generate_schedule():
         # Ensure we're in an application context for the entire operation
         with current_app.app_context():
             # Generate schedule
-            result = generator.generate(start_date, end_date, version, session_id)
+            result = generator.generate(
+                start_date=start_date,
+                end_date=end_date,
+                create_empty_schedules=create_empty_schedules,
+                version=version,
+            )
 
             # Now explicitly save the generated schedules to the database
             if hasattr(generator, "_save_to_database"):

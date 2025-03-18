@@ -3,6 +3,14 @@
 from datetime import date, datetime, timedelta
 import logging
 from typing import Dict, List, Any, Optional
+import sys
+import os
+
+# Add parent directories to path if needed
+current_dir = os.path.dirname(os.path.abspath(__file__))
+src_backend_dir = os.path.abspath(os.path.join(current_dir, "..", ".."))
+if src_backend_dir not in sys.path:
+    sys.path.insert(0, src_backend_dir)
 
 
 class ScheduleGenerationError(Exception):
@@ -22,22 +30,22 @@ from src.backend.models.employee import AvailabilityType
 
 # Try to handle imports in different environments
 try:
-    from src.backend.models import Employee, ShiftTemplate, Schedule
-    from src.backend.models.employee import AvailabilityType
-    from src.backend.utils.logger import logger
-    from src.backend.services.scheduler.resources import ScheduleResources
+    from models.employee import AvailabilityType
+    from models import Employee, ShiftTemplate, Schedule
+    from utils.logger import logger
+    from services.scheduler.resources import ScheduleResources
 except ImportError:
     try:
-        from backend.models import Employee, ShiftTemplate, Schedule
         from backend.models.employee import AvailabilityType
+        from backend.models import Employee, ShiftTemplate, Schedule
         from backend.utils.logger import logger
         from backend.services.scheduler.resources import ScheduleResources
     except ImportError:
         try:
-            from models import Employee, ShiftTemplate, Schedule
-            from models.employee import AvailabilityType
-            from utils.logger import logger
-            from services.scheduler.resources import ScheduleResources
+            from src.backend.models.employee import AvailabilityType
+            from src.backend.models import Employee, ShiftTemplate, Schedule
+            from src.backend.utils.logger import logger
+            from src.backend.services.scheduler.resources import ScheduleResources
         except ImportError:
             # Create placeholder logger and classes for standalone testing
             logger = logging.getLogger(__name__)
@@ -148,11 +156,14 @@ class ScheduleGenerator:
         end_date: date,
         config: Optional[Dict] = None,
         create_empty_schedules: bool = False,
+        version: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Wrapper for generate method to maintain backward compatibility
         """
-        return self.generate(start_date, end_date, config, create_empty_schedules)
+        return self.generate(
+            start_date, end_date, config, create_empty_schedules, version
+        )
 
     def generate(
         self,
@@ -160,6 +171,7 @@ class ScheduleGenerator:
         end_date: date,
         config: Optional[Dict] = None,
         create_empty_schedules: bool = False,
+        version: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Generate a schedule for the given date range
@@ -169,6 +181,7 @@ class ScheduleGenerator:
             end_date: The end date of the schedule
             config: Optional configuration dictionary
             create_empty_schedules: Whether to create empty schedule entries for days with no coverage
+            version: Optional version of the schedule
         """
         try:
             # Set up diagnostic logging
@@ -202,7 +215,10 @@ class ScheduleGenerator:
 
             # Create a new schedule
             self.schedule = Schedule(
-                start_date=start_date, end_date=end_date, status="DRAFT", version=1
+                start_date=start_date,
+                end_date=end_date,
+                status="DRAFT",
+                version=version or 1,
             )
 
             # Initialize assignments list and schedule by date
@@ -266,7 +282,9 @@ class ScheduleGenerator:
                 current_date += timedelta(days=1)
 
             # Create schedule entries from assignments
-            schedule_entries = self.serializer.create_schedule_entries(self.assignments)
+            schedule_entries = self.serializer.create_schedule_entries(
+                self.assignments, status="DRAFT", version=version
+            )
 
             # Add entries to the schedule
             self.schedule.entries = schedule_entries

@@ -1,18 +1,27 @@
 """Constraint checking module for the scheduler."""
 
 from datetime import date, timedelta, datetime
+import sys
+import os
+
+# Add parent directories to path if needed
+current_dir = os.path.dirname(os.path.abspath(__file__))
+src_backend_dir = os.path.abspath(os.path.join(current_dir, "..", ".."))
+if src_backend_dir not in sys.path:
+    sys.path.insert(0, src_backend_dir)
 
 # Try to handle imports in different environments
 try:
-    from src.backend.models import Employee, ShiftTemplate
-    from src.backend.utils.logger import logger
+    from models import Employee, ShiftTemplate
+    from utils.logger import logger
 except ImportError:
     try:
         from backend.models import Employee, ShiftTemplate
         from backend.utils.logger import logger
     except ImportError:
         try:
-            from models import Employee, ShiftTemplate
+            from src.backend.models import Employee, ShiftTemplate
+            from src.backend.utils.logger import logger
         except ImportError:
             # Create type hint classes for standalone testing
             class Employee:
