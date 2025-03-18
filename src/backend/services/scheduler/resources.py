@@ -134,9 +134,9 @@ class ScheduleResources:
     def _load_coverage(self) -> List[Coverage]:
         """Load coverage with error handling"""
         try:
-            coverage = Coverage.query.filter_by(is_active=True).all()
+            coverage = Coverage.query.all()
             if not coverage:
-                self.logger.warning("No active coverage requirements found")
+                self.logger.warning("No coverage requirements found")
                 return []
 
             # Log coverage requirements by day
@@ -179,55 +179,33 @@ class ScheduleResources:
 
     def _load_shifts(self) -> List[ShiftTemplate]:
         """Load shifts with error handling"""
-        shifts = ShiftTemplate.query.all()
-        if not shifts:
-            logger.error("No shift templates found in database")
-            raise ScheduleResourceError("No shift templates found")
+        try:
+            shifts = ShiftTemplate.query.all()
+            if not shifts:
+                logger.error("No shift templates found in database")
+                raise ScheduleResourceError("No shift templates found")
 
-        # Log shift details
-        for shift in shifts:
-            logger.info(
-                f"Loaded shift template: ID={shift.id}, "
-                f"start={shift.start_time}, end={shift.end_time}, "
-                f"type={shift.shift_type_id}"
-            )
-        return shifts
-
-    def _load_employees(self) -> List[Employee]:
-        """Load employees in priority order"""
-        employees = (
-            Employee.query.filter_by(is_active=True)
-            .order_by(
-                db.case(
-                    {
-                        EmployeeGroup.TL.value: 1,
-                        EmployeeGroup.VZ.value: 2,
-                        EmployeeGroup.TZ.value: 3,
-                        EmployeeGroup.GFB.value: 4,
-                    },
-                    value=Employee.employee_group,
+            # Log shift details
+            for shift in shifts:
+                logger.info(
+                    f"Loaded shift template: ID={shift.id}, "
+                    f"start={shift.start_time}, end={shift.end_time}, "
+                    f"type={shift.shift_type_id}"
                 )
-            )
-            .all()
-        )
-
-        if not employees:
-            logger.warning("No active employees found")
+            return shifts
+        except Exception as e:
+            self.logger.error(f"Error loading shifts: {str(e)}")
             return []
 
-        # Clear the employee cache
-        self._employee_cache = {}
-
-        # Log employee details and pre-fill cache
-        for employee in employees:
-            logger.info(
-                f"Loaded employee: ID={employee.id}, "
-                f"group={employee.employee_group}, "
-                f"keyholder={employee.is_keyholder}"
-            )
-            self._employee_cache[employee.id] = employee
-
-        return employees
+    def _load_employees(self) -> List[Employee]:
+        """Load employees from database"""
+        try:
+            employees = Employee.query.filter_by(is_active=True).all()
+            self.logger.debug(f"Loaded {len(employees)} active employees from database")
+            return employees
+        except Exception as e:
+            self.logger.error(f"Error loading employees: {str(e)}")
+            return []
 
     def _load_absences(self) -> List[Absence]:
         """Load absences with error handling"""
@@ -458,41 +436,3 @@ class ScheduleResources:
         self.logger.info("Verified settings")
 
         return True
-
-    def _load_employees(self):
-        """Load employees from database"""
-        try:
-            from models import Employee
-
-            employees = Employee.query.filter_by(is_active=True).all()
-            self.logger.debug(f"Loaded {len(employees)} active employees from database")
-            return employees
-        except Exception as e:
-            self.logger.error(f"Error loading employees: {str(e)}")
-            return []
-
-    def _load_shifts(self):
-        """Load shift templates from database"""
-        try:
-            from models import ShiftTemplate
-
-            shifts = ShiftTemplate.query.filter_by(is_active=True).all()
-            self.logger.debug(f"Loaded {len(shifts)} active shifts from database")
-            return shifts
-        except Exception as e:
-            self.logger.error(f"Error loading shifts: {str(e)}")
-            return []
-
-    def _load_coverage(self):
-        """Load coverage requirements from database"""
-        try:
-            from models import Coverage
-
-            coverage = Coverage.query.filter_by(is_active=True).all()
-            self.logger.debug(
-                f"Loaded {len(coverage)} active coverage records from database"
-            )
-            return coverage
-        except Exception as e:
-            self.logger.error(f"Error loading coverage: {str(e)}")
-            return []
