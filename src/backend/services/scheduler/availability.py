@@ -327,6 +327,35 @@ class AvailabilityChecker:
 
         return False
 
+    def get_availability_records(
+        self, employee_id: int, date_to_check: date
+    ) -> List[Dict]:
+        """Get availability records for an employee on a specific date"""
+        # Get employee's availability for this day
+        day_of_week = date_to_check.weekday()
+        availabilities = self.resources.get_employee_availability(
+            employee_id, day_of_week
+        )
+
+        # Convert availabilities to dictionary format
+        records = []
+        for avail in availabilities:
+            if hasattr(avail, "hour"):
+                records.append(
+                    {
+                        "start_hour": avail.hour,
+                        "end_hour": avail.hour + 1,
+                        "availability_type": getattr(
+                            avail, "availability_type", AvailabilityType.AVAILABLE.value
+                        ),
+                    }
+                )
+
+        self.log_debug(
+            f"Found {len(records)} availability records for employee {employee_id} on {date_to_check}"
+        )
+        return records
+
     # Logging methods
     def log_error(self, message):
         if hasattr(self.logger, "error"):

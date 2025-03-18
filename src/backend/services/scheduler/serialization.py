@@ -82,6 +82,10 @@ class ScheduleSerializer:
     def serialize_schedule(self, schedule) -> Dict[str, Any]:
         """Convert a schedule object to a dictionary"""
         try:
+            # Get the schedule object if it's a container
+            if hasattr(schedule, "get_schedule"):
+                schedule = schedule.get_schedule()
+
             # Convert to dictionary
             return self.convert_schedule_to_dict(schedule)
         except Exception as e:
