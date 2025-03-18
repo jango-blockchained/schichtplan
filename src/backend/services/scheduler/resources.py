@@ -86,24 +86,39 @@ class ScheduleResources:
         self._employee_cache = {}
         self._coverage_cache = {}
         self._date_caches_cleared = False
+        self.logger = logger
 
     def is_loaded(self):
         """Check if resources have already been loaded"""
         return len(self.employees) > 0
 
     def load(self):
-        """Load all required resources from database"""
+        """Load all required resources"""
         try:
-            self.settings = self._load_settings()
-            self.coverage = self._load_coverage()
-            self.shifts = self._load_shifts()
+            self.logger.info("Loading scheduler resources...")
+
+            # Load employees
             self.employees = self._load_employees()
-            self.absences = self._load_absences()
-            self.availabilities = self._load_availabilities()
-            logger.info("Successfully loaded all schedule resources")
-            return True
+            self.logger.debug(f"Loaded {len(self.employees)} employees")
+
+            # Load shifts
+            self.shifts = self._load_shifts()
+            self.logger.debug(f"Loaded {len(self.shifts)} shifts")
+
+            # Load coverage
+            self.coverage = self._load_coverage()
+            self.logger.debug(f"Loaded {len(self.coverage)} coverage records")
+
+            # Load settings
+            self.settings = self._load_settings()
+            self.logger.debug(f"Loaded settings: {self.settings}")
+
+            # Mark as loaded
+            self._loaded = True
+            self.logger.info("Resource loading complete")
+
         except Exception as e:
-            logger.error(f"Failed to load schedule resources: {str(e)}")
+            self.logger.error(f"Error loading resources: {str(e)}")
             raise ScheduleResourceError(f"Failed to load resources: {str(e)}") from e
 
     def _load_settings(self) -> Settings:
