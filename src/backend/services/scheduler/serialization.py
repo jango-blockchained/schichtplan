@@ -82,6 +82,9 @@ class ScheduleSerializer:
     def serialize_schedule(self, schedule) -> Dict[str, Any]:
         """Convert a schedule object to a dictionary"""
         try:
+            if not schedule:
+                return {}
+
             # Get the schedule object if it's a container
             if hasattr(schedule, "get_schedule"):
                 schedule = schedule.get_schedule()
@@ -90,6 +93,7 @@ class ScheduleSerializer:
             return self.convert_schedule_to_dict(schedule)
         except Exception as e:
             self.log_error(f"Error serializing schedule: {str(e)}")
+            self.log_error("Stack trace:", exc_info=True)
             raise
 
     def serialize_to_json(self, schedule) -> str:
@@ -114,18 +118,28 @@ class ScheduleSerializer:
         # Convert schedule to JSON-serializable format
         result = {
             "schedule_id": getattr(schedule, "id", None),
+            "start_date": self.format_date(getattr(schedule, "start_date", None)),
+            "end_date": self.format_date(getattr(schedule, "end_date", None)),
             "version": getattr(schedule, "version", 1),
             "status": getattr(schedule, "status", "DRAFT"),
             "entries": [],
         }
 
         # Add entries if they exist
+        entries = []
         if hasattr(schedule, "entries") and schedule.entries:
             for entry in schedule.entries:
                 entry_dict = self.convert_entry_to_dict(entry)
                 if entry_dict:
-                    result["entries"].append(entry_dict)
+                    entries.append(entry_dict)
+        elif hasattr(schedule, "get_assignments"):
+            assignments = schedule.get_assignments()
+            for assignment in assignments:
+                entry_dict = self.convert_entry_to_dict(assignment)
+                if entry_dict:
+                    entries.append(entry_dict)
 
+        result["entries"] = entries
         return result
 
     def convert_entry_to_dict(self, entry) -> Dict[str, Any]:

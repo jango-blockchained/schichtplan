@@ -492,8 +492,19 @@ class ScheduleGenerator:
             day_of_week = coverage.day_of_week
 
         if day_of_week is not None:
-            # day_of_week: 0 = Monday, 6 = Sunday
-            return day_of_week == check_date.weekday()
+            # Convert Python's weekday() (0=Monday) to our day_index (0=Sunday)
+            python_weekday = check_date.weekday()
+            # Convert to Sunday=0 format
+            check_day_index = (python_weekday + 1) % 7
+
+            self.logger.debug(
+                f"Checking coverage for date {check_date}: "
+                f"Python weekday={python_weekday}, "
+                f"Converted day_index={check_day_index}, "
+                f"Coverage day_index={day_of_week}"
+            )
+
+            return day_of_week == check_day_index
 
         return False
 
