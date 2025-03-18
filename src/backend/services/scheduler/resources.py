@@ -134,10 +134,29 @@ class ScheduleResources:
     def _load_coverage(self) -> List[Coverage]:
         """Load coverage with error handling"""
         try:
+            self.logger.info("Starting to load coverage data...")
             coverage = Coverage.query.all()
+
             if not coverage:
-                self.logger.warning("No coverage requirements found")
-                return []
+                self.logger.warning("No coverage requirements found in database")
+                # Try to generate demo coverage data
+                self.logger.info("Attempting to generate demo coverage data...")
+                try:
+                    from api.demo_data import generate_coverage_data
+
+                    coverage_slots = generate_coverage_data()
+                    for slot in coverage_slots:
+                        db.session.add(slot)
+                    db.session.commit()
+                    self.logger.info(
+                        f"Successfully generated {len(coverage_slots)} demo coverage slots"
+                    )
+                    coverage = Coverage.query.all()
+                except Exception as e:
+                    self.logger.error(
+                        f"Failed to generate demo coverage data: {str(e)}"
+                    )
+                    return []
 
             # Log coverage requirements by day
             by_day = {}
@@ -149,6 +168,15 @@ class ScheduleResources:
                 if day_index not in by_day:
                     by_day[day_index] = []
                 by_day[day_index].append(cov)
+
+                # Log individual coverage record details
+                self.logger.debug(
+                    f"Loaded coverage record: day_index={day_index}, "
+                    f"start_time={getattr(cov, 'start_time', None)}, "
+                    f"end_time={getattr(cov, 'end_time', None)}, "
+                    f"min_employees={getattr(cov, 'min_employees', None)}, "
+                    f"max_employees={getattr(cov, 'max_employees', None)}"
+                )
 
             days = [
                 "Monday",
@@ -164,13 +192,24 @@ class ScheduleResources:
                 if day_idx is not None and 0 <= day_idx < len(days):
                     total_min_employees = sum(c.min_employees for c in day_coverage)
                     total_max_employees = sum(c.max_employees for c in day_coverage)
+                    coverage_blocks = [
+                        {
+                            "start": getattr(c, "start_time", None),
+                            "end": getattr(c, "end_time", None),
+                            "min": getattr(c, "min_employees", 0),
+                            "max": getattr(c, "max_employees", 0),
+                        }
+                        for c in day_coverage
+                    ]
                     self.logger.info(
                         f"Coverage for {days[day_idx]}: "
                         f"{len(day_coverage)} blocks, "
                         f"min employees: {total_min_employees}, "
-                        f"max employees: {total_max_employees}"
+                        f"max employees: {total_max_employees}, "
+                        f"blocks: {coverage_blocks}"
                     )
 
+            self.logger.info(f"Successfully loaded {len(coverage)} coverage records")
             return coverage
 
         except Exception as e:

@@ -423,12 +423,23 @@ class ScheduleGenerator:
     def _process_coverage(self, current_date: date) -> Dict[str, int]:
         """Process coverage records to determine staffing needs for a date"""
         total_employees_needed = 0
+        coverage_details = []
 
-        self.logger.debug(f"Processing coverage for date {current_date}")
-        self.logger.debug(f"Available coverage records: {len(self.resources.coverage)}")
+        self.logger.info(
+            f"Processing coverage for date {current_date} (weekday: {current_date.weekday()})"
+        )
+        self.logger.info(
+            f"Total available coverage records: {len(self.resources.coverage)}"
+        )
 
         # Find coverage records for this date or day of week
         for coverage in self.resources.coverage:
+            self.logger.debug(
+                f"Checking coverage record: day_index={getattr(coverage, 'day_index', None)}, "
+                f"day_of_week={getattr(coverage, 'day_of_week', None)}, "
+                f"date={getattr(coverage, 'date', None)}"
+            )
+
             # Check if this coverage applies to this date
             if self._coverage_applies_to_date(coverage, current_date):
                 # Get employees needed
@@ -436,10 +447,26 @@ class ScheduleGenerator:
                 if not employees_needed and hasattr(coverage, "employees_needed"):
                     employees_needed = coverage.employees_needed
 
-                self.logger.debug(
-                    f"Found coverage requiring {employees_needed} employees"
+                coverage_details.append(
+                    {
+                        "day_index": getattr(coverage, "day_index", None),
+                        "start_time": getattr(coverage, "start_time", None),
+                        "end_time": getattr(coverage, "end_time", None),
+                        "employees_needed": employees_needed,
+                    }
+                )
+
+                self.logger.info(
+                    f"Found applicable coverage: day_index={getattr(coverage, 'day_index', None)}, "
+                    f"time={getattr(coverage, 'start_time', None)}-{getattr(coverage, 'end_time', None)}, "
+                    f"employees_needed={employees_needed}"
                 )
                 total_employees_needed += employees_needed
+
+        if coverage_details:
+            self.logger.info(f"Coverage details for {current_date}: {coverage_details}")
+        else:
+            self.logger.warning(f"No applicable coverage found for date {current_date}")
 
         # Return a single value for total employees needed for the day
         return {"total": total_employees_needed} if total_employees_needed > 0 else {}
