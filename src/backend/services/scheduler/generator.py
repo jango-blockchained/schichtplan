@@ -161,6 +161,18 @@ class ScheduleContainer:
         """Return the schedule entries"""
         return self.entries
 
+    def add_assignment(self, assignment):
+        """Add an assignment to the schedule"""
+        self.entries.append(assignment)
+
+    def get_assignments_for_date(self, date):
+        """Get all assignments for a specific date"""
+        return [
+            a
+            for a in self.entries
+            if getattr(a, "date", None) == date or a.get("date") == date
+        ]
+
 
 class ScheduleGenerator:
     """
@@ -468,18 +480,27 @@ class ScheduleGenerator:
         for shift_template in self.resources.shifts:
             # Check if this shift template should be used for this date
             if self._shift_applies_to_date(shift_template, current_date):
-                # Get the shift type
+                # Get the shift type from the template
                 shift_type = None
                 if hasattr(shift_template, "shift_type_id"):
                     shift_type = shift_template.shift_type_id
                 elif hasattr(shift_template, "shift_type"):
-                    shift_type = shift_template.shift_type
+                    shift_type = getattr(
+                        shift_template.shift_type, "value", shift_template.shift_type
+                    )
 
                 if not shift_type:
                     self.logger.warning(
-                        f"No shift type found for template {shift_template.id}"
+                        f"No shift type found for template {shift_template.id}, using default"
                     )
-                    continue
+                    # Determine shift type based on time if not provided
+                    start_hour = int(shift_template.start_time.split(":")[0])
+                    if start_hour < 11:
+                        shift_type = "EARLY"
+                    elif start_hour >= 14:
+                        shift_type = "LATE"
+                    else:
+                        shift_type = "MIDDLE"
 
                 # Create a shift instance
                 shift = {
@@ -487,17 +508,33 @@ class ScheduleGenerator:
                     "shift_template": shift_template,
                     "date": current_date,
                     "shift_type": shift_type,
+                    "start_time": shift_template.start_time,
+                    "end_time": shift_template.end_time,
                 }
                 date_shifts.append(shift)
-                self.logger.debug(f"Created shift: {shift}")
+                self.logger.debug(
+                    f"Created {shift_type} shift from template {shift_template.id} "
+                    f"({shift_template.start_time}-{shift_template.end_time})"
+                )
 
         self.logger.debug(f"Created {len(date_shifts)} shifts for date {current_date}")
         return date_shifts
 
     def _shift_applies_to_date(self, shift: ShiftTemplate, check_date: date) -> bool:
         """Check if a shift template applies to the given date"""
-        # Default - all shifts apply to all dates
-        # Could add logic for specific days of week, etc.
+        # Check if shift has active_days attribute
+        if hasattr(shift, "active_days"):
+            # Convert date to day index (0-6, where 0 is Monday in our system)
+            day_index = str(check_date.weekday())
+
+            # Check if this day is active for this shift
+            if isinstance(shift.active_days, dict):
+                return shift.active_days.get(day_index, False)
+
+        # If no active_days specified, assume shift applies to all days
+        self.logger.debug(
+            f"No active_days found for shift {shift.id}, assuming active for all days"
+        )
         return True
 
     def _generate_assignments_for_date(self, current_date: date) -> List[Dict]:
@@ -518,7 +555,7 @@ class ScheduleGenerator:
                 return []
 
             self.logger.info(
-                f"Found {len(date_shifts)} shifts and coverage requirements: {coverage}"
+                f"Found {len(date_shifts)} shifts and need {coverage.get('total', 0)} total employees for {current_date}"
             )
 
             # Use the distribution manager to assign employees
@@ -536,12 +573,40 @@ class ScheduleGenerator:
 
             # Add assignments to schedule container
             for assignment in assignments:
-                self.schedule.entries.append(assignment)
+                self.schedule.add_assignment(assignment)
 
                 # Update schedule_by_date for constraint checking
                 if current_date not in self.schedule_by_date:
                     self.schedule_by_date[current_date] = []
                 self.schedule_by_date[current_date].append(assignment)
+
+            # Validate assignments
+            valid_count = 0
+            invalid_count = 0
+            for assignment in assignments:
+                employee_id = assignment.get("employee_id")
+                shift_id = assignment.get("shift_id")
+
+                if employee_id and shift_id:
+                    employee = self.resources.get_employee(employee_id)
+                    shift = self.resources.get_shift(shift_id)
+
+                    if employee and shift:
+                        if not self.constraint_checker.exceeds_constraints(
+                            employee, current_date, shift
+                        ):
+                            valid_count += 1
+                        else:
+                            invalid_count += 1
+                            self.logger.warning(
+                                f"Assignment for employee {employee_id} on {current_date} "
+                                f"exceeds constraints"
+                            )
+
+            self.logger.info(
+                f"Assignment validation for {current_date}: "
+                f"{valid_count} valid, {invalid_count} invalid"
+            )
 
             return assignments
 
