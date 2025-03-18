@@ -1,9 +1,17 @@
 from flask import Blueprint, jsonify, request
-from models import db, Settings, Employee, Coverage, EmployeeAvailability, ShiftTemplate
+from models import (
+    db,
+    Settings,
+    Employee,
+    Coverage,
+    EmployeeAvailability,
+    ShiftTemplate,
+    Absence,
+)
 from models.employee import AvailabilityType, EmployeeGroup
 from models.fixed_shift import ShiftType
 from http import HTTPStatus
-from datetime import datetime
+from datetime import datetime, date, timedelta
 import random
 import logging
 
@@ -1350,6 +1358,92 @@ def generate_optimized_shift_templates():
     return shift_templates
 
 
+def generate_improved_absences(employees):
+    """Generate realistic absences for employees"""
+    logging.info("Generating improved absences...")
+
+    absences = []
+    today = date.today()
+    # Generate absences for the next 3 months
+    date_range = 90
+
+    # Define absence types with their probabilities and typical durations
+    absence_types = {
+        "URL": {  # Vacation
+            "prob": 0.7,  # 70% of employees will have vacation
+            "min_duration": 5,
+            "max_duration": 14,
+            "instances": (1, 2),  # 1-2 vacation periods
+        },
+        "ABW": {  # Absent
+            "prob": 0.3,  # 30% chance of being absent
+            "min_duration": 1,
+            "max_duration": 3,
+            "instances": (0, 2),  # 0-2 absences
+        },
+        "SLG": {  # Training
+            "prob": 0.4,  # 40% chance of training
+            "min_duration": 1,
+            "max_duration": 3,
+            "instances": (0, 1),  # 0-1 training periods
+        },
+    }
+
+    for employee in employees:
+        # Process each absence type
+        for absence_type, config in absence_types.items():
+            if random.random() < config["prob"]:
+                # Determine number of instances for this absence type
+                num_instances = random.randint(*config["instances"])
+
+                for _ in range(num_instances):
+                    # Determine duration
+                    duration = random.randint(
+                        config["min_duration"], config["max_duration"]
+                    )
+
+                    # Find a suitable start date
+                    attempts = 0
+                    max_attempts = 10
+                    valid_date_found = False
+
+                    while attempts < max_attempts and not valid_date_found:
+                        # Random start date within next 3 months
+                        start_date = today + timedelta(
+                            days=random.randint(1, date_range - duration)
+                        )
+                        end_date = start_date + timedelta(days=duration - 1)
+
+                        # Check if this period overlaps with existing absences
+                        overlaps = False
+                        for existing in absences:
+                            if existing.employee_id == employee.id and not (
+                                end_date < existing.start_date
+                                or start_date > existing.end_date
+                            ):
+                                overlaps = True
+                                break
+
+                        if not overlaps:
+                            valid_date_found = True
+                            absence = Absence(
+                                employee_id=employee.id,
+                                absence_type=absence_type,
+                                start_date=start_date,
+                                end_date=end_date,
+                                comment=f"Generated {absence_type} absence",
+                            )
+                            absences.append(absence)
+                            logging.info(
+                                f"Created {absence_type} absence for {employee.employee_id} "
+                                f"from {start_date} to {end_date}"
+                            )
+
+                        attempts += 1
+
+    return absences
+
+
 @bp.route("/optimized/", methods=["POST"])
 def generate_optimized_demo_data():
     """Generate optimized demo data with more diverse shifts and granular coverage"""
@@ -1372,6 +1466,7 @@ def generate_optimized_demo_data():
         Coverage.query.delete()
         ShiftTemplate.query.delete()
         Employee.query.delete()
+        Absence.query.delete()  # Add this line to clear existing absences
         db.session.commit()
         logging.info("Successfully cleaned up existing data")
 
@@ -1414,6 +1509,18 @@ def generate_optimized_demo_data():
         db.session.add_all(availabilities)
         db.session.commit()
         logging.info(f"Successfully created {len(availabilities)} availabilities")
+
+        # Generate absences
+        try:
+            logging.info("Generating employee absences...")
+            absences = generate_improved_absences(employees)
+            db.session.add_all(absences)
+            db.session.commit()
+            logging.info(f"Successfully created {len(absences)} absences")
+        except Exception as e:
+            logging.error(f"Error in generate_improved_absences: {str(e)}")
+            db.session.rollback()
+            raise
 
         # Update settings to record the execution
         settings.actions_demo_data = {
