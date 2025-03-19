@@ -65,7 +65,7 @@ import useScheduleGeneration from '@/hooks/useScheduleGeneration';
 import useVersionControl from '@/hooks/useVersionControl';
 import { DateRange } from 'react-day-picker';
 import { ScheduleActions } from '@/components/Schedule/ScheduleActions';
-import { AddScheduleDialog } from '@/components/Schedule/AddScheduleDialog';
+import { ShiftEditModal } from '@/components/ShiftEditModal';
 import { ScheduleStatistics } from '@/components/Schedule/ScheduleStatistics';
 import { EnhancedDateRangeSelector } from '@/components/EnhancedDateRangeSelector';
 import { VersionTable } from '@/components/Schedule/VersionTable';
@@ -92,6 +92,7 @@ export function SchedulePage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isAddScheduleDialogOpen, setIsAddScheduleDialogOpen] = useState(false);
+  const [newSchedule, setNewSchedule] = useState<Schedule | null>(null);
   const [employeeAbsences, setEmployeeAbsences] = useState<Record<number, any[]>>({});
   // Add a state for tracking the active view
   const [activeView, setActiveView] = useState<'table' | 'grid'>('table');
@@ -750,21 +751,21 @@ export function SchedulePage() {
     }
   };
 
-  // Handler for adding a new empty schedule
-  const handleAddSchedule = () => {
-    if (!selectedVersion) {
-      toast({
-        title: "Keine Version ausgewählt",
-        description: "Bitte wählen Sie zuerst eine Version aus.",
-        variant: "destructive"
-      });
-      return;
-    }
-
+  const handleAddScheduleClick = () => {
+    // Create a new empty schedule object with the current version
+    setNewSchedule({
+      id: -1, // Temporary ID for new schedule
+      employee_id: 0,
+      date: dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
+      shift_id: null,
+      version: selectedVersion || 1,
+      status: 'draft',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    });
     setIsAddScheduleDialogOpen(true);
   };
 
-  // Function to handle the actual schedule creation
   const handleCreateSchedule = async (scheduleData: {
     employee_id: number;
     date: string;
@@ -772,23 +773,19 @@ export function SchedulePage() {
     version: number;
   }) => {
     try {
-      await createSchedule(scheduleData);
-
-      // Refetch schedule data to reflect changes
-      refetchScheduleData();
-
+      const response = await createSchedule(scheduleData);
+      await queryClient.invalidateQueries(['schedules']);
       toast({
-        title: "Schichtplan erstellt",
-        description: `Ein neuer Schichtplan wurde erfolgreich erstellt.`,
+        title: "Erfolg",
+        description: "Schichtplan wurde erfolgreich erstellt",
       });
     } catch (error) {
       console.error('Error creating schedule:', error);
       toast({
-        title: "Fehler beim Erstellen",
-        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
-        variant: "destructive"
+        title: "Fehler",
+        description: "Fehler beim Erstellen des Schichtplans",
+        variant: "destructive",
       });
-      throw error;
     }
   };
 
@@ -971,7 +968,7 @@ export function SchedulePage() {
       {/* Schedule Actions */}
       <div className="flex justify-end mb-4">
         <ScheduleActions
-          onAddSchedule={handleAddSchedule}
+          onAddSchedule={handleAddScheduleClick}
           onDeleteSchedule={handleDeleteSchedule}
           isLoading={isLoadingSchedule || isLoadingVersions || isGenerationPending}
           canAdd={!!selectedVersion}
@@ -1087,14 +1084,25 @@ export function SchedulePage() {
         clearLogs={clearGenerationLogs}
       />
 
-      {/* Add Schedule Dialog */}
-      {isAddScheduleDialogOpen && selectedVersion && (
-        <AddScheduleDialog
+      {/* Replace AddScheduleDialog with ShiftEditModal */}
+      {isAddScheduleDialogOpen && newSchedule && selectedVersion && (
+        <ShiftEditModal
           isOpen={isAddScheduleDialogOpen}
-          onClose={() => setIsAddScheduleDialogOpen(false)}
-          onAddSchedule={handleCreateSchedule}
-          version={selectedVersion}
-          defaultDate={dateRange?.from}
+          onClose={() => {
+            setIsAddScheduleDialogOpen(false);
+            setNewSchedule(null);
+          }}
+          schedule={newSchedule}
+          onSave={async (scheduleId, updates) => {
+            await handleCreateSchedule({
+              employee_id: updates.employee_id!,
+              date: updates.date!,
+              shift_id: updates.shift_id!,
+              version: selectedVersion
+            });
+            setIsAddScheduleDialogOpen(false);
+            setNewSchedule(null);
+          }}
         />
       )}
 

@@ -4,6 +4,7 @@ from sqlalchemy.orm import deferred
 from sqlalchemy.ext.hybrid import hybrid_property
 from . import db
 from typing import Dict, Any
+import logging
 
 
 class Settings(db.Model):
@@ -314,16 +315,34 @@ class Settings(db.Model):
     def get_actions_demo_data(self):
         """Get the actions demo data with fallback to default value"""
         try:
-            return self._actions_demo_data or {
-                "selected_module": "",
-                "last_execution": None,
+            if not hasattr(self, "_actions_demo_data"):
+                return {"selected_module": "", "last_execution": None}
+
+            data = self._actions_demo_data
+            if data is None:
+                return {"selected_module": "", "last_execution": None}
+
+            # Ensure task_id is preserved if it exists
+            if "task_id" in data:
+                return data
+
+            return {
+                "selected_module": data.get("selected_module", ""),
+                "last_execution": data.get("last_execution"),
             }
-        except:
+        except Exception as e:
+            logging.error(f"Error getting actions_demo_data: {str(e)}")
             return {"selected_module": "", "last_execution": None}
 
     def set_actions_demo_data(self, value):
         """Set the actions demo data"""
-        self._actions_demo_data = value
+        try:
+            if not isinstance(value, dict):
+                value = {"selected_module": "", "last_execution": None}
+            self._actions_demo_data = value
+        except Exception as e:
+            logging.error(f"Error setting actions_demo_data: {str(e)}")
+            self._actions_demo_data = {"selected_module": "", "last_execution": None}
 
     actions_demo_data = hybrid_property(get_actions_demo_data, set_actions_demo_data)
 
