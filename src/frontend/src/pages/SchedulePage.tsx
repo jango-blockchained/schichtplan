@@ -41,7 +41,7 @@ import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { ScheduleTable } from '@/components/ScheduleTable';
 import { ScheduleOverview } from '@/components/Schedule/ScheduleOverview';
-import { Schedule, ScheduleError, ScheduleUpdate } from '@/types';
+import { Schedule, ScheduleError, ScheduleUpdate, ShiftType } from '@/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PageHeader } from '@/components/PageHeader';
 import { getAvailableCalendarWeeks, getDateRangeFromWeekAndCount } from '@/utils/dateUtils';
@@ -80,7 +80,61 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { useWebSocketEvents } from '@/hooks/useWebSocketEvents';
+import { WebSocketErrorBoundary } from '@/components/WebSocketErrorBoundary';
 
+// Wrap the main component with WebSocket functionality
+function SchedulePageWithSocket() {
+  const queryClient = useQueryClient();
+
+  // Add WebSocket event handlers
+  useWebSocketEvents([
+    {
+      eventType: 'schedule_updated',
+      handler: () => {
+        // Invalidate schedule-related queries
+        queryClient.invalidateQueries({ queryKey: ['schedules'] });
+        queryClient.invalidateQueries({ queryKey: ['versions'] });
+      }
+    },
+    {
+      eventType: 'availability_updated',
+      handler: () => {
+        // Invalidate availability-related queries
+        queryClient.invalidateQueries({ queryKey: ['schedules'] });
+        queryClient.invalidateQueries({ queryKey: ['availability'] });
+      }
+    },
+    {
+      eventType: 'absence_updated',
+      handler: () => {
+        // Invalidate absence-related queries
+        queryClient.invalidateQueries({ queryKey: ['schedules'] });
+        queryClient.invalidateQueries({ queryKey: ['absences'] });
+      }
+    },
+    {
+      eventType: 'settings_updated',
+      handler: () => {
+        // Invalidate settings-related queries
+        queryClient.invalidateQueries({ queryKey: ['settings'] });
+      }
+    }
+  ]);
+
+  return <SchedulePage />;
+}
+
+// Export the wrapped component
+export default function SchedulePageWrapper() {
+  return (
+    <WebSocketErrorBoundary>
+      <SchedulePageWithSocket />
+    </WebSocketErrorBoundary>
+  );
+}
+
+// Original SchedulePage component renamed to avoid naming conflict
 export function SchedulePage() {
   const today = new Date();
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
@@ -541,11 +595,11 @@ export function SchedulePage() {
     }
   };
 
-  // Convert API Schedule to frontend Schedule
+  // Fix the schedule conversion
   const convertSchedule = (apiSchedule: APISchedule): Schedule => {
-    // Log for debugging shift_type
-    if (apiSchedule.shift_id && !apiSchedule.shift_type) {
-      console.log('Schedule without shift_type:', apiSchedule);
+    // Log for debugging shift_type_id
+    if (apiSchedule.shift_id && !apiSchedule.shift_type_id) {
+      console.log('Schedule without shift_type_id:', apiSchedule);
     }
 
     return {
@@ -562,7 +616,7 @@ export function SchedulePage() {
       break_end: apiSchedule.break_end ?? null,
       notes: apiSchedule.notes ?? null,
       employee_name: undefined,
-      shift_type: apiSchedule.shift_type ?? undefined
+      shift_type_id: apiSchedule.shift_type_id ? (apiSchedule.shift_type_id as ShiftType) : undefined
     };
   };
 
@@ -751,21 +805,22 @@ export function SchedulePage() {
     }
   };
 
+  // Fix the new schedule creation
   const handleAddScheduleClick = () => {
-    // Create a new empty schedule object with the current version
     setNewSchedule({
-      id: -1, // Temporary ID for new schedule
+      id: -1,
       employee_id: 0,
       date: dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
       shift_id: null,
       version: selectedVersion || 1,
-      status: 'draft',
+      status: 'DRAFT', // Fixed status enum value
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     });
     setIsAddScheduleDialogOpen(true);
   };
 
+  // Fix query invalidation
   const handleCreateSchedule = async (scheduleData: {
     employee_id: number;
     date: string;
@@ -774,7 +829,7 @@ export function SchedulePage() {
   }) => {
     try {
       const response = await createSchedule(scheduleData);
-      await queryClient.invalidateQueries(['schedules']);
+      await queryClient.invalidateQueries({ queryKey: ['schedules'] });
       toast({
         title: "Erfolg",
         description: "Schichtplan wurde erfolgreich erstellt",

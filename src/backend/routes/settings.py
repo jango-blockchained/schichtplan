@@ -7,6 +7,7 @@ import json
 import datetime
 import glob
 from sqlalchemy import inspect, text
+from utils.websocket import emit_event
 
 settings = Blueprint("settings", __name__)
 
@@ -230,6 +231,16 @@ def update_settings():
     try:
         settings.update_from_dict(data)
         db.session.commit()
+
+        # Emit WebSocket event for settings update
+        emit_event(
+            "settings_updated",
+            {
+                "updated_at": datetime.datetime.utcnow().isoformat(),
+                "updated_fields": list(data.keys()) if isinstance(data, dict) else [],
+            },
+        )
+
         return jsonify(settings.to_dict())
     except Exception as e:
         db.session.rollback()
@@ -246,6 +257,12 @@ def reset_settings():
     settings = Settings.get_default_settings()
     db.session.add(settings)
     db.session.commit()
+
+    # Emit WebSocket event for settings reset
+    emit_event(
+        "settings_updated",
+        {"updated_at": datetime.datetime.utcnow().isoformat(), "action": "reset"},
+    )
 
     return jsonify(settings.to_dict())
 

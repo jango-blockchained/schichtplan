@@ -153,6 +153,6 @@ if __name__ == "__main__":
             print(f"Error checking port: {e}")
             exit(1)
 
-    app = create_app()
+    app, socketio = create_app()
     print(f"Starting server on {host}:{port}")
-    app.run(debug=True, host=host, port=port)
+    socketio.run(app, debug=True, host=host, port=port)

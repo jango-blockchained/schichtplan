@@ -13,9 +13,10 @@ import { CalendarIcon, Loader2 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
-import { getEmployees, getShifts, checkAvailability, createAbsence, getAbsenceTypes, checkBulkAvailability, subscribeToEvents, unsubscribeFromEvents } from '@/services/api';
+import { getEmployees, getShifts, checkAvailability, createAbsence, getAbsenceTypes, checkBulkAvailability } from '@/services/api';
 import type { AbsenceType } from '@/services/api';
 import dayjs from 'dayjs';
+import { useWebSocketEvents, WebSocketEventType } from '@/hooks/useWebSocketEvents';
 
 type ModalType = 'shift' | 'absence';
 
@@ -157,21 +158,25 @@ export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditM
         setNotes(schedule.notes ?? '');
     }, [schedule]);
 
-    useEffect(() => {
-        // Subscribe to real-time updates
-        const handleEvent = (eventType: string, data: unknown) => {
-            if (eventType === 'AVAILABILITY_UPDATED' || eventType === 'ABSENCE_UPDATED') {
-                // Refresh availability checks when relevant updates occur
-                checkEmployeeAvailability();
+    // Use WebSocketEvents hook to listen for availability and absence updates
+    useWebSocketEvents([
+        {
+            eventType: 'availability_updated',
+            handler: () => {
+                if (selectedEmployeeId && selectedDate) {
+                    checkEmployeeAvailability();
+                }
             }
-        };
-
-        subscribeToEvents(['AVAILABILITY_UPDATED', 'ABSENCE_UPDATED'], handleEvent);
-
-        return () => {
-            unsubscribeFromEvents(['AVAILABILITY_UPDATED', 'ABSENCE_UPDATED']);
-        };
-    }, []);
+        },
+        {
+            eventType: 'absence_updated',
+            handler: () => {
+                if (selectedEmployeeId && selectedDate) {
+                    checkEmployeeAvailability();
+                }
+            }
+        }
+    ]);
 
     const handleSave = async () => {
         if (!selectedDate || !selectedEmployeeId || !selectedShiftId) {

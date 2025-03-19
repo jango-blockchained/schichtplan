@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 from models import db, ShiftTemplate
 from models.fixed_shift import ShiftValidationError, ShiftType
+from utils.websocket import emit_event
 
 shifts = Blueprint("shifts", __name__)
 
@@ -38,6 +39,16 @@ def create_shift():
 
         db.session.add(shift)
         db.session.commit()
+
+        # Emit WebSocket event for shift creation
+        emit_event(
+            "shift_template_updated",
+            {
+                "shift_id": shift.id,
+                "action": "create",
+                "shift_type_id": shift.shift_type_id,
+            },
+        )
 
         return jsonify(shift.to_dict()), 201
 
@@ -94,6 +105,18 @@ def update_shift(shift_id):
         shift.validate()
 
         db.session.commit()
+
+        # Emit WebSocket event for shift update
+        emit_event(
+            "shift_template_updated",
+            {
+                "shift_id": shift_id,
+                "action": "update",
+                "shift_type_id": shift.shift_type_id,
+                "updated_fields": list(data.keys()) if isinstance(data, dict) else [],
+            },
+        )
+
         return jsonify(shift.to_dict())
 
     except ShiftValidationError as e:
@@ -111,8 +134,18 @@ def delete_shift(shift_id):
     shift = ShiftTemplate.query.get_or_404(shift_id)
 
     try:
+        # Save shift type before deletion for the event
+        shift_type_id = shift.shift_type_id
+
         db.session.delete(shift)
         db.session.commit()
+
+        # Emit WebSocket event for shift deletion
+        emit_event(
+            "shift_template_updated",
+            {"shift_id": shift_id, "action": "delete", "shift_type_id": shift_type_id},
+        )
+
         return "", 204
 
     except Exception as e:
