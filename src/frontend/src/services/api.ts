@@ -1,6 +1,8 @@
 import axios, { AxiosError } from 'axios';
 import type { Settings, Employee, ScheduleError, ScheduleUpdate, DailyCoverage, CoverageTimeSlot } from '@/types/index';
 import { CreateEmployeeRequest, UpdateEmployeeRequest } from '../types';
+import { Manager } from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
 
 interface APIErrorResponse {
     error?: string;
@@ -151,10 +153,39 @@ export const resetSettings = async (): Promise<Settings> => {
 };
 
 // Employees
+export interface Absence {
+    id: number;
+    employee_id: number;
+    date: string;
+    type: string;
+    start_time?: string;
+    end_time?: string;
+}
+
 export const getEmployees = async (): Promise<Employee[]> => {
     try {
-        const response = await api.get<Employee[]>('/employees/');
-        return response.data;
+        // Get employees
+        const employeesResponse = await api.get<Employee[]>('/employees/');
+        const employees = employeesResponse.data;
+
+        // Get absences for each employee
+        const absencesPromises = employees.map(employee =>
+            api.get<Absence[]>(`/employees/${employee.id}/absences`)
+                .then(response => response.data)
+                .catch(() => [] as Absence[]) // If there's an error fetching absences, return empty array
+        );
+
+        const allAbsences = await Promise.all(absencesPromises);
+
+        // Map absences to employees
+        return employees.map((employee, index) => {
+            const employeeAbsences = allAbsences[index];
+            return {
+                ...employee,
+                has_absence: employeeAbsences.length > 0,
+                absences: employeeAbsences
+            };
+        });
     } catch (error) {
         if (error instanceof Error) {
             throw new Error(`Failed to fetch employees: ${error.message}`);
@@ -570,19 +601,38 @@ export const deleteAvailability = async (id: number): Promise<void> => {
     await api.delete(`/availability/${id}`);
 };
 
+interface AvailabilityResponse {
+    is_available: boolean;
+    availability_type: 'AVAILABLE' | 'FIXED' | 'PREFERRED' | 'UNAVAILABLE';
+    reason?: string;
+}
+
 export const checkAvailability = async (
     employeeId: number,
     date: string,
-    startTime?: string,
-    endTime?: string
-): Promise<AvailabilityCheck> => {
-    const response = await api.post<AvailabilityCheck>('/availability/check', {
-        employee_id: employeeId,
-        date,
-        start_time: startTime,
-        end_time: endTime,
-    });
-    return response.data;
+    startTime: string,
+    endTime: string
+): Promise<AvailabilityResponse> => {
+    try {
+        const response = await api.get<AvailabilityResponse>('/availability/check/', {
+            params: {
+                employee_id: employeeId,
+                date,
+                start_time: startTime,
+                end_time: endTime
+            }
+        });
+        return {
+            is_available: response.data.is_available,
+            availability_type: response.data.availability_type || 'UNAVAILABLE',
+            reason: response.data.reason
+        };
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to check availability: ${error.message}`);
+        }
+        throw error;
+    }
 };
 
 export const updateEmployeeAvailability = async (employeeId: number, availabilities: Omit<EmployeeAvailability, 'id' | 'created_at' | 'updated_at'>[]) => {
@@ -676,17 +726,10 @@ export const updateCoverage = async (coverage: DailyCoverage[]): Promise<void> =
 };
 
 // Demo Data
-export const generateDemoData = async (module: string): Promise<void | Settings> => {
+export const generateDemoData = async (): Promise<{ message: string; statistics: any }> => {
     try {
-        const response = await api.post('/demo-data/', { module });
-
-        // If generating settings data, update the settings in the store
-        if (module === 'settings' || module === 'all') {
-            const settings = await getSettings();
-            return settings;
-        }
-
-        return;
+        const response = await api.post('/demo-data/');
+        return response.data;
     } catch (error) {
         if (error instanceof Error) {
             throw new Error(`Failed to generate demo data: ${error.message}`);
@@ -695,20 +738,9 @@ export const generateDemoData = async (module: string): Promise<void | Settings>
     }
 };
 
-// Generate optimized demo data with more diverse shift patterns
-export const generateOptimizedDemoData = async (): Promise<void | Settings> => {
-    try {
-        const response = await api.post('/demo-data/optimized/');
-
-        // Always refresh settings after optimized data generation
-        const settings = await getSettings();
-        return settings;
-    } catch (error) {
-        if (error instanceof Error) {
-            throw new Error(`Failed to generate optimized demo data: ${error.message}`);
-        }
-        throw error;
-    }
+export const generateOldDemoData = async (component: string = 'all') => {
+    const response = await api.post(`/demo-data/old/?component=${component}`);
+    return response.data;
 };
 
 // Store Config
@@ -760,14 +792,24 @@ export async function resetStoreConfig(): Promise<void> {
 }
 
 // Absences
-export interface Absence {
-    id: number;
-    employee_id: number;
-    absence_type_id: string;
-    start_date: string;
-    end_date: string;
-    note?: string;
+export interface AbsenceType {
+    id: string;
+    name: string;
+    color: string;
+    type: 'absence';
 }
+
+export const getAbsenceTypes = async (): Promise<AbsenceType[]> => {
+    try {
+        const response = await api.get<{ absence_types: AbsenceType[] }>('/settings/');
+        return response.data.absence_types;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to fetch absence types: ${error.message}`);
+        }
+        throw error;
+    }
+};
 
 export const getAbsences = async (employeeId: number): Promise<Absence[]> => {
     try {
@@ -793,9 +835,9 @@ export const createAbsence = async (data: Omit<Absence, 'id'>): Promise<Absence>
     }
 };
 
-export const deleteAbsence = async (id: number, employeeId: number): Promise<void> => {
+export const deleteAbsence = async (absenceId: number, employeeId: number): Promise<void> => {
     try {
-        await api.delete(`/employees/${employeeId}/absences/${id}`);
+        await api.delete(`/employees/${employeeId}/absences/${absenceId}`);
     } catch (error) {
         if (error instanceof Error) {
             throw new Error(`Failed to delete absence: ${error.message}`);
@@ -1196,6 +1238,164 @@ export const createSchedule = async (data: CreateScheduleRequest): Promise<Sched
         console.error('Failed to create schedule:', error);
         if (error instanceof Error) {
             throw new Error(`Failed to create schedule: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export const testGenerateEmployees = async () => {
+    const response = await api.post('/demo-data/test/employees/');
+    return response.data;
+};
+
+export const testGenerateAvailability = async () => {
+    const response = await api.post('/demo-data/test/availability/');
+    return response.data;
+};
+
+export const testGenerateAbsences = async () => {
+    const response = await api.post('/demo-data/test/absences/');
+    return response.data;
+};
+
+export const testGenerateCoverage = async () => {
+    const response = await api.post('/demo-data/test/coverage/');
+    return response.data;
+};
+
+export const testGenerateShiftTemplates = async () => {
+    const response = await api.post('/demo-data/test/shift-templates/');
+    return response.data;
+};
+
+interface BulkAvailabilityCheck {
+    employee_id: number;
+    shifts: {
+        shift_id: number;
+        date: string;
+        start_time: string;
+        end_time: string;
+    }[];
+}
+
+interface BulkAvailabilityResponse {
+    [key: string]: {
+        is_available: boolean;
+        availability_type: 'AVAILABLE' | 'FIXED' | 'PREFERRED' | 'UNAVAILABLE';
+        reason?: string;
+    };
+}
+
+export const checkBulkAvailability = async (data: BulkAvailabilityCheck): Promise<BulkAvailabilityResponse> => {
+    try {
+        const response = await api.post<BulkAvailabilityResponse>('/availability/check/bulk', data);
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to check bulk availability: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+// WebSocket event types
+export interface WebSocketEvent {
+    event_type: string;
+    data: unknown;
+}
+
+// WebSocket connection
+let socket: Socket | null = null;
+
+export const initializeWebSocket = () => {
+    if (!socket) {
+        const manager = new Manager(API_BASE_URL, {
+            autoConnect: true,
+            transports: ['websocket']
+        });
+        socket = manager.socket('/');
+
+        socket.on('connect', () => {
+            console.log('WebSocket connected');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('WebSocket disconnected');
+        });
+
+        socket.on('error', (error: Error) => {
+            console.error('WebSocket error:', error);
+        });
+    }
+    return socket;
+};
+
+export const subscribeToEvents = (eventTypes: string[], callback: (eventType: string, data: unknown) => void) => {
+    const socket = initializeWebSocket();
+
+    eventTypes.forEach(eventType => {
+        socket.emit('subscribe', { event_type: eventType });
+        socket.on(eventType, (data: unknown) => callback(eventType, data));
+    });
+};
+
+export const unsubscribeFromEvents = (eventTypes: string[]) => {
+    if (socket) {
+        eventTypes.forEach(eventType => {
+            socket.emit('unsubscribe', { event_type: eventType });
+            socket.off(eventType);
+        });
+    }
+};
+
+// Batch operations
+export const createBatchSchedules = async (schedules: CreateScheduleRequest[]): Promise<Schedule[]> => {
+    try {
+        const response = await api.post<{ schedules: Schedule[] }>('/schedules/batch', {
+            schedules
+        });
+        return response.data.schedules;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to create batch schedules: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export const updateBatchAvailabilities = async (updates: {
+    employee_id: number;
+    availabilities: Omit<EmployeeAvailability, 'id' | 'created_at' | 'updated_at'>[];
+}[]): Promise<EmployeeAvailability[]> => {
+    try {
+        const response = await api.put<{ availabilities: EmployeeAvailability[] }>('/availability/batch', {
+            updates
+        });
+        return response.data.availabilities;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to update batch availabilities: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+interface BatchAbsenceOperation {
+    type: 'create' | 'update' | 'delete';
+    data: Partial<Absence> & { id?: number };
+}
+
+export const manageBatchAbsences = async (operations: BatchAbsenceOperation[]): Promise<{
+    created: Absence[];
+    updated: Absence[];
+    deleted: number[];
+}> => {
+    try {
+        const response = await api.post('/absences/batch', { operations });
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to manage batch absences: ${error.message}`);
         }
         throw error;
     }

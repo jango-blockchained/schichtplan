@@ -29,6 +29,13 @@ export interface Employee {
     updated_at: string | null;
     max_daily_hours: number;
     max_weekly_hours: number;
+    has_absence?: boolean;
+    absences?: Array<{
+        date: string;
+        type: string;
+        start_time?: string;
+        end_time?: string;
+    }>;
 }
 
 export type CreateEmployeeRequest = Omit<Employee, 'id' | 'employee_id' | 'created_at' | 'updated_at' | 'max_daily_hours' | 'max_weekly_hours'>;

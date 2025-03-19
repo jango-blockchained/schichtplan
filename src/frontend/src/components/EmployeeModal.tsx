@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CreateEmployeeRequest, UpdateEmployeeRequest } from '@/types';
+import { CreateEmployeeRequest, UpdateEmployeeRequest, Employee } from '@/types';
 
 interface EmployeeModalProps {
     open: boolean;
@@ -13,19 +13,7 @@ interface EmployeeModalProps {
     isLoading: boolean;
     onAddEmployee: (data: CreateEmployeeRequest) => Promise<void>;
     onUpdateEmployee: (id: number, data: UpdateEmployeeRequest) => Promise<void>;
-    employee?: {
-        id: number;
-        employee_id: string;
-        first_name: string;
-        last_name: string;
-        employee_group: string;
-        contracted_hours: number;
-        is_keyholder: boolean;
-        is_active: boolean;
-        birthday: string | null;
-        email: string | null;
-        phone: string | null;
-    };
+    employee?: Employee;
 }
 
 export function EmployeeModal({

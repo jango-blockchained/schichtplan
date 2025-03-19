@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getSettings, updateSettings, generateDemoData, generateOptimizedDemoData, backupDatabase, restoreDatabase, wipeTables } from "@/services/api";
-import type { Settings } from "@/types/index";
+import { getSettings, updateSettings, generateDemoData, backupDatabase, restoreDatabase, wipeTables, generateOldDemoData, testGenerateEmployees, testGenerateAvailability, testGenerateAbsences, testGenerateCoverage, testGenerateShiftTemplates } from "@/services/api";
+import { Settings } from "@/types";
 import {
   Card,
   CardContent,
@@ -47,6 +47,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { api } from "@/lib/axios";
+import { DemoDataSection } from '@/components/DemoDataSection';
+import { DemoDataGenerationProgress } from "@/components/DemoDataGenerationProgress";
 
 export interface BaseGroup {
   id: string;
@@ -75,8 +77,10 @@ export function SettingsPage() {
   const [selectedDemoModule, setSelectedDemoModule] = useState<string>("");
   const [selectedTables, setSelectedTables] = useState<string[]>([]);
   const [availableTables, setAvailableTables] = useState<string[]>([]);
+  const [generationTaskId, setGenerationTaskId] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  const { data: settings, isLoading, error } = useQuery({
+  const { data: settings, isLoading, error, refetch } = useQuery({
     queryKey: ["settings"],
     queryFn: getSettings,
     retry: 3,
@@ -302,6 +306,302 @@ export function SettingsPage() {
     }
   };
 
+  const renderDemoDataSection = () => {
+    const [selectedComponent, setSelectedComponent] = useState<string>("all");
+
+    const handleGenerateDemoData = async (type: 'new' | 'old') => {
+      try {
+        setIsGenerating(true);
+
+        // Show generation in progress toast
+        toast({
+          title: "Generating demo data",
+          description: "Please wait while the data is being generated...",
+        });
+
+        // Invalidate queries before generating new data
+        queryClient.invalidateQueries(['settings']);
+        queryClient.invalidateQueries(['employees']);
+        queryClient.invalidateQueries(['shifts']);
+        queryClient.invalidateQueries(['coverage']);
+
+        // Generate demo data based on type
+        if (type === 'new') {
+          await generateDemoData();
+        } else {
+          await generateOldDemoData(selectedComponent);
+        }
+
+        // Invalidate queries after successful generation
+        queryClient.invalidateQueries(['settings']);
+        queryClient.invalidateQueries(['employees']);
+        queryClient.invalidateQueries(['shifts']);
+        queryClient.invalidateQueries(['coverage']);
+
+        // Show success toast
+        toast({
+          title: "Success",
+          description: "Demo data has been generated successfully.",
+        });
+
+      } catch (error) {
+        console.error('Demo data generation error:', error);
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to generate demo data",
+          variant: "destructive",
+        });
+      } finally {
+        setIsGenerating(false);
+      }
+    };
+
+    const handleTestComponent = async (component: string, testFn: () => Promise<any>) => {
+      try {
+        toast({
+          title: `Testing ${component} generation`,
+          description: "Please wait...",
+        });
+
+        const result = await testFn();
+
+        toast({
+          title: "Success",
+          description: `${result.message} (Count: ${result.count})`,
+        });
+      } catch (error) {
+        console.error(`${component} generation error:`, error);
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : `Failed to generate ${component}`,
+          variant: "destructive",
+        });
+      }
+    };
+
+    const demoComponents = [
+      { value: "all", label: "All Components" },
+      { value: "employees", label: "Employees" },
+      { value: "availability", label: "Availability" },
+      { value: "absences", label: "Absences" },
+      { value: "coverage", label: "Coverage" },
+      { value: "shift-templates", label: "Shift Templates" },
+    ];
+
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Demo-Daten</CardTitle>
+          <CardDescription>
+            Generieren Sie Demo-Daten für Tests und Entwicklung. Dies löscht alle vorhandenen Daten.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex flex-col space-y-4">
+              <div className="flex items-center gap-4">
+                <Select
+                  value={selectedComponent}
+                  onValueChange={setSelectedComponent}
+                >
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Select component" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {demoComponents.map((component) => (
+                      <SelectItem key={component.value} value={component.value}>
+                        {component.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  onClick={() => handleGenerateDemoData('old')}
+                  disabled={isGenerating}
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    'Generate Old Demo Data'
+                  )}
+                </Button>
+              </div>
+              <Button
+                onClick={() => handleGenerateDemoData('new')}
+                disabled={isGenerating}
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  'Generate New Demo Data'
+                )}
+              </Button>
+            </div>
+
+            {settings?.actions_demo_data?.last_execution && (
+              <div className="text-sm text-muted-foreground">
+                <p>Last execution: {new Date(settings.actions_demo_data.last_execution).toLocaleString()}</p>
+                {settings.actions_demo_data.statistics && (
+                  <div className="mt-2">
+                    <p>Generated:</p>
+                    <ul className="list-disc list-inside">
+                      <li>{settings.actions_demo_data.statistics.employees} employees</li>
+                      <li>{settings.actions_demo_data.statistics.availabilities} availabilities</li>
+                      <li>{settings.actions_demo_data.statistics.coverage_slots} coverage slots</li>
+                      <li>{settings.actions_demo_data.statistics.shift_templates} shift templates</li>
+                      {settings.actions_demo_data.statistics.absences && (
+                        <li>{settings.actions_demo_data.statistics.absences} absences</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  const defaultSettings: Settings = {
+    id: 1,
+    store_name: "",
+    store_address: null,
+    store_contact: null,
+    timezone: "Europe/Berlin",
+    language: "de",
+    date_format: "DD.MM.YYYY",
+    time_format: "24h",
+    store_opening: "08:00",
+    store_closing: "20:00",
+    keyholder_before_minutes: 15,
+    keyholder_after_minutes: 15,
+    opening_days: {
+      "0": true,
+      "1": true,
+      "2": true,
+      "3": true,
+      "4": true,
+      "5": true,
+      "6": true
+    },
+    special_hours: {},
+    availability_types: {
+      types: []
+    },
+    shift_types: [],
+    general: {
+      store_name: "",
+      store_address: "",
+      store_contact: "",
+      timezone: "Europe/Berlin",
+      language: "de",
+      date_format: "DD.MM.YYYY",
+      time_format: "24h",
+      store_opening: "08:00",
+      store_closing: "20:00",
+      keyholder_before_minutes: 15,
+      keyholder_after_minutes: 15,
+      opening_days: {},
+      special_hours: {}
+    },
+    scheduling: {
+      scheduling_resource_type: "shifts",
+      default_shift_duration: 8,
+      min_break_duration: 30,
+      max_daily_hours: 10,
+      max_weekly_hours: 40,
+      min_rest_between_shifts: 11,
+      scheduling_period_weeks: 1,
+      auto_schedule_preferences: true,
+      generation_requirements: {
+        enforce_minimum_coverage: true,
+        enforce_contracted_hours: true,
+        enforce_keyholder_coverage: true,
+        enforce_rest_periods: true,
+        enforce_early_late_rules: true,
+        enforce_employee_group_rules: true,
+        enforce_break_rules: true,
+        enforce_max_hours: true,
+        enforce_consecutive_days: true,
+        enforce_weekend_distribution: true,
+        enforce_shift_distribution: true,
+        enforce_availability: true,
+        enforce_qualifications: true,
+        enforce_opening_hours: true
+      }
+    },
+    display: {
+      theme: "light",
+      primary_color: "#000000",
+      secondary_color: "#000000",
+      accent_color: "#000000",
+      background_color: "#ffffff",
+      surface_color: "#ffffff",
+      text_color: "#000000",
+      dark_theme: {
+        primary_color: "#ffffff",
+        secondary_color: "#ffffff",
+        accent_color: "#ffffff",
+        background_color: "#000000",
+        surface_color: "#000000",
+        text_color: "#ffffff"
+      },
+      show_sunday: false,
+      show_weekdays: true,
+      start_of_week: 1,
+      email_notifications: false,
+      schedule_published: false,
+      shift_changes: false,
+      time_off_requests: false
+    },
+    pdf_layout: {
+      page_size: "A4",
+      orientation: "portrait",
+      margins: {
+        top: 20,
+        right: 20,
+        bottom: 20,
+        left: 20
+      },
+      table_style: {
+        header_bg_color: "#f5f5f5",
+        border_color: "#e0e0e0",
+        text_color: "#000000",
+        header_text_color: "#000000"
+      },
+      fonts: {
+        family: "Arial",
+        size: 12,
+        header_size: 14
+      },
+      content: {
+        show_employee_id: true,
+        show_position: true,
+        show_breaks: true,
+        show_total_hours: true
+      }
+    },
+    employee_groups: {
+      employee_types: [],
+      shift_types: [],
+      absence_types: []
+    },
+    actions: {
+      demo_data: {
+        selected_module: "all",
+        last_execution: null
+      }
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -507,108 +807,7 @@ export function SettingsPage() {
 
             <TabsContent value="actions">
               <div className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Demo Data Generation</CardTitle>
-                    <CardDescription>
-                      Generate sample data for testing and development purposes
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div className="grid gap-4">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="demo-data-module">Select Module</Label>
-                        <Select
-                          value={selectedDemoModule}
-                          onValueChange={setSelectedDemoModule}
-                        >
-                          <SelectTrigger id="demo-data-module" className="w-[200px]">
-                            <SelectValue placeholder="Choose a module" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="settings">Settings</SelectItem>
-                            <SelectItem value="employees">Employees</SelectItem>
-                            <SelectItem value="shifts">Shifts</SelectItem>
-                            <SelectItem value="coverage">Coverage</SelectItem>
-                            <SelectItem value="availability">Availability</SelectItem>
-                            <SelectItem value="all">All Modules</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="flex items-center justify-between py-2">
-                        <Label>Last Execution</Label>
-                        <span className="text-sm text-muted-foreground">
-                          {localSettings?.actions.demo_data.last_execution
-                            ? new Date(localSettings.actions.demo_data.last_execution).toLocaleString()
-                            : "Never"}
-                        </span>
-                      </div>
-
-                      <Button
-                        onClick={async () => {
-                          if (!selectedDemoModule) return;
-                          try {
-                            await generateDemoData(selectedDemoModule);
-                            if (selectedDemoModule === 'settings' || selectedDemoModule === 'all') {
-                              await queryClient.invalidateQueries({ queryKey: ["settings"] });
-                            }
-                            toast({
-                              title: "Success",
-                              description: `Demo data generated for ${selectedDemoModule} module`,
-                            });
-                            queryClient.invalidateQueries({ queryKey: ["settings"] });
-                          } catch (error) {
-                            toast({
-                              title: "Error",
-                              description: error instanceof Error ? error.message : "Failed to generate demo data",
-                              variant: "destructive",
-                            });
-                          }
-                        }}
-                        disabled={!selectedDemoModule}
-                        className="w-full"
-                      >
-                        Generate Demo Data
-                      </Button>
-
-                      <Separator className="my-4" />
-
-                      <div className="flex flex-col space-y-4">
-                        <div>
-                          <h3 className="text-lg font-semibold">Optimized Schedule Generation</h3>
-                          <p className="text-sm text-muted-foreground">
-                            Generate optimized demo data with more diverse shift patterns and granular coverage requirements
-                          </p>
-                        </div>
-
-                        <Button
-                          onClick={async () => {
-                            try {
-                              await generateOptimizedDemoData();
-                              await queryClient.invalidateQueries({ queryKey: ["settings"] });
-                              toast({
-                                title: "Success",
-                                description: "Optimized demo data generated with diverse shift patterns",
-                              });
-                            } catch (error) {
-                              toast({
-                                title: "Error",
-                                description: error instanceof Error ? error.message : "Failed to generate optimized demo data",
-                                variant: "destructive",
-                              });
-                            }
-                          }}
-                          variant="outline"
-                          className="w-full"
-                        >
-                          Generate Optimized Schedule Data
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
+                {renderDemoDataSection()}
                 <Card>
                   <CardHeader>
                     <CardTitle>Database Management</CardTitle>
@@ -821,125 +1020,7 @@ export function SettingsPage() {
                 </Card>
 
                 <ScheduleGenerationSettings
-                  settings={localSettings ?? {
-                    id: 0,
-                    store_name: '',
-                    store_address: null,
-                    store_contact: null,
-                    timezone: 'Europe/Berlin',
-                    language: 'de',
-                    date_format: 'DD.MM.YYYY',
-                    time_format: '24h',
-                    store_opening: '09:00',
-                    store_closing: '20:00',
-                    keyholder_before_minutes: 30,
-                    keyholder_after_minutes: 30,
-                    opening_days: {},
-                    special_hours: {},
-                    availability_types: { types: [] },
-                    general: {
-                      store_name: '',
-                      store_address: '',
-                      store_contact: '',
-                      timezone: 'Europe/Berlin',
-                      language: 'de',
-                      date_format: 'DD.MM.YYYY',
-                      time_format: '24h',
-                      store_opening: '09:00',
-                      store_closing: '20:00',
-                      keyholder_before_minutes: 30,
-                      keyholder_after_minutes: 30,
-                      opening_days: {},
-                      special_hours: {}
-                    },
-                    scheduling: {
-                      scheduling_resource_type: 'shifts',
-                      default_shift_duration: 8,
-                      min_break_duration: 30,
-                      max_daily_hours: 10,
-                      max_weekly_hours: 40,
-                      min_rest_between_shifts: 11,
-                      scheduling_period_weeks: 1,
-                      auto_schedule_preferences: true,
-                      generation_requirements: {
-                        enforce_minimum_coverage: true,
-                        enforce_contracted_hours: true,
-                        enforce_keyholder_coverage: true,
-                        enforce_rest_periods: true,
-                        enforce_early_late_rules: true,
-                        enforce_employee_group_rules: true,
-                        enforce_break_rules: true,
-                        enforce_max_hours: true,
-                        enforce_consecutive_days: true,
-                        enforce_weekend_distribution: true,
-                        enforce_shift_distribution: true,
-                        enforce_availability: true,
-                        enforce_qualifications: true,
-                        enforce_opening_hours: true
-                      }
-                    },
-                    display: {
-                      theme: 'light',
-                      primary_color: '#000000',
-                      secondary_color: '#000000',
-                      accent_color: '#000000',
-                      background_color: '#ffffff',
-                      surface_color: '#ffffff',
-                      text_color: '#000000',
-                      dark_theme: {
-                        primary_color: '#ffffff',
-                        secondary_color: '#ffffff',
-                        accent_color: '#ffffff',
-                        background_color: '#000000',
-                        surface_color: '#000000',
-                        text_color: '#ffffff'
-                      },
-                      show_sunday: false,
-                      show_weekdays: true,
-                      start_of_week: 1,
-                      email_notifications: false,
-                      schedule_published: false,
-                      shift_changes: false,
-                      time_off_requests: false
-                    },
-                    pdf_layout: {
-                      page_size: 'A4',
-                      orientation: 'portrait',
-                      margins: {
-                        top: 20,
-                        right: 20,
-                        bottom: 20,
-                        left: 20
-                      },
-                      table_style: {
-                        header_bg_color: '#f5f5f5',
-                        border_color: '#e0e0e0',
-                        text_color: '#000000',
-                        header_text_color: '#000000'
-                      },
-                      fonts: {
-                        family: 'Arial',
-                        size: 12,
-                        header_size: 14
-                      },
-                      content: {
-                        show_employee_id: true,
-                        show_position: true,
-                        show_breaks: true,
-                        show_total_hours: true
-                      }
-                    },
-                    employee_groups: {
-                      employee_types: [],
-                      absence_types: []
-                    },
-                    actions: {
-                      demo_data: {
-                        selected_module: '',
-                        last_execution: null
-                      }
-                    }
-                  }}
+                  settings={localSettings ?? defaultSettings}
                   onUpdate={(updates) => {
                     if (!localSettings?.scheduling) return;
 

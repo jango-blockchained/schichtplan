@@ -74,39 +74,64 @@ interface TimeSlotDisplayProps {
 
 const TimeSlotDisplay = ({ startTime, endTime, shiftType, settings, schedule }: TimeSlotDisplayProps) => {
     // This function determines the background color of the time slot pill
-    // Based on shift type (EARLY, MIDDLE, LATE)
+    // Based on shift type (EARLY, MIDDLE, LATE) and settings
     const getBackgroundColor = () => {
-        if (typeof shiftType === 'string') {
-            // First check if we have a valid shift type
-            if (['EARLY', 'MIDDLE', 'LATE'].includes(shiftType)) {
-                switch (shiftType) {
-                    case 'EARLY':
-                        return '#3b82f6'; // Blue for early shifts
-                    case 'MIDDLE':
-                        return '#22c55e'; // Green for middle shifts
-                    case 'LATE':
-                        return '#f59e0b'; // Amber for late shifts
-                }
+        // First try to get color from settings based on shift_type_id
+        if (schedule?.shift_type_id && settings?.shift_types) {
+            const shiftTypeInfo = settings.shift_types.find(
+                (type: any) => type.id === schedule.shift_type_id
+            );
+            if (shiftTypeInfo?.color) {
+                return shiftTypeInfo.color;
             }
         }
 
-        // Fallback to using the time slot to determine the shift type
-        const timeSlot = `${startTime}-${endTime}`;
-        if (timeSlot === '09:00-14:00') return '#3b82f6'; // Early shift (blue)
-        if (timeSlot === '15:00-20:00') return '#f59e0b'; // Late shift (amber)
-        if (timeSlot === '12:00-16:00') return '#22c55e'; // Mid shift (green)
+        // Then try to get color from settings based on shift type
+        if (typeof shiftType === 'string' && settings?.shift_types) {
+            const shiftTypeInfo = settings.shift_types.find(
+                (type: any) => type.id === shiftType
+            );
+            if (shiftTypeInfo?.color) {
+                return shiftTypeInfo.color;
+            }
+        }
+
+        // Fallback to default colors if no settings found
+        if (typeof shiftType === 'string') {
+            if (['EARLY', 'MIDDLE', 'LATE'].includes(shiftType)) {
+                switch (shiftType) {
+                    case 'EARLY':
+                        return '#4CAF50'; // Default green for early shifts
+                    case 'MIDDLE':
+                        return '#2196F3'; // Default blue for middle shifts
+                    case 'LATE':
+                        return '#9C27B0'; // Default purple for late shifts
+                }
+            }
+        }
 
         return '#64748b'; // Default slate gray
     };
 
     // Helper function to get a formatted display name for the shift type
     const getShiftTypeDisplay = () => {
+        // First try to get name from schedule
         if (schedule?.shift_type_name) {
             return schedule.shift_type_name;
         }
 
+        // Then try to get name from settings
+        if (typeof shiftType === 'string' && settings?.shift_types) {
+            const shiftTypeInfo = settings.shift_types.find(
+                (type: any) => type.id === shiftType
+            );
+            if (shiftTypeInfo?.name) {
+                return shiftTypeInfo.name;
+            }
+        }
+
+        // Fallback to default names
         if (typeof shiftType === 'string') {
-            // Map shift types to display names
             switch (shiftType) {
                 case 'EARLY':
                     return 'Früh';
@@ -124,11 +149,24 @@ const TimeSlotDisplay = ({ startTime, endTime, shiftType, settings, schedule }: 
     const bgColor = getBackgroundColor();
     const shiftTypeDisplay = getShiftTypeDisplay();
 
+    // Convert hex color to rgba for background with transparency
+    const getRGBAColor = (hexColor: string, alpha: number = 0.2) => {
+        const hex = hexColor.replace('#', '');
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    };
+
     return (
         <div className="flex flex-col items-center">
             <div
-                className="px-4 py-1 rounded-full text-sm font-medium text-white w-fit"
-                style={{ backgroundColor: bgColor }}
+                className="px-4 py-1 rounded-full text-sm font-medium"
+                style={{
+                    backgroundColor: getRGBAColor(bgColor, 0.2),
+                    color: bgColor,
+                    border: `1px solid ${bgColor}`
+                }}
             >
                 {startTime} - {endTime}
             </div>

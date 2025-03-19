@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request, current_app
+from flask import Blueprint, jsonify, request
 from models import (
     db,
     Settings,
@@ -11,14 +11,12 @@ from models import (
 from models.employee import AvailabilityType, EmployeeGroup
 from models.fixed_shift import ShiftType
 from http import HTTPStatus
-from datetime import datetime, date, timedelta
+from datetime import date, timedelta, datetime
 import random
 import logging
-from sqlalchemy import text
-import uuid
-from threading import Thread
 
 bp = Blueprint("demo_data", __name__, url_prefix="/demo-data")
+logger = logging.getLogger(__name__)
 
 
 def generate_employee_types():
@@ -477,162 +475,87 @@ def generate_shift_templates():
     return shift_templates
 
 
-@bp.route("/", methods=["POST"])
-def generate_demo_data():
-    """Generate demo data"""
+@bp.route("/old/", methods=["POST"])
+def generate_old_demo_data():
+    """Generate demo data using the original implementation."""
     try:
-        module = request.json.get("module", "all")
-        logging.info(f"Generating demo data for module: {module}")
+        # Get the component from query parameters, default to 'all'
+        component = request.args.get("component", "all")
 
-        if module in ["settings", "all"]:
-            logging.info("Generating demo settings...")
-            settings = Settings.query.first()
-            if not settings:
-                settings = Settings.get_default_settings()
-            settings.employee_types = generate_employee_types()
-            settings.absence_types = generate_absence_types()
-            try:
-                db.session.commit()
-                logging.info("Successfully updated employee and absence types")
-            except Exception as e:
-                db.session.rollback()
-                logging.error(f"Error updating settings: {str(e)}")
-                raise
+        # Get or create settings
+        settings = Settings.query.first()
+        if not settings:
+            settings = Settings.get_default_settings()
 
-        # Clean up all availabilities first
-        if module in ["availability", "employees", "all"]:
-            logging.info("Cleaning up existing availabilities...")
-            try:
-                EmployeeAvailability.query.delete()
-                db.session.commit()
-                logging.info("Successfully cleaned up existing availabilities")
-            except Exception as e:
-                db.session.rollback()
-                logging.error(f"Error cleaning up availabilities: {str(e)}")
-                raise
+        # Update settings first
+        settings.employee_types = generate_employee_types()
+        settings.absence_types = generate_absence_types()
+        db.session.commit()
 
-        if module in ["shifts", "all"]:
-            logging.info("Generating shift templates...")
-            try:
-                shift_templates = generate_shift_templates()
-                logging.info(
-                    f"Successfully created {len(shift_templates)} shift templates"
-                )
-            except Exception as e:
-                db.session.rollback()
-                logging.error(f"Error creating shift templates: {str(e)}")
-                raise
+        statistics = {}
 
-        if module in ["employees", "all"]:
-            # Clear existing employees
-            logging.info("Generating employees...")
+        # Clear and generate data based on selected component
+        if component in ["all", "employees"]:
             Employee.query.delete()
             employees = generate_employee_data()
-            db.session.add_all(employees)
-            try:
-                db.session.commit()
-                logging.info(f"Successfully created {len(employees)} employees")
-            except Exception as e:
-                db.session.rollback()
-                logging.error(f"Error creating employees: {str(e)}")
-                raise
+            for employee in employees:
+                db.session.add(employee)
+            db.session.commit()
+            statistics["employees"] = len(employees)
 
-            if module == "all":
-                # Generate availability for new employees
-                logging.info("Generating availabilities...")
-                availabilities = generate_availability_data(employees)
-                db.session.add_all(availabilities)
-                try:
-                    db.session.commit()
-                    logging.info(
-                        f"Successfully created {len(availabilities)} availabilities"
-                    )
-                except Exception as e:
-                    db.session.rollback()
-                    logging.error(f"Error creating availabilities: {str(e)}")
-                    raise
+            # Store employees for other components if needed
+            current_employees = employees
+        else:
+            # If not generating employees, get existing ones for other components
+            current_employees = Employee.query.all()
+            if not current_employees and component != "coverage":
+                return jsonify(
+                    {"error": "No employees found. Generate employees first."}
+                ), HTTPStatus.BAD_REQUEST
 
-                # Generate coverage data
-                try:
-                    # Clear existing coverage data in a transaction
-                    logging.info("Clearing existing coverage data...")
-                    Coverage.query.delete()
-                    db.session.commit()
+        if component in ["all", "availability"]:
+            EmployeeAvailability.query.delete()
+            availabilities = generate_availability_data(current_employees)
+            for availability in availabilities:
+                db.session.add(availability)
+            db.session.commit()
+            statistics["availabilities"] = len(availabilities)
 
-                    # Generate and save new coverage data in a new transaction
-                    logging.info("Generating coverage...")
-                    coverage_slots = generate_coverage_data()
-                    db.session.add_all(coverage_slots)
-                    db.session.commit()
-                    logging.info(
-                        f"Successfully created {len(coverage_slots)} coverage slots"
-                    )
-                except Exception as e:
-                    db.session.rollback()
-                    logging.error(f"Error managing coverage data: {str(e)}")
-                    raise
+        if component in ["all", "coverage"]:
+            Coverage.query.delete()
+            coverage_slots = generate_coverage_data()
+            for slot in coverage_slots:
+                db.session.add(slot)
+            db.session.commit()
+            statistics["coverage_slots"] = len(coverage_slots)
 
-        elif module == "availability":
-            # Generate new availabilities for existing employees
-            logging.info("Generating availabilities for existing employees...")
-            employees = Employee.query.all()
-            availabilities = generate_availability_data(employees)
-            db.session.add_all(availabilities)
-            try:
-                db.session.commit()
-                logging.info(
-                    f"Successfully created {len(availabilities)} availabilities"
-                )
-            except Exception as e:
-                db.session.rollback()
-                logging.error(f"Error creating availabilities: {str(e)}")
-                raise
+        if component in ["all", "shift-templates"]:
+            ShiftTemplate.query.delete()
+            templates = generate_shift_templates()
+            for template in templates:
+                db.session.add(template)
+            db.session.commit()
+            statistics["shift_templates"] = len(templates)
 
-        elif module == "coverage":
-            try:
-                # Clear existing coverage data in a transaction
-                logging.info("Clearing existing coverage data...")
-                Coverage.query.delete()
-                db.session.commit()
+        # Update settings with statistics
+        settings.actions_demo_data = {
+            "selected_module": "old",
+            "last_execution": datetime.utcnow().isoformat(),
+            "statistics": statistics,
+        }
+        db.session.commit()
 
-                # Generate and save new coverage data in a new transaction
-                logging.info("Generating coverage...")
-                coverage_slots = generate_coverage_data()
-                db.session.add_all(coverage_slots)
-                db.session.commit()
-                logging.info(
-                    f"Successfully created {len(coverage_slots)} coverage slots"
-                )
-            except Exception as e:
-                db.session.rollback()
-                logging.error(f"Error managing coverage data: {str(e)}")
-                raise
-
-        # Update settings to record the execution
-        settings = Settings.query.first()
-        if settings:
-            settings.actions_demo_data = {
-                "selected_module": module,
-                "last_execution": datetime.utcnow().isoformat(),
-            }
-            try:
-                db.session.commit()
-                logging.info("Successfully updated settings")
-            except Exception as e:
-                db.session.rollback()
-                logging.error(f"Error updating settings: {str(e)}")
-                raise
-
+        logger.info("Old demo data generation completed successfully")
         return jsonify(
             {
-                "message": f"Successfully generated demo data for module: {module}",
-                "timestamp": datetime.utcnow().isoformat(),
+                "message": "Demo data generation completed",
+                "statistics": statistics,
             }
         ), HTTPStatus.OK
 
     except Exception as e:
+        logger.error(f"Failed to generate old demo data: {str(e)}")
         db.session.rollback()
-        logging.error(f"Failed to generate demo data: {str(e)}")
         return jsonify(
             {"error": "Failed to generate demo data", "details": str(e)}
         ), HTTPStatus.INTERNAL_SERVER_ERROR
@@ -1461,184 +1384,160 @@ def generate_improved_absences(employees):
     return absences
 
 
-@bp.route("/optimized/", methods=["POST"])
-def generate_optimized_demo_data():
-    """Generate optimized demo data with more diverse shifts and granular coverage"""
+@bp.route("/test/employees/", methods=["POST"])
+def test_generate_employees():
+    """Test endpoint for generating only employee data."""
     try:
-        # Start a background task and return immediately
-        task_id = str(uuid.uuid4())
-        app = current_app._get_current_object()  # Get the actual app instance
-
-        # Store task info in the database
-        settings = Settings.query.first()
-        if not settings:
-            settings = Settings.get_default_settings()
-
-        settings.actions_demo_data = {
-            "selected_module": "optimized",
-            "task_id": task_id,
-            "status": "started",
-            "start_time": datetime.utcnow().isoformat(),
-            "progress": 0,
-        }
+        # Clear existing employees first
+        Employee.query.delete()
         db.session.commit()
 
-        # Start the background task with app instance
-        thread = Thread(target=generate_demo_data_background, args=(app, task_id))
-        thread.daemon = True
-        thread.start()
+        # Generate employees
+        employees = generate_improved_employee_data()
+
+        # Add all employees to session
+        for employee in employees:
+            db.session.add(employee)
+
+        # Commit the transaction
+        db.session.commit()
 
         return jsonify(
-            {
-                "message": "Demo data generation started",
-                "task_id": task_id,
-                "status": "started",
-            }
-        ), HTTPStatus.ACCEPTED
+            {"message": "Employee data generated successfully", "count": len(employees)}
+        ), HTTPStatus.OK
 
     except Exception as e:
-        logging.error(f"Failed to start demo data generation: {str(e)}")
-        return jsonify(
-            {"error": "Failed to start demo data generation", "details": str(e)}
-        ), HTTPStatus.INTERNAL_SERVER_ERROR
+        logger.error(f"Failed to generate employee data: {str(e)}")
+        db.session.rollback()
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@bp.route("/optimized/status/<task_id>", methods=["GET"])
-def get_generation_status(task_id):
-    """Get the status of a demo data generation task"""
+@bp.route("/test/availability/", methods=["POST"])
+def test_generate_availability():
+    """Test endpoint for generating only availability data."""
     try:
-        settings = Settings.query.first()
-        if not settings or "actions_demo_data" not in settings.__dict__:
-            return jsonify({"error": "Task not found"}), HTTPStatus.NOT_FOUND
+        # Clear existing availability first
+        EmployeeAvailability.query.delete()
+        db.session.commit()
 
-        task_info = settings.actions_demo_data
-        if task_info.get("task_id") != task_id:
-            return jsonify({"error": "Task not found"}), HTTPStatus.NOT_FOUND
+        # Get existing employees
+        employees = Employee.query.all()
+        if not employees:
+            return jsonify({"error": "No employees found"}), HTTPStatus.BAD_REQUEST
+
+        # Generate availabilities
+        availabilities = generate_improved_availability_data(employees)
+
+        # Add all availabilities to session
+        for availability in availabilities:
+            db.session.add(availability)
+
+        # Commit the transaction
+        db.session.commit()
 
         return jsonify(
             {
-                "task_id": task_id,
-                "status": task_info.get("status"),
-                "progress": task_info.get("progress"),
-                "start_time": task_info.get("start_time"),
-                "end_time": task_info.get("end_time"),
-                "error": task_info.get("error"),
+                "message": "Availability data generated successfully",
+                "count": len(availabilities),
             }
         ), HTTPStatus.OK
 
     except Exception as e:
-        logging.error(f"Failed to get task status: {str(e)}")
+        logger.error(f"Failed to generate availability data: {str(e)}")
+        db.session.rollback()
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@bp.route("/test/absences/", methods=["POST"])
+def test_generate_absences():
+    """Test endpoint for generating only absence data."""
+    try:
+        # Clear existing absences first
+        Absence.query.delete()
+        db.session.commit()
+
+        # Get existing employees
+        employees = Employee.query.all()
+        if not employees:
+            return jsonify({"error": "No employees found"}), HTTPStatus.BAD_REQUEST
+
+        # Generate absences
+        absences = generate_improved_absences(employees)
+
+        # Add all absences to session
+        for absence in absences:
+            db.session.add(absence)
+
+        # Commit the transaction
+        db.session.commit()
+
         return jsonify(
-            {"error": "Failed to get task status", "details": str(e)}
-        ), HTTPStatus.INTERNAL_SERVER_ERROR
+            {"message": "Absence data generated successfully", "count": len(absences)}
+        ), HTTPStatus.OK
+
+    except Exception as e:
+        logger.error(f"Failed to generate absence data: {str(e)}")
+        db.session.rollback()
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-def generate_demo_data_background(app, task_id):
-    """Background task to generate demo data"""
-    with app.app_context():
-        try:
-            logging.info(f"Starting background demo data generation task {task_id}")
+@bp.route("/test/coverage/", methods=["POST"])
+def test_generate_coverage():
+    """Test endpoint for generating only coverage data."""
+    try:
+        # Clear existing coverage first
+        Coverage.query.delete()
+        db.session.commit()
 
-            def update_progress(progress, status="running", error=None):
-                settings = Settings.query.first()
-                if settings:
-                    settings.actions_demo_data.update(
-                        {"status": status, "progress": progress, "error": error}
-                    )
-                    if status == "completed":
-                        settings.actions_demo_data["end_time"] = (
-                            datetime.utcnow().isoformat()
-                        )
-                    db.session.commit()
+        # Generate coverage slots
+        coverage_slots = generate_granular_coverage_data()
 
-            # Update settings first
-            update_progress(5, "updating_settings")
-            settings = Settings.query.first()
-            if not settings:
-                settings = Settings.get_default_settings()
+        # Add all coverage slots to session
+        for slot in coverage_slots:
+            db.session.add(slot)
 
-            employee_types = generate_employee_types()
-            absence_types = generate_absence_types()
-            settings.employee_types = employee_types
-            settings.absence_types = absence_types
-            db.session.commit()
+        # Commit the transaction
+        db.session.commit()
 
-            # Generate data structures
-            update_progress(10, "generating_data")
-            employees = generate_improved_employee_data()
-            update_progress(20)
-            coverage_slots = generate_granular_coverage_data()
-            update_progress(30)
-            shift_templates = generate_optimized_shift_templates()
-            update_progress(40)
+        return jsonify(
+            {
+                "message": "Coverage data generated successfully",
+                "count": len(coverage_slots),
+            }
+        ), HTTPStatus.OK
 
-            # Clear existing data
-            update_progress(45, "clearing_data")
-            db.session.execute(text("PRAGMA foreign_keys = OFF"))
-            tables = [EmployeeAvailability, Coverage, ShiftTemplate, Employee, Absence]
-            for table in tables:
-                db.session.execute(text(f"DELETE FROM {table.__table__.name}"))
-            db.session.execute(text("PRAGMA foreign_keys = ON"))
-            db.session.commit()
+    except Exception as e:
+        logger.error(f"Failed to generate coverage data: {str(e)}")
+        db.session.rollback()
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
-            # Insert data in chunks
-            update_progress(50, "inserting_data")
 
-            # Insert employees
-            db.session.bulk_save_objects(employees)
-            db.session.flush()
-            update_progress(60)
+@bp.route("/test/shift-templates/", methods=["POST"])
+def test_generate_shift_templates():
+    """Test endpoint for generating only shift template data."""
+    try:
+        # Clear existing shift templates first
+        ShiftTemplate.query.delete()
+        db.session.commit()
 
-            # Generate and insert availabilities
-            availabilities = generate_improved_availability_data(employees)
-            chunk_size = 1000
-            total_chunks = len(availabilities) // chunk_size + (
-                1 if len(availabilities) % chunk_size else 0
-            )
+        # Generate templates
+        templates = generate_optimized_shift_templates()
 
-            for i in range(0, len(availabilities), chunk_size):
-                chunk = availabilities[i : i + chunk_size]
-                db.session.bulk_save_objects(chunk)
-                db.session.flush()
-                progress = 60 + (i / len(availabilities)) * 20
-                update_progress(progress)
+        # Add all templates to session
+        for template in templates:
+            db.session.add(template)
 
-            # Generate and insert absences
-            update_progress(80, "generating_absences")
-            absences = generate_improved_absences(employees)
-            for i in range(0, len(absences), chunk_size):
-                chunk = absences[i : i + chunk_size]
-                db.session.bulk_save_objects(chunk)
-                db.session.flush()
-                progress = 80 + (i / len(absences)) * 10
-                update_progress(progress)
+        # Commit the transaction
+        db.session.commit()
 
-            # Insert remaining data
-            update_progress(90, "finalizing")
-            db.session.bulk_save_objects(coverage_slots)
-            db.session.bulk_save_objects(shift_templates)
+        return jsonify(
+            {
+                "message": "Shift template data generated successfully",
+                "count": len(templates),
+            }
+        ), HTTPStatus.OK
 
-            # Update settings
-            settings.actions_demo_data.update(
-                {
-                    "statistics": {
-                        "employees": len(employees),
-                        "availabilities": len(availabilities),
-                        "absences": len(absences),
-                        "coverage_slots": len(coverage_slots),
-                        "shift_templates": len(shift_templates),
-                    }
-                }
-            )
-
-            # Final commit
-            db.session.commit()
-            update_progress(100, "completed")
-            logging.info(
-                f"Background demo data generation task {task_id} completed successfully"
-            )
-
-        except Exception as e:
-            logging.error(f"Background task failed: {str(e)}")
-            update_progress(0, "failed", str(e))
-            db.session.rollback()
+    except Exception as e:
+        logger.error(f"Failed to generate shift template data: {str(e)}")
+        db.session.rollback()
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR

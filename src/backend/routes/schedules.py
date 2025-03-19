@@ -1532,3 +1532,39 @@ def update_version_notes(version):
         db.session.rollback()
         logger.error_logger.error(f"Error in update_version_notes: {str(e)}")
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@schedules.route("/batch", methods=["POST"])
+def create_batch_schedules():
+    """Create multiple schedules at once"""
+    data = request.get_json()
+
+    try:
+        schedules_data = data.get("schedules", [])
+        created_schedules = []
+
+        for schedule_data in schedules_data:
+            schedule = Schedule(
+                employee_id=schedule_data["employee_id"],
+                date=datetime.strptime(schedule_data["date"], "%Y-%m-%d").date(),
+                shift_id=schedule_data.get("shift_id"),
+                version=schedule_data["version"],
+                break_start=schedule_data.get("break_start"),
+                break_end=schedule_data.get("break_end"),
+                notes=schedule_data.get("notes"),
+                availability_type=schedule_data.get("availability_type", "AVL"),
+            )
+            db.session.add(schedule)
+            created_schedules.append(schedule)
+
+        db.session.commit()
+        return jsonify(
+            {
+                "message": f"Successfully created {len(created_schedules)} schedules",
+                "schedules": [schedule.to_dict() for schedule in created_schedules],
+            }
+        ), HTTPStatus.CREATED
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), HTTPStatus.BAD_REQUEST
