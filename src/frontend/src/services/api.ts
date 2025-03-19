@@ -1304,48 +1304,175 @@ export interface WebSocketEvent {
     data: unknown;
 }
 
-// WebSocket connection
+// WebSocket connection management
 let socket: Socket | null = null;
+let connectionManager: Manager | null = null;
+let eventHandlers: { [key: string]: Array<(data: unknown) => void> } = {};
+let isConnecting = false;
+let reconnectTimeout: NodeJS.Timeout | null = null;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_DELAY = 3000;
 
 export const initializeWebSocket = () => {
-    if (!socket) {
-        const manager = new Manager(API_BASE_URL, {
+    // Don't initialize if already connecting or connected
+    if (isConnecting || socket?.connected) return;
+
+    isConnecting = true;
+    try {
+        const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+        connectionManager = new Manager(socketUrl, {
+            reconnection: true,
+            reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
+            reconnectionDelay: RECONNECT_DELAY,
+            reconnectionDelayMax: 10000,
+            timeout: 20000,
             autoConnect: true,
             transports: ['websocket']
         });
-        socket = manager.socket('/');
+
+        socket = connectionManager.socket('/');
 
         socket.on('connect', () => {
             console.log('WebSocket connected');
+            isConnecting = false;
+            reconnectAttempts = 0;
+
+            // Resubscribe to events after reconnection
+            const activeSubscriptions = Object.keys(eventHandlers);
+            if (activeSubscriptions.length > 0) {
+                console.log(`Resubscribing to ${activeSubscriptions.length} events`);
+                socket?.emit('subscribe', { event_types: activeSubscriptions });
+            }
         });
 
         socket.on('disconnect', () => {
             console.log('WebSocket disconnected');
+
+            // Don't try to reconnect if we've exceeded attempts or are shutting down
+            if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+                console.log('Maximum reconnection attempts reached');
+                return;
+            }
         });
 
-        socket.on('error', (error: Error) => {
-            console.error('WebSocket error:', error);
+        socket.on('connect_error', (error: Error) => {
+            console.error('WebSocket connection error:', error);
+            isConnecting = false;
+            reconnectAttempts++;
+
+            // Schedule reconnection with increasing delays
+            if (reconnectTimeout) {
+                clearTimeout(reconnectTimeout);
+            }
+
+            if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                const delay = RECONNECT_DELAY * Math.pow(1.5, reconnectAttempts - 1);
+                console.log(`Attempting to reconnect in ${delay}ms (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+                reconnectTimeout = setTimeout(() => {
+                    console.log('Attempting to reconnect...');
+                    socket?.connect();
+                }, delay);
+            }
         });
+
+        return socket;
+    } catch (error) {
+        console.error('Error initializing WebSocket:', error);
+        isConnecting = false;
+        return null;
+    }
+};
+
+export const getWebSocketInstance = () => {
+    if (!socket) {
+        return initializeWebSocket();
     }
     return socket;
 };
 
-export const subscribeToEvents = (eventTypes: string[], callback: (eventType: string, data: unknown) => void) => {
-    const socket = initializeWebSocket();
+export const closeWebSocketConnection = () => {
+    if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+        reconnectTimeout = null;
+    }
 
+    if (socket) {
+        socket.disconnect();
+        socket = null;
+    }
+
+    if (connectionManager) {
+        connectionManager.disconnect();
+        connectionManager = null;
+    }
+
+    eventHandlers = {};
+    isConnecting = false;
+    reconnectAttempts = 0;
+};
+
+export const subscribeToEvents = (
+    eventTypes: string[],
+    callback: (eventType: string, data: unknown) => void
+) => {
+    const socketInstance = getWebSocketInstance();
+    if (!socketInstance) {
+        console.error('Cannot subscribe: WebSocket not initialized');
+        return;
+    }
+
+    // Register event handlers
     eventTypes.forEach(eventType => {
-        socket.emit('subscribe', { event_type: eventType });
-        socket.on(eventType, (data: unknown) => callback(eventType, data));
+        if (!eventHandlers[eventType]) {
+            eventHandlers[eventType] = [];
+
+            // Set up listener for this event type
+            socketInstance.on(eventType, (data: unknown) => {
+                const handlers = eventHandlers[eventType] || [];
+                handlers.forEach(handler => handler(data));
+            });
+
+            // Subscribe to this event type on the server
+            socketInstance.emit('subscribe', { event_type: eventType });
+        }
+
+        // Add the callback
+        eventHandlers[eventType].push((data: unknown) => callback(eventType, data));
     });
 };
 
 export const unsubscribeFromEvents = (eventTypes: string[]) => {
-    if (socket) {
-        eventTypes.forEach(eventType => {
+    if (!socket) return;
+
+    eventTypes.forEach(eventType => {
+        // Remove all handlers for this event type
+        if (eventHandlers[eventType]) {
+            delete eventHandlers[eventType];
+
+            // Unsubscribe from this event type on the server
             socket.emit('unsubscribe', { event_type: eventType });
+
+            // Remove listener
             socket.off(eventType);
-        });
-    }
+        }
+    });
+};
+
+// Check if websocket is connected
+export const isWebSocketConnected = () => {
+    return !!socket?.connected;
+};
+
+// Manually reconnect websocket if disconnected
+export const reconnectWebSocket = () => {
+    if (socket?.connected) return;
+
+    // Close any existing connection first
+    closeWebSocketConnection();
+
+    // Initialize new connection
+    return initializeWebSocket();
 };
 
 // Batch operations

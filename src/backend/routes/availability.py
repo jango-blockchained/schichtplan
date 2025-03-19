@@ -3,6 +3,8 @@ from models import db, EmployeeAvailability, Employee
 from models.employee import AvailabilityType
 from datetime import datetime
 from http import HTTPStatus
+from utils.websocket import emit_event
+from ..models.availability import Availability
 
 availability = Blueprint("availability", __name__, url_prefix="/api/availability")
 
@@ -29,6 +31,16 @@ def create_availability():
 
         db.session.add(availability)
         db.session.commit()
+
+        # Emit WebSocket event for availability creation
+        emit_event(
+            "availability_updated",
+            {
+                "action": "create",
+                "availability": availability.to_dict(),
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        )
 
         return jsonify(availability.to_dict()), HTTPStatus.CREATED
 
@@ -67,6 +79,17 @@ def update_availability(availability_id):
             availability.is_available = data["is_available"]
 
         db.session.commit()
+
+        # Emit WebSocket event for availability update
+        emit_event(
+            "availability_updated",
+            {
+                "action": "update",
+                "availability": availability.to_dict(),
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        )
+
         return jsonify(availability.to_dict())
 
     except ValueError as e:
@@ -82,8 +105,20 @@ def delete_availability(availability_id):
     availability = EmployeeAvailability.query.get_or_404(availability_id)
 
     try:
+        availability_data = availability.to_dict()
         db.session.delete(availability)
         db.session.commit()
+
+        # Emit WebSocket event for availability deletion
+        emit_event(
+            "availability_updated",
+            {
+                "action": "delete",
+                "availability": availability_data,
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        )
+
         return "", HTTPStatus.NO_CONTENT
 
     except Exception as e:
@@ -181,6 +216,13 @@ def update_employee_availabilities(employee_id):
             db.session.add(availability)
 
         db.session.commit()
+
+        # Emit WebSocket event for availability update
+        emit_event(
+            "availability_updated",
+            {"employee_id": employee_id, "updated_at": datetime.utcnow().isoformat()},
+        )
+
         return jsonify(
             {"message": "Availabilities updated successfully"}
         ), HTTPStatus.OK
@@ -277,16 +319,13 @@ def check_bulk_availability():
 
 @availability.route("/batch", methods=["PUT"])
 def update_batch_availabilities():
-    """Update multiple employee availabilities at once"""
+    """Update availabilities for multiple employees at once"""
     data = request.get_json()
 
     try:
-        updates = data.get("updates", [])
-        updated_availabilities = []
-
-        for update in updates:
-            employee_id = update["employee_id"]
-            availabilities = update["availabilities"]
+        for employee_data in data:
+            employee_id = employee_data["employee_id"]
+            availabilities = employee_data["availabilities"]
 
             # Delete existing availabilities for this employee
             EmployeeAvailability.query.filter_by(employee_id=employee_id).delete()
@@ -303,16 +342,143 @@ def update_batch_availabilities():
                     ),
                 )
                 db.session.add(availability)
+
+        db.session.commit()
+
+        # Emit WebSocket events for each employee's availability update
+        for employee_data in data:
+            emit_event(
+                "availability_updated",
+                {
+                    "employee_id": employee_data["employee_id"],
+                    "updated_at": datetime.utcnow().isoformat(),
+                },
+            )
+
+        return jsonify(
+            {"message": f"Successfully updated {len(data)} employee availabilities"}
+        ), HTTPStatus.OK
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), HTTPStatus.BAD_REQUEST
+
+
+@availability.route("/availability", methods=["POST"])
+@availability.route("/availability/", methods=["POST"])
+def create_availability():
+    """Create a new availability record"""
+    data = request.get_json()
+    availability = Availability(**data)
+
+    try:
+        db.session.add(availability)
+        db.session.commit()
+
+        # Emit WebSocket event for availability creation
+        emit_event(
+            "availability_updated",
+            {
+                "action": "create",
+                "availability": availability.to_dict(),
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        )
+
+        return jsonify(availability.to_dict()), HTTPStatus.CREATED
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), HTTPStatus.BAD_REQUEST
+
+
+@availability.route("/availability/<int:availability_id>", methods=["PUT"])
+def update_availability(availability_id):
+    """Update an availability record"""
+    data = request.get_json()
+    availability = Availability.query.get_or_404(availability_id)
+
+    try:
+        for key, value in data.items():
+            setattr(availability, key, value)
+        db.session.commit()
+
+        # Emit WebSocket event for availability update
+        emit_event(
+            "availability_updated",
+            {
+                "action": "update",
+                "availability": availability.to_dict(),
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        )
+
+        return jsonify(availability.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), HTTPStatus.BAD_REQUEST
+
+
+@availability.route("/availability/<int:availability_id>", methods=["DELETE"])
+def delete_availability(availability_id):
+    """Delete an availability record"""
+    availability = Availability.query.get_or_404(availability_id)
+
+    try:
+        availability_data = availability.to_dict()
+        db.session.delete(availability)
+        db.session.commit()
+
+        # Emit WebSocket event for availability deletion
+        emit_event(
+            "availability_updated",
+            {
+                "action": "delete",
+                "availability": availability_data,
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        )
+
+        return "", HTTPStatus.NO_CONTENT
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), HTTPStatus.BAD_REQUEST
+
+
+@availability.route("/availability/batch", methods=["POST"])
+def batch_update_availability():
+    """Batch update availability records"""
+    data = request.get_json()
+    availabilities = data.get("availabilities", [])
+
+    try:
+        updated_availabilities = []
+        for availability_data in availabilities:
+            availability_id = availability_data.get("id")
+            if availability_id:
+                availability = Availability.query.get(availability_id)
+                if availability:
+                    for key, value in availability_data.items():
+                        if key != "id":
+                            setattr(availability, key, value)
+                    updated_availabilities.append(availability)
+            else:
+                availability = Availability(**availability_data)
+                db.session.add(availability)
                 updated_availabilities.append(availability)
 
         db.session.commit()
-        return jsonify(
-            {
-                "message": f"Successfully updated {len(updated_availabilities)} availabilities",
-                "availabilities": [avail.to_dict() for avail in updated_availabilities],
-            }
-        ), HTTPStatus.OK
 
+        # Emit WebSocket event for batch update
+        emit_event(
+            "availability_updated",
+            {
+                "action": "batch_update",
+                "availabilities": [a.to_dict() for a in updated_availabilities],
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        )
+
+        return jsonify([a.to_dict() for a in updated_availabilities])
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), HTTPStatus.BAD_REQUEST

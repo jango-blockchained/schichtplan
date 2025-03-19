@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request
 from models import db, Absence, Employee
 from datetime import datetime
 from http import HTTPStatus
+from utils.websocket import emit_event
 
 bp = Blueprint("absences", __name__)
 
@@ -39,6 +40,18 @@ def create_absence(employee_id):
 
     try:
         db.session.commit()
+
+        # Emit WebSocket event for absence creation
+        emit_event(
+            "absence_updated",
+            {
+                "employee_id": employee_id,
+                "absence_id": absence.id,
+                "action": "create",
+                "date": absence.date.isoformat() if hasattr(absence, "date") else None,
+            },
+        )
+
         return jsonify(absence.to_dict()), 201
     except Exception as e:
         db.session.rollback()
@@ -54,6 +67,13 @@ def delete_absence(employee_id, absence_id):
     try:
         db.session.delete(absence)
         db.session.commit()
+
+        # Emit WebSocket event for absence deletion
+        emit_event(
+            "absence_updated",
+            {"employee_id": employee_id, "absence_id": absence_id, "action": "delete"},
+        )
+
         return "", 204
     except Exception as e:
         db.session.rollback()
@@ -86,6 +106,18 @@ def update_absence(employee_id, absence_id):
 
     try:
         db.session.commit()
+
+        # Emit WebSocket event for absence update
+        emit_event(
+            "absence_updated",
+            {
+                "employee_id": employee_id,
+                "absence_id": absence_id,
+                "action": "update",
+                "date": absence.date.isoformat() if hasattr(absence, "date") else None,
+            },
+        )
+
         return jsonify(absence.to_dict())
     except Exception as e:
         db.session.rollback()
@@ -141,6 +173,40 @@ def manage_batch_absences():
 
         if not results["errors"]:
             db.session.commit()
+
+            # Emit WebSocket events for batch operations
+            for absence in results["created"]:
+                emit_event(
+                    "absence_updated",
+                    {
+                        "employee_id": absence.employee_id,
+                        "absence_id": absence.id,
+                        "action": "create",
+                        "date": absence.date.isoformat()
+                        if hasattr(absence, "date")
+                        else None,
+                    },
+                )
+
+            for absence in results["updated"]:
+                emit_event(
+                    "absence_updated",
+                    {
+                        "employee_id": absence.employee_id,
+                        "absence_id": absence.id,
+                        "action": "update",
+                        "date": absence.date.isoformat()
+                        if hasattr(absence, "date")
+                        else None,
+                    },
+                )
+
+            for absence_id in results["deleted"]:
+                # For deleted absences, we may not have the employee_id anymore
+                emit_event(
+                    "absence_updated", {"absence_id": absence_id, "action": "delete"}
+                )
+
             return jsonify(
                 {
                     "message": "Batch operations completed successfully",

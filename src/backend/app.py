@@ -1,21 +1,14 @@
-import sys
 import logging
 import traceback
 from logging.handlers import RotatingFileHandler
-from pathlib import Path
 import os
 from datetime import date, datetime, timedelta
 import uuid
 import click
-
-# Add the parent directory to Python path
-current_dir = Path(__file__).resolve().parent
-if str(current_dir) not in sys.path:
-    sys.path.append(str(current_dir))
-
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_migrate import Migrate
+from flask_socketio import SocketIO, emit
 from models import db
 from config import Config
 from routes.shifts import shifts
@@ -70,6 +63,49 @@ def setup_logging(app):
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
+
+    # Initialize SocketIO with Flask app
+    socketio = SocketIO(
+        app,
+        cors_allowed_origins="*",
+        async_mode="gevent",
+        logger=True,
+        engineio_logger=True,
+        json=True,
+        manage_session=False,
+    )
+
+    # WebSocket event handlers
+    @socketio.on("connect")
+    def handle_connect():
+        app.logger.info("Client connected")
+        emit("connect_response", {"status": "connected"})
+
+    @socketio.on("disconnect")
+    def handle_disconnect():
+        app.logger.info("Client disconnected")
+
+    @socketio.on("subscribe")
+    def handle_subscribe(data):
+        event_type = data.get("event_type")
+        if event_type:
+            app.logger.info(f"Client subscribed to {event_type}")
+            emit(
+                "subscribe_response", {"status": "subscribed", "event_type": event_type}
+            )
+
+    @socketio.on("unsubscribe")
+    def handle_unsubscribe(data):
+        event_type = data.get("event_type")
+        if event_type:
+            app.logger.info(f"Client unsubscribed from {event_type}")
+            emit(
+                "unsubscribe_response",
+                {"status": "unsubscribed", "event_type": event_type},
+            )
+
+    # Store socketio instance in app config
+    app.config["socketio"] = socketio
 
     # Configure CORS
     CORS(
@@ -236,9 +272,9 @@ def create_app(config_class=Config):
             print(f"Error: {str(e)}")
             print("=" * 80 + "\n")
 
-    return app
+    return app, socketio
 
 
 if __name__ == "__main__":
-    app = create_app()
-    app.run(debug=True)
+    app, socketio = create_app()
+    socketio.run(app, debug=True, host="0.0.0.0", port=5000)

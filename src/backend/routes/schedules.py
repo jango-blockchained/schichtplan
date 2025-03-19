@@ -10,6 +10,7 @@ from services.scheduler.generator import ScheduleGenerator
 from services.scheduler.resources import ScheduleResources, ScheduleResourceError
 from services.scheduler.validator import ScheduleValidator, ScheduleConfig
 from models.fixed_shift import ShiftTemplate
+from utils.websocket import emit_event
 
 # Define blueprint
 schedules = Blueprint("schedules", __name__)
@@ -430,191 +431,84 @@ def get_schedule(schedule_id):
     return jsonify(schedule.to_dict())
 
 
-@schedules.route("/schedules/<int:schedule_id>", methods=["PUT"])
-@schedules.route("/schedules/<int:schedule_id>/", methods=["PUT"])
-@schedules.route("/schedules/update/<int:schedule_id>", methods=["POST"])
-def update_schedule(schedule_id):
-    """Update a schedule (for drag and drop functionality)"""
+@schedules.route("/schedules", methods=["POST"])
+@schedules.route("/schedules/", methods=["POST"])
+def create_schedule():
+    """Create a new schedule"""
+    data = request.get_json()
+    schedule = Schedule(**data)
+
     try:
-        data = request.get_json()
-        logger.schedule_logger.info(
-            f"Update request for schedule_id={schedule_id}, data={data}"
-        )
-
-        # Handle date parsing - strip the T00:00:00 part if present
-        if "date" in data and data["date"]:
-            # If date contains T00:00:00, strip it to just get the date part
-            if "T" in data["date"]:
-                data["date"] = data["date"].split("T")[0]
-            logger.schedule_logger.info(f"Parsed date: {data['date']}")
-
-        # If schedule_id is 0, create a new schedule
-        if schedule_id == 0:
-            # Get the version from the data or default to 1
-            version = data.get("version", 1)
-            logger.schedule_logger.info(
-                f"Creating new schedule: {data} with version {version}"
-            )
-
-            schedule = Schedule(
-                employee_id=data["employee_id"],
-                shift_id=data.get("shift_id"),  # Use get() to handle None/undefined
-                date=datetime.strptime(data["date"], "%Y-%m-%d").date(),
-                version=version,  # Use the provided version or default to 1
-                notes=data.get("notes"),
-            )
-
-            # Handle break_duration by converting it to break_start and break_end
-            if "break_duration" in data and data["break_duration"]:
-                # If we have a shift, calculate break times based on shift times
-                if schedule.shift_id:
-                    shift = ShiftTemplate.query.get(schedule.shift_id)
-                    if shift:
-                        # Start break midway through the shift
-                        shift_start = datetime.strptime(shift.start_time, "%H:%M")
-                        shift_end = datetime.strptime(shift.end_time, "%H:%M")
-                        shift_duration = (
-                            shift_end - shift_start
-                        ).total_seconds() / 60  # in minutes
-
-                        # Calculate break start time (midway through the shift)
-                        break_start_minutes = shift_duration / 2
-                        break_start_time = shift_start + timedelta(
-                            minutes=break_start_minutes
-                        )
-
-                        # Calculate break end time based on duration
-                        break_end_time = break_start_time + timedelta(
-                            minutes=data["break_duration"]
-                        )
-
-                        # Format times as strings
-                        schedule.break_start = break_start_time.strftime("%H:%M")
-                        schedule.break_end = break_end_time.strftime("%H:%M")
-
-                        logger.schedule_logger.info(
-                            f"Calculated break times: {schedule.break_start} to {schedule.break_end} from duration {data['break_duration']}"
-                        )
-
-            db.session.add(schedule)
-        else:
-            schedule = Schedule.query.get_or_404(schedule_id)
-            logger.schedule_logger.info(
-                f"Updating existing schedule: {schedule_id}, current version: {schedule.version}"
-            )
-            # Update existing schedule
-            if "employee_id" in data:
-                schedule.employee_id = data["employee_id"]
-            if "shift_id" in data:
-                # Explicitly handle None/undefined case
-                logger.schedule_logger.info(
-                    f"Updating shift_id: current={schedule.shift_id}, new={data['shift_id']}, type={type(data['shift_id'])}"
-                )
-                schedule.shift_id = (
-                    data["shift_id"] if data["shift_id"] is not None else None
-                )
-                logger.schedule_logger.info(
-                    f"After update, shift_id={schedule.shift_id}"
-                )
-            if "date" in data:
-                schedule.date = datetime.strptime(data["date"], "%Y-%m-%d").date()
-            if "notes" in data:
-                schedule.notes = data["notes"] if data["notes"] is not None else None
-            if "version" in data:
-                schedule.version = data["version"]
-                logger.schedule_logger.info(
-                    f"Updated schedule version to {schedule.version}"
-                )
-            if "shift_type" in data:
-                schedule.shift_type = (
-                    data["shift_type"] if data["shift_type"] is not None else None
-                )
-                logger.schedule_logger.info(
-                    f"Updated schedule shift_type to {schedule.shift_type}"
-                )
-
-            # Handle break_duration by converting it to break_start and break_end
-            if "break_duration" in data:
-                if data["break_duration"]:
-                    # If we have a shift, calculate break times based on shift times
-                    if schedule.shift_id:
-                        shift = ShiftTemplate.query.get(schedule.shift_id)
-                        if shift:
-                            # Start break midway through the shift
-                            shift_start = datetime.strptime(shift.start_time, "%H:%M")
-                            shift_end = datetime.strptime(shift.end_time, "%H:%M")
-                            shift_duration = (
-                                shift_end - shift_start
-                            ).total_seconds() / 60  # in minutes
-
-                            # Calculate break start time (midway through the shift)
-                            break_start_minutes = shift_duration / 2
-                            break_start_time = shift_start + timedelta(
-                                minutes=break_start_minutes
-                            )
-
-                            # Calculate break end time based on duration
-                            break_end_time = break_start_time + timedelta(
-                                minutes=data["break_duration"]
-                            )
-
-                            # Format times as strings
-                            schedule.break_start = break_start_time.strftime("%H:%M")
-                            schedule.break_end = break_end_time.strftime("%H:%M")
-
-                            logger.schedule_logger.info(
-                                f"Calculated break times: {schedule.break_start} to {schedule.break_end} from duration {data['break_duration']}"
-                            )
-                else:
-                    # If break_duration is null/0/false, clear break times
-                    schedule.break_start = None
-                    schedule.break_end = None
-
+        db.session.add(schedule)
         db.session.commit()
-        logger.schedule_logger.info(
-            f"Database commit successful for schedule_id={schedule_id}"
+
+        # Emit WebSocket event for schedule creation
+        emit_event(
+            "schedule_updated",
+            {
+                "action": "create",
+                "schedule": schedule.to_dict(),
+                "timestamp": datetime.utcnow().isoformat(),
+            },
         )
 
-        # Add break_duration to the response
-        response_data = schedule.to_dict()
-        if schedule.break_start and schedule.break_end:
-            try:
-                break_start = datetime.strptime(schedule.break_start, "%H:%M")
-                break_end = datetime.strptime(schedule.break_end, "%H:%M")
-                # Calculate duration in minutes
-                break_duration_minutes = int(
-                    (break_end - break_start).total_seconds() / 60
-                )
-                response_data["break_duration"] = break_duration_minutes
-            except Exception as e:
-                logger.error_logger.error(f"Error calculating break duration: {str(e)}")
-                response_data["break_duration"] = 0
-        else:
-            response_data["break_duration"] = 0
-
-        logger.schedule_logger.info(f"Schedule updated successfully: {response_data}")
-        return jsonify(response_data)
-
+        return jsonify(schedule.to_dict()), HTTPStatus.CREATED
     except Exception as e:
         db.session.rollback()
-        logger.error_logger.error(f"Error updating schedule: {str(e)}")
-        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+        return jsonify({"error": str(e)}), HTTPStatus.BAD_REQUEST
+
+
+@schedules.route("/schedules/<int:schedule_id>", methods=["PUT"])
+def update_schedule(schedule_id):
+    """Update a schedule"""
+    data = request.get_json()
+    schedule = Schedule.query.get_or_404(schedule_id)
+
+    try:
+        for key, value in data.items():
+            setattr(schedule, key, value)
+        db.session.commit()
+
+        # Emit WebSocket event for schedule update
+        emit_event(
+            "schedule_updated",
+            {
+                "action": "update",
+                "schedule": schedule.to_dict(),
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        )
+
+        return jsonify(schedule.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), HTTPStatus.BAD_REQUEST
 
 
 @schedules.route("/schedules/<int:schedule_id>", methods=["DELETE"])
-@schedules.route("/schedules/<int:schedule_id>/", methods=["DELETE"])
 def delete_schedule(schedule_id):
     """Delete a schedule"""
     schedule = Schedule.query.get_or_404(schedule_id)
 
     try:
+        schedule_data = schedule.to_dict()
         db.session.delete(schedule)
         db.session.commit()
-        return "", HTTPStatus.NO_CONTENT
 
+        # Emit WebSocket event for schedule deletion
+        emit_event(
+            "schedule_updated",
+            {
+                "action": "delete",
+                "schedule": schedule_data,
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        )
+
+        return "", HTTPStatus.NO_CONTENT
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+        return jsonify({"error": str(e)}), HTTPStatus.BAD_REQUEST
 
 
 @schedules.route("/schedules/export", methods=["POST"])
@@ -1536,35 +1430,136 @@ def update_version_notes(version):
 
 @schedules.route("/batch", methods=["POST"])
 def create_batch_schedules():
-    """Create multiple schedules at once"""
-    data = request.get_json()
-
+    """Create multiple schedules in a single request"""
     try:
-        schedules_data = data.get("schedules", [])
+        data = request.json
+        if not data or not isinstance(data, list):
+            return jsonify({"error": "Invalid data format"}), HTTPStatus.BAD_REQUEST
+
         created_schedules = []
+        for schedule_data in data:
+            try:
+                # Parse required fields
+                employee_id = schedule_data.get("employee_id")
+                date_str = schedule_data.get("date")
+                shift_id = schedule_data.get("shift_id")
+                version = schedule_data.get("version", 1)  # Default to version 1
 
-        for schedule_data in schedules_data:
-            schedule = Schedule(
-                employee_id=schedule_data["employee_id"],
-                date=datetime.strptime(schedule_data["date"], "%Y-%m-%d").date(),
-                shift_id=schedule_data.get("shift_id"),
-                version=schedule_data["version"],
-                break_start=schedule_data.get("break_start"),
-                break_end=schedule_data.get("break_end"),
-                notes=schedule_data.get("notes"),
-                availability_type=schedule_data.get("availability_type", "AVL"),
-            )
-            db.session.add(schedule)
-            created_schedules.append(schedule)
+                if not employee_id or not date_str or not shift_id:
+                    logger.error_logger.error(
+                        f"Missing required fields: {schedule_data}"
+                    )
+                    continue
 
+                try:
+                    # Parse date
+                    schedule_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                except ValueError:
+                    logger.error_logger.error(f"Invalid date format: {date_str}")
+                    continue
+
+                # Check if a schedule already exists for this employee on this date for this version
+                existing_schedule = Schedule.query.filter_by(
+                    employee_id=employee_id, date=schedule_date, version=version
+                ).first()
+
+                if existing_schedule:
+                    # Update existing schedule
+                    existing_schedule.shift_id = shift_id
+                    # Update other fields if provided
+                    if "notes" in schedule_data:
+                        existing_schedule.notes = schedule_data["notes"]
+                    if "break_start" in schedule_data:
+                        existing_schedule.break_start = schedule_data["break_start"]
+                    if "break_end" in schedule_data:
+                        existing_schedule.break_end = schedule_data["break_end"]
+                    if "availability_type" in schedule_data:
+                        existing_schedule.availability_type = schedule_data[
+                            "availability_type"
+                        ]
+
+                    created_schedules.append(existing_schedule)
+                else:
+                    # Create new schedule
+                    new_schedule = Schedule(
+                        employee_id=employee_id,
+                        date=schedule_date,
+                        shift_id=shift_id,
+                        version=version,
+                        notes=schedule_data.get("notes"),
+                        break_start=schedule_data.get("break_start"),
+                        break_end=schedule_data.get("break_end"),
+                        availability_type=schedule_data.get("availability_type", "AVL"),
+                    )
+                    db.session.add(new_schedule)
+                    created_schedules.append(new_schedule)
+
+            except Exception as item_error:
+                logger.error_logger.error(
+                    f"Error processing schedule item {schedule_data}: {str(item_error)}"
+                )
+                continue
+
+        # Commit all changes
         db.session.commit()
+
+        # Emit WebSocket events for batch schedule creation
+        for schedule in created_schedules:
+            emit_event(
+                "schedule_updated",
+                {
+                    "schedule_id": schedule.id,
+                    "employee_id": schedule.employee_id,
+                    "date": schedule.date.isoformat(),
+                    "version": schedule.version,
+                },
+            )
+
         return jsonify(
-            {
-                "message": f"Successfully created {len(created_schedules)} schedules",
-                "schedules": [schedule.to_dict() for schedule in created_schedules],
-            }
+            [schedule.to_dict() for schedule in created_schedules]
         ), HTTPStatus.CREATED
 
+    except Exception as e:
+        db.session.rollback()
+        logger.error_logger.error(f"Error in batch schedule creation: {str(e)}")
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@schedules.route("/schedules/batch", methods=["POST"])
+def batch_update_schedules():
+    """Batch update schedules"""
+    data = request.get_json()
+    schedules = data.get("schedules", [])
+
+    try:
+        updated_schedules = []
+        for schedule_data in schedules:
+            schedule_id = schedule_data.get("id")
+            if schedule_id:
+                schedule = Schedule.query.get(schedule_id)
+                if schedule:
+                    for key, value in schedule_data.items():
+                        if key != "id":
+                            setattr(schedule, key, value)
+                    updated_schedules.append(schedule)
+            else:
+                schedule = Schedule(**schedule_data)
+                db.session.add(schedule)
+                updated_schedules.append(schedule)
+
+        db.session.commit()
+
+        # Emit WebSocket event for batch update
+        emit_event(
+            "schedule_updated",
+            {
+                "action": "batch_update",
+                "schedules": [s.to_dict() for s in updated_schedules],
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        )
+
+        return jsonify([s.to_dict() for s in updated_schedules])
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), HTTPStatus.BAD_REQUEST
