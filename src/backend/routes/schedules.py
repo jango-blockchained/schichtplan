@@ -10,6 +10,7 @@ from services.scheduler.generator import ScheduleGenerator
 from services.scheduler.resources import ScheduleResources, ScheduleResourceError
 from services.scheduler.validator import ScheduleValidator, ScheduleConfig
 from models.fixed_shift import ShiftTemplate
+from services.event_service import emit_schedule_updated
 
 # Define blueprint
 schedules = Blueprint("schedules", __name__)
@@ -384,6 +385,24 @@ def generate_schedule():
             result["logs"] = []
         result["logs"].extend(logs)
 
+        # Emit WebSocket event for schedule update
+        try:
+            emit_schedule_updated(
+                {
+                    "action": "generate",
+                    "version": version,
+                    "start_date": start_date.isoformat()
+                    if isinstance(start_date, date)
+                    else start_date,
+                    "end_date": end_date.isoformat()
+                    if isinstance(end_date, date)
+                    else end_date,
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
+        except Exception as e:
+            current_app.logger.error(f"Error emitting schedule_updated event: {str(e)}")
+
         return jsonify(result), 200
 
     except Exception as e:
@@ -593,6 +612,20 @@ def update_schedule(schedule_id):
             response_data["break_duration"] = 0
 
         logger.schedule_logger.info(f"Schedule updated successfully: {response_data}")
+
+        # Emit WebSocket event for schedule update
+        try:
+            emit_schedule_updated(
+                {
+                    "action": "update",
+                    "schedule_id": schedule_id,
+                    "version": schedule.version,
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
+        except Exception as e:
+            current_app.logger.error(f"Error emitting schedule_updated event: {str(e)}")
+
         return jsonify(response_data)
 
     except Exception as e:
@@ -680,6 +713,7 @@ def export_schedule():
 
 @schedules.route("/schedules/<int:version>/publish", methods=["POST"])
 def publish_schedule(version):
+    """Publish a schedule version"""
     try:
         schedules = Schedule.query.filter_by(version=version).all()
         if not schedules:
@@ -689,6 +723,20 @@ def publish_schedule(version):
             schedule.status = "published"
 
         db.session.commit()
+
+        # Emit WebSocket event for schedule publication
+        try:
+            emit_schedule_updated(
+                {
+                    "action": "publish",
+                    "version": version,
+                    "status": "published",
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
+        except Exception as e:
+            current_app.logger.error(f"Error emitting schedule_updated event: {str(e)}")
+
         return jsonify({"message": "Schedule published successfully"})
     except Exception as e:
         db.session.rollback()
@@ -786,6 +834,24 @@ def api_generate_schedule():
         if "error" in result:
             logger.error_logger.error(f"Error generating schedule: {result['error']}")
             return jsonify({"error": result["error"]}), 500
+
+        # Emit WebSocket event for schedule update
+        try:
+            emit_schedule_updated(
+                {
+                    "action": "generate",
+                    "version": version,
+                    "start_date": start_date.isoformat()
+                    if isinstance(start_date, date)
+                    else start_date,
+                    "end_date": end_date.isoformat()
+                    if isinstance(end_date, date)
+                    else end_date,
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
+        except Exception as e:
+            current_app.logger.error(f"Error emitting schedule_updated event: {str(e)}")
 
         return jsonify(result), 200
 

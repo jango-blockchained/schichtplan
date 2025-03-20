@@ -291,21 +291,7 @@ export const ShiftCoverageView: React.FC<ShiftCoverageViewProps> = ({ settings, 
         });
     }, [shifts, settings]);
 
-    // Enhanced debugging
-    console.group('Shift Coverage View Debug');
-    console.log('Store Settings:', {
-        opening: settings.general.store_opening,
-        closing: settings.general.store_closing,
-        keyholderBefore: keyholderBeforeMinutes,
-        keyholderAfter: keyholderAfterMinutes
-    });
-
-    console.log('Extended Time Range:', {
-        start: timeRange.start.toTimeString(),
-        end: timeRange.end.toTimeString()
-    });
-
-    // Fix the type for shiftEmployees access
+    // Calculate shift positions without verbose logging
     const shiftPositions = enhancedShifts.map(shift => {
         const position = calculator.calculateShiftPosition(shift, timeRange);
         return {
@@ -313,9 +299,6 @@ export const ShiftCoverageView: React.FC<ShiftCoverageViewProps> = ({ settings, 
             position
         };
     });
-
-    console.log('Shift Positions:', shiftPositions);
-    console.groupEnd();
 
     return (
         <div className="container mx-auto py-6 space-y-6">

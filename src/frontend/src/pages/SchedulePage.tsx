@@ -70,6 +70,7 @@ import { ScheduleStatistics } from '@/components/Schedule/ScheduleStatistics';
 import { EnhancedDateRangeSelector } from '@/components/EnhancedDateRangeSelector';
 import { VersionTable } from '@/components/Schedule/VersionTable';
 import { ScheduleManager } from '@/components/ScheduleManager';
+import { Dashboard } from '@/components/Dashboard';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -210,8 +211,6 @@ export function SchedulePage() {
         const fromStr = format(dateRange.from, 'yyyy-MM-dd');
         const toStr = format(dateRange.to, 'yyyy-MM-dd');
 
-        console.log('🔄 Fetching schedules:', { fromStr, toStr, selectedVersion, includeEmpty });
-
         const response = await getSchedules(
           fromStr,
           toStr,
@@ -219,19 +218,9 @@ export function SchedulePage() {
           includeEmpty
         );
 
-        console.log('📊 Schedule details:', {
-          totalSchedules: response.schedules?.length || 0,
-          schedulesWithShifts: response.schedules?.filter(s => s.shift_id !== null)?.length || 0,
-          uniqueEmployees: [...new Set(response.schedules?.map(s => s.employee_id) || [])].length,
-          firstSchedule: response.schedules?.[0] || 'No schedules found',
-          dateRange: { fromStr, toStr },
-          includeEmpty,
-          selectedVersion
-        });
-
         return response;
       } catch (err) {
-        console.error('❌ Error fetching schedules:', err);
+        console.error('Error fetching schedules:', err);
         throw err;
       }
     },
@@ -261,7 +250,6 @@ export function SchedulePage() {
 
   // Add a retry mechanism for failed data fetches
   const handleRetryFetch = () => {
-    console.log('Retrying data fetch...');
     // Clear any existing errors
     clearGenerationLogs();
     // Force refetch
@@ -302,23 +290,19 @@ export function SchedulePage() {
 
   const updateShiftMutation = useMutation({
     mutationFn: async ({ scheduleId, updates }: { scheduleId: number, updates: ScheduleUpdate }) => {
-      console.log('🔶 updateShiftMutation called with:', { scheduleId, updates });
       addGenerationLog('info', 'Updating shift',
         `Schedule ID: ${scheduleId}, Updates: ${JSON.stringify(updates)}`);
 
       try {
         const response = await updateSchedule(scheduleId, updates);
-        console.log('🔶 updateShiftMutation success:', response);
         return { response, scheduleId, isNew: scheduleId === 0 };
       } catch (error) {
-        console.error('🔶 updateShiftMutation error:', error);
+        console.error('Error updating shift:', error);
         throw error;
       }
     },
     onSuccess: async ({ response, scheduleId, isNew }) => {
       try {
-        console.log('🔶 updateShiftMutation onSuccess - about to refetch:', { response, scheduleId, isNew });
-
         // Wait a brief moment to ensure the backend has processed the update
         await new Promise(resolve => setTimeout(resolve, 100));
 
@@ -327,8 +311,6 @@ export function SchedulePage() {
 
         // Immediately refetch to show updated data
         await refetchScheduleData();
-
-        console.log('🔶 updateShiftMutation onSuccess - refetch completed');
 
         toast({
           title: "Success",
@@ -339,10 +321,9 @@ export function SchedulePage() {
           // For new schedules, log additional details for debugging
           addGenerationLog('info', 'New shift created',
             `New Schedule ID: ${response.id}, Employee ID: ${response.employee_id}, Shift ID: ${response.shift_id}`);
-          console.log('🔶 New shift created:', response);
         }
       } catch (error) {
-        console.error('🔄 Error refetching data after update:', error);
+        console.error('Error refetching data after update:', error);
         // Still show success toast since the update succeeded
         toast({
           title: "Success",
@@ -394,8 +375,6 @@ export function SchedulePage() {
         version: selectedVersion
       });
 
-      console.log(`Updated schedule ${scheduleId} with version ${selectedVersion}`);
-
       // Force invalidate any cached queries
       await queryClient.invalidateQueries({ queryKey: ['schedules'] });
 
@@ -423,8 +402,6 @@ export function SchedulePage() {
         ...updates,
         version: selectedVersion
       };
-
-      console.log('Updating schedule with:', { scheduleId, updates: updatesWithVersion });
 
       // Call the mutation
       await updateShiftMutation.mutateAsync({ scheduleId, updates: updatesWithVersion });
@@ -461,8 +438,6 @@ export function SchedulePage() {
         throw new Error("Settings not loaded");
       }
 
-      console.log('Updating settings with:', updates);
-
       // Create a deep copy of current settings to avoid mutation issues
       const currentSettings = JSON.parse(JSON.stringify(settingsQuery.data));
 
@@ -498,12 +473,6 @@ export function SchedulePage() {
         ...currentSettings.scheduling_advanced.generation_requirements,
         ...updates
       };
-
-      console.log('About to update settings with:', {
-        newSettings: currentSettings,
-        generation: currentSettings.scheduling?.generation_requirements,
-        advanced: currentSettings.scheduling_advanced?.generation_requirements
-      });
 
       // Send the updated settings to the backend
       await updateSettings(currentSettings);
@@ -543,11 +512,6 @@ export function SchedulePage() {
 
   // Convert API Schedule to frontend Schedule
   const convertSchedule = (apiSchedule: APISchedule): Schedule => {
-    // Log for debugging shift_type
-    if (apiSchedule.shift_id && !apiSchedule.shift_type) {
-      console.log('Schedule without shift_type:', apiSchedule);
-    }
-
     return {
       id: apiSchedule.id,
       employee_id: apiSchedule.employee_id,
@@ -562,7 +526,7 @@ export function SchedulePage() {
       break_end: apiSchedule.break_end ?? null,
       notes: apiSchedule.notes ?? null,
       employee_name: undefined,
-      shift_type: apiSchedule.shift_type ?? undefined
+      shift_type_id: apiSchedule.shift_type_id ?? undefined
     };
   };
 
@@ -718,17 +682,6 @@ export function SchedulePage() {
         return;
       }
 
-      // Make sure the date range and version match
-      console.log("📋 Generating schedule with:", {
-        dateRange: {
-          from: dateRange.from.toISOString(),
-          to: dateRange.to.toISOString()
-        },
-        selectedVersion,
-        versionMetas,
-        createEmptySchedules
-      });
-
       // Log detailed information about the generation request
       const formattedFromDate = format(dateRange.from, 'yyyy-MM-dd');
       const formattedToDate = format(dateRange.to, 'yyyy-MM-dd');
@@ -759,7 +712,7 @@ export function SchedulePage() {
       date: dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
       shift_id: null,
       version: selectedVersion || 1,
-      status: 'draft',
+      status: 'DRAFT',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     });
@@ -774,7 +727,7 @@ export function SchedulePage() {
   }) => {
     try {
       const response = await createSchedule(scheduleData);
-      await queryClient.invalidateQueries(['schedules']);
+      await queryClient.invalidateQueries({ queryKey: ['schedules'] });
       toast({
         title: "Erfolg",
         description: "Schichtplan wurde erfolgreich erstellt",
@@ -857,21 +810,17 @@ export function SchedulePage() {
   } | null>(null);
 
   const handleIncludeEmptyChange = (checked: boolean) => {
-    console.log("Toggling includeEmpty:", { from: includeEmpty, to: checked });
     setIncludeEmpty(checked);
     addGenerationLog('info', `Will ${checked ? 'show' : 'hide'} empty schedules`);
   };
 
   const handleCreateEmptyChange = (checked: boolean) => {
-    console.log("Toggling createEmptySchedules:", { from: createEmptySchedules, to: checked });
     setCreateEmptySchedules(checked);
     addGenerationLog('info', `Will ${checked ? 'create' : 'not create'} empty schedules for all employees during generation`);
   };
 
   // Function to handle creating a new version with custom options
   const handleCreateNewVersionWithOptions = (options: { dateRange: DateRange; weekAmount: number }) => {
-    console.log('Creating new version with custom options:', options);
-
     // First update the UI state
     if (options.dateRange.from && options.dateRange.to) {
       setDateRange(options.dateRange);
@@ -888,262 +837,264 @@ export function SchedulePage() {
   };
 
   return (
-    <div className="container mx-auto py-4 space-y-4">
-      <PageHeader title="Dienstplan" className="mb-4">
-        <ScheduleControls
-          onRefresh={handleRetryFetch}
-          onExport={handleExportSchedule}
+    <Dashboard>
+      <div className="container mx-auto py-6 space-y-6">
+        <PageHeader title="Dienstplan" className="mb-4">
+          <ScheduleControls
+            onRefresh={handleRetryFetch}
+            onExport={handleExportSchedule}
+          />
+        </PageHeader>
+
+        {/* Enhanced Date Range Selector with version confirmation */}
+        <EnhancedDateRangeSelector
+          dateRange={dateRange}
+          scheduleDuration={scheduleDuration}
+          onWeekChange={handleWeekChange}
+          onDurationChange={handleDurationChange}
+          hasVersions={versions.length > 0}
+          onCreateNewVersion={handleCreateNewVersion}
+          onCreateNewVersionWithOptions={handleCreateNewVersionWithOptions}
         />
-      </PageHeader>
 
-      {/* Enhanced Date Range Selector with version confirmation */}
-      <EnhancedDateRangeSelector
-        dateRange={dateRange}
-        scheduleDuration={scheduleDuration}
-        onWeekChange={handleWeekChange}
-        onDurationChange={handleDurationChange}
-        hasVersions={versions.length > 0}
-        onCreateNewVersion={handleCreateNewVersion}
-        onCreateNewVersionWithOptions={handleCreateNewVersionWithOptions}
-      />
-
-      {/* Add Schedule Statistics if we have data */}
-      {!isLoading && !isError && convertedSchedules.length > 0 && dateRange?.from && dateRange?.to && (
-        <ScheduleStatistics
-          schedules={convertedSchedules}
-          employees={employees || []}
-          startDate={format(dateRange.from, 'yyyy-MM-dd')}
-          endDate={format(dateRange.to, 'yyyy-MM-dd')}
-        />
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        {/* Generation Settings */}
-        {settingsQuery.data && (
-          <ScheduleGenerationSettings
-            settings={settingsQuery.data}
-            onUpdate={handleSettingsUpdate}
-            createEmptySchedules={createEmptySchedules}
-            includeEmpty={includeEmpty}
-            onCreateEmptyChange={handleCreateEmptyChange}
-            onIncludeEmptyChange={handleIncludeEmptyChange}
-            onGenerateSchedule={handleGenerateSchedule}
-            isGenerating={isGenerationPending}
+        {/* Add Schedule Statistics if we have data */}
+        {!isLoading && !isError && convertedSchedules.length > 0 && dateRange?.from && dateRange?.to && (
+          <ScheduleStatistics
+            schedules={convertedSchedules}
+            employees={employees || []}
+            startDate={format(dateRange.from, 'yyyy-MM-dd')}
+            endDate={format(dateRange.to, 'yyyy-MM-dd')}
           />
         )}
 
-        {/* Version Control */}
-        <VersionControl
-          versions={versions}
-          versionStatuses={data?.version_statuses ?? {}}
-          currentVersion={data?.current_version}
-          versionMeta={data?.version_meta}
-          dateRange={dateRange}
-          onVersionChange={handleVersionChange}
-          onCreateNewVersion={handleCreateNewVersion}
-          onPublishVersion={handlePublishVersion}
-          onArchiveVersion={handleArchiveVersion}
-          onDeleteVersion={handleDeleteVersion}
-          onDuplicateVersion={handleDuplicateVersion}
-          isLoading={isLoadingVersions || isLoadingSchedule}
-          hasError={isError && !!error && !data}
-          schedules={convertedSchedules}
-          onRetry={handleRetryFetch}
-        />
-      </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          {/* Generation Settings */}
+          {settingsQuery.data && (
+            <ScheduleGenerationSettings
+              settings={settingsQuery.data}
+              onUpdate={handleSettingsUpdate}
+              createEmptySchedules={createEmptySchedules}
+              includeEmpty={includeEmpty}
+              onCreateEmptyChange={handleCreateEmptyChange}
+              onIncludeEmptyChange={handleIncludeEmptyChange}
+              onGenerateSchedule={handleGenerateSchedule}
+              isGenerating={isGenerationPending}
+            />
+          )}
 
-      {/* Version Table */}
-      {versionMetas && versionMetas.length > 0 && (
-        <VersionTable
-          versions={versionMetas}
-          selectedVersion={selectedVersion}
-          onSelectVersion={handleVersionChange}
-          onPublishVersion={handlePublishVersion}
-          onArchiveVersion={handleArchiveVersion}
-          onDeleteVersion={handleDeleteVersion}
-          onDuplicateVersion={handleDuplicateVersion}
-        />
-      )}
+          {/* Version Control */}
+          <VersionControl
+            versions={versions}
+            versionStatuses={data?.version_statuses ?? {}}
+            currentVersion={data?.current_version}
+            versionMeta={data?.version_meta}
+            dateRange={dateRange}
+            onVersionChange={handleVersionChange}
+            onCreateNewVersion={handleCreateNewVersion}
+            onPublishVersion={handlePublishVersion}
+            onArchiveVersion={handleArchiveVersion}
+            onDeleteVersion={handleDeleteVersion}
+            onDuplicateVersion={handleDuplicateVersion}
+            isLoading={isLoadingVersions || isLoadingSchedule}
+            hasError={isError && !!error && !data}
+            schedules={convertedSchedules}
+            onRetry={handleRetryFetch}
+          />
+        </div>
 
-      {/* Schedule Actions */}
-      <div className="flex justify-end mb-4">
-        <ScheduleActions
-          onAddSchedule={handleAddScheduleClick}
-          onDeleteSchedule={handleDeleteSchedule}
-          isLoading={isLoadingSchedule || isLoadingVersions || isGenerationPending}
-          canAdd={!!selectedVersion}
-          canDelete={!!selectedVersion && convertedSchedules.length > 0}
-          activeView={activeView}
-          onViewChange={handleViewChange}
-        />
-      </div>
-
-      {/* Schedule Content */}
-      <DndProvider backend={HTML5Backend}>
-        {isLoading ? (
-          <div className="space-y-4">
-            <Skeleton className="h-[200px] w-full" />
-            <Skeleton className="h-[400px] w-full" />
-          </div>
-        ) : isError ? (
-          <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Fehler beim Laden des Dienstplans</AlertTitle>
-            <AlertDescription className="flex flex-col">
-              <div>Failed to fetch schedules: Verbindung zum Server fehlgeschlagen. Bitte überprüfen Sie Ihre Internetverbindung.</div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-2 w-fit"
-                onClick={handleRetryFetch}
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Erneut versuchen
-              </Button>
-            </AlertDescription>
-          </Alert>
-        ) : (
-          <>
-            {scheduleErrors.length > 0 && <ScheduleErrors errors={scheduleErrors} />}
-
-            {convertedSchedules.length === 0 && !isLoading && !isError ? (
-              <Card className="mb-4 border-dashed border-2 border-muted">
-                <CardContent className="flex flex-col items-center justify-center py-8">
-                  <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">Keine Einträge gefunden</h3>
-                  <p className="text-muted-foreground text-center mb-4">
-                    {versions.length === 0
-                      ? "Für den ausgewählten Zeitraum wurde noch keine Version erstellt."
-                      : "Für den ausgewählten Zeitraum wurden keine Schichtplan-Einträge gefunden."}
-                  </p>
-                  {versions.length === 0 ? (
-                    <Button
-                      onClick={handleCreateNewVersion}
-                      disabled={isLoadingVersions || !dateRange?.from || !dateRange?.to}
-                      className="flex items-center gap-2"
-                    >
-                      <Plus className="h-4 w-4" />
-                      Erste Version erstellen
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={handleGenerateSchedule}
-                      disabled={isGenerationPending || !selectedVersion}
-                      className="flex items-center gap-2"
-                    >
-                      {isGenerationPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Plus className="h-4 w-4" />
-                      )}
-                      Schichtplan generieren
-                    </Button>
-                  )}
-                  {!selectedVersion && versions.length > 0 && (
-                    <p className="text-sm text-muted-foreground mt-2">
-                      Bitte wählen Sie eine Version aus, um den Dienstplan zu generieren.
-                    </p>
-                  )}
-                  {(!dateRange?.from || !dateRange?.to) && versions.length === 0 && (
-                    <p className="text-sm text-muted-foreground mt-2">
-                      Bitte wählen Sie einen Datumsbereich aus, um eine Version zu erstellen.
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="relative">
-                <ScheduleManager
-                  schedules={convertedSchedules}
-                  dateRange={dateRange}
-                  onDrop={handleShiftDrop}
-                  onUpdate={handleShiftUpdate}
-                  isLoading={isLoadingSchedule}
-                  employeeAbsences={employeeAbsences}
-                  absenceTypes={settingsData?.employee_groups?.absence_types || []}
-                  activeView={activeView}
-                />
-              </div>
-            )}
-          </>
+        {/* Version Table */}
+        {versionMetas && versionMetas.length > 0 && (
+          <VersionTable
+            versions={versionMetas}
+            selectedVersion={selectedVersion}
+            onSelectVersion={handleVersionChange}
+            onPublishVersion={handlePublishVersion}
+            onArchiveVersion={handleArchiveVersion}
+            onDeleteVersion={handleDeleteVersion}
+            onDuplicateVersion={handleDuplicateVersion}
+          />
         )}
-      </DndProvider>
 
-      {/* Use our extracted components */}
-      <GenerationOverlay
-        generationSteps={generationSteps}
-        generationLogs={generationLogs}
-        showGenerationOverlay={showGenerationOverlay}
-        isPending={isGenerationPending}
-        resetGenerationState={resetGenerationState}
-        addGenerationLog={addGenerationLog}
-      />
+        {/* Schedule Actions */}
+        <div className="flex justify-end mb-4">
+          <ScheduleActions
+            onAddSchedule={handleAddScheduleClick}
+            onDeleteSchedule={handleDeleteSchedule}
+            isLoading={isLoadingSchedule || isLoadingVersions || isGenerationPending}
+            canAdd={!!selectedVersion}
+            canDelete={!!selectedVersion && convertedSchedules.length > 0}
+            activeView={activeView}
+            onViewChange={handleViewChange}
+          />
+        </div>
 
-      <GenerationLogs
-        logs={generationLogs}
-        clearLogs={clearGenerationLogs}
-      />
+        {/* Schedule Content */}
+        <DndProvider backend={HTML5Backend}>
+          {isLoading ? (
+            <div className="space-y-4">
+              <Skeleton className="h-[200px] w-full" />
+              <Skeleton className="h-[400px] w-full" />
+            </div>
+          ) : isError ? (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Fehler beim Laden des Dienstplans</AlertTitle>
+              <AlertDescription className="flex flex-col">
+                <div>Failed to fetch schedules: Verbindung zum Server fehlgeschlagen. Bitte überprüfen Sie Ihre Internetverbindung.</div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 w-fit"
+                  onClick={handleRetryFetch}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Erneut versuchen
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <>
+              {scheduleErrors.length > 0 && <ScheduleErrors errors={scheduleErrors} />}
 
-      {/* Replace AddScheduleDialog with ShiftEditModal */}
-      {isAddScheduleDialogOpen && newSchedule && selectedVersion && (
-        <ShiftEditModal
-          isOpen={isAddScheduleDialogOpen}
-          onClose={() => {
-            setIsAddScheduleDialogOpen(false);
-            setNewSchedule(null);
-          }}
-          schedule={newSchedule}
-          onSave={async (scheduleId, updates) => {
-            await handleCreateSchedule({
-              employee_id: updates.employee_id!,
-              date: updates.date!,
-              shift_id: updates.shift_id!,
-              version: selectedVersion
-            });
-            setIsAddScheduleDialogOpen(false);
-            setNewSchedule(null);
-          }}
-        />
-      )}
-
-      {/* Confirmation Dialog */}
-      {confirmDeleteMessage && (
-        <AlertDialog open={!!confirmDeleteMessage} onOpenChange={(open) => !open && confirmDeleteMessage?.onCancel()}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle className="text-destructive">
-                {confirmDeleteMessage.title}
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                <div className="space-y-2">
-                  <p>{confirmDeleteMessage.message}</p>
-
-                  {confirmDeleteMessage.details && (
-                    <div className="mt-3 text-sm border-l-4 border-destructive pl-3 py-1 bg-destructive/5">
-                      {confirmDeleteMessage.details.map((detail, i) => (
-                        <p key={i}>{detail}</p>
-                      ))}
-                    </div>
-                  )}
-
-                  <p className="mt-3 font-medium text-destructive">
-                    Möchten Sie diesen Vorgang wirklich fortsetzen?
-                  </p>
+              {convertedSchedules.length === 0 && !isLoading && !isError ? (
+                <Card className="mb-4 border-dashed border-2 border-muted">
+                  <CardContent className="flex flex-col items-center justify-center py-8">
+                    <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-medium mb-2">Keine Einträge gefunden</h3>
+                    <p className="text-muted-foreground text-center mb-4">
+                      {versions.length === 0
+                        ? "Für den ausgewählten Zeitraum wurde noch keine Version erstellt."
+                        : "Für den ausgewählten Zeitraum wurden keine Schichtplan-Einträge gefunden."}
+                    </p>
+                    {versions.length === 0 ? (
+                      <Button
+                        onClick={handleCreateNewVersion}
+                        disabled={isLoadingVersions || !dateRange?.from || !dateRange?.to}
+                        className="flex items-center gap-2"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Erste Version erstellen
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={handleGenerateSchedule}
+                        disabled={isGenerationPending || !selectedVersion}
+                        className="flex items-center gap-2"
+                      >
+                        {isGenerationPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Plus className="h-4 w-4" />
+                        )}
+                        Schichtplan generieren
+                      </Button>
+                    )}
+                    {!selectedVersion && versions.length > 0 && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Bitte wählen Sie eine Version aus, um den Dienstplan zu generieren.
+                      </p>
+                    )}
+                    {(!dateRange?.from || !dateRange?.to) && versions.length === 0 && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Bitte wählen Sie einen Datumsbereich aus, um eine Version zu erstellen.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="relative">
+                  <ScheduleManager
+                    schedules={convertedSchedules}
+                    dateRange={dateRange}
+                    onDrop={handleShiftDrop}
+                    onUpdate={handleShiftUpdate}
+                    isLoading={isLoadingSchedule}
+                    employeeAbsences={employeeAbsences}
+                    absenceTypes={settingsData?.employee_groups?.absence_types || []}
+                    activeView={activeView}
+                  />
                 </div>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={confirmDeleteMessage.onConfirm}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                Endgültig löschen
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
-    </div>
+              )}
+            </>
+          )}
+        </DndProvider>
+
+        {/* Use our extracted components */}
+        <GenerationOverlay
+          generationSteps={generationSteps}
+          generationLogs={generationLogs}
+          showGenerationOverlay={showGenerationOverlay}
+          isPending={isGenerationPending}
+          resetGenerationState={resetGenerationState}
+          addGenerationLog={addGenerationLog}
+        />
+
+        <GenerationLogs
+          logs={generationLogs}
+          clearLogs={clearGenerationLogs}
+        />
+
+        {/* Replace AddScheduleDialog with ShiftEditModal */}
+        {isAddScheduleDialogOpen && newSchedule && selectedVersion && (
+          <ShiftEditModal
+            isOpen={isAddScheduleDialogOpen}
+            onClose={() => {
+              setIsAddScheduleDialogOpen(false);
+              setNewSchedule(null);
+            }}
+            schedule={newSchedule}
+            onSave={async (scheduleId, updates) => {
+              await handleCreateSchedule({
+                employee_id: updates.employee_id!,
+                date: updates.date!,
+                shift_id: updates.shift_id!,
+                version: selectedVersion
+              });
+              setIsAddScheduleDialogOpen(false);
+              setNewSchedule(null);
+            }}
+          />
+        )}
+
+        {/* Confirmation Dialog */}
+        {confirmDeleteMessage && (
+          <AlertDialog open={!!confirmDeleteMessage} onOpenChange={(open) => !open && confirmDeleteMessage?.onCancel()}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-destructive">
+                  {confirmDeleteMessage.title}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  <div className="space-y-2">
+                    <p>{confirmDeleteMessage.message}</p>
+
+                    {confirmDeleteMessage.details && (
+                      <div className="mt-3 text-sm border-l-4 border-destructive pl-3 py-1 bg-destructive/5">
+                        {confirmDeleteMessage.details.map((detail, i) => (
+                          <p key={i}>{detail}</p>
+                        ))}
+                      </div>
+                    )}
+
+                    <p className="mt-3 font-medium text-destructive">
+                      Möchten Sie diesen Vorgang wirklich fortsetzen?
+                    </p>
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={confirmDeleteMessage.onConfirm}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Endgültig löschen
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+      </div>
+    </Dashboard>
   );
 } 

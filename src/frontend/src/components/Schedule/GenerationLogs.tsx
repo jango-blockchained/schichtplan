@@ -13,7 +13,13 @@ interface GenerationLogsProps {
 const GenerationLogs: React.FC<GenerationLogsProps> = ({ logs, clearLogs }) => {
     const [isOpen, setIsOpen] = useState(false);
 
-    if (logs.length === 0) return null;
+    // Render content only if there are logs
+    const hasLogs = logs.length > 0;
+
+    // If no logs, render an empty fragment instead of null
+    if (!hasLogs) {
+        return <></>;
+    }
 
     return (
         <Card className="mt-4">

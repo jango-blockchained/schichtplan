@@ -34,7 +34,6 @@ const formulars = [
 export default function FormularsPage() {
     const handleFormularClick = (formularId: string) => {
         // TODO: Implement navigation or modal opening for each formular
-        console.log(`Clicked formular: ${formularId}`);
     };
 
     return (

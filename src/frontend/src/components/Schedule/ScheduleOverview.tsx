@@ -10,7 +10,12 @@ interface ScheduleOverviewProps {
 }
 
 export function ScheduleOverview({ schedules, dateRange, version }: ScheduleOverviewProps) {
-    if (!dateRange?.from || !dateRange?.to) return null;
+    const hasValidDateRange = dateRange?.from && dateRange?.to;
+
+    // If date range is not valid, render an empty fragment
+    if (!hasValidDateRange) {
+        return <></>;
+    }
 
     // Calculate statistics
     const totalShifts = schedules.length;

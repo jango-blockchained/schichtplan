@@ -81,13 +81,6 @@ export const GenerationOverlay: React.FC<GenerationOverlayProps> = ({
             // Call the API to fix shift durations
             const result = await fixShiftDurations();
 
-            // Show success message
-            toast({
-                title: "Schichtdauer berechnet",
-                description: `${result.fixed_count} Schichten wurden aktualisiert. Bitte versuchen Sie erneut, den Dienstplan zu generieren.`,
-                variant: "default",
-            });
-
             // Add a success log
             addGenerationLog("info", "Schichtdauer erfolgreich berechnet",
                 `${result.fixed_count} Schichten wurden aktualisiert. Sie können jetzt den Dienstplan erneut generieren.`);
@@ -111,7 +104,10 @@ export const GenerationOverlay: React.FC<GenerationOverlayProps> = ({
         }
     };
 
-    if (!showGenerationOverlay) return null;
+    // If overlay should not be shown, return an empty fragment instead of null
+    if (!showGenerationOverlay) {
+        return <></>;
+    }
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">

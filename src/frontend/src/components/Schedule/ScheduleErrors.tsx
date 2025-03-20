@@ -10,7 +10,13 @@ interface ScheduleErrorsProps {
 }
 
 const ScheduleErrors: React.FC<ScheduleErrorsProps> = ({ errors }) => {
-    if (!errors || errors.length === 0) return null;
+    // Check if there are any errors to display
+    const hasErrors = errors && errors.length > 0;
+
+    // If no errors, render an empty fragment
+    if (!hasErrors) {
+        return <></>;
+    }
 
     return (
         <Card className="mt-4 border-red-300">

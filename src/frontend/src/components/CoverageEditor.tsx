@@ -1,27 +1,21 @@
-import { useWebSocketEvents } from '@/hooks/useWebSocketEvents';
-import { useQueryClient } from '@tanstack/react-query';
+// This file re-exports the modular coverage-editor component for backward compatibility
+// and simpler migration path for existing code that uses CoverageEditor
 
-export function CoverageEditor({ /* existing props */ }) {
-    const queryClient = useQueryClient();
+import { CoverageEditor as ModularCoverageEditor } from './coverage-editor';
+import { DailyCoverage, StoreConfigProps } from './coverage-editor/types';
 
-    // Add WebSocket event handlers
-    useWebSocketEvents([
-        {
-            eventType: 'coverage_updated',
-            handler: () => {
-                // Invalidate and refetch coverage data when updates occur
-                queryClient.invalidateQueries({ queryKey: ['coverage'] });
-            }
-        },
-        {
-            eventType: 'settings_updated',
-            handler: () => {
-                // Invalidate settings and coverage when store settings change
-                queryClient.invalidateQueries({ queryKey: ['settings'] });
-                queryClient.invalidateQueries({ queryKey: ['coverage'] });
-            }
-        }
-    ]);
+interface CoverageEditorProps {
+    initialCoverage?: DailyCoverage[];
+    storeConfig: StoreConfigProps;
+    onChange?: (coverage: DailyCoverage[]) => void;
+}
 
-    // ... rest of the component code ...
-} 
+export const CoverageEditor = (props: CoverageEditorProps) => {
+    return (
+        <ModularCoverageEditor
+            initialCoverage={props.initialCoverage}
+            storeConfig={props.storeConfig}
+            onChange={props.onChange}
+        />
+    );
+}; 

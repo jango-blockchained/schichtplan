@@ -151,7 +151,10 @@ const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeI
     queryFn: getSettings,
   });
 
-  if (!shift) return null;
+  // Early return moved below all hooks
+  if (!shift) {
+    return null;
+  }
 
   const dailyHours = calculateDailyHours(shift);
   const shiftHours = parseFloat(dailyHours.split(':')[0]) + parseFloat(dailyHours.split(':')[1]) / 60;

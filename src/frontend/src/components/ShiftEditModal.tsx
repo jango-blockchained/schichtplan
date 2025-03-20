@@ -15,7 +15,6 @@ import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { getEmployees, getShifts, checkAvailability, createAbsence, getAbsenceTypes, checkBulkAvailability, subscribeToEvents, unsubscribeFromEvents } from '@/services/api';
 import type { AbsenceType } from '@/services/api';
-import dayjs from 'dayjs';
 
 type ModalType = 'shift' | 'absence';
 
@@ -78,11 +77,80 @@ export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditM
         });
     }) ?? [];
 
-    // Update the checkEmployeeAvailability function
+    // Function to check if an employee has an absence for a given date
+    const hasAbsenceForDate = (employeeId: string, date: Date): boolean => {
+        if (!date || !employees) return false;
+
+        const employee = employees.find(emp => emp.id.toString() === employeeId);
+        if (!employee || !employee.absences || employee.absences.length === 0) return false;
+
+        const dateStr = format(date, 'yyyy-MM-dd');
+
+        // Check for any absence that overlaps with this date (including date ranges)
+        return employee.absences.some(absence => {
+            // Convert absence dates to Date objects for comparison
+            const startDate = absence.start_date ? new Date(absence.start_date) : new Date(absence.date);
+            const endDate = absence.end_date ? new Date(absence.end_date) : startDate;
+            const checkDate = new Date(dateStr);
+
+            // Reset time components for accurate date comparison
+            startDate.setHours(0, 0, 0, 0);
+            endDate.setHours(0, 0, 0, 0);
+            checkDate.setHours(0, 0, 0, 0);
+
+            // Check if the date falls within the absence date range
+            return checkDate >= startDate && checkDate <= endDate;
+        });
+    };
+
+    // Get a human-readable description of the absence for the given date
+    const getAbsenceDescription = (employee: Employee, date?: Date): string => {
+        if (!date || !employee.absences) return "Abwesend";
+
+        const dateStr = format(date, 'yyyy-MM-dd');
+
+        // Find absence for this date
+        const absence = employee.absences.find(abs => {
+            const startDate = abs.start_date ? new Date(abs.start_date) : new Date(abs.date);
+            const endDate = abs.end_date ? new Date(abs.end_date) : startDate;
+            const checkDate = new Date(dateStr);
+
+            startDate.setHours(0, 0, 0, 0);
+            endDate.setHours(0, 0, 0, 0);
+            checkDate.setHours(0, 0, 0, 0);
+
+            return checkDate >= startDate && checkDate <= endDate;
+        });
+
+        if (!absence) return "Abwesend";
+
+        // Format date range for display
+        const start = absence.start_date ? format(new Date(absence.start_date), 'dd.MM') : format(new Date(absence.date), 'dd.MM');
+        const end = absence.end_date ? format(new Date(absence.end_date), 'dd.MM') : start;
+
+        if (start === end) {
+            return `Abwesend am ${start}`;
+        }
+
+        return `Abwesend ${start}-${end}`;
+    };
+
+    // Handle checking employee availability
     const checkEmployeeAvailability = async () => {
         if (!selectedEmployeeId || !selectedDate || !shifts || !Array.isArray(shifts)) {
             setAvailableShifts([]);
             return;
+        }
+
+        // First check if employee has an absence for this date
+        const employee = employees?.find(emp => emp.id.toString() === selectedEmployeeId);
+        if (employee && selectedDate) {
+            const dateStr = format(selectedDate, 'yyyy-MM-dd');
+
+            if (hasAbsenceForDate(selectedEmployeeId, selectedDate)) {
+                setAvailableShifts([]); // No shifts available for absent employees
+                return;
+            }
         }
 
         try {
@@ -99,53 +167,95 @@ export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditM
             const availableShifts = shifts.filter(shift => {
                 const key = `${shift.id}_${format(selectedDate, 'yyyy-MM-dd')}`;
                 const result = bulkCheck[key];
-                return result.is_available ||
+                return result && (result.is_available ||
                     result.availability_type === 'AVAILABLE' ||
                     result.availability_type === 'FIXED' ||
-                    result.availability_type === 'PREFERRED';
+                    result.availability_type === 'PREFERRED');
             });
             setAvailableShifts(availableShifts);
         } catch (error) {
-            console.error('Error checking shift availability:', error);
-            toast({
-                title: "Error",
-                description: "Failed to check shift availability",
-                variant: "destructive",
-            });
-            setAvailableShifts([]);
+            // Fallback to showing all shifts when availability check fails
+            setAvailableShifts(shifts || []);
         }
     };
 
-    // Update the useEffect for checking availability
-    useEffect(() => {
-        const updateAvailableShifts = async () => {
-            if (!selectedEmployeeId || !selectedDate || !shifts || !Array.isArray(shifts)) {
-                setAvailableShifts([]);
-                return;
-            }
+    // Track if employee was manually selected by the user
+    const [userSelectedEmployee, setUserSelectedEmployee] = useState(false);
 
+    // Handle employee selection
+    const handleEmployeeChange = (value: string) => {
+        // Check if this employee has an absence for the selected date
+        if (selectedDate && hasAbsenceForDate(value, selectedDate)) {
+            toast({
+                title: "Nicht verfügbar",
+                description: `Dieser Mitarbeiter hat eine Abwesenheit für den ${format(selectedDate, 'dd.MM.yyyy')}`,
+                variant: "destructive",
+            });
+            return; // Don't select this employee
+        }
+
+        setSelectedEmployeeId(value);
+        setUserSelectedEmployee(true); // Mark that user has manually selected an employee
+        // Reset shift selection when employee changes
+        setSelectedShiftId('');
+    };
+
+    // Handle date selection
+    const handleDateChange = (date: Date | undefined) => {
+        setSelectedDate(date);
+
+        // If the current employee has an absence for this date, clear the selection
+        if (date && selectedEmployeeId && hasAbsenceForDate(selectedEmployeeId, date)) {
+            toast({
+                title: "Mitarbeiter nicht verfügbar",
+                description: `Der ausgewählte Mitarbeiter hat eine Abwesenheit für den ${format(date, 'dd.MM.yyyy')}`,
+                variant: "destructive",
+            });
+            setSelectedEmployeeId('');
+            setUserSelectedEmployee(false);
+        }
+
+        // Reset shift selection when date changes
+        setSelectedShiftId('');
+    };
+
+    // Only run availability check when employee, date and shifts are all available
+    // AND employee was manually selected by the user or loaded from existing schedule
+    useEffect(() => {
+        // Skip availability check if this is a new entry (empty modal) 
+        // and user hasn't selected an employee yet
+        const isNewEntry = !schedule.id;
+        if (isNewEntry && !userSelectedEmployee) {
+            return;
+        }
+
+        // Don't check availability until we have all necessary data
+        // and make sure the employee ID is valid
+        if (!selectedEmployeeId || selectedEmployeeId === '' || !selectedDate || !shifts || !Array.isArray(shifts)) {
+            return;
+        }
+
+        const updateAvailableShifts = async () => {
             setIsCheckingAvailability(true);
             try {
                 await checkEmployeeAvailability();
             } catch (error) {
-                console.error('Error checking shift availability:', error);
-                toast({
-                    title: "Error",
-                    description: "Failed to check shift availability",
-                    variant: "destructive",
-                });
-                setAvailableShifts([]);
+                // Fallback to showing all shifts when availability check fails
+                setAvailableShifts(shifts || []);
             } finally {
                 setIsCheckingAvailability(false);
             }
         };
 
         updateAvailableShifts();
-    }, [selectedEmployeeId, selectedDate, shifts]);
+    }, [selectedEmployeeId, selectedDate, shifts, schedule.id, userSelectedEmployee]);
 
+    // Separate useEffect to initialize the state from the schedule prop
     useEffect(() => {
         if (schedule.employee_id) {
             setSelectedEmployeeId(schedule.employee_id.toString());
+            // If loading from existing schedule, consider it as user-selected
+            setUserSelectedEmployee(true);
         }
         if (schedule.shift_id) {
             setSelectedShiftId(schedule.shift_id.toString());
@@ -157,12 +267,22 @@ export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditM
         setNotes(schedule.notes ?? '');
     }, [schedule]);
 
+    // Event subscription should have the employee ID in the dependency array
     useEffect(() => {
-        // Subscribe to real-time updates
         const handleEvent = (eventType: string, data: unknown) => {
             if (eventType === 'AVAILABILITY_UPDATED' || eventType === 'ABSENCE_UPDATED') {
-                // Refresh availability checks when relevant updates occur
-                checkEmployeeAvailability();
+                // Check if we can perform availability check
+                const isNewEntry = !schedule.id;
+                const shouldCheckAvailability = selectedEmployeeId && (!isNewEntry || userSelectedEmployee);
+
+                // Always call this function, but it will have an early return if conditions aren't met
+                if (shouldCheckAvailability) {
+                    try {
+                        checkEmployeeAvailability();
+                    } catch (error) {
+                        // Silent error handling to prevent UI disruption
+                    }
+                }
             }
         };
 
@@ -171,7 +291,7 @@ export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditM
         return () => {
             unsubscribeFromEvents(['AVAILABILITY_UPDATED', 'ABSENCE_UPDATED']);
         };
-    }, []);
+    }, [selectedEmployeeId, schedule.id, userSelectedEmployee]);
 
     const handleSave = async () => {
         if (!selectedDate || !selectedEmployeeId || !selectedShiftId) {
@@ -268,6 +388,7 @@ export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditM
                                 setModalType(value);
                                 // Reset form when changing type
                                 setSelectedEmployeeId('');
+                                setUserSelectedEmployee(false);
                                 setSelectedShiftId('');
                                 setAbsenceType('');
                                 setStartTime('');
@@ -308,12 +429,7 @@ export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditM
                                         <Calendar
                                             mode="single"
                                             selected={selectedDate}
-                                            onSelect={(date) => {
-                                                setSelectedDate(date);
-                                                // Reset employee and shift selection when date changes
-                                                setSelectedEmployeeId('');
-                                                setSelectedShiftId('');
-                                            }}
+                                            onSelect={handleDateChange}
                                             initialFocus
                                         />
                                     </PopoverContent>
@@ -325,22 +441,38 @@ export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditM
                                 <Label htmlFor="employee">Mitarbeiter</Label>
                                 <Select
                                     value={selectedEmployeeId}
-                                    onValueChange={(value) => {
-                                        setSelectedEmployeeId(value);
-                                        // Reset shift selection when employee changes
-                                        setSelectedShiftId('');
-                                    }}
+                                    onValueChange={handleEmployeeChange}
                                     disabled={!selectedDate}
                                 >
                                     <SelectTrigger>
                                         <SelectValue placeholder={selectedDate ? "Mitarbeiter auswählen" : "Bitte zuerst Datum wählen"} />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {availableEmployees.map((employee) => (
-                                            <SelectItem key={employee.id} value={employee.id.toString()}>
-                                                {employee.first_name} {employee.last_name}
-                                            </SelectItem>
-                                        ))}
+                                        {employees?.map((employee) => {
+                                            // Check if employee has absence on selected date
+                                            const hasAbsence = selectedDate ? hasAbsenceForDate(employee.id.toString(), selectedDate) : false;
+
+                                            // Add visual indicators for unavailable employees
+                                            return (
+                                                <SelectItem
+                                                    key={employee.id}
+                                                    value={employee.id.toString()}
+                                                    disabled={hasAbsence}
+                                                    className={cn(
+                                                        hasAbsence && "text-destructive opacity-70 line-through"
+                                                    )}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <span>{employee.first_name} {employee.last_name}</span>
+                                                        {hasAbsence && (
+                                                            <span className="inline-flex items-center rounded-md bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive">
+                                                                {getAbsenceDescription(employee, selectedDate)}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </SelectItem>
+                                            );
+                                        })}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -426,7 +558,7 @@ export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditM
                                         <Calendar
                                             mode="single"
                                             selected={selectedDate}
-                                            onSelect={setSelectedDate}
+                                            onSelect={handleDateChange}
                                             initialFocus
                                         />
                                     </PopoverContent>
@@ -438,17 +570,37 @@ export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditM
                                 <Label htmlFor="employee">Mitarbeiter</Label>
                                 <Select
                                     value={selectedEmployeeId}
-                                    onValueChange={setSelectedEmployeeId}
+                                    onValueChange={handleEmployeeChange}
                                 >
                                     <SelectTrigger>
                                         <SelectValue placeholder="Mitarbeiter auswählen" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {employees?.map((employee) => (
-                                            <SelectItem key={employee.id} value={employee.id.toString()}>
-                                                {employee.first_name} {employee.last_name}
-                                            </SelectItem>
-                                        ))}
+                                        {employees?.map((employee) => {
+                                            // Check if employee has absence on selected date
+                                            const hasAbsence = selectedDate ? hasAbsenceForDate(employee.id.toString(), selectedDate) : false;
+
+                                            // Add visual indicators for unavailable employees
+                                            return (
+                                                <SelectItem
+                                                    key={employee.id}
+                                                    value={employee.id.toString()}
+                                                    disabled={hasAbsence}
+                                                    className={cn(
+                                                        hasAbsence && "text-destructive opacity-70 line-through"
+                                                    )}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <span>{employee.first_name} {employee.last_name}</span>
+                                                        {hasAbsence && (
+                                                            <span className="inline-flex items-center rounded-md bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive">
+                                                                {getAbsenceDescription(employee, selectedDate)}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </SelectItem>
+                                            );
+                                        })}
                                     </SelectContent>
                                 </Select>
                             </div>

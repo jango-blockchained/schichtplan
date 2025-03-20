@@ -1,8 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import type { Settings, Employee, ScheduleError, ScheduleUpdate, DailyCoverage, CoverageTimeSlot } from '@/types/index';
 import { CreateEmployeeRequest, UpdateEmployeeRequest } from '../types';
-import { Manager } from 'socket.io-client';
-import type { Socket } from 'socket.io-client';
+import { Manager, Socket } from 'socket.io-client';
 
 interface APIErrorResponse {
     error?: string;
@@ -56,10 +55,9 @@ const api = axios.create({
     validateStatus: status => status >= 200 && status < 300
 });
 
-// Add request interceptor for debugging
+// Remove request interceptor for debugging
 api.interceptors.request.use(
     (config) => {
-        console.log('Making request to:', config.url);
         return config;
     },
     (error) => {
@@ -68,19 +66,11 @@ api.interceptors.request.use(
     }
 );
 
-// Add response interceptor to handle common errors
+// Simplify response interceptor to remove heavy logging
 api.interceptors.response.use(
     (response) => {
-        // Log successful responses for debugging
-        console.log('Response received from:', response.config?.url, {
-            status: response.status,
-            headers: response.headers,
-            data: response.data
-        });
-
         // Check if response has data
         if (response.data === undefined || response.data === null) {
-            console.warn('Empty response received from:', response.config?.url);
             // Return empty object for GET requests, undefined for others
             return {
                 ...response,
@@ -95,24 +85,8 @@ api.interceptors.response.use(
             || error.message
             || 'Ein unerwarteter Fehler ist aufgetreten';
 
-        // Log the full error details for debugging
-        const errorDetails = {
-            message: errorMessage,
-            status: error.response?.status,
-            data: error.response?.data,
-            url: error.config?.url,
-            method: error.config?.method,
-            headers: error.response?.headers
-        };
-
-        console.error('API Error Details:', JSON.stringify(errorDetails, null, 2));
-
         // Check if it's a network error (no response received)
         if (!error.response) {
-            console.error('Network error details:', JSON.stringify({
-                request: error.request,
-                config: error.config
-            }, null, 2));
             throw new Error('Verbindung zum Server fehlgeschlagen. Bitte überprüfen Sie Ihre Internetverbindung.');
         }
 
@@ -326,21 +300,21 @@ export const getSchedules = async (
     includeEmpty: boolean = false
 ): Promise<ScheduleResponse> => {
     try {
-        console.log('🟩 getSchedules called with:', { startDate, endDate, version, includeEmpty });
+        const params = new URLSearchParams();
+        params.append('start_date', startDate);
+        params.append('end_date', endDate);
 
-        const response = await api.get('/schedules/', {
-            params: {
-                start_date: startDate,
-                end_date: endDate,
-                version,
-                include_empty: includeEmpty,
-            },
-        });
+        if (version !== undefined) {
+            params.append('version', version.toString());
+        }
 
-        console.log('🟩 getSchedules response:', response.data);
+        if (includeEmpty) {
+            params.append('include_empty', 'true');
+        }
+
+        const response = await api.get(`/schedules/?${params.toString()}`);
         return response.data;
     } catch (error) {
-        console.error('🟩 getSchedules error:', error);
         if (error instanceof Error) {
             throw new Error(`Failed to fetch schedules: ${error.message}`);
         }
@@ -355,141 +329,14 @@ export const generateSchedule = async (
     version: number
 ): Promise<ScheduleResponse> => {
     try {
-        console.log('📆 Generating schedule with parameters:', {
-            startDate,
-            endDate,
-            createEmptySchedules,
-            version,
-            timestamp: new Date().toISOString()
-        });
-
-        // Get all shifts to validate they have durations
-        const shiftsResponse = await api.get<Shift[]>('/shifts/');
-        let shifts = shiftsResponse.data;
-
-        console.log(`📊 Loaded ${shifts.length} shifts from the server`);
-
-        // Check for shifts with missing or invalid duration_hours
-        const invalidShifts = shifts.filter(
-            shift => shift.duration_hours === null ||
-                shift.duration_hours === undefined ||
-                isNaN(shift.duration_hours) ||
-                shift.duration_hours <= 0
-        );
-
-        if (invalidShifts.length > 0) {
-            console.warn(`⚠️ Found ${invalidShifts.length} shifts with missing or invalid duration_hours:`,
-                invalidShifts.map(s => ({ id: s.id, start: s.start_time, end: s.end_time }))
-            );
-
-            // Try to fix shifts with missing duration_hours
-            if (invalidShifts.length > 0) {
-                console.warn('🔧 Attempting to fix shifts with missing duration_hours using dedicated endpoint');
-
-                try {
-                    // Use the dedicated endpoint to fix all shifts at once
-                    const fixResult = await fixShiftDurations();
-                    console.log('✅ Fixed shift durations:', fixResult);
-                } catch (fixError) {
-                    console.error('❌ Error using fix-durations endpoint:', fixError);
-
-                    // Fall back to the old method of fixing shifts one by one
-                    console.warn('Falling back to fixing shifts one by one');
-
-                    // Fix each invalid shift by calculating duration_hours
-                    for (const shift of invalidShifts) {
-                        try {
-                            // Parse start and end times
-                            const [startHour, startMinute] = shift.start_time.split(':').map(Number);
-                            const [endHour, endMinute] = shift.end_time.split(':').map(Number);
-
-                            if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) {
-                                console.error(`Invalid time format for shift ${shift.id}: ${shift.start_time} - ${shift.end_time}`);
-                                continue;
-                            }
-
-                            // Convert times to minutes for easier calculation
-                            const startMinutes = startHour * 60 + startMinute;
-                            const endMinutes = endHour * 60 + endMinute;
-
-                            // Handle overnight shifts
-                            let durationMinutes = endMinutes - startMinutes;
-                            if (durationMinutes < 0) {
-                                durationMinutes += 24 * 60; // Add 24 hours for overnight shifts
-                            }
-
-                            // Convert to decimal hours
-                            const finalDuration = durationMinutes / 60;
-
-                            console.log(`Calculated duration for shift ${shift.id}: ${finalDuration} hours (from ${shift.start_time} to ${shift.end_time})`);
-
-                            // Update the shift with the calculated duration
-                            await updateShift({
-                                id: shift.id,
-                                duration_hours: finalDuration
-                            });
-
-                            console.log(`Updated shift ${shift.id} with duration_hours = ${finalDuration}`);
-                        } catch (calcError) {
-                            console.error(`Failed to calculate duration for shift ${shift.id}:`, calcError);
-                        }
-                    }
-                }
-
-                // Fetch shifts again to make sure we have the updated data
-                const updatedShiftsResponse = await api.get<Shift[]>('/shifts/');
-                shifts = updatedShiftsResponse.data;
-                console.log(`📊 Reloaded ${shifts.length} shifts after fixing durations`);
-
-                // Check if we still have invalid shifts
-                const remainingInvalidShifts = shifts.filter(shift =>
-                    shift.duration_hours === null ||
-                    shift.duration_hours === undefined ||
-                    isNaN(shift.duration_hours)
-                );
-
-                if (remainingInvalidShifts.length > 0) {
-                    console.error('❌ Still have invalid shifts after attempting to fix:',
-                        remainingInvalidShifts.map(s => ({ id: s.id, start: s.start_time, end: s.end_time }))
-                    );
-                    throw new Error('Einige Schichten haben immer noch keine gültige Dauer. Bitte überprüfen Sie die Schichteinstellungen manuell.');
-                }
-            }
-        }
-
-        // Now generate the schedule
-        console.log('🚀 Calling backend /schedules/generate endpoint with:', {
+        const response = await api.post('/schedules/generate/', {
             start_date: startDate,
             end_date: endDate,
             create_empty_schedules: createEmptySchedules,
-            version: version,
+            version
         });
-
-        const response = await api.post<ScheduleResponse>('/schedules/generate', {
-            start_date: startDate,
-            end_date: endDate,
-            create_empty_schedules: createEmptySchedules,
-            version: version,
-        });
-
-        // Log generation success details
-        console.log('✅ Schedule generation successful:', {
-            'Total schedules': response.data.schedules?.length || 0,
-            'With shift_id': response.data.schedules?.filter(s => s.shift_id !== null).length || 0,
-            'Empty schedules': response.data.schedules?.filter(s => s.shift_id === null).length || 0,
-            'With shift_type': response.data.schedules?.filter(s => s.availability_type).length || 0,
-            'Unique employee count': new Set(response.data.schedules?.map(s => s.employee_id)).size,
-            'Error count': response.data.errors?.length || 0
-        });
-
-        if (response.data.errors && response.data.errors.length > 0) {
-            console.warn('⚠️ Schedule generation completed with errors:', response.data.errors);
-        }
-
         return response.data;
     } catch (error) {
-        console.error('❌ Schedule generation error:', error);
-
         if (error instanceof Error) {
             throw new Error(`Failed to generate schedule: ${error.message}`);
         }
@@ -636,37 +483,23 @@ export const checkAvailability = async (
 };
 
 export const updateEmployeeAvailability = async (employeeId: number, availabilities: Omit<EmployeeAvailability, 'id' | 'created_at' | 'updated_at'>[]) => {
-    const response = await api.put(`/employees/${employeeId}/availabilities`, availabilities);
-    return response.data;
+    try {
+        const response = await api.put(`/employees/${employeeId}/availabilities`, availabilities);
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to update employee availability: ${error.message}`);
+        }
+        throw error;
+    }
 };
 
 export const updateSchedule = async (scheduleId: number, update: ScheduleUpdate): Promise<Schedule> => {
     try {
-        console.log('🟩 updateSchedule API call:', {
-            scheduleId,
-            update,
-            shift_id_type: update.shift_id === null ? 'null' : (update.shift_id === undefined ? 'undefined' : typeof update.shift_id)
-        });
-
-        // Use the new /schedules/update/ endpoint with POST method
-        const url = `/schedules/update/${scheduleId}`;
-        console.log('🔴 Making API request to:', API_BASE_URL + url);
-
-        const response = await api.post<Schedule>(url, update);
-        console.log('🔴 updateSchedule API response:', response.data);
-
+        const url = `/schedules/${scheduleId}/`;
+        const response = await api.put(url, update);
         return response.data;
     } catch (error) {
-        console.error('🔴 updateSchedule API error:', error);
-        // Log more details about the error
-        if (error && typeof error === 'object' && 'response' in error) {
-            console.error('🔴 API error details:', {
-                status: (error as any).response?.status,
-                statusText: (error as any).response?.statusText,
-                data: (error as any).response?.data
-            });
-        }
-
         if (error instanceof Error) {
             throw new Error(`Failed to update schedule: ${error.message}`);
         }
@@ -713,11 +546,8 @@ export const updateCoverage = async (coverage: DailyCoverage[]): Promise<void> =
             }))
         }));
 
-        console.log('Sending coverage data:', formattedCoverage);
         const response = await api.post('/coverage/bulk', formattedCoverage);
-        console.log('Coverage update response:', response.data);
     } catch (error) {
-        console.error('Error updating coverage:', error);
         if (error instanceof Error) {
             throw new Error(`Failed to update coverage: ${error.message}`);
         }
@@ -801,13 +631,22 @@ export interface AbsenceType {
 
 export const getAbsenceTypes = async (): Promise<AbsenceType[]> => {
     try {
-        const response = await api.get<{ absence_types: AbsenceType[] }>('/settings/');
-        return response.data.absence_types;
-    } catch (error) {
-        if (error instanceof Error) {
-            throw new Error(`Failed to fetch absence types: ${error.message}`);
+        const response = await api.get<Settings>('/settings/');
+
+        // Check if absence_types exist in employee_groups
+        if (response.data &&
+            response.data.employee_groups &&
+            Array.isArray(response.data.employee_groups.absence_types)) {
+            return response.data.employee_groups.absence_types;
         }
-        throw error;
+
+        // Fallback to empty array with a console warning
+        console.warn('No absence types found in settings response');
+        return [];
+    } catch (error) {
+        // Log the error but return a fallback empty array instead of throwing
+        console.error('Error fetching absence types:', error);
+        return [];
     }
 };
 
@@ -1034,21 +873,9 @@ export interface CreateVersionResponse {
 
 export const createNewVersion = async (data: CreateVersionRequest): Promise<CreateVersionResponse> => {
     try {
-        console.log('🔵 Creating new version with data:', data);
-        console.log('🔵 API base URL:', API_BASE_URL);
-        const response = await api.post<CreateVersionResponse>('/schedules/version', data);
-        console.log('🔵 Create new version response:', response.data);
+        const response = await api.post('/versions/', data);
         return response.data;
     } catch (error) {
-        console.error('🔴 Create new version error:', error);
-        // Log more details about the error
-        if (error && typeof error === 'object' && 'response' in error) {
-            console.error('🔴 API error details:', {
-                status: (error as any).response?.status,
-                statusText: (error as any).response?.statusText,
-                data: (error as any).response?.data
-            });
-        }
         if (error instanceof Error) {
             throw new Error(`Failed to create new version: ${error.message}`);
         }
@@ -1230,12 +1057,9 @@ export interface CreateScheduleRequest {
 
 export const createSchedule = async (data: CreateScheduleRequest): Promise<Schedule> => {
     try {
-        console.log('Creating new schedule with data:', data);
-        const response = await api.post<Schedule>('/schedules/', data);
-        console.log('Schedule created successfully:', response.data);
+        const response = await api.post('/schedules/', data);
         return response.data;
     } catch (error) {
-        console.error('Failed to create schedule:', error);
         if (error instanceof Error) {
             throw new Error(`Failed to create schedule: ${error.message}`);
         }
@@ -1288,13 +1112,35 @@ interface BulkAvailabilityResponse {
 
 export const checkBulkAvailability = async (data: BulkAvailabilityCheck): Promise<BulkAvailabilityResponse> => {
     try {
-        const response = await api.post<BulkAvailabilityResponse>('/availability/check/bulk', data);
+        const response = await api.post('/availability/bulk_check/', data);
         return response.data;
     } catch (error) {
+        // Return empty dataset on failure rather than throwing
         if (error instanceof Error) {
-            throw new Error(`Failed to check bulk availability: ${error.message}`);
+            // Create a fallback response with all shifts marked as available
+            const fallbackResponse: BulkAvailabilityResponse = {};
+
+            // If data and shifts are available, create a fallback response
+            if (data && data.shifts && Array.isArray(data.shifts)) {
+                data.shifts.forEach(shift => {
+                    const key = `${shift.shift_id}_${shift.date}`;
+                    fallbackResponse[key] = {
+                        is_available: true,
+                        availability_type: 'AVAILABLE',
+                        reason: 'Fallback availability due to API error'
+                    };
+                });
+            }
+
+            // Log error message but don't throw
+            console.error(`Availability check error: ${error.message}`);
+
+            // Return fallback data
+            return fallbackResponse;
         }
-        throw error;
+
+        // For unknown errors, return empty object
+        return {};
     }
 };
 
@@ -1305,7 +1151,7 @@ export interface WebSocketEvent {
 }
 
 // WebSocket connection
-let socket: Socket | null = null;
+let socket: any = null;
 
 export const initializeWebSocket = () => {
     if (!socket) {
@@ -1315,17 +1161,19 @@ export const initializeWebSocket = () => {
         });
         socket = manager.socket('/');
 
-        socket.on('connect', () => {
-            console.log('WebSocket connected');
-        });
+        if (socket) {
+            socket.on('connect', () => {
+                // Remove console log
+            });
 
-        socket.on('disconnect', () => {
-            console.log('WebSocket disconnected');
-        });
+            socket.on('disconnect', () => {
+                // Remove console log
+            });
 
-        socket.on('error', (error: Error) => {
-            console.error('WebSocket error:', error);
-        });
+            socket.on('error', (error: Error) => {
+                console.error('WebSocket error:', error);
+            });
+        }
     }
     return socket;
 };
@@ -1333,10 +1181,12 @@ export const initializeWebSocket = () => {
 export const subscribeToEvents = (eventTypes: string[], callback: (eventType: string, data: unknown) => void) => {
     const socket = initializeWebSocket();
 
-    eventTypes.forEach(eventType => {
-        socket.emit('subscribe', { event_type: eventType });
-        socket.on(eventType, (data: unknown) => callback(eventType, data));
-    });
+    if (socket) {
+        eventTypes.forEach(eventType => {
+            socket.emit('subscribe', { event_type: eventType });
+            socket.on(eventType, (data: unknown) => callback(eventType, data));
+        });
+    }
 };
 
 export const unsubscribeFromEvents = (eventTypes: string[]) => {

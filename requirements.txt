@@ -16,6 +16,9 @@ SQLAlchemy==2.0.25
 gunicorn==21.2.0 
 ruff==0.9.7
 cloc==0.2.5
+flask-socketio==5.3.6
+eventlet==0.34.2
+PyJWT==2.8.0
 
 # For SQL
 harlequin

@@ -10,10 +10,15 @@ from pathlib import Path
 
 # Add the current directory to the Python path
 current_dir = Path(__file__).resolve().parent
+parent_dir = current_dir.parent.parent  # Add parent directory to access modules
 if str(current_dir) not in sys.path:
     sys.path.append(str(current_dir))
+if str(parent_dir) not in sys.path:
+    sys.path.append(str(parent_dir))
 
-from app import create_app
+# Use absolute imports
+from src.backend.app import create_app
+from src.backend.websocket import socketio
 from werkzeug.serving import is_running_from_reloader
 
 
@@ -154,5 +159,5 @@ if __name__ == "__main__":
             exit(1)
 
     app = create_app()
-    print(f"Starting server on {host}:{port}")
-    app.run(debug=True, host=host, port=port)
+    print(f"Starting socketio server on {host}:{port}")
+    socketio.run(app, host=host, port=port, debug=True)

@@ -1,6 +1,8 @@
 from flask import Blueprint, jsonify, request
 from models import db, ShiftTemplate
 from models.fixed_shift import ShiftValidationError, ShiftType
+from services.event_service import emit_shift_template_updated
+from datetime import datetime
 
 shifts = Blueprint("shifts", __name__)
 
@@ -38,6 +40,18 @@ def create_shift():
 
         db.session.add(shift)
         db.session.commit()
+
+        # Emit WebSocket event
+        try:
+            emit_shift_template_updated(
+                {
+                    "action": "create",
+                    "shift_id": shift.id,
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
+        except Exception as e:
+            print(f"Error emitting shift_template_updated event: {str(e)}")
 
         return jsonify(shift.to_dict()), 201
 
@@ -94,6 +108,19 @@ def update_shift(shift_id):
         shift.validate()
 
         db.session.commit()
+
+        # Emit WebSocket event
+        try:
+            emit_shift_template_updated(
+                {
+                    "action": "update",
+                    "shift_id": shift.id,
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
+        except Exception as e:
+            print(f"Error emitting shift_template_updated event: {str(e)}")
+
         return jsonify(shift.to_dict())
 
     except ShiftValidationError as e:
@@ -113,6 +140,19 @@ def delete_shift(shift_id):
     try:
         db.session.delete(shift)
         db.session.commit()
+
+        # Emit WebSocket event
+        try:
+            emit_shift_template_updated(
+                {
+                    "action": "delete",
+                    "shift_id": shift_id,
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
+        except Exception as e:
+            print(f"Error emitting shift_template_updated event: {str(e)}")
+
         return "", 204
 
     except Exception as e:
@@ -122,30 +162,38 @@ def delete_shift(shift_id):
 
 @shifts.route("/shifts/fix-durations", methods=["POST"])
 def fix_shift_durations():
-    """Fix all shifts with missing duration_hours"""
+    """Fix shift durations for all shifts"""
     try:
-        # Get all shifts
         shifts = ShiftTemplate.query.all()
+        fixed_shifts = []
 
-        # Count of fixed shifts
-        fixed_count = 0
-
-        # Check each shift
         for shift in shifts:
             if shift.duration_hours is None or shift.duration_hours <= 0:
-                # Calculate duration
                 shift._calculate_duration()
-                fixed_count += 1
+                fixed_shifts.append(shift.id)
 
-        # Commit changes
         db.session.commit()
+
+        # Emit WebSocket event if shifts were fixed
+        if fixed_shifts:
+            try:
+                emit_shift_template_updated(
+                    {
+                        "action": "batch_update",
+                        "shift_ids": fixed_shifts,
+                        "timestamp": datetime.utcnow().isoformat(),
+                    }
+                )
+            except Exception as e:
+                print(f"Error emitting shift_template_updated event: {str(e)}")
 
         return jsonify(
             {
-                "message": f"Fixed {fixed_count} shifts with missing duration_hours",
-                "fixed_count": fixed_count,
+                "message": f"Fixed durations for {len(fixed_shifts)} shifts",
+                "fixed_shifts": fixed_shifts,
             }
-        ), 200
+        )
+
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500

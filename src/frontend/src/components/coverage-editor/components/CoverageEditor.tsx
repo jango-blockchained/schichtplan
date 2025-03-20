@@ -76,8 +76,22 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
     // Normalize store config
     const storeConfig = normalizeStoreConfig(rawStoreConfig);
 
-    const [openingMinEmployees, setOpeningMinEmployees] = useState(storeConfig.min_employees_per_shift);
-    const [closingMinEmployees, setClosingMinEmployees] = useState(storeConfig.min_employees_per_shift);
+    // Initialize state using the useMemo hook to ensure consistent values
+    const initialEmployeesState = React.useMemo(() => {
+        return {
+            openingMinEmployees: storeConfig.min_employees_per_shift,
+            closingMinEmployees: storeConfig.min_employees_per_shift
+        };
+    }, [storeConfig.min_employees_per_shift]);
+
+    const [openingMinEmployees, setOpeningMinEmployees] = useState(initialEmployeesState.openingMinEmployees);
+    const [closingMinEmployees, setClosingMinEmployees] = useState(initialEmployeesState.closingMinEmployees);
+
+    // Update state when storeConfig changes
+    useEffect(() => {
+        setOpeningMinEmployees(storeConfig.min_employees_per_shift);
+        setClosingMinEmployees(storeConfig.min_employees_per_shift);
+    }, [storeConfig.min_employees_per_shift]);
 
     // Calculate opening days from settings
     const openingDays = React.useMemo(() => {

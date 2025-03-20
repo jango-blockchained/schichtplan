@@ -159,59 +159,15 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
     };
 
     useEffect(() => {
-        if (isResizing) {
-            window.addEventListener('mousemove', handleResizeMove);
-            window.addEventListener('mouseup', handleResizeEnd);
-            return () => {
-                window.removeEventListener('mousemove', handleResizeMove);
-                window.removeEventListener('mouseup', handleResizeEnd);
-            };
-        }
-    }, [isResizing]);
+        // Always set up listeners but conditionally add actual handlers
+        window.addEventListener('mousemove', handleResizeMove);
+        window.addEventListener('mouseup', handleResizeEnd);
 
-    // Debug logging
-    console.log("Block Timing:", {
-        snappedStartTime,
-        snappedEndTime,
-        gridStartMinutes,
-        startMinutes,
-        endMinutes,
-        keyholderBeforeMinutes,
-        keyholderAfterMinutes,
-        startOffset,
-        blockWidth
-    });
-
-    useEffect(() => {
-        if (blockRef.current) {
-            const computedStyle = window.getComputedStyle(blockRef.current);
-            console.log("CSS Properties - Position Exact:", {
-                left: computedStyle.left,
-                top: computedStyle.top,
-                width: computedStyle.width,
-                height: computedStyle.height,
-                zIndex: computedStyle.zIndex,
-                opacity: computedStyle.opacity,
-                transform: computedStyle.transform,
-                pointerEvents: computedStyle.pointerEvents
-            });
-        }
-    }, [isDragging, isResizing, isEditing, blockWidth, startOffset]);
-
-    useEffect(() => {
-        if (blockRef.current) {
-            console.log("CSS Properties - Position Relative:", {
-                left: `${TIME_COLUMN_WIDTH + startOffset}px`,
-                width: `${blockWidth}px`,
-                height: `${CELL_HEIGHT - BLOCK_VERTICAL_PADDING * 2}px`,
-                top: `${BLOCK_VERTICAL_PADDING}px`,
-                opacity: isDragging ? 0.5 : 1,
-                zIndex: isResizing ? 10 : isDragging ? 20 : 1,
-                transform: isDragging ? 'scale(1.02)' : 'scale(1)',
-                pointerEvents: isEditing ? 'all' : 'none'
-            });
-        }
-    }, [isDragging, isResizing, isEditing, blockWidth, startOffset]);
+        return () => {
+            window.removeEventListener('mousemove', handleResizeMove);
+            window.removeEventListener('mouseup', handleResizeEnd);
+        };
+    }, [handleResizeMove, handleResizeEnd]);
 
     return (
         <>

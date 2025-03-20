@@ -33,6 +33,7 @@ from utils.logger import (
     Logger,
     CustomFormatter,
 )  # Import Logger class and CustomFormatter
+from src.backend.websocket import socketio  # Use absolute import
 
 # Import diagnostic tools
 try:
@@ -71,6 +72,9 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
+    # Set the JWT secret key for WebSocket authentication
+    app.config["JWT_SECRET_KEY"] = app.config.get("SECRET_KEY", "your-secret-key")
+
     # Configure CORS
     CORS(
         app,
@@ -93,6 +97,9 @@ def create_app(config_class=Config):
         os.path.dirname(os.path.dirname(__file__)), "instance", "migrations"
     )
     migrate = Migrate(app, db, directory=migrations_dir)
+
+    # Initialize SocketIO with the Flask app
+    socketio.init_app(app, cors_allowed_origins="*", async_mode=None)
 
     # Ensure the instance folder exists
     try:
@@ -148,6 +155,13 @@ def create_app(config_class=Config):
                 "port": request.environ.get("SERVER_PORT", 5000),
             }
         )
+
+    # WebSocket test page
+    @app.route("/websocket-test", methods=["GET"])
+    def websocket_test():
+        from flask import render_template
+
+        return render_template("websocket_test.html")
 
     @app.errorhandler(Exception)
     def handle_error(error):
@@ -241,4 +255,4 @@ def create_app(config_class=Config):
 
 if __name__ == "__main__":
     app = create_app()
-    app.run(debug=True)
+    socketio.run(app, debug=True)  # Use socketio.run instead of app.run

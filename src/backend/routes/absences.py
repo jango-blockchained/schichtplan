@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from models import db, Absence, Employee
 from datetime import datetime
-from http import HTTPStatus
+from services.event_service import emit_absence_updated
 
 bp = Blueprint("absences", __name__)
 
@@ -39,6 +39,20 @@ def create_absence(employee_id):
 
     try:
         db.session.commit()
+
+        # Emit WebSocket event
+        try:
+            emit_absence_updated(
+                {
+                    "action": "create",
+                    "absence_id": absence.id,
+                    "employee_id": employee_id,
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
+        except Exception as e:
+            print(f"Error emitting absence_updated event: {str(e)}")
+
         return jsonify(absence.to_dict()), 201
     except Exception as e:
         db.session.rollback()
@@ -54,6 +68,20 @@ def delete_absence(employee_id, absence_id):
     try:
         db.session.delete(absence)
         db.session.commit()
+
+        # Emit WebSocket event
+        try:
+            emit_absence_updated(
+                {
+                    "action": "delete",
+                    "absence_id": absence_id,
+                    "employee_id": employee_id,
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
+        except Exception as e:
+            print(f"Error emitting absence_updated event: {str(e)}")
+
         return "", 204
     except Exception as e:
         db.session.rollback()
@@ -86,6 +114,20 @@ def update_absence(employee_id, absence_id):
 
     try:
         db.session.commit()
+
+        # Emit WebSocket event
+        try:
+            emit_absence_updated(
+                {
+                    "action": "update",
+                    "absence_id": absence_id,
+                    "employee_id": employee_id,
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
+        except Exception as e:
+            print(f"Error emitting absence_updated event: {str(e)}")
+
         return jsonify(absence.to_dict())
     except Exception as e:
         db.session.rollback()
@@ -100,61 +142,92 @@ def manage_batch_absences():
     try:
         operations = data.get("operations", [])
         results = {"created": [], "updated": [], "deleted": [], "errors": []}
+        affected_employees = set()
 
-        for operation in operations:
+        for op in operations:
+            operation_type = op.get("operation")
+            absence_data = op.get("data", {})
+
             try:
-                op_type = operation["type"]
-                absence_data = operation["data"]
-
-                if op_type == "create":
-                    absence = Absence(
-                        employee_id=absence_data["employee_id"],
-                        date=datetime.strptime(absence_data["date"], "%Y-%m-%d").date(),
-                        type=absence_data["type"],
-                        start_time=absence_data.get("start_time"),
-                        end_time=absence_data.get("end_time"),
-                    )
+                if operation_type == "create":
+                    absence = Absence.from_dict(absence_data)
                     db.session.add(absence)
-                    results["created"].append(absence)
+                    results["created"].append(absence.id)
+                    affected_employees.add(absence.employee_id)
 
-                elif op_type == "update":
-                    absence = Absence.query.get(absence_data["id"])
-                    if absence:
-                        if "type" in absence_data:
-                            absence.type = absence_data["type"]
-                        if "start_time" in absence_data:
-                            absence.start_time = absence_data["start_time"]
-                        if "end_time" in absence_data:
-                            absence.end_time = absence_data["end_time"]
-                        results["updated"].append(absence)
+                elif operation_type == "update":
+                    absence_id = absence_data.get("id")
+                    if not absence_id:
+                        results["errors"].append(
+                            {"error": "Missing absence ID for update"}
+                        )
+                        continue
 
-                elif op_type == "delete":
-                    absence = Absence.query.get(absence_data["id"])
-                    if absence:
-                        db.session.delete(absence)
-                        results["deleted"].append(absence_data["id"])
+                    absence = Absence.query.get(absence_id)
+                    if not absence:
+                        results["errors"].append(
+                            {"error": f"Absence {absence_id} not found"}
+                        )
+                        continue
 
-            except Exception as op_error:
-                results["errors"].append(
-                    {"operation": operation, "error": str(op_error)}
+                    # Update fields
+                    for key, value in absence_data.items():
+                        if key in ["start_date", "end_date"]:
+                            setattr(
+                                absence,
+                                key,
+                                datetime.strptime(value, "%Y-%m-%d").date(),
+                            )
+                        elif key in ["absence_type_id", "note", "employee_id"]:
+                            setattr(absence, key, value)
+
+                    results["updated"].append(absence_id)
+                    affected_employees.add(absence.employee_id)
+
+                elif operation_type == "delete":
+                    absence_id = absence_data.get("id")
+                    if not absence_id:
+                        results["errors"].append(
+                            {"error": "Missing absence ID for delete"}
+                        )
+                        continue
+
+                    absence = Absence.query.get(absence_id)
+                    if not absence:
+                        results["errors"].append(
+                            {"error": f"Absence {absence_id} not found"}
+                        )
+                        continue
+
+                    affected_employees.add(absence.employee_id)
+                    db.session.delete(absence)
+                    results["deleted"].append(absence_id)
+
+                else:
+                    results["errors"].append(
+                        {"error": f"Unknown operation type: {operation_type}"}
+                    )
+
+            except Exception as e:
+                results["errors"].append({"error": str(e), "data": absence_data})
+
+        db.session.commit()
+
+        # Emit WebSocket events for each affected employee
+        try:
+            for employee_id in affected_employees:
+                emit_absence_updated(
+                    {
+                        "action": "batch_update",
+                        "employee_id": employee_id,
+                        "timestamp": datetime.utcnow().isoformat(),
+                    }
                 )
+        except Exception as e:
+            print(f"Error emitting absence_updated event: {str(e)}")
 
-        if not results["errors"]:
-            db.session.commit()
-            return jsonify(
-                {
-                    "message": "Batch operations completed successfully",
-                    "created": [absence.to_dict() for absence in results["created"]],
-                    "updated": [absence.to_dict() for absence in results["updated"]],
-                    "deleted": results["deleted"],
-                }
-            ), HTTPStatus.OK
-        else:
-            db.session.rollback()
-            return jsonify(
-                {"message": "Some operations failed", "errors": results["errors"]}
-            ), HTTPStatus.BAD_REQUEST
+        return jsonify(results), 200
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), HTTPStatus.BAD_REQUEST
+        return jsonify({"error": str(e)}), 400

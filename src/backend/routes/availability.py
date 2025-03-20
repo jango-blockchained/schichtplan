@@ -3,8 +3,9 @@ from models import db, EmployeeAvailability, Employee
 from models.employee import AvailabilityType
 from datetime import datetime
 from http import HTTPStatus
+from services.event_service import emit_availability_updated
 
-availability = Blueprint("availability", __name__, url_prefix="/api/availability")
+availability = Blueprint("availability", __name__, url_prefix="/availability")
 
 
 @availability.route("/", methods=["GET"])
@@ -29,6 +30,19 @@ def create_availability():
 
         db.session.add(availability)
         db.session.commit()
+
+        # Emit WebSocket event
+        try:
+            emit_availability_updated(
+                {
+                    "action": "create",
+                    "availability_id": availability.id,
+                    "employee_id": availability.employee_id,
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
+        except Exception as e:
+            print(f"Error emitting availability_updated event: {str(e)}")
 
         return jsonify(availability.to_dict()), HTTPStatus.CREATED
 
@@ -67,6 +81,20 @@ def update_availability(availability_id):
             availability.is_available = data["is_available"]
 
         db.session.commit()
+
+        # Emit WebSocket event
+        try:
+            emit_availability_updated(
+                {
+                    "action": "update",
+                    "availability_id": availability.id,
+                    "employee_id": availability.employee_id,
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
+        except Exception as e:
+            print(f"Error emitting availability_updated event: {str(e)}")
+
         return jsonify(availability.to_dict())
 
     except ValueError as e:
@@ -80,10 +108,25 @@ def update_availability(availability_id):
 def delete_availability(availability_id):
     """Delete an availability"""
     availability = EmployeeAvailability.query.get_or_404(availability_id)
+    employee_id = availability.employee_id  # Store before deletion
 
     try:
         db.session.delete(availability)
         db.session.commit()
+
+        # Emit WebSocket event
+        try:
+            emit_availability_updated(
+                {
+                    "action": "delete",
+                    "availability_id": availability_id,
+                    "employee_id": employee_id,
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
+        except Exception as e:
+            print(f"Error emitting availability_updated event: {str(e)}")
+
         return "", HTTPStatus.NO_CONTENT
 
     except Exception as e:
@@ -160,34 +203,46 @@ def check_availability():
 
 @availability.route("/employees/<int:employee_id>/availabilities", methods=["PUT"])
 def update_employee_availabilities(employee_id):
-    """Update employee availabilities"""
+    """Update multiple availabilities for an employee at once"""
+    employee = Employee.query.get_or_404(employee_id)
     data = request.get_json()
 
     try:
-        # Delete existing availabilities
+        # Delete existing availabilities for this employee
         EmployeeAvailability.query.filter_by(employee_id=employee_id).delete()
 
         # Create new availabilities
-        for availability_data in data:
+        for item in data:
             availability = EmployeeAvailability(
                 employee_id=employee_id,
-                day_of_week=availability_data["day_of_week"],
-                hour=availability_data["hour"],
-                is_available=availability_data["is_available"],
-                availability_type=AvailabilityType(
-                    availability_data.get("availability_type", "AVL")
-                ),
+                day_of_week=item["day_of_week"],
+                hour=item["hour"],
+                is_available=item.get("is_available", True),
             )
             db.session.add(availability)
 
         db.session.commit()
-        return jsonify(
-            {"message": "Availabilities updated successfully"}
-        ), HTTPStatus.OK
 
-    except Exception as e:
+        # Emit WebSocket event
+        try:
+            emit_availability_updated(
+                {
+                    "action": "bulk_update",
+                    "employee_id": employee_id,
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
+        except Exception as e:
+            print(f"Error emitting availability_updated event: {str(e)}")
+
+        return jsonify({"message": "Availabilities updated successfully"})
+
+    except (KeyError, ValueError) as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), HTTPStatus.BAD_REQUEST
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 @availability.route("/employees/<int:employee_id>/availabilities", methods=["GET"])

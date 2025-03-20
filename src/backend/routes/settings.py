@@ -7,6 +7,7 @@ import json
 import datetime
 import glob
 from sqlalchemy import inspect, text
+from services.event_service import emit_settings_updated
 
 settings = Blueprint("settings", __name__)
 
@@ -220,20 +221,35 @@ def get_settings():
 @settings.route("/settings/", methods=["PUT"])
 def update_settings():
     """Update settings"""
-    data = request.get_json()
-    settings = Settings.query.first()
-
-    if not settings:
-        settings = Settings.get_default_settings()
-        db.session.add(settings)
-
     try:
-        settings.update_from_dict(data)
+        data = request.json
+        for category, values in data.items():
+            for key, value in values.items():
+                setting = Settings.query.filter_by(category=category, key=key).first()
+                if setting:
+                    setting.value = value
+                else:
+                    new_setting = Settings(category=category, key=key, value=value)
+                    db.session.add(new_setting)
+
         db.session.commit()
-        return jsonify(settings.to_dict())
+
+        # Emit WebSocket event for settings update
+        try:
+            emit_settings_updated(
+                {
+                    "action": "update",
+                    "categories": list(data.keys()),
+                    "timestamp": datetime.datetime.utcnow().isoformat(),
+                }
+            )
+        except Exception as e:
+            logging.error(f"Error emitting settings_updated event: {str(e)}")
+
+        return jsonify({"message": "Settings updated successfully"})
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), HTTPStatus.BAD_REQUEST
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 @settings.route("/settings/reset", methods=["POST"])
@@ -270,54 +286,78 @@ def get_category_settings(category):
 
 @settings.route("/settings/<category>", methods=["PUT"])
 def update_category_settings(category):
-    """Update settings for a specific category"""
-    data = request.get_json()
-    settings = Settings.query.first()
-
-    if not settings:
-        settings = Settings.get_default_settings()
-        db.session.add(settings)
-
+    """Update settings for a category"""
     try:
-        settings.update_from_dict({category: data})
+        data = request.json
+        for key, value in data.items():
+            setting = Settings.query.filter_by(category=category, key=key).first()
+            if setting:
+                setting.value = value
+            else:
+                new_setting = Settings(category=category, key=key, value=value)
+                db.session.add(new_setting)
+
         db.session.commit()
-        return jsonify(settings.to_dict()[category])
+
+        # Emit WebSocket event for settings update
+        try:
+            emit_settings_updated(
+                {
+                    "action": "update_category",
+                    "category": category,
+                    "timestamp": datetime.datetime.utcnow().isoformat(),
+                }
+            )
+        except Exception as e:
+            logging.error(f"Error emitting settings_updated event: {str(e)}")
+
+        return jsonify({"message": f"Settings for {category} updated successfully"})
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), HTTPStatus.BAD_REQUEST
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 @settings.route("/settings/<category>/<key>", methods=["PUT"])
 def update_setting(category, key):
     """Update a specific setting"""
-    data = request.get_json()
-    settings = Settings.query.first()
-
-    if not settings:
-        settings = Settings.get_default_settings()
-        db.session.add(settings)
-
     try:
-        value = data.get("value")
-        settings_dict = settings.to_dict()
+        data = request.json
+        if "value" not in data:
+            return jsonify({"error": "Missing value parameter"}), HTTPStatus.BAD_REQUEST
 
-        if category not in settings_dict:
-            return jsonify(
-                {"error": f"Category {category} not found"}
-            ), HTTPStatus.NOT_FOUND
+        value = data["value"]
+        setting = Settings.query.filter_by(category=category, key=key).first()
 
-        category_dict = settings_dict[category]
-        if key not in category_dict:
-            return jsonify(
-                {"error": f"Key {key} not found in category {category}"}
-            ), HTTPStatus.NOT_FOUND
+        if setting:
+            setting.value = value
+        else:
+            new_setting = Settings(category=category, key=key, value=value)
+            db.session.add(new_setting)
 
-        settings.update_from_dict({category: {key: value}})
         db.session.commit()
-        return jsonify({key: value})
+
+        # Emit WebSocket event for settings update
+        try:
+            emit_settings_updated(
+                {
+                    "action": "update_setting",
+                    "category": category,
+                    "key": key,
+                    "timestamp": datetime.datetime.utcnow().isoformat(),
+                }
+            )
+        except Exception as e:
+            logging.error(f"Error emitting settings_updated event: {str(e)}")
+
+        return jsonify(
+            {
+                "message": f"Setting {category}.{key} updated successfully",
+                "value": value,
+            }
+        )
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), HTTPStatus.BAD_REQUEST
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 @settings.route("/settings/<category>/<key>", methods=["DELETE"])

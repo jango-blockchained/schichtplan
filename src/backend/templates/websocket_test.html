@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>WebSocket Test</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        #status {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        #events {
+            border: 1px solid #ccc;
+            padding: 10px;
+            min-height: 200px;
+            margin-bottom: 10px;
+            overflow-y: auto;
+        }
+
+        .connected {
+            color: green;
+        }
+
+        .disconnected {
+            color: red;
+        }
+
+        .event {
+            margin-bottom: 5px;
+        }
+
+        button {
+            margin-right: 5px;
+            margin-bottom: 5px;
+            padding: 5px 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>WebSocket Test</h1>
+    <div id="status" class="disconnected">Disconnected</div>
+
+    <button id="connect">Connect</button>
+    <button id="disconnect" disabled>Disconnect</button>
+
+    <h2>Subscribe to Events</h2>
+    <button class="subscribe-btn" data-event="schedule_updated">Schedule Updates</button>
+    <button class="subscribe-btn" data-event="availability_updated">Availability Updates</button>
+    <button class="subscribe-btn" data-event="absence_updated">Absence Updates</button>
+    <button class="subscribe-btn" data-event="settings_updated">Settings Updates</button>
+    <button class="subscribe-btn" data-event="coverage_updated">Coverage Updates</button>
+    <button class="subscribe-btn" data-event="shift_template_updated">Shift Template Updates</button>
+
+    <h2>Events Log</h2>
+    <div id="events"></div>
+
+    <script>
+        let socket = null;
+        const statusEl = document.getElementById('status');
+        const eventsEl = document.getElementById('events');
+        const connectBtn = document.getElementById('connect');
+        const disconnectBtn = document.getElementById('disconnect');
+        const subscribeBtns = document.querySelectorAll('.subscribe-btn');
+
+        function logEvent(event, data) {
+            const now = new Date().toLocaleTimeString();
+            const eventEl = document.createElement('div');
+            eventEl.className = 'event';
+            eventEl.innerHTML = `<strong>${now} - ${event}:</strong> ${JSON.stringify(data)}`;
+            eventsEl.prepend(eventEl);
+        }
+
+        function connect() {
+            if (socket) return;
+
+            try {
+                socket = io();
+
+                socket.on('connect', () => {
+                    statusEl.textContent = 'Connected';
+                    statusEl.className = 'connected';
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = false;
+                    logEvent('connect', {});
+                });
+
+                socket.on('disconnect', () => {
+                    statusEl.textContent = 'Disconnected';
+                    statusEl.className = 'disconnected';
+                    connectBtn.disabled = false;
+                    disconnectBtn.disabled = true;
+                    subscribeBtns.forEach(btn => btn.classList.remove('active'));
+                    logEvent('disconnect', {});
+                });
+
+                socket.on('connection_established', (data) => {
+                    logEvent('connection_established', data);
+                });
+
+                socket.on('error', (error) => {
+                    logEvent('error', error);
+                });
+
+                socket.on('connect_error', (error) => {
+                    logEvent('connect_error', error);
+                });
+
+                socket.on('subscription_confirmed', (data) => {
+                    logEvent('subscription_confirmed', data);
+                    const btn = document.querySelector(`.subscribe-btn[data-event="${data.event_type}"]`);
+                    if (btn) btn.classList.add('active');
+                });
+
+                socket.on('unsubscription_confirmed', (data) => {
+                    logEvent('unsubscription_confirmed', data);
+                    const btn = document.querySelector(`.subscribe-btn[data-event="${data.event_type}"]`);
+                    if (btn) btn.classList.remove('active');
+                });
+
+                // Set up event listeners for all event types
+                ['schedule_updated', 'availability_updated', 'absence_updated',
+                    'settings_updated', 'coverage_updated', 'shift_template_updated'].forEach(eventType => {
+                        socket.on(eventType, (data) => {
+                            logEvent(eventType, data);
+                        });
+                    });
+
+            } catch (err) {
+                console.error('Connect error:', err);
+                logEvent('error', { message: 'Failed to connect: ' + err.message });
+            }
+        }
+
+        function disconnect() {
+            if (!socket) return;
+            socket.disconnect();
+            socket = null;
+        }
+
+        connectBtn.addEventListener('click', connect);
+        disconnectBtn.addEventListener('click', disconnect);
+
+        subscribeBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (!socket || !socket.connected) {
+                    alert('Connect to the server first!');
+                    return;
+                }
+
+                const eventType = btn.dataset.event;
+
+                if (btn.classList.contains('active')) {
+                    // Unsubscribe
+                    socket.emit('unsubscribe', { event_type: eventType });
+                    btn.classList.remove('active');
+                } else {
+                    // Subscribe
+                    socket.emit('subscribe', { event_type: eventType });
+                    btn.classList.add('active');
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

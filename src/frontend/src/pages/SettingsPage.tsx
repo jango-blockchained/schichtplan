@@ -79,6 +79,7 @@ export function SettingsPage() {
   const [availableTables, setAvailableTables] = useState<string[]>([]);
   const [generationTaskId, setGenerationTaskId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [selectedComponent, setSelectedComponent] = useState<string>("all");
 
   const { data: settings, isLoading, error, refetch } = useQuery({
     queryKey: ["settings"],
@@ -307,8 +308,6 @@ export function SettingsPage() {
   };
 
   const renderDemoDataSection = () => {
-    const [selectedComponent, setSelectedComponent] = useState<string>("all");
-
     const handleGenerateDemoData = async (type: 'new' | 'old') => {
       try {
         setIsGenerating(true);

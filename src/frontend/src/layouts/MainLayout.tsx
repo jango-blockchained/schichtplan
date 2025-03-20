@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { getSettings } from '@/services/api';
 import type { Settings } from '@/types/index';
+import { WebSocketStatus } from '@/components/WebSocketStatus';
 
 const drawerWidth = 240;
 
@@ -60,8 +61,9 @@ export const MainLayout = () => {
 
   const NavContent = () => (
     <div className="h-full flex flex-col">
-      <div className="h-16 flex items-center px-4 border-b">
+      <div className="h-16 flex items-center justify-between px-4 border-b">
         <span className="font-semibold text-lg">{settings?.general.store_name || 'ShiftWise'}</span>
+        <WebSocketStatus showReconnectButton={false} />
       </div>
 
       {/* Main navigation items */}

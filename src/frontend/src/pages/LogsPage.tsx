@@ -132,9 +132,6 @@ export default function LogsPage() {
         }
 
         try {
-            // Log the raw date string for debugging
-            console.log('Formatting date string:', dateString, 'Type:', typeof dateString);
-
             // If it's already displaying as Invalid Date, return Unknown date
             if (String(dateString).includes('Invalid')) {
                 console.warn('Received already invalid date string:', dateString);
@@ -174,7 +171,6 @@ export default function LogsPage() {
                         if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
                             const manualDate = new Date(year, month, day);
                             if (!isNaN(manualDate.getTime())) {
-                                console.log('Parsed date manually:', manualDate);
                                 return formatValidDate(manualDate);
                             }
                         }

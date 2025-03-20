@@ -14,6 +14,7 @@ import CoveragePage from './pages/CoveragePage';
 import OptionsPage from './pages/OptionsPage';
 import LayoutCustomizerPage from './pages/LayoutCustomizerPage';
 import { AxiosError } from 'axios';
+import { WebSocketProvider } from '@/contexts/WebSocketContext';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -37,22 +38,24 @@ const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<MainLayout />}>
-              <Route index element={<SchedulePage />} />
-              <Route path="shifts" element={<ShiftsPage />} />
-              <Route path="coverage" element={<CoveragePage />} />
-              <Route path="employees" element={<EmployeesPage />} />
-              <Route path="settings" element={<SettingsPage />} />
-              <Route path="options" element={<OptionsPage />} />
-              <Route path="formulars" element={<FormularsPage />} />
-              <Route path="logs" element={<LogsPage />} />
-              <Route path="layout" element={<LayoutCustomizerPage />} />
-            </Route>
-          </Routes>
-          <Toaster />
-        </BrowserRouter>
+        <WebSocketProvider url="http://localhost:5000">
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<MainLayout />}>
+                <Route index element={<SchedulePage />} />
+                <Route path="shifts" element={<ShiftsPage />} />
+                <Route path="coverage" element={<CoveragePage />} />
+                <Route path="employees" element={<EmployeesPage />} />
+                <Route path="settings" element={<SettingsPage />} />
+                <Route path="options" element={<OptionsPage />} />
+                <Route path="formulars" element={<FormularsPage />} />
+                <Route path="logs" element={<LogsPage />} />
+                <Route path="layout" element={<LayoutCustomizerPage />} />
+              </Route>
+            </Routes>
+            <Toaster />
+          </BrowserRouter>
+        </WebSocketProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

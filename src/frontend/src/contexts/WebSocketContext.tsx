@@ -4,10 +4,12 @@ import { useToast } from '@/components/ui/use-toast';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
 interface WebSocketContextType {
-    socket: Socket | null;
+    socket: typeof Socket | null;
     isConnected: boolean;
+    isAuthenticated: boolean;
+    userId: string | null;
     lastError: Error | null;
-    reconnect: () => void;
+    reconnect: (authToken?: string) => void;
 }
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
@@ -19,18 +21,26 @@ const RETRY_MULTIPLIER = 1.5;
 interface WebSocketProviderProps {
     children: ReactNode;
     url: string;
+    authToken?: string;
 }
 
-export function WebSocketProvider({ children, url }: WebSocketProviderProps) {
-    const [socket, setSocket] = useState<Socket | null>(null);
+export function WebSocketProvider({ children, url, authToken }: WebSocketProviderProps) {
+    const [socket, setSocket] = useState<typeof Socket | null>(null);
     const [isConnected, setIsConnected] = useState(false);
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [userId, setUserId] = useState<string | null>(null);
     const [lastError, setLastError] = useState<Error | null>(null);
     const [retryDelay, setRetryDelay] = useState(INITIAL_RETRY_DELAY);
     const { toast } = useToast();
 
     const connect = useCallback(() => {
         try {
-            const manager = new Manager(url, {
+            // Add auth token to URL if provided
+            const connectionUrl = authToken
+                ? `${url}?token=${encodeURIComponent(authToken)}`
+                : url;
+
+            const manager = new Manager(connectionUrl, {
                 reconnection: false, // We'll handle reconnection ourselves
                 timeout: 10000,
                 transports: ['websocket']
@@ -44,23 +54,42 @@ export function WebSocketProvider({ children, url }: WebSocketProviderProps) {
                 setRetryDelay(INITIAL_RETRY_DELAY);
                 toast({
                     title: "Connected",
-                    description: "Real-time connection established",
-                    icon: <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    description: "Real-time connection established"
                 });
+            });
+
+            newSocket.on('connection_established', (data: {
+                client_id: string;
+                is_authenticated: boolean;
+                user_id: string | null;
+            }) => {
+                // Set authentication state based on server response
+                setIsAuthenticated(data.is_authenticated);
+                setUserId(data.user_id);
+
+                if (data.is_authenticated) {
+                    toast({
+                        title: "Authenticated",
+                        description: `Authenticated as user ${data.user_id}`
+                    });
+                }
             });
 
             newSocket.on('disconnect', () => {
                 setIsConnected(false);
+                setIsAuthenticated(false);
+                setUserId(null);
                 toast({
                     title: "Disconnected",
                     description: "Real-time connection lost",
-                    variant: "destructive",
-                    icon: <AlertCircle className="h-4 w-4" />
+                    variant: "destructive"
                 });
             });
 
             newSocket.on('connect_error', (error: Error) => {
                 setIsConnected(false);
+                setIsAuthenticated(false);
+                setUserId(null);
                 setLastError(error);
 
                 // Implement exponential backoff
@@ -70,13 +99,12 @@ export function WebSocketProvider({ children, url }: WebSocketProviderProps) {
                 toast({
                     title: "Connection Error",
                     description: `Failed to connect: ${error.message}`,
-                    variant: "destructive",
-                    icon: <AlertCircle className="h-4 w-4" />
+                    variant: "destructive"
                 });
 
                 // Schedule reconnection
                 setTimeout(() => {
-                    reconnect();
+                    reconnect(authToken);
                 }, retryDelay);
             });
 
@@ -85,13 +113,19 @@ export function WebSocketProvider({ children, url }: WebSocketProviderProps) {
             setLastError(error as Error);
             console.error('Failed to create WebSocket connection:', error);
         }
-    }, [url, retryDelay, toast]);
+    }, [url, retryDelay, toast, authToken]);
 
-    const reconnect = useCallback(() => {
+    const reconnect = useCallback((newAuthToken?: string) => {
         if (socket) {
             socket.close();
             setSocket(null);
         }
+
+        // Update auth token if a new one is provided
+        if (newAuthToken !== undefined) {
+            authToken = newAuthToken;
+        }
+
         connect();
     }, [socket, connect]);
 
@@ -105,7 +139,14 @@ export function WebSocketProvider({ children, url }: WebSocketProviderProps) {
     }, [connect]);
 
     return (
-        <WebSocketContext.Provider value={{ socket, isConnected, lastError, reconnect }}>
+        <WebSocketContext.Provider value={{
+            socket,
+            isConnected,
+            isAuthenticated,
+            userId,
+            lastError,
+            reconnect
+        }}>
             {children}
         </WebSocketContext.Provider>
     );
