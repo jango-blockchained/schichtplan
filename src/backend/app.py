@@ -19,7 +19,6 @@ from flask_migrate import Migrate
 from models import db
 from config import Config
 from routes.shifts import shifts
-from routes.settings import settings
 from routes.schedules import schedules
 from routes.employees import employees
 from routes.availability import availability
@@ -33,7 +32,7 @@ from utils.logger import (
     Logger,
     CustomFormatter,
 )  # Import Logger class and CustomFormatter
-from src.backend.websocket import socketio  # Use absolute import
+from websocket import socketio, init_app  # Import init_app function
 
 # Import diagnostic tools
 try:
@@ -99,7 +98,13 @@ def create_app(config_class=Config):
     migrate = Migrate(app, db, directory=migrations_dir)
 
     # Initialize SocketIO with the Flask app
-    socketio.init_app(app, cors_allowed_origins="*", async_mode=None)
+    socketio_instance = init_app(
+        app,
+        cors_allowed_origins="*",
+        async_mode="eventlet",
+        logger=True,
+        engineio_logger=True,
+    )
 
     # Ensure the instance folder exists
     try:
@@ -117,7 +122,6 @@ def create_app(config_class=Config):
 
     # Register blueprints
     app.register_blueprint(shifts, url_prefix="/api")
-    app.register_blueprint(settings, url_prefix="/api")
     app.register_blueprint(schedules, url_prefix="/api")
     app.register_blueprint(employees, url_prefix="/api")
     app.register_blueprint(availability, url_prefix="/api")
@@ -125,7 +129,7 @@ def create_app(config_class=Config):
     app.register_blueprint(coverage_bp)
     app.register_blueprint(
         api_settings_bp, name="api_settings"
-    )  # Register API settings blueprint
+    )  # Keep only the new settings blueprint
     app.register_blueprint(demo_data_bp, url_prefix="/api/demo-data")
     app.register_blueprint(logs.bp, url_prefix="/api/logs")
     app.register_blueprint(
@@ -250,9 +254,9 @@ def create_app(config_class=Config):
             print(f"Error: {str(e)}")
             print("=" * 80 + "\n")
 
-    return app
+    return app, socketio_instance
 
 
 if __name__ == "__main__":
-    app = create_app()
+    app, socketio_instance = create_app()
     socketio.run(app, debug=True)  # Use socketio.run instead of app.run

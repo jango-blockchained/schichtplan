@@ -1,17 +1,20 @@
 """Resource management for the scheduler"""
 
-from datetime import date
-from typing import List, Optional, Dict, Tuple
+from datetime import date, datetime
+from typing import List, Optional, Dict, Tuple, Any
 import logging
 import functools
 import sys
 import os
+from models.shift import Shift
 
 # Add parent directories to path if needed
 current_dir = os.path.dirname(os.path.abspath(__file__))
-src_backend_dir = os.path.abspath(os.path.join(current_dir, "..", ".."))
-if src_backend_dir not in sys.path:
-    sys.path.insert(0, src_backend_dir)
+backend_dir = os.path.dirname(os.path.dirname(current_dir))
+if backend_dir not in sys.path:
+    sys.path.append(backend_dir)
+
+from api.demo_data import generate_coverage_data
 
 # Try to handle imports in different environments
 try:
@@ -72,64 +75,85 @@ class ScheduleResourceError(Exception):
 
 
 class ScheduleResources:
-    """Centralized container for schedule generation resources"""
+    """Resource manager for schedule generation"""
 
-    def __init__(self):
-        self.settings: Optional[Settings] = None
-        self.coverage: List[Coverage] = []
-        self.shifts: List[ShiftTemplate] = []
-        self.employees: List[Employee] = []
-        self.absences: List[Absence] = []
-        self.availabilities: List[EmployeeAvailability] = []
-        self.schedule_data: Dict[Tuple[int, date], Schedule] = {}
-        # Caches for frequently accessed data
+    def __init__(self, db_session=None):
+        """Initialize the resource manager"""
+        self.logger = logging.getLogger(__name__)
+        self.db = db_session
+        if not self.db:
+            from database import Session
+
+            self.db = Session()
+
+        # Initialize caches
         self._employee_cache = {}
+        self._shift_cache = {}
         self._coverage_cache = {}
-        self._date_caches_cleared = False
-        self.logger = logger
+        self._availability_cache = {}
+        self._absence_cache = {}
 
-    def is_loaded(self):
-        """Check if resources have already been loaded"""
-        return len(self.employees) > 0
+        # Initialize data containers
+        self.settings = None
+        self.coverage = []
+        self.shifts = []
+        self.employees = []
+        self.absences = []
+        self.availabilities = []
+        self.schedule_data = None
 
-    def load(self):
+    def verify_loaded_resources(self) -> bool:
+        """Verify that all required resources are loaded"""
+        if not self.shifts:
+            self.logger.error("No shifts loaded")
+            return False
+        if not self.coverage:
+            self.logger.error("No coverage loaded")
+            return False
+        if not self.employees:
+            self.logger.error("No employees loaded")
+            return False
+        return True
+
+    def load(self) -> None:
         """Load all required resources"""
         try:
-            self.logger.info("Loading scheduler resources...")
-
-            # Load employees
-            self.employees = self._load_employees()
-            self.logger.debug(f"Loaded {len(self.employees)} employees")
-
-            # Load shifts
-            self.shifts = self._load_shifts()
-            self.logger.debug(f"Loaded {len(self.shifts)} shifts")
-
-            # Load coverage
-            self.coverage = self._load_coverage()
-            self.logger.debug(f"Loaded {len(self.coverage)} coverage records")
-
-            # Load settings
+            # Load settings first as they may affect other resources
             self.settings = self._load_settings()
-            self.logger.debug(f"Loaded settings: {self.settings}")
 
-            # Mark as loaded
-            self._loaded = True
-            self.logger.info("Resource loading complete")
+            # Load core resources
+            self.employees = self._load_employees()
+            self.shifts = self._load_shifts()
+            self.coverage = self._load_coverage()
+
+            # Load additional resources
+            self.absences = self._load_absences()
+            self.availabilities = self._load_availabilities()
+
+            # Verify resources
+            if not self.verify_loaded_resources():
+                raise ValueError("Failed to load all required resources")
+
+            self.logger.info("Successfully loaded all resources")
 
         except Exception as e:
             self.logger.error(f"Error loading resources: {str(e)}")
-            raise ScheduleResourceError(f"Failed to load resources: {str(e)}") from e
+            raise
 
     def _load_settings(self) -> Settings:
         """Load settings with error handling"""
-        settings = Settings.query.first()
-        if not settings:
-            logger.warning("No settings found, creating default settings")
-            settings = Settings()
-            db.session.add(settings)
-            db.session.commit()
-        return settings
+        try:
+            settings = Settings.query.first()
+            if settings:
+                self.logger.info(f"Successfully loaded settings: {settings}")
+                return settings
+            else:
+                self.logger.warning("No settings found in database")
+                return None
+
+        except Exception as e:
+            self.logger.error(f"Error loading settings: {str(e)}")
+            return None
 
     def _load_coverage(self) -> List[Coverage]:
         """Load coverage with error handling"""
@@ -142,8 +166,6 @@ class ScheduleResources:
                 # Try to generate demo coverage data
                 self.logger.info("Attempting to generate demo coverage data...")
                 try:
-                    from api.demo_data import generate_coverage_data
-
                     coverage_slots = generate_coverage_data()
                     for slot in coverage_slots:
                         db.session.add(slot)
@@ -153,9 +175,7 @@ class ScheduleResources:
                     )
                     coverage = Coverage.query.all()
                 except Exception as e:
-                    self.logger.error(
-                        f"Failed to generate demo coverage data: {str(e)}"
-                    )
+                    self.logger.error(f"Error generating demo coverage data: {str(e)}")
                     return []
 
             # Log coverage requirements by day
@@ -209,39 +229,117 @@ class ScheduleResources:
                         f"blocks: {coverage_blocks}"
                     )
 
-            self.logger.info(f"Successfully loaded {len(coverage)} coverage records")
+            # Cache coverage by day
+            self._coverage_cache = by_day
+
             return coverage
 
         except Exception as e:
             self.logger.error(f"Error loading coverage: {str(e)}")
             return []
 
-    def _load_shifts(self) -> List[ShiftTemplate]:
-        """Load shifts with error handling"""
+    def _load_shifts(self) -> List[Dict[str, Any]]:
+        """Load shifts from the database"""
         try:
-            shifts = ShiftTemplate.query.all()
-            if not shifts:
-                logger.error("No shift templates found in database")
-                raise ScheduleResourceError("No shift templates found")
+            self.logger.info("Loading shifts...")
 
-            # Log shift details
+            # Query all shifts from the database
+            shifts = self.db.query(Shift).all()
+            if not shifts:
+                self.logger.warning("No shifts found in database")
+                return []
+
+            # Convert shifts to dictionaries and validate
+            shift_dicts = []
+            invalid_shifts = []
+
             for shift in shifts:
-                logger.info(
-                    f"Loaded shift template: ID={shift.id}, "
-                    f"start={shift.start_time}, end={shift.end_time}, "
-                    f"type={shift.shift_type_id}"
+                try:
+                    shift_dict = {
+                        "id": shift.id,
+                        "type": shift.type,
+                        "day_index": shift.day_index,
+                        "start_time": shift.start_time,
+                        "end_time": shift.end_time,
+                        "duration": None,  # Will be calculated below
+                    }
+
+                    # Calculate duration
+                    if shift.start_time is not None and shift.end_time is not None:
+                        start_dt = datetime.strptime(shift.start_time, "%H:%M")
+                        end_dt = datetime.strptime(shift.end_time, "%H:%M")
+                        duration = (
+                            end_dt - start_dt
+                        ).seconds / 3600  # Convert to hours
+                        shift_dict["duration"] = duration
+
+                        # Validate duration
+                        if duration <= 0:
+                            self.logger.warning(
+                                f"Invalid duration for shift {shift.id}: {duration} hours"
+                            )
+                            invalid_shifts.append(shift.id)
+                            continue
+                    else:
+                        self.logger.warning(
+                            f"Missing start or end time for shift {shift.id}"
+                        )
+                        invalid_shifts.append(shift.id)
+                        continue
+
+                    shift_dicts.append(shift_dict)
+                    self.logger.debug(f"Loaded shift: {shift_dict}")
+
+                except Exception as e:
+                    self.logger.error(f"Error processing shift {shift.id}: {str(e)}")
+                    invalid_shifts.append(shift.id)
+
+            # Remove invalid shifts
+            if invalid_shifts:
+                self.logger.warning(
+                    f"Removed {len(invalid_shifts)} invalid shifts: {invalid_shifts}"
                 )
-            return shifts
+
+            # Cache valid shifts
+            self._shift_cache = {shift["id"]: shift for shift in shift_dicts}
+
+            self.logger.info(f"Successfully loaded {len(shift_dicts)} shifts")
+            return shift_dicts
+
         except Exception as e:
             self.logger.error(f"Error loading shifts: {str(e)}")
             return []
 
     def _load_employees(self) -> List[Employee]:
-        """Load employees from database"""
+        """Load employees with error handling"""
         try:
-            employees = Employee.query.filter_by(is_active=True).all()
-            self.logger.debug(f"Loaded {len(employees)} active employees from database")
+            # Load employees ordered by type: TL, VZ, TZ, GFB
+            employees = (
+                Employee.query.filter_by(is_active=True)
+                .order_by(
+                    db.case(
+                        (Employee.employee_group == EmployeeGroup.TL.value, 1),
+                        (Employee.employee_group == EmployeeGroup.VZ.value, 2),
+                        (Employee.employee_group == EmployeeGroup.TZ.value, 3),
+                        (Employee.employee_group == EmployeeGroup.GFB.value, 4),
+                    )
+                )
+                .all()
+            )
+
+            # Update employee cache
+            self._employee_cache = {emp.id: emp for emp in employees}
+
+            # Log employee details
+            for emp in employees:
+                self.logger.debug(
+                    f"Loaded employee {emp.id}: {emp.first_name} {emp.last_name}, "
+                    f"group={emp.employee_group}, keyholder={emp.is_keyholder}"
+                )
+
+            self.logger.info(f"Successfully loaded {len(employees)} employees")
             return employees
+
         except Exception as e:
             self.logger.error(f"Error loading employees: {str(e)}")
             return []
@@ -321,65 +419,80 @@ class ScheduleResources:
             if avail.employee_id == employee_id and avail.day_of_week == day_of_week
         ]
 
-    def is_employee_available(
-        self, employee_id: int, day: date, start_hour: int, end_hour: int
-    ) -> bool:
-        """Check if an employee is available for a time slot"""
-        # Check for absences first
-        for absence in self.absences:
-            if (
-                absence.employee_id == employee_id
-                and absence.start_date <= day <= absence.end_date
-            ):
-                logger.info(f"Employee {employee_id} is absent on {day}")
-                return False
+    def get_shifts_for_date(self, target_date: date) -> List[Dict[str, Any]]:
+        """Get shifts for a specific date"""
+        self.logger.info(f"Getting shifts for date {target_date}")
 
-        # Check if employee exists in the system - skip this check in test environments
-        # where we may not have loaded employees but still need to test availability
-        if self._employee_cache and employee_id not in self._employee_cache:
-            logger.info(f"Employee {employee_id} not found in cache")
-            return False
+        # Get day of week (0 = Monday, 6 = Sunday)
+        day_index = target_date.weekday()
 
-        # Check availability
-        day_of_week = day.weekday()
-        availabilities = self.get_employee_availability(employee_id, day_of_week)
+        # Filter shifts for this day
+        date_shifts = []
+        for shift in self.shifts:
+            if shift.get("day_index") == day_index:
+                shift_copy = shift.copy()
+                shift_copy["date"] = target_date
+                date_shifts.append(shift_copy)
 
-        # If no availabilities are set, employee is unavailable
-        if not availabilities:
-            logger.info(
-                f"Employee {employee_id} has no availability records for day {day_of_week}"
+        if not date_shifts:
+            self.logger.warning(
+                f"No shifts found for date {target_date} (day index {day_index})"
             )
-            return False
+        else:
+            self.logger.info(f"Found {len(date_shifts)} shifts for date {target_date}")
 
-        # Check if employee is available for all hours in the range
-        for hour in range(start_hour, end_hour):
-            hour_available = False
-            for avail in availabilities:
-                if avail.hour == hour:
-                    # MODIFIED: Employee is available if EITHER:
-                    # 1. is_available flag is true OR
-                    # 2. availability_type is not UNAVAILABLE
-                    if avail.is_available or (
-                        avail.availability_type
-                        and avail.availability_type != AvailabilityType.UNAVAILABLE
-                    ):
-                        hour_available = True
-                        break
-                    else:
-                        logger.info(
-                            f"Employee {employee_id} is unavailable at hour {hour}. "
-                            f"is_available={avail.is_available}, "
-                            f"type={avail.availability_type.value if avail.availability_type else 'None'}"
-                        )
-            if not hour_available:
-                logger.info(
-                    f"Employee {employee_id} is not available at hour {hour} on day {day}"
-                )
+        return date_shifts
+
+    def get_coverage_for_date(self, target_date: date) -> Optional[Dict[str, Any]]:
+        """Get coverage requirements for a specific date"""
+        self.logger.info(f"Getting coverage for date {target_date}")
+
+        # Get day of week (0 = Monday, 6 = Sunday)
+        day_index = target_date.weekday()
+
+        # Find coverage for this day
+        coverage = None
+        for cov in self.coverage:
+            if cov.get("day_index") == day_index:
+                coverage = cov.copy()
+                coverage["date"] = target_date
+                break
+
+        if not coverage:
+            self.logger.warning(
+                f"No coverage found for date {target_date} (day index {day_index})"
+            )
+        else:
+            self.logger.info(f"Found coverage for date {target_date}: {coverage}")
+
+        return coverage
+
+    def is_employee_available(
+        self, employee: Dict[str, Any], target_date: date, shift: Dict[str, Any]
+    ) -> bool:
+        """Check if an employee is available for a given date and shift"""
+        # Check absences
+        for absence in self.absences:
+            if absence.get("employee_id") == employee.get("id") and absence.get(
+                "start_date"
+            ) <= target_date <= absence.get("end_date"):
                 return False
 
-        logger.info(
-            f"Employee {employee_id} is available on {day} from {start_hour} to {end_hour}"
-        )
+        # Check availabilities
+        for availability in self.availabilities:
+            if (
+                availability.get("employee_id") == employee.get("id")
+                and availability.get("day_index") == target_date.weekday()
+            ):
+                # Check if shift time falls within availability window
+                shift_start = shift.get("start_time")
+                shift_end = shift.get("end_time")
+                avail_start = availability.get("start_time")
+                avail_end = availability.get("end_time")
+
+                if not (avail_start <= shift_start and shift_end <= avail_end):
+                    return False
+
         return True
 
     def get_schedule_data(self) -> Dict[Tuple[int, date], Schedule]:
@@ -443,35 +556,3 @@ class ScheduleResources:
             if leave.employee_id == employee_id
             and leave.start_date <= date <= leave.end_date
         )
-
-    def verify_loaded_resources(self):
-        """Verify that all required resources are loaded correctly"""
-        if not self._loaded:
-            self.logger.error("Resources not loaded yet")
-            return False
-
-        # Check employees
-        if not self.employees:
-            self.logger.error("No employees loaded")
-            return False
-        self.logger.info(f"Verified {len(self.employees)} employees")
-
-        # Check shifts
-        if not self.shifts:
-            self.logger.error("No shifts loaded")
-            return False
-        self.logger.info(f"Verified {len(self.shifts)} shifts")
-
-        # Check coverage
-        if not self.coverage:
-            self.logger.error("No coverage data loaded")
-            return False
-        self.logger.info(f"Verified {len(self.coverage)} coverage records")
-
-        # Check settings
-        if not self.settings:
-            self.logger.error("No settings loaded")
-            return False
-        self.logger.info("Verified settings")
-
-        return True

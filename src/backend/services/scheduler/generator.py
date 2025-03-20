@@ -143,35 +143,51 @@ class ScheduleAssignment:
 
 
 class ScheduleContainer:
-    """Container class for schedule metadata"""
+    """Container for schedule data"""
 
-    def __init__(self, start_date, end_date, status="DRAFT", version=1):
+    def __init__(
+        self,
+        start_date: date,
+        end_date: date,
+        status: str = "DRAFT",
+        version: int = 1,
+        id: Optional[int] = None,
+    ):
         self.start_date = start_date
         self.end_date = end_date
         self.status = status
         self.version = version
-        self.entries = []
-        self.id = None  # Add an ID field
+        self.id = id
+        self.assignments = []
+        self.logger = logging.getLogger(__name__)
 
-    def get_schedule(self):
-        """Return self as this is the schedule container"""
-        return self
-
-    def get_assignments(self):
-        """Return the schedule entries"""
-        return self.entries
-
-    def add_assignment(self, assignment):
+    def add_assignment(self, assignment: Dict[str, Any]) -> None:
         """Add an assignment to the schedule"""
-        self.entries.append(assignment)
+        self.logger.info(f"Adding assignment: {assignment}")
+        if not all(key in assignment for key in ["date", "employee_id", "shift_id"]):
+            self.logger.error(f"Invalid assignment format: {assignment}")
+            return
 
-    def get_assignments_for_date(self, date):
-        """Get all assignments for a specific date"""
-        return [
-            a
-            for a in self.entries
-            if getattr(a, "date", None) == date or a.get("date") == date
-        ]
+        # Add schedule metadata
+        assignment["version"] = self.version
+        assignment["status"] = assignment.get("status", "PENDING")
+
+        self.assignments.append(assignment)
+        self.logger.info(
+            f"Successfully added assignment. Total assignments: {len(self.assignments)}"
+        )
+
+    def get_assignments(self) -> List[Dict[str, Any]]:
+        """Get all assignments in the schedule"""
+        return self.assignments
+
+    def get_assignments_for_date(self, target_date: date) -> List[Dict[str, Any]]:
+        """Get assignments for a specific date"""
+        return [a for a in self.assignments if a.get("date") == target_date.isoformat()]
+
+    def clear_assignments(self) -> None:
+        """Clear all assignments"""
+        self.assignments = []
 
 
 class ScheduleGenerator:
@@ -231,163 +247,146 @@ class ScheduleGenerator:
         create_empty_schedules: bool = False,
         version: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """
-        Generate a schedule for the given date range
+        """Generate a schedule for the given date range"""
+        try:
+            # Load and verify resources
+            self.logger.info("Loading resources...")
+            self.resources.load()
+            if not self.resources.verify_loaded_resources():
+                raise ScheduleGenerationError("Failed to load required resources")
 
-        Args:
-            start_date: The start date of the schedule
-            end_date: The end date of the schedule
-            config: Optional configuration dictionary
-            create_empty_schedules: Whether to create empty schedule entries for days with no coverage
-            version: Optional version of the schedule
-        """
-        self.logger.info(f"Generating schedule from {start_date} to {end_date}")
-
-        # Load and verify resources
-        self.resources.load()
-        if not self.resources.verify_loaded_resources():
-            raise ScheduleGenerationError("Failed to load required resources")
-
-        # Initialize schedule container
-        self.schedule = ScheduleContainer(
-            start_date=start_date,
-            end_date=end_date,
-            version=version or 1,
-        )
-
-        # Generate assignments for each date
-        current_date = start_date
-        date_count = 0
-        empty_dates = 0
-
-        while current_date <= end_date:
-            try:
-                self.logger.info(f"Generating assignments for {current_date}")
-                assignments = self._generate_assignments_for_date(current_date)
-                if assignments:
-                    self.logger.info(
-                        f"Generated {len(assignments)} assignments for {current_date}"
-                    )
-                    date_count += 1
-                elif create_empty_schedules:
-                    self.logger.warning(
-                        f"No coverage data found for date {current_date}"
-                    )
-                    self.logger.info(
-                        f"Creating empty schedule entries for date {current_date}"
-                    )
-                    self._create_empty_schedule_entries(current_date)
-                    empty_dates += 1
-                else:
-                    self.logger.warning(
-                        f"No coverage data found for date {current_date}, skipping..."
-                    )
-
-                # Move to the next date
-                current_date += timedelta(days=1)
-            except Exception as e:
-                self.logger.error(
-                    f"Error generating assignments for {current_date}: {str(e)}"
-                )
-                raise ScheduleGenerationError(
-                    f"Failed to generate assignments for {current_date}: {str(e)}"
-                )
-
-        # Finish date processing loop
-        self.logging_manager.end_step(
-            {
-                "dates_processed": date_count + empty_dates,
-                "dates_with_coverage": date_count,
-                "dates_empty": empty_dates,
-            }
-        )
-
-        # Step 3: Serialization
-        self.logging_manager.start_step("Schedule Serialization")
-        serialized_result = self.serializer.serialize_schedule(
-            self.schedule.get_schedule()
-        )
-
-        # Add metrics to result
-        metrics = self.distribution_manager.get_distribution_metrics()
-        serialized_result["metrics"] = metrics
-
-        # Schedule validation stats
-        valid_count = 0
-        invalid_count = 0
-
-        for assignment in self.schedule.get_assignments():
-            # Skip empty schedule entries
-            if isinstance(assignment, dict) and assignment.get("status") == "EMPTY":
-                continue
-
-            # Get employee_id and shift_id based on type
-            employee_id = (
-                assignment.get("employee_id")
-                if isinstance(assignment, dict)
-                else assignment.employee_id
-            )
-            shift_id = (
-                assignment.get("shift_id")
-                if isinstance(assignment, dict)
-                else assignment.shift_id
-            )
-            assignment_date = (
-                assignment.get("date")
-                if isinstance(assignment, dict)
-                else assignment.date
+            # Initialize schedule container
+            self.schedule = ScheduleContainer(
+                start_date=start_date,
+                end_date=end_date,
+                status="DRAFT",
+                version=version or 1,
             )
 
-            if employee_id and shift_id:
-                # Get the employee and shift from the assignment
-                employee = self.resources.get_employee(employee_id)
-                shift = self.resources.get_shift(shift_id)
+            # Initialize schedule by date
+            self.schedule_by_date = {}
 
-                if employee and shift:
-                    # Check if the assignment exceeds constraints
-                    exceeds = self.constraint_checker.exceeds_constraints(
-                        employee, assignment_date, shift
-                    )
-                    if not exceeds:
-                        valid_count += 1
+            # Process each date in the range
+            current_date = start_date
+            date_count = 0
+            empty_dates = 0
+            valid_count = 0
+            invalid_count = 0
+            generation_errors = []
+
+            while current_date <= end_date:
+                try:
+                    # Generate assignments for this date
+                    assignments = self._generate_assignments_for_date(current_date)
+
+                    if assignments:
+                        date_count += 1
+                        # Add assignments to schedule container
+                        for assignment in assignments:
+                            if assignment.get("status") != "EMPTY":
+                                if self._validate_assignment(assignment):
+                                    valid_count += 1
+                                else:
+                                    invalid_count += 1
+                            self.schedule.add_assignment(assignment)
                     else:
-                        invalid_count += 1
+                        empty_dates += 1
+                        if create_empty_schedules:
+                            # Create empty schedule entries
+                            empty_entries = self._create_empty_schedule_entries(
+                                current_date
+                            )
+                            for entry in empty_entries:
+                                self.schedule.add_assignment(entry)
 
-        serialized_result["validation"] = {
-            "valid_assignments": valid_count,
-            "invalid_assignments": invalid_count,
-        }
+                except Exception as e:
+                    error_msg = (
+                        f"Error generating assignments for {current_date}: {str(e)}"
+                    )
+                    self.logger.error(error_msg)
+                    generation_errors.append({"type": "error", "message": error_msg})
 
-        # Add additional information
-        serialized_result["schedule_info"] = {
-            "start_date": start_date.isoformat(),
-            "end_date": end_date.isoformat(),
-            "version": self.schedule.version,
-            "date_count": (end_date - start_date).days + 1,
-            "dates_with_coverage": date_count,
-            "empty_dates": empty_dates,
-        }
+                current_date += timedelta(days=1)
 
-        self.logging_manager.log_step_data("Result Size", len(str(serialized_result)))
-        self.logging_manager.end_step()
+            # Calculate metrics
+            metrics = self._calculate_metrics()
 
-        # End the overall process with stats
-        stats = {
-            "start_date": start_date.isoformat(),
-            "end_date": end_date.isoformat(),
-            "date_count": (end_date - start_date).days + 1,
-            "dates_with_coverage": date_count,
-            "empty_dates": empty_dates,
-            "valid_assignments": valid_count,
-            "invalid_assignments": invalid_count,
-        }
+            # Save the generated schedules to the database
+            try:
+                self._save_to_database()
+                self.logger.info("Successfully saved schedules to database")
+            except Exception as e:
+                error_msg = f"Error saving schedules to database: {str(e)}"
+                self.logger.error(error_msg)
+                generation_errors.append({"type": "error", "message": error_msg})
 
-        if metrics:
-            stats["metrics"] = metrics
+            # Prepare result
+            serialized_result = {
+                "entries": self.schedule.get_assignments(),
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+                "status": self.schedule.status,
+                "version": self.schedule.version,
+                "schedule_id": self.schedule.id,
+                "validation": {
+                    "valid_assignments": valid_count,
+                    "invalid_assignments": invalid_count,
+                },
+                "metrics": metrics,
+                "logs": generation_errors,
+            }
 
-        self.logging_manager.end_process(stats)
+            # Add additional information
+            serialized_result["schedule_info"] = {
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+                "version": self.schedule.version,
+                "date_count": (end_date - start_date).days + 1,
+                "dates_with_coverage": date_count,
+                "empty_dates": empty_dates,
+            }
 
-        return serialized_result
+            return serialized_result
+
+        except Exception as e:
+            error_msg = f"Error in schedule generation: {str(e)}"
+            self.logger.error(error_msg)
+            return {"error": error_msg}
+
+    def _save_to_database(self) -> None:
+        """Save generated schedules to the database"""
+        try:
+            self.logger.info("Saving schedules to database...")
+
+            # Delete existing schedules for this version and date range
+            self.db.query(Schedule).filter(
+                Schedule.version == self.schedule.version,
+                Schedule.date >= self.schedule.start_date,
+                Schedule.date <= self.schedule.end_date,
+            ).delete()
+
+            # Create new schedule entries
+            for assignment in self.schedule.get_assignments():
+                if assignment.get("status") != "EMPTY":
+                    schedule = Schedule(
+                        date=datetime.strptime(assignment["date"], "%Y-%m-%d").date(),
+                        employee_id=assignment["employee_id"],
+                        shift_id=assignment["shift_id"],
+                        shift_type=assignment["shift_type"],
+                        availability_type=assignment["availability_type"],
+                        status=assignment["status"],
+                        version=self.schedule.version,
+                    )
+                    self.db.add(schedule)
+
+            # Commit changes
+            self.db.commit()
+            self.logger.info("Successfully saved schedules to database")
+
+        except Exception as e:
+            self.logger.error(f"Error saving schedules to database: {str(e)}")
+            self.db.rollback()
+            raise
 
     def _validate_shift_durations(self):
         """
@@ -575,91 +574,144 @@ class ScheduleGenerator:
         )
         return True
 
-    def _generate_assignments_for_date(self, current_date: date) -> List[Dict]:
+    def _generate_assignments_for_date(
+        self, current_date: date
+    ) -> List[Dict[str, Any]]:
         """Generate assignments for a specific date"""
-        try:
-            # Process coverage for this date
-            coverage = self._process_coverage(current_date)
-            if not coverage:
-                self.logger.warning(
-                    f"No coverage requirements found for date {current_date}"
+        self.logger.info(f"Generating assignments for {current_date}")
+
+        # Get shifts and coverage for this date
+        date_shifts = self.resources.get_shifts_for_date(current_date)
+        if not date_shifts:
+            self.logger.warning(f"No shifts found for date {current_date}")
+            return []
+
+        coverage = self.resources.get_coverage_for_date(current_date)
+        if not coverage:
+            self.logger.warning(f"No coverage found for date {current_date}")
+            return []
+
+        # Get active employees
+        employees = self.resources.get_active_employees()
+        if not employees:
+            self.logger.warning("No active employees found")
+            return []
+
+        # Initialize distribution manager with employees and shifts
+        self.distribution_manager.initialize(
+            employees, shifts=date_shifts, resources=self.resources
+        )
+
+        assignments = []
+        for shift in date_shifts:
+            # Find best employee for this shift
+            best_employee = None
+            best_score = float("-inf")
+
+            for employee in employees:
+                # Skip if employee is not available
+                if not self.resources.is_employee_available(
+                    employee, current_date, shift
+                ):
+                    continue
+
+                # Calculate score for this assignment
+                score = self.distribution_manager.calculate_assignment_score(
+                    employee, shift, current_date
                 )
-                return []
+                if score > best_score:
+                    best_score = score
+                    best_employee = employee
 
-            # Create shifts for this date
-            date_shifts = self._create_date_shifts(current_date)
-            if not date_shifts:
-                self.logger.warning(f"No shifts available for date {current_date}")
-                return []
+            if best_employee:
+                # Create assignment with all required fields
+                assignment = {
+                    "date": current_date.isoformat(),
+                    "employee_id": best_employee.id,
+                    "shift_id": shift.id,
+                    "status": "PENDING",
+                    "version": self.schedule.version,
+                    "shift_type": shift.type,
+                    "availability_type": "AVAILABLE",  # Default to available since we checked availability
+                }
 
-            self.logger.info(
-                f"Found {len(date_shifts)} shifts and need {coverage.get('total', 0)} total employees for {current_date}"
-            )
-
-            # Use the distribution manager to assign employees
-            assignments = self.distribution_manager.assign_employees_with_distribution(
-                current_date, date_shifts, coverage
-            )
-
-            if not assignments:
-                self.logger.warning(
-                    f"No assignments could be made for date {current_date}"
+                # Update distribution manager with this assignment
+                self.distribution_manager.update_with_assignment(
+                    best_employee, shift, current_date
                 )
-                return []
 
-            self.logger.info(f"Generated {len(assignments)} assignments")
+                assignments.append(assignment)
+                self.logger.debug(f"Created assignment: {assignment}")
+            else:
+                self.logger.warning(
+                    f"Could not find suitable employee for shift {shift.id} on {current_date}"
+                )
+                # Create empty assignment
+                assignment = {
+                    "date": current_date.isoformat(),
+                    "employee_id": None,
+                    "shift_id": shift.id,
+                    "status": "EMPTY",
+                    "version": self.schedule.version,
+                    "shift_type": shift.type,
+                    "availability_type": None,
+                }
+                assignments.append(assignment)
 
-            # Add assignments to schedule container
-            for assignment in assignments:
-                self.schedule.add_assignment(assignment)
+        # Store assignments for this date
+        self.schedule_by_date[current_date] = assignments
 
-                # Update schedule_by_date for constraint checking
-                if current_date not in self.schedule_by_date:
-                    self.schedule_by_date[current_date] = []
-                self.schedule_by_date[current_date].append(assignment)
+        return assignments
 
-            # Validate assignments
-            valid_count = 0
-            invalid_count = 0
-            for assignment in assignments:
-                employee_id = assignment.get("employee_id")
-                shift_id = assignment.get("shift_id")
-
-                if employee_id and shift_id:
-                    employee = self.resources.get_employee(employee_id)
-                    shift = self.resources.get_shift(shift_id)
-
-                    if employee and shift:
-                        if not self.constraint_checker.exceeds_constraints(
-                            employee, current_date, shift
-                        ):
-                            valid_count += 1
-                        else:
-                            invalid_count += 1
-                            self.logger.warning(
-                                f"Assignment for employee {employee_id} on {current_date} "
-                                f"exceeds constraints"
-                            )
-
-            self.logger.info(
-                f"Assignment validation for {current_date}: "
-                f"{valid_count} valid, {invalid_count} invalid"
-            )
-
-            return assignments
-
-        except Exception as e:
-            self.logger.error(
-                f"Error generating assignments for date {current_date}: {str(e)}"
-            )
-            raise  # Re-raise the exception to be caught by the caller
-
-    def _create_empty_schedule_entries(self, current_date: date):
+    def _create_empty_schedule_entries(
+        self, current_date: date
+    ) -> List[Dict[str, Any]]:
         """Create empty schedule entries for a specific date"""
-        empty_assignment = {
-            "date": current_date,
-            "status": "EMPTY",
-            "version": 1,
-        }
-        self.schedule.entries.append(empty_assignment)
-        self.schedule_by_date[current_date] = [empty_assignment]
+        self.logger.info(f"Creating empty schedule entries for {current_date}")
+
+        # Get shifts for this date
+        date_shifts = self.resources.get_shifts_for_date(current_date)
+        if not date_shifts:
+            self.logger.warning(f"No shifts found for date {current_date}")
+            return []
+
+        # Create empty entries for each shift
+        empty_entries = []
+        for shift in date_shifts:
+            entry = {
+                "date": current_date.isoformat(),
+                "employee_id": None,
+                "shift_id": shift.get("id"),
+                "shift_type": shift.get("type"),
+                "status": "EMPTY",
+                "version": self.schedule.version,
+                "availability_type": None,
+            }
+            empty_entries.append(entry)
+            self.logger.debug(f"Created empty entry: {entry}")
+
+        self.logger.info(
+            f"Created {len(empty_entries)} empty entries for {current_date}"
+        )
+        return empty_entries
+
+    def _validate_assignment(self, assignment):
+        """Validate a single assignment"""
+        employee_id = assignment.get("employee_id")
+        shift_id = assignment.get("shift_id")
+
+        if employee_id and shift_id:
+            employee = self.resources.get_employee(employee_id)
+            shift = self.resources.get_shift(shift_id)
+
+            if employee and shift:
+                return not self.constraint_checker.exceeds_constraints(
+                    employee, assignment.get("date"), shift
+                )
+
+        return False
+
+    def _calculate_metrics(self):
+        """Calculate metrics for the generated schedule"""
+        metrics = self.distribution_manager.get_distribution_metrics()
+        return metrics

@@ -18,8 +18,6 @@ if str(parent_dir) not in sys.path:
 
 # Use absolute imports
 from src.backend.app import create_app
-from src.backend.websocket import socketio
-from werkzeug.serving import is_running_from_reloader
 
 
 def get_process_on_port(port):
@@ -28,7 +26,7 @@ def get_process_on_port(port):
         result = subprocess.run(
             ["lsof", "-i", f":{port}", "-t"], capture_output=True, text=True
         )
-        if result.stdout:
+        if result.returncode == 0:
             return int(result.stdout.strip())
     except (subprocess.SubprocessError, ValueError):
         pass
@@ -90,19 +88,10 @@ def wait_for_port(port, host="0.0.0.0", timeout=30):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run the Schichtplan backend server")
-    parser.add_argument(
-        "--port",
-        type=int,
-        default=int(os.environ.get("FLASK_PORT", 5000)),
-        help="Port to run the server on",
-    )
-    parser.add_argument(
-        "--host",
-        type=str,
-        default=os.environ.get("FLASK_HOST", "0.0.0.0"),
-        help="Host to bind the server to",
-    )
+    parser = argparse.ArgumentParser(description="Run the Flask application")
+    parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
+    parser.add_argument("--port", type=int, default=5000, help="Port to bind to")
+    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     parser.add_argument(
         "--kill", action="store_true", help="Kill any process using the specified port"
     )
@@ -113,51 +102,11 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    port = args.port
-    host = args.host
+    # Create the Flask app with SocketIO
+    app, socketio = create_app()
 
-    # Only try to clean up port if we're not the reloader
-    if not is_running_from_reloader():
-        try:
-            # Check if port is in use
-            if get_process_on_port(port):
-                if args.kill:
-                    # Try to kill the process
-                    if not kill_process_on_port(port):
-                        print(f"Failed to kill process on port {port}")
-                        if not args.auto_port:
-                            exit(1)
-                elif args.auto_port:
-                    # Try to find a free port
-                    try:
-                        new_port = find_free_port(port)
-                        if new_port != port:
-                            print(
-                                f"Port {port} is in use, using port {new_port} instead"
-                            )
-                            port = new_port
-                    except RuntimeError as e:
-                        print(e)
-                        exit(1)
-                else:
-                    # Wait for port to become available
-                    try:
-                        wait_for_port(port, host)
-                    except TimeoutError as e:
-                        print(e)
-                        print("\nTry one of the following options:")
-                        print(
-                            f"1. Kill the process using port {port}: python run.py --kill"
-                        )
-                        print("2. Use a different port: python run.py --port 5001")
-                        print(
-                            "3. Automatically find a free port: python run.py --auto-port"
-                        )
-                        exit(1)
-        except Exception as e:
-            print(f"Error checking port: {e}")
-            exit(1)
-
-    app = create_app()
-    print(f"Starting socketio server on {host}:{port}")
-    socketio.run(app, host=host, port=port, debug=True)
+    # Run the app with SocketIO
+    print(f"Starting socketio server on {args.host}:{args.port}")
+    socketio.run(
+        app, host=args.host, port=args.port, debug=args.debug, use_reloader=args.debug
+    )

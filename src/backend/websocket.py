@@ -1,18 +1,33 @@
-# Import and configure eventlet
+# Configure eventlet
 try:
     import eventlet
 
     eventlet.monkey_patch()
 except ImportError:
-    pass  # Fallback to other modes if eventlet is not available
+    print("Eventlet not installed. Please install it with: pip install eventlet")
+    raise
 
 from flask_socketio import SocketIO, emit
 from flask import request, current_app
 from datetime import datetime
 import jwt
 
-# Create SocketIO instance with async_mode explicitly set
-socketio = SocketIO(cors_allowed_origins="*", async_mode=None)
+# Create SocketIO instance with async_mode explicitly set to 'eventlet'
+socketio = SocketIO(
+    cors_allowed_origins="*", async_mode="eventlet", logger=True, engineio_logger=True
+)
+
+
+def init_app(app, **kwargs):
+    """Initialize SocketIO with the Flask app"""
+    # Merge provided kwargs with default options
+    options = {"cors_allowed_origins": "*", "async_mode": "eventlet"}
+    options.update(kwargs)
+
+    # Initialize the SocketIO instance with the app
+    socketio.init_app(app, **options)
+    return socketio
+
 
 # Store connected clients
 connected_clients = {}

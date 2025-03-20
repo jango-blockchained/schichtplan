@@ -24,50 +24,40 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { ShiftTable } from '@/components/ShiftTable';
-import { useScheduleData } from '@/hooks/useScheduleData';
-import { addDays, startOfWeek, endOfWeek, addWeeks, format, getWeek, isBefore } from 'date-fns';
-import { Button } from '@/components/ui/button';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, getSettings, updateSettings, createSchedule, getEmployees, getAbsences } from '@/services/api';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { useToast } from '@/components/ui/use-toast';
-import { Loader2, AlertCircle, X, Calendar, CheckCircle, XCircle, RefreshCw, Plus } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Table, TableHeader, TableBody, TableCell, TableRow } from '@/components/ui/table';
+import { addDays, startOfWeek, format, addWeeks } from 'date-fns';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import { ScheduleTable } from '@/components/ScheduleTable';
+import { DateRange } from 'react-day-picker';
+import { useToast } from '@/components/ui/use-toast';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ScheduleTable } from '@/components/Schedule/Table/ScheduleTable';
+import ScheduleControls from '@/components/Schedule/ScheduleControls';
+import { EnhancedDateRangeSelector } from '@/components/EnhancedDateRangeSelector';
+import { VersionControl } from '@/components/VersionControl';
+import { ScheduleGenerationSettings } from '@/components/ScheduleGenerationSettings';
+import { ScheduleStatistics } from '@/components/Schedule/ScheduleStatistics';
+import { useScheduleData } from '@/hooks/useScheduleData';
+import { useScheduleGeneration } from '@/hooks/useScheduleGeneration';
+import { useVersionControl } from '@/hooks/useVersionControl';
+import { exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, getSettings, updateSettings, createSchedule, getEmployees, getAbsences, updateVersionStatus } from '@/services/api';
+import type { Schedule, ScheduleUpdate, Settings, ShiftType } from '@/types';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Loader2, AlertCircle, X, Calendar, CheckCircle, XCircle, RefreshCw, Plus } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableHeader, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { ScheduleOverview } from '@/components/Schedule/ScheduleOverview';
-import { Schedule, ScheduleError, ScheduleUpdate } from '@/types';
+import { ScheduleError } from '@/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PageHeader } from '@/components/PageHeader';
 import { getAvailableCalendarWeeks, getDateRangeFromWeekAndCount } from '@/utils/dateUtils';
-import { ScheduleVersions } from '@/components/Schedule/ScheduleVersions';
-import { useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
-import { VersionControl } from '@/components/VersionControl';
-import { CollapsibleSection } from '@/components/CollapsibleSection';
-import { ScheduleGenerationSettings } from '@/components/ScheduleGenerationSettings';
-import type { ScheduleResponse } from '@/services/api';
-import { type Settings } from '@/types';
-import { type Schedule as APISchedule } from '@/services/api';
-import { type UseScheduleDataResult } from '@/hooks/useScheduleData';
-import { DateRangeSelector } from '@/components/DateRangeSelector';
-// Import the new components and hooks
-import GenerationOverlay from '@/components/Schedule/GenerationOverlay';
-import GenerationLogs from '@/components/Schedule/GenerationLogs';
-import ScheduleErrors from '@/components/Schedule/ScheduleErrors';
-import ScheduleControls from '@/components/Schedule/ScheduleControls';
-import useScheduleGeneration from '@/hooks/useScheduleGeneration';
-import useVersionControl from '@/hooks/useVersionControl';
-import { DateRange } from 'react-day-picker';
 import { ScheduleActions } from '@/components/Schedule/ScheduleActions';
 import { ShiftEditModal } from '@/components/ShiftEditModal';
-import { ScheduleStatistics } from '@/components/Schedule/ScheduleStatistics';
-import { EnhancedDateRangeSelector } from '@/components/EnhancedDateRangeSelector';
 import { VersionTable } from '@/components/Schedule/VersionTable';
 import { ScheduleManager } from '@/components/ScheduleManager';
 import { Dashboard } from '@/components/Dashboard';
@@ -81,6 +71,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import GenerationOverlay from '@/components/Schedule/GenerationOverlay';
+import GenerationLogs from '@/components/Schedule/GenerationLogs';
+import ScheduleErrors from '@/components/Schedule/ScheduleErrors';
+import { DateRangeSelector } from '@/components/DateRangeSelector';
+import { ScheduleVersions } from '@/components/Schedule/ScheduleVersions';
+import { type ScheduleResponse } from '@/services/api';
+import { type UseScheduleDataResult } from '@/hooks/useScheduleData';
+import { type Schedule as APISchedule } from '@/services/api';
 
 export function SchedulePage() {
   const today = new Date();
@@ -88,29 +86,25 @@ export function SchedulePage() {
   const [createEmptySchedules, setCreateEmptySchedules] = useState<boolean>(true);
   const [includeEmpty, setIncludeEmpty] = useState<boolean>(true);
   const [isGenerating, setIsGenerating] = useState(false);
-  // Add state for schedule duration (in weeks)
   const [scheduleDuration, setScheduleDuration] = useState<number>(1);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isAddScheduleDialogOpen, setIsAddScheduleDialogOpen] = useState(false);
   const [newSchedule, setNewSchedule] = useState<Schedule | null>(null);
   const [employeeAbsences, setEmployeeAbsences] = useState<Record<number, any[]>>({});
-  // Add a state for tracking the active view
   const [activeView, setActiveView] = useState<'table' | 'grid'>('table');
 
-  // Initialize date range with current week
   useEffect(() => {
     if (!dateRange || !dateRange.from || !dateRange.to) {
       const today = new Date();
       const from = startOfWeek(today, { weekStartsOn: 1 });
       from.setHours(0, 0, 0, 0);
-      const to = addDays(from, 6 * scheduleDuration); // Use scheduleDuration to set the end date
+      const to = addDays(from, 6 * scheduleDuration);
       to.setHours(23, 59, 59, 999);
       setDateRange({ from, to });
     }
-  }, [scheduleDuration]); // Add scheduleDuration as a dependency
+  }, [scheduleDuration]);
 
-  // Function to update date range when selecting a different week
   const handleWeekChange = (weekOffset: number) => {
     if (dateRange?.from) {
       const from = addWeeks(startOfWeek(dateRange.from, { weekStartsOn: 1 }), weekOffset);
@@ -121,11 +115,9 @@ export function SchedulePage() {
     }
   };
 
-  // Function to handle schedule duration change
   const handleDurationChange = (duration: number) => {
     setScheduleDuration(duration);
 
-    // Update end date based on new duration
     if (dateRange?.from) {
       const from = dateRange.from;
       const to = addDays(startOfWeek(from, { weekStartsOn: 1 }), 6 * duration);
@@ -134,13 +126,12 @@ export function SchedulePage() {
     }
   };
 
-  // Use our version control hook
   const {
     selectedVersion,
     handleVersionChange,
     handleCreateNewVersion,
-    handlePublishVersion,
-    handleArchiveVersion,
+    handlePublishVersion: publishVersion,
+    handleArchiveVersion: archiveVersion,
     handleDeleteVersion,
     handleDuplicateVersion,
     handleCreateNewVersionWithOptions: versionControlCreateWithOptions,
@@ -150,12 +141,10 @@ export function SchedulePage() {
   } = useVersionControl({
     dateRange,
     onVersionSelected: (version) => {
-      // When a version is selected via the version control, we need to refetch data
       refetchScheduleData();
     }
   });
 
-  // Use our schedule generation hook
   const {
     generationSteps,
     generationLogs,
@@ -170,13 +159,10 @@ export function SchedulePage() {
     selectedVersion,
     createEmptySchedules,
     onSuccess: () => {
-      // After generation completes successfully, refresh the data
       refetchScheduleData();
 
-      // Force refresh the versions data as well to ensure we have the latest
       queryClient.invalidateQueries({ queryKey: ['versions'] });
 
-      // Show a success message
       toast({
         title: "Generation Complete",
         description: "The schedule has been generated successfully."
@@ -184,7 +170,6 @@ export function SchedulePage() {
     }
   });
 
-  // Update the useQuery hook with proper types and error handling
   const {
     data,
     isLoading,
@@ -225,11 +210,10 @@ export function SchedulePage() {
       }
     },
     enabled: !!dateRange?.from && !!dateRange?.to,
-    retry: 2, // Retry failed requests twice
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
-  // Extract schedule data with proper types
   const { scheduleData, errors: scheduleErrors, loading: isLoadingSchedule, error: scheduleError } = useScheduleData(
     dateRange?.from ?? new Date(),
     dateRange?.to ?? new Date(),
@@ -239,7 +223,6 @@ export function SchedulePage() {
 
   const errors = data?.errors || [];
 
-  // Log fetch errors
   useEffect(() => {
     if (error) {
       console.error('Schedule fetch error:', error);
@@ -248,12 +231,13 @@ export function SchedulePage() {
     }
   }, [error]);
 
-  // Add a retry mechanism for failed data fetches
-  const handleRetryFetch = () => {
-    // Clear any existing errors
+  const handleRetryFetch = async (): Promise<void> => {
     clearGenerationLogs();
-    // Force refetch
-    refetchScheduleData();
+    await refetchScheduleData();
+  };
+
+  const handleExportSchedule = async (): Promise<void> => {
+    await exportMutation.mutateAsync();
   };
 
   const exportMutation = useMutation({
@@ -303,13 +287,10 @@ export function SchedulePage() {
     },
     onSuccess: async ({ response, scheduleId, isNew }) => {
       try {
-        // Wait a brief moment to ensure the backend has processed the update
         await new Promise(resolve => setTimeout(resolve, 100));
 
-        // Force invalidate any cached queries
         queryClient.invalidateQueries({ queryKey: ['schedules'] });
 
-        // Immediately refetch to show updated data
         await refetchScheduleData();
 
         toast({
@@ -318,13 +299,11 @@ export function SchedulePage() {
         });
 
         if (isNew) {
-          // For new schedules, log additional details for debugging
           addGenerationLog('info', 'New shift created',
             `New Schedule ID: ${response.id}, Employee ID: ${response.employee_id}, Shift ID: ${response.shift_id}`);
         }
       } catch (error) {
         console.error('Error refetching data after update:', error);
-        // Still show success toast since the update succeeded
         toast({
           title: "Success",
           description: isNew ? "Shift created successfully" : "Shift updated successfully",
@@ -375,10 +354,8 @@ export function SchedulePage() {
         version: selectedVersion
       });
 
-      // Force invalidate any cached queries
-      await queryClient.invalidateQueries({ queryKey: ['schedules'] });
+      queryClient.invalidateQueries({ queryKey: ['schedules'] });
 
-      // Immediately refetch to show updated data
       await refetchScheduleData();
 
       toast({
@@ -397,13 +374,11 @@ export function SchedulePage() {
 
   const handleShiftUpdate = async (scheduleId: number, updates: ScheduleUpdate): Promise<void> => {
     try {
-      // Add the current version to the updates
       const updatesWithVersion = {
         ...updates,
         version: selectedVersion
       };
 
-      // Call the mutation
       await updateShiftMutation.mutateAsync({ scheduleId, updates: updatesWithVersion });
     } catch (error) {
       console.error('Error in handleShiftUpdate:', error);
@@ -412,7 +387,7 @@ export function SchedulePage() {
         description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
         variant: "destructive"
       });
-      throw error; // Re-throw to allow calling code to handle it
+      throw error;
     }
   };
 
@@ -420,7 +395,6 @@ export function SchedulePage() {
     await updateBreakNotesMutation.mutateAsync({ employeeId, day, notes });
   };
 
-  // Add settings query
   const settingsQuery = useQuery<Settings, Error>({
     queryKey: ['settings'] as const,
     queryFn: async () => {
@@ -428,38 +402,32 @@ export function SchedulePage() {
       return response;
     },
     retry: 3,
-    staleTime: 5 * 60 * 1000 // 5 minutes
+    staleTime: 5 * 60 * 1000
   });
 
-  // Add settings update handler
   const handleSettingsUpdate = async (updates: Partial<Settings['scheduling']['generation_requirements']>) => {
     try {
       if (!settingsQuery.data) {
         throw new Error("Settings not loaded");
       }
 
-      // Create a deep copy of current settings to avoid mutation issues
       const currentSettings = JSON.parse(JSON.stringify(settingsQuery.data));
 
-      // Ensure scheduling exists
       if (!currentSettings.scheduling) {
         currentSettings.scheduling = {
           generation_requirements: {}
         };
       }
 
-      // Ensure generation_requirements exists in scheduling
       if (!currentSettings.scheduling.generation_requirements) {
         currentSettings.scheduling.generation_requirements = {};
       }
 
-      // Update the primary generation_requirements for API consumption
       currentSettings.scheduling.generation_requirements = {
         ...currentSettings.scheduling.generation_requirements,
         ...updates
       };
 
-      // Also update scheduling_advanced for backward compatibility
       if (!currentSettings.scheduling_advanced) {
         currentSettings.scheduling_advanced = {};
       }
@@ -468,23 +436,19 @@ export function SchedulePage() {
         currentSettings.scheduling_advanced.generation_requirements = {};
       }
 
-      // Update scheduling_advanced.generation_requirements
       currentSettings.scheduling_advanced.generation_requirements = {
         ...currentSettings.scheduling_advanced.generation_requirements,
         ...updates
       };
 
-      // Send the updated settings to the backend
       await updateSettings(currentSettings);
 
-      // Log the update
       addGenerationLog('info', 'Generation settings updated',
         Object.entries(updates)
           .map(([key, value]) => `${key}: ${value ? 'enabled' : 'disabled'}`)
           .join(', ')
       );
 
-      // Refresh settings data
       await settingsQuery.refetch();
 
       toast({
@@ -510,50 +474,44 @@ export function SchedulePage() {
     }
   };
 
-  // Convert API Schedule to frontend Schedule
   const convertSchedule = (apiSchedule: APISchedule): Schedule => {
+    const shiftTypeId = apiSchedule.shift_type_id;
     return {
       id: apiSchedule.id,
       employee_id: apiSchedule.employee_id,
       date: apiSchedule.date,
       shift_id: apiSchedule.shift_id,
-      shift_start: apiSchedule.shift_start ?? null,
-      shift_end: apiSchedule.shift_end ?? null,
-      is_empty: apiSchedule.is_empty ?? false,
+      shift_start: apiSchedule.shift_start,
+      shift_end: apiSchedule.shift_end,
+      is_empty: apiSchedule.is_empty,
       version: apiSchedule.version,
-      status: apiSchedule.status as Schedule['status'],
-      break_start: apiSchedule.break_start ?? null,
-      break_end: apiSchedule.break_end ?? null,
-      notes: apiSchedule.notes ?? null,
-      employee_name: undefined,
-      shift_type_id: apiSchedule.shift_type_id ?? undefined
+      status: apiSchedule.status as 'DRAFT' | 'PUBLISHED' | 'ARCHIVED',
+      break_start: apiSchedule.break_start,
+      break_end: apiSchedule.break_end,
+      notes: apiSchedule.notes,
+      availability_type: apiSchedule.availability_type,
+      shift_type_id: shiftTypeId && ['EARLY', 'MIDDLE', 'LATE'].includes(shiftTypeId) ? shiftTypeId as ShiftType : undefined
     };
   };
 
-  // Convert schedules for the ScheduleTable
   const convertedSchedules = (data?.schedules ?? []).map((apiSchedule) => convertSchedule(apiSchedule));
 
-  // Fetch employee data for statistics
   const { data: employees } = useQuery({
     queryKey: ['employees'],
     queryFn: getEmployees,
   });
 
-  // Fetch settings to get absence types
   const { data: settingsData } = useQuery({
     queryKey: ['settings'],
     queryFn: getSettings
   });
 
-  // Fetch employee absences when date range changes
   useEffect(() => {
     if (dateRange?.from && dateRange?.to) {
       const fetchAbsences = async () => {
-        // Get all employees
         const employees = await getEmployees();
         const absences: Record<number, any[]> = {};
 
-        // Fetch absences for each employee
         for (const employee of employees) {
           try {
             const employeeAbsences = await getAbsences(employee.id);
@@ -570,7 +528,6 @@ export function SchedulePage() {
     }
   }, [dateRange]);
 
-  // Show loading skeleton for initial data fetch
   if (isLoading && !scheduleData) {
     return (
       <div className="container mx-auto py-6 space-y-6">
@@ -641,18 +598,8 @@ export function SchedulePage() {
     );
   }
 
-  // Function to handle exporting the schedule
-  const handleExportSchedule = () => {
-    exportMutation.mutate();
-  };
-
-  // Show loading overlay for subsequent data fetches
-  const isUpdating = isLoading || updateShiftMutation.isPending || isGenerationPending || exportMutation.isPending;
-
-  // Function to handle the generate action with better error handling
   const handleGenerateSchedule = () => {
     try {
-      // Validate date range
       if (!dateRange?.from || !dateRange?.to) {
         toast({
           title: "Zeitraum erforderlich",
@@ -662,7 +609,6 @@ export function SchedulePage() {
         return;
       }
 
-      // Validate version selection
       if (!selectedVersion) {
         toast({
           title: "Version erforderlich",
@@ -672,7 +618,6 @@ export function SchedulePage() {
         return;
       }
 
-      // Make sure version data is loaded
       if (isLoadingVersions) {
         toast({
           title: "Versionen werden geladen",
@@ -682,14 +627,12 @@ export function SchedulePage() {
         return;
       }
 
-      // Log detailed information about the generation request
       const formattedFromDate = format(dateRange.from, 'yyyy-MM-dd');
       const formattedToDate = format(dateRange.to, 'yyyy-MM-dd');
 
       addGenerationLog('info', 'Starting schedule generation',
         `Version: ${selectedVersion}, Date range: ${formattedFromDate} - ${formattedToDate}`);
 
-      // Call the generate function from the hook
       generate();
     } catch (error) {
       console.error("Generation error:", error);
@@ -705,17 +648,22 @@ export function SchedulePage() {
   };
 
   const handleAddScheduleClick = () => {
-    // Create a new empty schedule object with the current version
-    setNewSchedule({
-      id: -1, // Temporary ID for new schedule
+    const newScheduleData: Schedule = {
+      id: -1,
       employee_id: 0,
       date: dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
       shift_id: null,
+      shift_start: null,
+      shift_end: null,
+      is_empty: true,
       version: selectedVersion || 1,
       status: 'DRAFT',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    });
+      break_start: null,
+      break_end: null,
+      notes: null,
+      shift_type_id: undefined
+    };
+    setNewSchedule(newScheduleData);
     setIsAddScheduleDialogOpen(true);
   };
 
@@ -742,7 +690,6 @@ export function SchedulePage() {
     }
   };
 
-  // Handler for deleting the current schedule
   const handleDeleteSchedule = () => {
     if (!selectedVersion) {
       toast({
@@ -762,7 +709,6 @@ export function SchedulePage() {
       return;
     }
 
-    // Create confirmation dialog with detailed information
     setConfirmDeleteMessage({
       title: "Schichtplan endgültig löschen?",
       message: `Sie sind dabei, alle ${convertedSchedules.length} Schichtpläne der Version ${selectedVersion} zu löschen. Diese Aktion betrifft:`,
@@ -800,7 +746,6 @@ export function SchedulePage() {
     });
   };
 
-  // Add state for confirmation dialog
   const [confirmDeleteMessage, setConfirmDeleteMessage] = useState<{
     title: string;
     message: string;
@@ -819,21 +764,26 @@ export function SchedulePage() {
     addGenerationLog('info', `Will ${checked ? 'create' : 'not create'} empty schedules for all employees during generation`);
   };
 
-  // Function to handle creating a new version with custom options
   const handleCreateNewVersionWithOptions = (options: { dateRange: DateRange; weekAmount: number }) => {
-    // First update the UI state
     if (options.dateRange.from && options.dateRange.to) {
       setDateRange(options.dateRange);
       setScheduleDuration(options.weekAmount);
 
-      // Then use the version control hook's function directly
       versionControlCreateWithOptions(options);
     }
   };
 
-  // Add a handler for view changes
   const handleViewChange = (newView: 'table' | 'grid') => {
     setActiveView(newView);
+  };
+
+  // Create wrapper functions that match the expected types
+  const handlePublishVersion = async (version: number): Promise<void> => {
+    await updateVersionStatus(version, { status: 'PUBLISHED' });
+  };
+
+  const handleArchiveVersion = async (version: number): Promise<void> => {
+    await updateVersionStatus(version, { status: 'ARCHIVED' });
   };
 
   return (
@@ -846,7 +796,6 @@ export function SchedulePage() {
           />
         </PageHeader>
 
-        {/* Enhanced Date Range Selector with version confirmation */}
         <EnhancedDateRangeSelector
           dateRange={dateRange}
           scheduleDuration={scheduleDuration}
@@ -857,7 +806,6 @@ export function SchedulePage() {
           onCreateNewVersionWithOptions={handleCreateNewVersionWithOptions}
         />
 
-        {/* Add Schedule Statistics if we have data */}
         {!isLoading && !isError && convertedSchedules.length > 0 && dateRange?.from && dateRange?.to && (
           <ScheduleStatistics
             schedules={convertedSchedules}
@@ -868,7 +816,6 @@ export function SchedulePage() {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          {/* Generation Settings */}
           {settingsQuery.data && (
             <ScheduleGenerationSettings
               settings={settingsQuery.data}
@@ -882,7 +829,6 @@ export function SchedulePage() {
             />
           )}
 
-          {/* Version Control */}
           <VersionControl
             versions={versions}
             versionStatuses={data?.version_statuses ?? {}}
@@ -902,7 +848,6 @@ export function SchedulePage() {
           />
         </div>
 
-        {/* Version Table */}
         {versionMetas && versionMetas.length > 0 && (
           <VersionTable
             versions={versionMetas}
@@ -915,7 +860,6 @@ export function SchedulePage() {
           />
         )}
 
-        {/* Schedule Actions */}
         <div className="flex justify-end mb-4">
           <ScheduleActions
             onAddSchedule={handleAddScheduleClick}
@@ -928,7 +872,6 @@ export function SchedulePage() {
           />
         </div>
 
-        {/* Schedule Content */}
         <DndProvider backend={HTML5Backend}>
           {isLoading ? (
             <div className="space-y-4">
@@ -1019,7 +962,6 @@ export function SchedulePage() {
           )}
         </DndProvider>
 
-        {/* Use our extracted components */}
         <GenerationOverlay
           generationSteps={generationSteps}
           generationLogs={generationLogs}
@@ -1034,7 +976,6 @@ export function SchedulePage() {
           clearLogs={clearGenerationLogs}
         />
 
-        {/* Replace AddScheduleDialog with ShiftEditModal */}
         {isAddScheduleDialogOpen && newSchedule && selectedVersion && (
           <ShiftEditModal
             isOpen={isAddScheduleDialogOpen}
@@ -1056,7 +997,6 @@ export function SchedulePage() {
           />
         )}
 
-        {/* Confirmation Dialog */}
         {confirmDeleteMessage && (
           <AlertDialog open={!!confirmDeleteMessage} onOpenChange={(open) => !open && confirmDeleteMessage?.onCancel()}>
             <AlertDialogContent>
