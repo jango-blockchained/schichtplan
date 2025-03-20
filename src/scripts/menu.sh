@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Backend type (passed from start.sh)
+BACKEND=${BACKEND:-"python"}
+
 # Function to check if a port is in use
 check_port() {
     nc -z localhost $1 >/dev/null 2>&1
@@ -16,13 +19,19 @@ kill_port() {
 
 # Function to restart backend
 restart_backend() {
-    echo "Restarting backend..."
+    echo "Restarting $BACKEND backend..."
     kill_port 5000
     sleep 1
     tmux send-keys -t schichtplan:0.0 C-c
     sleep 1
-    tmux send-keys -t schichtplan:0.0 "python3 run.py" C-m
-    echo "Backend restarted!"
+    
+    if [ "$BACKEND" = "localStorage" ]; then
+        tmux send-keys -t schichtplan:0.0 "bun run dev" C-m
+    else
+        tmux send-keys -t schichtplan:0.0 "python3 run.py" C-m
+    fi
+    
+    echo "$BACKEND backend restarted!"
 }
 
 # Function to restart frontend
@@ -44,10 +53,10 @@ restart_all() {
 
 # Function to stop backend
 stop_backend() {
-    echo "Stopping backend..."
+    echo "Stopping $BACKEND backend..."
     kill_port 5000
     tmux send-keys -t schichtplan:0.0 C-c
-    echo "Backend stopped!"
+    echo "$BACKEND backend stopped!"
 }
 
 # Function to stop frontend
@@ -62,6 +71,47 @@ stop_frontend() {
 stop_all() {
     stop_backend
     stop_frontend
+}
+
+# Function to switch backend
+switch_backend() {
+    echo "Switching backend..."
+    
+    # Stop both services
+    stop_all
+    sleep 2
+    
+    # Toggle backend type
+    if [ "$BACKEND" = "localStorage" ]; then
+        BACKEND="python"
+        echo "Switching to Python backend"
+        tmux send-keys -t schichtplan:0.1 "echo 'VITE_BACKEND_TYPE=python' > .env.local" C-m
+    else
+        BACKEND="localStorage"
+        echo "Switching to localStorage backend"
+        tmux send-keys -t schichtplan:0.1 "echo 'VITE_BACKEND_TYPE=localStorage' > .env.local" C-m
+    fi
+    
+    # Update tmux window title
+    tmux rename-window -t schichtplan "Schichtplan Dev ($BACKEND)"
+    
+    # Restart backend with correct type
+    tmux send-keys -t schichtplan:0.0 "cd src/$BACKEND" C-m
+    
+    if [ "$BACKEND" = "localStorage" ]; then
+        tmux send-keys -t schichtplan:0.0 "bun run dev" C-m
+    else
+        tmux send-keys -t schichtplan:0.0 "export FLASK_APP=run.py" C-m
+        tmux send-keys -t schichtplan:0.0 "export FLASK_ENV=development" C-m
+        tmux send-keys -t schichtplan:0.0 "export DEBUG_MODE=1" C-m
+        tmux send-keys -t schichtplan:0.0 "python3 run.py" C-m
+    fi
+    
+    # Restart frontend
+    sleep 2
+    tmux send-keys -t schichtplan:0.1 "bun run --watch --hot --bun dev" C-m
+    
+    echo "Backend switched to $BACKEND!"
 }
 
 # Function to close tmux session and stop all services
@@ -119,6 +169,13 @@ show_dev_stats() {
     echo "-------------------------------------"
     cloc "$PROJECT_ROOT/src/frontend" --exclude-dir=node_modules,dist,build,public --exclude-ext=log
     
+    if [ -d "$PROJECT_ROOT/src/localStorage" ]; then
+        echo ""
+        echo "Analyzing localStorage backend code..."
+        echo "-------------------------------------"
+        cloc "$PROJECT_ROOT/src/localStorage" --exclude-dir=node_modules,data --exclude-ext=log
+    fi
+    
     echo ""
     echo "Overall project statistics (excluding common generated files)..."
     echo "-------------------------------------"
@@ -168,15 +225,18 @@ show_ngrok_menu() {
 while true; do
     clear
     echo "=== Schichtplan Service Control ==="
+    echo "Current backend: $BACKEND"
+    echo "=================================="
     echo "1) Restart Backend"
     echo "2) Restart Frontend"
     echo "3) Restart All Services"
     echo "4) Stop Backend"
     echo "5) Stop Frontend"
     echo "6) Stop All Services"
-    echo "7) Show Development Statistics"
-    echo "8) Public Access (Ngrok)"
-    echo "9) Close Tmux Session (Stop All)"
+    echo "7) Switch Backend Type (Python/LocalStorage)"
+    echo "8) Show Development Statistics"
+    echo "9) Public Access (Ngrok)"
+    echo "0) Close Tmux Session (Stop All)"
     echo "q) Quit"
     echo "=================================="
     
@@ -190,9 +250,10 @@ while true; do
         4) stop_backend ;;
         5) stop_frontend ;;
         6) stop_all ;;
-        7) show_dev_stats ;;
-        8) show_ngrok_menu ;;
-        9) close_tmux_session ;;
+        7) switch_backend ;;
+        8) show_dev_stats ;;
+        9) show_ngrok_menu ;;
+        0) close_tmux_session ;;
         q|Q) exit 0 ;;
         *) echo "Invalid option" ;;
     esac
