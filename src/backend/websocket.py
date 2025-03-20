@@ -1,11 +1,16 @@
-# Configure eventlet
+# Import eventlet initialization module first
 try:
-    import eventlet
-
-    eventlet.monkey_patch()
+    from src.backend.eventlet_init import eventlet
 except ImportError:
-    print("Eventlet not installed. Please install it with: pip install eventlet")
-    raise
+    try:
+        import eventlet
+
+        print(
+            "Warning: Using fallback eventlet import. This may cause issues if not imported before other modules."
+        )
+    except ImportError:
+        print("Eventlet not installed. Please install it with: pip install eventlet")
+        raise
 
 from flask_socketio import SocketIO, emit
 from flask import request, current_app

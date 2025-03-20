@@ -61,6 +61,8 @@ export interface Schedule {
     shift_id: number | null;
     shift_start: string | null | undefined;
     shift_end: string | null | undefined;
+    start_time: string | null | undefined;
+    end_time: string | null | undefined;
     is_empty: boolean | undefined;
     version: number;
     status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { format, addDays, parseISO, startOfWeek } from 'date-fns';
-import { Schedule, Employee } from '@/types';
+import { Schedule, Employee, Settings } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { DateRange } from 'react-day-picker';
@@ -39,6 +39,7 @@ export interface ScheduleTableProps {
         type: 'absence';
     }>;
     className?: string;
+    settings?: Settings;
 }
 
 /**
@@ -66,7 +67,8 @@ export function ScheduleTable({
     isLoading,
     employeeAbsences,
     absenceTypes,
-    className
+    className,
+    settings
 }: ScheduleTableProps) {
     const [expandedEmployees, setExpandedEmployees] = useState<number[]>([]);
 
@@ -81,11 +83,16 @@ export function ScheduleTable({
         if (!dateRange?.from) return [];
         const result = [];
         let currentDate = startOfWeek(dateRange.from, { weekStartsOn: 1 });
-        for (let i = 0; i < 7; i++) {
+
+        // Check settings to determine if we should show Sunday
+        const showSunday = settings?.general?.opening_days?.['SU'];
+        const daysToShow = showSunday ? 7 : 6;
+
+        for (let i = 0; i < daysToShow; i++) {
             result.push(addDays(currentDate, i));
         }
         return result;
-    }, [dateRange?.from]);
+    }, [dateRange?.from, settings?.general?.opening_days]);
 
     // Group schedules by employee
     const schedulesByEmployee = useMemo(() => {
@@ -238,7 +245,8 @@ export function ScheduleTable({
                                                     <div>
                                                         <div className="font-medium">{employeeName}</div>
                                                         <div className="text-sm text-muted-foreground">
-                                                            {stats.filledShifts}/{stats.totalShifts} shifts
+                                                            {employee.employee_group ? `${employee.employee_group}` : ''}
+                                                            {employee.contracted_hours > 0 ? ` • ${employee.contracted_hours}h` : ''}
                                                             {stats.absences > 0 && ` • ${stats.absences} absences`}
                                                         </div>
                                                     </div>
@@ -250,18 +258,23 @@ export function ScheduleTable({
                                                     s => s.date === dateStr
                                                 );
                                                 const hasAbsence = checkForAbsence(employee.id, dateStr);
+                                                const absenceInfo = hasAbsence && employeeAbsences?.[employee.id]?.find(
+                                                    absence => absence.date === dateStr
+                                                );
 
                                                 return (
                                                     <TableCell key={dateStr} className="p-0">
-                                                        <ErrorBoundary>
-                                                            <ScheduleCell
-                                                                schedule={schedule}
-                                                                onDrop={onDrop}
-                                                                onUpdate={onUpdate}
-                                                                hasAbsence={hasAbsence}
-                                                                className="min-h-[80px]"
-                                                            />
-                                                        </ErrorBoundary>
+                                                        <ScheduleCell
+                                                            schedule={schedule}
+                                                            onDrop={onDrop}
+                                                            onUpdate={onUpdate}
+                                                            hasAbsence={hasAbsence}
+                                                            absenceInfo={absenceInfo}
+                                                            className={cn(
+                                                                "min-h-[100px] w-full",
+                                                                hasAbsence && "bg-red-50 border-red-200"
+                                                            )}
+                                                        />
                                                     </TableCell>
                                                 );
                                             })}

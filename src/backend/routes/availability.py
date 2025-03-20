@@ -330,6 +330,12 @@ def check_bulk_availability():
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
+@availability.route("/bulk_check/", methods=["POST"])
+def bulk_check_availability():
+    """Check employee availability for multiple shifts - alternative endpoint for frontend compatibility"""
+    return check_bulk_availability()
+
+
 @availability.route("/batch", methods=["PUT"])
 def update_batch_availabilities():
     """Update multiple employee availabilities at once"""

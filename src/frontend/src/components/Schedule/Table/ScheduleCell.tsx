@@ -35,6 +35,11 @@ export interface ScheduleCellProps {
     hasConflict?: boolean;
     isLoading?: boolean;
     className?: string;
+    absenceInfo?: {
+        type: string;
+        start_time?: string;
+        end_time?: string;
+    };
 }
 
 /**
@@ -59,7 +64,8 @@ export function ScheduleCell({
     hasAbsence,
     hasConflict,
     isLoading,
-    className
+    className,
+    absenceInfo
 }: ScheduleCellProps) {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [showActions, setShowActions] = useState(false);
@@ -159,15 +165,21 @@ export function ScheduleCell({
     };
 
     const getStatusMessage = () => {
-        if (hasAbsence) return "Mitarbeiter hat an diesem Tag eine Abwesenheit";
-        if (hasConflict) return "Diese Schicht überschneidet sich mit einer anderen Schicht";
-        if (isDragging) return "Schicht wird verschoben";
-        if (isOver) return "Schicht hier ablegen";
+        if (hasAbsence) {
+            if (absenceInfo?.type) {
+                return `Absence: ${absenceInfo.type}${absenceInfo.start_time ? ` (${absenceInfo.start_time} - ${absenceInfo.end_time})` : ''}`;
+            }
+            return "Employee has an absence on this day";
+        }
+        if (hasConflict) return "This shift conflicts with another shift";
+        if (isDragging) return "Shift is being moved";
+        if (isOver) return "Drop shift here";
         return null;
     };
 
     const statusMessage = getStatusMessage();
 
+    // Simplified JSX structure
     return (
         <TooltipProvider>
             <div
@@ -184,17 +196,24 @@ export function ScheduleCell({
                 onMouseEnter={() => setShowActions(true)}
                 onMouseLeave={() => setShowActions(false)}
                 role="gridcell"
-                aria-label={statusMessage || "Schichtzelle"}
+                aria-label={statusMessage || "Shift cell"}
                 tabIndex={0}
             >
-                {(hasAbsence || hasConflict) && (
+                {hasAbsence && (
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            {hasAbsence ? (
-                                <AlertTriangle className="absolute top-2 right-2 text-red-500 h-4 w-4" />
-                            ) : (
-                                <AlertCircle className="absolute top-2 right-2 text-amber-500 h-4 w-4" />
-                            )}
+                            <AlertTriangle className="absolute top-2 right-2 text-red-500 h-4 w-4" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>{statusMessage}</p>
+                        </TooltipContent>
+                    </Tooltip>
+                )}
+
+                {hasConflict && (
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <AlertCircle className="absolute top-2 right-2 text-amber-500 h-4 w-4" />
                         </TooltipTrigger>
                         <TooltipContent>
                             <p>{statusMessage}</p>
@@ -205,8 +224,8 @@ export function ScheduleCell({
                 {schedule?.shift_id ? (
                     <>
                         <TimeSlotDisplay
-                            startTime={schedule.start_time}
-                            endTime={schedule.end_time}
+                            startTime={schedule.start_time || ""}
+                            endTime={schedule.end_time || ""}
                             shiftType={schedule.shift_type_id}
                             settings={settings}
                             schedule={schedule}
@@ -215,13 +234,13 @@ export function ScheduleCell({
                             <div
                                 className="absolute bottom-2 right-2 flex gap-1"
                                 role="toolbar"
-                                aria-label="Schicht Aktionen"
+                                aria-label="Shift actions"
                             >
                                 <Button
                                     variant="ghost"
                                     size="icon"
                                     onClick={() => setIsEditModalOpen(true)}
-                                    aria-label="Schicht bearbeiten"
+                                    aria-label="Edit shift"
                                 >
                                     <Edit2 className="h-4 w-4" />
                                 </Button>
@@ -229,7 +248,7 @@ export function ScheduleCell({
                                     variant="ghost"
                                     size="icon"
                                     onClick={handleDelete}
-                                    aria-label="Schicht löschen"
+                                    aria-label="Delete shift"
                                     disabled={isDeleting}
                                 >
                                     <Trash2 className="h-4 w-4" />
@@ -237,13 +256,19 @@ export function ScheduleCell({
                             </div>
                         )}
                     </>
+                ) : hasAbsence ? (
+                    <div className="flex items-center justify-center h-full w-full">
+                        <div className="text-sm text-red-500 font-medium text-center">
+                            {absenceInfo?.type || "Absence"}
+                        </div>
+                    </div>
                 ) : (
                     <Button
                         variant="ghost"
                         className="w-full h-full flex items-center justify-center"
                         onClick={handleAdd}
                         disabled={hasAbsence || hasConflict}
-                        aria-label="Neue Schicht hinzufügen"
+                        aria-label="Add new shift"
                     >
                         <Plus className="h-4 w-4" />
                     </Button>
@@ -251,24 +276,12 @@ export function ScheduleCell({
 
                 {isEditModalOpen && schedule && (
                     <ShiftEditModal
+                        isOpen={isEditModalOpen}
                         schedule={schedule}
                         onClose={() => setIsEditModalOpen(false)}
-                        onSave={async (updates) => {
-                            try {
-                                await onUpdate(schedule.id, updates);
-                                setIsEditModalOpen(false);
-                                toast({
-                                    title: "Schicht aktualisiert",
-                                    description: "Die Schicht wurde erfolgreich aktualisiert."
-                                });
-                            } catch (error) {
-                                console.error('Error updating shift:', error);
-                                toast({
-                                    title: "Fehler beim Aktualisieren",
-                                    description: "Die Schicht konnte nicht aktualisiert werden. Bitte versuchen Sie es erneut.",
-                                    variant: "destructive"
-                                });
-                            }
+                        onSave={async (scheduleId, updates) => {
+                            await onUpdate(scheduleId, updates);
+                            setIsEditModalOpen(false);
                         }}
                     />
                 )}

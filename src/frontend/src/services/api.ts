@@ -652,8 +652,32 @@ export const getAbsenceTypes = async (): Promise<AbsenceType[]> => {
 
 export const getAbsences = async (employeeId: number): Promise<Absence[]> => {
     try {
-        const response = await api.get<Absence[]>(`/employees/${employeeId}/absences`);
-        return response.data;
+        const response = await api.get<any[]>(`/employees/${employeeId}/absences`);
+
+        // Transform the response to generate individual date entries for each day of absence
+        const absences: Absence[] = [];
+
+        response.data.forEach(absenceData => {
+            const startDate = new Date(absenceData.start_date);
+            const endDate = new Date(absenceData.end_date);
+
+            // For each day between start_date and end_date, create an absence entry
+            const currentDate = new Date(startDate);
+            while (currentDate <= endDate) {
+                absences.push({
+                    id: absenceData.id,
+                    employee_id: absenceData.employee_id,
+                    date: currentDate.toISOString().split('T')[0], // Format: YYYY-MM-DD
+                    type: absenceData.absence_type_id,
+                    // Include other fields as needed
+                });
+
+                // Move to next day
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+        });
+
+        return absences;
     } catch (error) {
         if (error instanceof Error) {
             throw new Error(`Failed to fetch absences: ${error.message}`);

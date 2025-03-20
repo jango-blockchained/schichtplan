@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { ScheduleTable } from './ScheduleTable';
+import { ScheduleTable } from './Schedule/Table/ScheduleTable';
 import { TimeGridScheduleTable } from './TimeGridScheduleTable';
 import { Schedule, ScheduleUpdate } from '@/types';
 import { DateRange } from 'react-day-picker';
 import { Card, CardContent } from '@/components/ui/card';
+import { useQuery } from '@tanstack/react-query';
+import { getSettings } from '@/services/api';
 
 interface ScheduleManagerProps {
     schedules: Schedule[];
@@ -31,6 +33,12 @@ export function ScheduleManager({
     absenceTypes,
     activeView
 }: ScheduleManagerProps) {
+    // Fetch settings for store configuration
+    const { data: settings } = useQuery({
+        queryKey: ['settings'],
+        queryFn: getSettings,
+    });
+
     // Enhanced drop handler that can handle both table and grid view drops
     const handleDrop = async (
         scheduleId: number,
@@ -71,6 +79,7 @@ export function ScheduleManager({
                         isLoading={isLoading}
                         employeeAbsences={employeeAbsences}
                         absenceTypes={absenceTypes}
+                        settings={settings}
                     />
                 ) : (
                     <TimeGridScheduleTable

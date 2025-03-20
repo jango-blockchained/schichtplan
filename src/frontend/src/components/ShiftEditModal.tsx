@@ -286,10 +286,12 @@ export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditM
             }
         };
 
-        subscribeToEvents(['AVAILABILITY_UPDATED', 'ABSENCE_UPDATED'], handleEvent);
+        // Subscribe to WebSocket events for real-time updates
+        subscribeToEvents(['AVAILABILITY_UPDATED', 'ABSENCE_UPDATED', 'shift_template_updated'], handleEvent);
 
         return () => {
-            unsubscribeFromEvents(['AVAILABILITY_UPDATED', 'ABSENCE_UPDATED']);
+            // Clean up by unsubscribing when component unmounts
+            unsubscribeFromEvents(['AVAILABILITY_UPDATED', 'ABSENCE_UPDATED', 'shift_template_updated']);
         };
     }, [selectedEmployeeId, schedule.id, userSelectedEmployee]);
 

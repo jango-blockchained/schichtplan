@@ -1,14 +1,20 @@
-import os
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Fix shift #9 which has invalid times causing issues in scheduling application
+"""
+
 import sys
+import os
+from models.fixed_shift import ShiftTemplate as Shift
+from models.settings import Settings
+from flask import Flask
 
 # Add the backend directory to the path
 backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.insert(0, backend_dir)
 
 from models import db
-from models.shift import Shift
-from models.settings import Settings
-from flask import Flask
 
 # Create a Flask application context
 app = Flask(__name__)

@@ -44,7 +44,7 @@ import { ScheduleStatistics } from '@/components/Schedule/ScheduleStatistics';
 import { useScheduleData } from '@/hooks/useScheduleData';
 import { useScheduleGeneration } from '@/hooks/useScheduleGeneration';
 import { useVersionControl } from '@/hooks/useVersionControl';
-import { exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, getSettings, updateSettings, createSchedule, getEmployees, getAbsences, updateVersionStatus } from '@/services/api';
+import { exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, getSettings, updateSettings, createSchedule, getEmployees, getAbsences, updateVersionStatus, subscribeToEvents, unsubscribeFromEvents } from '@/services/api';
 import type { Schedule, ScheduleUpdate, Settings, ShiftType } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Loader2, AlertCircle, X, Calendar, CheckCircle, XCircle, RefreshCw, Plus } from 'lucide-react';
@@ -506,27 +506,59 @@ export function SchedulePage() {
     queryFn: getSettings
   });
 
-  useEffect(() => {
-    if (dateRange?.from && dateRange?.to) {
-      const fetchAbsences = async () => {
-        const employees = await getEmployees();
-        const absences: Record<number, any[]> = {};
+  const fetchAbsences = async () => {
+    try {
+      if (!employees) return;
 
-        for (const employee of employees) {
-          try {
-            const employeeAbsences = await getAbsences(employee.id);
-            absences[employee.id] = employeeAbsences;
-          } catch (error) {
-            console.error(`Failed to fetch absences for employee ${employee.id}:`, error);
-          }
-        }
+      const absencePromises = employees.map(employee =>
+        getAbsences(employee.id)
+          .then(absences => ({ employeeId: employee.id, absences }))
+          .catch(() => ({ employeeId: employee.id, absences: [] }))
+      );
 
-        setEmployeeAbsences(absences);
-      };
+      const results = await Promise.all(absencePromises);
 
-      fetchAbsences();
+      const absencesMap: Record<number, any[]> = {};
+      results.forEach(({ employeeId, absences }) => {
+        absencesMap[employeeId] = absences;
+      });
+
+      setEmployeeAbsences(absencesMap);
+    } catch (error) {
+      console.error('Error fetching absences:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch employee absences",
+        variant: "destructive"
+      });
     }
-  }, [dateRange]);
+  };
+
+  useEffect(() => {
+    fetchAbsences();
+  }, [employees]);
+
+  // Setup WebSocket event listeners for real-time updates
+  useEffect(() => {
+    // Subscribe to schedule_updated, shift_template_updated events for real-time updates
+    subscribeToEvents(['schedule_updated', 'shift_template_updated'], handleWebSocketEvent);
+
+    return () => {
+      // Unsubscribe when component unmounts
+      unsubscribeFromEvents(['schedule_updated', 'shift_template_updated']);
+    };
+  }, [queryClient]);
+
+  // Handle WebSocket events
+  const handleWebSocketEvent = (eventType: string, data: any) => {
+    console.log(`WebSocket event received: ${eventType}`, data);
+
+    // Invalidate relevant queries based on event type
+    if (eventType === 'schedule_updated' || eventType === 'shift_template_updated') {
+      queryClient.invalidateQueries(['schedules']);
+      queryClient.invalidateQueries(['shifts']);
+    }
+  };
 
   if (isLoading && !scheduleData) {
     return (

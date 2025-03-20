@@ -6,21 +6,23 @@ import logging
 import functools
 import sys
 import os
-from models.shift import Shift
 
 # Add parent directories to path if needed
 current_dir = os.path.dirname(os.path.abspath(__file__))
 backend_dir = os.path.dirname(os.path.dirname(current_dir))
-if backend_dir not in sys.path:
-    sys.path.append(backend_dir)
+project_dir = os.path.dirname(backend_dir)
+if project_dir not in sys.path:
+    sys.path.insert(0, project_dir)
 
-from api.demo_data import generate_coverage_data
+# Import demo_data only when needed to avoid circular imports
+# from api.demo_data import generate_coverage_data
 
 # Try to handle imports in different environments
 try:
-    from models import (
+    # First try importing from src.backend.models
+    from src.backend.models import (
         Employee,
-        ShiftTemplate,
+        ShiftTemplate as Shift,
         Settings,
         Coverage,
         db,
@@ -28,12 +30,16 @@ try:
         EmployeeAvailability,
         Schedule,
     )
-    from models.employee import AvailabilityType, EmployeeGroup
-except ImportError:
+    from src.backend.models.employee import AvailabilityType, EmployeeGroup
+
+    # The Session is likely from db
+    Session = db.session
+except (ImportError, AttributeError):
+    # Then try importing from models
     try:
-        from backend.models import (
+        from models import (
             Employee,
-            ShiftTemplate,
+            ShiftTemplate as Shift,
             Settings,
             Coverage,
             db,
@@ -41,12 +47,16 @@ except ImportError:
             EmployeeAvailability,
             Schedule,
         )
-        from backend.models.employee import AvailabilityType, EmployeeGroup
-    except ImportError:
+        from models.employee import AvailabilityType, EmployeeGroup
+
+        # The Session is likely from db
+        Session = db.session
+    except (ImportError, AttributeError):
+        # Finally try a relative import
         try:
-            from src.backend.models import (
+            from ...models import (
                 Employee,
-                ShiftTemplate,
+                ShiftTemplate as Shift,
                 Settings,
                 Coverage,
                 db,
@@ -54,10 +64,36 @@ except ImportError:
                 EmployeeAvailability,
                 Schedule,
             )
-            from src.backend.models.employee import AvailabilityType, EmployeeGroup
-        except ImportError:
-            # Create placeholder classes for standalone testing
-            pass
+            from ...models.employee import AvailabilityType, EmployeeGroup
+
+            # The Session is likely from db
+            Session = db.session
+        except (ImportError, AttributeError) as e:
+            print(f"Error importing models: {e}")
+            # We'll define placeholder classes for testing
+            Employee = None
+            Shift = None
+            Settings = None
+            Coverage = None
+            db = None
+            Session = None
+            Absence = None
+            EmployeeAvailability = None
+            Schedule = None
+
+            # Define placeholder enums
+            class AvailabilityType:
+                AVAILABLE = "AVL"
+                FIXED = "FIX"
+                PREFERRED = "PRF"
+                UNAVAILABLE = "UNV"
+
+            class EmployeeGroup:
+                VZ = "VZ"
+                TZ = "TZ"
+                GFB = "GFB"
+                TL = "TL"
+
 
 # Create a standard logger
 logger = logging.getLogger(__name__)
@@ -82,9 +118,9 @@ class ScheduleResources:
         self.logger = logging.getLogger(__name__)
         self.db = db_session
         if not self.db:
-            from database import Session
+            from models import db
 
-            self.db = Session()
+            self.db = db.session
 
         # Initialize caches
         self._employee_cache = {}
@@ -166,6 +202,9 @@ class ScheduleResources:
                 # Try to generate demo coverage data
                 self.logger.info("Attempting to generate demo coverage data...")
                 try:
+                    # Import demo_data only when needed to avoid circular imports
+                    from api.demo_data import generate_coverage_data
+
                     coverage_slots = generate_coverage_data()
                     for slot in coverage_slots:
                         db.session.add(slot)
@@ -535,7 +574,7 @@ class ScheduleResources:
             if avail.employee_id == employee_id and avail.day_of_week == day_of_week
         ]
 
-    def get_shift(self, shift_id: int) -> Optional[ShiftTemplate]:
+    def get_shift(self, shift_id: int) -> Optional[Shift]:
         """Get a shift template by ID"""
         if not shift_id:
             return None
@@ -556,3 +595,35 @@ class ScheduleResources:
             if leave.employee_id == employee_id
             and leave.start_date <= date <= leave.end_date
         )
+
+    def _load_coverage_data(self) -> List[Dict[str, Any]]:
+        """Load coverage data for all days, either from database or fallback to demo data."""
+        try:
+            # Get the availability dates
+            start_date = self.start_date
+            end_date = self.end_date
+
+            # If using the database model
+            if self.use_db:
+                covs = Coverage.query.filter(
+                    Coverage.date >= start_date, Coverage.date <= end_date
+                ).all()
+                return [cov.to_dict() for cov in covs]
+
+            if not self.coverage_slots:
+                # Try to conditionally import demo_data to avoid circular imports
+                try:
+                    from api.demo_data import generate_coverage_data
+
+                    self.coverage_slots = generate_coverage_data()
+                except ImportError:
+                    self.logger.warning(
+                        "Could not import demo_data. Using empty coverage data."
+                    )
+                    # Fallback to empty coverage data
+                    self.coverage_slots = []
+
+            return self.coverage_slots
+        except Exception as e:
+            self.logger.error(f"Error loading coverage data: {e}")
+            return []

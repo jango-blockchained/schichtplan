@@ -1,3 +1,9 @@
+# Import eventlet initialization first
+try:
+    from src.backend.eventlet_init import eventlet
+except ImportError:
+    print("Warning: eventlet_init.py not found. This may cause issues with the server.")
+
 import sys
 import logging
 import traceback

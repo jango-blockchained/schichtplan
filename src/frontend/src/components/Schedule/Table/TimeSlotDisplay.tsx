@@ -120,11 +120,11 @@ export function TimeSlotDisplay({
         if (typeof shiftType === 'string') {
             switch (shiftType) {
                 case 'EARLY':
-                    return 'Früh';
+                    return 'Early';
                 case 'LATE':
-                    return 'Spät';
+                    return 'Late';
                 case 'MIDDLE':
-                    return 'Mitte';
+                    return 'Middle';
                 default:
                     return shiftType;
             }
