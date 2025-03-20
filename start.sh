@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Default backend type
+DEFAULT_BACKEND="python" # Options: python, localStorage
+
 # Function to check if a port is in use
 check_port() {
     nc -z localhost $1 >/dev/null 2>&1
@@ -58,6 +61,34 @@ cleanup() {
     exit 0
 }
 
+# Process command line arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --backend=*)
+      BACKEND="${1#*=}"
+      shift
+      ;;
+    --python)
+      BACKEND="python"
+      shift
+      ;;
+    --localStorage)
+      BACKEND="localStorage"
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1"
+      echo "Usage: ./start.sh [--backend=python|localStorage] [--python] [--localStorage]"
+      exit 1
+      ;;
+  esac
+done
+
+# Set backend type to default if not specified
+BACKEND=${BACKEND:-$DEFAULT_BACKEND}
+
+echo "Using backend: $BACKEND"
+
 # Clean up any existing log files in wrong locations
 echo "Cleaning up any misplaced log files..."
 find . -name "backend.log" ! -path "./src/logs/*" -delete
@@ -67,6 +98,7 @@ echo "Setting up directory structure..."
 mkdir -p src/logs
 mkdir -p src/instance
 mkdir -p src/scripts
+mkdir -p src/localStorage/data
 
 # Ensure menu and ngrok scripts are executable
 chmod +x src/scripts/menu.sh
@@ -92,20 +124,36 @@ echo "Starting application in tmux..."
 # Create new tmux session
 tmux new-session -d -s schichtplan
 
-# Configure first pane (Backend)
-tmux send-keys -t schichtplan "cd src/backend" C-m
-tmux send-keys -t schichtplan "export FLASK_APP=run.py" C-m
-tmux send-keys -t schichtplan "export FLASK_ENV=development" C-m
-tmux send-keys -t schichtplan "export DEBUG_MODE=1" C-m
-tmux send-keys -t schichtplan "echo 'Starting Backend...'" C-m
-# Use --auto-port and --kill options to handle port conflicts automatically
-tmux send-keys -t schichtplan "python3 run.py --auto-port --kill" C-m
+# Configure first pane based on selected backend
+if [ "$BACKEND" = "localStorage" ]; then
+    # Start localStorage backend
+    tmux send-keys -t schichtplan "cd src/localStorage" C-m
+    tmux send-keys -t schichtplan "echo 'Starting localStorage Backend...'" C-m
+    tmux send-keys -t schichtplan "bun run dev" C-m
+else
+    # Start Python backend
+    tmux send-keys -t schichtplan "cd src/backend" C-m
+    tmux send-keys -t schichtplan "export FLASK_APP=run.py" C-m
+    tmux send-keys -t schichtplan "export FLASK_ENV=development" C-m
+    tmux send-keys -t schichtplan "export DEBUG_MODE=1" C-m
+    tmux send-keys -t schichtplan "echo 'Starting Python Backend...'" C-m
+    # Use --auto-port and --kill options to handle port conflicts automatically
+    tmux send-keys -t schichtplan "python3 run.py --auto-port --kill" C-m
+fi
 
 # Split window vertically for frontend
 tmux split-window -h
 
 # Configure second pane (Frontend)
 tmux send-keys -t schichtplan "cd src/frontend" C-m
+
+# Set environment variable for frontend based on backend selection
+if [ "$BACKEND" = "localStorage" ]; then
+    tmux send-keys -t schichtplan "echo 'VITE_BACKEND_TYPE=localStorage' > .env.local" C-m
+else
+    tmux send-keys -t schichtplan "echo 'VITE_BACKEND_TYPE=python' > .env.local" C-m
+fi
+
 tmux send-keys -t schichtplan "echo 'Starting Frontend...'" C-m
 tmux send-keys -t schichtplan "bun run --watch --hot --bun dev" C-m
 
@@ -114,10 +162,10 @@ tmux split-window -v -l 10
 
 # Configure third pane (Menu)
 tmux send-keys -t schichtplan "cd $(pwd)" C-m
-tmux send-keys -t schichtplan "src/scripts/menu.sh" C-m
+tmux send-keys -t schichtplan "BACKEND=$BACKEND src/scripts/menu.sh" C-m
 
 # Set window title
-tmux rename-window -t schichtplan "Schichtplan Dev"
+tmux rename-window -t schichtplan "Schichtplan Dev ($BACKEND)"
 
 # Wait for the backend to be ready (on any port)
 echo "Waiting for services to start..."
@@ -177,11 +225,17 @@ else
 fi
 
 echo -e "\nApplication started successfully!"
-echo "Backend: http://localhost:${backend_port:-5000}"
+echo "Backend: http://localhost:${backend_port:-5000} (${BACKEND})"
 echo "Frontend: http://localhost:5173"
-echo "Logs location: src/logs/backend.log"
+
+if [ "$BACKEND" = "localStorage" ]; then
+    echo "Data location: src/localStorage/data"
+else
+    echo "Logs location: src/logs/backend.log"
+fi
+
 echo -e "\nTmux session 'schichtplan' created:"
-echo "- Left pane: Backend"
+echo "- Left pane: Backend ($BACKEND)"
 echo "- Right pane: Frontend"
 echo "- Bottom pane: Service Control Menu"
 echo -e "\nTo attach to tmux session: tmux attach-session -t schichtplan"
