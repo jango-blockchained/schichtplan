@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { getSchedules, type ScheduleResponse, type Schedule as APISchedule } from '@/services/api';
-import { Schedule, ScheduleError } from '@/types';
+import { Schedule, ScheduleError, ShiftType } from '@/types';
 import { AxiosError } from 'axios';
 
 export interface UseScheduleDataResult {
@@ -14,6 +14,7 @@ export interface UseScheduleDataResult {
 
 // Helper function to convert API Schedule to frontend Schedule
 const convertSchedule = (apiSchedule: APISchedule): Schedule => {
+    const shiftTypeId = apiSchedule.shift_type_id;
     return {
         id: apiSchedule.id,
         employee_id: apiSchedule.employee_id,
@@ -21,13 +22,17 @@ const convertSchedule = (apiSchedule: APISchedule): Schedule => {
         shift_id: apiSchedule.shift_id,
         shift_start: apiSchedule.shift_start ?? null,
         shift_end: apiSchedule.shift_end ?? null,
+        start_time: apiSchedule.shift_start ?? null,
+        end_time: apiSchedule.shift_end ?? null,
         is_empty: apiSchedule.is_empty ?? false,
         version: apiSchedule.version,
         status: apiSchedule.status as Schedule['status'],
         break_start: apiSchedule.break_start ?? null,
         break_end: apiSchedule.break_end ?? null,
         notes: apiSchedule.notes ?? null,
-        employee_name: undefined
+        employee_name: undefined,
+        availability_type: apiSchedule.availability_type,
+        shift_type_id: shiftTypeId && ['EARLY', 'MIDDLE', 'LATE'].includes(shiftTypeId) ? shiftTypeId as ShiftType : undefined
     };
 };
 
@@ -55,56 +60,17 @@ export function useScheduleData(
                     includeEmpty
                 );
 
-                // Validate response structure
-                if (!response.schedules) {
-                    throw new Error('Invalid response format: missing schedules array');
-                }
-
-                console.log('🔄 useScheduleData received response:', {
-                    scheduleCount: response.schedules?.length || 0,
-                    shiftsWithData: response.schedules?.filter(s => s.shift_id !== null).length || 0,
-                    versions: response.versions,
-                    firstSchedule: response.schedules?.length > 0 ? response.schedules[0] : null
-                });
-
-                // Ensure versions array exists and is sorted in descending order
-                if (response.versions) {
-                    response.versions.sort((a, b) => b - a);
-                }
-
+                console.log('📊 Schedule data fetched:', response);
                 return response;
-            } catch (error) {
-                if (error instanceof AxiosError) {
-                    const errorMessage = error.response?.data?.error || error.message;
-                    console.error('Schedule fetch error:', {
-                        message: errorMessage,
-                        status: error.response?.status,
-                        data: error.response?.data,
-                        config: error.config
-                    });
-
-                    // More user-friendly error messages based on status code
-                    if (error.code === 'ECONNABORTED') {
-                        throw new Error('The request timed out. Please check your internet connection and try again.');
-                    } else if (!error.response) {
-                        throw new Error('Could not connect to the server. Please check if the backend is running.');
-                    } else if (error.response.status === 404) {
-                        throw new Error('The schedule data could not be found.');
-                    } else if (error.response.status >= 500) {
-                        throw new Error('The server encountered an error. Please try again later.');
-                    }
-
-                    throw new Error(errorMessage);
-                }
-                console.error('Schedule fetch error:', error);
-                throw error;
+            } catch (err) {
+                console.error('Error fetching schedules:', err);
+                throw err;
             }
         },
-        gcTime: 30 * 60 * 1000, // Keep unused data in cache for 30 minutes
-        staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
-        refetchOnMount: true, // Always refetch when component mounts
-        refetchOnWindowFocus: true, // Refetch when window regains focus
-        retry: 2, // Retry failed requests up to 2 times
+        enabled: true, // Always enable to force refetch when needed
+        staleTime: 10 * 1000, // Set to 10 seconds to allow some caching but still refresh often
+        retry: 2,
+        retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     });
 
     // Convert API Schedule objects to frontend Schedule objects

@@ -1,73 +1,45 @@
-import { useMemo } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { format } from 'date-fns';
-import { Schedule } from '@/types';
 import { Badge } from '@/components/ui/badge';
-import { Lock, Pencil, Archive } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Schedule } from '@/types';
+import { format } from 'date-fns';
+import { Check, Lock, Pencil } from 'lucide-react';
+import { VersionMeta } from '@/services/api';
 
 interface ScheduleVersionsProps {
+    /** All versions metadata */
+    versions: VersionMeta[];
+    /** Schedules for the current date range */
     schedules: Schedule[];
-    onPublish: (version: number) => Promise<void>;
-    onArchive: (version: number) => Promise<void>;
+    /** Status mapping for versions */
+    versionStatuses: Record<number, string>;
+    /** Handler for publishing a version */
+    onPublish: (version: number) => void;
+    /** Handler for archiving a version */
+    onArchive: (version: number) => void;
 }
 
-interface VersionGroup {
-    version: number;
-    startDate: Date;
-    endDate: Date;
-    status: string;
-    coverage: number;
-    totalShifts: number;
-    filledShifts: number;
-}
-
-export function ScheduleVersions({ schedules, onPublish, onArchive }: ScheduleVersionsProps) {
-    const versionGroups = useMemo(() => {
-        const groups = new Map<number, VersionGroup>();
-
-        schedules.forEach(schedule => {
-            if (!groups.has(schedule.version)) {
-                groups.set(schedule.version, {
-                    version: schedule.version,
-                    startDate: new Date(schedule.date),
-                    endDate: new Date(schedule.date),
-                    status: schedule.status,
-                    coverage: 0,
-                    totalShifts: 0,
-                    filledShifts: 0,
-                });
-            }
-
-            const group = groups.get(schedule.version)!;
-            const scheduleDate = new Date(schedule.date);
-
-            // Update date range
-            if (scheduleDate < group.startDate) group.startDate = scheduleDate;
-            if (scheduleDate > group.endDate) group.endDate = scheduleDate;
-
-            // Update coverage statistics
-            group.totalShifts++;
-            if (!schedule.is_empty) group.filledShifts++;
-            group.coverage = (group.filledShifts / group.totalShifts) * 100;
-        });
-
-        return Array.from(groups.values()).sort((a, b) => b.version - a.version);
-    }, [schedules]);
-
-    const getStatusBadge = (status: string) => {
-        switch (status) {
-            case 'draft':
-                return <Badge variant="outline" className="bg-blue-50"><Pencil className="w-3 h-3 mr-1" /> Draft</Badge>;
-            case 'published':
-                return <Badge variant="outline" className="bg-green-50"><Lock className="w-3 h-3 mr-1" /> Published</Badge>;
-            case 'archived':
-                return <Badge variant="outline" className="bg-gray-50"><Archive className="w-3 h-3 mr-1" /> Archived</Badge>;
-            default:
-                return <Badge variant="outline">{status}</Badge>;
+/**
+ * ScheduleVersions displays a card with all schedule versions and their metadata
+ * including status, date range and coverage percentage. It also provides
+ * controls for version management (publish, archive, edit).
+ */
+export function ScheduleVersions({
+    versions,
+    schedules,
+    versionStatuses,
+    onPublish,
+    onArchive
+}: ScheduleVersionsProps) {
+    // Group schedules by version
+    const schedulesByVersion = schedules.reduce((acc, schedule) => {
+        if (!acc[schedule.version]) {
+            acc[schedule.version] = [];
         }
-    };
+        acc[schedule.version].push(schedule);
+        return acc;
+    }, {} as Record<number, Schedule[]>);
 
     return (
         <Card>
@@ -75,62 +47,119 @@ export function ScheduleVersions({ schedules, onPublish, onArchive }: ScheduleVe
                 <CardTitle>Schedule Versions</CardTitle>
             </CardHeader>
             <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Version</TableHead>
-                            <TableHead>Date Range</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Coverage</TableHead>
-                            <TableHead>Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {versionGroups.map((group) => (
-                            <TableRow key={group.version}>
-                                <TableCell>V{group.version}</TableCell>
-                                <TableCell>
-                                    {format(group.startDate, 'dd.MM.yyyy')} - {format(group.endDate, 'dd.MM.yyyy')}
-                                </TableCell>
-                                <TableCell>{getStatusBadge(group.status)}</TableCell>
-                                <TableCell>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                            <div
-                                                className="h-full bg-green-500 transition-all"
-                                                style={{ width: `${group.coverage}%` }}
-                                            />
-                                        </div>
-                                        <span className="text-sm text-muted-foreground">
-                                            {group.coverage.toFixed(1)}%
-                                        </span>
-                                    </div>
-                                </TableCell>
-                                <TableCell>
-                                    {group.status === 'DRAFT' && (
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => onPublish(group.version)}
-                                        >
-                                            Publish
-                                        </Button>
-                                    )}
-                                    {group.status === 'published' && (
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => onArchive(group.version)}
-                                        >
-                                            Archive
-                                        </Button>
-                                    )}
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
+                <div className="space-y-4">
+                    {versions.map((version) => (
+                        <VersionItem
+                            key={version.version}
+                            version={version}
+                            schedules={schedulesByVersion[version.version] || []}
+                            onPublish={onPublish}
+                            onArchive={onArchive}
+                        />
+                    ))}
+                </div>
             </CardContent>
         </Card>
     );
+}
+
+interface VersionItemProps {
+    version: VersionMeta;
+    schedules: Schedule[];
+    onPublish: (version: number) => void;
+    onArchive: (version: number) => void;
+}
+
+/**
+ * Individual version item component extracted to improve code organization
+ */
+function VersionItem({ version, schedules, onPublish, onArchive }: VersionItemProps) {
+    const coverage = getCoveragePercentage(schedules);
+    const status = version.status;
+    const dateRange = getDateRangeFromSchedules(schedules);
+
+    return (
+        <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                    <h3 className="font-medium">Version {version.version}</h3>
+                    {getStatusBadge(status)}
+                </div>
+                {dateRange.start && dateRange.end && (
+                    <p className="text-sm text-muted-foreground">
+                        {format(dateRange.start, 'MMM d')} - {format(dateRange.end, 'MMM d, yyyy')}
+                    </p>
+                )}
+                <p className="text-sm">Coverage: {coverage}%</p>
+            </div>
+            <div className="flex gap-2">
+                {status === 'DRAFT' && (
+                    <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => onPublish(version.version)}
+                    >
+                        <Check className="w-4 h-4 mr-1" />
+                        Publish
+                    </Button>
+                )}
+                {status === 'PUBLISHED' && (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onArchive(version.version)}
+                    >
+                        <Lock className="w-4 h-4 mr-1" />
+                        Archive
+                    </Button>
+                )}
+                {status === 'DRAFT' && (
+                    <Button variant="ghost" size="sm">
+                        <Pencil className="w-4 h-4 mr-1" />
+                        Edit
+                    </Button>
+                )}
+            </div>
+        </div>
+    );
+}
+
+/**
+ * Calculate the percentage of filled shifts in schedules
+ */
+function getCoveragePercentage(schedules: Schedule[]): number {
+    const totalShifts = schedules.length;
+    const filledShifts = schedules.filter(s => !s.is_empty).length;
+    return totalShifts > 0 ? Math.round((filledShifts / totalShifts) * 100) : 0;
+}
+
+/**
+ * Get date range from schedules array
+ */
+function getDateRangeFromSchedules(schedules: Schedule[]): { start: Date | null, end: Date | null } {
+    return schedules.reduce(
+        (acc, schedule) => {
+            const date = new Date(schedule.date);
+            if (!acc.start || date < acc.start) acc.start = date;
+            if (!acc.end || date > acc.end) acc.end = date;
+            return acc;
+        },
+        { start: null as Date | null, end: null as Date | null }
+    );
+}
+
+/**
+ * Get appropriate badge for version status
+ */
+function getStatusBadge(status: string) {
+    switch (status) {
+        case 'DRAFT':
+            return <Badge variant="secondary">Draft</Badge>;
+        case 'PUBLISHED':
+            return <Badge variant="default">Published</Badge>;
+        case 'ARCHIVED':
+            return <Badge variant="outline">Archived</Badge>;
+        default:
+            return null;
+    }
 } 

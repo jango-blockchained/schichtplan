@@ -6,10 +6,10 @@ import { Settings } from '@/types';
 import { Button } from "@/components/ui/button";
 import { Save, AlertCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { Checkbox } from './ui/checkbox';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Play, Settings2, RefreshCw } from 'lucide-react';
-import { Separator } from './ui/separator';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Separator } from '@/components/ui/separator';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 /**
  * Definition of schedule generation requirements with labels and descriptions

@@ -7,7 +7,7 @@ import { Edit2, Trash2, Plus, AlertTriangle, AlertCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getSettings } from '@/services/api';
 import { cn } from '@/lib/utils';
-import { ShiftEditModal } from '@/components/ShiftEditModal';
+import { ShiftEditModal } from '../ShiftEditModal';
 import { TimeSlotDisplay } from './TimeSlotDisplay';
 import { useToast } from '@/components/ui/use-toast';
 import {

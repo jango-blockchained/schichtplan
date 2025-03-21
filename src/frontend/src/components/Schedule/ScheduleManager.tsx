@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { ScheduleTable } from './Schedule/Table/ScheduleTable';
-import { TimeGridScheduleTable } from './TimeGridScheduleTable';
+import { ScheduleTable } from './Table/ScheduleTable';
+import { TimeGridScheduleTable } from '../TimeGridScheduleTable';
 import { Schedule, ScheduleUpdate } from '@/types';
 import { DateRange } from 'react-day-picker';
 import { Card, CardContent } from '@/components/ui/card';

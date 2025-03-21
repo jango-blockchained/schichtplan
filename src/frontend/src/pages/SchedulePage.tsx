@@ -39,7 +39,7 @@ import { ScheduleTable } from '@/components/Schedule/Table/ScheduleTable';
 import ScheduleControls from '@/components/Schedule/ScheduleControls';
 import { EnhancedDateRangeSelector } from '@/components/EnhancedDateRangeSelector';
 import { VersionControl } from '@/components/VersionControl';
-import { ScheduleGenerationSettings } from '@/components/ScheduleGenerationSettings';
+import { ScheduleGenerationSettings } from '@/components/Schedule/ScheduleGenerationSettings';
 import { ScheduleStatistics } from '@/components/Schedule/ScheduleStatistics';
 import { useScheduleData } from '@/hooks/useScheduleData';
 import { useScheduleGeneration } from '@/hooks/useScheduleGeneration';
@@ -57,9 +57,9 @@ import { PageHeader } from '@/components/PageHeader';
 import { getAvailableCalendarWeeks, getDateRangeFromWeekAndCount } from '@/utils/dateUtils';
 import { Badge } from '@/components/ui/badge';
 import { ScheduleActions } from '@/components/Schedule/ScheduleActions';
-import { ShiftEditModal } from '@/components/ShiftEditModal';
+import { ShiftEditModal } from '@/components/Schedule/ShiftEditModal';
 import { VersionTable } from '@/components/Schedule/VersionTable';
-import { ScheduleManager } from '@/components/ScheduleManager';
+import { ScheduleManager } from '@/components/Schedule/ScheduleManager';
 import { Dashboard } from '@/components/Dashboard';
 import {
   AlertDialog,
@@ -287,11 +287,20 @@ export function SchedulePage() {
     },
     onSuccess: async ({ response, scheduleId, isNew }) => {
       try {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Add more delay to ensure database operations complete before refetching
+        await new Promise(resolve => setTimeout(resolve, 500));
 
+        // Force invalidate the queries using the correct syntax
         queryClient.invalidateQueries({ queryKey: ['schedules'] });
+        queryClient.invalidateQueries({ queryKey: ['shifts'] });
 
+        // Directly refetch data to ensure UI updates
         await refetchScheduleData();
+
+        // Double-check if refetch worked by forcing another refetch after a brief delay
+        setTimeout(async () => {
+          await refetchScheduleData();
+        }, 1000);
 
         toast({
           title: "Success",
@@ -483,6 +492,8 @@ export function SchedulePage() {
       shift_id: apiSchedule.shift_id,
       shift_start: apiSchedule.shift_start,
       shift_end: apiSchedule.shift_end,
+      start_time: apiSchedule.shift_start,
+      end_time: apiSchedule.shift_end,
       is_empty: apiSchedule.is_empty,
       version: apiSchedule.version,
       status: apiSchedule.status as 'DRAFT' | 'PUBLISHED' | 'ARCHIVED',
@@ -555,8 +566,13 @@ export function SchedulePage() {
 
     // Invalidate relevant queries based on event type
     if (eventType === 'schedule_updated' || eventType === 'shift_template_updated') {
-      queryClient.invalidateQueries(['schedules']);
-      queryClient.invalidateQueries(['shifts']);
+      queryClient.invalidateQueries({ queryKey: ['schedules'] });
+      queryClient.invalidateQueries({ queryKey: ['shifts'] });
+
+      // Force refetch after a small delay to ensure database has completed updates
+      setTimeout(() => {
+        refetchScheduleData();
+      }, 300);
     }
   };
 
@@ -687,6 +703,8 @@ export function SchedulePage() {
       shift_id: null,
       shift_start: null,
       shift_end: null,
+      start_time: null,
+      end_time: null,
       is_empty: true,
       version: selectedVersion || 1,
       status: 'DRAFT',

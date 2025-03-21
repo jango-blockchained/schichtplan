@@ -494,12 +494,14 @@ export const updateEmployeeAvailability = async (employeeId: number, availabilit
     }
 };
 
-export const updateSchedule = async (scheduleId: number, update: ScheduleUpdate): Promise<Schedule> => {
+export const updateSchedule = async (scheduleId: number, updates: ScheduleUpdate): Promise<Schedule> => {
+    console.log(`🔄 Updating schedule ID: ${scheduleId} with updates:`, updates);
     try {
-        const url = `/schedules/${scheduleId}/`;
-        const response = await api.put(url, update);
+        const response = await api.put<Schedule>(`/schedules/${scheduleId}/`, updates);
+        console.log(`✅ Schedule updated successfully:`, response.data);
         return response.data;
     } catch (error) {
+        console.error(`❌ Failed to update schedule ${scheduleId}:`, error);
         if (error instanceof Error) {
             throw new Error(`Failed to update schedule: ${error.message}`);
         }

@@ -34,7 +34,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { PageHeader } from '@/components/PageHeader';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { format } from 'date-fns';
-import { ScheduleGenerationSettings } from "@/components/ScheduleGenerationSettings";
+import { ScheduleGenerationSettings } from "@/components/Schedule/ScheduleGenerationSettings";
 import {
   AlertDialog,
   AlertDialogAction,
