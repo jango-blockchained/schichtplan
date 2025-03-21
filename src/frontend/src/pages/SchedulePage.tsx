@@ -23,7 +23,7 @@
  *    - Remove unused isDuplicateVersionOpen dialog
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { addDays, startOfWeek, format, addWeeks } from 'date-fns';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DndProvider } from 'react-dnd';
@@ -133,7 +133,8 @@ export function SchedulePage() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const onSettingsOpen = () => setIsSettingsOpen(true);
 
-  const showToast = (props: {
+  // Memoize the toast callback to prevent unnecessary re-renders
+  const showToast = useMemo(() => (props: {
     title: string;
     description?: string;
     variant?: 'default' | 'destructive';
@@ -142,50 +143,74 @@ export function SchedulePage() {
       ...props,
       duration: 5000,
     });
-  };
+  }, [toast]);
 
-  // WebSocket event handlers
-  useWebSocketEvents([
+  // Memoize the query invalidation callbacks
+  const invalidateSchedules = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['schedules'] });
+  }, [queryClient]);
+
+  const invalidateShiftTemplates = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['shift-templates'] });
+  }, [queryClient]);
+
+  const invalidateAvailabilities = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['availabilities'] });
+  }, [queryClient]);
+
+  const invalidateAbsences = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['absences'] });
+  }, [queryClient]);
+
+  // Memoize the connection status handlers
+  const handleConnectionError = useCallback((error: Error) => {
+    showToast({
+      title: "Connection Error",
+      description: 'Lost connection to server. Some updates may be delayed.',
+      variant: 'destructive',
+    });
+    setIsConnected(false);
+  }, [showToast]);
+
+  const handleReconnecting = useCallback((attempt: number) => {
+    showToast({
+      title: 'Reconnecting...',
+      description: `Attempting to reconnect (${attempt}/5)`,
+      variant: 'default',
+    });
+  }, [showToast]);
+
+  // Memoize WebSocket events with stable references
+  const webSocketEvents = useMemo(() => [
     {
       type: 'schedule_updated',
-      handler: (data: unknown) => {
-        queryClient.invalidateQueries({ queryKey: ['schedules'] });
-      },
-      onError: (error) => {
-        showToast({
-          title: "Connection Error",
-          description: 'Lost connection to server. Some updates may be delayed.',
-          variant: 'destructive',
-        });
-        setIsConnected(false);
-      },
-      onReconnecting: (attempt) => {
-        showToast({
-          title: 'Reconnecting...',
-          description: `Attempting to reconnect (${attempt}/5)`,
-          variant: 'default',
-        });
-      }
+      handler: invalidateSchedules,
+      onError: handleConnectionError,
+      onReconnecting: handleReconnecting
     },
     {
       type: 'shift_template_updated',
-      handler: (data: unknown) => {
-        queryClient.invalidateQueries({ queryKey: ['shift-templates'] });
-      }
+      handler: invalidateShiftTemplates
     },
     {
       type: 'availability_updated',
-      handler: (data: unknown) => {
-        queryClient.invalidateQueries({ queryKey: ['availabilities'] });
-      }
+      handler: invalidateAvailabilities
     },
     {
       type: 'absence_updated',
-      handler: (data: unknown) => {
-        queryClient.invalidateQueries({ queryKey: ['absences'] });
-      }
+      handler: invalidateAbsences
     }
+  ], [
+    invalidateSchedules,
+    invalidateShiftTemplates,
+    invalidateAvailabilities,
+    invalidateAbsences,
+    handleConnectionError,
+    handleReconnecting
   ]);
+
+  // Use the memoized events array with a stable reference
+  useWebSocketEvents(webSocketEvents);
 
   useEffect(() => {
     if (!dateRange || !dateRange.from || !dateRange.to) {
@@ -1191,95 +1216,93 @@ export function SchedulePage() {
               </div>
             </div>
 
-            <DndProvider backend={HTML5Backend}>
-              {isLoading ? (
-                <div className="space-y-4">
-                  <Skeleton className="h-[200px] w-full" />
-                  <Skeleton className="h-[400px] w-full" />
-                </div>
-              ) : isError ? (
-                <Alert variant="destructive" className="mb-4">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Fehler beim Laden des Dienstplans</AlertTitle>
-                  <AlertDescription className="flex flex-col">
-                    <div>Failed to fetch schedules: Verbindung zum Server fehlgeschlagen. Bitte überprüfen Sie Ihre Internetverbindung.</div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-2 w-fit"
-                      onClick={handleRetryFetch}
-                    >
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Erneut versuchen
-                    </Button>
-                  </AlertDescription>
-                </Alert>
-              ) : (
-                <>
-                  {scheduleErrors.length > 0 && <ScheduleErrors errors={scheduleErrors} />}
+            {isLoading ? (
+              <div className="space-y-4">
+                <Skeleton className="h-[200px] w-full" />
+                <Skeleton className="h-[400px] w-full" />
+              </div>
+            ) : isError ? (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Fehler beim Laden des Dienstplans</AlertTitle>
+                <AlertDescription className="flex flex-col">
+                  <div>Failed to fetch schedules: Verbindung zum Server fehlgeschlagen. Bitte überprüfen Sie Ihre Internetverbindung.</div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-2 w-fit"
+                    onClick={handleRetryFetch}
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Erneut versuchen
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <>
+                {scheduleErrors.length > 0 && <ScheduleErrors errors={scheduleErrors} />}
 
-                  {convertedSchedules.length === 0 && !isLoading && !isError ? (
-                    <Card className="mb-4 border-dashed border-2 border-muted">
-                      <CardContent className="flex flex-col items-center justify-center py-8">
-                        <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-medium mb-2">Keine Einträge gefunden</h3>
-                        <p className="text-muted-foreground text-center mb-4">
-                          {versions.length === 0
-                            ? "Für den ausgewählten Zeitraum wurde noch keine Version erstellt."
-                            : "Für den ausgewählten Zeitraum wurden keine Schichtplan-Einträge gefunden."}
-                        </p>
-                        {versions.length === 0 ? (
-                          <Button
-                            onClick={handleCreateNewVersion}
-                            disabled={isLoadingVersions || !dateRange?.from || !dateRange?.to}
-                            className="flex items-center gap-2"
-                          >
+                {convertedSchedules.length === 0 && !isLoading && !isError ? (
+                  <Card className="mb-4 border-dashed border-2 border-muted">
+                    <CardContent className="flex flex-col items-center justify-center py-8">
+                      <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
+                      <h3 className="text-lg font-medium mb-2">Keine Einträge gefunden</h3>
+                      <p className="text-muted-foreground text-center mb-4">
+                        {versions.length === 0
+                          ? "Für den ausgewählten Zeitraum wurde noch keine Version erstellt."
+                          : "Für den ausgewählten Zeitraum wurden keine Schichtplan-Einträge gefunden."}
+                      </p>
+                      {versions.length === 0 ? (
+                        <Button
+                          onClick={handleCreateNewVersion}
+                          disabled={isLoadingVersions || !dateRange?.from || !dateRange?.to}
+                          className="flex items-center gap-2"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Erste Version erstellen
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={handleGenerateSchedule}
+                          disabled={isGenerationPending || !selectedVersion}
+                          className="flex items-center gap-2"
+                        >
+                          {isGenerationPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
                             <Plus className="h-4 w-4" />
-                            Erste Version erstellen
-                          </Button>
-                        ) : (
-                          <Button
-                            onClick={handleGenerateSchedule}
-                            disabled={isGenerationPending || !selectedVersion}
-                            className="flex items-center gap-2"
-                          >
-                            {isGenerationPending ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Plus className="h-4 w-4" />
-                            )}
-                            Schichtplan generieren
-                          </Button>
-                        )}
-                        {!selectedVersion && versions.length > 0 && (
-                          <p className="text-sm text-muted-foreground mt-2">
-                            Bitte wählen Sie eine Version aus, um den Dienstplan zu generieren.
-                          </p>
-                        )}
-                        {(!dateRange?.from || !dateRange?.to) && versions.length === 0 && (
-                          <p className="text-sm text-muted-foreground mt-2">
-                            Bitte wählen Sie einen Datumsbereich aus, um eine Version zu erstellen.
-                          </p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    <div className="relative">
-                      <ScheduleManager
-                        schedules={convertedSchedules}
-                        dateRange={dateRange}
-                        onDrop={handleShiftDrop}
-                        onUpdate={handleShiftUpdate}
-                        isLoading={isLoadingSchedule}
-                        employeeAbsences={employeeAbsences}
-                        absenceTypes={settingsData?.employee_groups?.absence_types || []}
-                        activeView={activeView}
-                      />
-                    </div>
-                  )}
-                </>
-              )}
-            </DndProvider>
+                          )}
+                          Schichtplan generieren
+                        </Button>
+                      )}
+                      {!selectedVersion && versions.length > 0 && (
+                        <p className="text-sm text-muted-foreground mt-2">
+                          Bitte wählen Sie eine Version aus, um den Dienstplan zu generieren.
+                        </p>
+                      )}
+                      {(!dateRange?.from || !dateRange?.to) && versions.length === 0 && (
+                        <p className="text-sm text-muted-foreground mt-2">
+                          Bitte wählen Sie einen Datumsbereich aus, um eine Version zu erstellen.
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="relative">
+                    <ScheduleManager
+                      schedules={convertedSchedules}
+                      dateRange={dateRange}
+                      onDrop={handleShiftDrop}
+                      onUpdate={handleShiftUpdate}
+                      isLoading={isLoadingSchedule}
+                      employeeAbsences={employeeAbsences}
+                      absenceTypes={settingsData?.employee_groups?.absence_types || []}
+                      activeView={activeView}
+                    />
+                  </div>
+                )}
+              </>
+            )}
 
             <GenerationOverlay
               generationSteps={generationSteps}

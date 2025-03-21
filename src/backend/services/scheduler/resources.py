@@ -111,87 +111,61 @@ class ScheduleResourceError(Exception):
 
 
 class ScheduleResources:
-    """Resource manager for schedule generation"""
+    """Manages all resources needed for schedule generation"""
 
     def __init__(self, db_session=None):
-        """Initialize the resource manager"""
+        """Initialize resources manager"""
         self.logger = logging.getLogger(__name__)
-
-        # Get the Flask app and create an application context
-        from src.backend.app import create_app
-
-        self.app, _ = (
-            create_app()
-        )  # Ignore the socketio instance as we don't need it here
-        self.app_context = self.app.app_context()
-        self.app_context.push()
-
-        # Now we can safely access the database session
-        self.db = db_session
-        if not self.db:
-            from src.backend.models import db
-
-            self.db = db.session
-
-        # Initialize caches
-        self._employee_cache = {}
-        self._shift_cache = {}
-        self._coverage_cache = {}
-        self._availability_cache = {}
-        self._absence_cache = {}
-        self._date_caches_cleared = False  # Add this flag
-
-        # Initialize data containers
-        self.settings = None
-        self.coverage = []
-        self.shifts = []
-        self.employees = []
-        self.absences = []
-        self.availabilities = []
-        self.schedule_data = {}
-
-    def __del__(self):
-        """Clean up the application context when the object is destroyed"""
-        if hasattr(self, "app_context"):
-            self.app_context.pop()
-
-    def verify_loaded_resources(self) -> bool:
-        """Verify that all required resources are loaded"""
-        if not self.shifts:
-            self.logger.error("No shifts loaded")
-            return False
-        if not self.coverage:
-            self.logger.error("No coverage loaded")
-            return False
-        if not self.employees:
-            self.logger.error("No employees loaded")
-            return False
-        return True
+        self._db = db_session or db.session
+        self._settings = None
+        self._coverage = []
+        self._shifts = []
+        self._employees = []
+        self._absences = []
+        self._availabilities = []
+        self._schedule_data = {}
+        self.load()
 
     def load(self) -> None:
-        """Load all required resources"""
+        """Load all resources from database"""
         try:
-            # Load settings first as they may affect other resources
-            self.settings = self._load_settings()
+            # Ensure we're in an application context
+            if not hasattr(self._db, "app"):
+                from flask import current_app
 
-            # Load core resources
-            self.employees = self._load_employees()
-            self.shifts = self._load_shifts()
-            self.coverage = self._load_coverage()
+                if not current_app:
+                    from src.backend.app import create_app
 
-            # Load additional resources
-            self.absences = self._load_absences()
-            self.availabilities = self._load_availabilities()
+                    app = create_app()
+                    ctx = app.app_context()
+                    ctx.push()
 
-            # Verify resources
+            self._settings = self._load_settings()
+            self._coverage = self._load_coverage()
+            self._shifts = self._load_shifts()
+            self._employees = self._load_employees()
+            self._absences = self._load_absences()
+            self._availabilities = self._load_availabilities()
+
             if not self.verify_loaded_resources():
-                raise ValueError("Failed to load all required resources")
-
-            self.logger.info("Successfully loaded all resources")
+                raise ScheduleResourceError("Failed to load all required resources")
 
         except Exception as e:
             self.logger.error(f"Error loading resources: {str(e)}")
-            raise
+            raise ScheduleResourceError(f"Error loading resources: {str(e)}")
+
+    def verify_loaded_resources(self) -> bool:
+        """Verify that all required resources are loaded"""
+        if not self._shifts:
+            self.logger.error("No shifts loaded")
+            return False
+        if not self._coverage:
+            self.logger.error("No coverage loaded")
+            return False
+        if not self._employees:
+            self.logger.error("No employees loaded")
+            return False
+        return True
 
     def _load_settings(self) -> Settings:
         """Load settings with error handling"""
@@ -224,8 +198,8 @@ class ScheduleResources:
 
                     coverage_slots = generate_coverage_data()
                     for slot in coverage_slots:
-                        db.session.add(slot)
-                    db.session.commit()
+                        self._db.session.add(slot)
+                    self._db.session.commit()
                     self.logger.info(
                         f"Successfully generated {len(coverage_slots)} demo coverage slots"
                     )
@@ -300,7 +274,7 @@ class ScheduleResources:
             self.logger.info("Loading shifts...")
 
             # Query all shifts from the database
-            shifts = self.db.query(Shift).all()
+            shifts = self._db.query(Shift).all()
             if not shifts:
                 self.logger.warning("No shifts found in database")
                 return []
@@ -428,11 +402,11 @@ class ScheduleResources:
 
     def get_keyholders(self) -> List[Employee]:
         """Return a list of keyholder employees"""
-        return [emp for emp in self.employees if emp.is_keyholder]
+        return [emp for emp in self._employees if emp.is_keyholder]
 
     def get_employees_by_group(self, group: EmployeeGroup) -> List[Employee]:
         """Return employees filtered by employee group"""
-        return [emp for emp in self.employees if emp.employee_group == group]
+        return [emp for emp in self._employees if emp.employee_group == group]
 
     @functools.lru_cache(maxsize=128)
     def get_daily_coverage(self, day: date) -> List[Coverage]:
@@ -443,7 +417,7 @@ class ScheduleResources:
             self._date_caches_cleared = True
 
         weekday = day.weekday()
-        return [cov for cov in self.coverage if cov.day_index == weekday]
+        return [cov for cov in self._coverage if cov.day_index == weekday]
 
     def get_employee_absences(
         self, employee_id: int, start_date: date, end_date: date
@@ -455,7 +429,7 @@ class ScheduleResources:
 
         return [
             absence
-            for absence in self.absences
+            for absence in self._absences
             if absence.employee_id == employee_id
             and not (absence.end_date < start_date or absence.start_date > end_date)
         ]
@@ -471,7 +445,7 @@ class ScheduleResources:
 
         return [
             avail
-            for avail in self.availabilities
+            for avail in self._availabilities
             if avail.employee_id == employee_id and avail.day_of_week == day_of_week
         ]
 
@@ -484,7 +458,7 @@ class ScheduleResources:
 
         # Filter shifts for this day
         date_shifts = []
-        for shift in self.shifts:
+        for shift in self._shifts:
             if shift.get("day_index") == day_index:
                 shift_copy = shift.copy()
                 shift_copy["date"] = target_date
@@ -508,7 +482,7 @@ class ScheduleResources:
 
         # Find coverage for this day
         coverage = None
-        for cov in self.coverage:
+        for cov in self._coverage:
             if cov.get("day_index") == day_index:
                 coverage = cov.copy()
                 coverage["date"] = target_date
@@ -528,14 +502,14 @@ class ScheduleResources:
     ) -> bool:
         """Check if an employee is available for a given date and shift"""
         # Check absences
-        for absence in self.absences:
+        for absence in self._absences:
             if absence.get("employee_id") == employee.get("id") and absence.get(
                 "start_date"
             ) <= target_date <= absence.get("end_date"):
                 return False
 
         # Check availabilities
-        for availability in self.availabilities:
+        for availability in self._availabilities:
             if (
                 availability.get("employee_id") == employee.get("id")
                 and availability.get("day_index") == target_date.weekday()
@@ -553,28 +527,28 @@ class ScheduleResources:
 
     def get_schedule_data(self) -> Dict[Tuple[int, date], Schedule]:
         """Get schedule data"""
-        return self.schedule_data
+        return self._schedule_data
 
     def add_schedule_entry(self, employee_id: int, date: date, schedule: Schedule):
         """Add a schedule entry"""
-        self.schedule_data[(employee_id, date)] = schedule
+        self._schedule_data[(employee_id, date)] = schedule
 
     def get_schedule_entry(self, employee_id: int, date: date) -> Optional[Schedule]:
         """Get a schedule entry"""
-        return self.schedule_data.get((employee_id, date))
+        return self._schedule_data.get((employee_id, date))
 
     def remove_schedule_entry(self, employee_id: int, date: date):
         """Remove a schedule entry"""
-        if (employee_id, date) in self.schedule_data:
-            del self.schedule_data[(employee_id, date)]
+        if (employee_id, date) in self._schedule_data:
+            del self._schedule_data[(employee_id, date)]
 
     def clear_schedule_data(self):
         """Clear all schedule data"""
-        self.schedule_data = {}
+        self._schedule_data = {}
 
     def get_active_employees(self) -> List[Employee]:
         """Get list of active employees (for backward compatibility)"""
-        return self.employees
+        return self._employees
 
     def get_employee(self, employee_id: int) -> Optional[Employee]:
         """Get an employee by ID (cached)"""
@@ -587,7 +561,7 @@ class ScheduleResources:
         day_of_week = day.weekday()
         return [
             avail
-            for avail in self.availabilities
+            for avail in self._availabilities
             if avail.employee_id == employee_id and avail.day_of_week == day_of_week
         ]
 
@@ -595,7 +569,7 @@ class ScheduleResources:
         """Get a shift template by ID"""
         if not shift_id:
             return None
-        return next((shift for shift in self.shifts if shift.id == shift_id), None)
+        return next((shift for shift in self._shifts if shift.id == shift_id), None)
 
     def clear_caches(self):
         """Clear all caches"""
@@ -608,7 +582,7 @@ class ScheduleResources:
         """Check if employee is on leave for given date"""
         return any(
             leave
-            for leave in self.absences
+            for leave in self._absences
             if leave.employee_id == employee_id
             and leave.start_date <= date <= leave.end_date
         )

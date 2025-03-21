@@ -1,5 +1,5 @@
 import { io } from 'socket.io-client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 
 interface WebSocketEvent {
     type: string;
@@ -8,135 +8,118 @@ interface WebSocketEvent {
     onReconnecting?: (attempt: number) => void;
 }
 
-function getWebSocketUrl() {
-    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-    const host = window.location.hostname;
-    const port = '5000';
-    const url = `${protocol}//${host}:${port}`;
-    console.log('New Socket.IO URL:', url);
-    return url;
-}
+// Memoize the WebSocket URL to prevent unnecessary recalculations
+const getWebSocketUrl = (() => {
+    let cachedUrl: string | null = null;
+    return () => {
+        if (cachedUrl) return cachedUrl;
+        const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+        const host = window.location.hostname;
+        const port = '5000';
+        cachedUrl = `${protocol}//${host}:${port}`;
+        console.log('New Socket.IO URL:', cachedUrl);
+        return cachedUrl;
+    };
+})();
 
 export function useWebSocketEvents(events?: WebSocketEvent[]) {
     const [isConnected, setIsConnected] = useState(false);
     const socketRef = useRef<ReturnType<typeof io> | null>(null);
+    const eventsRef = useRef(events);
     const [reconnectAttempt, setReconnectAttempt] = useState(0);
 
+    // Update events ref when events change
     useEffect(() => {
-        const socket = io(getWebSocketUrl(), {
-            transports: ['polling', 'websocket'],
-            reconnection: true,
-            reconnectionAttempts: 5,
-            reconnectionDelay: 1000,
-            timeout: 20000,
-            autoConnect: true,
-            forceNew: true,
-            path: '/socket.io',
-            withCredentials: true,
-            extraHeaders: {
-                'Access-Control-Allow-Credentials': 'true'
-            }
-        });
-
-        socketRef.current = socket;
-
-        // Register event handlers if provided
-        if (events) {
-            events.forEach(event => {
-                socket.on(event.type, event.handler);
-
-                if (event.onError) {
-                    socket.on('error', event.onError);
-                }
-
-                if (event.onReconnecting) {
-                    socket.on('reconnect_attempt', event.onReconnecting);
-                }
-            });
-        }
-
-        socket.on('connect', () => {
-            console.log('Socket.IO connected');
-            setIsConnected(true);
-            setReconnectAttempt(0);
-        });
-
-        socket.on('disconnect', (reason) => {
-            console.log('Socket.IO disconnected:', reason);
-            setIsConnected(false);
-        });
-
-        socket.on('connect_error', (error: Error) => {
-            console.error('Socket.IO connection error:', error);
-            setIsConnected(false);
-            setReconnectAttempt(prev => prev + 1);
-            if (socket.io.engine) {
-                // Try to upgrade to WebSocket if on polling
-                if (socket.io.engine.transport.name === 'polling') {
-                    console.log('Attempting to upgrade to WebSocket...');
-                }
-            }
-        });
-
-        socket.on('reconnect_attempt', (attemptNumber) => {
-            console.log(`Attempting to reconnect (${attemptNumber}/5)...`);
-            setReconnectAttempt(attemptNumber);
-        });
-
-        socket.on('reconnect_failed', () => {
-            console.log('Reconnection failed after 5 attempts');
-        });
-
-        socket.on('error', (error: Error) => {
-            console.error('Socket.IO error:', error);
-        });
-
-        socket.on('connection_established', (data: any) => {
-            console.log('Connection established:', data);
-        });
-
-        return () => {
-            if (socket) {
-                // Unregister event handlers if provided
-                if (events) {
-                    events.forEach(event => {
-                        socket.off(event.type);
-                        if (event.onError) {
-                            socket.off('error');
-                        }
-                        if (event.onReconnecting) {
-                            socket.off('reconnect_attempt');
-                        }
-                    });
-                }
-                socket.disconnect();
-                socket.removeAllListeners();
-            }
-        };
+        eventsRef.current = events;
     }, [events]);
 
-    const subscribe = (event: string, callback: (data: any) => void) => {
-        if (socketRef.current) {
-            socketRef.current.on(event, callback);
-        }
-    };
+    // Memoize connection handlers
+    const handleConnect = useCallback(() => {
+        console.log('WebSocket connected');
+        setIsConnected(true);
+        setReconnectAttempt(0);
+    }, []);
 
-    const unsubscribe = (event: string) => {
-        if (socketRef.current) {
-            socketRef.current.off(event);
-        }
-    };
+    const handleDisconnect = useCallback(() => {
+        console.log('WebSocket disconnected');
+        setIsConnected(false);
+    }, []);
 
-    const emit = (event: string, data: any) => {
-        if (socketRef.current) {
-            socketRef.current.emit(event, data);
-        }
-    };
+    const handleReconnectAttempt = useCallback((attempt: number) => {
+        console.log(`WebSocket reconnection attempt ${attempt}`);
+        setReconnectAttempt(attempt);
+        eventsRef.current?.forEach(event => {
+            if (event.onReconnecting) {
+                event.onReconnecting(attempt);
+            }
+        });
+    }, []);
 
-    return {
-        isConnected,
-        subscribe,
-        unsubscribe,
-        emit,
-    };
+    const handleError = useCallback((error: Error) => {
+        console.error('WebSocket error:', error);
+        eventsRef.current?.forEach(event => {
+            if (event.onError) {
+                event.onError(error);
+            }
+        });
+    }, []);
+
+    useEffect(() => {
+        // Only create a new socket if one doesn't exist
+        if (!socketRef.current) {
+            const socket = io(getWebSocketUrl(), {
+                transports: ['polling', 'websocket'],
+                reconnection: true,
+                reconnectionAttempts: 5,
+                reconnectionDelay: 1000,
+                timeout: 20000,
+                autoConnect: true,
+                forceNew: false, // Prevent creating multiple connections
+                path: '/socket.io',
+                withCredentials: true,
+                extraHeaders: {
+                    'Access-Control-Allow-Credentials': 'true'
+                }
+            });
+
+            socketRef.current = socket;
+
+            // Set up core event handlers
+            socket.on('connect', handleConnect);
+            socket.on('disconnect', handleDisconnect);
+            socket.on('reconnect_attempt', handleReconnectAttempt);
+            socket.on('error', handleError);
+
+            // Register custom event handlers
+            if (eventsRef.current) {
+                eventsRef.current.forEach(event => {
+                    socket.on(event.type, event.handler);
+                });
+            }
+        }
+
+        // Cleanup function
+        return () => {
+            const socket = socketRef.current;
+            if (socket) {
+                // Remove all event listeners
+                socket.off('connect', handleConnect);
+                socket.off('disconnect', handleDisconnect);
+                socket.off('reconnect_attempt', handleReconnectAttempt);
+                socket.off('error', handleError);
+
+                if (eventsRef.current) {
+                    eventsRef.current.forEach(event => {
+                        socket.off(event.type, event.handler);
+                    });
+                }
+
+                // Only disconnect if component is unmounting
+                socket.disconnect();
+                socketRef.current = null;
+            }
+        };
+    }, []); // Empty dependency array since we use refs
+
+    return { isConnected, reconnectAttempt };
 }

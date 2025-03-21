@@ -1,8 +1,18 @@
 # Import eventlet initialization first
 try:
-    from eventlet_init import eventlet
+    from src.backend.eventlet_init import eventlet
 except ImportError:
-    print("Warning: eventlet_init.py not found. This may cause issues with the server.")
+    try:
+        import eventlet
+
+        eventlet.monkey_patch()
+        print(
+            "Warning: Using fallback eventlet import. This may cause issues if not imported before other modules."
+        )
+    except ImportError:
+        print(
+            "Warning: eventlet_init.py not found. This may cause issues with the server."
+        )
 
 import os
 import socket
@@ -24,6 +34,7 @@ if str(parent_dir) not in sys.path:
 
 # Use absolute imports
 from src.backend.app import create_app
+from src.backend.websocket import socketio
 
 
 def get_process_on_port(port):
@@ -108,11 +119,27 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    # Handle port conflicts
+    if args.kill and get_process_on_port(args.port):
+        kill_process_on_port(args.port)
+    elif args.auto_port and get_process_on_port(args.port):
+        args.port = find_free_port(args.port)
+
+    # Wait for port to be available
+    wait_for_port(args.port, args.host)
+
     # Create the Flask app with SocketIO
-    app, socketio = create_app()
+    app = create_app()
 
     # Run the app with SocketIO
     print(f"Starting socketio server on {args.host}:{args.port}")
     socketio.run(
-        app, host=args.host, port=args.port, debug=args.debug, use_reloader=args.debug
+        app,
+        host=args.host,
+        port=args.port,
+        debug=args.debug,
+        use_reloader=args.debug,
+        async_mode="eventlet",
+        cors_allowed_origins="*",
+        manage_session=False,
     )

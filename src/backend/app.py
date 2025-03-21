@@ -2,7 +2,17 @@
 try:
     from src.backend.eventlet_init import eventlet
 except ImportError:
-    print("Warning: eventlet_init.py not found. This may cause issues with the server.")
+    try:
+        import eventlet
+
+        eventlet.monkey_patch()
+        print(
+            "Warning: Using fallback eventlet import. This may cause issues if not imported before other modules."
+        )
+    except ImportError:
+        print(
+            "Warning: eventlet_init.py not found. This may cause issues with the server."
+        )
 
 import sys
 import logging
@@ -38,7 +48,7 @@ from utils.logger import (
     Logger,
     CustomFormatter,
 )  # Import Logger class and CustomFormatter
-from websocket import socketio, init_app  # Import init_app function
+from websocket import socketio  # Import init_app function
 
 # Import diagnostic tools
 try:
@@ -97,31 +107,19 @@ def create_app(config_class=Config):
 
     # Initialize extensions
     db.init_app(app)
+
     # Use the consolidated migrations directory
     migrations_dir = os.path.join(
         os.path.dirname(os.path.dirname(__file__)), "instance", "migrations"
     )
     migrate = Migrate(app, db, directory=migrations_dir)
 
-    # Initialize SocketIO with the Flask app
-    socketio_instance = init_app(
-        app,
-        cors_allowed_origins="*",
-        async_mode="eventlet",
-        logger=True,
-        engineio_logger=True,
-    )
-
-    # Ensure the instance folder exists
-    try:
-        os.makedirs(app.instance_path)
-    except OSError:
-        pass
+    # Push an application context before database operations
+    app.app_context().push()
 
     # Create database tables
-    with app.app_context():
-        db.create_all()
-        app.logger.info("Database tables created")
+    db.create_all()
+    app.logger.info("Database tables created")
 
     # Setup logging
     setup_logging(app)
@@ -133,14 +131,10 @@ def create_app(config_class=Config):
     app.register_blueprint(availability, url_prefix="/api")
     app.register_blueprint(absences_bp, url_prefix="/api")
     app.register_blueprint(coverage_bp)
-    app.register_blueprint(
-        api_settings_bp, name="api_settings"
-    )  # Keep only the new settings blueprint
+    app.register_blueprint(api_settings_bp, name="api_settings")
     app.register_blueprint(demo_data_bp, url_prefix="/api/demo-data")
     app.register_blueprint(logs.bp, url_prefix="/api/logs")
-    app.register_blueprint(
-        api_schedules_bp, name="api_schedules"
-    )  # Register with unique name to avoid conflict
+    app.register_blueprint(api_schedules_bp, name="api_schedules")
 
     # Register CLI commands
     try:
@@ -260,9 +254,14 @@ def create_app(config_class=Config):
             print(f"Error: {str(e)}")
             print("=" * 80 + "\n")
 
-    return app, socketio_instance
+    # Initialize SocketIO with the Flask app
+    socketio.init_app(
+        app, async_mode="eventlet", cors_allowed_origins="*", manage_session=False
+    )
+
+    return app
 
 
 if __name__ == "__main__":
-    app, socketio_instance = create_app()
+    app = create_app()
     socketio.run(app, debug=True)  # Use socketio.run instead of app.run
