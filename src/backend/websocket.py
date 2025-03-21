@@ -19,14 +19,26 @@ import jwt
 
 # Create SocketIO instance with async_mode explicitly set to 'eventlet'
 socketio = SocketIO(
-    cors_allowed_origins="*", async_mode="eventlet", logger=True, engineio_logger=True
+    cors_allowed_origins="*",
+    async_mode="eventlet",
+    logger=True,
+    engineio_logger=True,
+    ping_timeout=35,
+    ping_interval=25,
+    allow_upgrades=True,
+    transports=["polling", "websocket"],
 )
 
 
 def init_app(app, **kwargs):
     """Initialize SocketIO with the Flask app"""
     # Merge provided kwargs with default options
-    options = {"cors_allowed_origins": "*", "async_mode": "eventlet"}
+    options = {
+        "cors_allowed_origins": "*",
+        "async_mode": "eventlet",
+        "allow_upgrades": True,
+        "transports": ["polling", "websocket"],
+    }
     options.update(kwargs)
 
     # Initialize the SocketIO instance with the app
@@ -166,6 +178,11 @@ def broadcast_event(event_type, data):
                 continue
 
             emit(event_type, data, room=client_id)
+
+
+@socketio.on("ping")
+def handle_ping():
+    emit("pong")
 
 
 # Event types

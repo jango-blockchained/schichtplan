@@ -116,9 +116,20 @@ class ScheduleResources:
     def __init__(self, db_session=None):
         """Initialize the resource manager"""
         self.logger = logging.getLogger(__name__)
+
+        # Get the Flask app and create an application context
+        from src.backend.app import create_app
+
+        self.app, _ = (
+            create_app()
+        )  # Ignore the socketio instance as we don't need it here
+        self.app_context = self.app.app_context()
+        self.app_context.push()
+
+        # Now we can safely access the database session
         self.db = db_session
         if not self.db:
-            from models import db
+            from src.backend.models import db
 
             self.db = db.session
 
@@ -128,6 +139,7 @@ class ScheduleResources:
         self._coverage_cache = {}
         self._availability_cache = {}
         self._absence_cache = {}
+        self._date_caches_cleared = False  # Add this flag
 
         # Initialize data containers
         self.settings = None
@@ -136,7 +148,12 @@ class ScheduleResources:
         self.employees = []
         self.absences = []
         self.availabilities = []
-        self.schedule_data = None
+        self.schedule_data = {}
+
+    def __del__(self):
+        """Clean up the application context when the object is destroyed"""
+        if hasattr(self, "app_context"):
+            self.app_context.pop()
 
     def verify_loaded_resources(self) -> bool:
         """Verify that all required resources are loaded"""

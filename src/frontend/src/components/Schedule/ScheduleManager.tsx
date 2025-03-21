@@ -10,17 +10,12 @@ import { getSettings } from '@/services/api';
 interface ScheduleManagerProps {
     schedules: Schedule[];
     dateRange: DateRange | undefined;
-    onDrop: (scheduleId: number, newEmployeeId: number, newDate: Date, newShiftId: number) => Promise<void>;
+    onDrop: (scheduleId: number, newEmployeeId: number, newDate: Date, newShiftId: number) => void;
     onUpdate: (scheduleId: number, updates: ScheduleUpdate) => Promise<void>;
-    isLoading: boolean;
-    employeeAbsences?: Record<number, any[]>;
-    absenceTypes?: Array<{
-        id: string;
-        name: string;
-        color: string;
-        type: 'absence';
-    }>;
-    activeView: 'table' | 'grid';
+    isLoading?: boolean;
+    employeeAbsences: Record<number, any[]>;
+    absenceTypes: any[];
+    activeView: 'table' | 'table2' | 'table3' | 'grid' | 'schedule-table' | 'table-overview';
 }
 
 export function ScheduleManager({

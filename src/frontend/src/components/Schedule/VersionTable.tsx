@@ -5,17 +5,31 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { differenceInDays } from 'date-fns';
-import { Check, Archive, Pencil, Calendar, Trash, Copy } from 'lucide-react';
+import { Check, Archive, Pencil, Calendar, Trash, Copy, Plus, RefreshCw, AlertCircle } from 'lucide-react';
 import { VersionMeta } from '@/services/api';
+import { DateRange } from 'react-day-picker';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
 
 interface VersionTableProps {
     versions: VersionMeta[];
-    selectedVersion?: number;
+    selectedVersion: number | null;
     onSelectVersion: (version: number) => void;
-    onPublishVersion: (version: number) => void;
-    onArchiveVersion: (version: number) => void;
-    onDeleteVersion: (version: number) => void;
-    onDuplicateVersion?: (version: number) => void;
+    onPublishVersion: (version: number) => Promise<void>;
+    onArchiveVersion: (version: number) => Promise<void>;
+    onDeleteVersion: (version: number) => Promise<void>;
+    onDuplicateVersion: (version: number) => Promise<void>;
+    onCompareVersion: () => void;
+    compareVersions: boolean;
+    onCreateNewVersion: () => void;
+    dateRange: DateRange | undefined;
+    isLoading: boolean;
+    hasError: boolean;
+    onRetry: () => void;
+    versionStatuses: Record<string, string>;
+    currentVersion: number | undefined;
+    versionMeta: any;
+    schedules: any[];
 }
 
 export function VersionTable({
@@ -25,13 +39,72 @@ export function VersionTable({
     onPublishVersion,
     onArchiveVersion,
     onDeleteVersion,
-    onDuplicateVersion
+    onDuplicateVersion,
+    onCompareVersion,
+    compareVersions,
+    onCreateNewVersion,
+    dateRange,
+    isLoading,
+    hasError,
+    onRetry,
+    versionStatuses,
+    currentVersion,
+    versionMeta,
+    schedules
 }: VersionTableProps) {
-    if (!versions || versions.length === 0) {
+    if (isLoading) {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                        <span>Versionen</span>
+                        <LoadingSpinner />
+                    </CardTitle>
+                </CardHeader>
+            </Card>
+        );
+    }
+
+    if (hasError) {
         return (
             <Card>
                 <CardHeader>
                     <CardTitle>Versionen</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription className="flex flex-col">
+                            <span>Fehler beim Laden der Versionen</span>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={onRetry}
+                                className="mt-2 w-fit"
+                            >
+                                <RefreshCw className="h-4 w-4 mr-2" />
+                                Erneut versuchen
+                            </Button>
+                        </AlertDescription>
+                    </Alert>
+                </CardContent>
+            </Card>
+        );
+    }
+
+    if (!versions || versions.length === 0) {
+        return (
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <CardTitle>Versionen</CardTitle>
+                    <Button
+                        onClick={onCreateNewVersion}
+                        disabled={!dateRange?.from || !dateRange?.to}
+                        size="sm"
+                    >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Erste Version erstellen
+                    </Button>
                 </CardHeader>
                 <CardContent>
                     <div className="text-center text-muted-foreground py-4">
@@ -68,11 +141,27 @@ export function VersionTable({
 
     return (
         <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5" />
-                    Versions-Tabelle
-                </CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Versionen</CardTitle>
+                <div className="flex items-center gap-2">
+                    {versions.length > 1 && selectedVersion && (
+                        <Button
+                            variant={compareVersions ? "default" : "outline"}
+                            size="sm"
+                            onClick={onCompareVersion}
+                        >
+                            {compareVersions ? "Vergleich ausblenden" : "Versionen vergleichen"}
+                        </Button>
+                    )}
+                    <Button
+                        onClick={onCreateNewVersion}
+                        disabled={!dateRange?.from || !dateRange?.to}
+                        size="sm"
+                    >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Neue Version
+                    </Button>
+                </div>
             </CardHeader>
             <CardContent>
                 <Table>
@@ -129,16 +218,14 @@ export function VersionTable({
                                                 <Archive className="h-4 w-4" />
                                             </Button>
                                         )}
-                                        {onDuplicateVersion && (
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => onDuplicateVersion(version.version)}
-                                                title="Duplizieren"
-                                            >
-                                                <Copy className="h-4 w-4" />
-                                            </Button>
-                                        )}
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => onDuplicateVersion(version.version)}
+                                            title="Duplizieren"
+                                        >
+                                            <Copy className="h-4 w-4" />
+                                        </Button>
                                         <Button
                                             variant="outline"
                                             size="sm"

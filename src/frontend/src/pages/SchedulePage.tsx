@@ -45,9 +45,9 @@ import { useScheduleData } from '@/hooks/useScheduleData';
 import { useScheduleGeneration } from '@/hooks/useScheduleGeneration';
 import { useVersionControl } from '@/hooks/useVersionControl';
 import { exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, getSettings, updateSettings, createSchedule, getEmployees, getAbsences, updateVersionStatus, subscribeToEvents, unsubscribeFromEvents } from '@/services/api';
-import type { Schedule, ScheduleUpdate, Settings, ShiftType } from '@/types';
+import type { Schedule, ScheduleUpdate } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Loader2, AlertCircle, X, Calendar, CheckCircle, XCircle, RefreshCw, Plus } from 'lucide-react';
+import { Loader2, AlertCircle, X, Calendar, CheckCircle, XCircle, RefreshCw, User, Wand2, Settings2, Save } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableHeader, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { ScheduleOverview } from '@/components/Schedule/ScheduleOverview';
@@ -79,6 +79,37 @@ import { ScheduleVersions } from '@/components/Schedule/ScheduleVersions';
 import { type ScheduleResponse } from '@/services/api';
 import { type UseScheduleDataResult } from '@/hooks/useScheduleData';
 import { type Schedule as APISchedule } from '@/services/api';
+import { ScheduleView } from '@/components/Schedule/ScheduleView';
+import { EmployeeStatistics } from '@/components/Schedule/EmployeeStatistics';
+import { VersionCompare } from '@/components/Schedule/VersionCompare';
+import { ShiftModal } from '@/components/Schedule/ShiftModal';
+import { AddScheduleDialog } from '@/components/Schedule/AddScheduleDialog';
+import { useWebSocketEvents } from '@/hooks/useWebSocketEvents';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ChevronDown, ChevronRight } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { ScheduleTable as ScheduleTableV2 } from '@/components/Schedule/ScheduleTable';
+import { ScheduleTable as ScheduleTableV3 } from '@/components/Schedule/Table/ScheduleTable';
+import { Settings, Play, Plus, Trash2, Wifi } from 'lucide-react';
+import type { Settings as AppSettings } from '@/types';
+
+interface ConnectionStatusProps {
+  isConnected: boolean;
+}
+
+const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ isConnected }) => (
+  <div className="flex items-center gap-2">
+    <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+    <span className="text-sm text-muted-foreground">
+      {isConnected ? 'Connected' : 'Reconnecting...'}
+    </span>
+  </div>
+);
+
+type ShiftType = 'EARLY' | 'MIDDLE' | 'LATE';
 
 export function SchedulePage() {
   const today = new Date();
@@ -92,7 +123,69 @@ export function SchedulePage() {
   const [isAddScheduleDialogOpen, setIsAddScheduleDialogOpen] = useState(false);
   const [newSchedule, setNewSchedule] = useState<Schedule | null>(null);
   const [employeeAbsences, setEmployeeAbsences] = useState<Record<number, any[]>>({});
-  const [activeView, setActiveView] = useState<'table' | 'grid'>('table');
+  const [activeView, setActiveView] = useState<'table' | 'table2' | 'table3' | 'grid' | 'schedule-table' | 'table-overview'>('table');
+  const [selectedEmployee, setSelectedEmployee] = useState<number | null>(null);
+  const [compareVersions, setCompareVersions] = useState<boolean>(false);
+  const [previousVersionForCompare, setPreviousVersionForCompare] = useState<number | null>(null);
+  const [isQuickShiftModalOpen, setIsQuickShiftModalOpen] = useState<boolean>(false);
+  const [quickShiftSchedule, setQuickShiftSchedule] = useState<Schedule | null>(null);
+  const [isConnected, setIsConnected] = useState(true);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const onSettingsOpen = () => setIsSettingsOpen(true);
+
+  const showToast = (props: {
+    title: string;
+    description?: string;
+    variant?: 'default' | 'destructive';
+  }) => {
+    toast({
+      ...props,
+      duration: 5000,
+    });
+  };
+
+  // WebSocket event handlers
+  useWebSocketEvents([
+    {
+      type: 'schedule_updated',
+      handler: (data: unknown) => {
+        queryClient.invalidateQueries({ queryKey: ['schedules'] });
+      },
+      onError: (error) => {
+        showToast({
+          title: "Connection Error",
+          description: 'Lost connection to server. Some updates may be delayed.',
+          variant: 'destructive',
+        });
+        setIsConnected(false);
+      },
+      onReconnecting: (attempt) => {
+        showToast({
+          title: 'Reconnecting...',
+          description: `Attempting to reconnect (${attempt}/5)`,
+          variant: 'default',
+        });
+      }
+    },
+    {
+      type: 'shift_template_updated',
+      handler: (data: unknown) => {
+        queryClient.invalidateQueries({ queryKey: ['shift-templates'] });
+      }
+    },
+    {
+      type: 'availability_updated',
+      handler: (data: unknown) => {
+        queryClient.invalidateQueries({ queryKey: ['availabilities'] });
+      }
+    },
+    {
+      type: 'absence_updated',
+      handler: (data: unknown) => {
+        queryClient.invalidateQueries({ queryKey: ['absences'] });
+      }
+    }
+  ]);
 
   useEffect(() => {
     if (!dateRange || !dateRange.from || !dateRange.to) {
@@ -132,8 +225,8 @@ export function SchedulePage() {
     handleCreateNewVersion,
     handlePublishVersion: publishVersion,
     handleArchiveVersion: archiveVersion,
-    handleDeleteVersion,
-    handleDuplicateVersion,
+    handleDeleteVersion: handleVersionDelete,
+    handleDuplicateVersion: handleVersionDuplicate,
     handleCreateNewVersionWithOptions: versionControlCreateWithOptions,
     versions,
     versionMetas,
@@ -404,7 +497,7 @@ export function SchedulePage() {
     await updateBreakNotesMutation.mutateAsync({ employeeId, day, notes });
   };
 
-  const settingsQuery = useQuery<Settings, Error>({
+  const settingsQuery = useQuery<AppSettings, Error>({
     queryKey: ['settings'] as const,
     queryFn: async () => {
       const response = await getSettings();
@@ -414,7 +507,7 @@ export function SchedulePage() {
     staleTime: 5 * 60 * 1000
   });
 
-  const handleSettingsUpdate = async (updates: Partial<Settings['scheduling']['generation_requirements']>) => {
+  const handleSettingsUpdate = async (updates: Partial<AppSettings['scheduling']['generation_requirements']>) => {
     try {
       if (!settingsQuery.data) {
         throw new Error("Settings not loaded");
@@ -549,33 +642,6 @@ export function SchedulePage() {
     fetchAbsences();
   }, [employees]);
 
-  // Setup WebSocket event listeners for real-time updates
-  useEffect(() => {
-    // Subscribe to schedule_updated, shift_template_updated events for real-time updates
-    subscribeToEvents(['schedule_updated', 'shift_template_updated'], handleWebSocketEvent);
-
-    return () => {
-      // Unsubscribe when component unmounts
-      unsubscribeFromEvents(['schedule_updated', 'shift_template_updated']);
-    };
-  }, [queryClient]);
-
-  // Handle WebSocket events
-  const handleWebSocketEvent = (eventType: string, data: any) => {
-    console.log(`WebSocket event received: ${eventType}`, data);
-
-    // Invalidate relevant queries based on event type
-    if (eventType === 'schedule_updated' || eventType === 'shift_template_updated') {
-      queryClient.invalidateQueries({ queryKey: ['schedules'] });
-      queryClient.invalidateQueries({ queryKey: ['shifts'] });
-
-      // Force refetch after a small delay to ensure database has completed updates
-      setTimeout(() => {
-        refetchScheduleData();
-      }, 300);
-    }
-  };
-
   if (isLoading && !scheduleData) {
     return (
       <div className="container mx-auto py-6 space-y-6">
@@ -649,28 +715,28 @@ export function SchedulePage() {
   const handleGenerateSchedule = () => {
     try {
       if (!dateRange?.from || !dateRange?.to) {
-        toast({
+        showToast({
           title: "Zeitraum erforderlich",
           description: "Bitte wählen Sie einen Zeitraum aus bevor Sie den Dienstplan generieren.",
-          variant: "destructive"
+          variant: 'destructive',
         });
         return;
       }
 
       if (!selectedVersion) {
-        toast({
+        showToast({
           title: "Version erforderlich",
           description: "Bitte wählen Sie eine Version aus bevor Sie den Dienstplan generieren.",
-          variant: "destructive"
+          variant: 'destructive',
         });
         return;
       }
 
       if (isLoadingVersions) {
-        toast({
+        showToast({
           title: "Versionen werden geladen",
           description: "Bitte warten Sie, bis die Versionen geladen sind.",
-          variant: "destructive"
+          variant: 'default',
         });
         return;
       }
@@ -684,36 +750,15 @@ export function SchedulePage() {
       generate();
     } catch (error) {
       console.error("Generation error:", error);
-      addGenerationLog('error', 'Fehler bei der Generierung',
-        error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten");
-
-      toast({
+      showToast({
         title: "Fehler bei der Generierung",
         description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
-        variant: "destructive"
+        variant: 'destructive',
       });
     }
   };
 
   const handleAddScheduleClick = () => {
-    const newScheduleData: Schedule = {
-      id: -1,
-      employee_id: 0,
-      date: dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
-      shift_id: null,
-      shift_start: null,
-      shift_end: null,
-      start_time: null,
-      end_time: null,
-      is_empty: true,
-      version: selectedVersion || 1,
-      status: 'DRAFT',
-      break_start: null,
-      break_end: null,
-      notes: null,
-      shift_type_id: undefined
-    };
-    setNewSchedule(newScheduleData);
     setIsAddScheduleDialogOpen(true);
   };
 
@@ -804,14 +849,77 @@ export function SchedulePage() {
     onCancel: () => void;
   } | null>(null);
 
-  const handleIncludeEmptyChange = (checked: boolean) => {
-    setIncludeEmpty(checked);
-    addGenerationLog('info', `Will ${checked ? 'show' : 'hide'} empty schedules`);
+  const handleViewChange = (newView: 'table' | 'table2' | 'table3' | 'grid' | 'schedule-table' | 'table-overview') => {
+    setActiveView(newView);
   };
 
-  const handleCreateEmptyChange = (checked: boolean) => {
-    setCreateEmptySchedules(checked);
-    addGenerationLog('info', `Will ${checked ? 'create' : 'not create'} empty schedules for all employees during generation`);
+  const handleToggleVersionCompare = () => {
+    setCompareVersions(!compareVersions);
+    if (!compareVersions && versions.length > 1) {
+      const selectedIndex = versions.findIndex(v => v === selectedVersion);
+      if (selectedIndex > 0) {
+        setPreviousVersionForCompare(versions[selectedIndex - 1]);
+      } else if (selectedIndex === 0 && versions.length > 1) {
+        setPreviousVersionForCompare(versions[1]);
+      }
+    }
+  };
+
+  const handleQuickShiftEdit = (schedule: Schedule) => {
+    setQuickShiftSchedule(schedule);
+    setIsQuickShiftModalOpen(true);
+  };
+
+  const handleQuickShiftSave = async (updatedScheduleData: any) => {
+    if (!quickShiftSchedule) return;
+
+    const updates: ScheduleUpdate = {
+      shift_id: quickShiftSchedule.shift_id,
+      employee_id: quickShiftSchedule.employee_id,
+      date: quickShiftSchedule.date,
+      notes: updatedScheduleData.notes,
+      version: selectedVersion
+    };
+
+    // Update shift directly since ScheduleUpdate doesn't have shift_start/shift_end
+    await updateShiftMutation.mutateAsync({
+      scheduleId: quickShiftSchedule.id,
+      updates
+    });
+  };
+
+  const handleDeleteVersion = async (version: number): Promise<void> => {
+    try {
+      await handleVersionDelete(version);
+      toast({
+        title: "Version gelöscht",
+        description: `Version ${version} wurde erfolgreich gelöscht.`
+      });
+    } catch (error) {
+      console.error('Error deleting version:', error);
+      toast({
+        title: "Fehler beim Löschen",
+        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDuplicateVersion = async (version: number): Promise<void> => {
+    try {
+      await handleVersionDuplicate(version);
+      toast({
+        title: "Version dupliziert",
+        description: `Version ${version} wurde erfolgreich dupliziert.`
+      });
+    } catch (error) {
+      console.error('Error duplicating version:', error);
+      toast({
+        title: "Fehler beim Duplizieren",
+        description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleCreateNewVersionWithOptions = (options: { dateRange: DateRange; weekAmount: number }) => {
@@ -823,268 +931,495 @@ export function SchedulePage() {
     }
   };
 
-  const handleViewChange = (newView: 'table' | 'grid') => {
-    setActiveView(newView);
-  };
-
-  // Create wrapper functions that match the expected types
-  const handlePublishVersion = async (version: number): Promise<void> => {
-    await updateVersionStatus(version, { status: 'PUBLISHED' });
-  };
-
-  const handleArchiveVersion = async (version: number): Promise<void> => {
-    await updateVersionStatus(version, { status: 'ARCHIVED' });
-  };
-
   return (
-    <Dashboard>
-      <div className="container mx-auto py-6 space-y-6">
-        <PageHeader title="Dienstplan" className="mb-4">
-          <ScheduleControls
-            onRefresh={handleRetryFetch}
-            onExport={handleExportSchedule}
-          />
-        </PageHeader>
+    <DndProvider backend={HTML5Backend}>
+      <div className="min-h-screen bg-background">
+        <div className="flex items-center justify-between p-4 border-b">
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={onSettingsOpen}
+              variant="ghost"
+              size="sm"
+              className="flex items-center"
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              Einstellungen
+            </Button>
+            <Button
+              onClick={handleGenerateSchedule}
+              variant="default"
+              size="sm"
+              disabled={isGenerating}
+              className="flex items-center"
+            >
+              <Play className="mr-2 h-4 w-4" />
+              Generieren
+            </Button>
+          </div>
 
-        <EnhancedDateRangeSelector
-          dateRange={dateRange}
-          scheduleDuration={scheduleDuration}
-          onWeekChange={handleWeekChange}
-          onDurationChange={handleDurationChange}
-          hasVersions={versions.length > 0}
-          onCreateNewVersion={handleCreateNewVersion}
-          onCreateNewVersionWithOptions={handleCreateNewVersionWithOptions}
-        />
+          <Separator orientation="vertical" className="mx-4 h-6" />
 
-        {!isLoading && !isError && convertedSchedules.length > 0 && dateRange?.from && dateRange?.to && (
-          <ScheduleStatistics
-            schedules={convertedSchedules}
-            employees={employees || []}
-            startDate={format(dateRange.from, 'yyyy-MM-dd')}
-            endDate={format(dateRange.to, 'yyyy-MM-dd')}
-          />
-        )}
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={handleCreateNewVersion}
+              variant="ghost"
+              size="sm"
+              className="flex items-center"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Hinzufügen
+            </Button>
+            <Button
+              onClick={() => selectedVersion && handleDeleteVersion(selectedVersion)}
+              variant="ghost"
+              size="sm"
+              disabled={!selectedVersion}
+              className="flex items-center"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Löschen
+            </Button>
+          </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          {settingsQuery.data && (
-            <ScheduleGenerationSettings
-              settings={settingsQuery.data}
-              onUpdate={handleSettingsUpdate}
-              createEmptySchedules={createEmptySchedules}
-              includeEmpty={includeEmpty}
-              onCreateEmptyChange={handleCreateEmptyChange}
-              onIncludeEmptyChange={handleIncludeEmptyChange}
-              onGenerateSchedule={handleGenerateSchedule}
-              isGenerating={isGenerationPending}
-            />
-          )}
+          <div className="flex-1" />
 
-          <VersionControl
-            versions={versions}
-            versionStatuses={data?.version_statuses ?? {}}
-            currentVersion={data?.current_version}
-            versionMeta={data?.version_meta}
-            dateRange={dateRange}
-            onVersionChange={handleVersionChange}
-            onCreateNewVersion={handleCreateNewVersion}
-            onPublishVersion={handlePublishVersion}
-            onArchiveVersion={handleArchiveVersion}
-            onDeleteVersion={handleDeleteVersion}
-            onDuplicateVersion={handleDuplicateVersion}
-            isLoading={isLoadingVersions || isLoadingSchedule}
-            hasError={isError && !!error && !data}
-            schedules={convertedSchedules}
-            onRetry={handleRetryFetch}
-          />
-        </div>
-
-        {versionMetas && versionMetas.length > 0 && (
-          <VersionTable
-            versions={versionMetas}
-            selectedVersion={selectedVersion}
-            onSelectVersion={handleVersionChange}
-            onPublishVersion={handlePublishVersion}
-            onArchiveVersion={handleArchiveVersion}
-            onDeleteVersion={handleDeleteVersion}
-            onDuplicateVersion={handleDuplicateVersion}
-          />
-        )}
-
-        <div className="flex justify-end mb-4">
-          <ScheduleActions
-            onAddSchedule={handleAddScheduleClick}
-            onDeleteSchedule={handleDeleteSchedule}
-            isLoading={isLoadingSchedule || isLoadingVersions || isGenerationPending}
-            canAdd={!!selectedVersion}
-            canDelete={!!selectedVersion && convertedSchedules.length > 0}
-            activeView={activeView}
-            onViewChange={handleViewChange}
-          />
-        </div>
-
-        <DndProvider backend={HTML5Backend}>
-          {isLoading ? (
-            <div className="space-y-4">
-              <Skeleton className="h-[200px] w-full" />
-              <Skeleton className="h-[400px] w-full" />
+          <div className="flex items-center gap-2">
+            {!isConnected && (
+              <Badge variant="destructive" className="flex items-center gap-1">
+                <Wifi className="h-4 w-4" />
+                <span>Offline</span>
+              </Badge>
+            )}
+            <div className="border rounded-md p-1">
+              <Button
+                variant={activeView === 'table' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => handleViewChange('table')}
+                className="text-xs"
+              >
+                Tabelle 1
+              </Button>
+              <Button
+                variant={activeView === 'table2' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => handleViewChange('table2')}
+                className="text-xs"
+              >
+                Tabelle 2
+              </Button>
+              <Button
+                variant={activeView === 'table3' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => handleViewChange('table3')}
+                className="text-xs"
+              >
+                Tabelle 3
+              </Button>
+              <Button
+                variant={activeView === 'grid' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => handleViewChange('grid')}
+                className="text-xs"
+              >
+                Raster
+              </Button>
             </div>
-          ) : isError ? (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Fehler beim Laden des Dienstplans</AlertTitle>
-              <AlertDescription className="flex flex-col">
-                <div>Failed to fetch schedules: Verbindung zum Server fehlgeschlagen. Bitte überprüfen Sie Ihre Internetverbindung.</div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-2 w-fit"
-                  onClick={handleRetryFetch}
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Erneut versuchen
-                </Button>
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <>
-              {scheduleErrors.length > 0 && <ScheduleErrors errors={scheduleErrors} />}
+          </div>
+        </div>
 
-              {convertedSchedules.length === 0 && !isLoading && !isError ? (
-                <Card className="mb-4 border-dashed border-2 border-muted">
-                  <CardContent className="flex flex-col items-center justify-center py-8">
-                    <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-medium mb-2">Keine Einträge gefunden</h3>
-                    <p className="text-muted-foreground text-center mb-4">
-                      {versions.length === 0
-                        ? "Für den ausgewählten Zeitraum wurde noch keine Version erstellt."
-                        : "Für den ausgewählten Zeitraum wurden keine Schichtplan-Einträge gefunden."}
-                    </p>
-                    {versions.length === 0 ? (
-                      <Button
-                        onClick={handleCreateNewVersion}
-                        disabled={isLoadingVersions || !dateRange?.from || !dateRange?.to}
-                        className="flex items-center gap-2"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Erste Version erstellen
-                      </Button>
-                    ) : (
-                      <Button
-                        onClick={handleGenerateSchedule}
-                        disabled={isGenerationPending || !selectedVersion}
-                        className="flex items-center gap-2"
-                      >
-                        {isGenerationPending ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Plus className="h-4 w-4" />
-                        )}
-                        Schichtplan generieren
-                      </Button>
-                    )}
-                    {!selectedVersion && versions.length > 0 && (
-                      <p className="text-sm text-muted-foreground mt-2">
-                        Bitte wählen Sie eine Version aus, um den Dienstplan zu generieren.
-                      </p>
-                    )}
-                    {(!dateRange?.from || !dateRange?.to) && versions.length === 0 && (
-                      <p className="text-sm text-muted-foreground mt-2">
-                        Bitte wählen Sie einen Datumsbereich aus, um eine Version zu erstellen.
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="relative">
-                  <ScheduleManager
-                    schedules={convertedSchedules}
+        <Dashboard>
+          <div className="container mx-auto py-6 space-y-6">
+            <PageHeader title="Dienstplan" className="mb-4">
+              <div className="flex items-center gap-4">
+                <ConnectionStatus isConnected={isConnected} />
+                <ScheduleControls
+                  onRefresh={handleRetryFetch}
+                  onExport={handleExportSchedule}
+                />
+              </div>
+            </PageHeader>
+
+            <EnhancedDateRangeSelector
+              dateRange={dateRange}
+              scheduleDuration={scheduleDuration}
+              onWeekChange={handleWeekChange}
+              onDurationChange={handleDurationChange}
+              hasVersions={versions.length > 0}
+              onCreateNewVersion={handleCreateNewVersion}
+              onCreateNewVersionWithOptions={handleCreateNewVersionWithOptions}
+            />
+
+            {versionMetas && versionMetas.length > 0 && (
+              <Collapsible defaultOpen>
+                <CollapsibleTrigger className="flex items-center w-full mb-2">
+                  <ChevronRight className="h-4 w-4 shrink-0 transition-transform duration-200 collapsible-closed:rotate-90" />
+                  <h3 className="text-lg font-medium ml-2">Versionsübersicht</h3>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <VersionTable
+                    versions={versionMetas}
+                    selectedVersion={selectedVersion ?? null}
+                    onSelectVersion={handleVersionChange}
+                    onPublishVersion={async (version) => await publishVersion(version)}
+                    onArchiveVersion={async (version) => await archiveVersion(version)}
+                    onDeleteVersion={handleDeleteVersion}
+                    onDuplicateVersion={handleDuplicateVersion}
+                    onCompareVersion={handleToggleVersionCompare}
+                    compareVersions={compareVersions}
+                    onCreateNewVersion={handleCreateNewVersion}
                     dateRange={dateRange}
-                    onDrop={handleShiftDrop}
-                    onUpdate={handleShiftUpdate}
-                    isLoading={isLoadingSchedule}
-                    employeeAbsences={employeeAbsences}
-                    absenceTypes={settingsData?.employee_groups?.absence_types || []}
-                    activeView={activeView}
+                    isLoading={isLoadingVersions || isLoadingSchedule}
+                    hasError={isError && !!error && !data}
+                    onRetry={handleRetryFetch}
+                    versionStatuses={data?.version_statuses ?? {}}
+                    currentVersion={data?.current_version}
+                    versionMeta={data?.version_meta}
+                    schedules={convertedSchedules}
                   />
-                </div>
-              )}
-            </>
-          )}
-        </DndProvider>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
 
-        <GenerationOverlay
-          generationSteps={generationSteps}
-          generationLogs={generationLogs}
-          showGenerationOverlay={showGenerationOverlay}
-          isPending={isGenerationPending}
-          resetGenerationState={resetGenerationState}
-          addGenerationLog={addGenerationLog}
-        />
+            {!isLoading && !isError && convertedSchedules.length > 0 && dateRange?.from && dateRange?.to && (
+              <Collapsible defaultOpen>
+                <CollapsibleTrigger className="flex items-center w-full mb-2">
+                  <ChevronRight className="h-4 w-4 shrink-0 transition-transform duration-200 collapsible-closed:rotate-90" />
+                  <h3 className="text-lg font-medium ml-2">Statistiken</h3>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <ScheduleStatistics
+                    schedules={convertedSchedules}
+                    employees={employees || []}
+                    startDate={format(dateRange.from, 'yyyy-MM-dd')}
+                    endDate={format(dateRange.to, 'yyyy-MM-dd')}
+                  />
+                </CollapsibleContent>
+              </Collapsible>
+            )}
 
-        <GenerationLogs
-          logs={generationLogs}
-          clearLogs={clearGenerationLogs}
-        />
+            {compareVersions && previousVersionForCompare && selectedVersion && (
+              <VersionCompare
+                currentVersion={convertedSchedules}
+                previousVersion={(data?.schedules || [])
+                  .filter(s => s.version === previousVersionForCompare)
+                  .map(s => convertSchedule(s))}
+              />
+            )}
 
-        {isAddScheduleDialogOpen && newSchedule && selectedVersion && (
-          <ShiftEditModal
-            isOpen={isAddScheduleDialogOpen}
-            onClose={() => {
-              setIsAddScheduleDialogOpen(false);
-              setNewSchedule(null);
-            }}
-            schedule={newSchedule}
-            onSave={async (scheduleId, updates) => {
-              await handleCreateSchedule({
-                employee_id: updates.employee_id!,
-                date: updates.date!,
-                shift_id: updates.shift_id!,
-                version: selectedVersion
-              });
-              setIsAddScheduleDialogOpen(false);
-              setNewSchedule(null);
-            }}
-          />
-        )}
-
-        {confirmDeleteMessage && (
-          <AlertDialog open={!!confirmDeleteMessage} onOpenChange={(open) => !open && confirmDeleteMessage?.onCancel()}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle className="text-destructive">
-                  {confirmDeleteMessage.title}
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  <div className="space-y-2">
-                    <p>{confirmDeleteMessage.message}</p>
-
-                    {confirmDeleteMessage.details && (
-                      <div className="mt-3 text-sm border-l-4 border-destructive pl-3 py-1 bg-destructive/5">
-                        {confirmDeleteMessage.details.map((detail, i) => (
-                          <p key={i}>{detail}</p>
-                        ))}
-                      </div>
-                    )}
-
-                    <p className="mt-3 font-medium text-destructive">
-                      Möchten Sie diesen Vorgang wirklich fortsetzen?
-                    </p>
-                  </div>
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={confirmDeleteMessage.onConfirm}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            <div className="flex justify-between mb-4">
+              <div className="flex items-center gap-4">
+                <Button
+                  onClick={handleGenerateSchedule}
+                  disabled={isGenerating || !selectedVersion}
+                  className="flex items-center"
                 >
-                  Endgültig löschen
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generiere...
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="mr-2 h-4 w-4" />
+                      Generieren
+                    </>
+                  )}
+                </Button>
+
+                {settingsQuery.data && (
+                  <ScheduleGenerationSettings
+                    settings={settingsQuery.data}
+                    onUpdate={handleSettingsUpdate}
+                    isGenerating={isGenerationPending}
+                  />
+                )}
+
+                <Separator orientation="vertical" className="h-6" />
+
+                <Button
+                  onClick={handleAddScheduleClick}
+                  disabled={!selectedVersion || isLoadingSchedule || isLoadingVersions || isGenerationPending}
+                  variant="outline"
+                  size="icon"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+
+                <Button
+                  onClick={handleDeleteSchedule}
+                  disabled={!selectedVersion || convertedSchedules.length === 0 || isLoadingSchedule || isLoadingVersions || isGenerationPending}
+                  variant="outline"
+                  size="icon"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-2 border rounded-md p-1">
+                <Button
+                  variant={activeView === 'table' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => handleViewChange('table')}
+                  className="text-xs"
+                >
+                  T1 (Page)
+                </Button>
+                <Button
+                  variant={activeView === 'schedule-table' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => handleViewChange('schedule-table')}
+                  className="text-xs"
+                >
+                  T2 (Schedule)
+                </Button>
+                <Button
+                  variant={activeView === 'table-overview' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => handleViewChange('table-overview')}
+                  className="text-xs"
+                >
+                  T3 (Overview)
+                </Button>
+                <Button
+                  variant={activeView === 'grid' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => handleViewChange('grid')}
+                  className="text-xs"
+                >
+                  Raster
+                </Button>
+              </div>
+            </div>
+
+            <DndProvider backend={HTML5Backend}>
+              {isLoading ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-[200px] w-full" />
+                  <Skeleton className="h-[400px] w-full" />
+                </div>
+              ) : isError ? (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Fehler beim Laden des Dienstplans</AlertTitle>
+                  <AlertDescription className="flex flex-col">
+                    <div>Failed to fetch schedules: Verbindung zum Server fehlgeschlagen. Bitte überprüfen Sie Ihre Internetverbindung.</div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-2 w-fit"
+                      onClick={handleRetryFetch}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Erneut versuchen
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <>
+                  {scheduleErrors.length > 0 && <ScheduleErrors errors={scheduleErrors} />}
+
+                  {convertedSchedules.length === 0 && !isLoading && !isError ? (
+                    <Card className="mb-4 border-dashed border-2 border-muted">
+                      <CardContent className="flex flex-col items-center justify-center py-8">
+                        <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
+                        <h3 className="text-lg font-medium mb-2">Keine Einträge gefunden</h3>
+                        <p className="text-muted-foreground text-center mb-4">
+                          {versions.length === 0
+                            ? "Für den ausgewählten Zeitraum wurde noch keine Version erstellt."
+                            : "Für den ausgewählten Zeitraum wurden keine Schichtplan-Einträge gefunden."}
+                        </p>
+                        {versions.length === 0 ? (
+                          <Button
+                            onClick={handleCreateNewVersion}
+                            disabled={isLoadingVersions || !dateRange?.from || !dateRange?.to}
+                            className="flex items-center gap-2"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Erste Version erstellen
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={handleGenerateSchedule}
+                            disabled={isGenerationPending || !selectedVersion}
+                            className="flex items-center gap-2"
+                          >
+                            {isGenerationPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Plus className="h-4 w-4" />
+                            )}
+                            Schichtplan generieren
+                          </Button>
+                        )}
+                        {!selectedVersion && versions.length > 0 && (
+                          <p className="text-sm text-muted-foreground mt-2">
+                            Bitte wählen Sie eine Version aus, um den Dienstplan zu generieren.
+                          </p>
+                        )}
+                        {(!dateRange?.from || !dateRange?.to) && versions.length === 0 && (
+                          <p className="text-sm text-muted-foreground mt-2">
+                            Bitte wählen Sie einen Datumsbereich aus, um eine Version zu erstellen.
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="relative">
+                      <ScheduleManager
+                        schedules={convertedSchedules}
+                        dateRange={dateRange}
+                        onDrop={handleShiftDrop}
+                        onUpdate={handleShiftUpdate}
+                        isLoading={isLoadingSchedule}
+                        employeeAbsences={employeeAbsences}
+                        absenceTypes={settingsData?.employee_groups?.absence_types || []}
+                        activeView={activeView}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+            </DndProvider>
+
+            <GenerationOverlay
+              generationSteps={generationSteps}
+              generationLogs={generationLogs}
+              showGenerationOverlay={showGenerationOverlay}
+              isPending={isGenerationPending}
+              resetGenerationState={resetGenerationState}
+              addGenerationLog={addGenerationLog}
+            />
+
+            <GenerationLogs
+              logs={generationLogs}
+              clearLogs={clearGenerationLogs}
+            />
+
+            {isAddScheduleDialogOpen && selectedVersion && (
+              <AddScheduleDialog
+                isOpen={isAddScheduleDialogOpen}
+                onClose={() => setIsAddScheduleDialogOpen(false)}
+                onAddSchedule={async (scheduleData) => {
+                  await handleCreateSchedule(scheduleData);
+                  setIsAddScheduleDialogOpen(false);
+                }}
+                version={selectedVersion}
+                defaultDate={dateRange?.from}
+              />
+            )}
+
+            {isQuickShiftModalOpen && quickShiftSchedule && (
+              <ShiftModal
+                isOpen={isQuickShiftModalOpen}
+                onClose={() => {
+                  setIsQuickShiftModalOpen(false);
+                  setQuickShiftSchedule(null);
+                }}
+                schedule={quickShiftSchedule}
+                onSave={handleQuickShiftSave}
+                title="Schnellbearbeitung der Schicht"
+              />
+            )}
+
+            {confirmDeleteMessage && (
+              <AlertDialog open={!!confirmDeleteMessage} onOpenChange={(open) => !open && confirmDeleteMessage?.onCancel()}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="text-destructive">
+                      {confirmDeleteMessage.title}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      <div className="space-y-2">
+                        <p>{confirmDeleteMessage.message}</p>
+
+                        {confirmDeleteMessage.details && (
+                          <div className="mt-3 text-sm border-l-4 border-destructive pl-3 py-1 bg-destructive/5">
+                            {confirmDeleteMessage.details.map((detail, i) => (
+                              <p key={i}>{detail}</p>
+                            ))}
+                          </div>
+                        )}
+
+                        <p className="mt-3 font-medium text-destructive">
+                          Möchten Sie diesen Vorgang wirklich fortsetzen?
+                        </p>
+                      </div>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={confirmDeleteMessage.onConfirm}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Endgültig löschen
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+
+            {/* Original table view */}
+            {activeView === 'table' && (
+              <div className="relative">
+                <ScheduleManager
+                  schedules={convertedSchedules}
+                  dateRange={dateRange}
+                  onDrop={handleShiftDrop}
+                  onUpdate={handleShiftUpdate}
+                  isLoading={isLoadingSchedule}
+                  employeeAbsences={employeeAbsences}
+                  absenceTypes={settingsData?.employee_groups?.absence_types || []}
+                  activeView={activeView}
+                />
+              </div>
+            )}
+
+            {/* T2: Schedule Table from components/Schedule/ScheduleTable.tsx */}
+            {activeView === 'schedule-table' && (
+              <ScheduleTableV2
+                schedules={convertedSchedules}
+                dateRange={dateRange}
+                onDrop={handleShiftDrop}
+                onUpdate={handleShiftUpdate}
+                isLoading={isLoadingSchedule}
+                employeeAbsences={employeeAbsences}
+                absenceTypes={settingsData?.employee_groups?.absence_types}
+              />
+            )}
+
+            {/* T3: Table Overview from components/Schedule/Table/ScheduleTable.tsx */}
+            {activeView === 'table-overview' && (
+              <ScheduleTableV3
+                schedules={convertedSchedules}
+                dateRange={dateRange}
+                onDrop={handleShiftDrop}
+                onUpdate={handleShiftUpdate}
+                isLoading={isLoadingSchedule}
+                employeeAbsences={employeeAbsences}
+                absenceTypes={settingsData?.employee_groups?.absence_types}
+                settings={settingsData}
+              />
+            )}
+
+            {/* Grid view */}
+            {activeView === 'grid' && (
+              <div className="relative">
+                <ScheduleManager
+                  schedules={convertedSchedules}
+                  dateRange={dateRange}
+                  onDrop={handleShiftDrop}
+                  onUpdate={handleShiftUpdate}
+                  isLoading={isLoadingSchedule}
+                  employeeAbsences={employeeAbsences}
+                  absenceTypes={settingsData?.employee_groups?.absence_types || []}
+                  activeView={activeView}
+                />
+              </div>
+            )}
+          </div>
+        </Dashboard>
       </div>
-    </Dashboard>
+    </DndProvider>
   );
 } 

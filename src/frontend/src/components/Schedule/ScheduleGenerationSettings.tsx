@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Save, AlertCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Checkbox } from '@/components/ui/checkbox';
-import { Play, Settings2, RefreshCw } from 'lucide-react';
+import { Play, Settings2, RefreshCw, Loader2, Wand2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
@@ -65,13 +65,8 @@ interface ScheduleGenerationSettingsProps {
 export function ScheduleGenerationSettings({
     settings,
     onUpdate,
-    createEmptySchedules,
-    includeEmpty,
-    onCreateEmptyChange,
-    onIncludeEmptyChange,
-    onGenerateSchedule,
     isGenerating
-}: ScheduleGenerationSettingsProps): React.ReactElement {
+}: ScheduleGenerationSettingsProps) {
     const { toast } = useToast();
 
     // Track settings popup state
@@ -118,21 +113,15 @@ export function ScheduleGenerationSettings({
 
     const handleSave = async () => {
         try {
-            // First call onUpdate to save to backend
             await onUpdate(localRequirements);
-
-            // Then close the popover and show toast only after successful update
             toast({
                 title: "Einstellungen gespeichert",
                 description: "Die Anforderungen für die Dienstplangenerierung wurden aktualisiert.",
             });
-
-            // Close the popover after a short delay to ensure the user sees the toast
             setTimeout(() => {
                 setIsSettingsOpen(false);
             }, 300);
         } catch (error) {
-            // If there's an error, show it but don't close the popover
             toast({
                 title: "Fehler beim Speichern",
                 description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
@@ -141,125 +130,52 @@ export function ScheduleGenerationSettings({
         }
     };
 
-    // Determine if we should show the schedule generation controls
-    const showGenerationControls = createEmptySchedules !== undefined &&
-        includeEmpty !== undefined &&
-        onCreateEmptyChange !== undefined &&
-        onIncludeEmptyChange !== undefined &&
-        onGenerateSchedule !== undefined;
-
     return (
-        <Card className="mb-4">
-            <CardHeader className="py-4">
-                <CardTitle className="text-lg flex items-center">
-                    <Settings2 className="h-4 w-4 mr-2" />
-                    Dienstplan Generierung
-                </CardTitle>
-                <CardDescription>
-                    Einstellungen für die Dienstplangenerierung
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-0">
-                {showGenerationControls && (
-                    <div className="space-y-4">
-                        <div className="flex flex-wrap gap-4">
-                            <div className="flex items-center space-x-2">
-                                <Checkbox
-                                    id="createEmpty"
-                                    checked={createEmptySchedules}
-                                    onCheckedChange={onCreateEmptyChange}
-                                />
-                                <Label
-                                    htmlFor="createEmpty"
-                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                                >
-                                    Leere Dienstpläne erstellen
-                                </Label>
-                            </div>
+        <div className="flex items-center">
+            <Popover open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+                <PopoverTrigger asChild>
+                    <Button variant="outline">
+                        <Settings2 className="mr-2 h-4 w-4" />
+                        Einstellungen
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 p-0" align="end">
+                    <div className="p-4 space-y-4">
+                        <h3 className="font-medium">Generierungseinstellungen</h3>
+                        <p className="text-sm text-muted-foreground">
+                            Diese Einstellungen beeinflussen, wie der Dienstplan generiert wird.
+                        </p>
 
-                            <div className="flex items-center space-x-2">
-                                <Checkbox
-                                    id="includeEmpty"
-                                    checked={includeEmpty}
-                                    onCheckedChange={onIncludeEmptyChange}
-                                />
-                                <Label
-                                    htmlFor="includeEmpty"
-                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                                >
-                                    Leere Dienstpläne anzeigen
-                                </Label>
-                            </div>
-                        </div>
-
-                        <Separator className="my-2" />
-
-                        <div className="flex gap-2">
-                            <Button
-                                onClick={onGenerateSchedule}
-                                disabled={isGenerating}
-                                className="flex-1"
-                            >
-                                {isGenerating ? (
-                                    <>
-                                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                                        Generiere...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Play className="mr-2 h-4 w-4" />
-                                        Dienstplan generieren
-                                    </>
-                                )}
-                            </Button>
-
-                            <Popover open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-                                <PopoverTrigger asChild>
-                                    <Button variant="outline" size="icon">
-                                        <Settings2 className="h-4 w-4" />
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-80 p-0" align="end">
-                                    <div className="p-4 space-y-4">
-                                        <h3 className="font-medium">Generierungseinstellungen</h3>
-                                        <p className="text-sm text-muted-foreground">
-                                            Diese Einstellungen beeinflussen, wie der Dienstplan generiert wird.
+                        <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                            {SCHEDULE_REQUIREMENTS.map(({ key, label, description }) => (
+                                <div key={key} className="flex items-start space-x-3">
+                                    <Switch
+                                        id={key}
+                                        checked={localRequirements[key as RequirementKey]}
+                                        onCheckedChange={(checked) => handleToggle(key as RequirementKey, checked)}
+                                    />
+                                    <div className="space-y-1">
+                                        <Label
+                                            htmlFor={key}
+                                            className="text-sm font-medium"
+                                        >
+                                            {label}
+                                        </Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            {description}
                                         </p>
-
-                                        <div className="space-y-3 max-h-[300px] overflow-y-auto">
-                                            {SCHEDULE_REQUIREMENTS.map(({ key, label, description }) => (
-                                                <div key={key} className="flex items-start space-x-3">
-                                                    <Switch
-                                                        id={key}
-                                                        checked={localRequirements[key as RequirementKey]}
-                                                        onCheckedChange={(checked) => handleToggle(key as RequirementKey, checked)}
-                                                    />
-                                                    <div className="space-y-1">
-                                                        <Label
-                                                            htmlFor={key}
-                                                            className="text-sm font-medium"
-                                                        >
-                                                            {label}
-                                                        </Label>
-                                                        <p className="text-xs text-muted-foreground">
-                                                            {description}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        <Button onClick={handleSave} className="w-full">
-                                            <Save className="mr-2 h-4 w-4" />
-                                            Einstellungen speichern
-                                        </Button>
                                     </div>
-                                </PopoverContent>
-                            </Popover>
+                                </div>
+                            ))}
                         </div>
+
+                        <Button onClick={handleSave} className="w-full">
+                            <Save className="mr-2 h-4 w-4" />
+                            Einstellungen speichern
+                        </Button>
                     </div>
-                )}
-            </CardContent>
-        </Card>
+                </PopoverContent>
+            </Popover>
+        </div>
     );
 } 

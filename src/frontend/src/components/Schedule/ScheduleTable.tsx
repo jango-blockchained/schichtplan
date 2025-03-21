@@ -55,6 +55,7 @@ interface ScheduleTableProps {
         color: string;
         type: 'absence';
     }>;
+    variant?: 'table' | 'table2' | 'table3';
 }
 
 interface DragItem {
@@ -620,7 +621,7 @@ const checkForAbsence = (
 };
 
 // Export the main ScheduleTable component
-export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoading, employeeAbsences, absenceTypes }: ScheduleTableProps) {
+export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoading, employeeAbsences, absenceTypes, variant = 'table' }: ScheduleTableProps) {
     const [expandedEmployees, setExpandedEmployees] = useState<number[]>([]);
 
     // Get unique employees
@@ -676,34 +677,70 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
     }
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Schedule</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead className="w-[200px]">Employee</TableHead>
-                            {dates.map(date => (
-                                <TableHead key={date.toISOString()}>{format(date, 'E, MMM d')}</TableHead>
-                            ))}
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {uniqueEmployees.map(employeeId => (
-                            <TableRow key={employeeId}>
-                                <TableCell>Employee {employeeId}</TableCell>
-                                {dates.map((date, dayIndex) => {
-                                    const dateStr = format(date, 'yyyy-MM-dd');
-                                    const schedule = groupedSchedules[employeeId]?.[dateStr];
-                                    const absenceInfo = checkForAbsence(employeeId, dateStr, employeeAbsences, absenceTypes);
+        <div className="w-full overflow-x-auto">
+            <table className="w-full border-collapse">
+                <thead>
+                    <tr>
+                        <th className={cn(
+                            "sticky left-0 z-10 bg-background border px-4 py-2",
+                            variant === 'table2' && "min-w-[200px]",
+                            variant === 'table3' && "min-w-[250px]"
+                        )}>
+                            Mitarbeiter
+                        </th>
+                        {dates.map((date, dayIndex) => (
+                            <th
+                                key={date.toISOString()}
+                                className={cn(
+                                    "border px-4 py-2 cursor-pointer hover:bg-accent",
+                                    expandedEmployees.includes(date.getDate()) && "bg-accent",
+                                    variant === 'table2' && "min-w-[150px]",
+                                    variant === 'table3' && "min-w-[180px]"
+                                )}
+                                onClick={() => setExpandedEmployees(prev =>
+                                    prev.includes(date.getDate()) ? prev.filter(d => d !== date.getDate()) : [...prev, date.getDate()]
+                                )}
+                            >
+                                {format(date, 'E, MMM d')}
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
+                    {uniqueEmployees.map(employeeId => (
+                        <tr key={employeeId}>
+                            <td
+                                className={cn(
+                                    "sticky left-0 z-10 bg-background border px-4 py-2 cursor-pointer hover:bg-accent",
+                                    expandedEmployees.includes(employeeId) && "bg-accent",
+                                    variant === 'table2' && "font-medium",
+                                    variant === 'table3' && "font-semibold"
+                                )}
+                                onClick={() => setExpandedEmployees(prev =>
+                                    prev.includes(employeeId) ? prev.filter(d => d !== employeeId) : [...prev, employeeId]
+                                )}
+                            >
+                                Employee {employeeId}
+                            </td>
+                            {dates.map((date, dayIndex) => {
+                                const dateStr = format(date, 'yyyy-MM-dd');
+                                const schedule = groupedSchedules[employeeId]?.[dateStr];
+                                const absenceInfo = checkForAbsence(employeeId, dateStr, employeeAbsences, absenceTypes);
 
-                                    // Find the employee data or create a minimal valid employee object
-                                    const employeeData = employeesData?.find(e => e.id === (schedule?.employee_id || employeeId));
+                                // Find the employee data or create a minimal valid employee object
+                                const employeeData = employeesData?.find(e => e.id === (schedule?.employee_id || employeeId));
 
-                                    return (
-                                        <TableCell key={dateStr}>
+                                return (
+                                    <td
+                                        key={`${employeeId}-${dateStr}`}
+                                        className={cn(
+                                            "border px-4 py-2 text-center",
+                                            absenceInfo && "bg-red-100",
+                                            variant === 'table2' && "text-sm",
+                                            variant === 'table3' && "text-xs"
+                                        )}
+                                    >
+                                        {schedule ? (
                                             <ScheduleCell
                                                 employee={{
                                                     id: schedule?.employee_id || employeeId,
@@ -730,14 +767,16 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
                                                 onDropHandler={onDrop}
                                                 onUpdateHandler={onUpdate}
                                             />
-                                        </TableCell>
-                                    );
-                                })}
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </CardContent>
-        </Card>
+                                        ) : (
+                                            "-"
+                                        )}
+                                    </td>
+                                );
+                            })}
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
     );
 } 
