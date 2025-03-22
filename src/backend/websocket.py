@@ -27,10 +27,22 @@ socketio = SocketIO(
     async_mode="eventlet",
     logger=True,
     engineio_logger=True,
-    ping_timeout=35,
-    ping_interval=25,
+    ping_timeout=20000,  # Match client timeout
+    ping_interval=25000,  # Match client interval
     cors_allowed_origins="*",
     manage_session=False,
+    handle_sigint=True,
+    message_queue=None,
+    always_connect=False,  # Don't allow connections without proper auth
+    allow_upgrades=True,
+    json=None,
+    max_http_buffer_size=1000000,
+    async_handlers=True,
+    cookie=None,
+    transports=["websocket", "polling"],
+    cors_credentials=True,  # Allow credentials
+    cors_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Allow all methods
+    cors_headers=["Content-Type", "Authorization"],  # Allow necessary headers
 )
 
 # Store connected clients
@@ -51,22 +63,33 @@ def register_handlers():
     def handle_connect():
         """Handle client connection"""
         try:
-            # Get the token from query string
-            token = request.args.get("token")
-            if not token:
+            # Get the token from auth data
+            auth = request.args.get("token") or (
+                getattr(request, "headers", {}).get("Authorization")
+                or (request.get_json() or {}).get("auth", {}).get("token")
+            )
+
+            if not auth:
+                print("No token provided")
                 return False
+
+            # Remove 'Bearer ' prefix if present
+            if auth.startswith("Bearer "):
+                auth = auth[7:]
 
             # Verify the token
             try:
                 payload = jwt.decode(
-                    token,
+                    auth,
                     current_app.config["JWT_SECRET_KEY"],
                     algorithms=["HS256"],
                 )
                 client_id = payload.get("sub")
                 if not client_id:
+                    print("No client_id in token")
                     return False
-            except jwt.InvalidTokenError:
+            except jwt.InvalidTokenError as e:
+                print(f"Invalid token: {str(e)}")
                 return False
 
             # Store client info
@@ -76,18 +99,44 @@ def register_handlers():
                 "subscriptions": set(),
             }
 
-            emit("connect_response", {"status": "connected", "client_id": client_id})
+            print(f"Client {client_id} connected with sid {request.sid}")
+
+            # Send connection established event with auth status
+            emit(
+                "connection_established",
+                {
+                    "client_id": client_id,
+                    "is_authenticated": True,
+                    "user_id": client_id,
+                },
+            )
+
             return True
 
         except Exception as e:
             current_app.logger.error(f"Error in handle_connect: {str(e)}")
+            print(f"Connection error: {str(e)}")
             return False
 
     @socketio.on("disconnect")
     def handle_disconnect():
         """Handle client disconnection"""
         if request.sid in connected_clients:
+            client_info = connected_clients[request.sid]
+            print(f"Client {client_info['client_id']} disconnected")
             del connected_clients[request.sid]
+
+    @socketio.on("error")
+    def handle_error(error):
+        """Handle Socket.IO errors"""
+        print(f"Socket.IO error: {error}")
+        current_app.logger.error(f"Socket.IO error: {error}")
+
+    @socketio.on_error_default
+    def default_error_handler(e):
+        """Handle all other Socket.IO errors"""
+        print(f"Unhandled Socket.IO error: {str(e)}")
+        current_app.logger.error(f"Unhandled Socket.IO error: {str(e)}")
 
     @socketio.on("subscribe")
     def handle_subscribe(data):

@@ -34,7 +34,6 @@ if str(parent_dir) not in sys.path:
 
 # Use absolute imports
 from src.backend.app import create_app
-from src.backend.websocket import socketio
 
 
 def get_process_on_port(port):
@@ -131,15 +130,10 @@ if __name__ == "__main__":
     # Create the Flask app with SocketIO
     app = create_app()
 
-    # Run the app with SocketIO
+    # Run the app with eventlet's WSGI server
     print(f"Starting socketio server on {args.host}:{args.port}")
-    socketio.run(
-        app,
-        host=args.host,
-        port=args.port,
+    eventlet.wsgi.server(
+        eventlet.listen((args.host, args.port)),
+        app.wsgi_app,
         debug=args.debug,
-        use_reloader=args.debug,
-        async_mode="eventlet",
-        cors_allowed_origins="*",
-        manage_session=False,
     )

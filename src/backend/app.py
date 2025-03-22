@@ -256,7 +256,12 @@ def create_app(config_class=Config):
 
     # Initialize SocketIO with the Flask app
     socketio.init_app(
-        app, async_mode="eventlet", cors_allowed_origins="*", manage_session=False
+        app,
+        async_mode="eventlet",
+        cors_allowed_origins="*",
+        manage_session=False,
+        handle_sigint=True,  # Handle Ctrl+C gracefully
+        message_queue=None,  # No message queue for now
     )
 
     return app

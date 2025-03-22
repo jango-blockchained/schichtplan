@@ -1,161 +1,106 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
-import { Manager, Socket } from 'socket.io-client';
-import { useToast } from '@/components/ui/use-toast';
-import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { io, Socket, ManagerOptions, SocketOptions } from 'socket.io-client';
+import { toast } from 'react-toastify';
+import { useAuth } from './AuthContext';
 
 interface WebSocketContextType {
-    socket: typeof Socket | null;
     isConnected: boolean;
-    isAuthenticated: boolean;
-    userId: string | null;
-    lastError: Error | null;
-    reconnect: (authToken?: string) => void;
+    socket: Socket | null;
 }
 
-const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
+const WebSocketContext = createContext<WebSocketContextType>({
+    isConnected: false,
+    socket: null,
+});
 
-const INITIAL_RETRY_DELAY = 1000;
-const MAX_RETRY_DELAY = 30000;
-const RETRY_MULTIPLIER = 1.5;
+export const useWebSocket = () => useContext(WebSocketContext);
 
-interface WebSocketProviderProps {
-    children: ReactNode;
-    url: string;
-    authToken?: string;
-}
-
-export function WebSocketProvider({ children, url, authToken }: WebSocketProviderProps) {
-    const [socket, setSocket] = useState<typeof Socket | null>(null);
+export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [isConnected, setIsConnected] = useState(false);
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [userId, setUserId] = useState<string | null>(null);
-    const [lastError, setLastError] = useState<Error | null>(null);
-    const [retryDelay, setRetryDelay] = useState(INITIAL_RETRY_DELAY);
-    const { toast } = useToast();
-
-    const connect = useCallback(() => {
-        try {
-            // Add auth token to URL if provided
-            const connectionUrl = authToken
-                ? `${url}?token=${encodeURIComponent(authToken)}`
-                : url;
-
-            const manager = new Manager(connectionUrl, {
-                reconnection: false, // We'll handle reconnection ourselves
-                timeout: 10000,
-                transports: ['websocket']
-            });
-
-            const newSocket = manager.socket('/');
-
-            newSocket.on('connect', () => {
-                setIsConnected(true);
-                setLastError(null);
-                setRetryDelay(INITIAL_RETRY_DELAY);
-                toast({
-                    title: "Connected",
-                    description: "Real-time connection established"
-                });
-            });
-
-            newSocket.on('connection_established', (data: {
-                client_id: string;
-                is_authenticated: boolean;
-                user_id: string | null;
-            }) => {
-                // Set authentication state based on server response
-                setIsAuthenticated(data.is_authenticated);
-                setUserId(data.user_id);
-
-                if (data.is_authenticated) {
-                    toast({
-                        title: "Authenticated",
-                        description: `Authenticated as user ${data.user_id}`
-                    });
-                }
-            });
-
-            newSocket.on('disconnect', () => {
-                setIsConnected(false);
-                setIsAuthenticated(false);
-                setUserId(null);
-                toast({
-                    title: "Disconnected",
-                    description: "Real-time connection lost",
-                    variant: "destructive"
-                });
-            });
-
-            newSocket.on('connect_error', (error: Error) => {
-                setIsConnected(false);
-                setIsAuthenticated(false);
-                setUserId(null);
-                setLastError(error);
-
-                // Implement exponential backoff
-                const nextDelay = Math.min(retryDelay * RETRY_MULTIPLIER, MAX_RETRY_DELAY);
-                setRetryDelay(nextDelay);
-
-                toast({
-                    title: "Connection Error",
-                    description: `Failed to connect: ${error.message}`,
-                    variant: "destructive"
-                });
-
-                // Schedule reconnection
-                setTimeout(() => {
-                    reconnect(authToken);
-                }, retryDelay);
-            });
-
-            setSocket(newSocket);
-        } catch (error) {
-            setLastError(error as Error);
-            console.error('Failed to create WebSocket connection:', error);
-        }
-    }, [url, retryDelay, toast, authToken]);
-
-    const reconnect = useCallback((newAuthToken?: string) => {
-        if (socket) {
-            socket.close();
-            setSocket(null);
-        }
-
-        // Update auth token if a new one is provided
-        if (newAuthToken !== undefined) {
-            authToken = newAuthToken;
-        }
-
-        connect();
-    }, [socket, connect]);
+    const socketRef = useRef<Socket | null>(null);
+    const { token } = useAuth();
 
     useEffect(() => {
-        connect();
-        return () => {
-            if (socket) {
-                socket.close();
+        if (!token) {
+            console.log('No token available, skipping socket connection');
+            return;
+        }
+
+        // Clean up any existing socket connection
+        if (socketRef.current) {
+            console.log('Cleaning up existing socket connection');
+            socketRef.current.disconnect();
+            socketRef.current = null;
+        }
+
+        // Socket.IO v3+ configuration
+        const socketOptions: Partial<ManagerOptions & SocketOptions> = {
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            reconnectionAttempts: 5,
+            timeout: 20000,
+            auth: {
+                token: token
             }
         };
-    }, [connect]);
+
+        console.log('Initializing new socket connection');
+        const socket = io(process.env.REACT_APP_BACKEND_URL || 'http://localhost:5001', socketOptions);
+        socketRef.current = socket;
+
+        socket.on('connect', () => {
+            console.log('Socket connected');
+            setIsConnected(true);
+            toast.success('Connected to server');
+        });
+
+        socket.on('connect_error', (error: Error) => {
+            console.error('Socket connection error:', error);
+            setIsConnected(false);
+            toast.error(`Connection error: ${error.message}`);
+        });
+
+        socket.on('disconnect', (reason: string) => {
+            console.log('Socket disconnected:', reason);
+            setIsConnected(false);
+            if (reason === 'io server disconnect') {
+                // Server initiated disconnect, don't reconnect automatically
+                toast.error('Disconnected by server');
+            } else {
+                toast.warning('Connection lost, attempting to reconnect...');
+            }
+        });
+
+        socket.on('connection_established', (data: any) => {
+            console.log('Connection established:', data);
+            if (data.is_authenticated) {
+                toast.success(`Authenticated as ${data.user_id}`);
+            }
+        });
+
+        socket.on('error', (error: Error) => {
+            console.error('Socket error:', error);
+            toast.error(`Socket error: ${error.message}`);
+        });
+
+        // Connect after setting up all event handlers
+        socket.connect();
+
+        // Cleanup function
+        return () => {
+            console.log('Cleaning up socket connection');
+            if (socketRef.current) {
+                socketRef.current.disconnect();
+                socketRef.current = null;
+            }
+        };
+    }, [token]); // Only recreate socket when token changes
 
     return (
-        <WebSocketContext.Provider value={{
-            socket,
-            isConnected,
-            isAuthenticated,
-            userId,
-            lastError,
-            reconnect
-        }}>
+        <WebSocketContext.Provider value={{ isConnected, socket: socketRef.current }}>
             {children}
         </WebSocketContext.Provider>
     );
-}
-
-export const useWebSocket = () => {
-    const context = useContext(WebSocketContext);
-    if (context === undefined) {
-        throw new Error('useWebSocket must be used within a WebSocketProvider');
-    }
-    return context;
 }; 
