@@ -1,5 +1,17 @@
 {
+  "name": "schichtplan",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "bun run src/backend/websocket_bun.ts",
+    "dev": "bun --watch run src/backend/websocket_bun.ts",
+    "frontend": "cd src/frontend && bun run dev",
+    "backend": "cd src/backend && bun run start",
+    "dev:all": "bun run dev & bun run frontend"
+  },
   "dependencies": {
+    "@types/bun": "^1.0.0",
+    "jsonwebtoken": "^9.0.0",
+    "@types/jsonwebtoken": "^9.0.0",
     "@types/next": "^8.0.7",
     "@types/socket.io-client": "3.0.0",
     "eslint": "^9.23.0",

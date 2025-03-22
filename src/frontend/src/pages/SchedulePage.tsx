@@ -95,6 +95,7 @@ import { ScheduleTable as ScheduleTableV2 } from '@/components/Schedule/Schedule
 import { ScheduleTable as ScheduleTableV3 } from '@/components/Schedule/Table/ScheduleTable';
 import { Settings, Play, Plus, Trash2, Wifi } from 'lucide-react';
 import type { Settings as AppSettings } from '@/types';
+import { useWebSocket } from '../contexts/WebSocketBunContext';
 
 interface ConnectionStatusProps {
   isConnected: boolean;
@@ -129,7 +130,7 @@ export function SchedulePage() {
   const [previousVersionForCompare, setPreviousVersionForCompare] = useState<number | null>(null);
   const [isQuickShiftModalOpen, setIsQuickShiftModalOpen] = useState<boolean>(false);
   const [quickShiftSchedule, setQuickShiftSchedule] = useState<Schedule | null>(null);
-  const [isConnected, setIsConnected] = useState(true);
+  const [isConnected, subscribe, unsubscribe] = useWebSocket();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const onSettingsOpen = () => setIsSettingsOpen(true);
 
@@ -169,7 +170,6 @@ export function SchedulePage() {
       description: 'Lost connection to server. Some updates may be delayed.',
       variant: 'destructive',
     });
-    setIsConnected(false);
   }, [showToast]);
 
   const handleReconnecting = useCallback((attempt: number) => {
@@ -666,6 +666,47 @@ export function SchedulePage() {
   useEffect(() => {
     fetchAbsences();
   }, [employees]);
+
+  useEffect(() => {
+    // Subscribe to relevant events
+    subscribe('schedule_updated');
+    subscribe('availability_updated');
+    subscribe('absence_updated');
+
+    // Listen for schedule updates
+    const handleScheduleUpdate = (event: CustomEvent) => {
+      console.log('Schedule updated:', event.detail);
+      // Handle schedule update
+    };
+
+    const handleAvailabilityUpdate = (event: CustomEvent) => {
+      console.log('Availability updated:', event.detail);
+      // Handle availability update
+    };
+
+    const handleAbsenceUpdate = (event: CustomEvent) => {
+      console.log('Absence updated:', event.detail);
+      // Handle absence update
+    };
+
+    // Add event listeners
+    window.addEventListener('schedule_updated', handleScheduleUpdate as EventListener);
+    window.addEventListener('availability_updated', handleAvailabilityUpdate as EventListener);
+    window.addEventListener('absence_updated', handleAbsenceUpdate as EventListener);
+
+    // Cleanup function
+    return () => {
+      // Unsubscribe from events
+      unsubscribe('schedule_updated');
+      unsubscribe('availability_updated');
+      unsubscribe('absence_updated');
+
+      // Remove event listeners
+      window.removeEventListener('schedule_updated', handleScheduleUpdate as EventListener);
+      window.removeEventListener('availability_updated', handleAvailabilityUpdate as EventListener);
+      window.removeEventListener('absence_updated', handleAbsenceUpdate as EventListener);
+    };
+  }, [subscribe, unsubscribe]);
 
   if (isLoading && !scheduleData) {
     return (
