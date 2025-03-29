@@ -1,11 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Button } from './ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
-import { Alert, AlertDescription } from './ui/alert';
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Trash2, Plus, Pencil } from 'lucide-react';
-import ColorPicker from './ColorPicker';
+import { ColorPicker } from '@/components/ui/color-picker';
 import { EmployeeType, AbsenceType } from '@/types';
 import { useDebouncedCallback } from 'use-debounce';
 import {
@@ -15,7 +15,7 @@ import {
     TableHead,
     TableHeader,
     TableRow,
-} from "./ui/table";
+} from "@/components/ui/table";
 
 export type { EmployeeType, AbsenceType };
 export type GroupType = EmployeeType | AbsenceType;
@@ -26,7 +26,7 @@ interface EmployeeSettingsEditorProps {
     onChange: (groups: GroupType[]) => void;
 }
 
-export default function EmployeeSettingsEditor({ groups, onChange, type }: EmployeeSettingsEditorProps) {
+export const EmployeeSettingsEditor: React.FC<EmployeeSettingsEditorProps> = ({ groups, onChange, type }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingGroup, setEditingGroup] = useState<GroupType | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -166,7 +166,6 @@ export default function EmployeeSettingsEditor({ groups, onChange, type }: Emplo
                                 ...editingGroup,
                                 color
                             })}
-                            label={editingGroup.name || editingGroup.color}
                         />
                     </div>
                 )}

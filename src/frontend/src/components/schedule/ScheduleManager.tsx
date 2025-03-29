@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScheduleTable } from './ScheduleTable';
+import { ScheduleTable } from './views/ScheduleTable';
 import { TimeGridScheduleTable } from './TimeGridScheduleTable';
 import { Schedule, ScheduleUpdate } from '@/types';
 import { DateRange } from 'react-day-picker';

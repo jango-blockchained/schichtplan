@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
-import { Button } from './ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog';
-import { Alert, AlertDescription } from './ui/alert';
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Trash2, Plus, Pencil } from 'lucide-react';
-import { ColorPicker } from './ui/color-picker';
+import { ColorPicker } from '@/components/ui/color-picker';
 import { useDebouncedCallback } from 'use-debounce';
 import {
     Table,
@@ -14,13 +14,14 @@ import {
     TableHead,
     TableHeader,
     TableRow,
-} from "./ui/table";
+} from "@/components/ui/table";
 
-export interface ShiftType {
-    id: 'EARLY' | 'MIDDLE' | 'LATE';
+export type ShiftType = {
+    id: string;
     name: string;
     color: string;
-}
+    // ... other properties
+};
 
 const defaultShiftTypes: ShiftType[] = [
     { id: 'EARLY', name: 'Früh', color: '#22c55e' },
@@ -29,15 +30,15 @@ const defaultShiftTypes: ShiftType[] = [
 ];
 
 interface ShiftTypesEditorProps {
-    shiftTypes: ShiftType[];
-    onChange: (shiftTypes: ShiftType[]) => void;
+    shifts: ShiftType[];
+    onChange: (shifts: ShiftType[]) => void;
 }
 
-export default function ShiftTypesEditor({ shiftTypes, onChange }: ShiftTypesEditorProps) {
+export const ShiftTypesEditor: React.FC<ShiftTypesEditorProps> = ({ shifts, onChange }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingType, setEditingType] = useState<ShiftType | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [localShiftTypes, setLocalShiftTypes] = useState<ShiftType[]>(shiftTypes);
+    const [localShiftTypes, setLocalShiftTypes] = useState<ShiftType[]>(shifts);
 
     // Debounced update function
     const debouncedOnChange = useDebouncedCallback(
@@ -97,10 +98,14 @@ export default function ShiftTypesEditor({ shiftTypes, onChange }: ShiftTypesEdi
         handleCloseModal();
     };
 
-    const handleDeleteType = (typeId: 'EARLY' | 'MIDDLE' | 'LATE') => {
+    const handleDeleteType = (typeId: string) => {
         const updatedTypes = localShiftTypes.filter(t => t.id !== typeId);
         setLocalShiftTypes(updatedTypes);
         onChange(updatedTypes);
+    };
+
+    const handleColorChange = (color: string) => {
+        // ... rest of the function
     };
 
     return (
@@ -182,7 +187,7 @@ export default function ShiftTypesEditor({ shiftTypes, onChange }: ShiftTypesEdi
                                 <Label>ID</Label>
                                 <Input
                                     value={editingType?.id || ''}
-                                    onChange={(e) => setEditingType(prev => prev ? { ...prev, id: e.target.value as 'EARLY' | 'MIDDLE' | 'LATE' } : null)}
+                                    onChange={(e) => setEditingType(prev => prev ? { ...prev, id: e.target.value } : null)}
                                 />
                             </div>
 

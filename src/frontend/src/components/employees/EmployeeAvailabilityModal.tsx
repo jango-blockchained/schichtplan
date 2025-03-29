@@ -14,7 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getSettings, updateEmployeeAvailability, getEmployeeAvailabilities, EmployeeAvailability } from '@/services/api';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { AvailabilityTypeSelect } from './AvailabilityTypeSelect';
+import { AvailabilityTypeSelect } from "@/components/common/AvailabilityTypeSelect";
 
 interface EmployeeAvailabilityModalProps {
     employeeId: number;

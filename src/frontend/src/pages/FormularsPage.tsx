@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { FileText, FileSpreadsheet, UserPlus, Calendar } from 'lucide-react';
-import { PageHeader } from '@/components/PageHeader';
+import { PageHeader } from '@/components/layout';
 
 const formulars = [
     {

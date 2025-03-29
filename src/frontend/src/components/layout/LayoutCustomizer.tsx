@@ -5,11 +5,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import { Trash, Download, Upload } from "lucide-react";
-import TableStyleEditor from './TableStyleEditor';
-import FontEditor from './FontEditor';
-import MarginEditor from './MarginEditor';
-import Preview from './Preview';
-import { LayoutConfig, Presets } from '../types/LayoutConfig';
+import TableStyleEditor from "@/components/TableStyleEditor";
+import FontEditor from "@/components/pdf-editor/FontEditor";
+import MarginEditor from "@/components/pdf-editor/MarginEditor";
+import Preview from "@/components/pdf-editor/Preview";
+import { LayoutConfig, Presets } from "@/types/LayoutConfig";
 
 // Predefined presets
 const DEFAULT_PRESETS: Presets = {
@@ -96,7 +96,7 @@ interface LayoutCustomizerProps {
     onClose: () => void;
 }
 
-const LayoutCustomizer: React.FC<LayoutCustomizerProps> = ({ config, onSave, onClose }) => {
+export const LayoutCustomizer: React.FC<LayoutCustomizerProps> = ({ config, onSave, onClose }) => {
     const [currentConfig, setCurrentConfig] = useState<LayoutConfig>(config);
     const [selectedPreset, setSelectedPreset] = useState<string>('');
     const [presetName, setPresetName] = useState('');
@@ -159,6 +159,18 @@ const LayoutCustomizer: React.FC<LayoutCustomizerProps> = ({ config, onSave, onC
             setSelectedPreset('');
             showToast(`Preset "${selectedPreset}" deleted successfully`);
         }
+    };
+
+    const handleTableStyleChange = (style: Partial<LayoutConfig['table_style']>, prev: LayoutConfig) => {
+        // ... rest of the function
+    };
+
+    const handleFontStyleChange = (style: Partial<LayoutConfig['title_style']>, prev: LayoutConfig) => {
+        // ... rest of the function
+    };
+
+    const handleMarginChange = (margins: Partial<LayoutConfig['margins']>, prev: LayoutConfig) => {
+        // ... rest of the function
     };
 
     return (
@@ -236,6 +248,4 @@ const LayoutCustomizer: React.FC<LayoutCustomizerProps> = ({ config, onSave, onC
             </div>
         </div>
     );
-};
-
-export default LayoutCustomizer; 
+}; 

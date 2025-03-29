@@ -23,7 +23,44 @@
  *    - Remove unused isDuplicateVersionOpen dialog
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Schedule, ScheduleError, ScheduleUpdate, ShiftType } from '@/types';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+import { DndProvider } from "react-dnd";
+import { HTML5Backend } from "react-dnd-html5-backend";
+import { PageHeader } from "@/components/layout";
+import { useQueryClient } from "@tanstack/react-query";
+import { getAvailableCalendarWeeks, getDateRangeFromWeekAndCount } from '@/utils/dateUtils';
+import { CollapsibleSection } from "@/components/layout";
+import type { ScheduleResponse } from '@/services/api';
+import { type Settings } from '@/types';
+import { type Schedule as APISchedule } from '@/services/api';
+import { type UseScheduleDataResult } from '@/hooks/useScheduleData';
+import { DateRangeSelector, EnhancedDateRangeSelector } from "@/components/common";
+import type { DateRange } from 'react-day-picker';
+import useScheduleGeneration from '@/hooks/useScheduleGeneration';
+import useVersionControl from '@/hooks/useVersionControl';
+
+// Import schedule components
+import GenerationLogs from "@/components/schedule/GenerationLogs";
+import ScheduleErrors from "@/components/schedule/ScheduleErrors";
+import ScheduleControls from "@/components/schedule/ScheduleControls";
+import {
+  ScheduleVersions,
+  ScheduleOverview,
+  GenerationOverlay,
+  ScheduleGenerationSettings,
+  ScheduleActions,
+  AddScheduleDialog,
+  ScheduleStatistics,
+  VersionTable,
+  ScheduleManager,
+  ScheduleDisplay,
+  VersionCompare,
+  EmployeeStatistics
+} from "@/components/schedule";
 import { ShiftTable } from '@/components/ShiftTable';
 import { useScheduleData } from '@/hooks/useScheduleData';
 import { addDays, startOfWeek, endOfWeek, addWeeks, format, getWeek, isBefore } from 'date-fns';
@@ -37,39 +74,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableHeader, TableBody, TableCell, TableRow } from '@/components/ui/table';
-import { DndProvider } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
 import { ScheduleTable } from '@/components/ScheduleTable';
-import { ScheduleOverview } from '@/components/Schedule/ScheduleOverview';
-import { Schedule, ScheduleError, ScheduleUpdate } from '@/types';
-import { Checkbox } from '@/components/ui/checkbox';
-import { PageHeader } from '@/components/PageHeader';
-import { getAvailableCalendarWeeks, getDateRangeFromWeekAndCount } from '@/utils/dateUtils';
-import { ScheduleVersions } from '@/components/Schedule/ScheduleVersions';
-import { useQueryClient } from '@tanstack/react-query';
-import { Badge } from '@/components/ui/badge';
-import { VersionControl } from '@/components/VersionControl';
-import { CollapsibleSection } from '@/components/CollapsibleSection';
-import { ScheduleGenerationSettings } from '@/components/ScheduleGenerationSettings';
-import type { ScheduleResponse } from '@/services/api';
-import { type Settings } from '@/types';
-import { type Schedule as APISchedule } from '@/services/api';
-import { type UseScheduleDataResult } from '@/hooks/useScheduleData';
-import { DateRangeSelector } from '@/components/DateRangeSelector';
-// Import the new components and hooks
-import GenerationOverlay from '@/components/Schedule/GenerationOverlay';
-import GenerationLogs from '@/components/Schedule/GenerationLogs';
-import ScheduleErrors from '@/components/Schedule/ScheduleErrors';
-import ScheduleControls from '@/components/Schedule/ScheduleControls';
-import useScheduleGeneration from '@/hooks/useScheduleGeneration';
-import useVersionControl from '@/hooks/useVersionControl';
-import { DateRange } from 'react-day-picker';
-import { ScheduleActions } from '@/components/Schedule/ScheduleActions';
-import { AddScheduleDialog } from '@/components/Schedule/AddScheduleDialog';
-import { ScheduleStatistics } from '@/components/Schedule/ScheduleStatistics';
-import { EnhancedDateRangeSelector } from '@/components/EnhancedDateRangeSelector';
-import { VersionTable } from '@/components/Schedule/VersionTable';
-import { ScheduleManager } from '@/components/ScheduleManager';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -80,6 +85,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { VersionControl } from '@/components/VersionControl';
 
 export function SchedulePage() {
   const today = new Date();
@@ -540,33 +546,35 @@ export function SchedulePage() {
     }
   };
 
-  // Convert API Schedule to frontend Schedule
-  const convertSchedule = (apiSchedule: APISchedule): Schedule => {
-    // Log for debugging shift_type
-    if (apiSchedule.shift_id && !apiSchedule.shift_type) {
-      console.log('Schedule without shift_type:', apiSchedule);
+  // Update the conversion function to properly type all fields
+  const convertApiSchedule = (apiSchedule: APISchedule): Schedule => {
+    // Log for debugging shift_type_id
+    if (apiSchedule.shift_id && !apiSchedule.shift_type_id) {
+      console.log('Schedule without shift_type_id:', apiSchedule);
     }
 
+    // Validate shift_type_id is a valid ShiftType
+    const isValidShiftType = (type: string | undefined): type is ShiftType => {
+      return type === 'EARLY' || type === 'MIDDLE' || type === 'LATE';
+    };
+
+    // Validate status is a valid ScheduleStatus
+    const isValidStatus = (status: string): status is Schedule['status'] => {
+      return ['DRAFT', 'PUBLISHED', 'ARCHIVED'].includes(status);
+    };
+
     return {
-      id: apiSchedule.id,
-      employee_id: apiSchedule.employee_id,
-      date: apiSchedule.date,
-      shift_id: apiSchedule.shift_id,
+      ...apiSchedule,
+      shift_type_id: isValidShiftType(apiSchedule.shift_type_id) ? apiSchedule.shift_type_id : undefined,
       shift_start: apiSchedule.shift_start ?? null,
       shift_end: apiSchedule.shift_end ?? null,
       is_empty: apiSchedule.is_empty ?? false,
-      version: apiSchedule.version,
-      status: apiSchedule.status as Schedule['status'],
-      break_start: apiSchedule.break_start ?? null,
-      break_end: apiSchedule.break_end ?? null,
-      notes: apiSchedule.notes ?? null,
-      employee_name: undefined,
-      shift_type: apiSchedule.shift_type ?? undefined
+      status: isValidStatus(apiSchedule.status) ? apiSchedule.status : 'DRAFT' // Default to DRAFT if invalid status
     };
   };
 
   // Convert schedules for the ScheduleTable
-  const convertedSchedules = (data?.schedules ?? []).map((apiSchedule) => convertSchedule(apiSchedule));
+  const convertedSchedules = (data?.schedules ?? []).map((apiSchedule) => convertApiSchedule(apiSchedule));
 
   // Fetch employee data for statistics
   const { data: employees } = useQuery({
@@ -890,6 +898,15 @@ export function SchedulePage() {
     setActiveView(newView);
   };
 
+  // Update the schedule-related code to use shift_type_id
+  const handleShiftTypeChange = (schedule: Schedule, newShiftTypeId: ShiftType) => {
+    const updatedSchedule: Schedule = {
+      ...schedule,
+      shift_type_id: newShiftTypeId
+    };
+    // ... rest of the function
+  };
+
   return (
     <div className="container mx-auto py-4 space-y-4">
       <PageHeader title="Dienstplan" className="mb-4">
@@ -954,19 +971,6 @@ export function SchedulePage() {
           onRetry={handleRetryFetch}
         />
       </div>
-
-      {/* Version Table */}
-      {versionMetas && versionMetas.length > 0 && (
-        <VersionTable
-          versions={versionMetas}
-          selectedVersion={selectedVersion}
-          onSelectVersion={handleVersionChange}
-          onPublishVersion={handlePublishVersion}
-          onArchiveVersion={handleArchiveVersion}
-          onDeleteVersion={handleDeleteVersion}
-          onDuplicateVersion={handleDuplicateVersion}
-        />
-      )}
 
       {/* Schedule Actions */}
       <div className="flex justify-end mb-4">
@@ -1056,7 +1060,8 @@ export function SchedulePage() {
               </Card>
             ) : (
               <div className="relative">
-                <ScheduleManager
+                <ScheduleDisplay
+                  viewType={activeView}
                   schedules={convertedSchedules}
                   dateRange={dateRange}
                   onDrop={handleShiftDrop}
@@ -1064,7 +1069,6 @@ export function SchedulePage() {
                   isLoading={isLoadingSchedule}
                   employeeAbsences={employeeAbsences}
                   absenceTypes={settingsData?.employee_groups?.absence_types || []}
-                  activeView={activeView}
                 />
               </div>
             )}

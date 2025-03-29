@@ -12,7 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { Schedule } from '@/types';
-import { Separator } from './ui/separator';
+import { Separator } from '@/components/ui/separator';
 import {
     AlertDialog,
     AlertDialogAction,

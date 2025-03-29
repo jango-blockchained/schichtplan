@@ -5,14 +5,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { getSettings, updateSettings } from '@/services/api';
-import EmployeeSettingsEditor, { EmployeeType, AbsenceType } from '@/components/EmployeeSettingsEditor';
-import ShiftTypesEditor, { ShiftType as ShiftTypeOption } from '@/components/ShiftTypesEditor';
+import { EmployeeSettingsEditor, EmployeeType, AbsenceType } from '@/components/employees';
+import { ShiftTypesEditor, ShiftType as ShiftTypeOption } from '@/components/shifts';
 import { Pencil } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { ColorPicker } from '@/components/ui/color-picker';
 import type { Settings } from '@/types/index';
-import { PageHeader } from '@/components/PageHeader';
+import { PageHeader } from '@/components/layout';
 
 type AvailabilityType = {
     code: string;
@@ -310,14 +310,8 @@ export default function OptionsPage() {
                         </CardHeader>
                         <CardContent>
                             <ShiftTypesEditor
-                                shiftTypes={shiftTypes.map(type => ({
-                                    ...type,
-                                    type: 'shift' as const
-                                }))}
-                                onChange={(types: ShiftTypeOption[]) => {
-                                    const shiftTypes = types.map(({ type, ...rest }) => rest);
-                                    handleShiftTypesChange(shiftTypes);
-                                }}
+                                shifts={settings.shifts}
+                                onChange={handleShiftTypesChange}
                             />
                         </CardContent>
                     </Card>

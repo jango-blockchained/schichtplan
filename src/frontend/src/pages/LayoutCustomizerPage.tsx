@@ -1,9 +1,9 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
-import LayoutCustomizer from '@/components/LayoutCustomizer';
+import { LayoutCustomizer } from "@/components/layout";
 import { LayoutConfig, Presets } from '@/types/LayoutConfig';
-import { PageHeader } from '@/components/PageHeader';
+import { PageHeader } from "@/components/layout";
 
 const DEFAULT_PRESETS: Presets = {
     Classic: {

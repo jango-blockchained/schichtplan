@@ -23,18 +23,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ColorPicker } from "@/components/ui/color-picker";
-import { PDFLayoutEditor } from "@/components/PDFLayoutEditor";
-import EmployeeSettingsEditor, { EmployeeType, AbsenceType } from "@/components/EmployeeSettingsEditor";
+import { PDFLayoutEditor } from "@/components/pdf-editor";
+import { EmployeeSettingsEditor, EmployeeType, AbsenceType } from "@/components/employees";
+import { ShiftTypesEditor } from "@/components/shifts";
 import { Loader2, Save, Trash2, Plus, Download, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useDebouncedCallback } from 'use-debounce';
 import { useTheme } from '@/hooks/use-theme';
-import { PageHeader } from '@/components/PageHeader';
+import { PageHeader } from "@/components/layout";
 import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { format } from 'date-fns';
-import { ScheduleGenerationSettings } from "@/components/ScheduleGenerationSettings";
+import { ScheduleGenerationSettings } from "@/components/schedule";
 import {
   AlertDialog,
   AlertDialogAction,

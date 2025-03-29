@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/use-toast';
-import { PageHeader } from '@/components/PageHeader';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, Loader2 } from 'lucide-react';
-import { ShiftEditor } from '@/components/shifts-editor/components/ShiftEditor';
+import { ShiftEditor } from "@/components/shifts/components/ShiftEditor";
 import { Settings } from '@/types';
 import { Shift, getShifts, createShift, updateShift, deleteShift } from '@/services/api';
 import { getSettings } from '@/services/api';

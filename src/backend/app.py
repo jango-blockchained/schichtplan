@@ -9,7 +9,7 @@ import uuid
 import click
 
 # Add the parent directory to Python path
-current_dir = Path(__file__).resolve().parent
+current_dir = Path(__file__).resolve().parent.parent.parent
 if str(current_dir) not in sys.path:
     sys.path.append(str(current_dir))
 

@@ -4,9 +4,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getEmployees, createEmployee, updateEmployee, deleteEmployee, getSettings } from '../services/api';
 import { Employee, CreateEmployeeRequest } from '../types';
 import { useEmployeeGroups } from '../hooks/useEmployeeGroups';
-import { EmployeeAvailabilityModal } from '@/components/EmployeeAvailabilityModal';
+import { EmployeeAvailabilityModal } from "@/components/employees/EmployeeAvailabilityModal";
 import AbsenceModal from '@/components/AbsenceModal';
-import { PageHeader } from '@/components/PageHeader';
+import { PageHeader } from "@/components/layout/PageHeader";
 import {
   Button,
   Table,

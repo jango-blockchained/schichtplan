@@ -11,7 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getSettings, getEmployees } from '@/services/api';
 import { Edit2, Trash2, Plus, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ShiftEditModal } from './ShiftEditModal';
+import { ShiftEditModal } from "./shifts/ShiftEditModal";
 
 interface TimeGridScheduleTableProps {
     schedules: Schedule[];

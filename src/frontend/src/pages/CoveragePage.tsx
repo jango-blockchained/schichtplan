@@ -13,7 +13,7 @@ import { CoverageEditor } from "@/components/coverage-editor";
 import { useToast } from "@/components/ui/use-toast";
 import { getAllCoverage, updateCoverage, getSettings } from "@/services/api";
 import { DailyCoverage, Settings, CoverageTimeSlot } from "@/types/index";
-import { PageHeader } from '@/components/PageHeader';
+import { PageHeader } from "@/components/layout";
 
 const CustomTooltip = ({ active, payload }: TooltipProps<ValueType, NameType>) => {
     if (active && payload && payload.length) {

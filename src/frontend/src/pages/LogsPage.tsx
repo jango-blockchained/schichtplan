@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
-import { PageHeader } from '@/components/PageHeader';
+import { PageHeader } from "@/components/layout";
 import { Badge } from "@/components/ui/badge";
 
 interface LogEntry {
