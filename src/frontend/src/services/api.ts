@@ -699,13 +699,57 @@ export const generateDemoData = async (module: string): Promise<void | Settings>
 export const generateOptimizedDemoData = async (): Promise<void | Settings> => {
     try {
         const response = await api.post('/demo-data/optimized/');
+        
+        if (response.data && response.data.task_id) {
+            // Task started successfully, begin polling
+            const taskId = response.data.task_id;
+            
+            // Get settings to initialize UI
+            let settings = await getSettings();
+            
+            // Set up polling interval (every 2 seconds)
+            const pollingInterval = setInterval(async () => {
+                try {
+                    // Check task status
+                    const statusResponse = await api.get(`/demo-data/optimized/status/${taskId}`);
+                    
+                    // Refresh settings to update UI
+                    settings = await getSettings();
+                    
+                    // If task is completed or failed, stop polling
+                    if (statusResponse.data.status === 'completed' || 
+                        statusResponse.data.status === 'failed') {
+                        clearInterval(pollingInterval);
+                    }
+                } catch (error) {
+                    // Error checking status, stop polling
+                    clearInterval(pollingInterval);
+                    console.error('Error checking task status:', error);
+                }
+            }, 2000);
+            
+            // Return initial settings
+            return settings;
+        }
 
-        // Always refresh settings after optimized data generation
+        // Fallback to just returning settings
         const settings = await getSettings();
         return settings;
     } catch (error) {
         if (error instanceof Error) {
             throw new Error(`Failed to generate optimized demo data: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+// Reset optimized demo data generation status
+export const resetOptimizedDemoDataStatus = async (): Promise<void> => {
+    try {
+        await api.post('/demo-data/optimized/reset');
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to reset demo data status: ${error.message}`);
         }
         throw error;
     }

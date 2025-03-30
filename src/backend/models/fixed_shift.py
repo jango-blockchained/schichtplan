@@ -8,10 +8,13 @@ logger = logging.getLogger(__name__)
 
 
 # Keep the enum for backward compatibility but prefer settings-based shift types
-class ShiftType(Enum):
+class ShiftType(str, Enum):
+    """Shift type enum. Used for standard shift types."""
     EARLY = "EARLY"
     MIDDLE = "MIDDLE"
     LATE = "LATE"
+    OFF = "OFF"
+    NON_WORKING = "NON_WORKING"  # New type for non-working days (contract or availability)
 
     def __str__(self):
         return self.value

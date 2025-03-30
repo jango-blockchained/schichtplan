@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { format, addDays, parseISO, startOfWeek } from 'date-fns';
+import { format, addDays, parseISO, isEqual } from 'date-fns';
+import { de } from 'date-fns/locale';
 import { useDrag, useDrop } from 'react-dnd';
 import { Schedule, Employee, ScheduleUpdate } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,9 +10,11 @@ import { cn } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
 import { useQuery } from '@tanstack/react-query';
 import { getSettings, getEmployees } from '@/services/api';
-import { Edit2, Trash2, Plus, AlertTriangle } from 'lucide-react';
+import { Edit2, Plus, AlertTriangle, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ShiftEditModal } from "./shifts/ShiftEditModal";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface TimeGridScheduleTableProps {
     schedules: Schedule[];
@@ -29,7 +32,7 @@ interface TimeGridScheduleTableProps {
 }
 
 interface DragItem {
-    type: 'SCHEDULE';
+    type: 'EMPLOYEE_SCHEDULE';
     scheduleId: number;
     employeeId: number;
     shiftId: number;
@@ -54,27 +57,111 @@ const formatMinutesToTime = (minutes: number): string => {
     return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
 };
 
-// Component for time slot cell that can contain employee shifts
-const TimeSlotCell = ({
-    day,
-    timeSlot,
-    schedules,
-    onDrop,
-    onUpdate,
+// Component for an employee shift that can be dragged
+const DraggableEmployeeShift = ({
+    schedule,
+    employee,
     settings,
+    hasAbsence,
+    onEdit,
+    onDrop
+}: {
+    schedule: Schedule;
+    employee: Employee;
+    settings: any;
+    hasAbsence: boolean;
+    onEdit: () => void;
+    onDrop: (scheduleId: number, employeeId: number, date: Date, shiftId: number, startTime: string, endTime: string) => Promise<void>;
+}) => {
+    const [{ isDragging }, drag] = useDrag({
+        type: 'EMPLOYEE_SCHEDULE',
+        item: {
+            type: 'EMPLOYEE_SCHEDULE',
+            scheduleId: schedule.id,
+            employeeId: schedule.employee_id,
+            shiftId: schedule.shift_id || 0,
+            date: schedule.date || '',
+            startTime: schedule.shift_start || '',
+            endTime: schedule.shift_end || ''
+        },
+        canDrag: !hasAbsence,
+        collect: (monitor) => ({
+            isDragging: monitor.isDragging()
+        })
+    });
+
+    return (
+        <div
+            ref={drag}
+            className={cn(
+                "px-2 py-1 rounded text-xs font-medium cursor-move shadow-sm transition-all",
+                isDragging && "opacity-50 shadow-md scale-95",
+                hasAbsence && "opacity-50 cursor-not-allowed"
+            )}
+            style={{
+                backgroundColor: getShiftTypeColor(schedule, settings),
+                color: 'white'
+            }}
+            onClick={(e) => {
+                e.stopPropagation();
+                if (!hasAbsence) onEdit();
+            }}
+        >
+            <div className="flex items-center justify-between mb-1">
+                <span className="font-bold whitespace-nowrap overflow-hidden text-ellipsis">
+                    {employee.last_name}, {employee.first_name.charAt(0)}
+                </span>
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button className="ml-1 text-white/80 hover:text-white" onClick={(e) => {
+                                e.stopPropagation();
+                                onEdit();
+                            }}>
+                                <Edit2 size={12} />
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>Edit shift</p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            </div>
+            <div className="text-[10px] flex justify-between">
+                <Badge variant="outline" className="text-[8px] py-0 px-1 h-4 bg-white/20 text-white">
+                    {getShiftTypeName(schedule)}
+                </Badge>
+                {schedule.shift_start && schedule.shift_end && (
+                    <span className="text-[8px] whitespace-nowrap">
+                        {schedule.shift_start}-{schedule.shift_end}
+                    </span>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// Component for a time slot cell that can receive dragged employee shifts
+const TimeSlotCell = ({
+    timeSlot,
+    day,
+    schedules,
+    settings,
+    employeeLookup,
     employeeAbsences,
     absenceTypes,
-    employeeLookup
+    onDrop,
+    onUpdate
 }: {
-    day: Date;
     timeSlot: { start: number; end: number };
+    day: Date;
     schedules: Schedule[];
-    onDrop: (scheduleId: number, newEmployeeId: number, newDate: Date, newShiftId: number, newStartTime: string, newEndTime: string) => Promise<void>;
-    onUpdate: (scheduleId: number, updates: ScheduleUpdate) => Promise<void>;
     settings: any;
+    employeeLookup: Record<number, Employee>;
     employeeAbsences?: Record<number, any[]>;
     absenceTypes?: Array<{ id: string; name: string; color: string; type: string; }>;
-    employeeLookup: Record<number, Employee>;
+    onDrop: (scheduleId: number, employeeId: number, date: Date, shiftId: number, startTime: string, endTime: string) => Promise<void>;
+    onUpdate: (scheduleId: number, updates: ScheduleUpdate) => Promise<void>;
 }) => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
@@ -85,62 +172,50 @@ const TimeSlotCell = ({
     const startTimeStr = formatMinutesToTime(timeSlot.start);
     const endTimeStr = formatMinutesToTime(timeSlot.end);
 
-    // Filter schedules that overlap with this time slot
+    // Find schedules that overlap with this time slot on this day
     const overlappingSchedules = schedules.filter(schedule => {
-        if (!schedule.date) return false;
-
-        // Handle case where shift_start or shift_end might be undefined
-        const shiftStart = schedule.shift_start || '00:00';
-        const shiftEnd = schedule.shift_end || '00:00';
-        if (schedule.date !== dayStr) return false;
-
-        const scheduleStart = parseTime(shiftStart);
-        const scheduleEnd = parseTime(shiftEnd);
-
-        // Check if there's any overlap
+        if (!schedule.date || schedule.date !== dayStr) return false;
+        
+        const shiftStart = schedule.shift_start ? parseTime(schedule.shift_start) : 0;
+        const shiftEnd = schedule.shift_end ? parseTime(schedule.shift_end) : 0;
+        
+        // Check if schedule overlaps with this time slot
         return (
-            (scheduleStart <= timeSlot.end && scheduleEnd >= timeSlot.start) ||
-            (scheduleStart >= timeSlot.start && scheduleStart < timeSlot.end) ||
-            (scheduleEnd > timeSlot.start && scheduleEnd <= timeSlot.end)
+            (shiftStart <= timeSlot.start && shiftEnd > timeSlot.start) || 
+            (shiftStart >= timeSlot.start && shiftStart < timeSlot.end)
         );
     });
 
     const [{ isOver }, drop] = useDrop({
-        accept: 'SCHEDULE',
+        accept: 'EMPLOYEE_SCHEDULE',
         drop: (item: DragItem) => {
-            // When dropping, update the schedule with the new time
             onDrop(
                 item.scheduleId,
                 item.employeeId,
                 new Date(dayStr),
                 item.shiftId,
                 startTimeStr,
-                endTimeStr
+                formatMinutesToTime(timeSlot.start + (parseTime(item.endTime) - parseTime(item.startTime)))
             );
         },
         collect: (monitor) => ({
             isOver: monitor.isOver()
         }),
         // Only allow dropping if this time slot is within opening hours
-        canDrop: () => true // This would need to be updated with actual opening hours logic
+        canDrop: () => true 
     });
-
-    const formatEmployeeName = (employee: Employee) => {
-        if (!employee) return 'Unknown';
-        return `${employee.last_name}, ${employee.first_name.charAt(0)}`;
-    };
 
     // Handle clicking on an empty cell to add a new shift
     const handleAddNewShift = () => {
-        // Create an empty schedule object with the current day and time slot
+        const endTime = formatMinutesToTime(timeSlot.start + 60); // Default duration: 1 hour
         const newSchedule: Schedule = {
-            id: 0, // Use 0 to indicate it's a new schedule
-            employee_id: 0, // Will be selected in the modal
+            id: 0, 
+            employee_id: 0,
             date: dayStr,
-            shift_id: 0, // Will be selected in the modal
+            shift_id: 0,
             shift_start: startTimeStr,
-            shift_end: endTimeStr,
-            version: 0, // Will be set by the backend
+            shift_end: endTime,
+            version: 0,
             status: 'DRAFT',
             is_empty: false
         };
@@ -151,10 +226,10 @@ const TimeSlotCell = ({
     };
 
     return (
-        <div
+        <td
             ref={drop}
             className={cn(
-                "border p-1 min-h-[60px] relative transition-colors duration-150",
+                "border p-1 relative transition-colors duration-150 min-h-[40px] align-top",
                 isOver && "bg-primary/10 ring-1 ring-primary",
                 isHovered && "bg-slate-50",
                 overlappingSchedules.length === 0 && "cursor-pointer hover:bg-blue-50/30"
@@ -162,16 +237,16 @@ const TimeSlotCell = ({
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
             onClick={() => {
-                // Only trigger add new shift when clicking on an empty cell
                 if (overlappingSchedules.length === 0) {
                     handleAddNewShift();
                 }
             }}
         >
             {overlappingSchedules.length > 0 ? (
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1 min-h-[40px]">
                     {overlappingSchedules.map(schedule => {
                         const employee = employeeLookup[schedule.employee_id];
+                        if (!employee) return null;
 
                         // Check for absence
                         const hasAbsence = employeeAbsences && absenceTypes &&
@@ -181,71 +256,27 @@ const TimeSlotCell = ({
                                 return dayStr >= absenceStartDate && dayStr <= absenceEndDate;
                             });
 
-                        const [{ isDragging }, drag] = useDrag({
-                            type: 'SCHEDULE',
-                            item: {
-                                type: 'SCHEDULE',
-                                scheduleId: schedule.id,
-                                employeeId: schedule.employee_id,
-                                shiftId: schedule.shift_id || 0,
-                                date: schedule.date,
-                                startTime: schedule.shift_start,
-                                endTime: schedule.shift_end
-                            },
-                            canDrag: !hasAbsence,
-                            collect: (monitor) => ({
-                                isDragging: monitor.isDragging()
-                            })
-                        });
-
                         return (
-                            <div
+                            <DraggableEmployeeShift
                                 key={schedule.id}
-                                ref={drag}
-                                className={cn(
-                                    "px-2 py-1 rounded text-xs font-medium cursor-move shadow-sm transition-all",
-                                    isDragging && "opacity-50 shadow-md scale-95",
-                                    hasAbsence && "opacity-50 cursor-not-allowed"
-                                )}
-                                style={{
-                                    backgroundColor: getShiftTypeColor(schedule, settings),
-                                    color: 'white'
+                                schedule={schedule}
+                                employee={employee}
+                                settings={settings}
+                                hasAbsence={!!hasAbsence}
+                                onEdit={() => {
+                                    setSelectedSchedule(schedule);
+                                    setIsAddingNewShift(false);
+                                    setIsEditModalOpen(true);
                                 }}
-                                onClick={(e) => {
-                                    e.stopPropagation(); // Prevent triggering the cell's onClick
-                                    if (!hasAbsence) {
-                                        setSelectedSchedule(schedule);
-                                        setIsAddingNewShift(false);
-                                        setIsEditModalOpen(true);
-                                    }
-                                }}
-                            >
-                                {formatEmployeeName(employee)}
-                                {schedule.shift_start && schedule.shift_end && (
-                                    <div className="flex flex-col items-start mt-1">
-                                        <span className="text-[10px] px-1 rounded"
-                                            style={{
-                                                backgroundColor: getShiftTypeColor(schedule, settings),
-                                                color: 'white'
-                                            }}>
-                                            {schedule.shift_start}-{schedule.shift_end}
-                                        </span>
-                                        <span className="text-[8px] ml-1 mt-1 font-medium"
-                                            style={{
-                                                color: getShiftTypeColor(schedule, settings)
-                                            }}>
-                                            {getShiftTypeName(schedule)}
-                                        </span>
-                                    </div>
-                                )}
-                            </div>
+                                onDrop={onDrop}
+                            />
                         );
                     })}
                 </div>
             ) : (
-                <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
+                <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground min-h-[40px]">
                     {isHovered && (
-                        <span className="opacity-50">{startTimeStr}-{endTimeStr}</span>
+                        <span className="opacity-50">{startTimeStr}</span>
                     )}
                 </div>
             )}
@@ -262,7 +293,7 @@ const TimeSlotCell = ({
                     onSave={onUpdate}
                 />
             )}
-        </div>
+        </td>
     );
 };
 
@@ -296,7 +327,7 @@ export function TimeGridScheduleTable({
         }, {});
     }, [employeesData]);
 
-    // Generate days from date range
+    // Generate days from date range, filtered by opening days
     const days = useMemo(() => {
         if (!dateRange?.from || !dateRange?.to || !settings) return [];
         const days = [];
@@ -304,17 +335,10 @@ export function TimeGridScheduleTable({
 
         while (currentDate <= dateRange.to) {
             const dayIndex = currentDate.getDay().toString();
-            const isSunday = dayIndex === '0';
-            const isWeekday = dayIndex !== '0';  // Monday-Saturday
             const isOpeningDay = settings.general?.opening_days?.[dayIndex];
 
-            // Include the day if:
-            // 1. It's marked as an opening day, OR
-            // 2. It's Sunday and show_sunday is true, OR
-            // 3. It's a weekday and show_weekdays is true
-            if (isOpeningDay ||
-                (isSunday && settings.display?.show_sunday) ||
-                (isWeekday && settings.display?.show_weekdays)) {
+            // Include only days marked as opening days
+            if (isOpeningDay) {
                 days.push(currentDate);
             }
             currentDate = addDays(currentDate, 1);
@@ -323,16 +347,16 @@ export function TimeGridScheduleTable({
         return days;
     }, [dateRange, settings]);
 
-    // Generate time slots based on opening hours (30-minute intervals)
+    // Generate time slots in 15-minute intervals based on opening hours
     const timeSlots = useMemo(() => {
         if (!settings || !settings.general) {
             // Default time slots if settings are not available
             const slots = [];
-            for (let i = 8; i < 22; i++) {
+            for (let i = 8 * 60; i < 22 * 60; i += 15) { // From 8:00 to 22:00 in 15-min intervals
                 slots.push({
-                    start: i * 60,
-                    end: (i + 1) * 60,
-                    label: `${i}:00 - ${i + 1}:00`
+                    start: i,
+                    end: i + 15,
+                    label: `${formatMinutesToTime(i)}`
                 });
             }
             return slots;
@@ -340,7 +364,7 @@ export function TimeGridScheduleTable({
 
         // Parse opening hours from settings - use store_opening and store_closing
         const slots = [];
-        const increment = 30; // 30-minute time slots
+        const increment = 15; // 15-minute time slots
 
         // Use store_opening and store_closing from general settings
         const startMinutes = parseTime(settings.general.store_opening || "09:00");
@@ -350,7 +374,7 @@ export function TimeGridScheduleTable({
             slots.push({
                 start: time,
                 end: time + increment,
-                label: `${formatMinutesToTime(time)} - ${formatMinutesToTime(time + increment)}`
+                label: `${formatMinutesToTime(time)}`
             });
         }
 
@@ -377,35 +401,34 @@ export function TimeGridScheduleTable({
         newStartTime: string,
         newEndTime: string
     ) => {
-        // Calculate duration of the original shift to preserve it
         const schedule = schedules.find(s => s.id === scheduleId);
-
         if (!schedule) return;
 
-        // Create update object with appropriate properties
-        // Note: If ScheduleUpdate type doesn't include shift_start and shift_end,
-        // we need to use a type assertion or update the type definition
+        // Determine the original duration of the shift
+        const originalStart = schedule.shift_start ? parseTime(schedule.shift_start) : 0;
+        const originalEnd = schedule.shift_end ? parseTime(schedule.shift_end) : 0;
+        const duration = originalEnd - originalStart;
+
+        // If we only have a start time but no specified end time, calculate it
+        if (newStartTime && !newEndTime) {
+            const newStartMinutes = parseTime(newStartTime);
+            newEndTime = formatMinutesToTime(newStartMinutes + duration);
+        }
+
+        // Create update object with new properties
         const updates = {
             date: format(newDate, 'yyyy-MM-dd'),
             employee_id: employeeId,
             shift_id: shiftId,
-            // Use type assertion to bypass TypeScript error if necessary
+            shift_start: newStartTime,
+            shift_end: newEndTime
         } as ScheduleUpdate;
-
-        // Add shift_start and shift_end if they exist on the type
-        if (newStartTime) {
-            (updates as any).shift_start = newStartTime;
-        }
-
-        if (newEndTime) {
-            (updates as any).shift_end = newEndTime;
-        }
 
         await onUpdate(scheduleId, updates);
     };
 
     if (isLoading) {
-        return <Skeleton className="w-full h-[400px]" />;
+        return <Skeleton className="w-full h-[600px]" />;
     }
 
     if (!dateRange?.from || !dateRange?.to) {
@@ -413,6 +436,17 @@ export function TimeGridScheduleTable({
             <div className="text-center text-muted-foreground py-8">
                 Bitte wählen Sie einen Zeitraum aus
             </div>
+        );
+    }
+
+    if (days.length === 0) {
+        return (
+            <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                    Keine Öffnungstage im ausgewählten Zeitraum gefunden
+                </AlertDescription>
+            </Alert>
         );
     }
 
@@ -447,19 +481,15 @@ export function TimeGridScheduleTable({
                             <>
                                 <div className="flex items-center gap-1">
                                     <div className="w-5 h-5 rounded-md bg-blue-500"></div>
-                                    <span>Fest</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                    <div className="w-5 h-5 rounded-md bg-green-500"></div>
-                                    <span>Wunsch</span>
+                                    <span>Früh</span>
                                 </div>
                                 <div className="flex items-center gap-1">
                                     <div className="w-5 h-5 rounded-md bg-amber-500"></div>
-                                    <span>Verfügbarkeit</span>
+                                    <span>Mittel</span>
                                 </div>
                                 <div className="flex items-center gap-1">
-                                    <div className="w-5 h-5 rounded-md bg-slate-400"></div>
-                                    <span>Standard</span>
+                                    <div className="w-5 h-5 rounded-md bg-purple-500"></div>
+                                    <span>Spät</span>
                                 </div>
                             </>
                         )}
@@ -467,39 +497,36 @@ export function TimeGridScheduleTable({
                 </div>
             </CardHeader>
             <CardContent className="p-0">
-                <div className="w-full overflow-x-auto" style={{ maxWidth: '100%' }}>
+                <div className="w-full overflow-auto" style={{ maxWidth: '100%' }}>
                     <table className="w-full border-collapse">
                         <thead>
                             <tr className="border-b bg-slate-100">
-                                <th className="w-[100px] sticky left-0 z-20 bg-slate-100 text-left p-4 font-semibold text-slate-700">
-                                    Tag
+                                <th className="sticky left-0 z-20 bg-slate-100 text-left p-2 font-semibold text-slate-700 min-w-[80px] w-[80px]">
+                                    Zeit
                                 </th>
-                                {timeSlots.map((slot, index) => (
-                                    <th
-                                        key={index}
-                                        className="min-w-[120px] text-center p-2 font-semibold text-slate-700"
-                                    >
-                                        <div className="text-xs">{slot.label}</div>
+                                {days.map((day, index) => (
+                                    <th key={index} className="text-center p-2 font-semibold text-slate-700 min-w-[120px]">
+                                        <div className="font-bold">{weekdayAbbr[format(day, 'EEEE', { locale: de })]}</div>
+                                        <div className="text-xs">{format(day, 'dd.MM.yyyy')}</div>
                                     </th>
                                 ))}
                             </tr>
                         </thead>
                         <tbody>
-                            {days.map(day => (
-                                <tr key={day.toISOString()} className="hover:bg-slate-50/50 border-b">
-                                    <td className="font-medium sticky left-0 z-10 bg-slate-50 w-[100px] p-2">
-                                        <div className="flex flex-col">
-                                            <span className="font-bold text-slate-800">
-                                                {weekdayAbbr[format(day, 'EEEE')]}
-                                            </span>
-                                            <span className="text-xs text-slate-500">
-                                                {format(day, 'dd.MM.yyyy')}
-                                            </span>
-                                        </div>
+                            {timeSlots.map((slot, slotIndex) => (
+                                <tr key={slotIndex} className={cn(
+                                    "border-b hover:bg-slate-50/50",
+                                    slotIndex % 4 === 0 && "border-t-2 border-t-slate-200" // Highlight hour boundaries
+                                )}>
+                                    <td className={cn(
+                                        "font-medium sticky left-0 z-10 bg-slate-50 p-2 text-xs",
+                                        slotIndex % 4 === 0 && "font-bold" // Make hour markers bold
+                                    )}>
+                                        {slot.label}
                                     </td>
-                                    {timeSlots.map((slot, index) => (
+                                    {days.map((day, dayIndex) => (
                                         <TimeSlotCell
-                                            key={index}
+                                            key={dayIndex}
                                             day={day}
                                             timeSlot={slot}
                                             schedules={schedules}

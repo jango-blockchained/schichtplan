@@ -207,6 +207,19 @@ class ScheduleGenerator:
         self.schedule = None
         self.assignments = []
         self.schedule_by_date = {}
+        self._schedule_entries = []  # Add this property for _finalize_schedule
+
+    @property
+    def schedule_entries(self):
+        """Get the schedule entries from the schedule container or use internal entries"""
+        if self.schedule and hasattr(self.schedule, 'entries'):
+            return self.schedule.entries
+        return self._schedule_entries
+
+    @schedule_entries.setter
+    def schedule_entries(self, value):
+        """Set the schedule entries"""
+        self._schedule_entries = value
 
     def generate_schedule(
         self,
@@ -301,6 +314,15 @@ class ScheduleGenerator:
                 "dates_empty": empty_dates,
             }
         )
+        
+        # Add placeholder entries for non-working days
+        date_range = {'start': start_date, 'end': end_date}
+        try:
+            self.logger.info("Adding placeholder entries for non-working days")
+            self._finalize_schedule(date_range, self.resources.employees)
+        except Exception as e:
+            self.logger.warning(f"Error adding non-working placeholders: {str(e)}")
+            # Continue even if this fails - it's just a UI enhancement
 
         # Step 3: Serialization
         self.logging_manager.start_step("Schedule Serialization")
@@ -663,3 +685,72 @@ class ScheduleGenerator:
         }
         self.schedule.entries.append(empty_assignment)
         self.schedule_by_date[current_date] = [empty_assignment]
+
+    def _finalize_schedule(self, date_range, employees):
+        """Finalize the schedule by adding placeholder shifts for non-working days."""
+        from models.fixed_shift import ShiftType
+        from models.schedule import Schedule
+        
+        schedule_entries = self.schedule_entries
+        
+        # Group existing entries by employee and date
+        scheduled_days = {}
+        for entry in schedule_entries:
+            employee_id = entry['employee_id']
+            date = entry['date']
+            if employee_id not in scheduled_days:
+                scheduled_days[employee_id] = set()
+            scheduled_days[employee_id].add(date)
+        
+        # Create a placeholder shift for NON_WORKING days
+        non_working_shift = {
+            'id': -1,  # Special ID for non-working shifts
+            'shift_type_id': ShiftType.NON_WORKING,
+            'start_time': '00:00',
+            'end_time': '00:00',
+            'break_duration': 0,
+            'color': '#cccccc'
+        }
+        
+        # Add NON_WORKING entries for all dates in range where employees don't have shifts
+        new_entries = []
+        start_date = date_range['start']
+        end_date = date_range['end']
+        
+        current_date = start_date
+        while current_date <= end_date:
+            date_str = current_date.isoformat().split('T')[0]
+            
+            for employee in employees:
+                employee_id = employee.id
+                
+                # Check if the employee already has a shift on this day
+                if employee_id in scheduled_days and date_str in scheduled_days[employee_id]:
+                    continue
+                
+                # Check if this is a work day for the employee based on contracted hours
+                # For simplicity, we're just checking if it's a weekday
+                is_weekday = current_date.weekday() < 5
+                
+                if is_weekday:
+                    # Add a NON_WORKING placeholder
+                    new_entry = {
+                        'employee_id': employee_id,
+                        'shift_id': non_working_shift['id'],
+                        'shift_type_id': non_working_shift['shift_type_id'],
+                        'date': date_str,
+                        'shift_start': non_working_shift['start_time'],
+                        'shift_end': non_working_shift['end_time'],
+                        'break_duration': non_working_shift['break_duration'],
+                        'notes': 'Kein Einsatz an diesem Tag',
+                        'status': 'GENERATED',
+                        'is_empty': True
+                    }
+                    new_entries.append(new_entry)
+            
+            current_date = current_date + timedelta(days=1)
+        
+        # Add the new entries to the schedule
+        self.schedule_entries.extend(new_entries)
+        
+        return self.schedule_entries

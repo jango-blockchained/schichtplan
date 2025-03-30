@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { CalendarPlus, Trash2, AlertCircle, Table2, LayoutGrid } from 'lucide-react';
+import { CalendarPlus, Trash2, AlertCircle, Table2, LayoutGrid, Calendar, User, Clock, LineChart } from 'lucide-react';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -13,6 +13,7 @@ import {
     AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScheduleViewType } from './ScheduleDisplay';
 
 interface ScheduleActionsProps {
     onAddSchedule: () => void;
@@ -20,8 +21,8 @@ interface ScheduleActionsProps {
     isLoading?: boolean;
     canAdd?: boolean;
     canDelete?: boolean;
-    activeView?: 'table' | 'grid';
-    onViewChange?: (view: 'table' | 'grid') => void;
+    activeView?: ScheduleViewType;
+    onViewChange?: (view: ScheduleViewType) => void;
 }
 
 export function ScheduleActions({
@@ -34,21 +35,20 @@ export function ScheduleActions({
     onViewChange
 }: ScheduleActionsProps) {
     return (
-        <div className="flex items-center justify-between w-full">
-            <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
                 {canAdd && (
                     <Button
                         variant="outline"
                         size="sm"
                         onClick={onAddSchedule}
                         disabled={isLoading}
-                        title="Neuen Schichtplan hinzufügen"
                     >
                         <CalendarPlus className="h-4 w-4 mr-2" />
-                        Eintrag hinzufügen
+                        Schicht hinzufügen
                     </Button>
                 )}
-
+                
                 {canDelete && (
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
@@ -56,49 +56,58 @@ export function ScheduleActions({
                                 variant="outline"
                                 size="sm"
                                 disabled={isLoading}
-                                className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                                title="Aktuellen Schichtplan löschen"
                             >
                                 <Trash2 className="h-4 w-4 mr-2" />
-                                Alle löschen
+                                Schicht löschen
                             </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
-                                <AlertDialogTitle>Schichtplan löschen?</AlertDialogTitle>
+                                <AlertDialogTitle>Schicht löschen</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                    Diese Aktion löscht den aktuellen Schichtplan und alle darin enthaltenen Schichten.
-                                    <br /><br />
-                                    <span className="font-semibold text-destructive">
-                                        Diese Aktion kann nicht rückgängig gemacht werden!
-                                    </span>
+                                    Möchten Sie diese Schicht wirklich löschen? Dies kann nicht rückgängig gemacht werden.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                                <AlertDialogAction
-                                    onClick={onDeleteSchedule}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                >
-                                    Endgültig löschen
-                                </AlertDialogAction>
+                                <AlertDialogAction onClick={onDeleteSchedule}>Löschen</AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
                 )}
             </div>
-
+            
             {/* View Selector */}
             {onViewChange && (
                 <Tabs value={activeView} onValueChange={onViewChange as any} className="w-auto">
-                    <TabsList className="grid w-[200px] grid-cols-2">
-                        <TabsTrigger value="table" className="flex items-center gap-2">
+                    <TabsList>
+                        <TabsTrigger value="table" className="flex items-center gap-1">
                             <Table2 className="h-4 w-4" />
-                            <span>Tabelle</span>
+                            <span className="hidden sm:inline">Tabelle</span>
                         </TabsTrigger>
-                        <TabsTrigger value="grid" className="flex items-center gap-2">
+                        <TabsTrigger value="grid" className="flex items-center gap-1">
                             <LayoutGrid className="h-4 w-4" />
-                            <span>Zeitraster</span>
+                            <span className="hidden sm:inline">Zeitraster</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="coverage" className="flex items-center gap-1">
+                            <LineChart className="h-4 w-4" />
+                            <span className="hidden sm:inline">Abdeckung</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="monthly" className="flex items-center gap-1">
+                            <Calendar className="h-4 w-4" />
+                            <span className="hidden sm:inline">Monat</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="daily" className="flex items-center gap-1">
+                            <Clock className="h-4 w-4" />
+                            <span className="hidden sm:inline">Tag</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="employee" className="flex items-center gap-1">
+                            <User className="h-4 w-4" />
+                            <span className="hidden sm:inline">Mitarbeiter</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="calendar" className="flex items-center gap-1">
+                            <Calendar className="h-4 w-4" />
+                            <span className="hidden sm:inline">Kalender</span>
                         </TabsTrigger>
                     </TabsList>
                 </Tabs>

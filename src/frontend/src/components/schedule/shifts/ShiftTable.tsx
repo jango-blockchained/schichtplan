@@ -7,13 +7,15 @@ import { WeeklySchedule, WeeklyShift } from '@/types';
 import { format, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { AlertCircle, Edit2, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
+import { useQuery } from '@tanstack/react-query';
+import { getSettings } from '@/services/api';
 
 interface ShiftTableProps {
   weekStart: Date;
@@ -30,62 +32,96 @@ interface SubRowProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 const SubRow = ({ children, className, ...props }: SubRowProps) => (
-  <div className={cn("flex flex-col border-t border-border first:border-t-0", className)} {...props}>
+  <div className={cn("text-xs text-muted-foreground", className)} {...props}>
     {children}
   </div>
 );
 
 const LoadingSkeleton = () => (
-  <Card className="overflow-x-auto">
-    <div className="p-4 space-y-4">
-      <div className="flex items-center space-x-4">
-        <Skeleton className="h-12 w-[150px]" />
-        <Skeleton className="h-12 w-20" />
-        <Skeleton className="h-12 w-20" />
-        {Array.from({ length: 7 }).map((_, i) => (
-          <Skeleton key={i} className="h-12 w-[100px]" />
-        ))}
-        <Skeleton className="h-12 w-20" />
-        <Skeleton className="h-12 w-20" />
-      </div>
-      {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="flex items-center space-x-4">
-          <Skeleton className="h-20 w-[150px]" />
-          <Skeleton className="h-20 w-20" />
-          <Skeleton className="h-20 w-20" />
-          {Array.from({ length: 7 }).map((_, j) => (
-            <Skeleton key={j} className="h-20 w-[100px]" />
+  <Card className="shadow-none p-0">
+    <div className="overflow-auto max-h-96">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-44">
+              <Skeleton className="h-5 w-full" />
+            </TableHead>
+            <TableHead className="w-28">
+              <Skeleton className="h-5 w-full" />
+            </TableHead>
+            <TableHead className="w-16">
+              <Skeleton className="h-5 w-full" />
+            </TableHead>
+            {Array.from({ length: 7 }).map((_, i) => (
+              <TableHead key={i}>
+                <Skeleton className="h-5 w-full" />
+              </TableHead>
+            ))}
+            <TableHead>
+              <Skeleton className="h-5 w-full" />
+            </TableHead>
+            <TableHead>
+              <Skeleton className="h-5 w-full" />
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <TableRow key={i}>
+              <TableCell>
+                <Skeleton className="h-5 w-full" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-5 w-full" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-5 w-full" />
+              </TableCell>
+              {Array.from({ length: 7 }).map((_, j) => (
+                <TableCell key={j}>
+                  <Skeleton className="h-20 w-full" />
+                </TableCell>
+              ))}
+              <TableCell>
+                <Skeleton className="h-5 w-full" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-5 w-full" />
+              </TableCell>
+            </TableRow>
           ))}
-          <Skeleton className="h-20 w-20" />
-          <Skeleton className="h-20 w-20" />
-        </div>
-      ))}
+        </TableBody>
+      </Table>
     </div>
   </Card>
 );
 
 const parseTime = (timeStr: string): number => {
   const [hours, minutes] = timeStr.split(':').map(Number);
-  return hours + minutes / 60;
+  return hours * 60 + minutes;
 };
 
 const formatHours = (totalHours: number): string => {
   const hours = Math.floor(totalHours);
   const minutes = Math.round((totalHours - hours) * 60);
-  return `${hours}:${minutes.toString().padStart(2, '0')}`;
+  return minutes > 0 ? `${hours}.${minutes}` : `${hours}`;
 };
 
 const calculateShiftHours = (shift: WeeklyShift): number => {
   if (!shift.start_time || !shift.end_time) return 0;
-
-  let totalHours = parseTime(shift.end_time) - parseTime(shift.start_time);
-
-  if (shift.break) {
-    const breakHours = parseTime(shift.break.end) - parseTime(shift.break.start);
-    totalHours -= breakHours;
+  
+  const startMinutes = parseTime(shift.start_time);
+  const endMinutes = parseTime(shift.end_time);
+  
+  // Break calculation
+  let breakDuration = 0;
+  if (shift.break?.start && shift.break?.end) {
+    const breakStartMinutes = parseTime(shift.break.start);
+    const breakEndMinutes = parseTime(shift.break.end);
+    breakDuration = breakEndMinutes - breakStartMinutes;
   }
-
-  return totalHours;
+  
+  return (endMinutes - startMinutes - breakDuration) / 60;
 };
 
 const calculateDailyHours = (shift: WeeklyShift): string => {
@@ -99,7 +135,7 @@ const calculateWeeklyHours = (shifts: WeeklyShift[]): string => {
 
 const calculateMonthlyHours = (shifts: WeeklyShift[]): string => {
   const totalHours = shifts.reduce((acc, shift) => acc + calculateShiftHours(shift), 0);
-  return formatHours(totalHours * 4); // Assuming 4 weeks per month
+  return formatHours(totalHours * 4.33); // Approximate weeks in a month
 };
 
 interface ShiftCellProps {
@@ -110,154 +146,175 @@ interface ShiftCellProps {
 }
 
 const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeId }: ShiftCellProps) => {
-  const [notes, setNotes] = useState(shift?.break?.notes || '');
-  const [isEditing, setIsEditing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [breakNotes, setBreakNotes] = useState(shift?.break?.notes || '');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
-
-  const shiftHours = shift ? calculateShiftHours(shift) : 0;
-  const hasBreakViolation = shiftHours > 6 && !shift?.break;
-  const hasLongBreakViolation = shiftHours > 9 && (!shift?.break?.notes?.includes('Second break:'));
-
+  
   const handleNotesUpdate = async () => {
-    if (!onBreakNotesUpdate || !employeeId || !shift?.day) {
-      return;
-    }
-
-    setIsSaving(true);
+    if (!onBreakNotesUpdate || !employeeId || !shift?.day) return;
+    
     try {
-      await onBreakNotesUpdate(employeeId, shift.day, notes);
-      setIsEditing(false);
+      setIsSubmitting(true);
+      await onBreakNotesUpdate(employeeId, shift.day, breakNotes);
+      setIsEditingNotes(false);
       toast({
-        title: "Pausennotizen gespeichert",
-        description: "Die Pausennotizen wurden erfolgreich aktualisiert.",
+        title: "Success",
+        description: "Break notes updated",
       });
     } catch (error) {
       toast({
-        title: "Fehler beim Speichern",
-        description: "Die Pausennotizen konnten nicht gespeichert werden.",
+        title: "Error",
+        description: "Failed to update break notes",
         variant: "destructive",
       });
     } finally {
-      setIsSaving(false);
+      setIsSubmitting(false);
     }
   };
-
+  
   const handleCancel = () => {
-    setNotes(shift?.break?.notes || '');
-    setIsEditing(false);
+    setBreakNotes(shift?.break?.notes || '');
+    setIsEditingNotes(false);
   };
-
-  if (!shift) return <TableCell className="h-24 align-top" />;
-
+  
+  if (!shift) return null;
+  
   return (
-    <TableCell className="h-24 align-top">
-      <div className="space-y-1 text-sm">
-        <SubRow>Beginn: {shift.start_time}</SubRow>
+    <div className="h-full w-full space-y-1">
+      <div className="flex justify-between items-center">
+        <span className="text-sm font-medium">{shift.start_time} - {shift.end_time}</span>
         {shift.break && (
-          <>
-            <SubRow>Pause: {shift.break.start}</SubRow>
-            <SubRow>Ende: {shift.break.end}</SubRow>
-          </>
-        )}
-        {showValidation && (hasBreakViolation || hasLongBreakViolation) && (
-          <SubRow>
-            <Alert variant="destructive" className="py-2">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                {hasBreakViolation
-                  ? "Pause erforderlich (>6h)"
-                  : "Zweite Pause erforderlich (>9h)"}
-              </AlertDescription>
-            </Alert>
-          </SubRow>
-        )}
-        <SubRow>
-          <div className="flex items-center gap-2">
-            <span className="font-medium">Notizen:</span>
-            {!isEditing ? (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => setIsEditing(true)}
-              >
-                <Edit2 className="h-4 w-4" />
-              </Button>
-            ) : null}
-          </div>
-          {isEditing ? (
-            <div className="space-y-2 mt-1">
-              <Input
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Pausennotizen eingeben..."
-              />
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  onClick={handleNotesUpdate}
-                  disabled={isSaving}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button 
+                  onClick={() => setIsEditingNotes(true)}
+                  className="text-xs text-primary hover:text-primary/80"
                 >
-                  {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Speichern
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleCancel}
-                  disabled={isSaving}
-                >
-                  Abbrechen
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="text-muted-foreground">
-              {shift.break?.notes || 'Keine Pausennotizen'}
-            </div>
-          )}
-        </SubRow>
-        <SubRow>Ende: {shift.end_time}</SubRow>
-        <SubRow>
-          <Badge variant={hasBreakViolation || hasLongBreakViolation ? "destructive" : "secondary"}>
-            {calculateDailyHours(shift)}h
-          </Badge>
-        </SubRow>
+                  <Edit2 size={14} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Edit break notes</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
       </div>
-    </TableCell>
+      
+      {shift.shift_type_id && (
+        <Badge variant="outline" className="text-xs font-normal py-0 h-5">
+          {shift.shift_type_id}
+        </Badge>
+      )}
+      
+      {shift.break && (
+        <SubRow>
+          Break: {shift.break.start} - {shift.break.end}
+        </SubRow>
+      )}
+      
+      {shift.break?.notes && !isEditingNotes && (
+        <SubRow>{shift.break.notes}</SubRow>
+      )}
+      
+      {isEditingNotes && (
+        <div className="space-y-1.5 pt-1">
+          <Input
+            value={breakNotes}
+            onChange={(e) => setBreakNotes(e.target.value)}
+            placeholder="Break notes..."
+            size={3}
+            className="text-xs h-6 py-1 px-2"
+          />
+          <div className="flex gap-1 justify-end">
+            <Button 
+              variant="outline" 
+              size="sm"
+              className="h-6 text-xs py-0 px-2"
+              onClick={handleCancel}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="default" 
+              size="sm"
+              className="h-6 text-xs py-0 px-2"
+              onClick={handleNotesUpdate}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Save'}
+            </Button>
+          </div>
+        </div>
+      )}
+      
+      <SubRow>Total: {calculateDailyHours(shift)}h</SubRow>
+    </div>
   );
 };
 
 export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShiftUpdate, onBreakNotesUpdate }: ShiftTableProps) => {
-  const [isDragging, setIsDragging] = useState(false);
-
-  const handleDragEnd = useCallback(
-    async (result: DropResult) => {
-      setIsDragging(false);
-
-      if (!result.destination || !onShiftUpdate) {
-        return;
+  const { toast } = useToast();
+  
+  // Fetch settings to determine opening days
+  const { data: settings, isLoading: isLoadingSettings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: getSettings
+  });
+  
+  // Generate days for the week, filtered by opening days
+  const days = useMemo(() => {
+    if (!settings) return Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i));
+    
+    const filteredDays = [];
+    for (let i = 0; i < 7; i++) {
+      const day = addDays(weekStart, i);
+      const dayIndex = day.getDay().toString(); // 0 = Sunday, 1 = Monday, etc.
+      
+      // Only include days marked as opening days in settings
+      if (settings.general?.opening_days?.[dayIndex]) {
+        filteredDays.push(day);
       }
-
-      const [employeeId, fromDay] = result.draggableId.split('-').map(Number);
-      const toDay = parseInt(result.destination.droppableId);
-
-      if (fromDay === toDay) {
-        return;
-      }
-
-      try {
-        await onShiftUpdate(employeeId, fromDay, toDay);
-      } catch (error) {
-        console.error('Failed to update shift:', error);
-      }
-    },
-    [onShiftUpdate]
-  );
-
-  if (isLoading) return <LoadingSkeleton />;
-
+    }
+    
+    return filteredDays;
+  }, [weekStart, settings]);
+  
+  const onDragEnd = useCallback((result: DropResult) => {
+    if (!result.destination || !onShiftUpdate) {
+      return;
+    }
+    
+    const employeeId = parseInt(result.draggableId.split('-')[0]);
+    const fromDay = parseInt(result.draggableId.split('-')[1]);
+    const toDay = parseInt(result.destination.droppableId);
+    
+    if (fromDay === toDay) {
+      return;
+    }
+    
+    onShiftUpdate(employeeId, fromDay, toDay)
+      .then(() => {
+        toast({
+          title: "Success",
+          description: "Shift updated successfully",
+        });
+      })
+      .catch(() => {
+        toast({
+          title: "Error",
+          description: "Failed to update shift",
+          variant: "destructive",
+        });
+      });
+  }, [onShiftUpdate, toast]);
+  
+  if (isLoading || isLoadingSettings) {
+    return <LoadingSkeleton />;
+  }
+  
   if (error) {
     return (
       <Alert variant="destructive">
@@ -266,29 +323,23 @@ export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShift
       </Alert>
     );
   }
-
+  
   return (
-    <Card className="overflow-x-auto">
-      <DragDropContext
-        onDragStart={() => setIsDragging(true)}
-        onDragEnd={handleDragEnd}
-      >
+    <Card className="shadow-none p-0">
+      <DragDropContext onDragEnd={onDragEnd}>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[200px]">Mitarbeiter</TableHead>
-              <TableHead>Position</TableHead>
-              <TableHead>Std/W</TableHead>
-              {Array.from({ length: 7 }).map((_, i) => {
-                const date = addDays(weekStart, i);
-                return (
-                  <TableHead key={i}>
-                    {format(date, 'EEE dd.MM', { locale: de })}
-                  </TableHead>
-                );
-              })}
-              <TableHead>Woche</TableHead>
-              <TableHead>Monat</TableHead>
+              <TableHead className="w-44">Employee</TableHead>
+              <TableHead className="w-28">Position</TableHead>
+              <TableHead className="w-16">Contracted</TableHead>
+              {days.map((day) => (
+                <TableHead key={day.toString()}>
+                  {format(day, 'EEE, dd.MM', { locale: de })}
+                </TableHead>
+              ))}
+              <TableHead>Weekly</TableHead>
+              <TableHead>Monthly</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -306,10 +357,14 @@ export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShift
                 </TableCell>
                 <TableCell>{employee.position}</TableCell>
                 <TableCell>{employee.contracted_hours}:00</TableCell>
-                {Array.from({ length: 7 }).map((_, day) => {
-                  const shift = employee.shifts.find(s => s.day === day);
+                {days.map((day, dayIndex) => {
+                  // Map the actual day of week (0-6) to the shift day value
+                  const dayOfWeek = day.getDay(); // 0 = Sunday, 1 = Monday, etc
+                  // Convert to our internal day numbering if needed
+                  const shift = employee.shifts.find(s => s.day === dayOfWeek);
+                  
                   return (
-                    <Droppable key={day} droppableId={day.toString()}>
+                    <Droppable key={dayOfWeek} droppableId={dayOfWeek.toString()}>
                       {(provided, snapshot) => (
                         <TableCell
                           ref={provided.innerRef}
@@ -321,7 +376,7 @@ export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShift
                         >
                           {shift && (
                             <Draggable
-                              draggableId={`${employee.employee_id}-${day}`}
+                              draggableId={`${employee.employee_id}-${dayOfWeek}`}
                               index={0}
                             >
                               {(provided, snapshot) => (

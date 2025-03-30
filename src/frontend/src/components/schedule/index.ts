@@ -28,6 +28,20 @@ export * from './AddScheduleDialog';
 // View components
 export * from './views/TimeGridView';
 export * from './views/ScheduleTable';
+export * from './views/ShiftCoverageView';
+export * from './views/MonthlyView';
+export * from './views/DailyView';
+export * from './views/EmployeeView';
+export * from './views/CalendarView';
+export * from './views/ShiftsTableView';
+
+// Shared components
+export * from './shared/ColorPicker';
+export * from './shared/EmployeeSelect';
+export * from './shared/DateRangePicker';
+
+// Shift components
+export * from './shifts/ShiftEditModal';
 
 // Shared utilities
 export * from './shared/utils'; 

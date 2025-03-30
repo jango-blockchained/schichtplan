@@ -308,6 +308,19 @@ export interface Settings {
         demo_data: {
             selected_module: string;
             last_execution: string | null;
+            task_id?: string;
+            status?: string;
+            start_time?: string;
+            end_time?: string;
+            progress?: number;
+            error?: string;
+            statistics?: {
+                employees?: number;
+                availabilities?: number;
+                absences?: number;
+                coverage_slots?: number;
+                shift_templates?: number;
+            };
         };
     };
 }

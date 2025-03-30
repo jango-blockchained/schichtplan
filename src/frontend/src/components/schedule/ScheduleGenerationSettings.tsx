@@ -58,6 +58,8 @@ interface ScheduleGenerationSettingsProps {
     onGenerateSchedule?: () => void;
     /** Whether schedule generation is in progress */
     isGenerating?: boolean;
+    /** Whether to show a compact version with just buttons (no card) */
+    compact?: boolean;
 }
 
 /**
@@ -72,7 +74,8 @@ export function ScheduleGenerationSettings({
     onCreateEmptyChange,
     onIncludeEmptyChange,
     onGenerateSchedule,
-    isGenerating
+    isGenerating,
+    compact = false
 }: ScheduleGenerationSettingsProps): React.ReactElement {
     const { toast } = useToast();
 
@@ -149,6 +152,108 @@ export function ScheduleGenerationSettings({
         onCreateEmptyChange !== undefined &&
         onIncludeEmptyChange !== undefined &&
         onGenerateSchedule !== undefined;
+
+    // Return compact version if specified
+    if (compact) {
+        return (
+            <div className="flex items-center gap-2">
+                <Button
+                    onClick={onGenerateSchedule}
+                    disabled={isGenerating}
+                    size="sm"
+                    variant="secondary"
+                >
+                    {isGenerating ? (
+                        <>
+                            <RefreshCw className="mr-1 h-4 w-4 animate-spin" />
+                            Generiere...
+                        </>
+                    ) : (
+                        <>
+                            <Play className="mr-1 h-4 w-4" />
+                            Dienstplan generieren
+                        </>
+                    )}
+                </Button>
+
+                <Popover open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+                    <PopoverTrigger asChild>
+                        <Button variant="outline" size="icon" className="h-8 w-8">
+                            <Settings2 className="h-4 w-4" />
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80 p-0" align="end">
+                        <div className="p-4 space-y-4">
+                            <h3 className="font-medium">Generierungseinstellungen</h3>
+                            <p className="text-sm text-muted-foreground">
+                                Diese Einstellungen beeinflussen, wie der Dienstplan generiert wird.
+                            </p>
+
+                            {showGenerationControls && (
+                                <div className="flex flex-wrap gap-2 mb-2">
+                                    <div className="flex items-center space-x-2">
+                                        <Checkbox
+                                            id="createEmpty-compact"
+                                            checked={createEmptySchedules}
+                                            onCheckedChange={onCreateEmptyChange}
+                                        />
+                                        <Label
+                                            htmlFor="createEmpty-compact"
+                                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                        >
+                                            Leere Dienstpläne erstellen
+                                        </Label>
+                                    </div>
+
+                                    <div className="flex items-center space-x-2">
+                                        <Checkbox
+                                            id="includeEmpty-compact"
+                                            checked={includeEmpty}
+                                            onCheckedChange={onIncludeEmptyChange}
+                                        />
+                                        <Label
+                                            htmlFor="includeEmpty-compact"
+                                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                        >
+                                            Leere Dienstpläne anzeigen
+                                        </Label>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                                {SCHEDULE_REQUIREMENTS.map(({ key, label, description }) => (
+                                    <div key={key} className="flex items-start space-x-3">
+                                        <Switch
+                                            id={`${key}-compact`}
+                                            checked={localRequirements[key as RequirementKey]}
+                                            onCheckedChange={(checked) => handleToggle(key as RequirementKey, checked)}
+                                        />
+                                        <div className="space-y-1">
+                                            <Label
+                                                htmlFor={`${key}-compact`}
+                                                className="text-sm font-medium"
+                                            >
+                                                {label}
+                                            </Label>
+                                            <p className="text-xs text-muted-foreground">
+                                                {description}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <Button onClick={handleSave} className="w-full">
+                                <Save className="mr-2 h-4 w-4" />
+                                Einstellungen speichern
+                            </Button>
+                        </div>
+                    </PopoverContent>
+                </Popover>
+            </div>
+        );
+    }
 
     return (
         <Card className="mb-4">

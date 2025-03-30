@@ -19,37 +19,37 @@ A modern web application for automated shift scheduling in retail stores. The ap
 - Python 3.8+
 - Flask
 - SQLAlchemy
-- PostgreSQL
+- SQLite
 - Flask-Migrate
 - Flask-CORS
 
-### Frontend (Coming Soon)
+### Frontend
 - React
 - TypeScript
-- Material-UI
-- React Query
+- Tailwind CSS
+- shadcn-ui components
+- Bun runtime
 - Vite
 
 ## Setup
 
 ### Prerequisites
 - Python 3.8 or higher
-- PostgreSQL
-- Node.js 16+ (for frontend)
-- npm or yarn (for frontend)
+- SQLite
+- Bun (for frontend)
 
 ### Backend Setup
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/shiftwise.git
-   cd shiftwise
+   git clone https://github.com/yourusername/schichtplan.git
+   cd schichtplan
    ```
 
 2. Create and activate a virtual environment:
    ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
    ```
 
 3. Install dependencies:
@@ -57,43 +57,77 @@ A modern web application for automated shift scheduling in retail stores. The ap
    pip install -r requirements.txt
    ```
 
-4. Create environment file:
+4. Initialize the database:
    ```bash
-   cp .env.example .env
-   ```
-   Edit `.env` with your configuration.
-
-5. Create the database:
-   ```bash
-   createdb shiftwise
-   ```
-
-6. Initialize the database:
-   ```bash
+   cd src/backend
+   export FLASK_APP=run.py
+   export FLASK_ENV=development
    flask db upgrade
    ```
 
-7. Run the development server:
-   ```bash
-   flask run
-   ```
-
-### Frontend Setup (Coming Soon)
+### Frontend Setup
 
 1. Navigate to the frontend directory:
    ```bash
-   cd frontend
+   cd src/frontend
    ```
 
 2. Install dependencies:
    ```bash
-   npm install
+   bun install
    ```
 
 3. Start the development server:
    ```bash
-   npm run dev
+   bun run dev
    ```
+
+## Running the Application
+
+### Option 1: Using start.sh Script (Recommended)
+```bash
+# From project root
+./start.sh
+```
+This script:
+- Sets up required directories
+- Kills any existing processes on ports 5000 and 5173
+- Creates a tmux session with panes for backend, frontend, and control menu
+- Waits for services to start
+- Attaches to the tmux session
+
+### Option 2: Manual Startup
+
+#### Backend
+```bash
+# From project root
+cd src/backend
+export FLASK_APP=run.py
+export FLASK_ENV=development
+python3 run.py
+```
+
+#### Frontend
+```bash
+# From project root
+cd src/frontend
+bun run --watch --hot --bun dev
+```
+
+### Tmux Session Management
+- **Attach to session**: `tmux attach-session -t schichtplan`
+- **Detach from session**: Press `Ctrl+B`, then `D`
+- **Kill session**: `tmux kill-session -t schichtplan`
+- **Navigate between panes**: Press `Ctrl+B`, then arrow keys
+
+### Service Control
+- **Stop backend**: Kill process on port 5000
+- **Stop frontend**: Kill process on port 5173
+- **Check if services are running**: 
+  ```bash
+  lsof -i:5000  # Check backend
+  lsof -i:5173  # Check frontend
+  ```
 
 ## Development
 
@@ -261,6 +295,38 @@ The scheduling system has been refactored from a monolithic design into a modula
 
 For more details, see the [Scheduler Package Documentation](/src/backend/services/scheduler/README.md).
 
+## Schedule Improvements
+
+### Enhanced Shift Management
+
+The scheduling system now includes several improvements to make shift management more intuitive and flexible:
+
+- **NON_WORKING Shift Type**: A dedicated shift type for days when employees are not scheduled to work
+  - Clearly indicates days off in the schedule view
+  - Distinguishes between unavailability and days without assigned shifts
+  - Visual distinction in both table and grid views
+
+- **Absence Handling**: 
+  - Schedule now displays employee absences
+  - Prevents scheduling employees during absence periods
+  - Integrates with availability system
+
+- **Improved Filtering**:
+  - Add Entry modal filters employees based on availability
+  - Only displays shifts that match employee availability
+  - Prevents scheduling conflicts before they occur
+
+- **Enhanced User Interface**:
+  - Clear visual indicators for different shift types
+  - Improved schedule visualization
+  - Better responsive design for different screen sizes
+
+### Schedule Generation Enhancements
+
+- **Automatic Non-Working Day Allocation**: The generator now automatically creates placeholder entries for non-working days
+- **Advanced Conflict Prevention**: Improved logic to prevent scheduling conflicts
+- **Defensive Programming**: Enhanced error handling to gracefully manage undefined or unexpected values
+
 ## Schedule Generation Tests
 
 The application includes comprehensive tests for the schedule generation functionality:
@@ -305,6 +371,47 @@ This will run schedule generation for different periods (1 day, 1 week, 2 weeks,
 ### Test Documentation
 
 For more detailed information about the schedule generation tests, see the [Schedule Generation Tests README](src/backend/tests/schedule/README.md).
+
+## Troubleshooting
+
+### Backend Issues
+- **Application Won't Start**:
+  - Check logs at `src/logs/backend.log`
+  - Ensure database migrations are up to date
+  - Verify environment variables are set correctly
+
+- **Database Errors**:
+  - Ensure SQLite database exists at `src/backend/instance/schichtplan.db`
+  - Run database migrations: `flask db upgrade`
+  - Check database permissions
+
+- **Schedule Generation Issues**:
+  - Verify employee data is complete
+  - Check store configuration settings
+  - Ensure shift templates exist
+  - Examine logs for specific constraint errors
+
+### Frontend Issues
+- **Application Won't Start**:
+  - Clear node_modules and reinstall dependencies
+  - Verify bun/npm/yarn is installed correctly
+  - Check console errors in browser
+
+- **API Connection Errors**:
+  - Ensure backend API is running
+  - Check CORS settings
+  - Verify frontend is using correct API URL
+
+- **UI Display Issues**:
+  - Clear browser cache
+  - Check for JavaScript console errors
+  - Verify correct data is being returned from API
+
+### Common Solutions
+- **Restart Services**: Use `./start.sh` to restart both frontend and backend
+- **Refresh Database**: Run `flask db downgrade` followed by `flask db upgrade`
+- **Check Logs**: Review logs in `src/logs/` directory
+- **Clean Install**: Remove node_modules, virtual environment, and reinstall
 
 ## Public Access with ngrok
 

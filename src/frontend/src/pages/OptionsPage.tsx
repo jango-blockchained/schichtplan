@@ -310,7 +310,7 @@ export default function OptionsPage() {
                         </CardHeader>
                         <CardContent>
                             <ShiftTypesEditor
-                                shifts={settings.shifts}
+                                shifts={settings.employee_groups.shift_types}
                                 onChange={handleShiftTypesChange}
                             />
                         </CardContent>

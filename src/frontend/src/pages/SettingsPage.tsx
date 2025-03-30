@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getSettings, updateSettings, generateDemoData, generateOptimizedDemoData, backupDatabase, restoreDatabase, wipeTables } from "@/services/api";
+import { getSettings, updateSettings, generateDemoData, generateOptimizedDemoData, resetOptimizedDemoDataStatus, backupDatabase, restoreDatabase, wipeTables } from "@/services/api";
 import type { Settings } from "@/types/index";
 import {
   Card,
@@ -90,6 +90,19 @@ export function SettingsPage() {
     if (settings) {
       setLocalSettings(settings);
       setSelectedDemoModule(settings.actions.demo_data.selected_module || "");
+      
+      // Reset stale "started" status on component mount
+      if (settings.actions.demo_data.status === "started" && 
+          settings.actions.demo_data.start_time) {
+        const startTime = new Date(settings.actions.demo_data.start_time);
+        const now = new Date();
+        const timeDiffMinutes = (now.getTime() - startTime.getTime()) / (1000 * 60);
+        
+        // If process has been "started" for more than 5 minutes, reset it
+        if (timeDiffMinutes > 5) {
+          resetOptimizedDemoDataStatus().catch(console.error);
+        }
+      }
     }
   }, [settings]);
 
@@ -404,16 +417,22 @@ export function SettingsPage() {
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor="store-opening">Opening Time</Label>
-                            <DateTimePicker
-                              date={timeStringToDate(localSettings?.general.store_opening ?? '09:00')}
-                              setDate={(date) => handleSave("general", { store_opening: dateToTimeString(date) })}
+                            <Input
+                              type="time"
+                              id="store-opening"
+                              value={localSettings?.general.store_opening ?? '09:00'}
+                              onChange={(e) => handleSave("general", { store_opening: e.target.value })}
+                              onBlur={handleImmediateUpdate}
                             />
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="store-closing">Closing Time</Label>
-                            <DateTimePicker
-                              date={timeStringToDate(localSettings?.general.store_closing ?? '20:00')}
-                              setDate={(date) => handleSave("general", { store_closing: dateToTimeString(date) })}
+                            <Input
+                              type="time"
+                              id="store-closing"
+                              value={localSettings?.general.store_closing ?? '20:00'}
+                              onChange={(e) => handleSave("general", { store_closing: e.target.value })}
+                              onBlur={handleImmediateUpdate}
                             />
                           </div>
                         </div>
@@ -583,28 +602,79 @@ export function SettingsPage() {
                           </p>
                         </div>
 
-                        <Button
-                          onClick={async () => {
-                            try {
-                              await generateOptimizedDemoData();
-                              await queryClient.invalidateQueries({ queryKey: ["settings"] });
-                              toast({
-                                title: "Success",
-                                description: "Optimized demo data generated with diverse shift patterns",
-                              });
-                            } catch (error) {
-                              toast({
-                                title: "Error",
-                                description: error instanceof Error ? error.message : "Failed to generate optimized demo data",
-                                variant: "destructive",
-                              });
-                            }
-                          }}
-                          variant="outline"
-                          className="w-full"
-                        >
-                          Generate Optimized Schedule Data
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={async () => {
+                              try {
+                                await generateOptimizedDemoData();
+                                await queryClient.invalidateQueries({ queryKey: ["settings"] });
+                                toast({
+                                  title: "Success",
+                                  description: "Optimized demo data generated with diverse shift patterns",
+                                });
+                              } catch (error) {
+                                toast({
+                                  title: "Error",
+                                  description: error instanceof Error ? error.message : "Failed to generate optimized demo data",
+                                  variant: "destructive",
+                                });
+                              }
+                            }}
+                            variant="outline"
+                            className="flex-1"
+                          >
+                            Generate Optimized Schedule Data
+                          </Button>
+                          
+                          {localSettings?.actions.demo_data.status && (
+                            <Button
+                              onClick={async () => {
+                                try {
+                                  await resetOptimizedDemoDataStatus();
+                                  await queryClient.invalidateQueries({ queryKey: ["settings"] });
+                                  toast({
+                                    title: "Success",
+                                    description: "Demo data status reset successfully",
+                                  });
+                                } catch (error) {
+                                  toast({
+                                    title: "Error",
+                                    description: error instanceof Error ? error.message : "Failed to reset demo data status",
+                                    variant: "destructive",
+                                  });
+                                }
+                              }}
+                              variant="ghost"
+                              size="icon"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                            </Button>
+                          )}
+                        </div>
+                        
+                        {localSettings?.actions.demo_data.status && 
+                         localSettings.actions.demo_data.status !== "completed" && 
+                         localSettings.actions.demo_data.status !== "failed" &&
+                         localSettings.actions.demo_data.progress > 0 && 
+                         localSettings.actions.demo_data.start_time && (
+                          <div className="mt-4 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium">Status: {localSettings.actions.demo_data.status}</span>
+                              <span className="text-sm">{localSettings.actions.demo_data.progress || 0}%</span>
+                            </div>
+                            <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-primary rounded-full"
+                                style={{ width: `${localSettings.actions.demo_data.progress || 0}%` }}
+                              ></div>
+                            </div>
+                            {localSettings.actions.demo_data.error && (
+                              <div className="text-sm text-destructive">
+                                Error: {localSettings.actions.demo_data.error}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </CardContent>
