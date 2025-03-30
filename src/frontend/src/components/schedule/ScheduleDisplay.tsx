@@ -4,7 +4,7 @@ import { DateRange } from 'react-day-picker';
 import { ScheduleTable } from './views/ScheduleTable';
 import { TimeGridView } from './views/TimeGridView';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Info } from 'lucide-react';
 import { ShiftCoverageView } from './views/ShiftCoverageView';
 import { MonthlyView } from './views/MonthlyView';
 import { DailyView } from './views/DailyView';
@@ -29,13 +29,14 @@ interface ScheduleDisplayProps {
         color: string;
         type: 'absence';
     }>;
-    settings?: Settings;
+    storeSettings?: Settings;
+    onShiftTemplateClick?: (shiftId: number, date: Date) => void;
 }
 
 export const ScheduleDisplay = ({
     viewType,
     dateRange,
-    settings,
+    storeSettings,
     ...props
 }: ScheduleDisplayProps) => {
     // Ensure dateRange has valid from and to dates
@@ -72,7 +73,7 @@ export const ScheduleDisplay = ({
     // Common props for all views
     const viewProps = {
         dateRange: safeRange,
-        storeSettings: settings,
+        storeSettings: storeSettings,
         ...props
     };
     
@@ -95,6 +96,13 @@ export const ScheduleDisplay = ({
         case 'shifts':
             return <ShiftsTableView {...viewProps} />;
         default:
-            return <ScheduleTable {...viewProps} />;
+            return (
+                <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertDescription>
+                        Ungültiger View-Typ: {viewType}
+                    </AlertDescription>
+                </Alert>
+            );
     }
 }; 

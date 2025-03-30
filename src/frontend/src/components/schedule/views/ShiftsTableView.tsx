@@ -25,6 +25,8 @@ import {
     PopoverContent, 
     PopoverTrigger 
 } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { Check, Clock, X } from 'lucide-react';
 
 interface ShiftTableProps {
   weekStart: Date;
@@ -496,10 +498,10 @@ export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShift
 
 interface ShiftsTableViewProps {
     schedules: Schedule[];
-    dateRange: DateRange | undefined;
-    onDrop: (scheduleId: number, newEmployeeId: number, newDate: Date, newShiftId: number) => Promise<void>;
-    onUpdate: (scheduleId: number, updates: ScheduleUpdate) => Promise<void>;
+    dateRange: DateRange;
+    onUpdate: (scheduleId: number, updates: any) => Promise<void>;
     isLoading: boolean;
+    storeSettings?: Settings;
     employeeAbsences?: Record<number, any[]>;
     absenceTypes?: Array<{
         id: string;
@@ -507,39 +509,146 @@ interface ShiftsTableViewProps {
         color: string;
         type: 'absence';
     }>;
-    storeSettings?: Settings; // Add store settings
 }
 
 export const ShiftsTableView = ({
     schedules,
     dateRange,
-    onDrop,
     onUpdate,
     isLoading,
+    storeSettings,
     employeeAbsences,
-    absenceTypes,
-    storeSettings
+    absenceTypes
 }: ShiftsTableViewProps) => {
-    // Fetch shift templates and employees
-    const { data: shifts, isLoading: isLoadingShifts } = useQuery({
-        queryKey: ['shifts'],
-        queryFn: getShifts
-    });
+    // State for selected date
+    const [selectedDate, setSelectedDate] = useState<Date | undefined>(
+        dateRange?.from ? new Date(dateRange.from) : undefined
+    );
 
+    // Fetch employees and shifts data
     const { data: employees, isLoading: isLoadingEmployees } = useQuery({
         queryKey: ['employees'],
         queryFn: getEmployees
     });
 
-    // State for filtering options
-    const [selectedDate, setSelectedDate] = useState<string | null>(null);
-    const [selectedShift, setSelectedShift] = useState<number | null>(null);
-    const [groupByShift, setGroupByShift] = useState(true);
+    const { data: shifts, isLoading: isLoadingShifts } = useQuery({
+        queryKey: ['shifts'],
+        queryFn: getShifts
+    });
 
-    if (isLoading || isLoadingShifts || isLoadingEmployees) {
+    // Check if a date is a store opening day
+    const isOpeningDay = (date: Date): boolean => {
+        if (!storeSettings?.opening_days || !isValid(date)) return true;
+        const dayIndex = date.getDay().toString();
+        return storeSettings.opening_days[dayIndex] === true;
+    };
+
+    // Filter dates based on opening days
+    const dateDisabledFn = (date: Date) => {
+        return !isOpeningDay(date);
+    };
+
+    // Create an array of dates from the range
+    const datesInRange = useMemo(() => {
+        if (!dateRange?.from || !dateRange?.to) return [];
+        
+        const dates: Date[] = [];
+        let currentDate = new Date(dateRange.from);
+        const endDate = new Date(dateRange.to);
+        
+        while (currentDate <= endDate) {
+            dates.push(new Date(currentDate));
+            currentDate = addDays(currentDate, 1);
+        }
+        
+        return dates;
+    }, [dateRange]);
+
+    // Filter to only opening days
+    const openingDaysInRange = useMemo(() => {
+        return datesInRange.filter(date => isOpeningDay(date));
+    }, [datesInRange]);
+
+    // If no date is selected, select the first opening day in range
+    useMemo(() => {
+        if (!selectedDate && openingDaysInRange.length > 0) {
+            setSelectedDate(openingDaysInRange[0]);
+        }
+    }, [selectedDate, openingDaysInRange]);
+
+    // Get schedules for the selected day
+    const selectedDateSchedules = useMemo(() => {
+        if (!selectedDate) return [];
+        
+        return schedules.filter(schedule => {
+            if (!schedule.date) return false;
+            
+            try {
+                const scheduleDate = new Date(schedule.date);
+                return isSameDay(scheduleDate, selectedDate);
+            } catch (error) {
+                console.error('Error parsing date:', error);
+                return false;
+            }
+        });
+    }, [schedules, selectedDate]);
+
+    // Group schedules by shift
+    const schedulesByShift = useMemo(() => {
+        const result: Record<number, Schedule[]> = {};
+        
+        selectedDateSchedules.forEach(schedule => {
+            if (!schedule.shift_id) return;
+            
+            if (!result[schedule.shift_id]) {
+                result[schedule.shift_id] = [];
+            }
+            
+            result[schedule.shift_id].push(schedule);
+        });
+        
+        return result;
+    }, [selectedDateSchedules]);
+
+    // Get employee absence for a specific day
+    const getEmployeeAbsence = (employeeId: number, date: Date) => {
+        if (!employeeAbsences?.[employeeId]) return null;
+        
+        return employeeAbsences[employeeId].find(absence => {
+            const absenceStart = new Date(absence.start_date);
+            const absenceEnd = new Date(absence.end_date);
+            return date >= absenceStart && date <= absenceEnd;
+        });
+    };
+
+    // Render absence badge
+    const renderAbsenceBadge = (absence: any) => {
+        if (!absence || !absenceTypes) return null;
+        
+        const absenceType = absenceTypes.find(type => type.id === absence.absence_type);
+        const style = absenceType ? 
+            { backgroundColor: `${absenceType.color}20`, color: absenceType.color, borderColor: absenceType.color } :
+            { backgroundColor: '#ff000020', color: '#ff0000', borderColor: '#ff0000' };
+            
+        return (
+            <Badge variant="outline" style={style} className="text-xs">
+                {absenceType?.name || 'Abwesend'}
+            </Badge>
+        );
+    };
+
+    // Get shift details
+    const getShiftDetails = (shiftId: number) => {
+        if (!shifts) return null;
+        return shifts.find(shift => shift.id === shiftId);
+    };
+
+    // Loading state
+    if (isLoading || isLoadingEmployees || isLoadingShifts) {
         return <Skeleton className="w-full h-[600px]" />;
     }
 
+    // No date range selected
     if (!dateRange?.from || !dateRange?.to) {
         return (
             <Alert variant="destructive">
@@ -549,369 +658,180 @@ export const ShiftsTableView = ({
         );
     }
 
-    if (!shifts || shifts.length === 0) {
+    // No schedules
+    if (schedules.length === 0) {
         return (
-            <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>Keine Schichtvorlagen gefunden</AlertDescription>
+            <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription>Keine Schichten im ausgewählten Zeitraum gefunden</AlertDescription>
             </Alert>
         );
     }
 
-    // Get store opening days from settings
-    const getOpeningDays = () => {
-        if (!storeSettings?.opening_days) return [0, 1, 2, 3, 4, 5, 6]; // Default all days
-        
-        return Object.entries(storeSettings.opening_days)
-            .filter(([_, isOpen]) => isOpen)
-            .map(([day]) => parseInt(day));
-    };
-
-    const openingDays = getOpeningDays();
-
-    // Generate dates within range for filtering, but only including store opening days
-    const dateOptions = [];
-    let currentDate = new Date(dateRange.from);
-    const endDate = new Date(dateRange.to);
-    
-    while (currentDate <= endDate) {
-        const dayIndex = currentDate.getDay();
-        
-        // Only include this date if it's a store opening day
-        if (openingDays.includes(dayIndex)) {
-            dateOptions.push({
-                value: format(currentDate, 'yyyy-MM-dd'),
-                label: format(currentDate, 'EEEE, dd.MM.yyyy', { locale: de }),
-                isOpeningDay: true
-            });
-        } else {
-            // If it's a closed day but we still want to include it (grayed out)
-            dateOptions.push({
-                value: format(currentDate, 'yyyy-MM-dd'),
-                label: format(currentDate, 'EEEE, dd.MM.yyyy', { locale: de }) + ' (geschlossen)',
-                isOpeningDay: false
-            });
-        }
-        currentDate.setDate(currentDate.getDate() + 1);
-    }
-
-    // Set initial selected date if none selected (prefer first opening day)
-    if (!selectedDate && dateOptions.length > 0) {
-        const firstOpeningDay = dateOptions.find(day => day.isOpeningDay);
-        if (firstOpeningDay) {
-            setSelectedDate(firstOpeningDay.value);
-        } else {
-            setSelectedDate(dateOptions[0].value);
-        }
-    }
-
-    // Filter schedules by selected date
-    const filteredSchedules = schedules.filter(schedule => {
-        if (!schedule.date || !selectedDate) return false;
-        const scheduleDate = new Date(schedule.date);
-        return format(scheduleDate, 'yyyy-MM-dd') === selectedDate;
-    });
-
-    // Group schedules by shift
-    const schedulesByShift: Record<number, Schedule[]> = {};
-    filteredSchedules.forEach(schedule => {
-        if (schedule.shift_id) {
-            if (!schedulesByShift[schedule.shift_id]) {
-                schedulesByShift[schedule.shift_id] = [];
-            }
-            schedulesByShift[schedule.shift_id].push(schedule);
-        }
-    });
-
-    // Further filter by selected shift if one is selected
-    const displayedSchedules = selectedShift !== null
-        ? schedulesByShift[selectedShift] || []
-        : filteredSchedules;
-
-    // Get employee names
-    const getEmployeeName = (employeeId: number) => {
-        const employee = employees?.find(emp => emp.id === employeeId);
-        return employee ? `${employee.first_name} ${employee.last_name}` : `Mitarbeiter #${employeeId}`;
-    };
-
-    // Get shift details
-    const getShiftDetails = (shiftId: number) => {
-        const shift = shifts?.find(s => s.id === shiftId);
-        return shift ? `${shift.name || ''} (${shift.start_time}-${shift.end_time})` : `Schicht #${shiftId}`;
-    };
-
-    // Check if the selected date is a store opening day
-    const isSelectedDateOpeningDay = () => {
-        if (!selectedDate || !storeSettings?.opening_days) return true;
-        const date = new Date(selectedDate);
-        const dayIndex = date.getDay();
-        return storeSettings.opening_days[dayIndex.toString()] === true;
-    };
-
-    // Get absence for an employee on the selected date
-    const getEmployeeAbsence = (employeeId: number) => {
-        if (!employeeAbsences?.[employeeId] || !selectedDate) return null;
-        
-        const selectedDateObj = new Date(selectedDate);
-        return employeeAbsences[employeeId].find(absence => {
-            const absenceStart = new Date(absence.start_date);
-            const absenceEnd = new Date(absence.end_date);
-            return selectedDateObj >= absenceStart && selectedDateObj <= absenceEnd;
-        });
-    };
-
-    // Function to get absence badge
-    const getAbsenceBadge = (absence: any) => {
-        if (!absence || !absenceTypes) return null;
-        
-        const absenceType = absenceTypes.find(type => type.id === absence.absence_type);
-        const style = absenceType ? 
-            { backgroundColor: `${absenceType.color}20`, color: absenceType.color, borderColor: absenceType.color } :
-            { backgroundColor: '#ff000020', color: '#ff0000', borderColor: '#ff0000' };
-            
-        return (
-            <Badge variant="outline" style={style}>
-                {absenceType?.name || 'Abwesend'}
-            </Badge>
-        );
-    };
-
-    // Calculate shift list for display
-    const shiftList = useMemo(() => {
-        if (!shifts) return [];
-        return shifts.map(shift => ({
-            id: shift.id,
-            name: shift.name || `${shift.start_time} - ${shift.end_time}`,
-            startTime: shift.start_time,
-            endTime: shift.end_time,
-            scheduleCount: (schedulesByShift[shift.id] || []).length
-        }));
-    }, [shifts, schedulesByShift]);
-
     return (
         <div className="py-4">
             <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-xl font-semibold">Schichtplan-Tabelle</CardTitle>
-                    
-                    <div className="flex flex-col md:flex-row gap-2">
-                        {/* Date selector */}
-                        <Select
-                            value={selectedDate || ''}
-                            onValueChange={setSelectedDate}
-                        >
-                            <SelectTrigger className="w-[260px]">
-                                <SelectValue placeholder="Datum auswählen" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {dateOptions.map(date => (
-                                    <SelectItem 
-                                        key={date.value} 
-                                        value={date.value}
-                                        disabled={!date.isOpeningDay}
-                                        className={!date.isOpeningDay ? "text-muted-foreground" : ""}
-                                    >
-                                        {date.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        
-                        {/* Shift selector */}
-                        <Select
-                            value={selectedShift?.toString() || ''}
-                            onValueChange={(value) => setSelectedShift(value ? parseInt(value) : null)}
-                        >
-                            <SelectTrigger className="w-[260px]">
-                                <SelectValue placeholder="Alle Schichten" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="">Alle Schichten</SelectItem>
-                                {shifts.map(shift => (
-                                    <SelectItem key={shift.id} value={shift.id.toString()}>
-                                        {shift.name || shift.start_time} ({shift.start_time}-{shift.end_time})
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-
-                        {/* Group by toggle */}
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        onClick={() => setGroupByShift(!groupByShift)}
-                                        className="h-10 w-10"
-                                    >
-                                        <CalendarDaysIcon className="h-5 w-5" />
+                <CardHeader>
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <CardTitle>Schichten</CardTitle>
+                        <div className="flex items-center gap-4">
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant="outline" className="justify-start text-left font-normal">
+                                        <CalendarDays className="mr-2 h-4 w-4" />
+                                        {selectedDate ? (
+                                            format(selectedDate, 'EEEE, dd. MMMM yyyy', { locale: de })
+                                        ) : (
+                                            <span>Datum wählen</span>
+                                        )}
                                     </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>{groupByShift ? "Nach Mitarbeiter gruppieren" : "Nach Schicht gruppieren"}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0">
+                                    <Calendar
+                                        mode="single"
+                                        selected={selectedDate}
+                                        onSelect={setSelectedDate}
+                                        disabled={dateDisabledFn}
+                                        fromDate={dateRange.from}
+                                        toDate={dateRange.to}
+                                        modifiers={{
+                                            weekend: (date) => isWeekend(date)
+                                        }}
+                                        modifiersClassNames={{
+                                            weekend: 'bg-muted/50'
+                                        }}
+                                        initialFocus
+                                    />
+                                </PopoverContent>
+                            </Popover>
+                        </div>
                     </div>
                 </CardHeader>
-                
-                <CardContent className="pt-6">
-                    {selectedDate && (
-                        <>
-                            {/* Show warning if date is not a store opening day */}
-                            {!isSelectedDateOpeningDay() && (
-                                <Alert className="mb-4">
-                                    <Info className="h-4 w-4" />
-                                    <AlertDescription>
-                                        Der ausgewählte Tag ist kein regulärer Öffnungstag.
-                                    </AlertDescription>
-                                </Alert>
-                            )}
-                        
-                            {displayedSchedules.length === 0 ? (
-                                <div className="text-center py-8 text-muted-foreground">
-                                    Keine Schichten für den ausgewählten Tag geplant
-                                </div>
-                            ) : groupByShift ? (
-                                // Group by shift view
-                                <div className="space-y-6">
-                                    {shiftList.map(shift => {
-                                        const shiftSchedules = schedulesByShift[shift.id] || [];
-                                        if (selectedShift !== null && selectedShift !== shift.id) {
-                                            return null;
-                                        }
-                                        
-                                        if (shiftSchedules.length === 0) {
-                                            return null;
-                                        }
-                                        
-                                        return (
-                                            <div key={shift.id} className="border rounded-md p-4">
-                                                <div className="flex justify-between items-center mb-3">
-                                                    <h3 className="font-medium">
-                                                        {shift.name} <span className="text-sm text-muted-foreground">({shift.startTime} - {shift.endTime})</span>
-                                                    </h3>
-                                                    <Badge>{shiftSchedules.length} Mitarbeiter</Badge>
+
+                {selectedDate && !isOpeningDay(selectedDate) && (
+                    <div className="px-6 pt-1 pb-2">
+                        <Alert>
+                            <Info className="h-4 w-4" />
+                            <AlertDescription>
+                                Der ausgewählte Tag ist kein regulärer Öffnungstag laut Filialeinstellungen.
+                            </AlertDescription>
+                        </Alert>
+                    </div>
+                )}
+
+                <CardContent>
+                    {selectedDateSchedules.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                            Keine Schichten für den {selectedDate && format(selectedDate, 'dd.MM.yyyy')} geplant
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            {Object.entries(schedulesByShift).map(([shiftId, shiftSchedules]) => {
+                                const shift = getShiftDetails(parseInt(shiftId));
+                                const shiftTime = shift ? `${shift.start_time} - ${shift.end_time}` : 'Keine Zeitangabe';
+                                
+                                return (
+                                    <div key={shiftId} className="border rounded-md p-4">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div>
+                                                <h3 className="text-lg font-semibold">
+                                                    Schicht {shift?.name || `#${shiftId}`}
+                                                </h3>
+                                                <div className="flex items-center mt-1 text-sm text-muted-foreground">
+                                                    <Clock className="mr-1 h-4 w-4" />
+                                                    {shiftTime}
                                                 </div>
-                                                <Table>
-                                                    <TableHeader>
-                                                        <TableRow>
-                                                            <TableHead>Mitarbeiter</TableHead>
-                                                            <TableHead>Rolle</TableHead>
-                                                            <TableHead>Status</TableHead>
-                                                            <TableHead>Notizen</TableHead>
-                                                        </TableRow>
-                                                    </TableHeader>
-                                                    <TableBody>
-                                                        {shiftSchedules.map(schedule => {
-                                                            const absence = getEmployeeAbsence(schedule.employee_id);
-                                                            
-                                                            return (
-                                                                <TableRow 
-                                                                    key={schedule.id}
-                                                                    className={cn(
-                                                                        absence ? "bg-red-50" : "",
-                                                                        schedule.status === 'CONFIRMED' ? "bg-green-50" : ""
-                                                                    )}
-                                                                >
-                                                                    <TableCell>
-                                                                        <div className="flex items-center gap-2">
-                                                                            {getEmployeeName(schedule.employee_id)}
-                                                                            {absence && getAbsenceBadge(absence)}
-                                                                        </div>
-                                                                    </TableCell>
-                                                                    <TableCell>
-                                                                        {schedule.is_keyholder ? (
-                                                                            <Badge variant="default">Schlüsselträger</Badge>
-                                                                        ) : schedule.role || '-'}
-                                                                    </TableCell>
-                                                                    <TableCell>
-                                                                        <Badge 
-                                                                            variant={
-                                                                                schedule.status === 'CONFIRMED' ? 'default' :
-                                                                                schedule.status === 'PENDING' ? 'secondary' : 'outline'
-                                                                            }
-                                                                        >
-                                                                            {schedule.status === 'CONFIRMED' ? 'Bestätigt' :
-                                                                            schedule.status === 'PENDING' ? 'Ausstehend' : 
-                                                                            schedule.status === 'DECLINED' ? 'Abgelehnt' : 
-                                                                            schedule.status || 'Unbekannt'}
-                                                                        </Badge>
-                                                                    </TableCell>
-                                                                    <TableCell>{schedule.notes || '-'}</TableCell>
-                                                                </TableRow>
-                                                            );
-                                                        })}
-                                                    </TableBody>
-                                                </Table>
                                             </div>
-                                        );
-                                    })}
-                                </div>
-                            ) : (
-                                // Regular view (no grouping by shift)
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Schicht</TableHead>
-                                            <TableHead>Uhrzeit</TableHead>
-                                            <TableHead>Mitarbeiter</TableHead>
-                                            <TableHead>Rolle</TableHead>
-                                            <TableHead>Status</TableHead>
-                                            <TableHead>Notizen</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {displayedSchedules.map(schedule => {
-                                            const absence = getEmployeeAbsence(schedule.employee_id);
-                                            
-                                            return (
-                                                <TableRow 
-                                                    key={schedule.id}
-                                                    className={cn(
-                                                        absence ? "bg-red-50" : "",
-                                                        schedule.status === 'CONFIRMED' ? "bg-green-50" : ""
-                                                    )}
-                                                >
-                                                    <TableCell>{getShiftDetails(schedule.shift_id)}</TableCell>
-                                                    <TableCell>
-                                                        {schedule.shift_start && schedule.shift_end ? 
-                                                            `${schedule.shift_start} - ${schedule.shift_end}` : 
-                                                            '-'}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <div className="flex items-center gap-2">
-                                                            {getEmployeeName(schedule.employee_id)}
-                                                            {absence && getAbsenceBadge(absence)}
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {schedule.is_keyholder ? (
-                                                            <Badge variant="default">Schlüsselträger</Badge>
-                                                        ) : schedule.role || '-'}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Badge 
-                                                            variant={
-                                                                schedule.status === 'CONFIRMED' ? 'default' :
-                                                                schedule.status === 'PENDING' ? 'secondary' : 'outline'
-                                                            }
-                                                        >
-                                                            {schedule.status === 'CONFIRMED' ? 'Bestätigt' :
-                                                             schedule.status === 'PENDING' ? 'Ausstehend' : 
-                                                             schedule.status === 'DECLINED' ? 'Abgelehnt' : 
-                                                             schedule.status || 'Unbekannt'}
-                                                        </Badge>
-                                                    </TableCell>
-                                                    <TableCell>{schedule.notes || '-'}</TableCell>
+                                            <Badge>{shiftSchedules.length} Mitarbeiter</Badge>
+                                        </div>
+                                        
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Mitarbeiter</TableHead>
+                                                    <TableHead>Rolle</TableHead>
+                                                    <TableHead>Status</TableHead>
+                                                    <TableHead className="text-right">Info</TableHead>
                                                 </TableRow>
-                                            );
-                                        })}
-                                    </TableBody>
-                                </Table>
-                            )}
-                        </>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {shiftSchedules.map((schedule) => {
+                                                    const employee = employees?.find(emp => emp.id === schedule.employee_id);
+                                                    const absence = selectedDate && 
+                                                        getEmployeeAbsence(schedule.employee_id, selectedDate);
+                                                    
+                                                    return (
+                                                        <TableRow 
+                                                            key={schedule.id}
+                                                            className={cn(
+                                                                absence ? "bg-red-50" : "",
+                                                                schedule.status === 'CONFIRMED' ? "bg-green-50/30" : "",
+                                                                schedule.status === 'PENDING' ? "bg-blue-50/30" : "",
+                                                                schedule.status === 'DECLINED' ? "bg-red-50/30" : ""
+                                                            )}
+                                                        >
+                                                            <TableCell>
+                                                                <div className="flex flex-col">
+                                                                    <div className="font-medium flex items-center">
+                                                                        <User className="h-4 w-4 mr-2 text-muted-foreground" />
+                                                                        {employee ? 
+                                                                            `${employee.first_name} ${employee.last_name}` : 
+                                                                            `Mitarbeiter #${schedule.employee_id}`
+                                                                        }
+                                                                    </div>
+                                                                    {absence && (
+                                                                        <div className="mt-1">
+                                                                            {renderAbsenceBadge(absence)}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {schedule.is_keyholder ? (
+                                                                    <Badge variant="default">Schlüsselträger</Badge>
+                                                                ) : schedule.role || '-'}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <div className="flex items-center">
+                                                                    {schedule.status === 'CONFIRMED' && (
+                                                                        <Check className="h-4 w-4 mr-1 text-green-500" />
+                                                                    )}
+                                                                    {schedule.status === 'PENDING' && (
+                                                                        <Clock className="h-4 w-4 mr-1 text-amber-500" />
+                                                                    )}
+                                                                    {schedule.status === 'DECLINED' && (
+                                                                        <X className="h-4 w-4 mr-1 text-red-500" />
+                                                                    )}
+                                                                    <Badge 
+                                                                        variant={
+                                                                            schedule.status === 'CONFIRMED' ? 'default' :
+                                                                            schedule.status === 'PENDING' ? 'secondary' : 
+                                                                            'outline'
+                                                                        }
+                                                                    >
+                                                                        {schedule.status === 'CONFIRMED' ? 'Bestätigt' :
+                                                                         schedule.status === 'PENDING' ? 'Ausstehend' : 
+                                                                         schedule.status === 'DECLINED' ? 'Abgelehnt' : 
+                                                                         schedule.status || '-'}
+                                                                    </Badge>
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="text-right">
+                                                                {schedule.notes && (
+                                                                    <Badge variant="outline" className="ml-2">
+                                                                        Notiz
+                                                                    </Badge>
+                                                                )}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     )}
                 </CardContent>
             </Card>
