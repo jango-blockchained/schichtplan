@@ -87,21 +87,9 @@ export const ScheduleDisplay = ({
         case 'monthly':
             return <MonthlyView {...viewProps} />;
         case 'daily':
-            // return <DailyView {...viewProps} />;
-            return <Alert variant="default">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                    Tagesansicht ist noch nicht implementiert.
-                </AlertDescription>
-            </Alert>;
+            return <DailyView {...viewProps} />;
         case 'employee':
-            // return <EmployeeView {...viewProps} />;
-            return <Alert variant="default">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                    Mitarbeiteransicht ist noch nicht implementiert.
-                </AlertDescription>
-            </Alert>;
+            return <EmployeeView {...viewProps} />;
         case 'calendar':
             return <CalendarView {...viewProps} />;
         case 'shifts':

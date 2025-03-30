@@ -7,19 +7,24 @@ import { WeeklySchedule } from '@/types';
 import { format, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { AlertCircle, Edit2, Loader2 } from 'lucide-react';
+import { AlertCircle, Edit2, Loader2, CalendarDaysIcon, Info } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { getSettings } from '@/services/api';
-import { Schedule, ScheduleUpdate } from '@/types';
+import { Schedule, ScheduleUpdate, Settings } from '@/types';
 import { DateRange } from 'react-day-picker';
 import { getShifts, getEmployees } from '@/services/api';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { 
+    Popover, 
+    PopoverContent, 
+    PopoverTrigger 
+} from '@/components/ui/popover';
 
 interface ShiftTableProps {
   weekStart: Date;
@@ -502,6 +507,7 @@ interface ShiftsTableViewProps {
         color: string;
         type: 'absence';
     }>;
+    storeSettings?: Settings; // Add store settings
 }
 
 export const ShiftsTableView = ({
@@ -511,7 +517,8 @@ export const ShiftsTableView = ({
     onUpdate,
     isLoading,
     employeeAbsences,
-    absenceTypes
+    absenceTypes,
+    storeSettings
 }: ShiftsTableViewProps) => {
     // Fetch shift templates and employees
     const { data: shifts, isLoading: isLoadingShifts } = useQuery({
@@ -527,6 +534,7 @@ export const ShiftsTableView = ({
     // State for filtering options
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [selectedShift, setSelectedShift] = useState<number | null>(null);
+    const [groupByShift, setGroupByShift] = useState(true);
 
     if (isLoading || isLoadingShifts || isLoadingEmployees) {
         return <Skeleton className="w-full h-[600px]" />;
@@ -550,22 +558,51 @@ export const ShiftsTableView = ({
         );
     }
 
-    // Generate dates within range for filtering
+    // Get store opening days from settings
+    const getOpeningDays = () => {
+        if (!storeSettings?.opening_days) return [0, 1, 2, 3, 4, 5, 6]; // Default all days
+        
+        return Object.entries(storeSettings.opening_days)
+            .filter(([_, isOpen]) => isOpen)
+            .map(([day]) => parseInt(day));
+    };
+
+    const openingDays = getOpeningDays();
+
+    // Generate dates within range for filtering, but only including store opening days
     const dateOptions = [];
     let currentDate = new Date(dateRange.from);
     const endDate = new Date(dateRange.to);
     
     while (currentDate <= endDate) {
-        dateOptions.push({
-            value: format(currentDate, 'yyyy-MM-dd'),
-            label: format(currentDate, 'EEEE, dd.MM.yyyy', { locale: de })
-        });
+        const dayIndex = currentDate.getDay();
+        
+        // Only include this date if it's a store opening day
+        if (openingDays.includes(dayIndex)) {
+            dateOptions.push({
+                value: format(currentDate, 'yyyy-MM-dd'),
+                label: format(currentDate, 'EEEE, dd.MM.yyyy', { locale: de }),
+                isOpeningDay: true
+            });
+        } else {
+            // If it's a closed day but we still want to include it (grayed out)
+            dateOptions.push({
+                value: format(currentDate, 'yyyy-MM-dd'),
+                label: format(currentDate, 'EEEE, dd.MM.yyyy', { locale: de }) + ' (geschlossen)',
+                isOpeningDay: false
+            });
+        }
         currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    // Set initial selected date if none selected
+    // Set initial selected date if none selected (prefer first opening day)
     if (!selectedDate && dateOptions.length > 0) {
-        setSelectedDate(dateOptions[0].value);
+        const firstOpeningDay = dateOptions.find(day => day.isOpeningDay);
+        if (firstOpeningDay) {
+            setSelectedDate(firstOpeningDay.value);
+        } else {
+            setSelectedDate(dateOptions[0].value);
+        }
     }
 
     // Filter schedules by selected date
@@ -600,7 +637,15 @@ export const ShiftsTableView = ({
     // Get shift details
     const getShiftDetails = (shiftId: number) => {
         const shift = shifts?.find(s => s.id === shiftId);
-        return shift ? `${shift.name} (${shift.start_time}-${shift.end_time})` : `Schicht #${shiftId}`;
+        return shift ? `${shift.name || ''} (${shift.start_time}-${shift.end_time})` : `Schicht #${shiftId}`;
+    };
+
+    // Check if the selected date is a store opening day
+    const isSelectedDateOpeningDay = () => {
+        if (!selectedDate || !storeSettings?.opening_days) return true;
+        const date = new Date(selectedDate);
+        const dayIndex = date.getDay();
+        return storeSettings.opening_days[dayIndex.toString()] === true;
     };
 
     // Get absence for an employee on the selected date
@@ -631,6 +676,18 @@ export const ShiftsTableView = ({
         );
     };
 
+    // Calculate shift list for display
+    const shiftList = useMemo(() => {
+        if (!shifts) return [];
+        return shifts.map(shift => ({
+            id: shift.id,
+            name: shift.name || `${shift.start_time} - ${shift.end_time}`,
+            startTime: shift.start_time,
+            endTime: shift.end_time,
+            scheduleCount: (schedulesByShift[shift.id] || []).length
+        }));
+    }, [shifts, schedulesByShift]);
+
     return (
         <div className="py-4">
             <Card>
@@ -648,7 +705,12 @@ export const ShiftsTableView = ({
                             </SelectTrigger>
                             <SelectContent>
                                 {dateOptions.map(date => (
-                                    <SelectItem key={date.value} value={date.value}>
+                                    <SelectItem 
+                                        key={date.value} 
+                                        value={date.value}
+                                        disabled={!date.isOpeningDay}
+                                        className={!date.isOpeningDay ? "text-muted-foreground" : ""}
+                                    >
                                         {date.label}
                                     </SelectItem>
                                 ))}
@@ -667,22 +729,128 @@ export const ShiftsTableView = ({
                                 <SelectItem value="">Alle Schichten</SelectItem>
                                 {shifts.map(shift => (
                                     <SelectItem key={shift.id} value={shift.id.toString()}>
-                                        {shift.name} ({shift.start_time}-{shift.end_time})
+                                        {shift.name || shift.start_time} ({shift.start_time}-{shift.end_time})
                                     </SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
+
+                        {/* Group by toggle */}
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        size="icon"
+                                        onClick={() => setGroupByShift(!groupByShift)}
+                                        className="h-10 w-10"
+                                    >
+                                        <CalendarDaysIcon className="h-5 w-5" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>{groupByShift ? "Nach Mitarbeiter gruppieren" : "Nach Schicht gruppieren"}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
                     </div>
                 </CardHeader>
                 
                 <CardContent className="pt-6">
                     {selectedDate && (
                         <>
+                            {/* Show warning if date is not a store opening day */}
+                            {!isSelectedDateOpeningDay() && (
+                                <Alert className="mb-4">
+                                    <Info className="h-4 w-4" />
+                                    <AlertDescription>
+                                        Der ausgewählte Tag ist kein regulärer Öffnungstag.
+                                    </AlertDescription>
+                                </Alert>
+                            )}
+                        
                             {displayedSchedules.length === 0 ? (
                                 <div className="text-center py-8 text-muted-foreground">
                                     Keine Schichten für den ausgewählten Tag geplant
                                 </div>
+                            ) : groupByShift ? (
+                                // Group by shift view
+                                <div className="space-y-6">
+                                    {shiftList.map(shift => {
+                                        const shiftSchedules = schedulesByShift[shift.id] || [];
+                                        if (selectedShift !== null && selectedShift !== shift.id) {
+                                            return null;
+                                        }
+                                        
+                                        if (shiftSchedules.length === 0) {
+                                            return null;
+                                        }
+                                        
+                                        return (
+                                            <div key={shift.id} className="border rounded-md p-4">
+                                                <div className="flex justify-between items-center mb-3">
+                                                    <h3 className="font-medium">
+                                                        {shift.name} <span className="text-sm text-muted-foreground">({shift.startTime} - {shift.endTime})</span>
+                                                    </h3>
+                                                    <Badge>{shiftSchedules.length} Mitarbeiter</Badge>
+                                                </div>
+                                                <Table>
+                                                    <TableHeader>
+                                                        <TableRow>
+                                                            <TableHead>Mitarbeiter</TableHead>
+                                                            <TableHead>Rolle</TableHead>
+                                                            <TableHead>Status</TableHead>
+                                                            <TableHead>Notizen</TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {shiftSchedules.map(schedule => {
+                                                            const absence = getEmployeeAbsence(schedule.employee_id);
+                                                            
+                                                            return (
+                                                                <TableRow 
+                                                                    key={schedule.id}
+                                                                    className={cn(
+                                                                        absence ? "bg-red-50" : "",
+                                                                        schedule.status === 'CONFIRMED' ? "bg-green-50" : ""
+                                                                    )}
+                                                                >
+                                                                    <TableCell>
+                                                                        <div className="flex items-center gap-2">
+                                                                            {getEmployeeName(schedule.employee_id)}
+                                                                            {absence && getAbsenceBadge(absence)}
+                                                                        </div>
+                                                                    </TableCell>
+                                                                    <TableCell>
+                                                                        {schedule.is_keyholder ? (
+                                                                            <Badge variant="default">Schlüsselträger</Badge>
+                                                                        ) : schedule.role || '-'}
+                                                                    </TableCell>
+                                                                    <TableCell>
+                                                                        <Badge 
+                                                                            variant={
+                                                                                schedule.status === 'CONFIRMED' ? 'default' :
+                                                                                schedule.status === 'PENDING' ? 'secondary' : 'outline'
+                                                                            }
+                                                                        >
+                                                                            {schedule.status === 'CONFIRMED' ? 'Bestätigt' :
+                                                                            schedule.status === 'PENDING' ? 'Ausstehend' : 
+                                                                            schedule.status === 'DECLINED' ? 'Abgelehnt' : 
+                                                                            schedule.status || 'Unbekannt'}
+                                                                        </Badge>
+                                                                    </TableCell>
+                                                                    <TableCell>{schedule.notes || '-'}</TableCell>
+                                                                </TableRow>
+                                                            );
+                                                        })}
+                                                    </TableBody>
+                                                </Table>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             ) : (
+                                // Regular view (no grouping by shift)
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
