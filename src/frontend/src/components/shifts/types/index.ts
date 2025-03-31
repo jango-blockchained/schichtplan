@@ -1,6 +1,6 @@
 import { Settings } from '@/types';
 import { Shift } from '@/services/api';
-import { TimeRange } from '@/components/shifts/utils/timeCalculator';
+import { TimeRange } from '@/components/core/shifts/utils/timeCalculator';
 
 // Re-export TimeRange from utils to avoid duplication
 export type { TimeRange };
@@ -23,11 +23,5 @@ export interface PositioningDetails {
 import { EnhancedShift as ViewsEnhancedShift } from '../views/types';
 export type { ViewsEnhancedShift as EnhancedShift };
 
-export interface ShiftEditorProps {
-    shifts: Shift[];
-    settings: Settings;
-    onAddShift?: () => void;
-    onUpdateShift?: (shift: Shift) => void;
-    onDeleteShift?: (shiftId: number) => void;
-    onEmployeeCountChange?: (day: number, hour: number, count: number) => void;
-} 
+// Re-export ShiftEditorProps from shift-templates
+export type { ShiftTemplateEditorProps } from '@/components/shift-templates'; 
