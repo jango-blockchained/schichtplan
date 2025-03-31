@@ -203,172 +203,172 @@ export const ScheduleTable = ({
     return (
         <div className="py-4">
             <Card>
-                <CardHeader>
-                    <div className="flex justify-between items-center">
-                        <CardTitle>Dienstplan-Tabelle</CardTitle>
-                        
-                        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'employees' | 'days')}>
+                <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'employees' | 'days')}>
+                    <CardHeader>
+                        <div className="flex justify-between items-center">
+                            <CardTitle>Dienstplan-Tabelle</CardTitle>
+                            
                             <TabsList>
                                 <TabsTrigger value="employees">Nach Mitarbeiter</TabsTrigger>
                                 <TabsTrigger value="days">Nach Tag</TabsTrigger>
                             </TabsList>
-                        </Tabs>
-                    </div>
-                </CardHeader>
-                
-                <CardContent>
-                    {filteredDays.length === 0 && (
-                        <Alert className="mb-4">
-                            <Info className="h-4 w-4" />
-                            <AlertDescription>
-                                Im ausgewählten Zeitraum gibt es keine regulären Öffnungstage. Alle Tage werden angezeigt.
-                            </AlertDescription>
-                        </Alert>
-                    )}
+                        </div>
+                    </CardHeader>
                     
-                    <TabsContent value="employees" className="mt-0">
-                        <div className="rounded border">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="min-w-[200px]">Mitarbeiter</TableHead>
-                                        {daysToShow.map((day) => (
-                                            <TableHead 
-                                                key={day.toISOString()} 
-                                                className={cn(
-                                                    "text-center min-w-[120px]",
-                                                    isWeekend(day) ? "bg-muted/30" : "",
-                                                    !isOpeningDay(day) ? "bg-muted/50" : ""
-                                                )}
-                                            >
-                                                <div className="text-xs">{format(day, 'EEEE', { locale: de })}</div>
-                                                <div>{format(day, 'dd.MM')}</div>
-                                                {!isOpeningDay(day) && (
-                                                    <Badge variant="outline" className="text-xs bg-muted/30">Geschl.</Badge>
-                                                )}
-                                            </TableHead>
-                                        ))}
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {sortedEmployees.map((employee) => (
-                                        <TableRow key={employee.id}>
-                                            <TableCell className="font-medium">
-                                                {employee.first_name} {employee.last_name}
-                                            </TableCell>
-                                            {daysToShow.map((day) => {
-                                                const schedule = getScheduleForEmployeeAndDay(employee.id, day);
-                                                const absence = getEmployeeAbsence(employee.id, day);
-                                                
-                                                return (
-                                                    <TableCell 
-                                                        key={day.toISOString()} 
-                                                        className={cn(
-                                                            isWeekend(day) ? "bg-muted/30" : "",
-                                                            !isOpeningDay(day) ? "bg-muted/50" : ""
-                                                        )}
-                                                    >
-                                                        {renderScheduleCell(schedule, absence)}
-                                                    </TableCell>
-                                                );
-                                            })}
+                    <CardContent>
+                        {filteredDays.length === 0 && (
+                            <Alert className="mb-4">
+                                <Info className="h-4 w-4" />
+                                <AlertDescription>
+                                    Im ausgewählten Zeitraum gibt es keine regulären Öffnungstage. Alle Tage werden angezeigt.
+                                </AlertDescription>
+                            </Alert>
+                        )}
+                        
+                        <TabsContent value="employees" className="mt-0">
+                            <div className="rounded border">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="min-w-[200px]">Mitarbeiter</TableHead>
+                                            {daysToShow.map((day) => (
+                                                <TableHead 
+                                                    key={day.toISOString()} 
+                                                    className={cn(
+                                                        "text-center min-w-[120px]",
+                                                        isWeekend(day) ? "bg-muted/30" : "",
+                                                        !isOpeningDay(day) ? "bg-muted/50" : ""
+                                                    )}
+                                                >
+                                                    <div className="text-xs">{format(day, 'EEEE', { locale: de })}</div>
+                                                    <div>{format(day, 'dd.MM')}</div>
+                                                    {!isOpeningDay(day) && (
+                                                        <Badge variant="outline" className="text-xs bg-muted/30">Geschl.</Badge>
+                                                    )}
+                                                </TableHead>
+                                            ))}
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </TabsContent>
-                    
-                    <TabsContent value="days" className="mt-0">
-                        <div className="space-y-6">
-                            {daysToShow.map((day) => {
-                                const daySchedules = getSchedulesForDay(day);
-                                const isOpenDay = isOpeningDay(day);
-                                
-                                return (
-                                    <div key={day.toISOString()} className="border rounded-md p-4">
-                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
-                                            <h3 className="text-lg font-semibold">
-                                                {format(day, 'EEEE, dd. MMMM yyyy', { locale: de })}
-                                            </h3>
-                                            <div className="flex gap-2 mt-2 sm:mt-0">
-                                                {!isOpenDay && (
-                                                    <Badge variant="outline" className="bg-muted/20">Geschlossen</Badge>
-                                                )}
-                                                <Badge>{daySchedules.length} Schichten</Badge>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {sortedEmployees.map((employee) => (
+                                            <TableRow key={employee.id}>
+                                                <TableCell className="font-medium">
+                                                    {employee.first_name} {employee.last_name}
+                                                </TableCell>
+                                                {daysToShow.map((day) => {
+                                                    const schedule = getScheduleForEmployeeAndDay(employee.id, day);
+                                                    const absence = getEmployeeAbsence(employee.id, day);
+                                                    
+                                                    return (
+                                                        <TableCell 
+                                                            key={day.toISOString()} 
+                                                            className={cn(
+                                                                isWeekend(day) ? "bg-muted/30" : "",
+                                                                !isOpeningDay(day) ? "bg-muted/50" : ""
+                                                            )}
+                                                        >
+                                                            {renderScheduleCell(schedule, absence)}
+                                                        </TableCell>
+                                                    );
+                                                })}
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </TabsContent>
+                        
+                        <TabsContent value="days" className="mt-0">
+                            <div className="space-y-6">
+                                {daysToShow.map((day) => {
+                                    const daySchedules = getSchedulesForDay(day);
+                                    const isOpenDay = isOpeningDay(day);
+                                    
+                                    return (
+                                        <div key={day.toISOString()} className="border rounded-md p-4">
+                                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
+                                                <h3 className="text-lg font-semibold">
+                                                    {format(day, 'EEEE, dd. MMMM yyyy', { locale: de })}
+                                                </h3>
+                                                <div className="flex gap-2 mt-2 sm:mt-0">
+                                                    {!isOpenDay && (
+                                                        <Badge variant="outline" className="bg-muted/20">Geschlossen</Badge>
+                                                    )}
+                                                    <Badge>{daySchedules.length} Schichten</Badge>
+                                                </div>
                                             </div>
+                                            
+                                            {daySchedules.length === 0 ? (
+                                                <div className="text-center py-4 text-muted-foreground">
+                                                    Keine Schichten für diesen Tag geplant
+                                                </div>
+                                            ) : (
+                                                <Table>
+                                                    <TableHeader>
+                                                        <TableRow>
+                                                            <TableHead>Mitarbeiter</TableHead>
+                                                            <TableHead>Schicht</TableHead>
+                                                            <TableHead>Uhrzeit</TableHead>
+                                                            <TableHead>Rolle</TableHead>
+                                                            <TableHead className="text-right">Status</TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {daySchedules.map((schedule) => {
+                                                            const employee = employees?.find(emp => emp.id === schedule.employee_id);
+                                                            const absence = getEmployeeAbsence(schedule.employee_id, day);
+                                                            
+                                                            return (
+                                                                <TableRow 
+                                                                    key={schedule.id}
+                                                                    className={cn(
+                                                                        absence ? "bg-red-50" : "",
+                                                                        schedule.status === 'CONFIRMED' ? "bg-green-50" : ""
+                                                                    )}
+                                                                >
+                                                                    <TableCell className="font-medium">
+                                                                        <div className="flex flex-col">
+                                                                            <span>{employee ? `${employee.first_name} ${employee.last_name}` : `Mitarbeiter #${schedule.employee_id}`}</span>
+                                                                            {absence && getAbsenceBadge(absence)}
+                                                                        </div>
+                                                                    </TableCell>
+                                                                    <TableCell>{schedule.shift_id ? `Schicht #${schedule.shift_id}` : '-'}</TableCell>
+                                                                    <TableCell>
+                                                                        {schedule.shift_start && schedule.shift_end ? 
+                                                                            `${schedule.shift_start} - ${schedule.shift_end}` : 
+                                                                            '-'}
+                                                                    </TableCell>
+                                                                    <TableCell>
+                                                                        {schedule.is_keyholder ? (
+                                                                            <Badge variant="default">Schlüsselträger</Badge>
+                                                                        ) : schedule.role || '-'}
+                                                                    </TableCell>
+                                                                    <TableCell className="text-right">
+                                                                        <Badge 
+                                                                            variant={
+                                                                                schedule.status === 'CONFIRMED' ? 'default' :
+                                                                                schedule.status === 'PENDING' ? 'secondary' : 'outline'
+                                                                            }
+                                                                        >
+                                                                            {schedule.status === 'CONFIRMED' ? 'Bestätigt' :
+                                                                            schedule.status === 'PENDING' ? 'Ausstehend' : 
+                                                                            schedule.status === 'DECLINED' ? 'Abgelehnt' : 
+                                                                            schedule.status || 'Unbekannt'}
+                                                                        </Badge>
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            );
+                                                        })}
+                                                    </TableBody>
+                                                </Table>
+                                            )}
                                         </div>
-                                        
-                                        {daySchedules.length === 0 ? (
-                                            <div className="text-center py-4 text-muted-foreground">
-                                                Keine Schichten für diesen Tag geplant
-                                            </div>
-                                        ) : (
-                                            <Table>
-                                                <TableHeader>
-                                                    <TableRow>
-                                                        <TableHead>Mitarbeiter</TableHead>
-                                                        <TableHead>Schicht</TableHead>
-                                                        <TableHead>Uhrzeit</TableHead>
-                                                        <TableHead>Rolle</TableHead>
-                                                        <TableHead className="text-right">Status</TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {daySchedules.map((schedule) => {
-                                                        const employee = employees?.find(emp => emp.id === schedule.employee_id);
-                                                        const absence = getEmployeeAbsence(schedule.employee_id, day);
-                                                        
-                                                        return (
-                                                            <TableRow 
-                                                                key={schedule.id}
-                                                                className={cn(
-                                                                    absence ? "bg-red-50" : "",
-                                                                    schedule.status === 'CONFIRMED' ? "bg-green-50" : ""
-                                                                )}
-                                                            >
-                                                                <TableCell className="font-medium">
-                                                                    <div className="flex flex-col">
-                                                                        <span>{employee ? `${employee.first_name} ${employee.last_name}` : `Mitarbeiter #${schedule.employee_id}`}</span>
-                                                                        {absence && getAbsenceBadge(absence)}
-                                                                    </div>
-                                                                </TableCell>
-                                                                <TableCell>{schedule.shift_id ? `Schicht #${schedule.shift_id}` : '-'}</TableCell>
-                                                                <TableCell>
-                                                                    {schedule.shift_start && schedule.shift_end ? 
-                                                                        `${schedule.shift_start} - ${schedule.shift_end}` : 
-                                                                        '-'}
-                                                                </TableCell>
-                                                                <TableCell>
-                                                                    {schedule.is_keyholder ? (
-                                                                        <Badge variant="default">Schlüsselträger</Badge>
-                                                                    ) : schedule.role || '-'}
-                                                                </TableCell>
-                                                                <TableCell className="text-right">
-                                                                    <Badge 
-                                                                        variant={
-                                                                            schedule.status === 'CONFIRMED' ? 'default' :
-                                                                            schedule.status === 'PENDING' ? 'secondary' : 'outline'
-                                                                        }
-                                                                    >
-                                                                        {schedule.status === 'CONFIRMED' ? 'Bestätigt' :
-                                                                         schedule.status === 'PENDING' ? 'Ausstehend' : 
-                                                                         schedule.status === 'DECLINED' ? 'Abgelehnt' : 
-                                                                         schedule.status || 'Unbekannt'}
-                                                                    </Badge>
-                                                                </TableCell>
-                                                            </TableRow>
-                                                        );
-                                                    })}
-                                                </TableBody>
-                                            </Table>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </TabsContent>
-                </CardContent>
+                                    );
+                                })}
+                            </div>
+                        </TabsContent>
+                    </CardContent>
+                </Tabs>
             </Card>
         </div>
     );

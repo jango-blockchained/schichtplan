@@ -41,7 +41,7 @@ export interface Shift {
     end_time: string;
     duration_hours: number;
     requires_break: boolean;
-    active_days: number[];  // Array of weekday indices (0 = Monday, 6 = Sunday)
+    active_days: { [key: string]: boolean };  // Object mapping day indices to boolean values
     created_at?: string;
     updated_at?: string;
     shift_type_id?: string;
