@@ -42,6 +42,7 @@ export * from './shared/DateRangePicker';
 
 // Shift components
 export * from './shifts/ShiftEditModal';
+export { ScheduleShiftTable } from './shifts/ShiftTable';
 
 // Shared utilities
 export * from './shared/utils'; 

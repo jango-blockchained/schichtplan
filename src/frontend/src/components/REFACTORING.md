@@ -134,3 +134,61 @@ import { ShiftCoverageView } from '@/components/shifts/views';
 2. **Enhanced Documentation**: Add more detailed documentation for each component
 3. **Unit Tests**: Add comprehensive unit tests for the refactored components
 4. **Performance Optimization**: Optimize rendering performance for large datasets
+
+## Phase 1: Restructuring (Completed)
+
+We've reorganized the component structure to follow a more logical organization:
+
+- **core/shifts**: Base components shared across different features
+- **shift-templates**: Components specific to shift template management
+- **schedule**: Components specific to schedule management
+- **employees**: Employee management components
+
+## Phase 2: Cleanup Plan
+
+After the initial restructuring, we need to clean up redundant files and update imports:
+
+### Files to Delete
+- `src/frontend/src/components/shifts/core/ShiftTable.tsx` (moved to core/shifts)
+- `src/frontend/src/components/shifts/core/types.ts` (moved to core/shifts)
+- `src/frontend/src/components/shifts/utils/timeCalculator.ts` (moved to core/shifts/utils)
+- `src/frontend/src/components/shifts/ShiftTypesEditor.tsx` (moved to shift-templates)
+- `src/frontend/src/components/shifts/components/ShiftEditor.tsx` (moved to shift-templates as ShiftTemplateEditor)
+- `src/frontend/src/components/shifts/components/ShiftForm.tsx` (moved to shift-templates as ShiftTemplateForm)
+- `src/frontend/src/pages/EmployeePage.tsx` (redundant, using EmployeesPage instead)
+
+### Import Updates
+All relevant imports should be updated to point to the new locations:
+
+- `@/components/shifts/core` → `@/components/core/shifts`
+- `@/components/shifts/utils` → `@/components/core/shifts/utils`
+- `@/components/shifts/components/ShiftEditor` → `@/components/shift-templates/components/ShiftTemplateEditor`
+
+### Naming Conventions
+
+1. **Shift Instance Components**
+   - Use plain names: `ShiftTable`, `ShiftForm`
+  
+2. **Shift Template Components**
+   - Always use the `-template` suffix: `ShiftTemplateEditor`, `ShiftTemplateForm`
+  
+3. **Schedule Components**
+   - Use schedule-specific prefixes: `ScheduleShiftTable`
+
+## Testing Strategy
+
+1. After completing the refactoring, test each feature that uses the components:
+   - Shift template management
+   - Schedule creation and editing
+   - Employee management
+
+2. Look for console errors that might indicate incorrect imports
+
+3. For each broken reference, update to the new import path or component name
+
+## Next Steps
+
+1. Complete deletion of redundant files
+2. Update all component imports
+3. Update type definitions to reflect new organization
+4. Consider moving related utilities to more appropriate locations

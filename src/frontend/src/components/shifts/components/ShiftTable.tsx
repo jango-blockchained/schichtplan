@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShiftTable as CoreShiftTable } from '@/components/shifts/core';
+import { ShiftTable as CoreShiftTable } from '@/components/core/shifts';
 import { WeeklySchedule } from '@/types';
 
 interface ShiftTableProps {

@@ -1,20 +1,27 @@
 import React from 'react';
-import { ShiftTemplate } from '../types';
+import { ShiftTable as CoreShiftTable } from '@/components/core/shifts';
+import { WeeklySchedule } from '@/types';
 
-interface ShiftTemplateFormProps {
-  template: ShiftTemplate;
-  onSubmit: (template: ShiftTemplate) => void;
+interface ScheduleShiftTableProps {
+  weekStart: Date;
+  weekEnd: Date;
+  isLoading?: boolean;
+  error?: string | null;
+  data: WeeklySchedule[];
+  onShiftUpdate?: (employeeId: number, fromDay: number, toDay: number) => Promise<void>;
+  onBreakNotesUpdate?: (employeeId: number, day: number, notes: string) => Promise<void>;
 }
 
-export const ShiftTemplateForm = ({ template, onSubmit }: ShiftTemplateFormProps) => {
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit(template);
-  };
-
+/**
+ * ShiftTable component configured for schedule views
+ */
+export const ScheduleShiftTable = (props: ScheduleShiftTableProps) => {
   return (
-    <form onSubmit={handleSubmit}>
-      {/* Form fields for template editing */}
-    </form>
+    <CoreShiftTable
+      {...props}
+      compact={true}
+      filterOpeningDays={true}
+      showValidation={true}
+    />
   );
 };
