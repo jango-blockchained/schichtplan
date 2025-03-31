@@ -15,13 +15,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-
-export type ShiftType = {
-    id: string;
-    name: string;
-    color: string;
-    // ... other properties
-};
+import { ShiftType } from './types';
 
 const defaultShiftTypes: ShiftType[] = [
     { id: 'EARLY', name: 'Früh', color: '#22c55e' },

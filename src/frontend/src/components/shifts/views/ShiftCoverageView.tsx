@@ -12,7 +12,7 @@ import {
     TimeRange,
     parseTime,
     formatHour
-} from '@/components/shifts/utils';
+} from '@/components/core/shifts/utils';
 import { 
     ShiftCoverageViewProps, 
     KeyholderTimeBlockProps, 

@@ -1,48 +1,31 @@
 // Core components
-export * from './ScheduleTable';
-export * from './ScheduleVersions';
-export * from './TimeGridScheduleTable';
-export * from './ScheduleManager';
-export * from './ScheduleGenerationSettings';
+export * from './core/ScheduleDisplay';
+export * from './core/ScheduleManager';
 
-// Display and control components
-export * from './ScheduleDisplay';
-export * from './ScheduleControls';
-export * from './ScheduleOverview';
-export * from './ScheduleErrors';
-export * from './ScheduleActions';
+// UI components
+export * from './components/ScheduleActions';
+export * from './components/ScheduleControls';
+export * from './components/ScheduleOptimizationControls';
+export * from './components/ScheduleErrors';
+export * from './components/GenerationLogs';
+export * from './components/VersionTable';
 
-// Version management
-export * from './VersionTable';
-export * from './VersionCompare';
-
-// Generation and statistics
-export * from './GenerationLogs';
-export * from './GenerationOverlay';
-export * from './ScheduleStatistics';
-export * from './EmployeeStatistics';
+// Views
+export * from './views/TimeGridView';
+export * from './views/VersionsView';
+export * from './views/OverviewView';
+export * from './views/StatisticsView';
 
 // Dialogs
-export * from './AddScheduleDialog';
+export * from './dialogs/GenerationOverlay';
+export * from './dialogs/AddScheduleDialog';
+export * from './dialogs/SettingsDialog';
 
-// View components
-export * from './views/TimeGridView';
-export * from './views/ScheduleTable';
-export * from './views/ShiftCoverageView';
-export * from './views/MonthlyView';
-export * from './views/DailyView';
-export * from './views/EmployeeView';
-export * from './views/CalendarView';
-export * from './views/ShiftsTableView';
+// Main page
+export * from './SchedulePage';
 
-// Shared components
-export * from './shared/ColorPicker';
-export * from './shared/EmployeeSelect';
-export * from './shared/DateRangePicker';
-
-// Shift components
+// Shift-related components
 export * from './shifts/ShiftEditModal';
-export { ScheduleShiftTable } from './shifts/ShiftTable';
 
-// Shared utilities
-export * from './shared/utils'; 
+// Common utilities
+export * from './utils'; 

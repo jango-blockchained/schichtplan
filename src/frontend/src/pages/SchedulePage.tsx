@@ -1,27 +1,3 @@
-/* REFACTORING PLAN for SchedulePage.tsx
- * 
- * Issues:
- * - File is too large (~1300 lines)
- * - Too many responsibilities
- * - Complex state management
- * - Unused/incomplete features
- *
- * Solution:
- * 1. Extract components:
- *    - GenerationOverlay → components/Schedule/GenerationOverlay.tsx
- *    - GenerationLogs → components/Schedule/GenerationLogs.tsx
- *    - ScheduleErrors → components/Schedule/ScheduleErrors.tsx
- *    - ScheduleControls → components/Schedule/ScheduleControls.tsx
- *
- * 2. Extract hooks:
- *    - useScheduleGeneration.ts (generation logic)
- *    - useVersionControl.ts (version management)
- *
- * 3. Clean up:
- *    - Remove isLayoutCustomizerOpen (unused)
- *    - Remove incomplete version notes editing
- *    - Remove unused isDuplicateVersionOpen dialog
- */
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -44,22 +20,21 @@ import useScheduleGeneration from '@/hooks/useScheduleGeneration';
 import useVersionControl from '@/hooks/useVersionControl';
 
 // Import schedule components
-import GenerationLogs from "@/components/schedule/GenerationLogs";
-import ScheduleErrors from "@/components/schedule/ScheduleErrors";
-import ScheduleControls from "@/components/schedule/ScheduleControls";
+import { GenerationLogs } from "@/components/schedule/components/GenerationLogs";
+import { ScheduleErrors } from "@/components/schedule/components/ScheduleErrors";
+import { ScheduleControls } from "@/components/schedule/components/ScheduleControls";
 import {
-  ScheduleVersions,
-  ScheduleOverview,
+  VersionsView,
+  OverviewView,
   GenerationOverlay,
   ScheduleGenerationSettings,
   ScheduleActions,
   AddScheduleDialog,
-  ScheduleStatistics,
+  StatisticsView,
   VersionTable,
   ScheduleManager,
   ScheduleDisplay,
-  VersionCompare,
-  EmployeeStatistics
+  TimeGridView
 } from "@/components/schedule";
 import { useScheduleData } from '@/hooks/useScheduleData';
 import { addDays, startOfWeek, endOfWeek, addWeeks, format, getWeek, isBefore } from 'date-fns';
@@ -84,7 +59,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { VersionControl } from '@/components/VersionControl';
-import { ScheduleViewType } from "@/components/schedule/ScheduleDisplay";
+import { ScheduleViewType } from "@/components/schedule/core/ScheduleDisplay";
 
 export function SchedulePage() {
   const today = new Date();
@@ -957,11 +932,10 @@ export function SchedulePage() {
       {/* Add Schedule Statistics if we have data */}
       {!isLoading && !isError && convertedSchedules.length > 0 && dateRange?.from && dateRange?.to && (
         <CollapsibleSection title="Statistiken" defaultOpen={false}>
-          <ScheduleStatistics
+          <StatisticsView
             schedules={convertedSchedules}
             employees={employees || []}
-            startDate={format(dateRange.from, 'yyyy-MM-dd')}
-            endDate={format(dateRange.to, 'yyyy-MM-dd')}
+            dateRange={{from: dateRange.from, to: dateRange.to}}
           />
         </CollapsibleSection>
       )}

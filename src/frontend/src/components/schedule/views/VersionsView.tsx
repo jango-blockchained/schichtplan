@@ -6,8 +6,9 @@ import { format } from 'date-fns';
 import { Schedule } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Lock, Pencil, Archive } from 'lucide-react';
+import { VersionTable } from '@/components/schedule/components/VersionTable';
 
-interface ScheduleVersionsProps {
+interface VersionsViewProps {
     schedules: Schedule[];
     onPublish: (version: number) => Promise<void>;
     onArchive: (version: number) => Promise<void>;
@@ -23,7 +24,7 @@ interface VersionGroup {
     filledShifts: number;
 }
 
-export function ScheduleVersions({ schedules, onPublish, onArchive }: ScheduleVersionsProps) {
+export function VersionsView({ schedules, onPublish, onArchive }: VersionsViewProps) {
     const versionGroups = useMemo(() => {
         const groups = new Map<number, VersionGroup>();
 

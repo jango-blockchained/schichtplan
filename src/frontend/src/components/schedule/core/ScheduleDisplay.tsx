@@ -1,19 +1,21 @@
 import React from 'react';
 import { Schedule, ScheduleUpdate, Settings } from '@/types';
 import { DateRange } from 'react-day-picker';
-import { ScheduleTable } from './views/ScheduleTable';
-import { TimeGridView } from './views/TimeGridView';
+import { TimeGridView } from '@/components/schedule/views/TimeGridView';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, Info } from 'lucide-react';
-import { ShiftCoverageView } from './views/ShiftCoverageView';
-import { MonthlyView } from './views/MonthlyView';
-import { DailyView } from './views/DailyView';
-import { EmployeeView } from './views/EmployeeView';
-import { CalendarView } from './views/CalendarView';
-import { ShiftsTableView } from './views/ShiftsTableView';
+import { ShiftCoverageView } from '@/components/schedule/views/ShiftCoverageView';
+import { MonthlyView } from '@/components/schedule/views/MonthlyView';
+import { DailyView } from '@/components/schedule/views/DailyView';
+import { EmployeeView } from '@/components/schedule/views/EmployeeView';
+import { CalendarView } from '@/components/schedule/views/CalendarView';
+import { ShiftsTableView } from '@/components/schedule/views/ShiftsTableView';
+import { VersionsView } from '@/components/schedule/views/VersionsView';
+import { OverviewView } from '@/components/schedule/views/OverviewView';
+import { StatisticsView } from '@/components/schedule/views/StatisticsView';
 
 // Extended view types to include all available views
-export type ScheduleViewType = 'table' | 'grid' | 'coverage' | 'monthly' | 'daily' | 'employee' | 'calendar' | 'shifts';
+export type ScheduleViewType = 'table' | 'grid' | 'coverage' | 'monthly' | 'daily' | 'employee' | 'calendar' | 'shifts' | 'versions' | 'overview' | 'statistics';
 
 interface ScheduleDisplayProps {
     viewType: ScheduleViewType;
@@ -80,7 +82,7 @@ export const ScheduleDisplay = ({
     // Render appropriate view based on viewType
     switch (viewType) {
         case 'table':
-            return <ScheduleTable {...viewProps} />;
+            return <TimeGridView {...viewProps} />;
         case 'grid':
             return <TimeGridView {...viewProps} />;
         case 'coverage':
@@ -95,6 +97,23 @@ export const ScheduleDisplay = ({
             return <CalendarView {...viewProps} />;
         case 'shifts':
             return <ShiftsTableView {...viewProps} />;
+        case 'versions':
+            return <VersionsView 
+                {...viewProps} 
+                onPublish={(version) => Promise.resolve()} 
+                onArchive={(version) => Promise.resolve()} 
+            />;
+        case 'overview':
+            return <OverviewView 
+                {...viewProps} 
+                dateRange={{from: safeRange.from!, to: safeRange.to!}}
+            />;
+        case 'statistics':
+            return <StatisticsView 
+                {...viewProps} 
+                employees={[]} 
+                dateRange={{from: safeRange.from!, to: safeRange.to!}}
+            />;
         default:
             return (
                 <Alert>

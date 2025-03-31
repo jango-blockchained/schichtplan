@@ -16,7 +16,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Schedule, Shift } from '@/types';
 import { useQuery } from '@tanstack/react-query';
 import { getShifts } from '@/services/api';
-import { EmployeeSelect } from '../shared/EmployeeSelect';
+import { EmployeeSelect } from '@/components/schedule/shared/EmployeeSelect';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
 import { TimePicker } from '@/components/ui/time-picker';

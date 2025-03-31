@@ -3,14 +3,14 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { FileText, ChevronUp, ChevronDown, AlertCircle, AlertTriangle, Info } from 'lucide-react';
-import { GenerationLog } from './GenerationOverlay'; // Reuse the type from GenerationOverlay
+import { GenerationLog } from '@/components/schedule/dialogs/GenerationOverlay'; // Absolute path to GenerationOverlay
 
 interface GenerationLogsProps {
     logs: GenerationLog[];
     clearLogs: () => void;
 }
 
-const GenerationLogs: React.FC<GenerationLogsProps> = ({ logs, clearLogs }) => {
+export const GenerationLogs: React.FC<GenerationLogsProps> = ({ logs, clearLogs }) => {
     const [isOpen, setIsOpen] = useState(false);
 
     if (logs.length === 0) return null;
@@ -74,6 +74,4 @@ const GenerationLogs: React.FC<GenerationLogsProps> = ({ logs, clearLogs }) => {
             )}
         </Card>
     );
-};
-
-export default GenerationLogs; 
+}; 

@@ -3,13 +3,13 @@ import { Schedule } from "@/types";
 import { format } from "date-fns";
 import { Users, Calendar, Clock, AlertCircle } from "lucide-react";
 
-interface ScheduleOverviewProps {
+interface OverviewViewProps {
     schedules: Schedule[];
     dateRange: { from: Date; to: Date } | undefined;
     version?: number;
 }
 
-export function ScheduleOverview({ schedules, dateRange, version }: ScheduleOverviewProps) {
+export function OverviewView({ schedules, dateRange, version }: OverviewViewProps) {
     if (!dateRange?.from || !dateRange?.to) return null;
 
     // Calculate statistics

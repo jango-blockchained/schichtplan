@@ -9,7 +9,7 @@ interface ScheduleErrorsProps {
     errors: ScheduleError[];
 }
 
-const ScheduleErrors: React.FC<ScheduleErrorsProps> = ({ errors }) => {
+export const ScheduleErrors: React.FC<ScheduleErrorsProps> = ({ errors }) => {
     if (!errors || errors.length === 0) return null;
 
     return (
@@ -45,6 +45,4 @@ const ScheduleErrors: React.FC<ScheduleErrorsProps> = ({ errors }) => {
             </CardContent>
         </Card>
     );
-};
-
-export default ScheduleErrors; 
+}; 

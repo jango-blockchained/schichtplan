@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, Loader2 } from 'lucide-react';
-import { ShiftEditor } from "@/components/shifts/components/ShiftEditor";
+import { ShiftTemplateEditor } from "@/components/shift-templates";
 import { Settings } from '@/types';
 import { Shift, getShifts, createShift, updateShift, deleteShift } from '@/services/api';
 import { getSettings } from '@/services/api';
@@ -144,7 +144,7 @@ export const ShiftsPage: React.FC = () => {
         description="Verwalte die Schichten für deinen Betrieb"
       />
 
-      <ShiftEditor
+      <ShiftTemplateEditor
         shifts={shifts}
         settings={settings}
         onAddShift={handleAddShift}

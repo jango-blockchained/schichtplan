@@ -6,13 +6,15 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { getSettings, updateSettings } from '@/services/api';
 import { EmployeeSettingsEditor, EmployeeType, AbsenceType } from '@/components/employees';
-import { ShiftTypesEditor, ShiftType as ShiftTypeOption } from '@/components/shifts';
+import { ShiftTypesEditor, ShiftType as ShiftTypeOption } from '@/components/shift-templates';
 import { Pencil } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { ColorPicker } from '@/components/ui/color-picker';
 import type { Settings } from '@/types/index';
-import { PageHeader } from '@/components/layout';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
 
 type AvailabilityType = {
     code: string;

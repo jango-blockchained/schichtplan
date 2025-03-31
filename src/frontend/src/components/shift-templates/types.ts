@@ -1,6 +1,13 @@
 import { Settings } from '@/types';
 import { Shift } from '@/services/api';
 
+export type ShiftType = {
+  id: string;
+  name: string;
+  color: string;
+  // ... other properties
+};
+
 export interface ShiftTemplateEditorProps {
   shifts: Shift[];
   settings: Settings;

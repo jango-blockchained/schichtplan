@@ -8,7 +8,7 @@ interface ScheduleControlsProps {
     onExport: () => void;
 }
 
-const ScheduleControls: React.FC<ScheduleControlsProps> = ({
+export const ScheduleControls: React.FC<ScheduleControlsProps> = ({
     onRefresh,
     onExport,
 }) => {
@@ -35,6 +35,4 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
             </Button>
         </div>
     );
-};
-
-export default ScheduleControls; 
+}; 

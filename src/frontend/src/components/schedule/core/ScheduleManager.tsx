@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { ScheduleTable } from './views/ScheduleTable';
-import { TimeGridScheduleTable } from './TimeGridScheduleTable';
+import { ScheduleTable } from '@/components/schedule/views/ScheduleTable';
+import { TimeGridView } from '@/components/schedule/views/TimeGridView';
 import { Schedule, ScheduleUpdate } from '@/types';
 import { DateRange } from 'react-day-picker';
 import { Card, CardContent } from '@/components/ui/card';
@@ -65,7 +65,7 @@ export function ScheduleManager({
                 {activeView === 'table' ? (
                     <ScheduleTable
                         schedules={schedules}
-                        dateRange={dateRange}
+                        dateRange={dateRange || { from: new Date(), to: new Date() }}
                         onDrop={onDrop}
                         onUpdate={onUpdate}
                         isLoading={isLoading}
@@ -73,9 +73,9 @@ export function ScheduleManager({
                         absenceTypes={absenceTypes}
                     />
                 ) : (
-                    <TimeGridScheduleTable
+                    <TimeGridView
                         schedules={schedules}
-                        dateRange={dateRange}
+                        dateRange={dateRange || { from: new Date(), to: new Date() }}
                         onDrop={onDrop}
                         onUpdate={onUpdate}
                         isLoading={isLoading}

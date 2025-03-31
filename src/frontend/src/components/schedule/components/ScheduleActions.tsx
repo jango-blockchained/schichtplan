@@ -13,7 +13,7 @@ import {
     AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScheduleViewType } from './ScheduleDisplay';
+import { ScheduleViewType } from '@/components/schedule/core/ScheduleDisplay';
 
 interface ScheduleActionsProps {
     onAddSchedule: () => void;
