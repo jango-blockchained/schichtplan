@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
-from models import db, ShiftTemplate
-from models.fixed_shift import ShiftValidationError, ShiftType
+from http import HTTPStatus
+from ..models import db, ShiftTemplate
+from ..models.fixed_shift import ShiftValidationError, ShiftType
 
 shifts = Blueprint("shifts", __name__)
 
@@ -101,7 +102,7 @@ def update_shift(shift_id):
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An unexpected error occurred"}), 500
 
 
 @shifts.route("/shifts/<int:shift_id>", methods=["DELETE"])
@@ -149,3 +150,43 @@ def fix_shift_durations():
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
+
+
+@shifts.route("/shift-templates/<int:template_id>", methods=["DELETE"])
+def delete_shift_template(template_id):
+    template = ShiftTemplate.query.get_or_404(template_id)
+    try:
+        db.session.delete(template)
+        db.session.commit()
+        return jsonify({"message": "Shift template deleted"}), HTTPStatus.OK
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@shifts.route("/shift-templates/<int:template_id>", methods=["PUT"])
+def update_shift_template(template_id):
+    data = request.get_json()
+    template = ShiftTemplate.query.get_or_404(template_id)
+
+    # Basic validation
+    if not data:
+        return jsonify({"error": "No data provided"}), HTTPStatus.BAD_REQUEST
+
+    try:
+        template.update_from_dict(data)
+        db.session.commit()
+        return jsonify(template.to_dict()), HTTPStatus.OK
+    except ShiftValidationError as e:
+        db.session.rollback()
+        # Ensure details are included if present
+        error_payload = {"error": str(e)}
+        if hasattr(e, 'errors') and e.errors:
+             error_payload["details"] = e.errors
+        return jsonify(error_payload), HTTPStatus.BAD_REQUEST
+    except Exception as e: # Keep original exception handling
+        db.session.rollback()
+        # Log the full error for debugging
+        # logger.error(f"Error updating shift template {template_id}: {str(e)}")
+        return jsonify({"error": "An unexpected error occurred"}), \
+               HTTPStatus.INTERNAL_SERVER_ERROR

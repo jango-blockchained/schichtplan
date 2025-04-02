@@ -1,77 +1,102 @@
-from flask import Blueprint, jsonify, request
-from models import db, Absence, Employee
+from flask import Blueprint, request, jsonify
+from ..models import db, Absence, Employee
 from datetime import datetime
 
-bp = Blueprint('absences', __name__)
+bp = Blueprint("absences", __name__, url_prefix="/api/absences")
 
-@bp.route('/employees/<int:employee_id>/absences', methods=['GET'])
-def get_employee_absences(employee_id):
-    employee = Employee.query.get_or_404(employee_id)
-    absences = Absence.query.filter_by(employee_id=employee_id).all()
+
+@bp.route("/", methods=["GET"])
+def get_absences():
+    employee_id = request.args.get("employee_id", type=int)
+    start_date_str = request.args.get("start_date")
+    end_date_str = request.args.get("end_date")
+
+    query = Absence.query
+    if employee_id:
+        _employee = Employee.query.get_or_404(employee_id)
+        query = query.filter_by(employee_id=employee_id)
+    
+    try:
+        if start_date_str:
+            start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+            query = query.filter(Absence.end_date >= start_date)
+        if end_date_str:
+            end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+            query = query.filter(Absence.start_date <= end_date)
+    except ValueError:
+        return jsonify({"error": "Invalid date format"}), 400
+
+    absences = query.all()
     return jsonify([absence.to_dict() for absence in absences])
 
-@bp.route('/employees/<int:employee_id>/absences', methods=['POST'])
-def create_absence(employee_id):
-    employee = Employee.query.get_or_404(employee_id)
-    data = request.get_json()
-    
-    # Validate dates
-    try:
-        start_date = datetime.strptime(data['start_date'], '%Y-%m-%d').date()
-        end_date = datetime.strptime(data['end_date'], '%Y-%m-%d').date()
-        if end_date < start_date:
-            return jsonify({'error': 'End date must be after start date'}), 400
-    except (ValueError, KeyError):
-        return jsonify({'error': 'Invalid date format'}), 400
 
-    # Create new absence
-    absence = Absence.from_dict(data)
-    db.session.add(absence)
-    
+@bp.route("/", methods=["POST"])
+def add_absence():
+    data = request.get_json()
+    required_fields = ["employee_id", "start_date", "end_date", "reason"]
+    if not all(field in data for field in required_fields):
+        return jsonify({"error": "Missing required fields"}), 400
+
     try:
+        start_date = datetime.strptime(data["start_date"], "%Y-%m-%d").date()
+        end_date = datetime.strptime(data["end_date"], "%Y-%m-%d").date()
+        if end_date < start_date:
+            return jsonify({"error": "End date cannot be before start date"}), 400
+        
+        _employee = Employee.query.get_or_404(data["employee_id"])
+        
+        absence = Absence(
+            employee_id=data["employee_id"],
+            start_date=start_date,
+            end_date=end_date,
+            reason=data["reason"],
+            notes=data.get("notes")
+        )
+        db.session.add(absence)
         db.session.commit()
         return jsonify(absence.to_dict()), 201
+    except ValueError:
+        return jsonify({"error": "Invalid date format"}), 400
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 400
+        return jsonify({"error": f"Could not add absence: {e}"}), 500
 
-@bp.route('/employees/<int:employee_id>/absences/<int:absence_id>', methods=['DELETE'])
-def delete_absence(employee_id, absence_id):
-    absence = Absence.query.filter_by(id=absence_id, employee_id=employee_id).first_or_404()
-    
+
+@bp.route("/<int:absence_id>", methods=["PUT"])
+def update_absence(absence_id):
+    data = request.get_json()
+    absence = Absence.query.get_or_404(absence_id)
+
+    try:
+        if "start_date" in data:
+            absence.start_date = datetime.strptime(data["start_date"], "%Y-%m-%d").date()
+        if "end_date" in data:
+            absence.end_date = datetime.strptime(data["end_date"], "%Y-%m-%d").date()
+        if "reason" in data:
+            absence.reason = data["reason"]
+        if "notes" in data:
+            absence.notes = data.get("notes")
+            
+        if absence.end_date < absence.start_date:
+            return jsonify({"error": "End date cannot be before start date"}), 400
+
+        db.session.commit()
+        return jsonify(absence.to_dict())
+    except ValueError:
+        db.session.rollback()
+        return jsonify({"error": "Invalid date format"}), 400
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Could not update absence: {e}"}), 500
+
+
+@bp.route("/<int:absence_id>", methods=["DELETE"])
+def delete_absence(absence_id):
+    absence = Absence.query.get_or_404(absence_id)
     try:
         db.session.delete(absence)
         db.session.commit()
-        return '', 204
+        return "", 204
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 400
-
-@bp.route('/employees/<int:employee_id>/absences/<int:absence_id>', methods=['PUT'])
-def update_absence(employee_id, absence_id):
-    absence = Absence.query.filter_by(id=absence_id, employee_id=employee_id).first_or_404()
-    data = request.get_json()
-    
-    # Validate dates
-    try:
-        if 'start_date' in data and 'end_date' in data:
-            start_date = datetime.strptime(data['start_date'], '%Y-%m-%d').date()
-            end_date = datetime.strptime(data['end_date'], '%Y-%m-%d').date()
-            if end_date < start_date:
-                return jsonify({'error': 'End date must be after start date'}), 400
-    except ValueError:
-        return jsonify({'error': 'Invalid date format'}), 400
-
-    # Update fields
-    for key, value in data.items():
-        if key in ['start_date', 'end_date']:
-            setattr(absence, key, datetime.strptime(value, '%Y-%m-%d').date())
-        elif key in ['absence_type_id', 'note']:
-            setattr(absence, key, value)
-    
-    try:
-        db.session.commit()
-        return jsonify(absence.to_dict())
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 400 
+        return jsonify({"error": f"Could not delete absence: {e}"}), 500 

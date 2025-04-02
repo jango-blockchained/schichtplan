@@ -40,10 +40,10 @@ class Settings(db.Model):
 
     # Keyholder Time Settings
     keyholder_before_minutes = Column(
-        Integer, nullable=False, default=5
+        Integer, nullable=False, default=15
     )  # Time before store opening
     keyholder_after_minutes = Column(
-        Integer, nullable=False, default=10
+        Integer, nullable=False, default=15
     )  # Time after store closing
 
     # Store Opening Days and Hours
@@ -354,6 +354,9 @@ class Settings(db.Model):
 
     actions_demo_data = hybrid_property(get_actions_demo_data, set_actions_demo_data)
 
+    min_employees_per_shift = Column(Integer, nullable=False, default=1)
+    max_employees_per_shift = Column(Integer, nullable=False, default=3)
+    allow_dynamic_shift_adjustment = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

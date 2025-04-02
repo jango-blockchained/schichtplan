@@ -1,19 +1,13 @@
 import os
 import socket
 import time
-import sys
 import signal
 import argparse
 import random
 import subprocess
-from pathlib import Path
 
-# Add the current directory to the Python path
-current_dir = Path(__file__).resolve().parent
-if str(current_dir) not in sys.path:
-    sys.path.append(str(current_dir))
-
-from app import create_app
+# Make app import relative
+from .app import create_app
 from werkzeug.serving import is_running_from_reloader
 
 
@@ -21,7 +15,9 @@ def get_process_on_port(port):
     """Return process ID using the given port."""
     try:
         result = subprocess.run(
-            ["lsof", "-i", f":{port}", "-t"], capture_output=True, text=True
+            ["lsof", "-i", f":{port}", "-t"], 
+            # Capture output, don't check exit code
+            capture_output=True, text=True, check=False 
         )
         if result.stdout:
             return int(result.stdout.strip())
@@ -68,9 +64,8 @@ def wait_for_port(port, host="0.0.0.0", timeout=30):
     start_time = time.time()
     while True:
         if time.time() - start_time > timeout:
-            raise TimeoutError(
-                f"Port {port} did not become available within {timeout} seconds"
-            )
+            # Shortened message
+            raise TimeoutError(f"Port {port} unavailable after {timeout}s") 
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
@@ -78,14 +73,16 @@ def wait_for_port(port, host="0.0.0.0", timeout=30):
             sock.close()
             return  # Port is available
         except OSError:
-            print(f"Port {port} is in use, waiting for it to be available...")
+            print(f"Port {port} is in use, waiting...")
             time.sleep(2)
         finally:
             sock.close()
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run the Schichtplan backend server")
+    parser = argparse.ArgumentParser(
+        description="Run the Schichtplan backend server" # Shortened line
+    )
     parser.add_argument(
         "--port",
         type=int,
@@ -99,12 +96,13 @@ if __name__ == "__main__":
         help="Host to bind the server to",
     )
     parser.add_argument(
-        "--kill", action="store_true", help="Kill any process using the specified port"
+        "--kill", action="store_true", 
+        help="Kill process using the specified port" # Shortened line
     )
     parser.add_argument(
         "--auto-port",
         action="store_true",
-        help="Automatically find a free port if the specified port is in use",
+        help="Automatically find free port if specified port is in use",
     )
     args = parser.parse_args()
 
@@ -119,7 +117,8 @@ if __name__ == "__main__":
                 if args.kill:
                     # Try to kill the process
                     if not kill_process_on_port(port):
-                        print(f"Failed to kill process on port {port}")
+                        # Shortened line
+                        print(f"Failed kill on port {port}") 
                         if not args.auto_port:
                             exit(1)
                 elif args.auto_port:
@@ -128,7 +127,8 @@ if __name__ == "__main__":
                         new_port = find_free_port(port)
                         if new_port != port:
                             print(
-                                f"Port {port} is in use, using port {new_port} instead"
+                                f"Port {port} is in use, "
+                                f"using port {new_port} instead"
                             )
                             port = new_port
                     except RuntimeError as e:
@@ -142,11 +142,16 @@ if __name__ == "__main__":
                         print(e)
                         print("\nTry one of the following options:")
                         print(
-                            f"1. Kill the process using port {port}: python run.py --kill"
+                            f"1. Kill process on port {port}: "
+                            f"python -m src.backend.run --kill"
                         )
-                        print("2. Use a different port: python run.py --port 5001")
                         print(
-                            "3. Automatically find a free port: python run.py --auto-port"
+                            "2. Use different port: "
+                            "python -m src.backend.run --port 5001"
+                        )
+                        print(
+                            "3. Auto find free port: "
+                            "python -m src.backend.run --auto-port"
                         )
                         exit(1)
         except Exception as e:

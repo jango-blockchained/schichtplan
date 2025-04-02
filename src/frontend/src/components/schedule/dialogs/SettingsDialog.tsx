@@ -12,6 +12,14 @@ import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from '@/components/ui/dialog';
 
 /**
  * Definition of schedule generation requirements with labels and descriptions
@@ -369,4 +377,208 @@ export function ScheduleGenerationSettings({
             </CardContent>
         </Card>
     );
+}
+
+interface GenerationSettings {
+  enforceMinCoverage: boolean;
+  enforceQualifications: boolean;
+  enforceMaxHours: boolean;
+  allowOvertime: boolean;
+  maxOvertimeHours: number;
+  respectAvailability: boolean;
+  allowDynamicShiftAdjustment: boolean;
+  maxShiftAdjustmentMinutes: number;
+  preferOriginalTimes: boolean;
+}
+
+interface SettingsDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (settings: GenerationSettings) => void;
+  initialSettings?: Partial<GenerationSettings>;
+}
+
+export function SettingsDialog({
+  isOpen,
+  onClose,
+  onSave,
+  initialSettings = {},
+}: SettingsDialogProps) {
+  const [settings, setSettings] = React.useState<GenerationSettings>({
+    enforceMinCoverage: true,
+    enforceQualifications: true,
+    enforceMaxHours: true,
+    allowOvertime: false,
+    maxOvertimeHours: 0,
+    respectAvailability: true,
+    allowDynamicShiftAdjustment: true,
+    maxShiftAdjustmentMinutes: 60,
+    preferOriginalTimes: true,
+    ...initialSettings,
+  });
+
+  const handleSave = () => {
+    onSave(settings);
+    onClose();
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Schedule Generation Settings</DialogTitle>
+          <DialogDescription>
+            Configure how the schedule should be generated
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-4 py-4">
+          <div className="space-y-4">
+            <h3 className="font-medium">Coverage Settings</h3>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="enforceMinCoverage">Enforce Minimum Coverage</Label>
+              <Switch
+                id="enforceMinCoverage"
+                checked={settings.enforceMinCoverage}
+                onCheckedChange={(checked) =>
+                  setSettings({ ...settings, enforceMinCoverage: checked })
+                }
+              />
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-4">
+            <h3 className="font-medium">Dynamic Shift Adjustment</h3>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="allowDynamicShiftAdjustment">
+                Allow Dynamic Shift Times
+              </Label>
+              <Switch
+                id="allowDynamicShiftAdjustment"
+                checked={settings.allowDynamicShiftAdjustment}
+                onCheckedChange={(checked) =>
+                  setSettings({ ...settings, allowDynamicShiftAdjustment: checked })
+                }
+              />
+            </div>
+
+            {settings.allowDynamicShiftAdjustment && (
+              <>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="maxShiftAdjustmentMinutes">
+                    Maximum Adjustment (minutes)
+                  </Label>
+                  <Input
+                    id="maxShiftAdjustmentMinutes"
+                    type="number"
+                    value={settings.maxShiftAdjustmentMinutes}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        maxShiftAdjustmentMinutes: parseInt(e.target.value) || 0,
+                      })
+                    }
+                    className="w-24"
+                    min={0}
+                    max={120}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="preferOriginalTimes">
+                    Prefer Original Shift Times
+                  </Label>
+                  <Switch
+                    id="preferOriginalTimes"
+                    checked={settings.preferOriginalTimes}
+                    onCheckedChange={(checked) =>
+                      setSettings({ ...settings, preferOriginalTimes: checked })
+                    }
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          <Separator />
+
+          <div className="space-y-4">
+            <h3 className="font-medium">Employee Constraints</h3>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="enforceQualifications">Enforce Qualifications</Label>
+              <Switch
+                id="enforceQualifications"
+                checked={settings.enforceQualifications}
+                onCheckedChange={(checked) =>
+                  setSettings({ ...settings, enforceQualifications: checked })
+                }
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <Label htmlFor="enforceMaxHours">Enforce Maximum Hours</Label>
+              <Switch
+                id="enforceMaxHours"
+                checked={settings.enforceMaxHours}
+                onCheckedChange={(checked) =>
+                  setSettings({ ...settings, enforceMaxHours: checked })
+                }
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <Label htmlFor="respectAvailability">Respect Availability</Label>
+              <Switch
+                id="respectAvailability"
+                checked={settings.respectAvailability}
+                onCheckedChange={(checked) =>
+                  setSettings({ ...settings, respectAvailability: checked })
+                }
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <Label htmlFor="allowOvertime">Allow Overtime</Label>
+              <Switch
+                id="allowOvertime"
+                checked={settings.allowOvertime}
+                onCheckedChange={(checked) =>
+                  setSettings({ ...settings, allowOvertime: checked })
+                }
+              />
+            </div>
+
+            {settings.allowOvertime && (
+              <div className="flex items-center justify-between">
+                <Label htmlFor="maxOvertimeHours">Maximum Overtime Hours</Label>
+                <Input
+                  id="maxOvertimeHours"
+                  type="number"
+                  value={settings.maxOvertimeHours}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      maxOvertimeHours: parseInt(e.target.value) || 0,
+                    })
+                  }
+                  className="w-24"
+                  min={0}
+                  max={40}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave}>Save Changes</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 } 

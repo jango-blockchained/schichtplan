@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, send_file
-from models import db, Settings
+from ..models import db, Settings
 from http import HTTPStatus
 import logging
 import os
@@ -17,35 +17,32 @@ def serialize_db():
     inspector = inspect(db.engine)
 
     for table_name in inspector.get_table_names():
-        # Skip Alembic-related tables and temporary tables
-        if not table_name.startswith("_alembic") and not table_name.startswith(
-            "alembic"
-        ):
-            try:
-                table = db.metadata.tables[table_name]
-                query = db.session.query(table)
-                records = []
-                for record in query.all():
-                    if hasattr(record, "to_dict"):
-                        records.append(record.to_dict())
-                    else:
-                        record_dict = {}
-                        for column in table.columns:
-                            value = getattr(record, column.name)
-                            # Handle datetime and date objects
-                            if isinstance(value, (datetime.datetime, datetime.date)):
-                                value = value.isoformat()
-                            record_dict[column.name] = value
-                        records.append(record_dict)
-                data[table_name] = records
-            except Exception as e:
-                logging.warning(f"Error serializing table {table_name}: {str(e)}")
-                continue
+        if table_name != "alembic_version":  # Skip migration table
+            table = db.metadata.tables[table_name]
+            query = db.session.query(table)
+            records = []
+            for record in query.all():
+                if hasattr(record, "to_dict"):
+                    records.append(record.to_dict())
+                else:
+                    record_dict = {}
+                    for column in table.columns:
+                        value = getattr(record, column.name)
+                        # Ensure proper serialization for various types
+                        if isinstance(value, datetime.datetime):
+                            value = value.isoformat()
+                        elif isinstance(value, datetime.date):
+                            value = value.isoformat()
+                        elif isinstance(value, datetime.timedelta):
+                            value = value.total_seconds() # Or str(value)
+                        # Add more types if needed (e.g., Decimal)
+                        record_dict[column.name] = value
+                    records.append(record_dict)
+            data[table_name] = records
     return data
 
 
 @settings.route("/settings/backup", methods=["GET"])
-@settings.route("/settings/backup/", methods=["GET"])
 def backup_database():
     """Export the entire database as JSON"""
     try:
@@ -53,14 +50,13 @@ def backup_database():
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"backup_{timestamp}.json"
 
-        # Create backups directory if it doesn't exist
-        backup_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "backups")
+        # Save to a temporary file (use app.instance_path if possible)
+        backup_dir = os.path.join(os.getcwd(), "instance", "backups")
         os.makedirs(backup_dir, exist_ok=True)
-
-        # Save to a file in the backups directory
         backup_path = os.path.join(backup_dir, filename)
-        with open(backup_path, "w") as f:
-            json.dump(data, f, indent=2, default=str)  # Use str as fallback serializer
+
+        with open(backup_path, "w", encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
 
         return send_file(
             backup_path,
@@ -69,19 +65,18 @@ def backup_database():
             download_name=filename,
         )
     except Exception as e:
-        logging.error(f"Error during backup: {str(e)}")
+        logging.exception("Error during database backup") # Log error
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 @settings.route("/settings/restore", methods=["POST"])
-@settings.route("/settings/restore/", methods=["POST"])
 def restore_database():
     """Restore the database from a JSON backup"""
     if "file" not in request.files:
         return jsonify({"error": "No file provided"}), HTTPStatus.BAD_REQUEST
 
     file = request.files["file"]
-    if not file.filename.endswith(".json"):
+    if not file or not file.filename.endswith(".json"):
         return jsonify({"error": "Invalid file format"}), HTTPStatus.BAD_REQUEST
 
     try:
@@ -89,26 +84,49 @@ def restore_database():
 
         # Start a transaction
         with db.session.begin():
-            # Clear existing data
             inspector = inspect(db.engine)
-            for table_name in reversed(inspector.get_table_names()):
-                if table_name != "alembic_version":  # Skip migration table
-                    db.session.execute(f"TRUNCATE TABLE {table_name} CASCADE")
+            table_names = inspector.get_table_names()
+
+            # Disable foreign key checks (specific to DB, e.g., SQLite)
+            if db.engine.name == 'sqlite':
+                db.session.execute(text('PRAGMA foreign_keys=OFF;'))
+
+            # Clear existing data carefully, respecting dependencies if possible
+            # This simple truncate might fail with FKs without CASCADE
+            for table_name in reversed(table_names):
+                if table_name != "alembic_version":
+                    # Use DELETE for better compatibility
+                    db.session.execute(text(f'DELETE FROM "{table_name}";'))
 
             # Restore data
+            # Consider order if there are FK dependencies
             for table_name, records in data.items():
                 table = db.metadata.tables.get(table_name)
-                if table and records:
-                    db.session.execute(table.insert(), records)
+                if table is not None and records:
+                     # Process records individually for better type handling
+                    for record_data in records:
+                        # Convert dates back if needed
+                        for key, value in record_data.items():
+                             if isinstance(table.c[key].type, db.DateTime) and value:
+                                 record_data[key] = datetime.datetime.fromisoformat(value)
+                             elif isinstance(table.c[key].type, db.Date) and value:
+                                 record_data[key] = datetime.date.fromisoformat(value)
+                        # Insert record
+                        db.session.execute(table.insert().values(**record_data))
+
+            # Re-enable foreign key checks
+            if db.engine.name == 'sqlite':
+                db.session.execute(text('PRAGMA foreign_keys=ON;'))
 
         return jsonify({"message": "Database restored successfully"}), HTTPStatus.OK
+
     except Exception as e:
         db.session.rollback()
+        logging.exception("Error during database restore")
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 @settings.route("/settings/tables", methods=["GET"])
-@settings.route("/settings/tables/", methods=["GET"])
 def get_tables():
     """Get list of available database tables"""
     try:
@@ -120,7 +138,6 @@ def get_tables():
 
 
 @settings.route("/settings/wipe-tables", methods=["POST"])
-@settings.route("/settings/wipe-tables/", methods=["POST"])
 def wipe_tables():
     """Wipe specific database tables"""
     if not request.is_json:
@@ -141,9 +158,11 @@ def wipe_tables():
     # Validate table names
     invalid_tables = [t for t in tables_to_wipe if t not in available_tables]
     if invalid_tables:
-        return jsonify(
-            {"error": f"Invalid table names: {', '.join(invalid_tables)}"}
-        ), HTTPStatus.BAD_REQUEST
+        error_msg = f"Invalid table names: {', '.join(invalid_tables)}"
+        return (
+            jsonify({"error": error_msg}),
+            HTTPStatus.BAD_REQUEST,
+        )
 
     try:
         # Start a transaction
@@ -176,7 +195,6 @@ def wipe_tables():
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@settings.route("/settings", methods=["GET"])
 @settings.route("/settings/", methods=["GET"])
 def get_settings():
     """Get all settings or initialize with defaults if none exist"""
@@ -191,14 +209,15 @@ def get_settings():
                 db.session.commit()
             except Exception as e:
                 db.session.rollback()
-                logging.error(f"Error initializing settings: {str(e)}")
-                return jsonify(
-                    {"error": f"Error initializing settings: {str(e)}"}
-                ), HTTPStatus.INTERNAL_SERVER_ERROR
+                logging.exception("Error initializing settings")
+                return (
+                    jsonify({"error": f"Error initializing settings: {str(e)}"}),
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                )
 
         return jsonify(settings.to_dict())
-    except Exception as e:
-        logging.error(f"Unexpected error retrieving settings: {str(e)}")
+    except Exception as outer_e:
+        logging.exception("Critical error retrieving settings, attempting reset")
         # If there's an unexpected error, try to reset and recreate settings
         try:
             Settings.query.delete()
@@ -210,13 +229,15 @@ def get_settings():
 
             return jsonify(settings.to_dict())
         except Exception as reset_error:
-            logging.error(f"Error resetting settings: {str(reset_error)}")
-            return jsonify(
-                {"error": f"Critical error retrieving settings: {str(reset_error)}"}
-            ), HTTPStatus.INTERNAL_SERVER_ERROR
+            logging.exception("Failed to reset settings after critical error")
+            return (
+                jsonify(
+                    {"error": f"Critical error retrieving settings: {str(reset_error)}"}
+                ),
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+            )
 
 
-@settings.route("/settings", methods=["PUT"])
 @settings.route("/settings/", methods=["PUT"])
 def update_settings():
     """Update settings"""
@@ -237,17 +258,16 @@ def update_settings():
 
 
 @settings.route("/settings/reset", methods=["POST"])
-@settings.route("/settings/reset/", methods=["POST"])
 def reset_settings():
     """Reset settings to defaults"""
-    Settings.query.delete()
+    settings = Settings.query.first()
+    if settings:
+        db.session.delete(settings)
+    
+    new_settings = Settings.get_default_settings()
+    db.session.add(new_settings)
     db.session.commit()
-
-    settings = Settings.get_default_settings()
-    db.session.add(settings)
-    db.session.commit()
-
-    return jsonify(settings.to_dict())
+    return jsonify(new_settings.to_dict())
 
 
 @settings.route("/settings/<category>", methods=["GET"])
@@ -262,7 +282,7 @@ def get_category_settings(category):
     settings_dict = settings.to_dict()
     if category not in settings_dict:
         return jsonify(
-            {"error": f"Category {category} not found"}
+            {"error": f"Category '{category}' not found"}
         ), HTTPStatus.NOT_FOUND
 
     return jsonify(settings_dict[category])
@@ -303,13 +323,13 @@ def update_setting(category, key):
 
         if category not in settings_dict:
             return jsonify(
-                {"error": f"Category {category} not found"}
+                {"error": f"Category '{category}' not found"}
             ), HTTPStatus.NOT_FOUND
 
         category_dict = settings_dict[category]
         if key not in category_dict:
             return jsonify(
-                {"error": f"Key {key} not found in category {category}"}
+                {"error": f"Key '{key}' not found in category '{category}'"}
             ), HTTPStatus.NOT_FOUND
 
         settings.update_from_dict({category: {key: value}})
@@ -333,19 +353,19 @@ def delete_setting(category, key):
 
         if category not in settings_dict:
             return jsonify(
-                {"error": f"Category {category} not found"}
+                {"error": f"Category '{category}' not found"}
             ), HTTPStatus.NOT_FOUND
 
         category_dict = settings_dict[category]
         if key not in category_dict:
             return jsonify(
-                {"error": f"Key {key} not found in category {category}"}
+                {"error": f"Key '{key}' not found in category '{category}'"}
             ), HTTPStatus.NOT_FOUND
 
         # Reset the specific setting to its default value
         settings.update_from_dict({category: {key: category_dict[key]}})
         db.session.commit()
-        return jsonify({"message": f"Setting {category}.{key} reset to default"})
+        return jsonify({"message": f"Setting '{category}.{key}' reset to default"})
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), HTTPStatus.BAD_REQUEST
@@ -375,7 +395,6 @@ def get_log_files():
 
 
 @settings.route("/settings/logs", methods=["GET"])
-@settings.route("/settings/logs/", methods=["GET"])
 def get_logs():
     """Get list of available log files"""
     try:
@@ -411,7 +430,7 @@ def get_logs():
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@settings.route("/settings/logs/<path:filename>", methods=["GET"])
+@settings.route("/logs/<path:filename>", methods=["GET"])
 def get_log_content(filename):
     """Get content of a specific log file"""
     try:
@@ -450,7 +469,7 @@ def get_log_content(filename):
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@settings.route("/settings/logs/<path:filename>", methods=["DELETE"])
+@settings.route("/logs/<path:filename>", methods=["DELETE"])
 def delete_log(filename):
     """Delete a specific log file"""
     try:
@@ -480,7 +499,7 @@ def delete_log(filename):
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@settings.route("/settings/scheduling/generation", methods=["GET"])
+@settings.route("/scheduling/generation", methods=["GET"])
 def get_generation_settings():
     """Get schedule generation settings"""
     try:
@@ -533,7 +552,7 @@ def get_generation_settings():
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@settings.route("/settings/scheduling/generation", methods=["PUT"])
+@settings.route("/scheduling/generation", methods=["PUT"])
 def update_generation_settings():
     """Update schedule generation settings"""
     try:

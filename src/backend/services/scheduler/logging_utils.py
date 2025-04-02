@@ -187,7 +187,6 @@ class LoggingManager:
             os.makedirs(diagnostic_dir, exist_ok=True)
 
             # Create a unique diagnostic log file
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             diag_filename = f"schedule_diagnostic_{self.session_id}.log"
             diagnostic_path = os.path.join(diagnostic_dir, diag_filename)
 
@@ -202,19 +201,16 @@ class LoggingManager:
             )
             diag_handler.setFormatter(diag_format)
 
-            # Don't add to the logger - we'll use this separately for summary information
+            # Add the diagnostic handler to the logger so all messages get written to the diagnostic log
+            self.logger.addHandler(diag_handler)
+            
+            # Store the path for reference
             self.diagnostic_log_path = diagnostic_path
 
-            # Write initial diagnostic entry
-            with open(diagnostic_path, "w") as f:
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-                f.write(
-                    f"{timestamp} - INFO - ===== Diagnostic logging initialized (Session: {self.session_id}) =====\n"
-                )
-                f.write(
-                    f"{timestamp} - DEBUG - Log file created at: {diagnostic_path}\n"
-                )
-                f.write(f"{timestamp} - DEBUG - Session ID: {self.session_id}\n")
+            # Log initial information to diagnostic log through the logger
+            self.logger.info(f"===== Diagnostic logging initialized (Session: {self.session_id}) =====")
+            self.logger.debug(f"Log file created at: {diagnostic_path}")
+            self.logger.debug(f"Session ID: {self.session_id}")
 
             return diagnostic_path
 
@@ -378,12 +374,10 @@ class LoggingManager:
         return self.app_log_path
 
     def _write_to_diagnostic(self, message: str) -> None:
-        """Write a message directly to the diagnostic log file"""
-        if self.diagnostic_log_path:
-            try:
-                with open(self.diagnostic_log_path, "a") as f:
-                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-                    f.write(f"{timestamp} - INFO - {message}\n")
-            except Exception as e:
-                # Just log to normal logger if this fails
-                self.logger.error(f"Failed to write to diagnostic log: {str(e)}")
+        """Write a message to the diagnostic log file"""
+        try:
+            # Just use the logger - messages will go to the diagnostic log through the handler
+            self.logger.info(message)
+        except Exception as e:
+            # Just log to normal logger if this fails
+            self.logger.error(f"Failed to write to diagnostic log: {str(e)}")

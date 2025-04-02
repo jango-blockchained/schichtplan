@@ -13,18 +13,49 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 @pytest.fixture(scope="session")
 def app():
     """Create application for the tests."""
+    # Use an in-memory SQLite database for tests
+    os.environ["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+    os.environ["TESTING"] = "True"
+    os.environ["FLASK_ENV"] = "testing"
+    
     _app = create_app(testing=True)
+    _app.config.update({
+        "TESTING": True,
+        "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
+        "SQLALCHEMY_TRACK_MODIFICATIONS": False,
+        "SERVER_NAME": "localhost:5000",
+    })
 
-    # Other test config setup here
-    return _app
+    # Create application context
+    with _app.app_context():
+        yield _app
 
 
 @pytest.fixture(scope="session")
 def db(app):
     """Create database for the tests."""
     with app.app_context():
+        # Drop all tables first in case there are any existing tables
+        _db.drop_all()
+        
+        # Create all tables
         _db.create_all()
+        
+        # Create default test data if needed
+        try:
+            # Create a default settings object
+            from models.settings import Settings
+            settings = Settings()
+            _db.session.add(settings)
+            _db.session.commit()
+        except Exception as e:
+            print(f"Error creating default test data: {e}")
+            _db.session.rollback()
+        
         yield _db
+        
+        # Clean up after tests
+        _db.session.remove()
         _db.drop_all()
 
 
@@ -32,6 +63,7 @@ def db(app):
 def session(db, app):
     """Create a new database session for a test."""
     with app.app_context():
+        # Create a new connection and transaction
         connection = db.engine.connect()
         transaction = connection.begin()
 
@@ -40,13 +72,22 @@ def session(db, app):
         session = scoped_session(session_factory)
 
         # Use this session instead of db.session
+        old_session = db.session
         db.session = session
 
-        yield session
+        try:
+            yield session
+        finally:
+            # Rollback the transaction and restore the original session
+            if transaction.is_active:
+                transaction.rollback()
+            
+            # Restore the original session
+            db.session = old_session
 
-        session.remove()
-        transaction.rollback()
-        connection.close()
+            # Close the session and connection
+            session.remove()
+            connection.close()
 
 
 @pytest.fixture

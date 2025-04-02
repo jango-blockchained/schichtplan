@@ -1,9 +1,9 @@
 from flask import Blueprint, jsonify, request
-from models import db, Employee, EmployeeAvailability
-from models.employee import AvailabilityType
+from ..models import db, Employee, EmployeeAvailability
+from ..models.employee import AvailabilityType
 from http import HTTPStatus
 
-employees = Blueprint("employees", __name__)
+employees = Blueprint("employees", __name__, url_prefix="/api/employees")
 
 
 @employees.route("/employees", methods=["GET"])
@@ -102,11 +102,11 @@ def delete_employee(employee_id):
     try:
         db.session.delete(employee)
         db.session.commit()
-        return "", HTTPStatus.NO_CONTENT
-
+        return jsonify({"message": "Employee deleted"}), HTTPStatus.OK
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+        return jsonify({"error": f"Error deleting employee: {str(e)}"}), \
+               HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 @employees.route("/employees/<int:employee_id>/availabilities", methods=["GET"])
@@ -162,3 +162,66 @@ def update_employee_availabilities(employee_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 400
+
+
+@employees.route("/employees/<int:employee_id>/availability", methods=["GET"])
+def get_employee_availability(employee_id):
+    """Get all availabilities for an employee"""
+    avails = EmployeeAvailability.query.filter_by(employee_id=employee_id).all()
+    return jsonify([avail.to_dict() for avail in avails])
+
+
+@employees.route("/employees/<int:employee_id>/availability", methods=["POST"])
+def add_employee_availability(employee_id):
+    """Add a new availability for an employee"""
+    data = request.get_json()
+
+    try:
+        availability = EmployeeAvailability(
+            employee_id=employee_id,
+            day_of_week=data["day_of_week"],
+            hour=data["hour"],
+            is_available=data["is_available"],
+            availability_type=AvailabilityType(data["availability_type"]),
+        )
+        db.session.add(availability)
+        db.session.commit()
+        return jsonify(availability.to_dict()), HTTPStatus.CREATED
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Error adding availability: {str(e)}"}), \
+               HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@employees.route("/availability/<int:avail_id>", methods=["PUT"])
+def update_employee_availability(avail_id):
+    """Update an availability"""
+    data = request.get_json()
+
+    try:
+        availability = EmployeeAvailability.query.get_or_404(avail_id)
+        if "is_available" in data:
+            availability.is_available = data["is_available"]
+        if "availability_type" in data:
+            availability.availability_type = AvailabilityType(data["availability_type"])
+        db.session.commit()
+        return jsonify(availability.to_dict())
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Error updating availability: {str(e)}"}), \
+               HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@employees.route("/availability/<int:avail_id>", methods=["DELETE"])
+def delete_employee_availability(avail_id):
+    """Delete an availability"""
+    availability = EmployeeAvailability.query.get_or_404(avail_id)
+
+    try:
+        db.session.delete(availability)
+        db.session.commit()
+        return "", HTTPStatus.NO_CONTENT
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Error deleting availability: {str(e)}"}), \
+               HTTPStatus.INTERNAL_SERVER_ERROR

@@ -93,13 +93,11 @@ echo "Starting application in tmux..."
 tmux new-session -d -s schichtplan
 
 # Configure first pane (Backend)
-tmux send-keys -t schichtplan "cd src/backend" C-m
-tmux send-keys -t schichtplan "export FLASK_APP=run.py" C-m
 tmux send-keys -t schichtplan "export FLASK_ENV=development" C-m
 tmux send-keys -t schichtplan "export DEBUG_MODE=1" C-m
 tmux send-keys -t schichtplan "echo 'Starting Backend...'" C-m
 # Use --auto-port and --kill options to handle port conflicts automatically
-tmux send-keys -t schichtplan "python3 run.py --auto-port --kill" C-m
+tmux send-keys -t schichtplan "python3 -m src.backend.run --auto-port --kill" C-m
 
 # Split window vertically for frontend
 tmux split-window -h

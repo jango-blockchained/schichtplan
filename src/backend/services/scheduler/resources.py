@@ -87,29 +87,32 @@ class ScheduleResources:
         self._employee_cache = {}
         self._coverage_cache = {}
         self._date_caches_cleared = False
+        self._loaded = False  # Track loading state
         self.logger = logger
         
         # Store schedule date range
         self.start_date = start_date if start_date else date.today()
         self.end_date = end_date if end_date else date.today()
+        
+        logger.info(f"[DIAGNOSTIC] Initialized ScheduleResources for date range: {self.start_date} to {self.end_date}")
 
     def is_loaded(self):
         """Check if resources have already been loaded"""
-        return len(self.employees) > 0
+        return self._loaded and len(self.employees) > 0
 
     def load(self) -> bool:
         """Load all scheduling resources from the database"""
-        self.logger.info("Loading scheduler resources...")
+        self.logger.info("[DIAGNOSTIC] Loading scheduler resources...")
         
         try:
             # Load settings
-            self.settings = Settings.query.first()
+            self.settings = self._load_settings()
             
             # Load schedule data
             self.shifts = self._load_shifts()
             for shift in self.shifts:
                 self.logger.info(
-                    f"Loaded shift template: ID={shift.id}, start={shift.start_time}, "
+                    f"[DIAGNOSTIC] Loaded shift template: ID={shift.id}, start={shift.start_time}, "
                     f"end={shift.end_time}, type={shift.shift_type_id}, "
                     f"duration={shift.duration_hours}h"
                 )
@@ -126,11 +129,22 @@ class ScheduleResources:
             # Load availability data
             self._load_availabilities()
             
-            self.logger.info("Resource loading complete")
-            return True
+            # Mark as loaded
+            self._loaded = True
+            
+            # Validation check
+            loaded_successfully = self.verify_loaded_resources()
+            
+            if loaded_successfully:
+                self.logger.info("[DIAGNOSTIC] Resource loading complete successfully")
+            else:
+                self.logger.error("[DIAGNOSTIC] Resource loading completed with errors")
+                
+            return loaded_successfully
             
         except Exception as e:
-            self.logger.error(f"Error loading scheduler resources: {e}")
+            self.logger.error(f"[DIAGNOSTIC] Error loading scheduler resources: {e}", exc_info=True)
+            self._loaded = False
             return False
 
     def _load_settings(self) -> Settings:
@@ -244,8 +258,12 @@ class ScheduleResources:
         """Load employee data"""
         try:
             # Get active employees using the same filter as in tests
+            self.logger.info("[DIAGNOSTIC] Attempting to load employees from database...")
             employee_filter = Employee.query.filter_by(is_active=True)
             self.employees = employee_filter.order_by('id').all()
+            
+            # Build employee cache
+            self._employee_cache = {emp.id: emp for emp in self.employees}
             
             # If no employees found and this is a test environment
             if not self.employees and hasattr(Employee, '_mock_name'):
@@ -261,11 +279,22 @@ class ScheduleResources:
                 mock_employee2.is_active = True
                 
                 self.employees = [mock_employee1, mock_employee2]
+                # Update employee cache with mock employees
+                self._employee_cache = {emp.id: emp for emp in self.employees}
                 
-            self.logger.debug(f"Loaded {len(self.employees)} active employees")
+            self.logger.info(f"[DIAGNOSTIC] Loaded {len(self.employees)} active employees. Employee IDs: {[emp.id for emp in self.employees[:5]]}")
+            
+            # If still no employees, check if there are inactive employees
+            if not self.employees:
+                inactive_count = Employee.query.filter_by(is_active=False).count()
+                if inactive_count > 0:
+                    self.logger.warning(f"[DIAGNOSTIC] Found {inactive_count} inactive employees but no active employees. Check employee activation status.")
+                else:
+                    self.logger.error("[DIAGNOSTIC] No employees found in database (active or inactive).")
+                    
             return self.employees
         except Exception as e:
-            self.logger.error(f"Error loading employees: {e}")
+            self.logger.error(f"[DIAGNOSTIC] Error loading employees: {e}", exc_info=True)
             self.employees = []
             return self.employees
 
@@ -371,46 +400,74 @@ class ScheduleResources:
         self, employee_id: int, day_of_week: int
     ) -> List[EmployeeAvailability]:
         """Get availability for an employee on a specific day of week"""
+        # Log diagnostic information
+        self.logger.info(f"[DIAGNOSTIC] Getting availability for employee {employee_id} on day_of_week {day_of_week}")
+        
         # Skip employee cache check in testing environments
         # where we may not have loaded employees
         if self._employee_cache and employee_id not in self._employee_cache:
+            self.logger.info(f"[DIAGNOSTIC] Employee {employee_id} not found in employee cache")
             return []
 
-        return [
+        # Check if availabilities list is loaded
+        if not hasattr(self, 'availabilities') or not self.availabilities:
+            self.logger.warning(f"[DIAGNOSTIC] No availabilities loaded in resources for employee {employee_id}")
+            return []
+            
+        # Get matching availabilities
+        matching_availabilities = [
             avail
             for avail in self.availabilities
             if avail.employee_id == employee_id and avail.day_of_week == day_of_week
         ]
+        
+        # Log result
+        self.logger.info(f"[DIAGNOSTIC] Found {len(matching_availabilities)} availability records for employee {employee_id} on day {day_of_week}")
+        
+        # Debug first few records if any
+        for i, avail in enumerate(matching_availabilities[:3]):
+            if hasattr(avail, 'hour') and hasattr(avail, 'availability_type'):
+                self.logger.debug(
+                    f"[DIAGNOSTIC] Avail {i+1}: employee_id={avail.employee_id}, "
+                    f"day={avail.day_of_week}, hour={avail.hour}, "
+                    f"type={getattr(avail.availability_type, 'value', avail.availability_type)}"
+                )
+                
+        return matching_availabilities
 
     def is_employee_available(
         self, employee_id: int, day: date, start_hour: int, end_hour: int
     ) -> bool:
         """Check if an employee is available for a time slot"""
+        # Log input values for debugging
+        self.logger.info(f"[DIAGNOSTIC] Checking availability for employee {employee_id} on {day}, hours {start_hour}-{end_hour}")
+        
         # Check for absences first
         for absence in self.absences:
             if (
                 absence.employee_id == employee_id
                 and absence.start_date <= day <= absence.end_date
             ):
-                logger.info(f"Employee {employee_id} is absent on {day}")
+                self.logger.info(f"[DIAGNOSTIC] Employee {employee_id} is absent on {day}")
                 return False
 
         # Check if employee exists in the system - skip this check in test environments
         # where we may not have loaded employees but still need to test availability
         if self._employee_cache and employee_id not in self._employee_cache:
-            logger.info(f"Employee {employee_id} not found in cache")
+            self.logger.info(f"[DIAGNOSTIC] Employee {employee_id} not found in cache")
             return False
 
         # Check availability
         day_of_week = day.weekday()
         availabilities = self.get_employee_availability(employee_id, day_of_week)
+        self.logger.info(f"[DIAGNOSTIC] Found {len(availabilities)} availability records for employee {employee_id} on day {day_of_week}")
 
-        # If no availabilities are set, employee is unavailable
+        # If no availabilities are set, employee is available by default (critical fix!)
         if not availabilities:
-            logger.info(
-                f"Employee {employee_id} has no availability records for day {day_of_week}"
+            self.logger.info(
+                f"[DIAGNOSTIC] Employee {employee_id} has no availability records for day {day_of_week}, assuming available by default"
             )
-            return False
+            return True
 
         # Check if employee is available for all hours in the range
         for hour in range(start_hour, end_hour):
@@ -425,21 +482,22 @@ class ScheduleResources:
                         and avail.availability_type != AvailabilityType.UNAVAILABLE
                     ):
                         hour_available = True
+                        self.logger.info(f"[DIAGNOSTIC] Employee {employee_id} is available at hour {hour} on day {day}")
                         break
                     else:
-                        logger.info(
-                            f"Employee {employee_id} is unavailable at hour {hour}. "
+                        self.logger.info(
+                            f"[DIAGNOSTIC] Employee {employee_id} is unavailable at hour {hour}. "
                             f"is_available={avail.is_available}, "
                             f"type={avail.availability_type.value if avail.availability_type else 'None'}"
                         )
             if not hour_available:
-                logger.info(
-                    f"Employee {employee_id} is not available at hour {hour} on day {day}"
+                self.logger.info(
+                    f"[DIAGNOSTIC] Employee {employee_id} is not available at hour {hour} on day {day}"
                 )
                 return False
 
-        logger.info(
-            f"Employee {employee_id} is available on {day} from {start_hour} to {end_hour}"
+        self.logger.info(
+            f"[DIAGNOSTIC] Employee {employee_id} is available on {day} from {start_hour} to {end_hour}"
         )
         return True
 
@@ -511,32 +569,71 @@ class ScheduleResources:
 
     def verify_loaded_resources(self):
         """Verify that all required resources are loaded correctly"""
-        if not self._loaded:
-            self.logger.error("Resources not loaded yet")
-            return False
-
+        success = True
+        
         # Check employees
         if not self.employees:
-            self.logger.error("No employees loaded")
-            return False
-        self.logger.info(f"Verified {len(self.employees)} employees")
+            self.logger.error("[DIAGNOSTIC] No employees loaded")
+            success = False
+        else:
+            active_count = sum(1 for e in self.employees if getattr(e, "is_active", True))
+            self.logger.info(f"[DIAGNOSTIC] Verified {len(self.employees)} employees ({active_count} active)")
+            # Log first few employees for debugging
+            for i, emp in enumerate(self.employees[:3]):
+                emp_id = getattr(emp, "id", "unknown")
+                emp_name = f"{getattr(emp, 'first_name', '')} {getattr(emp, 'last_name', '')}"
+                emp_active = getattr(emp, "is_active", True)
+                self.logger.info(f"[DIAGNOSTIC] - Employee {i+1}: ID={emp_id}, Name={emp_name}, Active={emp_active}")
 
         # Check shifts
         if not self.shifts:
-            self.logger.error("No shifts loaded")
-            return False
-        self.logger.info(f"Verified {len(self.shifts)} shifts")
+            self.logger.error("[DIAGNOSTIC] No shifts loaded")
+            success = False
+        else:
+            self.logger.info(f"[DIAGNOSTIC] Verified {len(self.shifts)} shifts")
+            # Log first few shifts for debugging
+            for i, shift in enumerate(self.shifts[:3]):
+                shift_id = getattr(shift, "id", "unknown")
+                shift_times = f"{getattr(shift, 'start_time', '?')}-{getattr(shift, 'end_time', '?')}"
+                shift_type = getattr(shift, "shift_type_id", "unknown")
+                self.logger.info(f"[DIAGNOSTIC] - Shift {i+1}: ID={shift_id}, Times={shift_times}, Type={shift_type}")
 
         # Check coverage
         if not self.coverage:
-            self.logger.error("No coverage data loaded")
-            return False
-        self.logger.info(f"Verified {len(self.coverage)} coverage records")
+            self.logger.error("[DIAGNOSTIC] No coverage data loaded")
+            success = False
+        else:
+            self.logger.info(f"[DIAGNOSTIC] Verified {len(self.coverage)} coverage records")
+            # Log first few coverage records for debugging
+            for i, cov in enumerate(self.coverage[:3]):
+                day_idx = getattr(cov, "day_index", getattr(cov, "day_of_week", "unknown"))
+                employees_needed = getattr(cov, "min_employees", getattr(cov, "required_employees", 0))
+                self.logger.info(f"[DIAGNOSTIC] - Coverage {i+1}: Day={day_idx}, Employees={employees_needed}")
 
         # Check settings
         if not self.settings:
-            self.logger.error("No settings loaded")
-            return False
-        self.logger.info("Verified settings")
+            self.logger.error("[DIAGNOSTIC] No settings loaded")
+            success = False
+        else:
+            self.logger.info("[DIAGNOSTIC] Verified settings")
+            
+        # Check availability records
+        total_avail = len(self.availabilities) if hasattr(self, 'availabilities') else 0
+        if total_avail == 0:
+            self.logger.warning("[DIAGNOSTIC] No availability records loaded - employees may not be assigned correctly")
+        else:
+            self.logger.info(f"[DIAGNOSTIC] Verified {total_avail} availability records")
+            
+        # Set the loaded flag based on success
+        self._loaded = success
 
-        return True
+        if not success:
+            self.logger.error("[DIAGNOSTIC] Resource verification failed - schedule generation may not work correctly")
+        else:
+            self.logger.info("[DIAGNOSTIC] Resource verification completed successfully")
+
+        return success
+
+    def get_shifts(self):
+        """Get all available shifts."""
+        return self.shifts

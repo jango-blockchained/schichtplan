@@ -66,6 +66,27 @@ class SchedulerConfig:
         }
         self.max_shifts_per_day = 2  # Maximum number of shifts per day for any employee
 
+        # Basic scheduling constraints
+        self.MIN_HOURS_BETWEEN_SHIFTS = 12
+        self.MAX_CONSECUTIVE_DAYS = 6
+        self.MIN_REST_DAYS = 1
+        self.FORCE_ASSIGN = True
+
+        # Dynamic shift adjustment settings
+        self.ALLOW_DYNAMIC_SHIFT_ADJUSTMENT = True
+        self.MAX_SHIFT_ADJUSTMENT_MINUTES = 60
+        self.PREFER_ORIGINAL_TIMES = True  # Bias towards original shift times when possible
+
+        # Coverage requirements
+        self.ENFORCE_MIN_COVERAGE = True
+        self.ALLOW_OVERTIME = False
+        self.MAX_OVERTIME_HOURS = 0
+
+        # Employee constraints
+        self.RESPECT_AVAILABILITY = True
+        self.ENFORCE_QUALIFICATIONS = True
+        self.ENFORCE_MAX_HOURS = True
+
         # Update with provided config if any
         if config_dict:
             self.update_from_dict(config_dict)
@@ -100,6 +121,16 @@ class SchedulerConfig:
         """Get the maximum number of shifts of a specific type per week"""
         return self.SHIFT_TYPE_CAPS.get(shift_type, 5)  # Default to 5 if not specified
 
+    def apply_override(self, config_dict):
+        """Apply configuration overrides from a dictionary"""
+        if not config_dict:
+            return
+
+        # Update any matching attributes
+        for key, value in config_dict.items():
+            if hasattr(self, key.upper()):
+                setattr(self, key.upper(), value)
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert configuration to dictionary"""
         return {
@@ -111,4 +142,17 @@ class SchedulerConfig:
             "employee_types": self.employee_types,
             "keyholder_requirements": self.keyholder_requirements,
             "max_shifts_per_day": self.max_shifts_per_day,
+            "min_hours_between_shifts": self.MIN_HOURS_BETWEEN_SHIFTS,
+            "max_consecutive_days": self.MAX_CONSECUTIVE_DAYS,
+            "min_rest_days": self.MIN_REST_DAYS,
+            "force_assign": self.FORCE_ASSIGN,
+            "allow_dynamic_shift_adjustment": self.ALLOW_DYNAMIC_SHIFT_ADJUSTMENT,
+            "max_shift_adjustment_minutes": self.MAX_SHIFT_ADJUSTMENT_MINUTES,
+            "prefer_original_times": self.PREFER_ORIGINAL_TIMES,
+            "enforce_min_coverage": self.ENFORCE_MIN_COVERAGE,
+            "allow_overtime": self.ALLOW_OVERTIME,
+            "max_overtime_hours": self.MAX_OVERTIME_HOURS,
+            "respect_availability": self.RESPECT_AVAILABILITY,
+            "enforce_qualifications": self.ENFORCE_QUALIFICATIONS,
+            "enforce_max_hours": self.ENFORCE_MAX_HOURS
         }
