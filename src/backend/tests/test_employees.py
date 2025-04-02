@@ -81,10 +81,6 @@ class TestEmployeeAPI(unittest.TestCase):
 
     def test_get_employees_endpoint(self):
         """Test GET /api/employees endpoint"""
-        # Skip this test until the relationship issues are fixed
-        print("⚠️ Skipping API endpoint test until relationship issues are fixed")
-        return
-        
         try:
             # Make request to endpoint
             response = self.client.get('/api/employees')
@@ -101,18 +97,12 @@ class TestEmployeeAPI(unittest.TestCase):
             self.assertTrue(len(data) > 0)
             print("✓ GET /api/employees endpoint working")
             
-            # Note: CORS headers test removed as CORS is configured at the app level
-            # and not at the individual route level
         except Exception as e:
             print(f"✗ GET /api/employees endpoint test failed: {str(e)}")
             raise
 
     def test_create_employee_endpoint(self):
         """Test POST /api/employees endpoint"""
-        # Skip this test until the relationship issues are fixed
-        print("⚠️ Skipping API endpoint test until relationship issues are fixed")
-        return
-        
         try:
             # Test data
             employee_data = {
