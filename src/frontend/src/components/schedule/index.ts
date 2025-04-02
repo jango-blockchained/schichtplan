@@ -21,9 +21,6 @@ export * from './dialogs/GenerationOverlay';
 export * from './dialogs/AddScheduleDialog';
 export * from './dialogs/SettingsDialog';
 
-// Main page
-export * from './SchedulePage';
-
 // Shift-related components
 export * from './shifts/ShiftEditModal';
 

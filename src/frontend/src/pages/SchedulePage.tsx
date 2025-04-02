@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Schedule, ScheduleError, ScheduleUpdate, ShiftType } from '@/types';
@@ -60,6 +59,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { VersionControl } from '@/components/VersionControl';
 import { ScheduleViewType } from "@/components/schedule/core/ScheduleDisplay";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table2, LayoutGrid, LineChart, Clock, User } from 'lucide-react';
 
 export function SchedulePage() {
   const today = new Date();
@@ -891,53 +892,47 @@ export function SchedulePage() {
       </PageHeader>
 
       {/* Enhanced Date Range Selector with version confirmation */}
-      <CollapsibleSection title="Woche und Zeitraum" defaultOpen={true}>
-        <EnhancedDateRangeSelector
-          dateRange={dateRange}
-          scheduleDuration={scheduleDuration}
-          onWeekChange={handleWeekChange}
-          onDurationChange={handleDurationChange}
-          hasVersions={versions.length > 0}
-          onCreateNewVersion={handleCreateNewVersion}
-          onCreateNewVersionWithOptions={handleCreateNewVersionWithOptions}
-        />
-      </CollapsibleSection>
+      <EnhancedDateRangeSelector
+        dateRange={dateRange}
+        scheduleDuration={scheduleDuration}
+        onWeekChange={handleWeekChange}
+        onDurationChange={handleDurationChange}
+        hasVersions={versions.length > 0}
+        onCreateNewVersion={handleCreateNewVersion}
+        onCreateNewVersionWithOptions={handleCreateNewVersionWithOptions}
+      />
       
       {/* Version Table */}
-      <CollapsibleSection title="Versionen" defaultOpen={true}>
-        <div className="relative">
-          <VersionTable
-            versions={versionMetas || []}
-            selectedVersion={selectedVersion}
-            onSelectVersion={handleVersionChange} 
-            onPublishVersion={handlePublishVersion}
-            onArchiveVersion={handleArchiveVersion}
-            onDeleteVersion={handleDeleteVersion}
-            onDuplicateVersion={handleDuplicateVersion}
-          />
-          <div className="absolute top-0 right-0">
-            <Button 
-              onClick={handleCreateNewVersion} 
-              variant="secondary" 
-              size="sm" 
-              className="flex items-center gap-1"
-            >
-              <Plus className="h-4 w-4" />
-              Neue Version
-            </Button>
-          </div>
+      <div className="relative">
+        <VersionTable
+          versions={versionMetas || []}
+          selectedVersion={selectedVersion}
+          onSelectVersion={handleVersionChange} 
+          onPublishVersion={handlePublishVersion}
+          onArchiveVersion={handleArchiveVersion}
+          onDeleteVersion={handleDeleteVersion}
+          onDuplicateVersion={handleDuplicateVersion}
+        />
+        <div className="absolute top-0 right-0">
+          <Button 
+            onClick={handleCreateNewVersion} 
+            variant="secondary" 
+            size="sm" 
+            className="flex items-center gap-1"
+          >
+            <Plus className="h-4 w-4" />
+            Neue Version
+          </Button>
         </div>
-      </CollapsibleSection>
+      </div>
 
       {/* Add Schedule Statistics if we have data */}
       {!isLoading && !isError && convertedSchedules.length > 0 && dateRange?.from && dateRange?.to && (
-        <CollapsibleSection title="Statistiken" defaultOpen={false}>
-          <StatisticsView
-            schedules={convertedSchedules}
-            employees={employees || []}
-            dateRange={{from: dateRange.from, to: dateRange.to}}
-          />
-        </CollapsibleSection>
+        <StatisticsView
+          schedules={convertedSchedules}
+          employees={employees || []}
+          dateRange={{from: dateRange.from, to: dateRange.to}}
+        />
       )}
 
       {/* Schedule Actions */}
@@ -957,108 +952,157 @@ export function SchedulePage() {
             />
           )}
           <div className="h-6 w-px bg-border mx-2"></div>
+          <ScheduleActions
+            onAddSchedule={handleAddSchedule}
+            onDeleteSchedule={handleDeleteSchedule}
+            isLoading={isUpdating}
+            canAdd={true}
+            canDelete={true}
+          />
         </div>
-        <ScheduleActions
-          onAddSchedule={handleAddSchedule}
-          onDeleteSchedule={handleDeleteSchedule}
-          isLoading={isUpdating}
-          activeView={activeView}
-          onViewChange={handleViewChange}
-        />
+        <div>
+          <Select value={activeView} onValueChange={handleViewChange}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Ansicht wählen" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="table">
+                <div className="flex items-center gap-2">
+                  <Table2 className="h-4 w-4" />
+                  <span>Tabelle</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="grid">
+                <div className="flex items-center gap-2">
+                  <LayoutGrid className="h-4 w-4" />
+                  <span>Zeitraster</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="coverage">
+                <div className="flex items-center gap-2">
+                  <LineChart className="h-4 w-4" />
+                  <span>Abdeckung</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="monthly">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  <span>Monat</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="daily">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  <span>Tag</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="employee">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  <span>Mitarbeiter</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="calendar">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  <span>Kalender</span>
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Schedule Content */}
-      <CollapsibleSection title="Dienstplan" defaultOpen={true}>
-        <DndProvider backend={HTML5Backend}>
-          {isLoading ? (
-            <div className="space-y-4">
-              <Skeleton className="h-[200px] w-full" />
-              <Skeleton className="h-[400px] w-full" />
-            </div>
-          ) : isError ? (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Fehler beim Laden des Dienstplans</AlertTitle>
-              <AlertDescription className="flex flex-col">
-                <div>Failed to fetch schedules: Verbindung zum Server fehlgeschlagen. Bitte überprüfen Sie Ihre Internetverbindung.</div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-2 w-fit"
-                  onClick={handleRetryFetch}
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Erneut versuchen
-                </Button>
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <>
-              {scheduleErrors.length > 0 && <ScheduleErrors errors={scheduleErrors} />}
+      <DndProvider backend={HTML5Backend}>
+        {isLoading ? (
+          <div className="space-y-4">
+            <Skeleton className="h-[200px] w-full" />
+            <Skeleton className="h-[400px] w-full" />
+          </div>
+        ) : isError ? (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Fehler beim Laden des Dienstplans</AlertTitle>
+            <AlertDescription className="flex flex-col">
+              <div>Failed to fetch schedules: Verbindung zum Server fehlgeschlagen. Bitte überprüfen Sie Ihre Internetverbindung.</div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2 w-fit"
+                onClick={handleRetryFetch}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Erneut versuchen
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <>
+            {scheduleErrors.length > 0 && <ScheduleErrors errors={scheduleErrors} />}
 
-              {convertedSchedules.length === 0 && !isLoading && !isError ? (
-                <Card className="mb-4 border-dashed border-2 border-muted">
-                  <CardContent className="flex flex-col items-center justify-center py-8">
-                    <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-medium mb-2">Keine Einträge gefunden</h3>
-                    <p className="text-muted-foreground text-center mb-4">
-                      {versions.length === 0
-                        ? "Für den ausgewählten Zeitraum wurde noch keine Version erstellt."
-                        : "Für den ausgewählten Zeitraum wurden keine Schichtplan-Einträge gefunden."}
-                    </p>
-                    {versions.length === 0 ? (
-                      <Button
-                        onClick={handleCreateNewVersion}
-                        disabled={isLoadingVersions || !dateRange?.from || !dateRange?.to}
-                        className="flex items-center gap-2"
-                      >
+            {convertedSchedules.length === 0 && !isLoading && !isError ? (
+              <Card className="mb-4 border-dashed border-2 border-muted">
+                <CardContent className="flex flex-col items-center justify-center py-8">
+                  <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-2">Keine Einträge gefunden</h3>
+                  <p className="text-muted-foreground text-center mb-4">
+                    {versions.length === 0
+                      ? "Für den ausgewählten Zeitraum wurde noch keine Version erstellt."
+                      : "Für den ausgewählten Zeitraum wurden keine Schichtplan-Einträge gefunden."}
+                  </p>
+                  {versions.length === 0 ? (
+                    <Button
+                      onClick={handleCreateNewVersion}
+                      disabled={isLoadingVersions || !dateRange?.from || !dateRange?.to}
+                      className="flex items-center gap-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Erste Version erstellen
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={handleGenerateSchedule}
+                      disabled={isGenerationPending || !selectedVersion}
+                      className="flex items-center gap-2"
+                    >
+                      {isGenerationPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
                         <Plus className="h-4 w-4" />
-                        Erste Version erstellen
-                      </Button>
-                    ) : (
-                      <Button
-                        onClick={handleGenerateSchedule}
-                        disabled={isGenerationPending || !selectedVersion}
-                        className="flex items-center gap-2"
-                      >
-                        {isGenerationPending ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Plus className="h-4 w-4" />
-                        )}
-                        Schichtplan generieren
-                      </Button>
-                    )}
-                    {!selectedVersion && versions.length > 0 && (
-                      <p className="text-sm text-muted-foreground mt-2">
-                        Bitte wählen Sie eine Version aus, um den Dienstplan zu generieren.
-                      </p>
-                    )}
-                    {(!dateRange?.from || !dateRange?.to) && versions.length === 0 && (
-                      <p className="text-sm text-muted-foreground mt-2">
-                        Bitte wählen Sie einen Datumsbereich aus, um eine Version zu erstellen.
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="relative">
-                  <ScheduleDisplay
-                    viewType={activeView}
-                    schedules={convertedSchedules}
-                    dateRange={dateRange}
-                    onDrop={handleShiftDrop}
-                    onUpdate={handleShiftUpdate}
-                    isLoading={isUpdating}
-                    employeeAbsences={employeeAbsences}
-                    absenceTypes={settingsData?.employee_groups?.absence_types}
-                  />
-                </div>
-              )}
-            </>
-          )}
-        </DndProvider>
-      </CollapsibleSection>
+                      )}
+                      Schichtplan generieren
+                    </Button>
+                  )}
+                  {!selectedVersion && versions.length > 0 && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Bitte wählen Sie eine Version aus, um den Dienstplan zu generieren.
+                    </p>
+                  )}
+                  {(!dateRange?.from || !dateRange?.to) && versions.length === 0 && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Bitte wählen Sie einen Datumsbereich aus, um eine Version zu erstellen.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="relative">
+                <ScheduleDisplay
+                  viewType={activeView}
+                  schedules={convertedSchedules}
+                  dateRange={dateRange}
+                  onDrop={handleShiftDrop}
+                  onUpdate={handleShiftUpdate}
+                  isLoading={isUpdating}
+                  employeeAbsences={employeeAbsences}
+                  absenceTypes={settingsData?.employee_groups?.absence_types}
+                />
+              </div>
+            )}
+          </>
+        )}
+      </DndProvider>
 
       {/* Use our extracted components */}
       <GenerationOverlay
@@ -1070,12 +1114,11 @@ export function SchedulePage() {
         addGenerationLog={addGenerationLog}
       />
 
-      <CollapsibleSection title="Logs" defaultOpen={false}>
-        <GenerationLogs
-          logs={generationLogs}
-          clearLogs={clearGenerationLogs}
-        />
-      </CollapsibleSection>
+      {/* Generation Logs */}
+      <GenerationLogs
+        logs={generationLogs}
+        clearLogs={clearGenerationLogs}
+      />
 
       {/* Add Schedule Dialog */}
       {isAddScheduleDialogOpen && selectedVersion && (

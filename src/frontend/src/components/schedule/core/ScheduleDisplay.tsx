@@ -13,6 +13,7 @@ import { ShiftsTableView } from '@/components/schedule/views/ShiftsTableView';
 import { VersionsView } from '@/components/schedule/views/VersionsView';
 import { OverviewView } from '@/components/schedule/views/OverviewView';
 import { StatisticsView } from '@/components/schedule/views/StatisticsView';
+import { ScheduleTable } from '@/components/schedule/views/ScheduleTable';
 
 // Extended view types to include all available views
 export type ScheduleViewType = 'table' | 'grid' | 'coverage' | 'monthly' | 'daily' | 'employee' | 'calendar' | 'shifts' | 'versions' | 'overview' | 'statistics';
@@ -82,7 +83,7 @@ export const ScheduleDisplay = ({
     // Render appropriate view based on viewType
     switch (viewType) {
         case 'table':
-            return <TimeGridView {...viewProps} />;
+            return <ScheduleTable {...viewProps} />;
         case 'grid':
             return <TimeGridView {...viewProps} />;
         case 'coverage':

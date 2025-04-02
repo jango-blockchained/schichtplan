@@ -12,7 +12,13 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+    Select, 
+    SelectContent, 
+    SelectItem, 
+    SelectTrigger, 
+    SelectValue 
+} from '@/components/ui/select';
 import { ScheduleViewType } from '@/components/schedule/core/ScheduleDisplay';
 
 interface ScheduleActionsProps {
@@ -77,40 +83,57 @@ export function ScheduleActions({
                 )}
             </div>
             
-            {/* View Selector */}
+            {/* View Selector Dropdown */}
             {onViewChange && (
-                <Tabs value={activeView} onValueChange={onViewChange as any} className="w-auto">
-                    <TabsList>
-                        <TabsTrigger value="table" className="flex items-center gap-1">
-                            <Table2 className="h-4 w-4" />
-                            <span className="hidden sm:inline">Tabelle</span>
-                        </TabsTrigger>
-                        <TabsTrigger value="grid" className="flex items-center gap-1">
-                            <LayoutGrid className="h-4 w-4" />
-                            <span className="hidden sm:inline">Zeitraster</span>
-                        </TabsTrigger>
-                        <TabsTrigger value="coverage" className="flex items-center gap-1">
-                            <LineChart className="h-4 w-4" />
-                            <span className="hidden sm:inline">Abdeckung</span>
-                        </TabsTrigger>
-                        <TabsTrigger value="monthly" className="flex items-center gap-1">
-                            <Calendar className="h-4 w-4" />
-                            <span className="hidden sm:inline">Monat</span>
-                        </TabsTrigger>
-                        <TabsTrigger value="daily" className="flex items-center gap-1">
-                            <Clock className="h-4 w-4" />
-                            <span className="hidden sm:inline">Tag</span>
-                        </TabsTrigger>
-                        <TabsTrigger value="employee" className="flex items-center gap-1">
-                            <User className="h-4 w-4" />
-                            <span className="hidden sm:inline">Mitarbeiter</span>
-                        </TabsTrigger>
-                        <TabsTrigger value="calendar" className="flex items-center gap-1">
-                            <Calendar className="h-4 w-4" />
-                            <span className="hidden sm:inline">Kalender</span>
-                        </TabsTrigger>
-                    </TabsList>
-                </Tabs>
+                <Select value={activeView} onValueChange={onViewChange}>
+                    <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Ansicht wählen" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="table">
+                            <div className="flex items-center gap-2">
+                                <Table2 className="h-4 w-4" />
+                                <span>Tabelle</span>
+                            </div>
+                        </SelectItem>
+                        <SelectItem value="grid">
+                            <div className="flex items-center gap-2">
+                                <LayoutGrid className="h-4 w-4" />
+                                <span>Zeitraster</span>
+                            </div>
+                        </SelectItem>
+                        <SelectItem value="coverage">
+                            <div className="flex items-center gap-2">
+                                <LineChart className="h-4 w-4" />
+                                <span>Abdeckung</span>
+                            </div>
+                        </SelectItem>
+                        <SelectItem value="monthly">
+                            <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4" />
+                                <span>Monat</span>
+                            </div>
+                        </SelectItem>
+                        <SelectItem value="daily">
+                            <div className="flex items-center gap-2">
+                                <Clock className="h-4 w-4" />
+                                <span>Tag</span>
+                            </div>
+                        </SelectItem>
+                        <SelectItem value="employee">
+                            <div className="flex items-center gap-2">
+                                <User className="h-4 w-4" />
+                                <span>Mitarbeiter</span>
+                            </div>
+                        </SelectItem>
+                        <SelectItem value="calendar">
+                            <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4" />
+                                <span>Kalender</span>
+                            </div>
+                        </SelectItem>
+                    </SelectContent>
+                </Select>
             )}
         </div>
     );
