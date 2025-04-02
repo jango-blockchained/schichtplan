@@ -3,30 +3,28 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { WeeklySchedule } from '@/types';
+import { WeeklySchedule, Schedule, ScheduleUpdate, Settings } from '@/types';
 import { format, addDays, isWeekend, isValid, isSameDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import { useState, useCallback, useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { AlertCircle, Edit2, Loader2, CalendarDays, Info, User } from 'lucide-react';
+import { AlertCircle, Edit2, Loader2, CalendarDays, Info, User, Clock, Check, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { useQuery } from '@tanstack/react-query';
-import { getSettings } from '@/services/api';
-import { Schedule, ScheduleUpdate, Settings } from '@/types';
+import { getSettings, getShifts, getEmployees } from '@/services/api';
 import { DateRange } from 'react-day-picker';
-import { getShifts, getEmployees } from '@/services/api';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-    Popover, 
-    PopoverContent, 
-    PopoverTrigger 
-} from '@/components/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Check, Clock, X } from 'lucide-react';
+import { 
+  ScheduleTableWrapper,
+  EmployeeCell,
+  ShiftTypeBadge,
+  TimeRangeDisplay
+} from '../shared';
 
 interface ShiftTableProps {
   weekStart: Date;
@@ -621,31 +619,65 @@ export const ShiftsTableView = ({
         });
     };
 
-    // Render absence badge
-    const renderAbsenceBadge = (absence: any) => {
-        if (!absence || !absenceTypes) return null;
-        
-        const absenceType = absenceTypes.find(type => type.id === absence.absence_type);
-        const style = absenceType ? 
-            { backgroundColor: `${absenceType.color}20`, color: absenceType.color, borderColor: absenceType.color } :
-            { backgroundColor: '#ff000020', color: '#ff0000', borderColor: '#ff0000' };
-            
-        return (
-            <Badge variant="outline" style={style} className="text-xs">
-                {absenceType?.name || 'Abwesend'}
-            </Badge>
-        );
-    };
-
     // Get shift details
     const getShiftDetails = (shiftId: number) => {
         if (!shifts) return null;
         return shifts.find(shift => shift.id === shiftId);
     };
 
+    // Create header content for the table
+    const headerContent = (
+        <Popover>
+            <PopoverTrigger asChild>
+                <Button variant="outline" className="justify-start text-left font-normal">
+                    <CalendarDays className="mr-2 h-4 w-4" />
+                    {selectedDate ? (
+                        format(selectedDate, 'EEEE, dd. MMMM yyyy', { locale: de })
+                    ) : (
+                        <span>Datum wählen</span>
+                    )}
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0">
+                <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={setSelectedDate}
+                    disabled={dateDisabledFn}
+                    fromDate={dateRange.from}
+                    toDate={dateRange.to}
+                    modifiers={{
+                        weekend: (date) => isWeekend(date)
+                    }}
+                    modifiersClassNames={{
+                        weekend: 'bg-muted/50'
+                    }}
+                    initialFocus
+                />
+            </PopoverContent>
+        </Popover>
+    );
+
+    // Create optional footer content
+    const footerContent = (
+        selectedDate && !isOpeningDay(selectedDate) ? (
+            <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                    Der ausgewählte Tag ist kein regulärer Öffnungstag laut Filialeinstellungen.
+                </AlertDescription>
+            </Alert>
+        ) : null
+    );
+
     // Loading state
     if (isLoading || isLoadingEmployees || isLoadingShifts) {
-        return <Skeleton className="w-full h-[600px]" />;
+        return (
+            <ScheduleTableWrapper
+                title="Schichten"
+                isLoading={true}
+            />
+        );
     }
 
     // No date range selected
@@ -658,183 +690,127 @@ export const ShiftsTableView = ({
         );
     }
 
-    // No schedules
-    if (schedules.length === 0) {
-        return (
-            <Alert>
-                <Info className="h-4 w-4" />
-                <AlertDescription>Keine Schichten im ausgewählten Zeitraum gefunden</AlertDescription>
-            </Alert>
-        );
-    }
+    // Check if we have any schedules
+    const isEmpty = selectedDateSchedules.length === 0;
 
     return (
-        <div className="py-4">
-            <Card>
-                <CardHeader>
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <CardTitle>Schichten</CardTitle>
-                        <div className="flex items-center gap-4">
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button variant="outline" className="justify-start text-left font-normal">
-                                        <CalendarDays className="mr-2 h-4 w-4" />
-                                        {selectedDate ? (
-                                            format(selectedDate, 'EEEE, dd. MMMM yyyy', { locale: de })
-                                        ) : (
-                                            <span>Datum wählen</span>
-                                        )}
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0">
-                                    <Calendar
-                                        mode="single"
-                                        selected={selectedDate}
-                                        onSelect={setSelectedDate}
-                                        disabled={dateDisabledFn}
-                                        fromDate={dateRange.from}
-                                        toDate={dateRange.to}
-                                        modifiers={{
-                                            weekend: (date) => isWeekend(date)
-                                        }}
-                                        modifiersClassNames={{
-                                            weekend: 'bg-muted/50'
-                                        }}
-                                        initialFocus
-                                    />
-                                </PopoverContent>
-                            </Popover>
-                        </div>
-                    </div>
-                </CardHeader>
-
-                {selectedDate && !isOpeningDay(selectedDate) && (
-                    <div className="px-6 pt-1 pb-2">
-                        <Alert>
-                            <Info className="h-4 w-4" />
-                            <AlertDescription>
-                                Der ausgewählte Tag ist kein regulärer Öffnungstag laut Filialeinstellungen.
-                            </AlertDescription>
-                        </Alert>
-                    </div>
-                )}
-
-                <CardContent>
-                    {selectedDateSchedules.length === 0 ? (
-                        <div className="text-center py-8 text-muted-foreground">
-                            Keine Schichten für den {selectedDate && format(selectedDate, 'dd.MM.yyyy')} geplant
-                        </div>
-                    ) : (
-                        <div className="space-y-6">
-                            {Object.entries(schedulesByShift).map(([shiftId, shiftSchedules]) => {
-                                const shift = getShiftDetails(parseInt(shiftId));
-                                const shiftTime = shift ? `${shift.start_time} - ${shift.end_time}` : 'Keine Zeitangabe';
-                                
-                                return (
-                                    <div key={shiftId} className="border rounded-md p-4">
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div>
-                                                <h3 className="text-lg font-semibold">
-                                                    Schicht {shift?.name || `#${shiftId}`}
-                                                </h3>
-                                                <div className="flex items-center mt-1 text-sm text-muted-foreground">
-                                                    <Clock className="mr-1 h-4 w-4" />
-                                                    {shiftTime}
-                                                </div>
-                                            </div>
-                                            <Badge>{shiftSchedules.length} Mitarbeiter</Badge>
-                                        </div>
-                                        
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>Mitarbeiter</TableHead>
-                                                    <TableHead>Rolle</TableHead>
-                                                    <TableHead>Status</TableHead>
-                                                    <TableHead className="text-right">Info</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {shiftSchedules.map((schedule) => {
-                                                    const employee = employees?.find(emp => emp.id === schedule.employee_id);
-                                                    const absence = selectedDate && 
-                                                        getEmployeeAbsence(schedule.employee_id, selectedDate);
-                                                    
-                                                    return (
-                                                        <TableRow 
-                                                            key={schedule.id}
-                                                            className={cn(
-                                                                absence ? "bg-red-50" : "",
-                                                                schedule.status === 'CONFIRMED' ? "bg-green-50/30" : "",
-                                                                schedule.status === 'PENDING' ? "bg-blue-50/30" : "",
-                                                                schedule.status === 'DECLINED' ? "bg-red-50/30" : ""
-                                                            )}
-                                                        >
-                                                            <TableCell>
-                                                                <div className="flex flex-col">
-                                                                    <div className="font-medium flex items-center">
-                                                                        <User className="h-4 w-4 mr-2 text-muted-foreground" />
-                                                                        {employee ? 
-                                                                            `${employee.first_name} ${employee.last_name}` : 
-                                                                            `Mitarbeiter #${schedule.employee_id}`
-                                                                        }
-                                                                    </div>
-                                                                    {absence && (
-                                                                        <div className="mt-1">
-                                                                            {renderAbsenceBadge(absence)}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </TableCell>
-                                                            <TableCell>
-                                                                {schedule.is_keyholder ? (
-                                                                    <Badge variant="default">Schlüsselträger</Badge>
-                                                                ) : schedule.role || '-'}
-                                                            </TableCell>
-                                                            <TableCell>
-                                                                <div className="flex items-center">
-                                                                    {schedule.status === 'CONFIRMED' && (
-                                                                        <Check className="h-4 w-4 mr-1 text-green-500" />
-                                                                    )}
-                                                                    {schedule.status === 'PENDING' && (
-                                                                        <Clock className="h-4 w-4 mr-1 text-amber-500" />
-                                                                    )}
-                                                                    {schedule.status === 'DECLINED' && (
-                                                                        <X className="h-4 w-4 mr-1 text-red-500" />
-                                                                    )}
-                                                                    <Badge 
-                                                                        variant={
-                                                                            schedule.status === 'CONFIRMED' ? 'default' :
-                                                                            schedule.status === 'PENDING' ? 'secondary' : 
-                                                                            'outline'
-                                                                        }
-                                                                    >
-                                                                        {schedule.status === 'CONFIRMED' ? 'Bestätigt' :
-                                                                         schedule.status === 'PENDING' ? 'Ausstehend' : 
-                                                                         schedule.status === 'DECLINED' ? 'Abgelehnt' : 
-                                                                         schedule.status || '-'}
-                                                                    </Badge>
-                                                                </div>
-                                                            </TableCell>
-                                                            <TableCell className="text-right">
-                                                                {schedule.notes && (
-                                                                    <Badge variant="outline" className="ml-2">
-                                                                        Notiz
-                                                                    </Badge>
-                                                                )}
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    );
-                                                })}
-                                            </TableBody>
-                                        </Table>
+        <ScheduleTableWrapper
+            title="Schichten"
+            headerContent={headerContent}
+            footerContent={footerContent}
+            isEmpty={isEmpty}
+            emptyMessage={`Keine Schichten für den ${selectedDate ? format(selectedDate, 'dd.MM.yyyy') : ''} geplant`}
+        >
+            <div className="space-y-6 p-6">
+                {Object.entries(schedulesByShift).map(([shiftId, shiftSchedules]) => {
+                    const shift = getShiftDetails(parseInt(shiftId));
+                    
+                    return (
+                        <div key={shiftId} className="border rounded-md p-4">
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                                        <ShiftTypeBadge 
+                                            type={shift?.type || 'MIDDLE'} 
+                                            name={shift?.name || `Schicht #${shiftId}`} 
+                                        />
+                                    </h3>
+                                    <div className="mt-2">
+                                        <TimeRangeDisplay 
+                                            startTime={shift?.start_time} 
+                                            endTime={shift?.end_time}
+                                            shiftType={shift?.type}
+                                        />
                                     </div>
-                                );
-                            })}
+                                </div>
+                                <Badge>{shiftSchedules.length} Mitarbeiter</Badge>
+                            </div>
+                            
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Mitarbeiter</TableHead>
+                                        <TableHead>Rolle</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead className="text-right">Info</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {shiftSchedules.map((schedule) => {
+                                        const employee = employees?.find(emp => emp.id === schedule.employee_id);
+                                        const absence = selectedDate && 
+                                            getEmployeeAbsence(schedule.employee_id, selectedDate);
+                                        
+                                        return (
+                                            <TableRow 
+                                                key={schedule.id}
+                                                className={cn(
+                                                    schedule.status === 'CONFIRMED' ? "bg-green-50/30" : "",
+                                                    schedule.status === 'PENDING' ? "bg-blue-50/30" : "",
+                                                    schedule.status === 'DECLINED' ? "bg-red-50/30" : ""
+                                                )}
+                                            >
+                                                <TableCell>
+                                                    <EmployeeCell 
+                                                        firstName={employee?.first_name}
+                                                        lastName={employee?.last_name}
+                                                        id={schedule.employee_id}
+                                                        role={schedule.role}
+                                                        isKeyHolder={schedule.is_keyholder}
+                                                        absence={absence ? {
+                                                            type: absence.absence_type,
+                                                            name: absenceTypes?.find(t => t.id === absence.absence_type)?.name || 'Abwesend',
+                                                            color: absenceTypes?.find(t => t.id === absence.absence_type)?.color || '#ff0000'
+                                                        } : undefined}
+                                                        showAbsence={!!absence}
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    {schedule.is_keyholder ? (
+                                                        <Badge variant="default">Schlüsselträger</Badge>
+                                                    ) : schedule.role || '-'}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex items-center">
+                                                        {schedule.status === 'CONFIRMED' && (
+                                                            <Check className="h-4 w-4 mr-1 text-green-500" />
+                                                        )}
+                                                        {schedule.status === 'PENDING' && (
+                                                            <Clock className="h-4 w-4 mr-1 text-amber-500" />
+                                                        )}
+                                                        {schedule.status === 'DECLINED' && (
+                                                            <X className="h-4 w-4 mr-1 text-red-500" />
+                                                        )}
+                                                        <Badge 
+                                                            variant={
+                                                                schedule.status === 'CONFIRMED' ? 'default' :
+                                                                schedule.status === 'PENDING' ? 'secondary' : 
+                                                                'outline'
+                                                            }
+                                                        >
+                                                            {schedule.status === 'CONFIRMED' ? 'Bestätigt' :
+                                                                schedule.status === 'PENDING' ? 'Ausstehend' : 
+                                                                schedule.status === 'DECLINED' ? 'Abgelehnt' : 
+                                                                schedule.status || '-'}
+                                                        </Badge>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    {schedule.notes && (
+                                                        <Badge variant="outline" className="ml-2">
+                                                            Notiz
+                                                        </Badge>
+                                                    )}
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
+                                </TableBody>
+                            </Table>
                         </div>
-                    )}
-                </CardContent>
-            </Card>
-        </div>
+                    );
+                })}
+            </div>
+        </ScheduleTableWrapper>
     );
 };
