@@ -67,9 +67,15 @@ def setup_logging(app):
     app.logger.info("Backend startup")
 
 
-def create_app(config_class=Config):
+def create_app(config_class=Config, testing=False):
     app = Flask(__name__)
     app.config.from_object(config_class)
+    
+    # Configure for testing if needed
+    if testing:
+        app.config["TESTING"] = True
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+        app.config["WTF_CSRF_ENABLED"] = False
 
     # Configure CORS
     CORS(

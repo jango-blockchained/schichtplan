@@ -174,19 +174,35 @@ class DistributionManager:
                 if self.is_shift_assigned(shift, assignments):
                     continue
 
-                shift_template = None
+                # Extract shift information - fix to handle both dictionary and object types
+                shift_id = None
                 if isinstance(shift, dict):
-                    shift_template = shift
+                    shift_id = shift.get("shift_id")
+                    if shift_id is None:  # Try alternate field names
+                        shift_id = shift.get("id")
                 else:
-                    # Convert shift object to dictionary
-                    shift_template = {
-                        "id": getattr(shift, "id", None),
-                        "date": current_date,
-                        "start_time": getattr(shift, "start_time", None),
-                        "end_time": getattr(shift, "end_time", None),
-                        "shift_type": shift_type,
-                    }
-
+                    shift_id = getattr(shift, "shift_id", None)
+                    if shift_id is None:
+                        shift_id = getattr(shift, "id", None)
+                
+                if shift_id is None:
+                    self.logger.warning(f"Could not determine shift ID for shift: {shift}")
+                    continue
+                
+                # Get shift start/end times
+                start_time = None
+                end_time = None
+                if isinstance(shift, dict):
+                    start_time = shift.get("start_time")
+                    end_time = shift.get("end_time")
+                else:
+                    start_time = getattr(shift, "start_time", None)
+                    end_time = getattr(shift, "end_time", None)
+                
+                if not start_time or not end_time:
+                    self.logger.warning(f"Shift {shift_id} missing time information")
+                    continue
+                
                 # Find an available employee for this shift
                 assigned = False
                 for employee, _ in sorted_employees:
@@ -202,21 +218,23 @@ class DistributionManager:
                     ):  # Max 5 shifts per week
                         assignment = {
                             "employee_id": employee_id,
-                            "shift_id": shift_template.get("id"),
+                            "shift_id": shift_id,
                             "date": current_date,
-                            "start_time": shift_template.get("start_time"),
-                            "end_time": shift_template.get("end_time"),
+                            "start_time": start_time,
+                            "end_time": end_time,
                             "shift_type": shift_type,
+                            "status": "GENERATED"
                         }
 
                         assignments.append(assignment)
                         self.assignments_by_employee[employee_id].append(assignment)
                         assigned = True
+                        self.logger.info(f"Assigned employee {employee_id} to shift {shift_id} on {current_date}")
                         break
 
                 if not assigned:
                     self.logger.warning(
-                        f"Could not assign shift {shift_template.get('id')} of type {shift_type}"
+                        f"Could not assign shift {shift_id} of type {shift_type}"
                     )
 
             self.logger.info(
@@ -231,17 +249,33 @@ class DistributionManager:
 
     def is_shift_assigned(self, shift: Any, assignments: List[Dict]) -> bool:
         """Check if a shift has already been assigned"""
-        shift_id = (
-            shift.get("id") if isinstance(shift, dict) else getattr(shift, "id", None)
-        )
+        # Extract shift_id from various possible formats
+        shift_id = None
+        if isinstance(shift, dict):
+            shift_id = shift.get("shift_id")
+            if shift_id is None:  # Try alternate field names
+                shift_id = shift.get("id")
+        else:
+            shift_id = getattr(shift, "shift_id", None)
+            if shift_id is None:
+                shift_id = getattr(shift, "id", None)
+                
         if shift_id is None:
+            self.logger.warning(f"Could not determine shift ID for shift: {shift}")
             return False
 
-        return any(
-            (isinstance(a, dict) and a.get("shift_id") == shift_id)
-            or (hasattr(a, "shift_id") and a.shift_id == shift_id)
-            for a in assignments
-        )
+        # Check each assignment to see if this shift is already assigned
+        for a in assignments:
+            assignment_shift_id = None
+            if isinstance(a, dict):
+                assignment_shift_id = a.get("shift_id")
+            else:
+                assignment_shift_id = getattr(a, "shift_id", None)
+                
+            if assignment_shift_id == shift_id:
+                return True
+                
+        return False
 
     def initialize(self, employees, historical_data=None, shifts=None, resources=None):
         """Initialize the distribution manager with employee and historical data"""
@@ -1074,11 +1108,15 @@ class DistributionManager:
         self, date_to_check: date, shifts: List[Any] = None
     ) -> List[Employee]:
         """Get all employees available on the given date"""
+        self.logger.info(f"Finding available employees for date {date_to_check}")
         available_employees = []
-
+        employees_checked = 0
+        
         for employee in self.resources.employees:
+            employees_checked += 1
             # Skip inactive employees
             if hasattr(employee, "is_active") and not employee.is_active:
+                self.logger.debug(f"Employee {employee.id} is inactive, skipping")
                 continue
 
             # Check if employee is on leave (if availability checker exists)
@@ -1088,36 +1126,70 @@ class DistributionManager:
                     employee.id, date_to_check
                 )
             ):
+                self.logger.debug(f"Employee {employee.id} is on leave on {date_to_check}, skipping")
                 continue
 
-            # If shifts are provided and we have an availability checker, check availability for each shift
-            if shifts and self.availability_checker:
-                for shift in shifts:
-                    shift_template = None
-                    if isinstance(shift, dict):
-                        shift_template = self.resources.get_shift(shift.get("shift_id"))
-                    else:
-                        shift_template = self.resources.get_shift(
-                            getattr(shift, "id", None)
-                        )
+            # If no shifts provided or no availability checker, add employee as available
+            if not shifts or not self.availability_checker:
+                self.logger.debug(f"Adding employee {employee.id} to available list (no shift check)")
+                available_employees.append(employee)
+                continue
+                
+            # For each shift, check if employee is available
+            for shift in shifts:
+                shift_template = None
+                if isinstance(shift, dict):
+                    shift_id = shift.get("shift_id")
+                    if shift_id is None:
+                        shift_id = shift.get("id")
+                    if shift_id is not None:
+                        shift_template = self.resources.get_shift(shift_id)
+                else:
+                    shift_id = getattr(shift, "id", None)
+                    if shift_id is not None:
+                        shift_template = self.resources.get_shift(shift_id)
 
-                    if shift_template:
+                if shift_template:
+                    try:
                         is_available, _ = (
                             self.availability_checker.is_employee_available(
                                 employee.id, date_to_check, shift_template
                             )
                         )
                         if is_available:
+                            self.logger.debug(f"Employee {employee.id} is available for shift {shift_id} on {date_to_check}")
                             available_employees.append(employee)
+                            # One available shift is enough
                             break
-            else:
-                # Add to available list if no availability checker or no shifts specified
-                available_employees.append(employee)
+                    except Exception as e:
+                        self.logger.warning(f"Error checking availability for employee {employee.id}: {str(e)}")
+                else:
+                    # If we can't get the shift template, assume employee is available
+                    self.logger.debug(f"Could not get shift template {shift}, assuming available")
+                    available_employees.append(employee)
+                    break
+
+        # Remove duplicates
+        unique_employees = []
+        seen_ids = set()
+        for employee in available_employees:
+            employee_id = employee.id
+            if employee_id not in seen_ids:
+                seen_ids.add(employee_id)
+                unique_employees.append(employee)
 
         self.logger.info(
-            f"Found {len(available_employees)} available employees for date {date_to_check}"
+            f"Found {len(unique_employees)} available employees out of {employees_checked} checked for date {date_to_check}"
         )
-        return available_employees
+        
+        # If no employees are available, add all employees (fallback)
+        if not unique_employees:
+            self.logger.warning(f"No available employees found for date {date_to_check}, using all employees as fallback")
+            for employee in self.resources.employees:
+                if hasattr(employee, "is_active") and employee.is_active:
+                    unique_employees.append(employee)
+                    
+        return unique_employees
 
     def get_employee_assignment_stats(
         self, employees: List[Employee]

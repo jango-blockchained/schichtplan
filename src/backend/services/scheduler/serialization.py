@@ -148,7 +148,24 @@ class ScheduleSerializer:
             return {}
 
         try:
-            # Get basic entry properties
+            # Handle the case where entry is already a dictionary
+            if isinstance(entry, dict):
+                # Make a copy to avoid modifying the original
+                entry_dict = entry.copy()
+                
+                # Ensure date is properly formatted
+                if 'date' in entry_dict and entry_dict['date'] is not None:
+                    entry_dict['date'] = self.format_date(entry_dict['date'])
+                
+                # Add any missing default fields
+                if 'version' not in entry_dict:
+                    entry_dict['version'] = 1
+                if 'status' not in entry_dict:
+                    entry_dict['status'] = 'PENDING'
+                    
+                return entry_dict
+            
+            # Handle the case where entry is an object
             entry_dict = {
                 "id": getattr(entry, "id", None),
                 "employee_id": getattr(entry, "employee_id", None),
@@ -166,6 +183,16 @@ class ScheduleSerializer:
 
             if hasattr(entry, "availability_type") and entry.availability_type:
                 entry_dict["availability_type"] = entry.availability_type
+                
+            # Add start/end times if available
+            if hasattr(entry, "start_time") and entry.start_time:
+                entry_dict["start_time"] = entry.start_time
+                
+            if hasattr(entry, "end_time") and entry.end_time:
+                entry_dict["end_time"] = entry.end_time
+                
+            if hasattr(entry, "shift_type") and entry.shift_type:
+                entry_dict["shift_type"] = entry.shift_type
 
             return entry_dict
 

@@ -13,9 +13,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 @pytest.fixture(scope="session")
 def app():
     """Create application for the tests."""
-    _app = create_app()
-    _app.config["TESTING"] = True
-    _app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+    _app = create_app(testing=True)
 
     # Other test config setup here
     return _app

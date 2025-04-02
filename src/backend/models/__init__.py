@@ -1,26 +1,38 @@
+"""
+Database models initialization
+"""
+
 from flask_sqlalchemy import SQLAlchemy
 
+# Create a database instance
 db = SQLAlchemy()
 
-# Import models after db is defined to avoid circular imports
+# Import models after db instantiation to avoid circular imports
+from .employee import Employee, EmployeeGroup
+from .fixed_shift import ShiftTemplate, ShiftType, ShiftPattern
 from .settings import Settings
-from .fixed_shift import ShiftTemplate, ShiftType
-from .employee import Employee, EmployeeAvailability, EmployeeGroup
-from .schedule import Schedule, ScheduleVersionMeta, ScheduleStatus
+from .schedule import Schedule, ScheduleStatus, ScheduleVersionMeta
+from .coverage import Coverage, RecurringCoverage
 from .absence import Absence
-from .coverage import Coverage
+from .availability import EmployeeAvailability, AvailabilityType as AvailabilityTypeEnum
+from .version import VersionMeta
 
+# Export all models for ease of import
 __all__ = [
     "db",
-    "Settings",
+    "Employee",
+    "EmployeeGroup",
     "ShiftTemplate",
     "ShiftType",
-    "Employee",
+    "ShiftPattern",
+    "Settings",
     "Schedule",
-    "ScheduleVersionMeta",
     "ScheduleStatus",
-    "EmployeeAvailability",
-    "EmployeeGroup",
-    "Absence",
+    "ScheduleVersionMeta",
     "Coverage",
+    "RecurringCoverage",
+    "Absence",
+    "EmployeeAvailability",
+    "AvailabilityTypeEnum",
+    "VersionMeta",
 ]

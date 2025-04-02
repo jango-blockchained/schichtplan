@@ -224,17 +224,66 @@ class ScheduleResources:
                 logger.error("No shift templates found in database")
                 raise ScheduleResourceError("No shift templates found")
 
-            # Log shift details
+            # Log shift details and calculate durations if missing
             for shift in shifts:
+                # Ensure each shift has a duration calculated
+                if hasattr(shift, 'duration_hours') and shift.duration_hours is None:
+                    self._calculate_shift_duration(shift)
+                
                 logger.info(
                     f"Loaded shift template: ID={shift.id}, "
                     f"start={shift.start_time}, end={shift.end_time}, "
-                    f"type={shift.shift_type_id}"
+                    f"type={shift.shift_type_id}, "
+                    f"duration={getattr(shift, 'duration_hours', 'N/A')}h"
                 )
             return shifts
         except Exception as e:
             self.logger.error(f"Error loading shifts: {str(e)}")
             return []
+            
+    def _calculate_shift_duration(self, shift):
+        """Calculate duration for a shift if it's missing"""
+        try:
+            if not hasattr(shift, 'start_time') or not hasattr(shift, 'end_time'):
+                return
+                
+            if not shift.start_time or not shift.end_time:
+                return
+                
+            # If shift has a calculate_duration method, use it
+            if hasattr(shift, '_calculate_duration'):
+                shift._calculate_duration()
+                return
+                
+            # Otherwise calculate manually
+            start_parts = shift.start_time.split(':')
+            end_parts = shift.end_time.split(':')
+            
+            if len(start_parts) < 2 or len(end_parts) < 2:
+                return
+                
+            start_hour = int(start_parts[0])
+            start_min = int(start_parts[1])
+            end_hour = int(end_parts[0])
+            end_min = int(end_parts[1])
+            
+            # Handle shifts that span midnight
+            if end_hour < start_hour:
+                end_hour += 24
+                
+            start_minutes = start_hour * 60 + start_min
+            end_minutes = end_hour * 60 + end_min
+            
+            # Calculate duration in hours
+            duration_hours = (end_minutes - start_minutes) / 60.0
+            
+            # Set duration if it's positive
+            if duration_hours > 0:
+                shift.duration_hours = duration_hours
+                self.logger.debug(f"Calculated duration for shift {shift.id}: {duration_hours}h")
+        except Exception as e:
+            self.logger.warning(f"Failed to calculate duration for shift {getattr(shift, 'id', 'unknown')}: {str(e)}")
+            return
 
     def _load_employees(self) -> List[Employee]:
         """Load employees from database"""
@@ -402,6 +451,10 @@ class ScheduleResources:
     def clear_schedule_data(self):
         """Clear all schedule data"""
         self.schedule_data = {}
+
+    def get_employees(self) -> List[Employee]:
+        """Get all employees (for backward compatibility)"""
+        return self.employees
 
     def get_active_employees(self) -> List[Employee]:
         """Get list of active employees (for backward compatibility)"""

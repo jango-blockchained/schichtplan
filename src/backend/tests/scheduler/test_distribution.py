@@ -10,7 +10,11 @@ class TestDistributionManager(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures"""
-        self.manager = DistributionManager()
+        # Create mock resources
+        self.resources = MagicMock()
+        self.resources.get_employees.return_value = []
+        
+        self.manager = DistributionManager(resources=self.resources)
 
         # Create mock employees
         self.employee1 = MagicMock()

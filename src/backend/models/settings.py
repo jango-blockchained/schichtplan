@@ -2,8 +2,19 @@ from datetime import datetime
 from sqlalchemy import Column, Integer, String, JSON, DateTime, Float, Boolean
 from sqlalchemy.orm import deferred
 from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.orm import column_property
 from . import db
 from typing import Dict, Any
+import sqlalchemy as sa
+
+
+# Helper function to create a column that handles columns that don't exist in DB yet
+def safe_column(name, type_, **kwargs):
+    try:
+        return Column(name, type_, **kwargs)
+    except:
+        # Use a deferred column that won't be included in DB operations
+        return deferred(Column(name, type_, **kwargs))
 
 
 class Settings(db.Model):
@@ -107,6 +118,22 @@ class Settings(db.Model):
     min_rest_between_shifts = Column(Float, nullable=False, default=11.0)
     scheduling_period_weeks = Column(Integer, nullable=False, default=4)
     auto_schedule_preferences = Column(Boolean, nullable=False, default=True)
+    
+    # Use safe_column to prevent errors when column doesn't exist in database yet
+    _require_keyholder = safe_column("require_keyholder", Boolean, nullable=False, default=True)
+    
+    @property
+    def require_keyholder(self):
+        """Get the require_keyholder value with fallback to default value"""
+        try:
+            return self._require_keyholder or True
+        except Exception:
+            return True
+            
+    @require_keyholder.setter
+    def require_keyholder(self, value):
+        """Set the require_keyholder value"""
+        self._require_keyholder = value
 
     # Display and Notification Settings
     theme = Column(String(20), nullable=False, default="light")

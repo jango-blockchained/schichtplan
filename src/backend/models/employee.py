@@ -13,29 +13,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 import logging
-
-
-class AvailabilityType(str, Enum):
-    AVAILABLE = "AVAILABLE"  # Available for work
-    FIXED = "FIXED"  # Fixed working hours
-    PREFERRED = "PREFERRED"  # Preferred hours
-    UNAVAILABLE = "UNAVAILABLE"  # Not available
-
-    @property
-    def is_available(self):
-        """Check if this availability type counts as available for scheduling"""
-        return self in [self.AVAILABLE, self.FIXED, self.PREFERRED]
-
-    @property
-    def priority(self):
-        """Get priority for scheduling (lower number = higher priority)"""
-        priorities = {
-            self.FIXED: 1,
-            self.AVAILABLE: 2,
-            self.PREFERRED: 3,
-            self.UNAVAILABLE: 4,
-        }
-        return priorities.get(self, 4)
+from .availability import AvailabilityType  # Import from availability.py for compatibility
 
 
 class EmployeeGroup(str, Enum):
@@ -66,6 +44,7 @@ class Employee(db.Model):
 
     # Relationships
     schedule_entries = relationship("Schedule", back_populates="employee")
+    # Re-enable relationship with fixed import path
     availabilities = relationship(
         "EmployeeAvailability", back_populates="employee", cascade="all, delete-orphan"
     )
@@ -201,108 +180,3 @@ class Employee(db.Model):
 
     def __repr__(self):
         return f"<Employee {self.employee_id}: {self.first_name} {self.last_name}>"
-
-
-class EmployeeAvailability(db.Model):
-    __tablename__ = "employee_availabilities"
-
-    id = Column(Integer, primary_key=True)
-    employee_id = Column(
-        Integer, ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
-    )
-    day_of_week = Column(Integer, nullable=False)
-    hour = Column(Integer, nullable=False)
-    is_available = Column(Boolean, nullable=False, default=True)
-    start_date = Column(Date, nullable=True)
-    end_date = Column(Date, nullable=True)
-    is_recurring = Column(Boolean, nullable=False, default=True)
-    availability_type = Column(
-        SQLEnum(AvailabilityType), nullable=False, default=AvailabilityType.AVAILABLE
-    )
-    created_at = Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(
-        db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
-    )
-
-    employee = relationship("Employee", back_populates="availabilities")
-
-    def __init__(
-        self,
-        employee_id,
-        day_of_week,
-        hour,
-        is_available=True,
-        start_date=None,
-        end_date=None,
-        is_recurring=True,
-        availability_type=AvailabilityType.AVAILABLE,
-    ):
-        self.employee_id = employee_id
-        self.day_of_week = day_of_week
-        self.hour = hour
-        self.is_available = is_available
-        self.start_date = start_date
-        self.end_date = end_date
-        self.is_recurring = is_recurring
-        self.availability_type = availability_type
-
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "employee_id": self.employee_id,
-            "day_of_week": self.day_of_week,
-            "hour": self.hour,
-            "is_available": self.is_available,
-            "start_date": self.start_date.isoformat() if self.start_date else None,
-            "end_date": self.end_date.isoformat() if self.end_date else None,
-            "is_recurring": self.is_recurring,
-            "availability_type": self.availability_type.value,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
-        }
-
-    def is_available_for_date(
-        self, check_date: date, shift_start: str = None, shift_end: str = None
-    ) -> bool:
-        """Check if the availability applies for a given date and shift times."""
-        # First check if the availability applies to this date
-        if not self.is_recurring:
-            if not (self.start_date and self.end_date):
-                return False
-            if not (self.start_date <= check_date <= self.end_date):
-                return False
-
-        # Check if this availability applies to the given day of week
-        if self.day_of_week != check_date.weekday():
-            return False
-
-        # If no shift times provided, just check the date and availability
-        if shift_start is None or shift_end is None:
-            return self.is_available is True
-
-        # For FIXED and PREFERRED availability types, they are available for any shift time
-        if self.availability_type in [
-            AvailabilityType.FIXED,
-            AvailabilityType.PREFERRED,
-        ]:
-            return self.is_available is True
-
-        # Convert shift times to hours
-        start_hour = int(shift_start.split(":")[0])
-        end_hour = int(shift_end.split(":")[0])
-
-        # For AVAILABLE type, check if the availability hour overlaps with the shift hours
-        # The employee needs to be available for at least one hour during the shift
-        # Use 'is True' for SQLAlchemy boolean comparison
-        if self.is_available is not True:
-            return False
-
-        # Check if the availability hour overlaps with the shift hours
-        return (
-            (
-                self.hour >= start_hour and self.hour < end_hour
-            )  # Hour is within shift time
-            or (
-                self.hour + 1 > start_hour and self.hour < end_hour
-            )  # Hour overlaps with shift
-        )

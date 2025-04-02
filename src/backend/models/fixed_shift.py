@@ -38,6 +38,62 @@ class ShiftValidationError(Exception):
     pass
 
 
+class ShiftPattern(db.Model):
+    """
+    Model for storing recurring shift patterns.
+    Patterns can be assigned to days of the week and used in scheduling.
+    """
+    __tablename__ = "shift_patterns"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    description = db.Column(db.Text, nullable=True)
+    shifts = db.Column(db.JSON, nullable=False, default=list)  # List of shift IDs
+    active_days = db.Column(db.JSON, nullable=False, default=lambda: {
+        "0": False,  # Sunday
+        "1": True,   # Monday
+        "2": True,   # Tuesday
+        "3": True,   # Wednesday
+        "4": True,   # Thursday
+        "5": True,   # Friday
+        "6": True,   # Saturday
+    })
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def __init__(self, name, shifts=None, active_days=None, description=None, is_active=True):
+        self.name = name
+        self.shifts = shifts or []
+        self.active_days = active_days or {
+            "0": False,  # Sunday
+            "1": True,   # Monday
+            "2": True,   # Tuesday
+            "3": True,   # Wednesday
+            "4": True,   # Thursday
+            "5": True,   # Friday
+            "6": True,   # Saturday
+        }
+        self.description = description
+        self.is_active = is_active
+        
+    def to_dict(self):
+        """Convert to dictionary representation"""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'shifts': self.shifts,
+            'active_days': self.active_days,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+        
+    def __repr__(self):
+        return f"<ShiftPattern {self.name} shifts={len(self.shifts)}>"
+
+
 class ShiftTemplate(db.Model):
     __tablename__ = "shifts"
 
