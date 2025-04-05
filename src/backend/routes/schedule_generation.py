@@ -8,6 +8,8 @@ from ..services.scheduler.generator import ScheduleGenerator
 from ..services.scheduler.resources import (
     ScheduleResources, ScheduleResourceError
 )
+from ..services.scheduler.day_mapper import get_coverage_day_index
+from ..services.scheduler.config import SchedulerConfig
 
 # Define blueprint
 generation_bp = Blueprint(
@@ -25,6 +27,49 @@ def get_date_range(args):
     start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
     end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
     return start_date, end_date
+
+# New endpoint for testing day mapping
+@generation_bp.route("/day-mapping", methods=["POST"])
+def test_day_mapping():
+    """Test endpoint for day mapping functionality."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Missing request body"}), HTTPStatus.BAD_REQUEST
+            
+        # Extract dates from request
+        date_strings = data.get("dates", [])
+        if not date_strings:
+            return jsonify({"error": "No dates provided"}), HTTPStatus.BAD_REQUEST
+            
+        # Convert string dates to date objects and calculate coverage day indices
+        result = {"mappings": []}
+        
+        for date_str in date_strings:
+            try:
+                date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+                weekday = date_obj.weekday()
+                weekday_name = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][weekday]
+                coverage_day_index = get_coverage_day_index(date_obj)
+                
+                mapping = {
+                    "date": date_str,
+                    "weekday": weekday,
+                    "weekday_name": weekday_name,
+                    "coverage_day_index": coverage_day_index
+                }
+                
+                result["mappings"].append(mapping)
+            except ValueError:
+                logger.warning(f"Invalid date format: {date_str}")
+                
+        result["success"] = True
+        return jsonify(result), HTTPStatus.OK
+        
+    except Exception as e:
+        error_msg = f"Error testing day mapping: {str(e)}"
+        logger.exception(error_msg)
+        return jsonify({"error": error_msg, "success": False}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 # Route for generating schedules (adapted from original schedules.py)
 @generation_bp.route("/generate", methods=["POST"])

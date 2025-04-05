@@ -1,0 +1,6 @@
+{
+  "success": false,
+  "message": "The scheduler requires Flask application context to access the database.",
+  "day_mapping_verified": true,
+  "error": "Cannot initialize SQLAlchemy outside application context"
+}
