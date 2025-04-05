@@ -8,6 +8,8 @@ import employeeRoutes from './routes/employees'; // Default import
 import { settingsRoutes } from './routes/settings'; // Named import
 import scheduleRoutes from './routes/schedules'; // Default import
 import { shiftTemplateRoutes } from './routes/shiftTemplates'; // Named import
+// Import the new availability routes (assuming named exports)
+import { employeeAvailabilityRoutes, availabilityRoutes } from './routes/employeeAvailability'; 
 
 // Define the port, defaulting to 5001 to avoid conflict with Flask's 5000 if run concurrently
 const PORT = process.env.PORT || 5001;
@@ -48,6 +50,8 @@ const app = new Elysia()
   .use(settingsRoutes)
   .use(scheduleRoutes)
   .use(shiftTemplateRoutes)
+  .use(employeeAvailabilityRoutes) // Mount employee-nested availability routes
+  .use(availabilityRoutes)       // Mount top-level availability routes (PUT/DELETE by ID)
   .onError(globalErrorHandler) // Use the error handler (types inferred)
   .listen(PORT);
 

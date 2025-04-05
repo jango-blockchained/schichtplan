@@ -128,10 +128,18 @@ export async function updateAvailability(id: number, data: UpdateAvailabilityInp
             updates[key] = value ? 1 : 0;
         } else if (key === 'start_date' || key === 'end_date') {
             updates[key] = value ?? null; // Ensure null if explicitly set
-        } else if (key === 'day_of_week' && (value < 0 || value > 6)) {
-            throw new Error("Invalid day_of_week (must be 0-6).");
-        } else if (key === 'hour' && (value < 0 || value > 23)) {
-            throw new Error("Invalid hour (must be 0-23).");
+        } else if (key === 'day_of_week') {
+            // Add type check before comparison
+            if (typeof value === 'number' && (value < 0 || value > 6)) {
+                throw new Error("Invalid day_of_week (must be 0-6).");
+            }
+            updates[key] = value;
+        } else if (key === 'hour') {
+            // Add type check before comparison
+            if (typeof value === 'number' && (value < 0 || value > 23)) {
+                throw new Error("Invalid hour (must be 0-23).");
+            }
+            updates[key] = value;
         } else {
             updates[key] = value;
         }
