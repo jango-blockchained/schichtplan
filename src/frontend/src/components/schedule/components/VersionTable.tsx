@@ -112,9 +112,9 @@ export function VersionTable({
 
     return (
         <Card>
-            <CardHeader className="border-b">
-                <CardTitle className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 hover:text-primary transition-colors">
+            <CardHeader className="py-4 border-b">
+                <CardTitle className="text-lg flex items-center justify-between">
+                    <div className="flex items-center gap-2">
                         <Calendar className="h-5 w-5" />
                         Versions-Tabelle
                     </div>
