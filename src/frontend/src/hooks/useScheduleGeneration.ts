@@ -4,6 +4,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { generateSchedule, fixShiftDurations } from '@/services/api';
 import { format } from 'date-fns';
 import { DateRange } from 'react-day-picker';
+import axios from 'axios';
 
 // Types imported from GenerationOverlay
 export interface GenerationStep {
@@ -154,8 +155,21 @@ export function useScheduleGeneration({
                             'Has errors': result.errors && result.errors.length > 0,
                             'Error count': result.errors?.length || 0,
                             'First error': result.errors?.[0] || 'No errors',
-                            'First schedule': result.schedules?.[0] || 'No schedules'
+                            'First schedule': result.schedules?.[0] || 'No schedules',
+                            'Log count from backend': result.logs?.length || 0, // Log backend log count
                         });
+
+                        // Process backend logs AFTER successful API call
+                        if (result.logs && result.logs.length > 0) {
+                           // Convert backend logs to frontend format
+                           const formattedLogs: GenerationLog[] = result.logs.map((log: any) => ({
+                               timestamp: log.timestamp || new Date().toISOString(),
+                               type: (log.level?.toLowerCase() || 'info') as 'info' | 'warning' | 'error',
+                               message: log.message || 'Log message missing',
+                               details: log.details
+                           }));
+                           setGenerationLogs(prev => [...prev, ...formattedLogs]); // Append backend logs
+                        }
 
                         updateGenerationStep("process", "completed");
 
@@ -237,11 +251,25 @@ export function useScheduleGeneration({
             }
         },
         onSuccess: (data) => {
+            // Add backend logs received in the response
+            if (data.logs && data.logs.length > 0) {
+                const formattedLogs: GenerationLog[] = data.logs.map((log: any) => ({
+                   timestamp: log.timestamp || new Date().toISOString(),
+                   type: (log.level?.toLowerCase() || 'info') as 'info' | 'warning' | 'error',
+                   message: log.message || 'Log message missing',
+                   details: log.details
+               }));
+               // Overwrite logs with backend logs for final status
+               setGenerationLogs(formattedLogs);
+            }
+
             // Check if we have any errors in the response
             if (data.errors && data.errors.length > 0) {
-                // Add errors to logs
+                // Add errors to logs if not already present from backend logs
                 data.errors.forEach(error => {
-                    addGenerationLog("error", error.message, error.date || error.shift);
+                    if (!generationLogs.some(log => log.message === error.message)) {
+                       addGenerationLog("error", error.message, error.date || error.shift);
+                    }
                 });
 
                 // Update UI to show errors
@@ -283,6 +311,27 @@ export function useScheduleGeneration({
         },
         onError: (error: unknown) => {
             const errorMessage = error instanceof Error ? error.message : "Unbekannter Fehler";
+            let backendLogs: GenerationLog[] = [];
+
+            // Attempt to extract logs from the error response if available
+            if (axios.isAxiosError(error) && error.response?.data?.logs) {
+                backendLogs = error.response.data.logs.map((log: any) => ({
+                    timestamp: log.timestamp || new Date().toISOString(),
+                    type: (log.level?.toLowerCase() || 'error') as 'info' | 'warning' | 'error',
+                    message: log.message || 'Log message missing',
+                    details: log.details
+                }));
+            }
+
+            // Add the main error message to the logs
+            const errorLog: GenerationLog = {
+                timestamp: new Date().toISOString(),
+                type: 'error',
+                message: `Fehler bei der Generierung: ${errorMessage}`,
+            };
+
+            // Combine extracted backend logs with the main error log
+            setGenerationLogs(prev => [...prev, ...backendLogs, errorLog]);
 
             toast({
                 variant: "destructive",
@@ -291,6 +340,10 @@ export function useScheduleGeneration({
             });
 
             // Don't auto-hide the overlay on error so user can see what happened
+            // Mark any in-progress steps as error
+            setGenerationSteps(prev =>
+                prev.map(step => step.status === 'in-progress' ? { ...step, status: 'error', message: errorMessage } : step)
+            );
         },
     });
 

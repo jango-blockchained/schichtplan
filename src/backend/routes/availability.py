@@ -1,6 +1,5 @@
 from flask import Blueprint, request, jsonify
-from ..models import db, EmployeeAvailability, Employee
-from ..models.employee import AvailabilityType
+from ..models import EmployeeAvailability, Employee, AvailabilityType
 from datetime import datetime
 from http import HTTPStatus
 
@@ -52,6 +51,7 @@ def get_availability_records():
 @availability.route("/", methods=["POST"])
 def add_availability():
     """Add a new availability record."""
+    from ..models import db
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data provided"}), HTTPStatus.BAD_REQUEST
@@ -90,6 +90,7 @@ def add_availability():
 @availability.route("/<int:avail_id>", methods=["PUT"])
 def update_availability(avail_id):
     """Update an existing availability record."""
+    from ..models import db
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data provided"}), HTTPStatus.BAD_REQUEST
@@ -125,6 +126,7 @@ def update_availability(avail_id):
 @availability.route("/<int:avail_id>", methods=["DELETE"])
 def delete_availability(avail_id):
     """Delete an availability record."""
+    from ..models import db
     avail = EmployeeAvailability.query.get(avail_id)
     if not avail:
         return jsonify({"error": "Availability record not found"}), HTTPStatus.NOT_FOUND
@@ -196,6 +198,7 @@ def check_availability():
 @availability.route("/employees/<int:employee_id>/availabilities", methods=["PUT"])
 def update_employee_availabilities(employee_id):
     """Update employee availabilities"""
+    from ..models import db
     data = request.get_json()
 
     try:

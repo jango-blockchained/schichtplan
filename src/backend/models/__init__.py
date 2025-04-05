@@ -14,7 +14,8 @@ from .settings import Settings
 from .schedule import Schedule, ScheduleStatus, ScheduleVersionMeta
 from .coverage import Coverage, RecurringCoverage
 from .absence import Absence
-from .availability import EmployeeAvailability, AvailabilityType as AvailabilityTypeEnum
+# Import availability after employee to avoid circular imports
+from .availability import EmployeeAvailability, AvailabilityType
 from .version import VersionMeta
 
 # Export all models for ease of import
@@ -33,6 +34,6 @@ __all__ = [
     "RecurringCoverage",
     "Absence",
     "EmployeeAvailability",
-    "AvailabilityTypeEnum",
+    "AvailabilityType",
     "VersionMeta",
 ]

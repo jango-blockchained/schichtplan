@@ -1,7 +1,11 @@
+import logging
 from flask import Blueprint, jsonify, request
+# from backend.models import db, ShiftTemplate # Reverting this change
+from ..models import db, ShiftTemplate # Back to relative import
 from http import HTTPStatus
-from ..models import db, ShiftTemplate
 from ..models.fixed_shift import ShiftValidationError, ShiftType
+
+# Set up logger
 
 shifts = Blueprint("shifts", __name__)
 

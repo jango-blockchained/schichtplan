@@ -13,7 +13,7 @@ if src_backend_dir not in sys.path:
     sys.path.insert(0, src_backend_dir)
 
 # Import the extracted modules
-from .config import SchedulerConfig
+from .config import SchedulerConfig, WeightConfig
 from .constraints import ConstraintChecker
 from .availability import AvailabilityChecker
 from .distribution import DistributionManager
@@ -181,23 +181,38 @@ class ScheduleGenerator:
     Coordinates the scheduling process using the specialized modules.
     """
 
-    def __init__(self, resources=None, config=None):
+    def __init__(self, resources=None, config=None, params=None, progress_callback=None):
         # Initialize the logging manager
         self.logging_manager = LoggingManager(app_name="scheduler")
+        
+        # Make sure the logs directory exists
+        log_dir = os.path.join(os.getcwd(), "src", "logs")
+        diagnostics_dir = os.path.join(log_dir, "diagnostics")
+        
+        # Create directories if they don't exist
+        os.makedirs(log_dir, exist_ok=True)
+        os.makedirs(diagnostics_dir, exist_ok=True)
+        
         # Set up logging with diagnostic logs enabled by default
         self.logging_manager.setup_logging(
             log_level=logging.INFO,
             log_to_file=True,
             log_dir=None,  # Default: ~/.schichtplan/logs
-            app_log_dir=None  # Will try to find src/logs automatically
+            app_log_dir=log_dir  # Explicitly provide the log dir
         )
+        
         # Start the process tracking
         self.logging_manager.start_process("Schedule Generation")
         self.logger = self.logging_manager.get_logger()
 
         # Initialize resources and config
-        self.resources = resources or ScheduleResources()
+        params = params or {}
         self.config = config or SchedulerConfig()
+        self.max_days_off_sequence = params.get("max_days_off_sequence", 2)
+        self.weekend_split_enabled = params.get("weekend_split_enabled", True)
+        self.resources = resources or ScheduleResources()
+        self.weight_config = WeightConfig(**params.get("weight_config", {}))
+        self.progress_callback = progress_callback
 
         # Initialize the specialized modules
         self.constraint_checker = ConstraintChecker(
@@ -255,265 +270,121 @@ class ScheduleGenerator:
         version: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
-        Main method to generate a schedule for the given date range
+        Generates the schedule for the given date range.
 
         Args:
-            start_date: Start date for the schedule
-            end_date: End date for the schedule
-            config: Optional configuration overrides
-            create_empty_schedules: Whether to create placeholders for days with no assignments
-            version: Schedule version number
+            start_date: The start date of the schedule.
+            end_date: The end date of the schedule.
+            config: Optional configuration overrides.
+            create_empty_schedules: Whether to create empty entries for uncovered days/employees.
+            version: The version number for the schedule being generated.
 
         Returns:
-            Dictionary with schedule data and metadata
+            A dictionary containing the generated schedule, errors, and logs.
         """
-        self.logging_manager.start_step("Schedule Generation")
-        
-        # Start time for measuring generation time
-        generation_start_time = datetime.now()
-        
-        self.logger.info(f"[DIAGNOSTIC] Beginning schedule generation from {start_date} to {end_date}, version {version or 1}")
-        self.logger.info(f"[DIAGNOSTIC] Create empty schedules: {create_empty_schedules}")
-        
-        # Create a result object to collect all diagnostic information
-        result = {
-            "success": False,
-            "schedules": [],
-            "warnings": [],
-            "errors": [],
-            "logs": [],
-            "date_range": {
-                "start": start_date.isoformat(),
-                "end": end_date.isoformat()
-            },
-            "version": version or 1,
-            "metadata": {
-                "generated_at": datetime.now().isoformat(),
-                "total_days": (end_date - start_date).days + 1
-            }
-        }
+        # Reset logs for this generation run by starting a new process context
+        self.logging_manager.start_process("Schedule Generation")
+        self.logger.info(f"--- Starting Schedule Generation (v{version}) for {start_date} to {end_date} ---")
+
+        if config:
+            self.config.update_config(config)
+            self.logger.info("Applied configuration overrides.")
+
+        self.schedule = ScheduleContainer(start_date, end_date, version=version or 1)
+        self._schedule_entries = [] # Ensure entries are reset
 
         try:
-            # Make sure resources are loaded for these dates
-            self.logger.info(f"[DIAGNOSTIC] Loading resources for date range {start_date} to {end_date}")
-            if not hasattr(self.resources, 'start_date') or self.resources.start_date != start_date or self.resources.end_date != end_date:
-                self.resources.start_date = start_date
-                self.resources.end_date = end_date
-                
-            # Force resources to load/reload
-            if not self.resources.is_loaded():
-                self.logger.info("[DIAGNOSTIC] Resources not loaded - loading now")
-                load_success = self.resources.load()
-                if not load_success:
-                    error_msg = "Failed to load resources"
-                    self.logger.error(f"[DIAGNOSTIC] {error_msg}")
-                    result["errors"].append(error_msg)
-                    raise ScheduleGenerationError(error_msg)
-                self.logger.info("[DIAGNOSTIC] Resources loaded successfully")
-            else:
-                self.logger.info("[DIAGNOSTIC] Resources already loaded")
-            
-            # Log the resource counts
-            self.logger.info(f"[DIAGNOSTIC] Resources loaded: {bool(self.resources)}")
-            employee_count = len(self.resources.employees) if hasattr(self.resources, 'employees') and self.resources.employees else 0
-            shift_count = len(self.resources.shifts) if hasattr(self.resources, 'shifts') and self.resources.shifts else 0
-            coverage_count = len(getattr(self.resources, 'coverage', [])) if hasattr(self.resources, 'coverage') else 0
-            
-            self.logger.info(f"[DIAGNOSTIC] Resource counts: {employee_count} employees, {shift_count} shifts, {coverage_count} coverage records")
-            
-            # Add resource counts to result
-            result["metadata"]["resources"] = {
-                "employees": employee_count,
-                "shifts": shift_count,
-                "coverage": coverage_count
-            }
-            
-            if employee_count == 0:
-                error_msg = "No employees found in resources"
-                self.logger.error(f"[DIAGNOSTIC] {error_msg}")
-                result["errors"].append(error_msg)
-                raise ScheduleGenerationError(error_msg)
-                
-            if shift_count == 0:
-                error_msg = "No shifts found in resources"
-                self.logger.error(f"[DIAGNOSTIC] {error_msg}")
-                result["errors"].append(error_msg)
-                raise ScheduleGenerationError(error_msg)
-                
-            if coverage_count == 0:
-                warning_msg = "No coverage data found in resources, using default coverage"
-                self.logger.warning(f"[DIAGNOSTIC] {warning_msg}")
-                result["warnings"].append(warning_msg)
+            # Step 1: Load Resources
+            self.logger.info("Step 1: Loading required resources...")
+            # Update the resources with the correct date range
+            self.resources.start_date = start_date
+            self.resources.end_date = end_date
+            self.resources.load()
+            self.logger.info(f"Loaded {len(self.resources.get_employees())} employees, "
+                             f"{len(self.resources.get_shifts())} shifts, "
+                             f"{len(self.resources.get_coverages())} coverages.")
+                             
+            if not self.resources.get_shifts():
+                 self.logger.warning("No shift templates found for the specified period.")
+                 # Optionally raise error or return specific message if shifts are essential
 
-            # First validate that all shifts have durations (fix for "Schichtdauer fehlt" error)
-            if hasattr(self, "_validate_shift_durations"):
-                try:
-                    self.logger.info("[DIAGNOSTIC] Validating shift durations")
-                    self._validate_shift_durations()
-                    result["logs"].append("Shift durations validated successfully")
-                except Exception as e:
-                    error_msg = f"Shift validation failed: {str(e)}"
-                    self.logger.error(f"[DIAGNOSTIC] {error_msg}")
-                    result["errors"].append(error_msg)
-                    raise ScheduleGenerationError("Schichtdauer fehlt") from e
-
-            # Apply configuration if provided
-            if config:
-                self.logger.info("[DIAGNOSTIC] Applying custom configuration")
-                self.config.apply_override(config)
-                result["logs"].append("Applied custom configuration")
-
-            # Initialize empty schedule
-            self.schedule = ScheduleContainer(start_date, end_date, version=version or 1)
-            self.schedule.entries = []
-            self.logger.info("[DIAGNOSTIC] Initialized empty schedule container")
-
-            # Create empty slots for each date first
+            # Step 2: Generate assignments day by day
+            self.logger.info("Step 2: Generating assignments for each day...")
             current_date = start_date
             while current_date <= end_date:
-                self._create_empty_schedule_entries(current_date)
+                self.logger.debug(f"Processing date: {current_date}")
+
+                # Generate assignments for the current date
+                assignments = self._generate_assignments_for_date(current_date)
+                self.schedule.entries.extend(assignments) # Add directly to container
+                self._schedule_entries.extend(assignments) # Also keep internal track if needed
+
+                # Create empty entries if configured
+                if create_empty_schedules:
+                    self._create_empty_schedule_entries(current_date)
+
                 current_date += timedelta(days=1)
+            self.logger.info(f"Generated {len(self.schedule.entries)} preliminary assignments.")
 
-            # Process each date in the range
-            date_range = {"start": start_date, "end": end_date}
-            date_metadata = {
-                "dates_processed": 0,
-                "dates_with_coverage": 0,
-                "empty_dates": 0,
-                "assignments_created": 0,
-                "invalid_assignments": 0,
-                "assignments_by_date": {},
-            }
 
-            current_date = start_date
-            while current_date <= end_date:
-                self.logger.info(f"[DIAGNOSTIC] Processing date: {current_date.isoformat()}")
-                date_metadata["dates_processed"] += 1
-                date_metadata["assignments_by_date"][current_date.isoformat()] = 0
-
-                # Get shifts needed for this date
-                try:
-                    shifts, coverage = self._get_shifts_for_date(current_date)
-                    if shifts:
-                        date_metadata["dates_with_coverage"] += 1
-                        self.logger.debug(f"[DIAGNOSTIC] Date {current_date} has {len(shifts)} shifts and coverage data: {coverage}")
-                    else:
-                        date_metadata["empty_dates"] += 1
-                        self.logger.info(f"[DIAGNOSTIC] No shifts required for {current_date}")
-                except Exception as e:
-                    self.logger.error(f"[DIAGNOSTIC] Error getting shifts for {current_date}: {str(e)}")
-                    date_metadata["empty_dates"] += 1
-                    result["errors"].append(f"Failed to get shifts for {current_date}: {str(e)}")
-                    shifts, coverage = [], {}
-
-                # Only try to assign employees if we have shifts for this date
-                if shifts:
-                    try:
-                        # Add FORCE_ASSIGN=True flag for fallback assignment
-                        if not hasattr(self.config, "FORCE_ASSIGN"):
-                            self.config.FORCE_ASSIGN = True
-                        # Assign employees to shifts using the distribution manager
-                        self.logger.info(f"[DIAGNOSTIC] Assigning employees for {current_date} with {len(shifts)} shifts")
-                        assignments = self._generate_assignments_for_date(current_date)
-                        
-                        if assignments:
-                            self.logger.info(f"[DIAGNOSTIC] Regular assignment created {len(assignments)} assignments for {current_date}")
-                        else:
-                            self.logger.warning(f"[DIAGNOSTIC] Regular assignment created 0 assignments for {current_date}")
-
-                        # FALLBACK: If no assignments made and we have employees and shifts, force assignments
-                        if not assignments and self.resources.employees and shifts and self.config.FORCE_ASSIGN:
-                            self.logger.warning(f"[DIAGNOSTIC] No regular assignments made for {current_date}, using fallback assignment")
-                            assignments = self._fallback_assign_employees(current_date, shifts)
-                            if assignments:
-                                self.logger.info(f"[DIAGNOSTIC] Fallback created {len(assignments)} assignments for {current_date}")
-                                result["logs"].append(f"Used fallback assignment for {current_date}")
-                            else:
-                                self.logger.error(f"[DIAGNOSTIC] Fallback assignment also failed for {current_date}")
-                                result["errors"].append(f"Failed to create any assignments for {current_date}")
-                            
-                        # Add assignments to the schedule
-                        if assignments:
-                            for assignment in assignments:
-                                self.schedule.add_assignment(assignment)
-                                date_metadata["assignments_created"] += 1
-                                date_metadata["assignments_by_date"][current_date.isoformat()] += 1
-                        else:
-                            self.logger.warning(f"[DIAGNOSTIC] No assignments made for {current_date} after all attempts")
-                            result["warnings"].append(f"No assignments made for {current_date}")
-                    except Exception as e:
-                        self.logger.error(f"[DIAGNOSTIC] Error assigning employees for {current_date}: {str(e)}")
-                        self.logger.error("[DIAGNOSTIC] Stack trace:", exc_info=True)
-                        result["errors"].append(f"Assignment error for {current_date}: {str(e)}")
-
-                # Move to next date
-                current_date = current_date + timedelta(days=1)
-
-            # Finalize the schedule
-            if hasattr(self, "_finalize_schedule"):
-                self.logger.info("[DIAGNOSTIC] Finalizing schedule")
-                self._finalize_schedule(date_range, self.resources.employees)
-                result["logs"].append("Schedule finalized")
-
-            # Summarize the generation results
-            generation_time = datetime.now() - generation_start_time
-            self.logger.info(
-                f"[DIAGNOSTIC] Schedule generation completed in {generation_time.total_seconds():.2f} seconds\n"
-                f"  - Dates processed: {date_metadata['dates_processed']}\n"
-                f"  - Dates with coverage: {date_metadata['dates_with_coverage']}\n"
-                f"  - Empty dates: {date_metadata['empty_dates']}\n"
-                f"  - Assignments created: {date_metadata['assignments_created']}\n"
-                f"  - Invalid assignments: {date_metadata['invalid_assignments']}"
+            # Step 3: Validate and Distribute
+            self.logger.info("Step 3: Validating constraints and distributing shifts...")
+            # The DistributionManager handles constraints internally now
+            final_assignments = self.distribution_manager.distribute_shifts(
+                start_date, end_date, self.schedule.entries # Pass preliminary assignments
             )
+            # Update schedule entries with final, validated assignments
+            self.schedule.entries = final_assignments
+            self._schedule_entries = final_assignments # Update internal track as well
+            self.logger.info(f"Finalized {len(final_assignments)} assignments after distribution and validation.")
 
-            # Detailed assignments by date
-            for date_str, count in date_metadata["assignments_by_date"].items():
-                self.logger.debug(f"[DIAGNOSTIC] Assignments for {date_str}: {count}")
+            # Collect validation errors from the distribution manager
+            validation_errors = self.distribution_manager.get_validation_errors()
+            if validation_errors:
+                 self.logger.warning(f"Found {len(validation_errors)} validation issues during distribution.")
+                 # These errors should already be logged by the distribution manager
 
-            # Add metadata to result
-            result["metadata"]["date_metadata"] = date_metadata
-            result["metadata"]["generation_time_seconds"] = generation_time.total_seconds()
-            result["success"] = True
 
-            # Convert schedule entries to dictionaries
-            schedule_dict = self.serializer.serialize_schedule(self.schedule)
-            if isinstance(schedule_dict, dict):
-                result["schedules"] = [schedule_dict]  # Wrap in array
-            else:
-                result["schedules"] = schedule_dict
-            result["total_schedules"] = len(result["schedules"])
+            # Step 4: Serialize Schedule
+            self.logger.info("Step 4: Serializing the final schedule...")
+            serialized_schedule = self.serializer.serialize_schedule(
+                self.schedule, # Pass the ScheduleContainer
+                validation_errors
+            )
+            self.logger.info("Schedule serialization complete.")
 
-            # End the schedule generation step with success
-            self.logging_manager.end_step()
 
-            self.logger.info(f"[DIAGNOSTIC] Returning {len(result['schedules'])} schedule entries")
+            # Final Step: Collect Logs and Return
+            generation_logs = self.logging_manager.get_current_process_logs()
+            self.logger.info(f"--- Schedule Generation Complete (v{version}). Errors: {len(validation_errors)}, Logs: {len(generation_logs)} ---")
 
-            return result
+            return {
+                "success": True,
+                "schedules": serialized_schedule["schedules"],
+                "errors": serialized_schedule["errors"], # Errors from serialization/validation
+                "version": version,
+                "logs": generation_logs # Include logs in the result
+            }
 
         except Exception as e:
-            # Log detailed error information
-            self.logger.error(f"[DIAGNOSTIC] Fatal error in schedule generation: {str(e)}")
-            self.logger.error("[DIAGNOSTIC] Stack trace:", exc_info=True)
-            
-            # Try to gather any partial results
-            if self.schedule and hasattr(self.schedule, 'entries'):
-                partial_entries = self.serializer.serialize_schedule(self.schedule)
-                if isinstance(partial_entries, dict):
-                    result["schedules"] = [partial_entries]  # Wrap in array
-                else:
-                    result["schedules"] = partial_entries
-                result["partial_result"] = True
-                result["total_schedules"] = len(result["schedules"])
-                
-            # Add error information
-            result["success"] = False
-            result["error"] = str(e)
-            result["errors"].append(str(e))
-            
-            # End the step with error
-            self.logging_manager.end_step({"error": str(e)})
-            
-            return result
+            self.logger.exception(f"Critical error during schedule generation: {e}")
+            generation_logs = self.logging_manager.get_current_process_logs()
+            # Add the critical error itself to the logs if not already captured
+            if not any(log['message'].endswith(str(e)) for log in generation_logs):
+                generation_logs.append({
+                    'timestamp': datetime.utcnow().isoformat(),
+                    'level': 'CRITICAL',
+                    'message': f"Generation failed critically: {e}"
+                })
+
+            return {
+                "success": False,
+                "error": f"An unexpected error occurred: {e}",
+                "schedules": [],
+                "errors": [{"message": f"Critical error: {e}", "details": str(e)}], # Simplified error structure
+                "version": version,
+                "logs": generation_logs # Include logs even on failure
+            }
 
     def _fallback_assign_employees(self, current_date: date, shifts: List[Any]) -> List[Dict]:
         """Emergency fallback method to ensure shifts are assigned even when normal assignment fails"""
@@ -709,13 +580,34 @@ class ScheduleGenerator:
         
     def _create_empty_schedule_entries(self, current_date: date):
         """Create empty schedule entries for a specific date"""
-        empty_assignment = {
-            "date": current_date,
-            "status": "EMPTY",
-            "version": 1,
-        }
-        self.schedule.entries.append(empty_assignment)
-        self.schedule_by_date[current_date] = [empty_assignment]
+        # Instead of creating a single empty entry, create one for each employee
+        if hasattr(self.resources, 'employees') and self.resources.employees:
+            for employee in self.resources.employees:
+                # Only create entries for active employees
+                if hasattr(employee, 'is_active') and employee.is_active:
+                    empty_assignment = {
+                        "date": current_date,
+                        "employee_id": employee.id,
+                        "status": "EMPTY",
+                        "version": getattr(self.schedule, "version", 1),
+                        "is_empty": True
+                    }
+                    self.schedule.entries.append(empty_assignment)
+                    
+                    # Add to date-indexed dict
+                    if current_date not in self.schedule_by_date:
+                        self.schedule_by_date[current_date] = []
+                    self.schedule_by_date[current_date].append(empty_assignment)
+        else:
+            # Fallback to original behavior if no employees
+            empty_assignment = {
+                "date": current_date,
+                "status": "EMPTY",
+                "version": getattr(self.schedule, "version", 1),
+                "is_empty": True
+            }
+            self.schedule.entries.append(empty_assignment)
+            self.schedule_by_date[current_date] = [empty_assignment]
 
     def _schedule_to_dict(self, schedule) -> Dict[str, Any]:
         """
@@ -871,14 +763,17 @@ class ScheduleGenerator:
         - peak_times: Times with highest staff requirements
         - coverage_windows: Consolidated time windows with staff requirements
         """
-        # Convert Python's weekday (0=Monday) to our day_index (0=Sunday)
+        # Get Python's weekday (0=Monday)
         python_weekday = current_date.weekday()
-        check_day_index = (python_weekday + 6) % 7
+        
+        # Use the same day index as Python (0=Monday) since our coverage data uses this format
+        # This fixes the mismatch between Python weekday and our coverage day_index
+        check_day_index = python_weekday
         
         self.logger.info(
             f"Processing coverage for date {current_date} "
             f"(Python weekday={python_weekday} [{['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][python_weekday]}], "
-            f"Coverage day_index={check_day_index} [{['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][check_day_index]}])"
+            f"Coverage day_index={check_day_index} [{['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][check_day_index]}])"
         )
         
         # Initialize coverage blocks (96 blocks of 15 minutes for 24 hours)
@@ -1092,73 +987,50 @@ class ScheduleGenerator:
             return "00:00"
 
     def _create_date_shifts(self, current_date: date) -> List[Dict]:
-        """Create shift instances for a specific date based on shift templates and coverage needs"""
+        """
+        Creates shift instances for a specific date based on templates, considering
+        coverage requirements and other constraints.
+        """
+        self.logger.info(f"[DIAGNOSTIC] Getting shifts for date {current_date}")
+        
+        # Get all shifts
+        shifts = self.resources.get_shifts()
+        self.logger.info(f"[DIAGNOSTIC] Total shifts from resources: {len(shifts)}")
+        
+        # Filter shifts that apply to this date 
         date_shifts = []
+        for shift in shifts:
+            applies = self._shift_applies_to_date(shift, current_date)
+            if applies:
+                date_shifts.append(shift)
+                self.logger.debug(f"[DIAGNOSTIC] Including shift {shift.id} for {current_date}")
+            else:
+                self.logger.debug(f"[DIAGNOSTIC] Excluding shift {shift.id} for {current_date}")
         
-        self.logger.debug(f"Creating shifts for date {current_date}")
+        # Create coverage requirements mapping
+        self.logger.info(f"[DIAGNOSTIC] Processing coverage for date {current_date} "
+                         f"(Python weekday={current_date.weekday()} [{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][current_date.weekday()]}], "
+                         f"Coverage day_index={current_date.weekday()} [{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][current_date.weekday()]}])")
         
-        # Get coverage information first
-        coverage_info = self._process_coverage(current_date)
-        if not coverage_info or not coverage_info.get('coverage_windows'):
-            self.logger.warning(f"No coverage information available for {current_date}")
+        coverage_items = self.resources.get_daily_coverage(current_date)
+        self.logger.info(f"[DIAGNOSTIC] Found {len(coverage_items)} coverage items for {current_date}")
+        
+        coverage_map = {}
+        for cov in coverage_items:
+            if hasattr(cov, "shift_type_id") and hasattr(cov, "required_employees"):
+                coverage_map[cov.shift_type_id] = cov.required_employees
+                self.logger.debug(f"[DIAGNOSTIC] Coverage for shift type {cov.shift_type_id}: "
+                                 f"required={cov.required_employees}")
+        
+        if not coverage_map:
+            self.logger.warning(f"[DIAGNOSTIC] No coverage information available for {current_date}")
+        
+        # If no shifts match this date, log and return empty list
+        if not date_shifts:
+            self.logger.warning(f"[DIAGNOSTIC] No shifts available for date {current_date}")
             return []
         
-        self.logger.debug(f"Available shift templates: {len(self.resources.shifts)}")
-        
-        for shift_template in self.resources.shifts:
-            # Check if this shift template should be used for this date
-            if self._shift_applies_to_date(shift_template, current_date):
-                # Get the shift type from the template
-                shift_type = None
-                if hasattr(shift_template, "shift_type_id"):
-                    shift_type = shift_template.shift_type_id
-                elif hasattr(shift_template, "shift_type"):
-                    shift_type = getattr(
-                        shift_template.shift_type, "value", shift_template.shift_type
-                    )
-                    
-                if not shift_type:
-                    self.logger.warning(
-                        f"No shift type found for template {shift_template.id}, using default"
-                    )
-                    # Determine shift type based on time if not provided
-                    start_hour = int(shift_template.start_time.split(":")[0])
-                    if start_hour < 11:
-                        shift_type = "EARLY"
-                    elif start_hour >= 14:
-                        shift_type = "LATE"
-                    else:
-                        shift_type = "MIDDLE"
-                    
-                # Create base shift
-                base_shift = {
-                    "id": shift_template.id,
-                    "shift_template_id": shift_template.id,
-                    "date": current_date,
-                    "shift_type": shift_type,
-                    "start_time": shift_template.start_time,
-                    "end_time": shift_template.end_time,
-                    "duration_hours": getattr(shift_template, "duration_hours", None)
-                }
-                
-                # Try to adjust shift times to better match coverage
-                adjusted_shift = self._adjust_shift_times(base_shift, coverage_info['coverage_windows'])
-                
-                # Log if shift was adjusted
-                if adjusted_shift.get('is_adjusted'):
-                    self.logger.info(
-                        f"Adjusted shift {shift_template.id} times from "
-                        f"{base_shift['start_time']}-{base_shift['end_time']} to "
-                        f"{adjusted_shift['start_time']}-{adjusted_shift['end_time']}"
-                    )
-                    
-                date_shifts.append(adjusted_shift)
-                self.logger.debug(
-                    f"Created {shift_type} shift from template {shift_template.id} "
-                    f"({adjusted_shift['start_time']}-{adjusted_shift['end_time']})"
-                )
-                
-        self.logger.debug(f"Created {len(date_shifts)} shifts for date {current_date}")
+        self.logger.info(f"[DIAGNOSTIC] Returning {len(date_shifts)} shifts for {current_date}")
         return date_shifts
 
     def _coverage_applies_to_date(self, coverage, check_date: date) -> bool:
@@ -1167,8 +1039,8 @@ class ScheduleGenerator:
         Coverage records can be specified in two ways:
         1. Specific date - exact date match
         2. Day of week - recurring weekly pattern where:
-            - day_index: 0=Sunday, 1=Monday, ..., 6=Saturday
-            - Python's weekday(): 0=Monday, 1=Tuesday, ..., 6=Sunday
+            - day_index: 0=Monday, 1=Tuesday, ..., 5=Saturday (our demo data format)
+            - Python's weekday(): 0=Monday, 1=Tuesday, ..., 6=Sunday (Python format)
         """
         # Check for specific date
         if hasattr(coverage, "date") and coverage.date:
@@ -1189,15 +1061,14 @@ class ScheduleGenerator:
             day_of_week = coverage.day_of_week
 
         if day_of_week is not None:
-            # Convert Python's weekday() (0=Monday) to our day_index (0=Sunday)
+            # Python's weekday() uses 0=Monday, which matches our day_index
             python_weekday = check_date.weekday()
-            # Convert to Sunday=0 format by shifting Monday=0 to Sunday=0
-            check_day_index = (python_weekday + 6) % 7  # Subtract 1 is same as add 6 in modulo 7
+            check_day_index = python_weekday
 
             self.logger.debug(
                 f"Checking coverage for date {check_date}: "
                 f"Python weekday={python_weekday} ({['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][python_weekday]}), "
-                f"Converted day_index={check_day_index} ({['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][check_day_index]}), "
+                f"Converted day_index={check_day_index} ({['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][check_day_index]}), "
                 f"Coverage day_index={day_of_week}"
             )
 
@@ -1205,22 +1076,84 @@ class ScheduleGenerator:
 
         return False
 
-    def _shift_applies_to_date(self, shift: ShiftTemplate, check_date: date) -> bool:
-        """Check if a shift template applies to the given date"""
-        # Check if shift has active_days attribute
+    def _shift_applies_to_date(self, shift, check_date: date) -> bool:
+        """
+        Check if a shift applies to a specific date based on patterns (day of week, etc).
+        """
+        # Get the weekday of the check_date (0=Monday, 6=Sunday)
+        weekday = check_date.weekday()
+        day_name = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][weekday]
+        
+        self.logger.info(f"[DIAGNOSTIC] Checking if shift {shift.id} applies to {check_date} (weekday={weekday}, {day_name})")
+        
+        # Default pattern is all days active
+        active_days = None
+        
+        # Try to get active_days from shift in different possible formats
         if hasattr(shift, "active_days"):
-            # Convert date to day index (0-6, where 0 is Monday in our system)
-            day_index = str(check_date.weekday())
-
-            # Check if this day is active for this shift
+            # Format might be a dictionary with day indices
             if isinstance(shift.active_days, dict):
-                return shift.active_days.get(day_index, False)
-
-        # If no active_days specified, assume shift applies to all days
-        self.logger.debug(
-            f"No active_days found for shift {shift.id}, assuming active for all days"
-        )
-        return True
+                self.logger.debug(f"[DIAGNOSTIC] Found active_days as dict: {shift.active_days}")
+                active_days = shift.active_days.get(str(weekday), False)
+                
+                # If active_days has string keys with day names
+                if not active_days and day_name.lower() in shift.active_days:
+                    active_days = shift.active_days.get(day_name.lower(), False)
+                
+            # Format might be a list of active day indices
+            elif isinstance(shift.active_days, list):
+                self.logger.debug(f"[DIAGNOSTIC] Found active_days as list: {shift.active_days}")
+                active_days = weekday in shift.active_days or str(weekday) in shift.active_days
+                
+                # Check for day names in list
+                day_name_lower = day_name.lower()
+                if any(day.lower() == day_name_lower for day in shift.active_days if isinstance(day, str)):
+                    active_days = True
+                    
+            # Format might be a string of day indices (e.g., "0,1,2,3,4")
+            elif isinstance(shift.active_days, str) and shift.active_days:
+                self.logger.debug(f"[DIAGNOSTIC] Found active_days as string: {shift.active_days}")
+                active_day_strings = shift.active_days.split(",")
+                active_days = str(weekday) in active_day_strings
+                
+                # Check for day names in string
+                day_name_lower = day_name.lower()
+                if any(day.lower() == day_name_lower for day in active_day_strings):
+                    active_days = True
+        
+        # Legacy/alternative fields that might contain day patterns
+        if active_days is None and hasattr(shift, "valid_days"):
+            self.logger.debug(f"[DIAGNOSTIC] Falling back to valid_days: {shift.valid_days}")
+            
+            if isinstance(shift.valid_days, dict):
+                active_days = shift.valid_days.get(str(weekday), False)
+            elif isinstance(shift.valid_days, list):
+                active_days = weekday in shift.valid_days or str(weekday) in shift.valid_days
+            elif isinstance(shift.valid_days, str) and shift.valid_days:
+                active_day_strings = shift.valid_days.split(",")
+                active_days = str(weekday) in active_day_strings
+        
+        # Alternative: Check specific day_of_week field 
+        if active_days is None and hasattr(shift, "day_of_week"):
+            self.logger.debug(f"[DIAGNOSTIC] Checking day_of_week field: {shift.day_of_week}")
+            if shift.day_of_week is not None:
+                # day_of_week might be stored as int or string
+                try:
+                    if isinstance(shift.day_of_week, str) and shift.day_of_week.isdigit():
+                        active_days = int(shift.day_of_week) == weekday
+                    else:
+                        active_days = shift.day_of_week == weekday
+                except (ValueError, TypeError):
+                    # If conversion fails, assume this isn't a match
+                    active_days = False
+        
+        # If we still can't determine active days, assume all days are active
+        if active_days is None:
+            self.logger.warning(f"[DIAGNOSTIC] Could not determine active days for shift {shift.id}. Assuming active for all days.")
+            active_days = True
+            
+        self.logger.info(f"[DIAGNOSTIC] Shift {shift.id} applies to {check_date}: {active_days}")
+        return active_days
 
     def _generate_assignments_for_date(self, current_date: date) -> List[Dict]:
         """

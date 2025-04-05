@@ -1,0 +1,527 @@
+{
+  "success": true,
+  "schedules": [
+    {
+      "schedule_id": null,
+      "start_date": "2024-04-01",
+      "end_date": "2024-04-07",
+      "version": 1,
+      "status": "DRAFT",
+      "entries": []
+    }
+  ],
+  "errors": [],
+  "version": 1,
+  "logs": [
+    {
+      "timestamp": "2025-04-05T05:19:09.292768",
+      "level": "INFO",
+      "message": "===== STARTING PROCESS: Schedule Generation ====="
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.292870",
+      "level": "INFO",
+      "message": "Process ID: 009a487f"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.292968",
+      "level": "INFO",
+      "message": "Starting scheduling process: Schedule Generation"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.293078",
+      "level": "INFO",
+      "message": "--- Starting Schedule Generation (v1) for 2024-04-01 to 2024-04-07 ---"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.293178",
+      "level": "INFO",
+      "message": "Step 1: Loading required resources..."
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.297241",
+      "level": "INFO",
+      "message": "Loaded 0 employees, 0 shifts, 0 coverages."
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.297360",
+      "level": "WARNING",
+      "message": "No shift templates found for the specified period."
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.297461",
+      "level": "INFO",
+      "message": "Step 2: Generating assignments for each day..."
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.297564",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Generating assignments for 2024-04-01"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.297652",
+      "level": "INFO",
+      "message": "Getting shifts for date 2024-04-01"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.297739",
+      "level": "INFO",
+      "message": "Processing coverage for date 2024-04-01 (Python weekday=0 [Mon], Coverage day_index=0 [Mon])"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.298019",
+      "level": "WARNING",
+      "message": "No coverage information available for 2024-04-01"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.298189",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Getting shifts for date 2024-04-01"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.298289",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Total shifts from resources: 0"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.298379",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Processing coverage for date 2024-04-01 (Python weekday=0 [Mon], Coverage day_index=0 [Mon])"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.298492",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Found 0 coverage items for 2024-04-01"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.298585",
+      "level": "WARNING",
+      "message": "[DIAGNOSTIC] No coverage information available for 2024-04-01"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.298671",
+      "level": "WARNING",
+      "message": "[DIAGNOSTIC] No shifts available for date 2024-04-01"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.298762",
+      "level": "WARNING",
+      "message": "No shifts available for date 2024-04-01"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.298845",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] No shifts to assign for 2024-04-01"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.298939",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Generating assignments for 2024-04-02"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.299024",
+      "level": "INFO",
+      "message": "Getting shifts for date 2024-04-02"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.299108",
+      "level": "INFO",
+      "message": "Processing coverage for date 2024-04-02 (Python weekday=1 [Tue], Coverage day_index=1 [Tue])"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.299266",
+      "level": "WARNING",
+      "message": "No coverage information available for 2024-04-02"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.299353",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Getting shifts for date 2024-04-02"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.299434",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Total shifts from resources: 0"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.299544",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Processing coverage for date 2024-04-02 (Python weekday=1 [Tue], Coverage day_index=1 [Tue])"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.299632",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Found 0 coverage items for 2024-04-02"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.299715",
+      "level": "WARNING",
+      "message": "[DIAGNOSTIC] No coverage information available for 2024-04-02"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.299797",
+      "level": "WARNING",
+      "message": "[DIAGNOSTIC] No shifts available for date 2024-04-02"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.299878",
+      "level": "WARNING",
+      "message": "No shifts available for date 2024-04-02"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.299959",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] No shifts to assign for 2024-04-02"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.300065",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Generating assignments for 2024-04-03"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.300156",
+      "level": "INFO",
+      "message": "Getting shifts for date 2024-04-03"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.300239",
+      "level": "INFO",
+      "message": "Processing coverage for date 2024-04-03 (Python weekday=2 [Wed], Coverage day_index=2 [Wed])"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.300395",
+      "level": "WARNING",
+      "message": "No coverage information available for 2024-04-03"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.300505",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Getting shifts for date 2024-04-03"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.300588",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Total shifts from resources: 0"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.300670",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Processing coverage for date 2024-04-03 (Python weekday=2 [Wed], Coverage day_index=2 [Wed])"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.300754",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Found 0 coverage items for 2024-04-03"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.300834",
+      "level": "WARNING",
+      "message": "[DIAGNOSTIC] No coverage information available for 2024-04-03"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.300914",
+      "level": "WARNING",
+      "message": "[DIAGNOSTIC] No shifts available for date 2024-04-03"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.301000",
+      "level": "WARNING",
+      "message": "No shifts available for date 2024-04-03"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.301082",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] No shifts to assign for 2024-04-03"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.301170",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Generating assignments for 2024-04-04"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.301252",
+      "level": "INFO",
+      "message": "Getting shifts for date 2024-04-04"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.301333",
+      "level": "INFO",
+      "message": "Processing coverage for date 2024-04-04 (Python weekday=3 [Thu], Coverage day_index=3 [Thu])"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.301507",
+      "level": "WARNING",
+      "message": "No coverage information available for 2024-04-04"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.301612",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Getting shifts for date 2024-04-04"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.301693",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Total shifts from resources: 0"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.301775",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Processing coverage for date 2024-04-04 (Python weekday=3 [Thu], Coverage day_index=3 [Thu])"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.301857",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Found 0 coverage items for 2024-04-04"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.301938",
+      "level": "WARNING",
+      "message": "[DIAGNOSTIC] No coverage information available for 2024-04-04"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.302023",
+      "level": "WARNING",
+      "message": "[DIAGNOSTIC] No shifts available for date 2024-04-04"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.302155",
+      "level": "WARNING",
+      "message": "No shifts available for date 2024-04-04"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.302252",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] No shifts to assign for 2024-04-04"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.302376",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Generating assignments for 2024-04-05"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.302484",
+      "level": "INFO",
+      "message": "Getting shifts for date 2024-04-05"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.302581",
+      "level": "INFO",
+      "message": "Processing coverage for date 2024-04-05 (Python weekday=4 [Fri], Coverage day_index=4 [Fri])"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.302790",
+      "level": "WARNING",
+      "message": "No coverage information available for 2024-04-05"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.302962",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Getting shifts for date 2024-04-05"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.303066",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Total shifts from resources: 0"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.303171",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Processing coverage for date 2024-04-05 (Python weekday=4 [Fri], Coverage day_index=4 [Fri])"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.303304",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Found 0 coverage items for 2024-04-05"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.303489",
+      "level": "WARNING",
+      "message": "[DIAGNOSTIC] No coverage information available for 2024-04-05"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.303665",
+      "level": "WARNING",
+      "message": "[DIAGNOSTIC] No shifts available for date 2024-04-05"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.303803",
+      "level": "WARNING",
+      "message": "No shifts available for date 2024-04-05"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.303893",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] No shifts to assign for 2024-04-05"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.303997",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Generating assignments for 2024-04-06"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.304096",
+      "level": "INFO",
+      "message": "Getting shifts for date 2024-04-06"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.304196",
+      "level": "INFO",
+      "message": "Processing coverage for date 2024-04-06 (Python weekday=5 [Sat], Coverage day_index=5 [Sat])"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.304424",
+      "level": "WARNING",
+      "message": "No coverage information available for 2024-04-06"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.304579",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Getting shifts for date 2024-04-06"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.304698",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Total shifts from resources: 0"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.304814",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Processing coverage for date 2024-04-06 (Python weekday=5 [Sat], Coverage day_index=5 [Sat])"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.304929",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Found 0 coverage items for 2024-04-06"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.305048",
+      "level": "WARNING",
+      "message": "[DIAGNOSTIC] No coverage information available for 2024-04-06"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.305166",
+      "level": "WARNING",
+      "message": "[DIAGNOSTIC] No shifts available for date 2024-04-06"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.305274",
+      "level": "WARNING",
+      "message": "No shifts available for date 2024-04-06"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.305382",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] No shifts to assign for 2024-04-06"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.305523",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Generating assignments for 2024-04-07"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.305635",
+      "level": "INFO",
+      "message": "Getting shifts for date 2024-04-07"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.305747",
+      "level": "INFO",
+      "message": "Processing coverage for date 2024-04-07 (Python weekday=6 [Sun], Coverage day_index=6 [Sun])"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.305947",
+      "level": "WARNING",
+      "message": "No coverage information available for 2024-04-07"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.306074",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Getting shifts for date 2024-04-07"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.306186",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Total shifts from resources: 0"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.306303",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Processing coverage for date 2024-04-07 (Python weekday=6 [Sun], Coverage day_index=6 [Sun])"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.306424",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] Found 0 coverage items for 2024-04-07"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.306559",
+      "level": "WARNING",
+      "message": "[DIAGNOSTIC] No coverage information available for 2024-04-07"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.306674",
+      "level": "WARNING",
+      "message": "[DIAGNOSTIC] No shifts available for date 2024-04-07"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.306782",
+      "level": "WARNING",
+      "message": "No shifts available for date 2024-04-07"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.306898",
+      "level": "INFO",
+      "message": "[DIAGNOSTIC] No shifts to assign for 2024-04-07"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.307022",
+      "level": "INFO",
+      "message": "Generated 0 preliminary assignments."
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.307140",
+      "level": "INFO",
+      "message": "Step 3: Validating constraints and distributing shifts..."
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.307262",
+      "level": "INFO",
+      "message": "Starting shift distribution for period 2024-04-01 to 2024-04-07"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.307370",
+      "level": "INFO",
+      "message": "Received 0 preliminary assignments"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.307492",
+      "level": "INFO",
+      "message": "Processing 0 days of assignments"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.307595",
+      "level": "INFO",
+      "message": "Distribution completed with 0 final assignments"
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.307690",
+      "level": "INFO",
+      "message": "Finalized 0 assignments after distribution and validation."
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.307848",
+      "level": "INFO",
+      "message": "Step 4: Serializing the final schedule..."
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.308012",
+      "level": "INFO",
+      "message": "Schedule serialization complete."
+    },
+    {
+      "timestamp": "2025-04-05T05:19:09.308110",
+      "level": "INFO",
+      "message": "--- Schedule Generation Complete (v1). Errors: 0, Logs: 101 ---"
+    }
+  ]
+}

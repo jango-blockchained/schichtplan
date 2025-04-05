@@ -79,28 +79,54 @@ class ScheduleSerializer:
     def __init__(self, logger):
         self.logger = logger
 
-    def serialize_schedule(self, schedule) -> Dict[str, Any]:
-        """Convert a schedule object to a dictionary"""
+    def serialize_schedule(self, schedule, validation_errors=None) -> Dict[str, Any]:
+        """
+        Convert a schedule object to a dictionary, including any validation errors
+        
+        Args:
+            schedule: The schedule to serialize
+            validation_errors: Optional list of validation errors to include in the response
+            
+        Returns:
+            A dictionary containing the schedule data and any validation errors
+        """
         try:
             if not schedule:
-                return {}
+                return {"schedules": [], "errors": validation_errors or []}
 
             # Get the schedule object if it's a container
             if hasattr(schedule, "get_schedule"):
                 schedule = schedule.get_schedule()
 
             # Convert to dictionary
-            return self.convert_schedule_to_dict(schedule)
+            schedule_dict = self.convert_schedule_to_dict(schedule)
+            
+            # Prepare the result with schedules and errors
+            result = {
+                "schedules": [schedule_dict],
+                "errors": validation_errors or []
+            }
+            
+            return result
         except Exception as e:
             self.log_error(f"Error serializing schedule: {str(e)}")
             self.log_error("Stack trace:", exc_info=True)
-            raise
+            return {"schedules": [], "errors": [{"message": str(e), "type": "serialization_error"}]}
 
-    def serialize_to_json(self, schedule) -> str:
-        """Convert a schedule object to a JSON string"""
+    def serialize_to_json(self, schedule, validation_errors=None) -> str:
+        """
+        Convert a schedule object to a JSON string, including any validation errors
+        
+        Args:
+            schedule: The schedule to serialize
+            validation_errors: Optional list of validation errors to include in the response
+            
+        Returns:
+            A JSON string containing the schedule data and any validation errors
+        """
         try:
             # First convert to dictionary
-            schedule_dict = self.serialize_schedule(schedule)
+            schedule_dict = self.serialize_schedule(schedule, validation_errors)
 
             # Convert to JSON string
             import json
@@ -108,7 +134,7 @@ class ScheduleSerializer:
             return json.dumps(schedule_dict)
         except Exception as e:
             self.log_error(f"Error serializing schedule to JSON: {str(e)}")
-            raise
+            return json.dumps({"schedules": [], "errors": [{"message": str(e), "type": "serialization_error"}]})
 
     def convert_schedule_to_dict(self, schedule) -> Dict[str, Any]:
         """Convert a schedule object to a dictionary for API responses"""
@@ -162,6 +188,12 @@ class ScheduleSerializer:
                     entry_dict['version'] = 1
                 if 'status' not in entry_dict:
                     entry_dict['status'] = 'PENDING'
+                
+                # Ensure employee_name is present if we have first_name and last_name
+                if ('employee_first_name' in entry_dict or 'employee_last_name' in entry_dict) and 'employee_name' not in entry_dict:
+                    first_name = entry_dict.get('employee_first_name', '')
+                    last_name = entry_dict.get('employee_last_name', '')
+                    entry_dict['employee_name'] = f"{first_name} {last_name}".strip()
                     
                 return entry_dict
             
@@ -174,12 +206,36 @@ class ScheduleSerializer:
                 "status": getattr(entry, "status", "PENDING"),
             }
 
+            # Add employee name if available
+            if hasattr(entry, "employee_first_name") and hasattr(entry, "employee_last_name"):
+                entry_dict["employee_name"] = f"{entry.employee_first_name} {entry.employee_last_name}".strip()
+            elif hasattr(entry, "employee_name"):
+                entry_dict["employee_name"] = entry.employee_name
+            else:
+                entry_dict["employee_name"] = ""
+
             # Add shift information if available
             if hasattr(entry, "shift_id") and entry.shift_id:
                 entry_dict["shift_id"] = entry.shift_id
 
             if hasattr(entry, "shift") and entry.shift:
                 entry_dict["shift"] = self.convert_shift_to_dict(entry.shift)
+                
+            # Add shift details if available
+            if hasattr(entry, "shift_name"):
+                entry_dict["shift_name"] = entry.shift_name
+            else:
+                entry_dict["shift_name"] = ""
+                
+            if hasattr(entry, "shift_start_time"):
+                entry_dict["shift_start_time"] = entry.shift_start_time
+            else:
+                entry_dict["shift_start_time"] = ""
+                
+            if hasattr(entry, "shift_end_time"):
+                entry_dict["shift_end_time"] = entry.shift_end_time
+            else:
+                entry_dict["shift_end_time"] = ""
 
             if hasattr(entry, "availability_type") and entry.availability_type:
                 entry_dict["availability_type"] = entry.availability_type
@@ -313,3 +369,120 @@ class ScheduleSerializer:
     def log_error(self, message):
         if hasattr(self.logger, "error"):
             self.logger.error(message)
+
+    def deserialize_schedule(self, schedule_json) -> Any:
+        """
+        Deserialize a schedule from a JSON string
+        
+        Args:
+            schedule_json: JSON string containing schedule data
+            
+        Returns:
+            A ScheduleContainer object populated with the schedule data
+        """
+        try:
+            import json
+            
+            # Parse the JSON string
+            if isinstance(schedule_json, str):
+                schedule_data = json.loads(schedule_json)
+            else:
+                schedule_data = schedule_json
+                
+            # Create a new ScheduleContainer
+            from services.scheduler.container import ScheduleContainer
+            
+            container = ScheduleContainer(
+                start_date=self.parse_date(schedule_data.get("start_date")),
+                end_date=self.parse_date(schedule_data.get("end_date")),
+                version=schedule_data.get("version", 1)
+            )
+            
+            # Set additional properties
+            if "schedule_id" in schedule_data:
+                container.id = schedule_data["schedule_id"]
+                
+            if "status" in schedule_data:
+                container.status = schedule_data["status"]
+                
+            # Add entries if they exist
+            if "entries" in schedule_data and schedule_data["entries"]:
+                for entry_data in schedule_data["entries"]:
+                    entry = self.deserialize_entry(entry_data)
+                    container.entries.append(entry)
+            
+            return container
+        except Exception as e:
+            self.log_error(f"Error deserializing schedule: {str(e)}")
+            raise
+            
+    def deserialize_entry(self, entry_data) -> Any:
+        """
+        Deserialize a schedule entry from JSON data
+        
+        Args:
+            entry_data: JSON string or dictionary containing entry data
+            
+        Returns:
+            A schedule entry object
+        """
+        try:
+            import json
+            
+            # Parse the JSON string if necessary
+            if isinstance(entry_data, str):
+                entry_dict = json.loads(entry_data)
+            else:
+                entry_dict = entry_data
+                
+            # Create a new entry object
+            from services.scheduler.container import ScheduleEntry
+            
+            entry = ScheduleEntry(
+                id=entry_dict.get("id"),
+                employee_id=entry_dict.get("employee_id"),
+                shift_id=entry_dict.get("shift_id"),
+                date=self.parse_date(entry_dict.get("date")),
+                status=entry_dict.get("status", "PENDING"),
+                version=entry_dict.get("version", 1)
+            )
+            
+            # Add additional properties if they exist
+            if "employee_name" in entry_dict:
+                name_parts = entry_dict["employee_name"].split()
+                if len(name_parts) > 1:
+                    entry.employee_first_name = name_parts[0]
+                    entry.employee_last_name = " ".join(name_parts[1:])
+                else:
+                    entry.employee_name = entry_dict["employee_name"]
+                    
+            if "shift_name" in entry_dict:
+                entry.shift_name = entry_dict["shift_name"]
+                
+            if "shift_start_time" in entry_dict:
+                entry.shift_start_time = entry_dict["shift_start_time"]
+                
+            if "shift_end_time" in entry_dict:
+                entry.shift_end_time = entry_dict["shift_end_time"]
+                
+            return entry
+        except Exception as e:
+            self.log_error(f"Error deserializing entry: {str(e)}")
+            raise
+    
+    def parse_date(self, date_value) -> Optional[date]:
+        """Parse a date value to a date object"""
+        if not date_value:
+            return None
+            
+        if isinstance(date_value, date):
+            return date_value
+        elif isinstance(date_value, str):
+            try:
+                return date.fromisoformat(date_value)
+            except ValueError:
+                self.log_warning(f"Invalid date format: {date_value}")
+                raise ValueError(f"Invalid date format: {date_value}")
+        else:
+            self.log_warning(f"Unhandled date type: {type(date_value)}")
+            return None

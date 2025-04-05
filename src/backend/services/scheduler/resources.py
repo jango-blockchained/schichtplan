@@ -7,6 +7,7 @@ import functools
 import sys
 import os
 from unittest.mock import MagicMock  # Add this import for testing
+from sqlalchemy import inspect  # Add inspect import for database inspection
 
 # Add parent directories to path if needed
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -104,41 +105,82 @@ class ScheduleResources:
         """Load all scheduling resources from the database"""
         self.logger.info("[DIAGNOSTIC] Loading scheduler resources...")
         
+        # Track what was successfully loaded
+        loaded_components = {
+            'settings': False,
+            'shifts': False,
+            'coverage': False,
+            'employees': False, 
+            'absences': False,
+            'availabilities': False
+        }
+        
         try:
             # Load settings
-            self.settings = self._load_settings()
-            
+            try:
+                self.settings = self._load_settings()
+                loaded_components['settings'] = True
+            except Exception as e:
+                self.logger.error(f"[DIAGNOSTIC] Error loading settings: {e}", exc_info=True)
+                
             # Load schedule data
-            self.shifts = self._load_shifts()
-            for shift in self.shifts:
-                self.logger.info(
-                    f"[DIAGNOSTIC] Loaded shift template: ID={shift.id}, start={shift.start_time}, "
-                    f"end={shift.end_time}, type={shift.shift_type_id}, "
-                    f"duration={shift.duration_hours}h"
-                )
-            
+            try:
+                self.shifts = self._load_shifts()
+                loaded_components['shifts'] = True
+                # Log loaded shift templates to help debugging
+                for shift in self.shifts[:5]:  # Log first 5 shifts
+                    self.logger.debug(
+                        f"[DIAGNOSTIC] Loaded shift template: ID={shift.id}, start={shift.start_time}, "
+                        f"end={shift.end_time}, duration={getattr(shift, 'duration_hours', 'unknown')}"
+                    )
+            except Exception as e:
+                self.logger.error(f"[DIAGNOSTIC] Error loading shifts: {e}", exc_info=True)
+                
             # Load coverage requirements
-            self._load_coverage()
-            
+            try:
+                self._load_coverage()
+                loaded_components['coverage'] = True
+            except Exception as e:
+                self.logger.error(f"[DIAGNOSTIC] Error loading coverage: {e}", exc_info=True)
+                
             # Load employee data
-            self._load_employees()
-            
+            try:
+                self._load_employees()
+                loaded_components['employees'] = True
+            except Exception as e:
+                self.logger.error(f"[DIAGNOSTIC] Error loading employees: {e}", exc_info=True)
+                
             # Load absence data
-            self._load_absences()
-            
+            try:
+                self._load_absences()
+                loaded_components['absences'] = True
+            except Exception as e:
+                self.logger.error(f"[DIAGNOSTIC] Error loading absences: {e}", exc_info=True)
+                
             # Load availability data
-            self._load_availabilities()
-            
-            # Mark as loaded
-            self._loaded = True
-            
-            # Validation check
+            try:
+                self._load_availabilities()
+                loaded_components['availabilities'] = True
+            except Exception as e:
+                self.logger.error(f"[DIAGNOSTIC] Error loading availabilities: {e}", exc_info=True)
+                
+            # Mark as loaded if we have at least employees and shifts
+            # This is a partial success scenario
+            critical_components = ['employees', 'shifts']
+            if all(loaded_components[component] for component in critical_components):
+                self._loaded = True
+                self.logger.info(f"[DIAGNOSTIC] Critical resources loaded, components status: {loaded_components}")
+            else:
+                self._loaded = False
+                self.logger.error(f"[DIAGNOSTIC] Critical resource loading failed, components status: {loaded_components}")
+                
+            # Verify resources and log details
             loaded_successfully = self.verify_loaded_resources()
             
             if loaded_successfully:
                 self.logger.info("[DIAGNOSTIC] Resource loading complete successfully")
             else:
-                self.logger.error("[DIAGNOSTIC] Resource loading completed with errors")
+                self.logger.warning("[DIAGNOSTIC] Resource loading completed with some components missing")
                 
             return loaded_successfully
             
@@ -159,55 +201,160 @@ class ScheduleResources:
 
     def _load_coverage(self):
         """Load coverage requirements from the database"""
-        self.logger.info("Starting to load coverage data...")
+        self.logger.info("[DIAGNOSTIC] Starting to load coverage data without date filtering...")
         try:
+            # Print database connection info
+            self.logger.info(f"[DIAGNOSTIC] Database connection info: {db.engine.url}")
+            
+            # Count total coverage records in database
+            total_coverage_count = db.session.query(db.func.count(Coverage.id)).scalar()
+            self.logger.info(f"[DIAGNOSTIC] Total coverage records in database: {total_coverage_count}")
+            
+            # Examine coverage table structure
+            if total_coverage_count == 0:
+                self.logger.warning("[DIAGNOSTIC] No coverage records found in database at all")
+                # Check if the table exists
+                table_exists = db.engine.dialect.has_table(db.engine.connect(), "coverage")
+                self.logger.info(f"[DIAGNOSTIC] Coverage table exists: {table_exists}")
+                
+                # Try to get column names to verify schema
+                try:
+                    inspector = inspect(db.engine)
+                    columns = inspector.get_columns("coverage")
+                    column_names = [col['name'] for col in columns]
+                    self.logger.info(f"[DIAGNOSTIC] Coverage columns: {', '.join(column_names)}")
+                except Exception as e:
+                    self.logger.warning(f"[DIAGNOSTIC] Could not inspect coverage table: {e}")
+            
+            # Compile the query to SQL for debugging
+            try:
+                query = Coverage.query
+                raw_sql = str(query.statement.compile(
+                    dialect=db.engine.dialect, 
+                    compile_kwargs={"literal_binds": True}
+                ))
+                self.logger.info(f"[DIAGNOSTIC] Raw SQL query for coverage: {raw_sql}")
+            except Exception as e:
+                self.logger.warning(f"[DIAGNOSTIC] Failed to compile SQL: {e}")
+            
+            # Load all coverage requirements without date filtering
             self.coverage = Coverage.query.all()
+            
+            # Log coverage query details to help debug
+            self.logger.info(f"[DIAGNOSTIC] Coverage.query returned {len(self.coverage)} records")
+            
+            # Log details of each coverage record
+            for idx, coverage in enumerate(self.coverage[:10]):  # Limit to first 10 for log brevity
+                self.logger.info(
+                    f"[DIAGNOSTIC] Coverage {idx+1}: ID={coverage.id}, "
+                    f"day_of_week={getattr(coverage, 'day_of_week', 'N/A')}, "
+                    f"day_index={getattr(coverage, 'day_index', 'N/A')}, "
+                    f"shift_type_id={getattr(coverage, 'shift_type_id', 'N/A')}, "
+                    f"required_employees={getattr(coverage, 'required_employees', 'N/A')}"
+                )
             
             # If no coverage found and this is a test environment
             if not self.coverage and hasattr(Coverage, '_mock_name'):
-                self.logger.debug("No coverage found and in test mode. Creating mock coverage.")
+                self.logger.debug("[DIAGNOSTIC] No coverage found and in test mode. Creating mock coverage.")
                 mock_coverage1 = MagicMock()
                 mock_coverage1.day_of_week = 1
+                mock_coverage1.day_index = 1
                 mock_coverage1.shift_type_id = 1
                 mock_coverage1.required_employees = 2
                 
                 mock_coverage2 = MagicMock()
                 mock_coverage2.day_of_week = 2
+                mock_coverage2.day_index = 2
                 mock_coverage2.shift_type_id = 2
                 mock_coverage2.required_employees = 3
                 
                 self.coverage = [mock_coverage1, mock_coverage2]
+                self.logger.info("[DIAGNOSTIC] Created mock coverage for testing")
             
-            self.logger.debug(f"Loaded {len(self.coverage)} coverage requirements")
+            self.logger.info(f"[DIAGNOSTIC] Successfully loaded {len(self.coverage)} coverage requirements")
             return self.coverage
         except Exception as e:
-            self.logger.error(f"Error loading coverage requirements: {e}")
+            self.logger.error(f"[DIAGNOSTIC] Error loading coverage requirements: {e}", exc_info=True)
+            import traceback
+            self.logger.error(f"[DIAGNOSTIC] Stack trace: {traceback.format_exc()}")
             self.coverage = []
             return self.coverage
 
     def _load_shifts(self) -> List[ShiftTemplate]:
         """Load shifts with error handling"""
         try:
+            # Load all shift templates without date filtering
+            self.logger.info("[DIAGNOSTIC] Starting to load shift templates with no date filtering...")
+            
+            # Count total shifts in database
+            total_shifts_count = db.session.query(db.func.count(ShiftTemplate.id)).scalar()
+            self.logger.info(f"[DIAGNOSTIC] Total shift templates in database: {total_shifts_count}")
+            
+            # Create inspector
+            inspector = inspect(db.engine)
+            
+            # Examine shift template table structure
+            if total_shifts_count == 0:
+                self.logger.warning("[DIAGNOSTIC] No shift templates found in database at all")
+                # Check if the table exists
+                table_exists = db.engine.dialect.has_table(db.engine.connect(), "shifts")
+                self.logger.info(f"[DIAGNOSTIC] Shifts table exists: {table_exists}")
+                
+                # Try to get column names to verify schema
+                try:
+                    columns = inspector.get_columns("shifts")
+                    column_names = [col['name'] for col in columns]
+                    self.logger.info(f"[DIAGNOSTIC] Shift template columns: {', '.join(column_names)}")
+                except Exception as e:
+                    self.logger.warning(f"[DIAGNOSTIC] Could not inspect shift template table: {e}")
+            
+            # Print database connection info
+            self.logger.info(f"[DIAGNOSTIC] Database connection info: {db.engine.url}")
+            
+            # Compile the query to SQL for debugging
+            try:
+                query = ShiftTemplate.query
+                raw_sql = str(query.statement.compile(
+                    dialect=db.engine.dialect, 
+                    compile_kwargs={"literal_binds": True}
+                ))
+                self.logger.info(f"[DIAGNOSTIC] Raw SQL query for shifts: {raw_sql}")
+            except Exception as e:
+                self.logger.warning(f"[DIAGNOSTIC] Failed to compile SQL: {e}")
+            
+            # Load all shift templates without date filtering
             shifts = ShiftTemplate.query.all()
+            
+            # Log shift query details to help debug
+            self.logger.info(f"[DIAGNOSTIC] ShiftTemplate.query returned {len(shifts)} templates")
+            
             if not shifts:
-                logger.error("No shift templates found in database")
-                raise ScheduleResourceError("No shift templates found")
+                self.logger.warning("[DIAGNOSTIC] No shift templates found in database")
+                return []
 
             # Log shift details and calculate durations if missing
-            for shift in shifts:
+            for idx, shift in enumerate(shifts):
                 # Ensure each shift has a duration calculated
                 if hasattr(shift, 'duration_hours') and shift.duration_hours is None:
                     self._calculate_shift_duration(shift)
                 
-                logger.info(
-                    f"Loaded shift template: ID={shift.id}, "
+                # Log detailed shift template information
+                self.logger.info(
+                    f"[DIAGNOSTIC] Shift template {idx+1}: ID={shift.id}, "
                     f"start={shift.start_time}, end={shift.end_time}, "
                     f"type={shift.shift_type_id}, "
+                    f"active_days={getattr(shift, 'active_days', 'N/A')}, "
+                    f"day_of_week={getattr(shift, 'day_of_week', 'N/A')}, "
+                    f"valid_days={getattr(shift, 'valid_days', 'N/A')}, "
                     f"duration={getattr(shift, 'duration_hours', 'N/A')}h"
                 )
+            
+            self.logger.info(f"[DIAGNOSTIC] Successfully loaded {len(shifts)} shift templates")
             return shifts
         except Exception as e:
-            self.logger.error(f"Error loading shifts: {str(e)}")
+            self.logger.error(f"[DIAGNOSTIC] Error loading shifts: {str(e)}", exc_info=True)
+            import traceback
+            self.logger.error(f"[DIAGNOSTIC] Stack trace: {traceback.format_exc()}")
             return []
             
     def _calculate_shift_duration(self, shift):
@@ -570,11 +717,15 @@ class ScheduleResources:
     def verify_loaded_resources(self):
         """Verify that all required resources are loaded correctly"""
         success = True
+        critical_success = True
+        warnings = []
         
-        # Check employees
+        # Check employees - This is critical
         if not self.employees:
-            self.logger.error("[DIAGNOSTIC] No employees loaded")
+            self.logger.error("[DIAGNOSTIC] No employees loaded - this is a critical component")
             success = False
+            critical_success = False
+            warnings.append("No employees loaded - schedule generation cannot proceed")
         else:
             active_count = sum(1 for e in self.employees if getattr(e, "is_active", True))
             self.logger.info(f"[DIAGNOSTIC] Verified {len(self.employees)} employees ({active_count} active)")
@@ -584,11 +735,19 @@ class ScheduleResources:
                 emp_name = f"{getattr(emp, 'first_name', '')} {getattr(emp, 'last_name', '')}"
                 emp_active = getattr(emp, "is_active", True)
                 self.logger.info(f"[DIAGNOSTIC] - Employee {i+1}: ID={emp_id}, Name={emp_name}, Active={emp_active}")
+            
+            # Check for empty employees list with only inactive employees
+            if active_count == 0:
+                self.logger.warning("[DIAGNOSTIC] No active employees found - schedule may be empty")
+                warnings.append("No active employees found - schedule will be empty")
+                success = False  # This is a problem but not critical
 
-        # Check shifts
+        # Check shifts - This is critical
         if not self.shifts:
-            self.logger.error("[DIAGNOSTIC] No shifts loaded")
+            self.logger.error("[DIAGNOSTIC] No shifts loaded - this is a critical component")
             success = False
+            critical_success = False
+            warnings.append("No shifts loaded - schedule generation cannot proceed")
         else:
             self.logger.info(f"[DIAGNOSTIC] Verified {len(self.shifts)} shifts")
             # Log first few shifts for debugging
@@ -598,10 +757,11 @@ class ScheduleResources:
                 shift_type = getattr(shift, "shift_type_id", "unknown")
                 self.logger.info(f"[DIAGNOSTIC] - Shift {i+1}: ID={shift_id}, Times={shift_times}, Type={shift_type}")
 
-        # Check coverage
+        # Check coverage - This is important but not critical
         if not self.coverage:
-            self.logger.error("[DIAGNOSTIC] No coverage data loaded")
-            success = False
+            self.logger.warning("[DIAGNOSTIC] No coverage data loaded - will use default coverage")
+            warnings.append("No coverage data loaded - using default coverage")
+            success = False  # This is a problem but not critical
         else:
             self.logger.info(f"[DIAGNOSTIC] Verified {len(self.coverage)} coverage records")
             # Log first few coverage records for debugging
@@ -610,30 +770,45 @@ class ScheduleResources:
                 employees_needed = getattr(cov, "min_employees", getattr(cov, "required_employees", 0))
                 self.logger.info(f"[DIAGNOSTIC] - Coverage {i+1}: Day={day_idx}, Employees={employees_needed}")
 
-        # Check settings
+        # Check settings - This is important but can use defaults
         if not self.settings:
-            self.logger.error("[DIAGNOSTIC] No settings loaded")
-            success = False
+            self.logger.warning("[DIAGNOSTIC] No settings loaded - will use default settings")
+            warnings.append("No settings loaded - using default settings")
+            success = False  # This is a problem but not critical
         else:
             self.logger.info("[DIAGNOSTIC] Verified settings")
             
-        # Check availability records
+        # Check availability records - Nice to have but not critical
         total_avail = len(self.availabilities) if hasattr(self, 'availabilities') else 0
         if total_avail == 0:
             self.logger.warning("[DIAGNOSTIC] No availability records loaded - employees may not be assigned correctly")
+            warnings.append("No availability records - employees may not be assigned optimally")
         else:
             self.logger.info(f"[DIAGNOSTIC] Verified {total_avail} availability records")
             
-        # Set the loaded flag based on success
-        self._loaded = success
+        # Set the loaded flag based on critical components
+        self._loaded = critical_success
 
-        if not success:
-            self.logger.error("[DIAGNOSTIC] Resource verification failed - schedule generation may not work correctly")
+        # Log warnings if there are any
+        if warnings:
+            self.logger.warning(f"[DIAGNOSTIC] Resource verification completed with {len(warnings)} warnings:")
+            for i, warning in enumerate(warnings):
+                self.logger.warning(f"[DIAGNOSTIC] Warning {i+1}: {warning}")
+                
+        if not critical_success:
+            self.logger.error("[DIAGNOSTIC] Critical resource verification failed - schedule generation cannot proceed")
+        elif not success:
+            self.logger.warning("[DIAGNOSTIC] Resource verification completed with non-critical issues")
         else:
             self.logger.info("[DIAGNOSTIC] Resource verification completed successfully")
 
-        return success
+        # Allow schedule generation to proceed if critical components are loaded
+        return critical_success
 
     def get_shifts(self):
         """Get all available shifts."""
         return self.shifts
+
+    def get_coverages(self):
+        """Get all coverage requirements."""
+        return self.coverage

@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from ..models import db, Absence, Employee
+from ..models import Absence, Employee
 from datetime import datetime
 
 bp = Blueprint("absences", __name__, url_prefix="/api/absences")
@@ -13,7 +13,7 @@ def get_absences():
 
     query = Absence.query
     if employee_id:
-        _employee = Employee.query.get_or_404(employee_id)
+        Employee.query.get_or_404(employee_id)
         query = query.filter_by(employee_id=employee_id)
     
     try:
@@ -32,6 +32,7 @@ def get_absences():
 
 @bp.route("/", methods=["POST"])
 def add_absence():
+    from ..models import db
     data = request.get_json()
     required_fields = ["employee_id", "start_date", "end_date", "reason"]
     if not all(field in data for field in required_fields):
@@ -43,7 +44,7 @@ def add_absence():
         if end_date < start_date:
             return jsonify({"error": "End date cannot be before start date"}), 400
         
-        _employee = Employee.query.get_or_404(data["employee_id"])
+        Employee.query.get_or_404(data["employee_id"])
         
         absence = Absence(
             employee_id=data["employee_id"],
@@ -64,6 +65,7 @@ def add_absence():
 
 @bp.route("/<int:absence_id>", methods=["PUT"])
 def update_absence(absence_id):
+    from ..models import db
     data = request.get_json()
     absence = Absence.query.get_or_404(absence_id)
 
@@ -92,6 +94,7 @@ def update_absence(absence_id):
 
 @bp.route("/<int:absence_id>", methods=["DELETE"])
 def delete_absence(absence_id):
+    from ..models import db
     absence = Absence.query.get_or_404(absence_id)
     try:
         db.session.delete(absence)

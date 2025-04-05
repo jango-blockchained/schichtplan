@@ -2,16 +2,17 @@ import os
 import json
 import datetime
 from flask import Blueprint, jsonify, request, send_file
-from models import db, Settings
+from ..models import Settings
 from http import HTTPStatus
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 
-bp = Blueprint("settings", __name__, url_prefix="/api/settings")
+bp = Blueprint("api_settings", __name__, url_prefix="/api/settings")
 
 
 @bp.route("/", methods=["GET"])
 def get_settings():
     """Get all settings or initialize with defaults if none exist"""
+    from ..models import db
     try:
         settings = Settings.query.first()
 
@@ -29,6 +30,8 @@ def get_settings():
 
         return jsonify(settings.to_dict())
     except Exception:
+        # Import db inside function (needed for rollback/commit)
+        from ..models import db
         # If there's an unexpected error, try to reset and recreate settings
         try:
             Settings.query.delete()
@@ -40,6 +43,9 @@ def get_settings():
 
             return jsonify(settings.to_dict())
         except Exception as reset_error:
+            # Ensure db is imported for rollback if needed
+            # from ..models import db # Already imported in outer except
+            # db.session.rollback() # Rollback might be handled by context exit
             return jsonify(
                 {"error": f"Critical error retrieving settings: {str(reset_error)}"}
             ), HTTPStatus.INTERNAL_SERVER_ERROR
@@ -48,6 +54,7 @@ def get_settings():
 @bp.route("/", methods=["PUT"])
 def update_settings():
     """Update settings"""
+    from ..models import db
     try:
         data = request.get_json()
         settings = Settings.query.first()
@@ -67,6 +74,7 @@ def update_settings():
 
 def serialize_db():
     """Serialize all database tables into a JSON structure"""
+    from ..models import db
     data = {}
     inspector = inspect(db.engine)
 
@@ -116,6 +124,7 @@ def backup_database():
 @bp.route("/restore", methods=["POST"])
 def restore_database():
     """Restore the database from a JSON backup"""
+    from ..models import db
     if "file" not in request.files:
         return jsonify({"error": "No file provided"}), HTTPStatus.BAD_REQUEST
 
@@ -132,13 +141,28 @@ def restore_database():
             inspector = inspect(db.engine)
             for table_name in reversed(inspector.get_table_names()):
                 if table_name != "alembic_version":  # Skip migration table
-                    db.session.execute(f"TRUNCATE TABLE {table_name} CASCADE")
+                    # Using DELETE is safer
+                    db.session.execute(text(f'DELETE FROM "{table_name}";'))
 
             # Restore data
             for table_name, records in data.items():
                 table = db.metadata.tables.get(table_name)
-                if table and records:
-                    db.session.execute(table.insert(), records)
+                if table is not None and records:
+                    # Insert records individually for better type handling
+                    for record_data in records:
+                        for key, value in record_data.items():
+                            col_type = table.c[key].type
+                            if isinstance(col_type, db.DateTime) and value:
+                                record_data[key] = datetime.datetime.fromisoformat(
+                                    value
+                                )
+                            elif isinstance(col_type, db.Date) and value:
+                                record_data[key] = datetime.date.fromisoformat(
+                                    value
+                                )
+                        db.session.execute(
+                            table.insert().values(**record_data)
+                        )
 
         return jsonify({"message": "Database restored successfully"}), HTTPStatus.OK
     except Exception as e:
@@ -149,6 +173,7 @@ def restore_database():
 @bp.route("/wipe-tables", methods=["POST"])
 def wipe_tables():
     """Wipe specific database tables"""
+    from ..models import db
     if not request.is_json:
         return jsonify(
             {"error": "Content-Type must be application/json"}
@@ -174,8 +199,25 @@ def wipe_tables():
     try:
         # Start a transaction
         with db.session.begin():
+            # Disable FK checks for SQLite
+            if db.engine.name == 'sqlite':
+                db.session.execute(text("PRAGMA foreign_keys=OFF"))
+
             for table_name in tables_to_wipe:
-                db.session.execute(f"TRUNCATE TABLE {table_name} CASCADE")
+                 # Using DELETE is safer than TRUNCATE
+                 # db.session.execute(f"TRUNCATE TABLE {table_name} CASCADE")
+                 db.session.execute(text(f'DELETE FROM "{table_name}";'))
+                 # Try reset sequence for SQLite
+                 if db.engine.name == 'sqlite':
+                     try:
+                         db.session.execute(text("DELETE FROM sqlite_sequence WHERE name=:table_name"), {"table_name": table_name})
+                     except Exception as seq_e:
+                         if "no such table: sqlite_sequence" not in str(seq_e):
+                             raise
+
+            # Re-enable FK checks for SQLite
+            if db.engine.name == 'sqlite':
+                db.session.execute(text("PRAGMA foreign_keys=ON"))
 
         return jsonify(
             {"message": "Tables wiped successfully", "wiped_tables": tables_to_wipe}
@@ -188,6 +230,7 @@ def wipe_tables():
 @bp.route("/tables", methods=["GET"])
 def get_tables():
     """Get list of available database tables"""
+    from ..models import db
     try:
         inspector = inspect(db.engine)
         tables = [t for t in inspector.get_table_names() if t != "alembic_version"]

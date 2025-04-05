@@ -1,0 +1,58 @@
+{
+    "session_id": "c85c9af6",
+    "timestamp": "2025-04-05T05:18:05.151501",
+    "date_range": {
+        "start_date": "2024-04-01",
+        "end_date": "2024-04-07",
+        "days": 7
+    },
+    "statistics": {
+        "employees": 30,
+        "shifts": 8,
+        "coverage_blocks": 18,
+        "dates": 7,
+        "available_employees": 30,
+        "assignments_made": 0,
+        "constraints_applied": 0,
+        "errors": 0,
+        "warnings": 0
+    },
+    "bottlenecks": [],
+    "recommendations": [],
+    "timings": {
+        "Initializing diagnostic tool": {
+            "start": 1743823084.3140688,
+            "duration": 0.41765499114990234
+        },
+        "Setting up Flask application": {
+            "start": 1743823084.731857,
+            "duration": 0.3191804885864258
+        },
+        "Setting up schedule date range": {
+            "start": 1743823085.0514672,
+            "duration": 0.0012922286987304688
+        },
+        "Analyzing database state": {
+            "start": 1743823085.056665,
+            "duration": 0.04497981071472168
+        },
+        "Checking existing schedule entries": {
+            "start": 1743823085.1018848,
+            "duration": 0.0045850276947021484
+        },
+        "Creating ScheduleGenerator instance": {
+            "start": 1743823085.106715,
+            "duration": 0.0026192665100097656
+        },
+        "Generating schedule": {
+            "start": 1743823085.109465
+        },
+        "Running ScheduleGenerator.generate": {
+            "start": 1743823085.109523,
+            "duration": 0.04125356674194336
+        }
+    },
+    "warnings_count": 0,
+    "errors_count": 0,
+    "schedule_entries_count": 1
+}

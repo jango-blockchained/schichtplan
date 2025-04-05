@@ -49,9 +49,10 @@ def generate_schedule_endpoint():
         logs.append(f"Starting generation for version {version}")
 
         log = getattr(current_app, "logger", logger)
-        resources = ScheduleResources(logger=log)
-        
-        generator = ScheduleGenerator(resources=resources, logger=log)
+        resources = ScheduleResources()
+        config = SchedulerConfig()
+        params = data.get("params", {})
+        generator = ScheduleGenerator(resources=resources, config=config, params=params)
 
         result = generator.generate(
             start_date=start_date,
@@ -61,17 +62,18 @@ def generate_schedule_endpoint():
             version=version,
         )
 
-        if "logs" not in result:
-            result["logs"] = []
-        result["logs"].extend(logs)
+        # Combine initial logs with logs from generator
+        backend_logs = result.get("logs", [])
+        all_logs = logs + backend_logs
+        result["logs"] = all_logs # Ensure logs are in the final result
 
         if result.get("success"):
             return jsonify(result), HTTPStatus.OK
         else:
             error_message = result.get("error", "Schedule generation failed")
-            log.error(f"Schedule generation failed: {error_message}")
+            logger.error(f"Schedule generation failed: {error_message}")
             return (
-                jsonify({"error": error_message, "logs": result["logs"]}), 
+                jsonify({"error": error_message, "logs": all_logs}), # Return combined logs on error
                 HTTPStatus.INTERNAL_SERVER_ERROR
             )
 

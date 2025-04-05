@@ -13,7 +13,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 import logging
-from .availability import AvailabilityType  # Import from availability.py for compatibility
+# Re-add the import for backward compatibility
+from .availability import AvailabilityType
 
 
 class EmployeeGroup(str, Enum):
@@ -44,7 +45,7 @@ class Employee(db.Model):
 
     # Relationships
     schedule_entries = relationship("Schedule", back_populates="employee")
-    # Re-enable relationship with fixed import path
+    # Define relationship with forward declaration
     availabilities = relationship(
         "EmployeeAvailability", back_populates="employee", cascade="all, delete-orphan"
     )

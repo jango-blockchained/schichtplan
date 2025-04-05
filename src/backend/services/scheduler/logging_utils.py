@@ -9,7 +9,23 @@ import sys
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
+
+
+# Custom handler to capture logs in a list
+class ListHandler(logging.Handler):
+    def __init__(self, log_list: List[Dict[str, Any]]):
+        super().__init__()
+        self.log_list = log_list
+
+    def emit(self, record: logging.LogRecord):
+        log_entry = {
+            'timestamp': datetime.fromtimestamp(record.created).isoformat(),
+            'level': record.levelname,
+            'message': self.format(record), # Use handler's formatter or default
+             # Add module/function if available in formatter later
+        }
+        self.log_list.append(log_entry)
 
 
 class LoggingManager:
@@ -35,6 +51,7 @@ class LoggingManager:
         self.steps_completed = []
         self.step_start_time = None
         self.generation_start_time = None
+        self.process_logs = [] # List to store logs for the current process
 
     def setup_logging(
         self, log_level=logging.INFO, log_to_file=True, log_dir=None, app_log_dir=None
@@ -64,6 +81,14 @@ class LoggingManager:
         console_format = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
         console_handler.setFormatter(console_format)
         self.logger.addHandler(console_handler)
+
+        # Add our custom list handler to capture logs
+        self.list_handler = ListHandler(self.process_logs)
+        self.list_handler.setLevel(log_level)
+        # Use a simple formatter for the list, can be customized
+        list_format = logging.Formatter("%(message)s")
+        self.list_handler.setFormatter(list_format)
+        self.logger.addHandler(self.list_handler)
 
         # Add file handler if requested
         log_file_path = None
@@ -183,15 +208,27 @@ class LoggingManager:
                 # Fallback to the current directory with logs/diagnostics subdirectory
                 diagnostic_dir = os.path.join(current_dir, "logs", "diagnostics")
 
-            # Ensure directory exists
+            # Ensure directory exists with proper permissions
             os.makedirs(diagnostic_dir, exist_ok=True)
+            
+            # Ensure the directory is writable
+            if not os.access(diagnostic_dir, os.W_OK):
+                # Try to fix permissions
+                try:
+                    os.chmod(diagnostic_dir, 0o755)
+                except Exception as perm_error:
+                    self.logger.error(f"Could not set permissions on diagnostic directory: {str(perm_error)}")
+                    # Fallback to user's home directory
+                    home_dir = str(Path.home())
+                    diagnostic_dir = os.path.join(home_dir, ".schichtplan", "logs", "diagnostics")
+                    os.makedirs(diagnostic_dir, exist_ok=True)
 
             # Create a unique diagnostic log file
             diag_filename = f"schedule_diagnostic_{self.session_id}.log"
             diagnostic_path = os.path.join(diagnostic_dir, diag_filename)
 
             # Create a file handler for diagnostic logging
-            diag_handler = logging.FileHandler(diagnostic_path)
+            diag_handler = logging.FileHandler(diagnostic_path, mode='w')
             diag_handler.setLevel(log_level)
 
             # Create a simple formatter for diagnostic logs
@@ -223,6 +260,7 @@ class LoggingManager:
         self.generation_start_time = datetime.now()
         self.step_count = 0
         self.steps_completed = []
+        self.process_logs.clear() # Clear logs for the new process
         self.log_info(f"===== STARTING PROCESS: {process_name} =====")
         self.log_info(f"Process ID: {self.session_id}")
 
@@ -323,9 +361,9 @@ class LoggingManager:
         """Log a debug message"""
         self.logger.debug(message)
 
-    def log_info(self, message: str) -> None:
+    def log_info(self, message: str, extra: Optional[Dict] = None) -> None:
         """Log an info message"""
-        self.logger.info(message)
+        self.logger.info(message, extra=extra)
 
     def log_warning(self, message: str) -> None:
         """Log a warning message"""
@@ -381,3 +419,7 @@ class LoggingManager:
         except Exception as e:
             # Just log to normal logger if this fails
             self.logger.error(f"Failed to write to diagnostic log: {str(e)}")
+
+    def get_current_process_logs(self) -> List[Dict[str, Any]]:
+        """Return the logs captured during the current process run."""
+        return self.process_logs

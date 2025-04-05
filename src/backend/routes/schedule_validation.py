@@ -25,6 +25,7 @@ def validate_schedule_route():
         start_date_str = data.get("start_date")
         end_date_str = data.get("end_date")
         version = data.get("version")
+        validate_uniqueness = data.get("validate_uniqueness", True)
 
         schedules_to_validate = []
 
@@ -61,8 +62,8 @@ def validate_schedule_route():
 
         # Create resources and validator
         log = getattr(current_app, "logger", logger)
-        resources = ScheduleResources(logger=log)
-        validator = ScheduleValidator(resources, logger=log)
+        resources = ScheduleResources()
+        validator = ScheduleValidator(resources)
 
         # Create config from request or use defaults
         config = ScheduleConfig(

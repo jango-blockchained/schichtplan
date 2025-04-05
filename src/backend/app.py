@@ -12,24 +12,24 @@ from flask_cors import CORS
 from flask_migrate import Migrate
 # Make imports relative to the package
 from .config import Config
-from .routes.shifts import shifts
-from .routes.settings import settings
-# from .routes.schedules import schedules # Removed old import
-from .routes.employees import employees
-from .routes.availability import availability
-from .routes.absences import bp as absences_bp
-from .api.coverage import bp as coverage_bp
-from .api.schedules import bp as api_schedules_bp
-from .api.settings import bp as api_settings_bp
-from .api.demo_data import bp as demo_data_bp
-from .routes import logs  # Assuming routes is a subpackage
+# from .routes.shifts import shifts
+# from .routes.settings import settings
+# # from .routes.schedules import schedules # Removed old import
+# from .routes.employees import employees
+# from .routes.availability import availability
+# from .routes.absences import bp as absences_bp
+# from .api.coverage import bp as coverage_bp
+# from .api.schedules import bp as api_schedules_bp
+# from .api.settings import bp as api_settings_bp
+# from .api.demo_data import bp as demo_data_bp
+# from .routes import logs  # Assuming routes is a subpackage
 
 # Import new schedule blueprints
-from .routes.schedule_crud import crud_bp
-from .routes.schedule_generation import generation_bp
-from .routes.schedule_versions import versions_bp
-from .routes.schedule_export import export_bp
-from .routes.schedule_validation import validation_bp
+# from .routes.schedule_crud import crud_bp
+# from .routes.schedule_generation import generation_bp
+# from .routes.schedule_versions import versions_bp
+# from .routes.schedule_export import export_bp
+# from .routes.schedule_validation import validation_bp
 
 # Re-add Logger and CustomFormatter import
 from .utils.logger import (
@@ -39,12 +39,10 @@ from .utils.logger import (
 
 # Add the parent directory to Python path
 # (Keep this for potential direct script execution, though relative imports are preferred)
+# noqa: E42 - Necessary for factory pattern / conditional imports
 current_dir = Path(__file__).resolve().parent.parent.parent
 if str(current_dir) not in sys.path:
     sys.path.append(str(current_dir))
-
-# Import models after path setup, db might be initialized here implicitly
-from .models import db
 
 # Import diagnostic tools
 try:
@@ -52,6 +50,7 @@ try:
     from .tools.debug.flask_diagnostic import (
         register_commands as register_diagnostic_commands,
     )
+    # noqa: E402
 except ImportError:
     register_diagnostic_commands = None
 
@@ -105,12 +104,14 @@ def create_app(config_class=Config, testing=False):
         },
     )
 
-    # Initialize extensions
+    # Import and initialize extensions *inside* create_app
+    from .models import db # Import db here
     db.init_app(app)
     # Point to the desired migrations directory: src/migrations
-    # Note: This path is relative to the project root where flask commands are run
+    # Note: This path is relative to the project root where flask commands
+    # are run
     migrations_dir = os.path.join("src", "migrations")
-    _migrate = Migrate(app, db, directory=migrations_dir)
+    _migrate = Migrate(app, db, directory=migrations_dir)  # noqa: F841
 
     # Ensure the instance folder exists
     try:
@@ -126,10 +127,30 @@ def create_app(config_class=Config, testing=False):
     # Setup logging
     setup_logging(app)
 
+    # Import and Register blueprints *after* db.init_app()
+    from .routes.shifts import shifts
+    from .routes.settings import settings
+    from .routes.employees import employees
+    from .routes.availability import availability
+    from .routes.absences import bp as absences_bp
+    from .api.coverage import bp as coverage_bp
+    from .api.schedules import bp as api_schedules_bp
+    from .api.settings import bp as api_settings_bp
+    from .api.demo_data import bp as demo_data_bp
+    from .routes import logs  # Assuming routes is a subpackage
+    from .api.employee_absences import bp as employee_absences_bp
+
+    # New schedule blueprints
+    from .routes.schedule_crud import crud_bp
+    from .routes.schedule_generation import generation_bp
+    from .routes.schedule_versions import versions_bp
+    from .routes.schedule_export import export_bp
+    from .routes.schedule_validation import validation_bp
+
     # Register blueprints
     app.register_blueprint(shifts, url_prefix="/api")
     app.register_blueprint(settings, url_prefix="/api")
-    # app.register_blueprint(schedules, url_prefix="/api") # Removed old registration
+    # app.register_blueprint(schedules, url_prefix="/api") # Old registration removed
     app.register_blueprint(employees, url_prefix="/api")
     app.register_blueprint(availability, url_prefix="/api")
     app.register_blueprint(absences_bp, url_prefix="/api")
@@ -141,7 +162,8 @@ def create_app(config_class=Config, testing=False):
     app.register_blueprint(logs.bp, url_prefix="/api/logs")
     app.register_blueprint(
         api_schedules_bp, name="api_schedules"
-    )  # Register with unique name to avoid conflict
+    )  # Register with unique name
+    app.register_blueprint(employee_absences_bp)
 
     # Register new schedule blueprints
     # Note: They already have the /api/schedules prefix defined in their files
@@ -177,15 +199,24 @@ def create_app(config_class=Config, testing=False):
 
     @app.errorhandler(Exception)
     def handle_error(error):
-        app.config["logger"].error_logger.error(
-            f"Unhandled exception: {str(error)}\n"
-            f"{traceback.format_exc()}"
-        )
+        # Use configured logger if available
+        logger = app.config.get("logger")
+        if logger:
+            logger.error_logger.error(
+                f"Unhandled exception: {str(error)}\n"
+                f"{traceback.format_exc()}"
+            )
+        else:  # Fallback to app logger # Added space before comment
+            app.logger.error(
+                f"Unhandled exception (fallback logger): {str(error)}\n"
+                f"{traceback.format_exc()}"
+            )
         return (
             jsonify(
                 {
                     "error": str(error),
-                    "message": "An unexpected error occurred. Please try again later.",
+                    "message": "An unexpected error occurred. "
+                               "Please try again later.",
                 }
             ),
             500,
@@ -203,7 +234,8 @@ def create_app(config_class=Config, testing=False):
     )
     def run_diagnostic(start_date=None, end_date=None, days=7):
         """Run the schedule generator diagnostic"""
-        from .models import Employee, ShiftTemplate, Coverage
+        # Import models only when command runs
+        from .models import Employee, ShiftTemplate, Coverage, Settings
         from .services.scheduler import ScheduleGenerator
 
         session_id = str(uuid.uuid4())[:8]
@@ -229,24 +261,30 @@ def create_app(config_class=Config, testing=False):
             keyholders = Employee.query.filter_by(is_keyholder=True).count()
             shift_count = ShiftTemplate.query.count()
             coverage_count = Coverage.query.count()
+            settings_obj = Settings.query.first()
 
             app.logger.info(f"Total employees: {employee_count}")
             app.logger.info(f"Active employees: {active_employees}")
             app.logger.info(f"Keyholders: {keyholders}")
             app.logger.info(f"Shift templates: {shift_count}")
             app.logger.info(f"Coverage requirements: {coverage_count}")
+            app.logger.info(f"Settings found: {bool(settings_obj)}")
 
             if employee_count == 0:
                 app.logger.warning("No employees found in database")
             if shift_count == 0:
                 app.logger.warning("No shift templates found in database")
             if coverage_count == 0:
-                app.logger.warning("No coverage requirements found in database")
+                app.logger.warning(
+                    "No coverage requirements found in database"
+                )
+            if not settings_obj:
+                app.logger.warning("No settings found in the database!")
 
             # Generate schedule
             app.logger.info("Generating schedule")
-            generator = ScheduleGenerator()
-            _result = generator.generate( # Prefixed with _
+            generator = ScheduleGenerator(logger=app.logger)
+            result = generator.generate(  # noqa: F841
                 start_date=start_date,
                 end_date=end_date,
                 version=1,

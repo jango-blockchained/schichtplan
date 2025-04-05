@@ -2,8 +2,8 @@ from flask import Blueprint, request, jsonify
 from http import HTTPStatus
 from datetime import datetime
 
-# Relative imports
-from ..models import db, Schedule
+# Relative imports - remove db
+from ..models import Schedule
 from ..utils.logger import logger
 
 crud_bp = Blueprint("schedule_crud", __name__, url_prefix="/api/schedules")
@@ -61,6 +61,8 @@ def get_schedule_crud(schedule_id):
 @crud_bp.route("/<int:schedule_id>", methods=["PUT"])
 def update_schedule_crud(schedule_id):
     """Update a schedule entry (for drag and drop functionality)."""
+    # Import db inside function
+    from ..models import db
     try:
         data = request.get_json()
         if not data:
@@ -107,6 +109,8 @@ def update_schedule_crud(schedule_id):
 @crud_bp.route("/<int:schedule_id>", methods=["DELETE"])
 def delete_schedule_crud(schedule_id):
     """Delete a schedule entry."""
+    # Import db inside function
+    from ..models import db
     try:
         schedule = Schedule.query.get_or_404(schedule_id)
         db.session.delete(schedule)

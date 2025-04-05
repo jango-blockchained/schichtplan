@@ -5,9 +5,20 @@ import signal
 import argparse
 import random
 import subprocess
+import sys
 
-# Make app import relative
-from .app import create_app
+# Fix imports to work in both module and direct script execution modes
+try:
+    # When run as a module (python -m src.backend.run)
+    from src.backend.app import create_app
+except ModuleNotFoundError:
+    try:
+        # When run directly from backend directory
+        from app import create_app
+    except ModuleNotFoundError:
+        # When run with PYTHONPATH set
+        from .app import create_app
+
 from werkzeug.serving import is_running_from_reloader
 
 

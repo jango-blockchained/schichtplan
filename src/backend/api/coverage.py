@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, Coverage
+from ..models import Coverage
 from sqlalchemy.exc import IntegrityError
 from http import HTTPStatus
 import logging
@@ -57,6 +57,7 @@ def get_coverage_by_day(day_index):
 @bp.route('/', methods=['POST'])
 def create_coverage():
     """Create a new coverage requirement"""
+    from ..models import db
     data = request.get_json()
     
     try:
@@ -91,6 +92,7 @@ def create_coverage():
 @bp.route('/<int:coverage_id>', methods=['PUT'])
 def update_coverage(coverage_id):
     """Update a coverage requirement"""
+    from ..models import db
     data = request.get_json()
     coverage = Coverage.query.get_or_404(coverage_id)
     
@@ -132,6 +134,7 @@ def update_coverage(coverage_id):
 @bp.route('/<int:coverage_id>', methods=['DELETE'])
 def delete_coverage(coverage_id):
     """Delete a coverage requirement"""
+    from ..models import db
     coverage = Coverage.query.get_or_404(coverage_id)
     
     try:
@@ -148,6 +151,7 @@ def delete_coverage(coverage_id):
 @bp.route('/bulk', methods=['POST'])
 def bulk_update_coverage():
     """Bulk update coverage requirements for multiple days"""
+    from ..models import db
     data = request.get_json()
     
     try:

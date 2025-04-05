@@ -1,6 +1,5 @@
 from flask import Blueprint, jsonify, request
-from ..models import db, Employee, EmployeeAvailability
-from ..models.employee import AvailabilityType
+from ..models import Employee, EmployeeAvailability, AvailabilityType
 from http import HTTPStatus
 
 employees = Blueprint("employees", __name__, url_prefix="/api/employees")
@@ -26,6 +25,8 @@ def get_employee(employee_id):
 @employees.route("/employees/", methods=["POST"])
 def create_employee():
     """Create a new employee"""
+    from ..models import db
+
     data = request.get_json()
 
     try:
@@ -64,6 +65,8 @@ def create_employee():
 @employees.route("/employees/<int:employee_id>/", methods=["PUT"])
 def update_employee(employee_id):
     """Update an employee"""
+    from ..models import db
+
     employee = Employee.query.get_or_404(employee_id)
     data = request.get_json()
 
@@ -97,6 +100,8 @@ def update_employee(employee_id):
 @employees.route("/employees/<int:employee_id>/", methods=["DELETE"])
 def delete_employee(employee_id):
     """Delete an employee"""
+    from ..models import db
+
     employee = Employee.query.get_or_404(employee_id)
 
     try:
@@ -123,7 +128,7 @@ def get_employee_availabilities(employee_id):
                 "is_available": availability.is_available,
                 "availability_type": availability.availability_type.value
                 if availability.availability_type
-                else "AVLAILABLE",
+                else "AVAILABLE",
                 "created_at": availability.created_at.isoformat()
                 if availability.created_at
                 else None,
@@ -139,6 +144,8 @@ def get_employee_availabilities(employee_id):
 @employees.route("/employees/<int:employee_id>/availabilities", methods=["PUT"])
 def update_employee_availabilities(employee_id):
     """Update availabilities for an employee"""
+    from ..models import db
+
     try:
         # Delete existing availabilities
         EmployeeAvailability.query.filter_by(employee_id=employee_id).delete()
@@ -174,6 +181,8 @@ def get_employee_availability(employee_id):
 @employees.route("/employees/<int:employee_id>/availability", methods=["POST"])
 def add_employee_availability(employee_id):
     """Add a new availability for an employee"""
+    from ..models import db
+
     data = request.get_json()
 
     try:
@@ -196,6 +205,8 @@ def add_employee_availability(employee_id):
 @employees.route("/availability/<int:avail_id>", methods=["PUT"])
 def update_employee_availability(avail_id):
     """Update an availability"""
+    from ..models import db
+
     data = request.get_json()
 
     try:
@@ -215,6 +226,8 @@ def update_employee_availability(avail_id):
 @employees.route("/availability/<int:avail_id>", methods=["DELETE"])
 def delete_employee_availability(avail_id):
     """Delete an availability"""
+    from ..models import db
+
     availability = EmployeeAvailability.query.get_or_404(avail_id)
 
     try:

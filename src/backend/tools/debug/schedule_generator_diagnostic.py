@@ -371,7 +371,7 @@ class ScheduleGeneratorDiagnostic:
                         self._log_recommendation("Create settings in the database")
                     else:
                         self._log_info(
-                            f"Settings: min_hours_between_shifts={settings.min_hours_between_shifts}, max_consecutive_days={settings.max_consecutive_days}"
+                            f"Settings: min_rest_between_shifts={settings.min_rest_between_shifts}, max_weekly_hours={settings.max_weekly_hours}"
                         )
                 except Exception as e:
                     self._log_error("Failed to query database state", e)
@@ -414,42 +414,38 @@ class ScheduleGeneratorDiagnostic:
                     self._log_step("Running ScheduleGenerator.generate")
 
                     # Monitor the schedule generator steps
-                    original_create_schedule = self_instance._create_schedule
-                    original_assign_shifts = self_instance._assign_shifts
-                    original_validate_schedule = self_instance._validate_schedule
-                    original_finalize_schedule = self_instance._finalize_schedule
+                    original_generate_assignments = self_instance._generate_assignments_for_date
+                    original_distribute_shifts = self_instance.distribution_manager.distribute_shifts
+                    original_get_validation_errors = self_instance.distribution_manager.get_validation_errors
+                    original_serialize_schedule = self_instance.serializer.serialize_schedule
 
-                    def monitored_create_schedule(*args, **kwargs):
-                        self._log_substep("Creating initial schedule structure")
+                    def monitored_generate_assignments(*args, **kwargs):
+                        self._log_substep("Creating initial assignments for date")
                         start_time = time.time()
-                        result = original_create_schedule(*args, **kwargs)
+                        result = original_generate_assignments(*args, **kwargs)
                         duration = time.time() - start_time
                         self._log_info(
-                            f"Initial schedule structure created in {duration:.3f}s"
+                            f"Initial assignments created in {duration:.3f}s"
                         )
                         return result
 
-                    def monitored_assign_shifts(*args, **kwargs):
-                        self._log_substep("Assigning shifts to employees")
+                    def monitored_distribute_shifts(*args, **kwargs):
+                        self._log_substep("Distributing shifts to employees")
                         start_time = time.time()
-                        result = original_assign_shifts(*args, **kwargs)
+                        result = original_distribute_shifts(*args, **kwargs)
                         duration = time.time() - start_time
 
                         # Count assignments made
-                        assignments = sum(
-                            1
-                            for entry in self_instance.schedule
-                            if entry.get("shift_id") is not None
-                        )
+                        assignments = len(result) if result else 0
                         self.stats["assignments_made"] = assignments
 
                         self._log_info(
-                            f"Shift assignment completed in {duration:.3f}s with {assignments} assignments made"
+                            f"Shift distribution completed in {duration:.3f}s with {assignments} assignments made"
                         )
 
                         if duration > 5.0:
                             self._log_warning(
-                                f"Shift assignment took {duration:.3f}s which is longer than expected"
+                                f"Shift distribution took {duration:.3f}s which is longer than expected"
                             )
                             self._log_recommendation(
                                 "Consider optimizing the shift assignment algorithm or reducing the complexity of constraints"
@@ -457,18 +453,14 @@ class ScheduleGeneratorDiagnostic:
 
                         return result
 
-                    def monitored_validate_schedule(*args, **kwargs):
+                    def monitored_get_validation_errors(*args, **kwargs):
                         self._log_substep("Validating schedule against constraints")
                         start_time = time.time()
-                        result = original_validate_schedule(*args, **kwargs)
+                        result = original_get_validation_errors(*args, **kwargs)
                         duration = time.time() - start_time
 
                         # Count constraints applied
-                        constraints = (
-                            len(self_instance.validator.validation_errors)
-                            if hasattr(self_instance, "validator")
-                            else 0
-                        )
+                        constraints = len(result) if result else 0
                         self.stats["constraints_applied"] = constraints
 
                         self._log_info(
@@ -476,21 +468,21 @@ class ScheduleGeneratorDiagnostic:
                         )
                         return result
 
-                    def monitored_finalize_schedule(*args, **kwargs):
+                    def monitored_serialize_schedule(*args, **kwargs):
                         self._log_substep("Finalizing schedule")
                         start_time = time.time()
-                        result = original_finalize_schedule(*args, **kwargs)
+                        result = original_serialize_schedule(*args, **kwargs)
                         duration = time.time() - start_time
                         self._log_info(
-                            f"Schedule finalization completed in {duration:.3f}s"
+                            f"Schedule serialization completed in {duration:.3f}s"
                         )
                         return result
 
                     # Replace methods with monitored versions
-                    self_instance._create_schedule = monitored_create_schedule
-                    self_instance._assign_shifts = monitored_assign_shifts
-                    self_instance._validate_schedule = monitored_validate_schedule
-                    self_instance._finalize_schedule = monitored_finalize_schedule
+                    self_instance._generate_assignments_for_date = monitored_generate_assignments
+                    self_instance.distribution_manager.distribute_shifts = monitored_distribute_shifts
+                    self_instance.distribution_manager.get_validation_errors = monitored_get_validation_errors
+                    self_instance.serializer.serialize_schedule = monitored_serialize_schedule
 
                     # Call the original method
                     start_time = time.time()
@@ -499,10 +491,10 @@ class ScheduleGeneratorDiagnostic:
                         duration = time.time() - start_time
 
                         # Restore original methods
-                        self_instance._create_schedule = original_create_schedule
-                        self_instance._assign_shifts = original_assign_shifts
-                        self_instance._validate_schedule = original_validate_schedule
-                        self_instance._finalize_schedule = original_finalize_schedule
+                        self_instance._generate_assignments_for_date = original_generate_assignments
+                        self_instance.distribution_manager.distribute_shifts = original_distribute_shifts
+                        self_instance.distribution_manager.get_validation_errors = original_get_validation_errors
+                        self_instance.serializer.serialize_schedule = original_serialize_schedule
 
                         self._log_end_step("Running ScheduleGenerator.generate")
                         self._log_success(
@@ -511,10 +503,10 @@ class ScheduleGeneratorDiagnostic:
                         return result
                     except Exception as e:
                         # Restore original methods
-                        self_instance._create_schedule = original_create_schedule
-                        self_instance._assign_shifts = original_assign_shifts
-                        self_instance._validate_schedule = original_validate_schedule
-                        self_instance._finalize_schedule = original_finalize_schedule
+                        self_instance._generate_assignments_for_date = original_generate_assignments
+                        self_instance.distribution_manager.distribute_shifts = original_distribute_shifts
+                        self_instance.distribution_manager.get_validation_errors = original_get_validation_errors
+                        self_instance.serializer.serialize_schedule = original_serialize_schedule
 
                         self._log_error("Schedule generation failed", e)
                         self._log_end_step("Running ScheduleGenerator.generate")
@@ -542,12 +534,11 @@ class ScheduleGeneratorDiagnostic:
                     result = generator.generate(
                         start_date=start_date,
                         end_date=end_date,
-                        version=1,
-                        session_id=self.session_id,
+                        version=1
                     )
 
                     # Analyze results
-                    schedule_entries = result.get("schedule", [])
+                    schedule_entries = result.get("schedules", [])
                     warnings = result.get("warnings", [])
                     errors = result.get("errors", [])
 

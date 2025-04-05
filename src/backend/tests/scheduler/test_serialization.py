@@ -169,10 +169,15 @@ class TestScheduleSerializer(unittest.TestCase):
         # Test case 1: Regular schedule
         result = self.serializer.serialize_schedule(self.mock_schedule)
 
-        # Verify the result is a string containing valid JSON
-        self.assertIsInstance(result, str)
-        schedule_dict = json.loads(result)
-
+        # Verify the result structure
+        self.assertIsInstance(result, dict)
+        self.assertIn("schedules", result)
+        self.assertIn("errors", result)
+        
+        # Verify schedules list contains one schedule
+        self.assertEqual(len(result["schedules"]), 1)
+        schedule_dict = result["schedules"][0]
+        
         # Verify schedule metadata
         self.assertEqual(schedule_dict["schedule_id"], self.mock_schedule.id)
         self.assertEqual(schedule_dict["version"], self.mock_schedule.version)
@@ -180,14 +185,29 @@ class TestScheduleSerializer(unittest.TestCase):
 
         # Verify entries are included
         self.assertEqual(len(schedule_dict["entries"]), 3)
+        
+        # Verify errors list is empty by default
+        self.assertEqual(len(result["errors"]), 0)
 
         # Test case 2: Schedule without entries
         self.mock_schedule.entries = []
         result = self.serializer.serialize_schedule(self.mock_schedule)
-        schedule_dict = json.loads(result)
+        schedule_dict = result["schedules"][0]
 
         # Verify entries array is empty
         self.assertEqual(len(schedule_dict["entries"]), 0)
+        
+        # Test case 3: Schedule with validation errors
+        validation_errors = [
+            {"message": "Test error 1", "type": "test_error"},
+            {"message": "Test error 2", "type": "test_error"}
+        ]
+        result = self.serializer.serialize_schedule(self.mock_schedule, validation_errors)
+        
+        # Verify errors are included
+        self.assertEqual(len(result["errors"]), 2)
+        self.assertEqual(result["errors"][0]["message"], "Test error 1")
+        self.assertEqual(result["errors"][1]["type"], "test_error")
 
         # Reset entries for subsequent tests
         self.mock_schedule.entries = self.mock_entries

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -7,6 +7,15 @@ import { Button } from '@/components/ui/button';
 import { differenceInDays } from 'date-fns';
 import { Check, Archive, Pencil, Calendar, Trash, Copy } from 'lucide-react';
 import { VersionMeta } from '@/services/api';
+import {
+    Pagination,
+    PaginationContent,
+    PaginationEllipsis,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from "@/components/ui/pagination";
 
 interface VersionTableProps {
     versions: VersionMeta[];
@@ -27,6 +36,35 @@ export function VersionTable({
     onDeleteVersion,
     onDuplicateVersion
 }: VersionTableProps) {
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10; // Show 10 versions per page
+    
+    // Calculate pagination details
+    const totalPages = Math.ceil(versions.length / itemsPerPage);
+    const paginatedVersions = useMemo(() => {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        return versions.slice(startIndex, endIndex);
+    }, [versions, currentPage, itemsPerPage]);
+
+    // Handle page changes
+    const handlePageChange = (page: number) => {
+        setCurrentPage(page);
+    };
+
+    // Show previous/next page
+    const goToPreviousPage = () => {
+        if (currentPage > 1) {
+            setCurrentPage(currentPage - 1);
+        }
+    };
+
+    const goToNextPage = () => {
+        if (currentPage < totalPages) {
+            setCurrentPage(currentPage + 1);
+        }
+    };
+
     if (!versions || versions.length === 0) {
         return (
             <Card>
@@ -69,9 +107,14 @@ export function VersionTable({
     return (
         <Card>
             <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5" />
-                    Versions-Tabelle
+                <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Calendar className="h-5 w-5" />
+                        Versions-Tabelle
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                        Seite {currentPage} von {totalPages}
+                    </div>
                 </CardTitle>
             </CardHeader>
             <CardContent>
@@ -86,7 +129,7 @@ export function VersionTable({
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {versions.map((version) => (
+                        {paginatedVersions.map((version) => (
                             <TableRow
                                 key={version.version}
                                 className={selectedVersion === version.version ? "bg-muted/50" : ""}
@@ -153,6 +196,95 @@ export function VersionTable({
                         ))}
                     </TableBody>
                 </Table>
+                
+                {versions.length > itemsPerPage && (
+                    <div className="mt-4 flex justify-center">
+                        <Pagination>
+                            <PaginationContent>
+                                <PaginationItem>
+                                    <PaginationPrevious 
+                                        onClick={goToPreviousPage} 
+                                        className={currentPage <= 1 ? "pointer-events-none opacity-50" : ""}
+                                    />
+                                </PaginationItem>
+                                
+                                {Array.from({length: Math.min(totalPages, 5)}, (_, i) => {
+                                    // Show pages 1, 2, currentPage-1, currentPage, currentPage+1, last-1, last
+                                    let pageToShow = i + 1;
+                                    
+                                    if (totalPages > 5) {
+                                        if (currentPage <= 3) {
+                                            // First 3 pages
+                                            if (i < 3) {
+                                                pageToShow = i + 1;
+                                            } else if (i === 3) {
+                                                return (
+                                                    <PaginationItem key="ellipsis1">
+                                                        <PaginationEllipsis />
+                                                    </PaginationItem>
+                                                );
+                                            } else {
+                                                pageToShow = totalPages;
+                                            }
+                                        } else if (currentPage >= totalPages - 2) {
+                                            // Last 3 pages
+                                            if (i === 0) {
+                                                pageToShow = 1;
+                                            } else if (i === 1) {
+                                                return (
+                                                    <PaginationItem key="ellipsis2">
+                                                        <PaginationEllipsis />
+                                                    </PaginationItem>
+                                                );
+                                            } else {
+                                                pageToShow = totalPages - (4 - i);
+                                            }
+                                        } else {
+                                            // Middle pages
+                                            if (i === 0) {
+                                                pageToShow = 1;
+                                            } else if (i === 1) {
+                                                return (
+                                                    <PaginationItem key="ellipsis3">
+                                                        <PaginationEllipsis />
+                                                    </PaginationItem>
+                                                );
+                                            } else if (i === 3) {
+                                                return (
+                                                    <PaginationItem key="ellipsis4">
+                                                        <PaginationEllipsis />
+                                                    </PaginationItem>
+                                                );
+                                            } else if (i === 4) {
+                                                pageToShow = totalPages;
+                                            } else {
+                                                pageToShow = currentPage;
+                                            }
+                                        }
+                                    }
+                                    
+                                    return (
+                                        <PaginationItem key={pageToShow}>
+                                            <PaginationLink 
+                                                onClick={() => handlePageChange(pageToShow)} 
+                                                isActive={currentPage === pageToShow}
+                                            >
+                                                {pageToShow}
+                                            </PaginationLink>
+                                        </PaginationItem>
+                                    );
+                                })}
+                                
+                                <PaginationItem>
+                                    <PaginationNext 
+                                        onClick={goToNextPage}
+                                        className={currentPage >= totalPages ? "pointer-events-none opacity-50" : ""}
+                                    />
+                                </PaginationItem>
+                            </PaginationContent>
+                        </Pagination>
+                    </div>
+                )}
             </CardContent>
         </Card>
     );

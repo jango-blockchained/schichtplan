@@ -156,3 +156,27 @@ class SchedulerConfig:
             "enforce_qualifications": self.ENFORCE_QUALIFICATIONS,
             "enforce_max_hours": self.ENFORCE_MAX_HOURS
         }
+
+
+class WeightConfig:
+    """
+    Configuration for weights used in optimization/scoring during generation.
+    Higher weights indicate higher importance.
+    """
+    def __init__(self, **kwargs):
+        # Default weights (can be overridden by kwargs)
+        self.PREFERENCE_SATISFACTION = kwargs.get("preference_satisfaction", 10)
+        self.SHIFT_DISTRIBUTION_FAIRNESS = kwargs.get("shift_distribution_fairness", 5)
+        self.AVOID_CONSECUTIVE_NIGHTS = kwargs.get("avoid_consecutive_nights", 8)
+        self.MINIMIZE_OVERTIME = kwargs.get("minimize_overtime", 15)
+        self.COVERAGE_MATCH = kwargs.get("coverage_match", 20)
+        self.REST_PERIOD_ADHERENCE = kwargs.get("rest_period_adherence", 25)
+        self.QUALIFICATION_MATCH = kwargs.get("qualification_match", 10)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert weight configuration to dictionary"""
+        return {
+            key.lower(): value
+            for key, value in self.__dict__.items()
+            if not key.startswith("_")
+        }
