@@ -903,28 +903,17 @@ export function SchedulePage() {
       />
       
       {/* Version Table */}
-      <div className="relative">
-        <VersionTable
-          versions={versionMetas || []}
-          selectedVersion={selectedVersion}
-          onSelectVersion={handleVersionChange} 
-          onPublishVersion={handlePublishVersion}
-          onArchiveVersion={handleArchiveVersion}
-          onDeleteVersion={handleDeleteVersion}
-          onDuplicateVersion={handleDuplicateVersion}
-        />
-        <div className="absolute top-0 right-0">
-          <Button 
-            onClick={handleCreateNewVersion} 
-            variant="secondary" 
-            size="sm" 
-            className="flex items-center gap-1"
-          >
-            <Plus className="h-4 w-4" />
-            Neue Version
-          </Button>
-        </div>
-      </div>
+      <VersionTable
+        versions={versionMetas || []}
+        selectedVersion={selectedVersion}
+        onSelectVersion={handleVersionChange} 
+        onPublishVersion={handlePublishVersion}
+        onArchiveVersion={handleArchiveVersion}
+        onDeleteVersion={handleDeleteVersion}
+        onDuplicateVersion={handleDuplicateVersion}
+        onCreateNewVersion={handleCreateNewVersion}
+        dateRange={dateRange?.from && dateRange?.to ? {from: dateRange.from, to: dateRange.to} : undefined}
+      />
 
       {/* Add Schedule Statistics if we have data */}
       {!isLoading && !isError && convertedSchedules.length > 0 && dateRange?.from && dateRange?.to && (

@@ -6,7 +6,8 @@ import { de } from "date-fns/locale";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { InfoIcon, AlertCircle, Users, Clock } from 'lucide-react';
+import { InfoIcon, AlertCircle, Users, Clock, ChevronDown } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface StatisticsViewProps {
   schedules: Schedule[];
@@ -16,6 +17,7 @@ interface StatisticsViewProps {
 
 export function StatisticsView({ schedules, employees, dateRange }: StatisticsViewProps) {
   const [activeTab, setActiveTab] = useState<string>("simple");
+  const [isOpen, setIsOpen] = useState(true);
 
   if (!dateRange?.from || !dateRange?.to || schedules.length === 0) {
     return (
@@ -40,9 +42,9 @@ export function StatisticsView({ schedules, employees, dateRange }: StatisticsVi
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="border-b">
         <div className="flex justify-between items-center">
-          <CardTitle>Statistics</CardTitle>
+          <CardTitle>Statistiken</CardTitle>
           <Select value={activeTab} onValueChange={setActiveTab}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Select view" />
@@ -55,23 +57,35 @@ export function StatisticsView({ schedules, employees, dateRange }: StatisticsVi
           </Select>
         </div>
       </CardHeader>
-      <CardContent>
-        {activeTab === "simple" && (
-          <SimpleStatisticsContent stats={numericStats} />
-        )}
-        
-        {activeTab === "schedule" && (
-          <div className="space-y-4">
-            <ScheduleStatisticsContent stats={scheduleStats} />
-          </div>
-        )}
-        
-        {activeTab === "employees" && (
-          <div className="space-y-4">
-            <EmployeeStatisticsContent stats={employeeStats} />
-          </div>
-        )}
-      </CardContent>
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <div className="px-6 py-2 border-b bg-muted/20">
+          <CollapsibleTrigger className="flex items-center gap-2 hover:text-primary transition-colors w-full text-left">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">Statistiken anzeigen</span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "" : "transform rotate-180"}`} />
+            </div>
+          </CollapsibleTrigger>
+        </div>
+        <CollapsibleContent>
+          <CardContent>
+            {activeTab === "simple" && (
+              <SimpleStatisticsContent stats={numericStats} />
+            )}
+            
+            {activeTab === "schedule" && (
+              <div className="space-y-4">
+                <ScheduleStatisticsContent stats={scheduleStats} />
+              </div>
+            )}
+            
+            {activeTab === "employees" && (
+              <div className="space-y-4">
+                <EmployeeStatisticsContent stats={employeeStats} />
+              </div>
+            )}
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
   );
 }
