@@ -1,0 +1,101 @@
+# Schichtplan Server Management
+
+## Project Overview
+Schichtplan is a shift scheduling application with a **Bun/ElysiaJS backend** and a modern frontend using Bun/React.
+
+## Server Components
+
+### Backend (Bun/ElysiaJS)
+- **Location**: `src/bun-backend/`
+- **Main file**: `index.ts`
+- **Database**: SQLite - `src/bun-backend/data/schichtplan.db`
+- **Port**: 5001 (default, configurable via $PORT)
+- **Development URL**: http://localhost:5001
+
+### Frontend
+- **Location**: `src/frontend/`
+- **Tech Stack**: TypeScript, Bun, Tailwind, shadcn-ui
+- **Port**: 5173
+- **Development URL**: http://localhost:5173
+
+## Running the Application
+
+### Option 1: Using start.sh Script (Recommended - **Needs Update**)
+```bash
+# From project root
+./start.sh 
+# NOTE: start.sh needs to be updated to handle the new Bun backend!
+# It should now manage processes on port 5001 and 5173.
+# It should run `bun run dev` in src/bun-backend/ for the backend.
+```
+This script (once updated):
+- Sets up required directories (including `src/bun-backend/data`)
+- Kills any existing processes on ports 5001 and 5173
+- Creates a tmux session with panes for backend, frontend, and control menu
+- Waits for services to start
+- Attaches to the tmux session
+
+### Option 2: Manual Startup
+
+#### Database Initialization (Run Once)
+```bash
+# From project root
+cd src/bun-backend
+bun install # Install backend dependencies (incl. bun-types)
+bun run db:init # Initialize database schema
+cd ../.. # Back to project root
+```
+
+#### Backend (Bun/ElysiaJS)
+```bash
+# From project root
+cd src/bun-backend
+bun run dev # Runs index.ts with --watch
+# Or for production-like start: bun run start
+```
+
+#### Frontend
+```bash
+# From project root
+cd src/frontend
+bun install # Install frontend dependencies if needed
+bun run dev # Runs vite dev server
+```
+
+## Common Commands
+
+### Tmux Session Management (If using updated start.sh)
+- **Attach to session**: `tmux attach-session -t schichtplan`
+- **Detach from session**: Press `Ctrl+B`, then `D`
+- **Kill session**: `tmux kill-session -t schichtplan`
+- **Navigate between panes**: Press `Ctrl+B`, then arrow keys
+
+### Service Control
+- **Stop backend**: Kill process on port 5001 (or use Ctrl+C in manual mode)
+- **Stop frontend**: Kill process on port 5173 (or use Ctrl+C in manual mode)
+- **Check if services are running**: 
+  ```bash
+  lsof -i:5001  # Check backend
+  lsof -i:5173  # Check frontend
+  ```
+
+## Troubleshooting
+
+### Backend Issues
+- Check console output from `bun run dev`.
+- Ensure database schema is initialized (`bun run db:init` in `src/bun-backend`).
+- Verify environment variables (like `PORT`) are set correctly if used.
+- Check `src/bun-backend/data/schichtplan.db` file existence/permissions.
+
+### Frontend Issues
+- Clear `node_modules` in `src/frontend` and run `bun install` again.
+- Check for console errors in browser developer tools.
+- Verify frontend can connect to backend API (check `vite.config.ts` proxy and base URL in `src/frontend/src/services/api.ts`).
+
+## Development Workflow
+1. **First time setup**: Run `bun install` and `bun run db:init` inside `src/bun-backend`.
+2. Start the application using the **updated** `./start.sh` or manually start backend (`bun run dev` in `src/bun-backend`) and frontend (`bun run dev` in `src/frontend`).
+3. Develop and test features.
+4. Backend changes reload automatically due to `bun run --watch`.
+5. Frontend changes reload automatically via Vite HMR.
+6. Use tmux commands (if applicable) or standard terminal controls to manage the development environment. 

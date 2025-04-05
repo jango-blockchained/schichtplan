@@ -179,3 +179,6 @@ def generate_schedule_endpoint():
     except Exception as e:
         logger.error(f"Unexpected error in schedule generation endpoint: {str(e)}", exc_info=True)
         return jsonify({"error": "An unexpected error occurred"}), 500 
+
+
+    
