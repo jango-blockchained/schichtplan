@@ -7,7 +7,7 @@ import os
 from datetime import date, datetime, timedelta
 import uuid
 import click
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, redirect, url_for
 from flask_cors import CORS
 from flask_migrate import Migrate
 # Make imports relative to the package
@@ -134,19 +134,14 @@ def create_app(config_class=Config, testing=False):
     from .routes.availability import availability
     from .routes.absences import bp as absences_bp
     from .api.coverage import bp as coverage_bp
-    from .api.schedules import bp as api_schedules_bp
-    from .api.settings import bp as api_settings_bp
-    from .api.demo_data import bp as demo_data_bp
-    from .routes import logs  # Assuming routes is a subpackage
-    from .api.employee_absences import bp as employee_absences_bp
-
+    
     # New schedule blueprints
     from .routes.schedule_crud import crud_bp
     from .routes.schedule_generation import generation_bp
     from .routes.schedule_versions import versions_bp
     from .routes.schedule_export import export_bp
     from .routes.schedule_validation import validation_bp
-
+    
     # Register blueprints
     app.register_blueprint(shifts, url_prefix="/api")
     app.register_blueprint(settings, url_prefix="/api")
@@ -155,24 +150,14 @@ def create_app(config_class=Config, testing=False):
     app.register_blueprint(availability, url_prefix="/api")
     app.register_blueprint(absences_bp, url_prefix="/api")
     app.register_blueprint(coverage_bp)
-    app.register_blueprint(
-        api_settings_bp, name="api_settings"
-    )  # Register API settings blueprint
-    app.register_blueprint(demo_data_bp, url_prefix="/api/demo-data")
-    app.register_blueprint(logs.bp, url_prefix="/api/logs")
-    app.register_blueprint(
-        api_schedules_bp, name="api_schedules"
-    )  # Register with unique name
-    app.register_blueprint(employee_absences_bp)
-
+    
     # Register new schedule blueprints
-    # Note: They already have the /api/schedules prefix defined in their files
     app.register_blueprint(crud_bp)
     app.register_blueprint(generation_bp)
     app.register_blueprint(versions_bp)
     app.register_blueprint(export_bp)
     app.register_blueprint(validation_bp)
-
+    
     # Register CLI commands
     try:
         from .test_scheduler import register_commands
@@ -196,6 +181,17 @@ def create_app(config_class=Config, testing=False):
                 "port": request.environ.get("SERVER_PORT", 5000),
             }
         )
+
+    # Add a direct debug route for testing 
+    @app.route("/api/debug/schedule", methods=["POST"])
+    def debug_schedule():
+        try:
+            # Forward request to the actual schedule generation endpoint
+            app.logger.info("Debug schedule endpoint called - redirecting to proper endpoint")
+            return redirect(url_for('schedule_generation.generate_schedule'), code=307)  # 307 preserves POST method
+        except Exception as e:
+            app.logger.error(f"Error in debug schedule endpoint: {str(e)}", exc_info=True)
+            return jsonify({"error": str(e)}), 500
 
     @app.errorhandler(Exception)
     def handle_error(error):

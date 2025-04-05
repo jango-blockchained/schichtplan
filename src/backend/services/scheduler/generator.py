@@ -5,6 +5,9 @@ import logging
 from typing import Dict, List, Any, Optional
 import sys
 import os
+from collections import defaultdict
+from functools import lru_cache
+from unittest.mock import MagicMock
 
 # Add parent directories to path if needed
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -27,7 +30,6 @@ logger = logging.getLogger(__name__)
 # Setup for imports - we'll try different import paths
 import importlib.util
 from enum import Enum
-from collections import defaultdict
 
 # First, define fallback classes to use if imports fail
 # pylint: disable=redefined-outer-name, duplicate-code
@@ -283,6 +285,12 @@ class ScheduleGenerator:
         # Track results
         all_assignments = []
         errors = []
+        
+        # Convert string dates to date objects if needed
+        if isinstance(start_date, str):
+            start_date = datetime.fromisoformat(start_date).date()
+        if isinstance(end_date, str):
+            end_date = datetime.fromisoformat(end_date).date()
         
         # Create schedule object
         schedule = {
@@ -1196,7 +1204,8 @@ class ScheduleGenerator:
                         assignment = {
                             "employee_id": employee.id,
                             "shift_template_id": shift.id, 
-                            "date": current_date.isoformat(),
+                            "date": current_date,
+                            "shift_id": shift.id,
                             "start_time": shift.start_time,
                             "end_time": shift.end_time,
                             "is_keyholder": getattr(employee, "is_keyholder", False),
@@ -1220,7 +1229,24 @@ class ScheduleGenerator:
                     break
         
         self.logger.info(f"Generated {len(assignments)} assignments for date {current_date}")
-        return assignments
+        
+        # Apply distribution logic using the distribution manager
+        try:
+            distributed_assignments = self.distribution_manager.distribute_shifts(
+                current_date, current_date, assignments
+            )
+            
+            self.logger.info(f"After distribution: {len(distributed_assignments)} assignments for date {current_date}")
+            return distributed_assignments
+        except AttributeError as e:
+            # If the error is specifically about distribute_shifts not existing
+            if "'DistributionManager' object has no attribute 'distribute_shifts'" in str(e):
+                self.logger.warning(f"distribute_shifts method not found, falling back to basic assignment. Error: {str(e)}")
+                # Just return the assignments we already generated
+                return assignments
+            # For other attribute errors, log and propagate
+            self.logger.error(f"Attribute error during distribution: {str(e)}")
+            raise
 
     def _get_available_employees(self, current_date: date) -> List[Any]:
         """
@@ -1447,30 +1473,52 @@ class ScheduleGenerator:
             config=config
         )
 
-    def _init_scheduler(self):
+    def _init_scheduler(self) -> bool:
         """
-        Initialize the scheduler by setting up resources, distributions, etc.
+        Initialize the scheduler by loading or creating the necessary resources.
         
         Returns:
             True if initialization is successful, False otherwise
         """
         try:
             # Initialize components as needed
-            self.resources = self.resources or ScheduleResources()
+            self.logger.info("Initializing scheduler resources...")
             
+            # Initialize resources if not already initialized
+            if not self.resources:
+                self.logger.info("Creating new ScheduleResources instance")
+                self.resources = ScheduleResources()
+            
+            # Check if we should use mock data for testing/demo purposes
+            if os.environ.get('SCHICHTPLAN_USE_MOCK_DATA', 'false').lower() == 'true':
+                self.logger.info("SCHICHTPLAN_USE_MOCK_DATA is enabled, creating mock resources")
+                return self._create_mock_resources()
+            
+            # Otherwise, try to load from database
             # Check if resources are loaded
             if not self.resources.is_loaded():
+                self.logger.info("Resources not loaded, attempting to load now")
                 if not self.resources.load():
-                    self.logger.error("Failed to load scheduler resources")
+                    self.logger.error("Failed to load scheduler resources from database")
+                    
+                    # Log more detailed error information
+                    self.logger.error("No employees loaded - schedule generation cannot proceed")
+                    self.logger.error("No shift templates loaded - schedule generation cannot proceed")
+                    self.logger.error("To use mock data for testing, set SCHICHTPLAN_USE_MOCK_DATA=true in environment")
                     return False
+            
+            # Log resource counts to help with debugging
+            self.logger.info(f"Resources loaded: {len(self.resources.get_employees())} employees, {len(self.resources.get_shifts())} shifts")
                     
             # Check for critical resources
             if not self.resources.get_employees():
                 self.logger.error("No employees available - cannot proceed with scheduling")
+                self.logger.error("To use mock data for testing, set SCHICHTPLAN_USE_MOCK_DATA=true in environment")
                 return False
                 
             if not self.resources.get_shifts():
                 self.logger.error("No shift templates available - cannot proceed with scheduling")
+                self.logger.error("To use mock data for testing, set SCHICHTPLAN_USE_MOCK_DATA=true in environment")
                 return False
                 
             # Initialization successful
@@ -1479,4 +1527,107 @@ class ScheduleGenerator:
             
         except Exception as e:
             self.logger.error(f"Error initializing scheduler: {str(e)}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
             return False
+            
+    def _create_mock_resources(self):
+        """Create mock resources for testing/demo purposes when database is not available"""
+        self.logger.info("Creating mock resources for testing")
+        
+        # Create mock employees
+        from unittest.mock import MagicMock
+        
+        # Create mock employees
+        mock_employees = []
+        for i in range(1, 6):  # Create 5 employees
+            emp = MagicMock()
+            emp.id = i
+            emp.first_name = f"Employee{i}"
+            emp.last_name = "Test"
+            emp.is_active = True
+            emp.is_keyholder = i == 1  # First employee is keyholder
+            emp.skills = ["basic"]
+            mock_employees.append(emp)
+            
+        # Create mock shift templates
+        mock_shifts = []
+        shift_types = [
+            {"id": 1, "name": "Morning", "start_time": "08:00", "end_time": "16:00", "shift_type": "EARLY"},
+            {"id": 2, "name": "Evening", "start_time": "16:00", "end_time": "00:00", "shift_type": "LATE"},
+            {"id": 3, "name": "Midday", "start_time": "12:00", "end_time": "20:00", "shift_type": "MIDDLE"}
+        ]
+        
+        for i, shift_data in enumerate(shift_types, 1):
+            shift = MagicMock()
+            shift.id = i
+            shift.name = shift_data["name"]
+            shift.start_time = shift_data["start_time"]
+            shift.end_time = shift_data["end_time"]
+            shift.shift_type = shift_data["shift_type"]
+            shift.duration_hours = 8.0
+            shift.required_skills = []
+            # Make the shift active for all weekdays (0-4)
+            shift.active_days = {str(day): True for day in range(5)}
+            # Weekend days (5-6) not active
+            shift.active_days.update({str(day): False for day in range(5, 7)})
+            mock_shifts.append(shift)
+            
+        # Create mock coverage data
+        mock_coverage = []
+        for day in range(5):  # Monday to Friday
+            for shift_type in ["EARLY", "MIDDLE", "LATE"]:
+                cov = MagicMock()
+                cov.id = len(mock_coverage) + 1
+                cov.day_index = day
+                cov.day_of_week = day
+                cov.shift_type_id = shift_type
+                cov.required_employees = 2  # Require 2 employees per shift
+                cov.start_time = shift_types[0]["start_time"] if shift_type == "EARLY" else \
+                                shift_types[2]["start_time"] if shift_type == "MIDDLE" else \
+                                shift_types[1]["start_time"]
+                cov.end_time = shift_types[0]["end_time"] if shift_type == "EARLY" else \
+                              shift_types[2]["end_time"] if shift_type == "MIDDLE" else \
+                              shift_types[1]["end_time"]
+                mock_coverage.append(cov)
+                
+        # Create mock availabilities
+        mock_availabilities = []
+        for employee_id in range(1, 6):
+            for day in range(7):  # All days of the week
+                avail = MagicMock()
+                avail.employee_id = employee_id
+                avail.day_of_week = day
+                avail.is_available = day < 5  # Available on weekdays
+                avail.availability_type = 1  # Available by default
+                mock_availabilities.append(avail)
+
+        # Create mock absences
+        mock_absences = []
+        
+        # Manually add mock data to resources
+        self.resources.employees = mock_employees
+        self.resources.shifts = mock_shifts
+        self.resources.coverage = mock_coverage
+        self.resources.availabilities = mock_availabilities
+        self.resources.absences = mock_absences
+        self.resources._employee_cache = {emp.id: emp for emp in mock_employees}
+        self.resources._loaded = True
+        
+        # Ensure getter methods exist
+        if not hasattr(self.resources, 'get_employees'):
+            self.resources.get_employees = lambda: self.resources.employees
+        if not hasattr(self.resources, 'get_shifts'):
+            self.resources.get_shifts = lambda: self.resources.shifts
+        if not hasattr(self.resources, 'get_availabilities'):
+            self.resources.get_availabilities = lambda: self.resources.availabilities
+        if not hasattr(self.resources, 'get_absences'):
+            self.resources.get_absences = lambda: self.resources.absences
+        
+        self.logger.info(f"Created mock data with {len(mock_employees)} employees, {len(mock_shifts)} shifts, {len(mock_coverage)} coverage records, {len(mock_availabilities)} availability records")
+        
+        # Create a mock distribution manager that doesn't use distribute_shifts
+        self.distribution_manager = MagicMock()
+        self.distribution_manager.distribute_shifts = lambda start_date, end_date, assignments: assignments
+        
+        return True

@@ -37,7 +37,7 @@ def get_schedules_crud():
             HTTPStatus.BAD_REQUEST
         )
     except Exception as e:
-        logger.error(f"Error fetching schedules: {e}")
+        logger.error_logger.error(f"Error fetching schedules: {e}")
         return (
             jsonify({"error": "Failed to fetch schedules"}), 
             HTTPStatus.INTERNAL_SERVER_ERROR

@@ -7,17 +7,26 @@ import random
 import subprocess
 import sys
 
-# Fix imports to work in both module and direct script execution modes
+# Add the parent directory to the path for relative imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(os.path.dirname(current_dir))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+# Try module-first approach
 try:
-    # When run as a module (python -m src.backend.run)
     from src.backend.app import create_app
-except ModuleNotFoundError:
+except ImportError:
+    # Fall back to direct import for standalone use
     try:
-        # When run directly from backend directory
         from app import create_app
-    except ModuleNotFoundError:
-        # When run with PYTHONPATH set
-        from .app import create_app
+    except ImportError:
+        # Last resort for when run as a script
+        print("ERROR: Cannot import app. Please run as module with:")
+        print("python -m src.backend.run")
+        print("Or with PYTHONPATH set:")
+        print("PYTHONPATH=/path/to/schichtplan python src/backend/run.py")
+        sys.exit(1)
 
 from werkzeug.serving import is_running_from_reloader
 

@@ -812,3 +812,11 @@ class ScheduleResources:
     def get_coverages(self):
         """Get all coverage requirements."""
         return self.coverage
+
+    def get_absences(self):
+        """Return the absences for this schedule."""
+        return self.absences
+        
+    def get_availabilities(self):
+        """Return the availabilities for this schedule."""
+        return self.availabilities

@@ -95,7 +95,29 @@ export function VersionTable({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Versionen</CardTitle>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Versionen
+            </div>
+            {onCreateNewVersion && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onCreateNewVersion}
+                disabled={!dateRange?.from || !dateRange?.to}
+                title={
+                  !dateRange?.from || !dateRange?.to
+                    ? "Bitte wählen Sie einen Datumsbereich"
+                    : undefined
+                }
+                className="flex items-center gap-1"
+              >
+                <Plus className="h-4 w-4" />
+                Neue Version
+              </Button>
+            )}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center text-muted-foreground py-4">
@@ -169,9 +191,11 @@ export function VersionTable({
                 Neue Version
               </Button>
             )}
-            <div className="text-sm text-muted-foreground">
-              Seite {currentPage} von {totalPages}
-            </div>
+            {totalPages > 0 && (
+              <div className="text-sm text-muted-foreground">
+                Seite {currentPage} von {totalPages}
+              </div>
+            )}
           </div>
         </CardTitle>
       </CardHeader>

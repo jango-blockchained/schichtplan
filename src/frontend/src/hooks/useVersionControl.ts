@@ -298,7 +298,7 @@ export function useVersionControl({
   };
 
   return {
-    versions: versionsQuery.data?.versions.map((v) => v.version) || [],
+    versions: versionsQuery.data?.versions?.map((v) => v.version) || [],
     versionMetas: versionsQuery.data?.versions || [],
     selectedVersion,
     isLoading:

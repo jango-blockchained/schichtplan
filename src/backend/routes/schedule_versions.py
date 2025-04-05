@@ -1,10 +1,11 @@
 from flask import Blueprint, request, jsonify
 from http import HTTPStatus
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy import desc
+import traceback
 
 # Relative imports
-from ..models import Schedule, ScheduleVersionMeta, ScheduleStatus
+from ..models import Schedule, ScheduleVersionMeta, ScheduleStatus, Employee
 from ..utils.logger import logger
 
 versions_bp = Blueprint(
@@ -59,7 +60,7 @@ def get_versions_for_date_range(start_date, end_date):
             return versions
 
         # Fallback to schedule table
-        logger.info(
+        logger.app_logger.info(
             "No versions in metadata, falling back to schedules table"
         )
         version_numbers = (
@@ -77,7 +78,7 @@ def get_versions_for_date_range(start_date, end_date):
             try:
                 meta = ScheduleVersionMeta.query.get(version)
                 if not meta:
-                    logger.info(f"Creating metadata for version {version}")
+                    logger.app_logger.info(f"Creating metadata for version {version}")
                     dates = (
                         db.session.query(
                             db.func.min(Schedule.date),
@@ -98,7 +99,7 @@ def get_versions_for_date_range(start_date, end_date):
                         db.session.add(meta)
                         try:
                             db.session.commit()
-                            logger.info(f"Created metadata for v{version}")
+                            logger.app_logger.info(f"Created metadata for v{version}")
                         except Exception as commit_e:
                             db.session.rollback()
                             logger.error(
@@ -111,7 +112,7 @@ def get_versions_for_date_range(start_date, end_date):
                 continue
 
         if not result:
-            logger.warning("No version metadata created from fallback")
+            logger.app_logger.warning("No version metadata created from fallback")
         return result
 
     except Exception as e:
@@ -144,7 +145,13 @@ def get_all_schedule_versions():
         versions_meta = query.order_by(
             desc(ScheduleVersionMeta.created_at)
         ).all()
-        return jsonify([v.to_dict() for v in versions_meta]), HTTPStatus.OK
+        
+        # Explicitly wrap the result in a 'versions' key to match frontend expectations
+        response = {
+            "versions": [v.to_dict() for v in versions_meta]
+        }
+        
+        return jsonify(response), HTTPStatus.OK
 
     except ValueError:
         return (
@@ -152,7 +159,7 @@ def get_all_schedule_versions():
             HTTPStatus.BAD_REQUEST,
         )
     except Exception as e:
-        logger.exception("Error fetching schedule versions")
+        logger.error_logger.error(f"Error fetching schedule versions: {str(e)}\n{traceback.format_exc()}")
         return (
             jsonify({"error": f"Failed to fetch versions: {e}"}),
             HTTPStatus.INTERNAL_SERVER_ERROR,
@@ -162,7 +169,7 @@ def get_all_schedule_versions():
 @versions_bp.route("/version", methods=["POST"])
 def create_new_schedule_version():
     """Create a new schedule version, optionally based on an existing one."""
-    from ..models import db
+    from ..models import db, Schedule, Employee, ScheduleVersionMeta
 
     data = request.get_json()
     if not data:
@@ -203,7 +210,7 @@ def create_new_schedule_version():
             date_range_start=start_date,
             date_range_end=end_date,
             notes=notes,
-            based_on_version=base_version_id,
+            base_version=base_version_id,
         )
         db.session.add(new_version_meta)
 
@@ -211,7 +218,7 @@ def create_new_schedule_version():
         # This part needs careful consideration: Should it copy immediately?
         # For now, we just create the metadata. Copying might be a separate step.
         if base_version_id:
-            logger.info(
+            logger.app_logger.info(
                 f"New version {next_version} based on {base_version_id}. "
                 f"Schedule entries NOT copied automatically."
             )
@@ -222,13 +229,62 @@ def create_new_schedule_version():
             #     new_entry.version = next_version
             #     db.session.add(new_entry)
 
+        # Commit the new version metadata first
         db.session.commit()
-        logger.info(f"Created new schedule version: {next_version}")
+        logger.app_logger.info(f"Created new schedule version: {next_version}")
+
+        # --- Add default schedule entries for employees without shifts ---
+        try:
+            all_employees = Employee.query.filter_by(is_active=True).all()
+            if not all_employees:
+                logger.app_logger.warning(f"No active employees found. Skipping default schedule entry creation for version {next_version}.")
+            else:
+                logger.app_logger.info(f"Creating default schedule entries for version {next_version}...")
+                current_date = new_version_meta.date_range_start
+                new_entries_count = 0
+                while current_date <= new_version_meta.date_range_end:
+                    # Find employees already scheduled on this day for this version
+                    scheduled_employee_ids = {\
+                        s.employee_id\
+                        for s in Schedule.query.filter_by(date=current_date, version=next_version).all()\
+                    }
+
+                    # Create entries for employees *not* scheduled
+                    for employee in all_employees:
+                        if employee.id not in scheduled_employee_ids:
+                            default_entry = Schedule(
+                                date=current_date,
+                                employee_id=employee.id,
+                                shift_id=None,  # Represents no assigned shift
+                                version=next_version,
+                                status=ScheduleStatus.DRAFT, # Use the default DRAFT status
+                            )
+                            db.session.add(default_entry)
+                            new_entries_count += 1
+
+                    current_date += timedelta(days=1)
+
+                if new_entries_count > 0:
+                    db.session.commit()
+                    logger.app_logger.info(f"Successfully created {new_entries_count} default schedule entries for version {next_version}.")
+                else:
+                     logger.app_logger.info(f"No default entries needed or created for version {next_version} (all employees might already be scheduled).")
+
+
+        except Exception as e_schedule:
+            db.session.rollback() # Rollback only the schedule entries part
+            logger.error_logger.error(f"Error creating default schedule entries for version {next_version}: {str(e_schedule)}\\n{traceback.format_exc()}")
+            # Log the error but don't fail the whole version creation
+            # Optionally, return a specific message or status? For now, just log.
+
+        # --- End of default schedule entries logic ---
+
+
         return jsonify(new_version_meta.to_dict()), HTTPStatus.CREATED
 
     except Exception as e:
         db.session.rollback()
-        logger.exception(f"Error creating new schedule version {next_version}")
+        logger.error_logger.error(f"Error creating new schedule version {next_version}: {str(e)}\\n{traceback.format_exc()}")
         # Provide more specific error back to client
         return (
             jsonify({"error": f"Failed to create new version: {e}"}),
@@ -249,7 +305,7 @@ def get_schedule_version_details_route(version):
         version_meta = ScheduleVersionMeta.query.get_or_404(version)
         return jsonify(version_meta.to_dict()), HTTPStatus.OK
     except Exception as e:
-        logger.exception(f"Error getting details for version {version}")
+        logger.error_logger.error(f"Error getting details for version {version}: {str(e)}\n{traceback.format_exc()}")
         return (
             jsonify({"error": f"Failed to get details: {e}"}),
             HTTPStatus.INTERNAL_SERVER_ERROR,
@@ -289,13 +345,13 @@ def update_schedule_version_status(version):
         version_meta.status = new_status
         version_meta.updated_at = datetime.utcnow()  # Track updates
         db.session.commit()
-        logger.info(
+        logger.app_logger.info(
             f"Updated status for version {version} to {new_status.name}"
         )
         return jsonify(version_meta.to_dict()), HTTPStatus.OK
     except Exception as e:
         db.session.rollback()
-        logger.exception(f"Error updating status for version {version}")
+        logger.error_logger.error(f"Error updating status for version {version}: {str(e)}\n{traceback.format_exc()}")
         return (
             jsonify({"error": f"Failed to update status: {e}"}),
             HTTPStatus.INTERNAL_SERVER_ERROR,
@@ -321,11 +377,11 @@ def update_schedule_version_notes(version):
         version_meta.notes = notes
         version_meta.updated_at = datetime.utcnow()  # Track updates
         db.session.commit()
-        logger.info(f"Updated notes for version {version}")
+        logger.app_logger.info(f"Updated notes for version {version}")
         return jsonify(version_meta.to_dict()), HTTPStatus.OK
     except Exception as e:
         db.session.rollback()
-        logger.exception(f"Error updating notes for version {version}")
+        logger.error_logger.error(f"Error updating notes for version {version}: {str(e)}\n{traceback.format_exc()}")
         return (
             jsonify({"error": f"Failed to update notes: {e}"}),
             HTTPStatus.INTERNAL_SERVER_ERROR,
@@ -366,7 +422,7 @@ def duplicate_schedule_version():
             date_range_end=source_version_meta.date_range_end,
             notes=f"Duplicate of version {source_version_id}. "
                   f"{source_version_meta.notes or ''}".strip(),
-            based_on_version=source_version_id,
+            base_version=source_version_id,
         )
         db.session.add(new_version_meta)
 
@@ -375,7 +431,7 @@ def duplicate_schedule_version():
             version=source_version_id
         ).all()
         if not source_schedules:
-            logger.warning(
+            logger.app_logger.warning(
                 f"Source version {source_version_id} has no schedule "
                 f"entries to duplicate."
             )
@@ -395,7 +451,7 @@ def duplicate_schedule_version():
             db.session.add(new_entry)
 
         db.session.commit()
-        logger.info(
+        logger.app_logger.info(
             f"Duplicated version {source_version_id} to new version "
             f"{next_version}"
         )
@@ -403,7 +459,7 @@ def duplicate_schedule_version():
 
     except Exception as e:
         db.session.rollback()
-        logger.exception(f"Error duplicating version {source_version_id}")
+        logger.error_logger.error(f"Error duplicating version {source_version_id}: {str(e)}\n{traceback.format_exc()}")
         return (
             jsonify({"error": f"Failed to duplicate version: {e}"}),
             HTTPStatus.INTERNAL_SERVER_ERROR,
@@ -417,7 +473,7 @@ def compare_schedule_versions():
     # Placeholder: Return not implemented.
     version1 = request.args.get("version1")
     version2 = request.args.get("version2")
-    logger.warning(
+    logger.app_logger.warning(
         f"Compare endpoint called for {version1} vs {version2} - "
         f"Not fully implemented."
     )
@@ -440,7 +496,7 @@ def delete_schedule_version_route(version):
         if delete_entries:
             # Delete schedule entries associated with this version
             deleted_count = Schedule.query.filter_by(version=version).delete()
-            logger.info(
+            logger.app_logger.info(
                 f"Deleted {deleted_count} schedule entries for version "
                 f"{version}."
             )
@@ -448,7 +504,7 @@ def delete_schedule_version_route(version):
         # Delete the metadata
         db.session.delete(version_meta)
         db.session.commit()
-        logger.info(
+        logger.app_logger.info(
             f"Deleted schedule version metadata for version {version}"
         )
         return (
@@ -458,7 +514,7 @@ def delete_schedule_version_route(version):
 
     except Exception as e:
         db.session.rollback()
-        logger.exception(f"Error deleting version {version}")
+        logger.error_logger.error(f"Error deleting version {version}: {str(e)}\n{traceback.format_exc()}")
         return (
             jsonify({"error": f"Failed to delete version: {e}"}),
             HTTPStatus.INTERNAL_SERVER_ERROR,

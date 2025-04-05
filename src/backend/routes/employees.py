@@ -238,3 +238,39 @@ def delete_employee_availability(avail_id):
         db.session.rollback()
         return jsonify({"error": f"Error deleting availability: {str(e)}"}), \
                HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@employees.route("/employees/<int:employee_id>/absences", methods=["GET"])
+def get_employee_absences(employee_id):
+    """Get all absences for a specific employee"""
+    from ..models import Absence
+    
+    # Verify the employee exists
+    Employee.query.get_or_404(employee_id)
+    
+    # Get query parameters for date filtering
+    start_date_str = request.args.get("start_date")
+    end_date_str = request.args.get("end_date")
+    
+    # Start with the base query for this employee
+    query = Absence.query.filter_by(employee_id=employee_id)
+    
+    try:
+        # Apply date filtering if provided
+        if start_date_str:
+            from datetime import datetime
+            start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+            query = query.filter(Absence.end_date >= start_date)
+        if end_date_str:
+            from datetime import datetime
+            end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+            query = query.filter(Absence.start_date <= end_date)
+            
+        # Execute query and return results
+        absences = query.all()
+        return jsonify([absence.to_dict() for absence in absences])
+        
+    except ValueError:
+        return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), HTTPStatus.BAD_REQUEST
+    except Exception as e:
+        return jsonify({"error": f"Error fetching absences: {str(e)}"}), HTTPStatus.INTERNAL_SERVER_ERROR
