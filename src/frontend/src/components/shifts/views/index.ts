@@ -1,2 +1,2 @@
-export * from './ShiftCoverageView';
-export * from './types';
+export * from "./ShiftCoverageView";
+export * from "./types";

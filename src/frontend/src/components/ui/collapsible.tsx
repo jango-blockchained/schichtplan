@@ -10,20 +10,20 @@ const Collapsible = CollapsiblePrimitive.Root;
 const CollapsibleTrigger = CollapsiblePrimitive.CollapsibleTrigger;
 
 const CollapsibleContent = React.forwardRef<
-    React.ElementRef<typeof CollapsiblePrimitive.CollapsibleContent>,
-    React.ComponentPropsWithoutRef<typeof CollapsiblePrimitive.CollapsibleContent>
+  React.ElementRef<typeof CollapsiblePrimitive.CollapsibleContent>,
+  React.ComponentPropsWithoutRef<typeof CollapsiblePrimitive.CollapsibleContent>
 >(({ className, children, ...props }, ref) => (
-    <CollapsiblePrimitive.CollapsibleContent
-        ref={ref}
-        className={cn(
-            "data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up overflow-hidden transition-all",
-            className
-        )}
-        {...props}
-    >
-        {children}
-    </CollapsiblePrimitive.CollapsibleContent>
+  <CollapsiblePrimitive.CollapsibleContent
+    ref={ref}
+    className={cn(
+      "data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up overflow-hidden transition-all",
+      className,
+    )}
+    {...props}
+  >
+    {children}
+  </CollapsiblePrimitive.CollapsibleContent>
 ));
 CollapsibleContent.displayName = "CollapsibleContent";
 
-export { Collapsible, CollapsibleTrigger, CollapsibleContent }; 
+export { Collapsible, CollapsibleTrigger, CollapsibleContent };

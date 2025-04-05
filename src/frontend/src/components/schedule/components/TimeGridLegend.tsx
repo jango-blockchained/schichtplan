@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 interface TimeGridLegendProps {
   settings: any;
@@ -41,4 +41,4 @@ export function TimeGridLegend({ settings }: TimeGridLegendProps) {
       </div>
     </div>
   );
-} 
+}

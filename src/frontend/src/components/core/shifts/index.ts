@@ -1,2 +1,2 @@
-export { ShiftTable } from './ShiftTable';
-export * from './types'; 
+export { ShiftTable } from "./ShiftTable";
+export * from "./types";

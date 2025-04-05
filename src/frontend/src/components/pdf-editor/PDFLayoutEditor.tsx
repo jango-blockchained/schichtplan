@@ -1,255 +1,297 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { ColorPicker } from '@/components/ui/color-picker';
-import { Loader2 } from 'lucide-react';
-import { PDFLayoutConfig } from '@/pages/PDFSettings';
+import React, { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { ColorPicker } from "@/components/ui/color-picker";
+import { Loader2 } from "lucide-react";
+import { PDFLayoutConfig } from "@/pages/PDFSettings";
 
 interface PDFLayoutEditorProps {
-    config: PDFLayoutConfig;
-    onChange: (config: PDFLayoutConfig) => void;
+  config: PDFLayoutConfig;
+  onChange: (config: PDFLayoutConfig) => void;
 }
 
-const AVAILABLE_FONTS = ['Helvetica', 'Helvetica-Bold', 'Times-Roman', 'Times-Bold'];
-const PAGE_SIZES = ['A4', 'Letter', 'Legal'];
+const AVAILABLE_FONTS = [
+  "Helvetica",
+  "Helvetica-Bold",
+  "Times-Roman",
+  "Times-Bold",
+];
+const PAGE_SIZES = ["A4", "Letter", "Legal"];
 
 export function PDFLayoutEditor({ config, onChange }: PDFLayoutEditorProps) {
-    const [isLoading, setIsLoading] = useState<'save' | 'preview' | null>(null);
+  const [isLoading, setIsLoading] = useState<"save" | "preview" | null>(null);
 
-    const handlePreview = async () => {
-        try {
-            setIsLoading('preview');
-            const response = await fetch('/pdf-settings/preview', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(config),
-            });
+  const handlePreview = async () => {
+    try {
+      setIsLoading("preview");
+      const response = await fetch("/pdf-settings/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(config),
+      });
 
-            if (!response.ok) {
-                throw new Error('Failed to generate preview');
-            }
+      if (!response.ok) {
+        throw new Error("Failed to generate preview");
+      }
 
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            window.open(url, '_blank');
-            window.URL.revokeObjectURL(url);
-        } catch (error) {
-            console.error('Failed to generate preview:', error);
-        } finally {
-            setIsLoading(null);
-        }
-    };
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, "_blank");
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Failed to generate preview:", error);
+    } finally {
+      setIsLoading(null);
+    }
+  };
 
-    const handleChange = (field: keyof PDFLayoutConfig | [string, string], value: any) => {
-        const newConfig = { ...config };
+  const handleChange = (
+    field: keyof PDFLayoutConfig | [string, string],
+    value: any,
+  ) => {
+    const newConfig = { ...config };
 
-        if (Array.isArray(field)) {
-            const [category, key] = field;
-            (newConfig as any)[category] = {
-                ...(newConfig as any)[category],
-                [key]: value
-            };
-        } else {
-            newConfig[field] = value;
-        }
+    if (Array.isArray(field)) {
+      const [category, key] = field;
+      (newConfig as any)[category] = {
+        ...(newConfig as any)[category],
+        [key]: value,
+      };
+    } else {
+      newConfig[field] = value;
+    }
 
-        onChange(newConfig);
-    };
+    onChange(newConfig);
+  };
 
-    return (
-        <div className="space-y-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Page Settings</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <div className="space-y-2">
-                        <Label>Page Size</Label>
-                        <Select
-                            value={config.page_size}
-                            onValueChange={(value) => handleChange('page_size', value)}
-                        >
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {PAGE_SIZES.map((size) => (
-                                    <SelectItem key={size} value={size}>
-                                        {size}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Orientation</Label>
-                        <Select
-                            value={config.orientation}
-                            onValueChange={(value) => handleChange('orientation', value)}
-                        >
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="portrait">Portrait</SelectItem>
-                                <SelectItem value="landscape">Landscape</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </CardContent>
-            </Card>
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Page Settings</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <Label>Page Size</Label>
+            <Select
+              value={config.page_size}
+              onValueChange={(value) => handleChange("page_size", value)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZES.map((size) => (
+                  <SelectItem key={size} value={size}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Orientation</Label>
+            <Select
+              value={config.orientation}
+              onValueChange={(value) => handleChange("orientation", value)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="portrait">Portrait</SelectItem>
+                <SelectItem value="landscape">Landscape</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Margins (mm)</CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-2 gap-4">
-                    {Object.entries(config.margins).map(([side, value]) => (
-                        <div key={side} className="space-y-2">
-                            <Label className="capitalize">{side}</Label>
-                            <Input
-                                type="number"
-                                value={value}
-                                onChange={(e) => handleChange(['margins', side], Number(e.target.value))}
-                                min={0}
-                                max={50}
-                            />
-                        </div>
-                    ))}
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Table Style</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <div className="space-y-2">
-                        <Label>Font Family</Label>
-                        <Select
-                            value={config.fonts.family}
-                            onValueChange={(value) => handleChange(['fonts', 'family'], value)}
-                        >
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {AVAILABLE_FONTS.map((font) => (
-                                    <SelectItem key={font} value={font}>
-                                        {font}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label>Font Size</Label>
-                        <Input
-                            type="number"
-                            value={config.fonts.size}
-                            onChange={(e) => handleChange(['fonts', 'size'], Number(e.target.value))}
-                            min={8}
-                            max={16}
-                        />
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label>Header Font Size</Label>
-                        <Input
-                            type="number"
-                            value={config.fonts.header_size}
-                            onChange={(e) => handleChange(['fonts', 'header_size'], Number(e.target.value))}
-                            min={10}
-                            max={20}
-                        />
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label>Header Background Color</Label>
-                        <ColorPicker
-                            color={config.table_style.header_bg_color}
-                            onChange={(color) => handleChange(['table_style', 'header_bg_color'], color)}
-                        />
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label>Border Color</Label>
-                        <ColorPicker
-                            color={config.table_style.border_color}
-                            onChange={(color) => handleChange(['table_style', 'border_color'], color)}
-                        />
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label>Text Color</Label>
-                        <ColorPicker
-                            color={config.table_style.text_color}
-                            onChange={(color) => handleChange(['table_style', 'text_color'], color)}
-                        />
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label>Header Text Color</Label>
-                        <ColorPicker
-                            color={config.table_style.header_text_color}
-                            onChange={(color) => handleChange(['table_style', 'header_text_color'], color)}
-                        />
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Content Display</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between">
-                        <Label>Show Employee ID</Label>
-                        <Switch
-                            checked={config.content.show_employee_id}
-                            onCheckedChange={(checked) => handleChange(['content', 'show_employee_id'], checked)}
-                        />
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                        <Label>Show Position</Label>
-                        <Switch
-                            checked={config.content.show_position}
-                            onCheckedChange={(checked) => handleChange(['content', 'show_position'], checked)}
-                        />
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                        <Label>Show Breaks</Label>
-                        <Switch
-                            checked={config.content.show_breaks}
-                            onCheckedChange={(checked) => handleChange(['content', 'show_breaks'], checked)}
-                        />
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                        <Label>Show Total Hours</Label>
-                        <Switch
-                            checked={config.content.show_total_hours}
-                            onCheckedChange={(checked) => handleChange(['content', 'show_total_hours'], checked)}
-                        />
-                    </div>
-                </CardContent>
-            </Card>
-
-            <div className="flex justify-end space-x-2 mt-6">
-                <Button variant="outline" onClick={handlePreview} disabled={!!isLoading}>
-                    {isLoading === 'preview' ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : null}
-                    Preview
-                </Button>
+      <Card>
+        <CardHeader>
+          <CardTitle>Margins (mm)</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-4">
+          {Object.entries(config.margins).map(([side, value]) => (
+            <div key={side} className="space-y-2">
+              <Label className="capitalize">{side}</Label>
+              <Input
+                type="number"
+                value={value}
+                onChange={(e) =>
+                  handleChange(["margins", side], Number(e.target.value))
+                }
+                min={0}
+                max={50}
+              />
             </div>
-        </div>
-    );
-} 
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Table Style</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <Label>Font Family</Label>
+            <Select
+              value={config.fonts.family}
+              onValueChange={(value) =>
+                handleChange(["fonts", "family"], value)
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {AVAILABLE_FONTS.map((font) => (
+                  <SelectItem key={font} value={font}>
+                    {font}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Font Size</Label>
+            <Input
+              type="number"
+              value={config.fonts.size}
+              onChange={(e) =>
+                handleChange(["fonts", "size"], Number(e.target.value))
+              }
+              min={8}
+              max={16}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Header Font Size</Label>
+            <Input
+              type="number"
+              value={config.fonts.header_size}
+              onChange={(e) =>
+                handleChange(["fonts", "header_size"], Number(e.target.value))
+              }
+              min={10}
+              max={20}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Header Background Color</Label>
+            <ColorPicker
+              color={config.table_style.header_bg_color}
+              onChange={(color) =>
+                handleChange(["table_style", "header_bg_color"], color)
+              }
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Border Color</Label>
+            <ColorPicker
+              color={config.table_style.border_color}
+              onChange={(color) =>
+                handleChange(["table_style", "border_color"], color)
+              }
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Text Color</Label>
+            <ColorPicker
+              color={config.table_style.text_color}
+              onChange={(color) =>
+                handleChange(["table_style", "text_color"], color)
+              }
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Header Text Color</Label>
+            <ColorPicker
+              color={config.table_style.header_text_color}
+              onChange={(color) =>
+                handleChange(["table_style", "header_text_color"], color)
+              }
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Content Display</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <Label>Show Employee ID</Label>
+            <Switch
+              checked={config.content.show_employee_id}
+              onCheckedChange={(checked) =>
+                handleChange(["content", "show_employee_id"], checked)
+              }
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <Label>Show Position</Label>
+            <Switch
+              checked={config.content.show_position}
+              onCheckedChange={(checked) =>
+                handleChange(["content", "show_position"], checked)
+              }
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <Label>Show Breaks</Label>
+            <Switch
+              checked={config.content.show_breaks}
+              onCheckedChange={(checked) =>
+                handleChange(["content", "show_breaks"], checked)
+              }
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <Label>Show Total Hours</Label>
+            <Switch
+              checked={config.content.show_total_hours}
+              onCheckedChange={(checked) =>
+                handleChange(["content", "show_total_hours"], checked)
+              }
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="flex justify-end space-x-2 mt-6">
+        <Button
+          variant="outline"
+          onClick={handlePreview}
+          disabled={!!isLoading}
+        >
+          {isLoading === "preview" ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : null}
+          Preview
+        </Button>
+      </div>
+    </div>
+  );
+}

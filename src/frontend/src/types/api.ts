@@ -1,7 +1,7 @@
 // API response types
 export interface ApiResponse<T> {
   data: T;
-  status: 'success' | 'error';
+  status: "success" | "error";
   message?: string;
 }
 
@@ -16,7 +16,7 @@ export interface PaginatedResponse<T> {
 
 // API error types
 export interface ApiError {
-  status: 'error';
+  status: "error";
   message: string;
   errors?: Record<string, string[]>;
   code?: string;
@@ -27,7 +27,7 @@ export interface QueryParams {
   page?: number;
   size?: number;
   sort?: string;
-  order?: 'asc' | 'desc';
+  order?: "asc" | "desc";
   search?: string;
   filter?: Record<string, string | number | boolean>;
-} 
+}

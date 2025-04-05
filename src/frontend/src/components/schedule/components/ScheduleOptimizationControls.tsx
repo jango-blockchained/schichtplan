@@ -1,8 +1,13 @@
-import React from 'react';
-import { Button } from '@/components/ui/button';
-import { Play, RefreshCw, RotateCcw } from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import React from "react";
+import { Button } from "@/components/ui/button";
+import { Play, RefreshCw, RotateCcw } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface ScheduleOptimizationControlsProps {
   onGenerateSchedule: () => void;
@@ -19,7 +24,7 @@ export function ScheduleOptimizationControls({
   onGenerateSchedule,
   isGenerating,
   onResetGeneration,
-  generationProgress
+  generationProgress,
 }: ScheduleOptimizationControlsProps) {
   return (
     <div className="flex items-center gap-2">
@@ -57,7 +62,8 @@ export function ScheduleOptimizationControls({
             <div className="flex flex-col gap-1 w-36">
               <Progress value={generationProgress.progress} className="h-2" />
               <p className="text-xs text-muted-foreground truncate">
-                {generationProgress.message || 'Generiere optimierten Dienstplan...'}
+                {generationProgress.message ||
+                  "Generiere optimierten Dienstplan..."}
               </p>
             </div>
           )}
@@ -83,4 +89,4 @@ export function ScheduleOptimizationControls({
       )}
     </div>
   );
-} 
+}

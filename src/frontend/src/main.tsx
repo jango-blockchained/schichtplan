@@ -1,14 +1,23 @@
-'use client';
+"use client";
 
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import { ErrorBoundary } from 'react-error-boundary'
-import './index.css'
-import App from './App'
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { ErrorBoundary } from "react-error-boundary";
+import "./index.css";
+import App from "./App";
 
-function ErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
+function ErrorFallback({
+  error,
+  resetErrorBoundary,
+}: {
+  error: Error;
+  resetErrorBoundary: () => void;
+}) {
   return (
-    <div role="alert" className="p-4 bg-destructive/10 text-destructive rounded-lg">
+    <div
+      role="alert"
+      className="p-4 bg-destructive/10 text-destructive rounded-lg"
+    >
       <p className="font-bold">Something went wrong:</p>
       <pre className="mt-2 text-sm">{error.message}</pre>
       <button
@@ -18,10 +27,10 @@ function ErrorFallback({ error, resetErrorBoundary }: { error: Error; resetError
         Try again
       </button>
     </div>
-  )
+  );
 }
 
-const root = createRoot(document.getElementById('root')!)
+const root = createRoot(document.getElementById("root")!);
 
 root.render(
   <StrictMode>
@@ -29,10 +38,10 @@ root.render(
       FallbackComponent={ErrorFallback}
       onReset={() => {
         // Reset the state of your app here
-        window.location.reload()
+        window.location.reload();
       }}
     >
       <App />
     </ErrorBoundary>
   </StrictMode>,
-)
+);

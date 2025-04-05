@@ -1,6 +1,6 @@
-import React from 'react';
-import { ShiftTable as CoreShiftTable } from '@/components/core/shifts';
-import { WeeklySchedule } from '@/types';
+import React from "react";
+import { ShiftTable as CoreShiftTable } from "@/components/core/shifts";
+import { WeeklySchedule } from "@/types";
 
 interface ShiftTableProps {
   weekStart: Date;
@@ -8,8 +8,16 @@ interface ShiftTableProps {
   isLoading?: boolean;
   error?: string | null;
   data: WeeklySchedule[];
-  onShiftUpdate?: (employeeId: number, fromDay: number, toDay: number) => Promise<void>;
-  onBreakNotesUpdate?: (employeeId: number, day: number, notes: string) => Promise<void>;
+  onShiftUpdate?: (
+    employeeId: number,
+    fromDay: number,
+    toDay: number,
+  ) => Promise<void>;
+  onBreakNotesUpdate?: (
+    employeeId: number,
+    day: number,
+    notes: string,
+  ) => Promise<void>;
 }
 
 /**

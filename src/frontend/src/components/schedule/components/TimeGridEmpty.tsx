@@ -1,7 +1,7 @@
-import React from 'react';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle } from 'lucide-react';
+import React from "react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
 
 interface TimeGridEmptyProps {
   isLoading: boolean;
@@ -9,7 +9,11 @@ interface TimeGridEmptyProps {
   hasOpeningDays: boolean;
 }
 
-export function TimeGridEmpty({ isLoading, hasDateRange, hasOpeningDays }: TimeGridEmptyProps) {
+export function TimeGridEmpty({
+  isLoading,
+  hasDateRange,
+  hasOpeningDays,
+}: TimeGridEmptyProps) {
   if (isLoading) {
     return <Skeleton className="w-full h-[600px]" />;
   }
@@ -34,4 +38,4 @@ export function TimeGridEmpty({ isLoading, hasDateRange, hasOpeningDays }: TimeG
   }
 
   return null;
-} 
+}

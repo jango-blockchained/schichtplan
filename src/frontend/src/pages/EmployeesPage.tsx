@@ -1,11 +1,27 @@
-import { useState, useEffect } from 'react';
-import { Settings, Plus, Pencil, Trash2, Clock, Calendar, Download, Search, Filter } from 'lucide-react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getEmployees, createEmployee, updateEmployee, deleteEmployee, getSettings } from '../services/api';
-import { Employee, CreateEmployeeRequest } from '../types';
-import { useEmployeeGroups } from '../hooks/useEmployeeGroups';
+import { useState, useEffect } from "react";
+import {
+  Settings,
+  Plus,
+  Pencil,
+  Trash2,
+  Clock,
+  Calendar,
+  Download,
+  Search,
+  Filter,
+} from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  getEmployees,
+  createEmployee,
+  updateEmployee,
+  deleteEmployee,
+  getSettings,
+} from "../services/api";
+import { Employee, CreateEmployeeRequest } from "../types";
+import { useEmployeeGroups } from "../hooks/useEmployeeGroups";
 import { EmployeeAvailabilityModal } from "@/components/employees/EmployeeAvailabilityModal";
-import AbsenceModal from '@/components/AbsenceModal';
+import AbsenceModal from "@/components/AbsenceModal";
 import { PageHeader } from "@/components/layout/PageHeader";
 import {
   Button,
@@ -34,9 +50,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   Badge,
-} from '@/components/ui';
+} from "@/components/ui";
 import { useToast } from "@/components/ui/use-toast";
-import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 type ApiEmployee = {
   first_name: string;
@@ -54,19 +70,31 @@ type ApiEmployee = {
   max_weekly_hours: number;
 };
 
-type SortableEmployee = Pick<Employee, 'id' | 'first_name' | 'last_name' | 'employee_group' | 'contracted_hours' | 'is_keyholder' | 'is_active' | 'birthday' | 'email' | 'phone'>;
+type SortableEmployee = Pick<
+  Employee,
+  | "id"
+  | "first_name"
+  | "last_name"
+  | "employee_group"
+  | "contracted_hours"
+  | "is_keyholder"
+  | "is_active"
+  | "birthday"
+  | "email"
+  | "phone"
+>;
 
 type SortConfig = {
   key: keyof SortableEmployee;
-  direction: 'asc' | 'desc';
+  direction: "asc" | "desc";
 };
 
 type EmployeeFormData = CreateEmployeeRequest;
 
 const initialFormData: EmployeeFormData = {
-  first_name: '',
-  last_name: '',
-  employee_group: '',
+  first_name: "",
+  last_name: "",
+  employee_group: "",
   contracted_hours: 0,
   is_keyholder: false,
   is_active: true,
@@ -91,12 +119,16 @@ const isNotNull = <T,>(value: T | null): value is T => value !== null;
 export const EmployeesPage = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
-  const [selectedEmployeeForAvailability, setSelectedEmployeeForAvailability] = useState<Employee | null>(null);
-  const [selectedEmployeeForAbsence, setSelectedEmployeeForAbsence] = useState<Employee | null>(null);
-  const [selectedEmployees, setSelectedEmployees] = useState<Set<number>>(new Set());
+  const [selectedEmployeeForAvailability, setSelectedEmployeeForAvailability] =
+    useState<Employee | null>(null);
+  const [selectedEmployeeForAbsence, setSelectedEmployeeForAbsence] =
+    useState<Employee | null>(null);
+  const [selectedEmployees, setSelectedEmployees] = useState<Set<number>>(
+    new Set(),
+  );
   const [sortConfig, setSortConfig] = useState<SortConfig>({
-    key: 'first_name',
-    direction: 'asc',
+    key: "first_name",
+    direction: "asc",
   });
   const [formData, setFormData] = useState<EmployeeFormData>(initialFormData);
   const { toast } = useToast();
@@ -104,20 +136,24 @@ export const EmployeesPage = () => {
   const { employeeGroups, getGroup, getHoursRange } = useEmployeeGroups();
   const [currentPage, setCurrentPage] = useState(1);
   const [filters, setFilters] = useState<FilterState>({
-    search: '',
-    group: '',
+    search: "",
+    group: "",
     isKeyholder: null,
     isActive: null,
   });
   const [employees, setEmployees] = useState<Employee[]>([]);
 
-  const { data: employeesData, isLoading, error } = useQuery({
-    queryKey: ['employees'],
+  const {
+    data: employeesData,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["employees"],
     queryFn: getEmployees,
   });
 
   const { data: settings } = useQuery({
-    queryKey: ['settings'],
+    queryKey: ["settings"],
     queryFn: getSettings,
   });
 
@@ -131,7 +167,7 @@ export const EmployeesPage = () => {
   const createMutation = useMutation({
     mutationFn: (data: EmployeeFormData) => createEmployee(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
       handleCloseDialog();
     },
   });
@@ -140,7 +176,7 @@ export const EmployeesPage = () => {
     mutationFn: (params: { id: number; data: EmployeeFormData }) =>
       updateEmployee(params.id, params.data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
       handleCloseDialog();
     },
   });
@@ -148,7 +184,7 @@ export const EmployeesPage = () => {
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteEmployee(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['employees'] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
     },
   });
 
@@ -187,24 +223,30 @@ export const EmployeesPage = () => {
   const handleSubmit = async () => {
     try {
       if (editingEmployee) {
-        const updatedEmployee = await updateEmployee(editingEmployee.id, formData);
-        setEmployees(current =>
-          current.map(emp => (emp.id === updatedEmployee.id ? updatedEmployee : emp))
+        const updatedEmployee = await updateEmployee(
+          editingEmployee.id,
+          formData,
+        );
+        setEmployees((current) =>
+          current.map((emp) =>
+            emp.id === updatedEmployee.id ? updatedEmployee : emp,
+          ),
         );
       } else {
         const newEmployee = await createEmployee(formData);
-        setEmployees(current => [...current, newEmployee]);
+        setEmployees((current) => [...current, newEmployee]);
       }
       handleCloseDialog();
       toast({
-        title: `Employee ${editingEmployee ? 'updated' : 'created'} successfully`,
-        variant: 'default',
+        title: `Employee ${editingEmployee ? "updated" : "created"} successfully`,
+        variant: "default",
       });
     } catch (error) {
       toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'An error occurred',
-        variant: 'destructive',
+        title: "Error",
+        description:
+          error instanceof Error ? error.message : "An error occurred",
+        variant: "destructive",
       });
     }
   };
@@ -236,12 +278,14 @@ export const EmployeesPage = () => {
     setSortConfig({
       key,
       direction:
-        sortConfig?.key === key && sortConfig.direction === 'asc' ? 'desc' : 'asc',
+        sortConfig?.key === key && sortConfig.direction === "asc"
+          ? "desc"
+          : "asc",
     });
 
-    setEmployees(current => {
+    setEmployees((current) => {
       return [...current].sort((a, b) => {
-        const direction = sortConfig.direction === 'asc' ? 1 : -1;
+        const direction = sortConfig.direction === "asc" ? 1 : -1;
         const aValue = a[key];
         const bValue = b[key];
 
@@ -256,7 +300,7 @@ export const EmployeesPage = () => {
         if (bValue === null) return -1;
 
         // Now we know both values are defined and not null
-        if (typeof aValue === 'boolean') {
+        if (typeof aValue === "boolean") {
           return (aValue === bValue ? 0 : aValue ? -1 : 1) * direction;
         }
 
@@ -283,10 +327,10 @@ export const EmployeesPage = () => {
       if (aValue === null) return 1;
       if (bValue === null) return -1;
 
-      const direction = sortConfig.direction === 'asc' ? 1 : -1;
+      const direction = sortConfig.direction === "asc" ? 1 : -1;
 
       // Now we know both values are defined and not null
-      if (typeof aValue === 'boolean') {
+      if (typeof aValue === "boolean") {
         return (aValue === bValue ? 0 : aValue ? -1 : 1) * direction;
       }
 
@@ -297,7 +341,7 @@ export const EmployeesPage = () => {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      const allIds = employees?.map(e => e.id) || [];
+      const allIds = employees?.map((e) => e.id) || [];
       setSelectedEmployees(new Set(allIds));
     } else {
       setSelectedEmployees(new Set());
@@ -315,38 +359,55 @@ export const EmployeesPage = () => {
   };
 
   const handleExportSelected = () => {
-    const selectedData = employees.filter(emp => selectedEmployees.has(emp.id));
+    const selectedData = employees.filter((emp) =>
+      selectedEmployees.has(emp.id),
+    );
     const csvContent = [
-      ['Kürzel', 'Vorname', 'Nachname', 'Gruppe', 'Stunden', 'Schlüssel', 'Email', 'Telefon'],
-      ...selectedData.map(emp => [
+      [
+        "Kürzel",
+        "Vorname",
+        "Nachname",
+        "Gruppe",
+        "Stunden",
+        "Schlüssel",
+        "Email",
+        "Telefon",
+      ],
+      ...selectedData.map((emp) => [
         emp.employee_id,
         emp.first_name,
         emp.last_name,
         getGroup(emp.employee_group)?.name || emp.employee_group,
         emp.contracted_hours.toString(),
-        emp.is_keyholder ? 'Ja' : 'Nein',
-        emp.email || '',
-        emp.phone || ''
-      ])
-    ].map(row => row.join(',')).join('\n');
+        emp.is_keyholder ? "Ja" : "Nein",
+        emp.email || "",
+        emp.phone || "",
+      ]),
+    ]
+      .map((row) => row.join(","))
+      .join("\n");
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = 'mitarbeiter_export.csv';
+    link.download = "mitarbeiter_export.csv";
     link.click();
   };
 
   const handleBulkDelete = () => {
-    if (window.confirm(`Möchten Sie wirklich ${selectedEmployees.size} Mitarbeiter löschen?`)) {
-      selectedEmployees.forEach(id => {
+    if (
+      window.confirm(
+        `Möchten Sie wirklich ${selectedEmployees.size} Mitarbeiter löschen?`,
+      )
+    ) {
+      selectedEmployees.forEach((id) => {
         deleteMutation.mutate(id);
       });
       setSelectedEmployees(new Set());
     }
   };
 
-  const filteredEmployees = (employees || []).filter(employee => {
+  const filteredEmployees = (employees || []).filter((employee) => {
     const searchLower = filters.search.toLowerCase();
     const matchesSearch =
       employee.first_name.toLowerCase().includes(searchLower) ||
@@ -355,18 +416,24 @@ export const EmployeesPage = () => {
       (employee.email?.toLowerCase().includes(searchLower) ?? false) ||
       (employee.phone?.toLowerCase().includes(searchLower) ?? false);
 
-    const matchesGroup = !filters.group || employee.employee_group === filters.group;
-    const matchesKeyholder = filters.isKeyholder === null || employee.is_keyholder === filters.isKeyholder;
-    const matchesActive = filters.isActive === null || employee.is_active === filters.isActive;
+    const matchesGroup =
+      !filters.group || employee.employee_group === filters.group;
+    const matchesKeyholder =
+      filters.isKeyholder === null ||
+      employee.is_keyholder === filters.isKeyholder;
+    const matchesActive =
+      filters.isActive === null || employee.is_active === filters.isActive;
 
     return matchesSearch && matchesGroup && matchesKeyholder && matchesActive;
   });
 
   const sortedAndFilteredEmployees = getSortedEmployees(filteredEmployees);
-  const totalPages = Math.ceil(sortedAndFilteredEmployees.length / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(
+    sortedAndFilteredEmployees.length / ITEMS_PER_PAGE,
+  );
   const paginatedEmployees = sortedAndFilteredEmployees.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+    currentPage * ITEMS_PER_PAGE,
   );
 
   if (error) {
@@ -398,7 +465,10 @@ export const EmployeesPage = () => {
             <ThemeToggle />
             {selectedEmployees.size > 0 && (
               <>
-                <Button variant="outline" onClick={() => setSelectedEmployees(new Set())}>
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectedEmployees(new Set())}
+                >
                   Auswahl aufheben ({selectedEmployees.size})
                 </Button>
                 <Button variant="outline" onClick={handleExportSelected}>
@@ -425,7 +495,9 @@ export const EmployeesPage = () => {
           <Input
             placeholder="Suchen..."
             value={filters.search}
-            onChange={(e) => setFilters(f => ({ ...f, search: e.target.value }))}
+            onChange={(e) =>
+              setFilters((f) => ({ ...f, search: e.target.value }))
+            }
             className="pl-8"
           />
         </div>
@@ -441,7 +513,12 @@ export const EmployeesPage = () => {
               <Label>Gruppe</Label>
               <Select
                 value={filters.group}
-                onValueChange={(value) => setFilters(f => ({ ...f, group: value === 'all' ? '' : value }))}
+                onValueChange={(value) =>
+                  setFilters((f) => ({
+                    ...f,
+                    group: value === "all" ? "" : value,
+                  }))
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Alle Gruppen" />
@@ -459,8 +536,17 @@ export const EmployeesPage = () => {
             <div className="p-2">
               <Label>Schlüsselträger</Label>
               <Select
-                value={filters.isKeyholder === null ? 'all' : filters.isKeyholder.toString()}
-                onValueChange={(value) => setFilters(f => ({ ...f, isKeyholder: value === 'all' ? null : value === 'true' }))}
+                value={
+                  filters.isKeyholder === null
+                    ? "all"
+                    : filters.isKeyholder.toString()
+                }
+                onValueChange={(value) =>
+                  setFilters((f) => ({
+                    ...f,
+                    isKeyholder: value === "all" ? null : value === "true",
+                  }))
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Alle" />
@@ -475,8 +561,17 @@ export const EmployeesPage = () => {
             <div className="p-2">
               <Label>Status</Label>
               <Select
-                value={filters.isActive === null ? 'all' : filters.isActive.toString()}
-                onValueChange={(value) => setFilters(f => ({ ...f, isActive: value === 'all' ? null : value === 'true' }))}
+                value={
+                  filters.isActive === null
+                    ? "all"
+                    : filters.isActive.toString()
+                }
+                onValueChange={(value) =>
+                  setFilters((f) => ({
+                    ...f,
+                    isActive: value === "all" ? null : value === "true",
+                  }))
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Alle" />
@@ -502,17 +597,25 @@ export const EmployeesPage = () => {
                   onCheckedChange={handleSelectAll}
                 />
               </TableHead>
-              <TableHead onClick={() => handleSort('first_name')}>
-                Name {sortConfig.key === 'first_name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+              <TableHead onClick={() => handleSort("first_name")}>
+                Name{" "}
+                {sortConfig.key === "first_name" &&
+                  (sortConfig.direction === "asc" ? "↑" : "↓")}
               </TableHead>
-              <TableHead onClick={() => handleSort('employee_group')}>
-                Group {sortConfig.key === 'employee_group' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+              <TableHead onClick={() => handleSort("employee_group")}>
+                Group{" "}
+                {sortConfig.key === "employee_group" &&
+                  (sortConfig.direction === "asc" ? "↑" : "↓")}
               </TableHead>
-              <TableHead onClick={() => handleSort('contracted_hours')}>
-                Hours {sortConfig.key === 'contracted_hours' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+              <TableHead onClick={() => handleSort("contracted_hours")}>
+                Hours{" "}
+                {sortConfig.key === "contracted_hours" &&
+                  (sortConfig.direction === "asc" ? "↑" : "↓")}
               </TableHead>
-              <TableHead onClick={() => handleSort('birthday')}>
-                Birthday {sortConfig.key === 'birthday' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+              <TableHead onClick={() => handleSort("birthday")}>
+                Birthday{" "}
+                {sortConfig.key === "birthday" &&
+                  (sortConfig.direction === "asc" ? "↑" : "↓")}
               </TableHead>
               <TableHead>Contact</TableHead>
               <TableHead>Status</TableHead>
@@ -523,27 +626,40 @@ export const EmployeesPage = () => {
             {paginatedEmployees.map((employee) => (
               <TableRow
                 key={employee.id}
-                className={selectedEmployees.has(employee.id) ? 'bg-muted' : ''}
+                className={selectedEmployees.has(employee.id) ? "bg-muted" : ""}
               >
                 <TableCell>
                   <Checkbox
                     checked={selectedEmployees.has(employee.id)}
-                    onCheckedChange={(checked) => handleSelectEmployee(employee.id, checked as boolean)}
+                    onCheckedChange={(checked) =>
+                      handleSelectEmployee(employee.id, checked as boolean)
+                    }
                   />
                 </TableCell>
-                <TableCell>{employee.first_name} {employee.last_name}</TableCell>
-                <TableCell>{getGroup(employee.employee_group)?.name || employee.employee_group}</TableCell>
+                <TableCell>
+                  {employee.first_name} {employee.last_name}
+                </TableCell>
+                <TableCell>
+                  {getGroup(employee.employee_group)?.name ||
+                    employee.employee_group}
+                </TableCell>
                 <TableCell>{employee.contracted_hours}</TableCell>
                 <TableCell>
-                  {employee.birthday ? new Date(employee.birthday).toLocaleDateString() : '-'}
+                  {employee.birthday
+                    ? new Date(employee.birthday).toLocaleDateString()
+                    : "-"}
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-col space-y-1">
                     {employee.email && (
-                      <span className="text-sm text-muted-foreground">{employee.email}</span>
+                      <span className="text-sm text-muted-foreground">
+                        {employee.email}
+                      </span>
                     )}
                     {employee.phone && (
-                      <span className="text-sm text-muted-foreground">{employee.phone}</span>
+                      <span className="text-sm text-muted-foreground">
+                        {employee.phone}
+                      </span>
                     )}
                   </div>
                 </TableCell>
@@ -569,7 +685,9 @@ export const EmployeesPage = () => {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => setSelectedEmployeeForAvailability(employee)}
+                      onClick={() =>
+                        setSelectedEmployeeForAvailability(employee)
+                      }
                     >
                       <Clock className="h-4 w-4" />
                     </Button>
@@ -605,18 +723,20 @@ export const EmployeesPage = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1}
             >
               Zurück
             </Button>
             <div className="flex items-center gap-2">
-              <span className="text-sm">Seite {currentPage} von {totalPages}</span>
+              <span className="text-sm">
+                Seite {currentPage} von {totalPages}
+              </span>
             </div>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
             >
               Weiter
@@ -630,7 +750,7 @@ export const EmployeesPage = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {editingEmployee ? 'Mitarbeiter bearbeiten' : 'Neuer Mitarbeiter'}
+              {editingEmployee ? "Mitarbeiter bearbeiten" : "Neuer Mitarbeiter"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
@@ -639,14 +759,18 @@ export const EmployeesPage = () => {
                 <Label>First Name</Label>
                 <Input
                   value={formData.first_name}
-                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, first_name: e.target.value })
+                  }
                 />
               </div>
               <div className="space-y-2">
                 <Label>Last Name</Label>
                 <Input
                   value={formData.last_name}
-                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, last_name: e.target.value })
+                  }
                 />
               </div>
             </div>
@@ -656,16 +780,26 @@ export const EmployeesPage = () => {
                 <Label>Birthday</Label>
                 <Input
                   type="date"
-                  value={formData.birthday || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, birthday: e.target.value || null }))}
+                  value={formData.birthday || ""}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      birthday: e.target.value || null,
+                    }))
+                  }
                 />
               </div>
               <div className="space-y-2">
                 <Label>Email</Label>
                 <Input
                   type="email"
-                  value={formData.email || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value || null }))}
+                  value={formData.email || ""}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      email: e.target.value || null,
+                    }))
+                  }
                 />
               </div>
             </div>
@@ -675,8 +809,13 @@ export const EmployeesPage = () => {
                 <Label>Phone</Label>
                 <Input
                   type="tel"
-                  value={formData.phone || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value || null }))}
+                  value={formData.phone || ""}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      phone: e.target.value || null,
+                    }))
+                  }
                 />
               </div>
               <div className="space-y-2">
@@ -707,21 +846,30 @@ export const EmployeesPage = () => {
                   min={getHoursRange(formData.employee_group)[0]}
                   max={getHoursRange(formData.employee_group)[1]}
                   value={formData.contracted_hours}
-                  onChange={(e) => setFormData({ ...formData, contracted_hours: Number(e.target.value) })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      contracted_hours: Number(e.target.value),
+                    })
+                  }
                 />
               </div>
               <div className="space-y-4 pt-2">
                 <div className="flex items-center space-x-2">
                   <Switch
                     checked={formData.is_keyholder}
-                    onCheckedChange={(checked) => setFormData({ ...formData, is_keyholder: checked })}
+                    onCheckedChange={(checked) =>
+                      setFormData({ ...formData, is_keyholder: checked })
+                    }
                   />
                   <Label>Keyholder</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Switch
                     checked={formData.is_active}
-                    onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+                    onCheckedChange={(checked) =>
+                      setFormData({ ...formData, is_active: checked })
+                    }
                   />
                   <Label>Active</Label>
                 </div>
@@ -733,7 +881,7 @@ export const EmployeesPage = () => {
               Abbrechen
             </Button>
             <Button onClick={handleSubmit}>
-              {editingEmployee ? 'Speichern' : 'Erstellen'}
+              {editingEmployee ? "Speichern" : "Erstellen"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -744,7 +892,10 @@ export const EmployeesPage = () => {
         <EmployeeAvailabilityModal
           employeeId={selectedEmployeeForAvailability.id}
           employeeName={`${selectedEmployeeForAvailability.first_name} ${selectedEmployeeForAvailability.last_name}`}
-          employeeGroup={getGroup(selectedEmployeeForAvailability.employee_group)?.name || selectedEmployeeForAvailability.employee_group}
+          employeeGroup={
+            getGroup(selectedEmployeeForAvailability.employee_group)?.name ||
+            selectedEmployeeForAvailability.employee_group
+          }
           contractedHours={selectedEmployeeForAvailability.contracted_hours}
           isOpen={!!selectedEmployeeForAvailability}
           onClose={() => setSelectedEmployeeForAvailability(null)}
@@ -762,4 +913,4 @@ export const EmployeesPage = () => {
       )}
     </div>
   );
-}; 
+};

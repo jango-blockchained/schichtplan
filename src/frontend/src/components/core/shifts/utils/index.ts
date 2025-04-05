@@ -1,1 +1,1 @@
-export * from './timeCalculator'; 
+export * from "./timeCalculator";

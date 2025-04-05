@@ -1,2 +1,2 @@
-export { ShiftTemplateEditor } from './ShiftTemplateEditor';
-export { ShiftTemplateForm } from './ShiftTemplateForm'; 
+export { ShiftTemplateEditor } from "./ShiftTemplateEditor";
+export { ShiftTemplateForm } from "./ShiftTemplateForm";

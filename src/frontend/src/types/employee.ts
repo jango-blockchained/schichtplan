@@ -1,5 +1,5 @@
 // Employee role types
-export type EmployeeRole = 'EMPLOYEE' | 'MANAGER' | 'ADMIN';
+export type EmployeeRole = "EMPLOYEE" | "MANAGER" | "ADMIN";
 
 // Employee type definition
 export interface Employee {
@@ -30,4 +30,4 @@ export interface Position {
   name: string;
   description?: string;
   department_id?: number;
-} 
+}

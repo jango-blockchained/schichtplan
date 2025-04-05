@@ -1,5 +1,5 @@
-import { Settings } from '@/types';
-import { Shift } from '@/services/api';
+import { Settings } from "@/types";
+import { Shift } from "@/services/api";
 
 export type ShiftType = {
   id: string;
@@ -20,12 +20,14 @@ export interface ShiftTemplateEditorProps {
 export interface ShiftTemplateFormProps {
   settings: Settings;
   shift: Shift;
-  onSave: (data: Partial<Shift> & { 
-    start_time: string;
-    end_time: string;
-    requires_break: boolean;
-    active_days: { [key: string]: boolean };
-    shift_type_id: string;
-  }) => void;
+  onSave: (
+    data: Partial<Shift> & {
+      start_time: string;
+      end_time: string;
+      requires_break: boolean;
+      active_days: { [key: string]: boolean };
+      shift_type_id: string;
+    },
+  ) => void;
   onDelete?: () => void;
-} 
+}

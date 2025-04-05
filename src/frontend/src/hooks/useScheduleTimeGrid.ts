@@ -1,10 +1,13 @@
-import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { getSettings, getEmployees } from '@/services/api';
-import { addDays, format } from 'date-fns';
-import { Employee, Schedule } from '@/types';
-import { DateRange } from 'react-day-picker';
-import { parseTime, formatMinutesToTime } from '@/components/schedule/utils/scheduleUtils';
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getSettings, getEmployees } from "@/services/api";
+import { addDays, format } from "date-fns";
+import { Employee, Schedule } from "@/types";
+import { DateRange } from "react-day-picker";
+import {
+  parseTime,
+  formatMinutesToTime,
+} from "@/components/schedule/utils/scheduleUtils";
 
 /**
  * Custom hook for fetching and managing schedule time grid data
@@ -12,23 +15,26 @@ import { parseTime, formatMinutesToTime } from '@/components/schedule/utils/sche
 export function useScheduleTimeGrid(dateRange: DateRange | undefined) {
   // Fetch settings
   const { data: settings, isLoading: isSettingsLoading } = useQuery({
-    queryKey: ['settings'],
+    queryKey: ["settings"],
     queryFn: getSettings,
   });
 
   // Fetch employees data
   const { data: employeesData, isLoading: isEmployeesLoading } = useQuery({
-    queryKey: ['employees'],
+    queryKey: ["employees"],
     queryFn: getEmployees,
   });
 
   // Create employee lookup for quick access
   const employeeLookup = useMemo(() => {
     if (!employeesData) return {};
-    return employeesData.reduce((acc: Record<number, Employee>, employee: Employee) => {
-      acc[employee.id] = employee;
-      return acc;
-    }, {});
+    return employeesData.reduce(
+      (acc: Record<number, Employee>, employee: Employee) => {
+        acc[employee.id] = employee;
+        return acc;
+      },
+      {},
+    );
   }, [employeesData]);
 
   // Generate days from date range, filtered by opening days
@@ -56,11 +62,12 @@ export function useScheduleTimeGrid(dateRange: DateRange | undefined) {
     if (!settings || !settings.general) {
       // Default time slots if settings are not available
       const slots = [];
-      for (let i = 8 * 60; i < 22 * 60; i += 15) { // From 8:00 to 22:00 in 15-min intervals
+      for (let i = 8 * 60; i < 22 * 60; i += 15) {
+        // From 8:00 to 22:00 in 15-min intervals
         slots.push({
           start: i,
           end: i + 15,
-          label: `${formatMinutesToTime(i)}`
+          label: `${formatMinutesToTime(i)}`,
         });
       }
       return slots;
@@ -78,7 +85,7 @@ export function useScheduleTimeGrid(dateRange: DateRange | undefined) {
       slots.push({
         start: time,
         end: time + increment,
-        label: `${formatMinutesToTime(time)}`
+        label: `${formatMinutesToTime(time)}`,
       });
     }
 
@@ -86,18 +93,24 @@ export function useScheduleTimeGrid(dateRange: DateRange | undefined) {
   }, [settings]);
 
   // Helper function to get overlapping schedules for a specific day and time slot
-  const getOverlappingSchedules = (schedules: Schedule[], day: Date, timeSlot: { start: number; end: number }) => {
-    const dayStr = format(day, 'yyyy-MM-dd');
-    
-    return schedules.filter(schedule => {
+  const getOverlappingSchedules = (
+    schedules: Schedule[],
+    day: Date,
+    timeSlot: { start: number; end: number },
+  ) => {
+    const dayStr = format(day, "yyyy-MM-dd");
+
+    return schedules.filter((schedule) => {
       if (!schedule.date || schedule.date !== dayStr) return false;
-      
-      const shiftStart = schedule.shift_start ? parseTime(schedule.shift_start) : 0;
+
+      const shiftStart = schedule.shift_start
+        ? parseTime(schedule.shift_start)
+        : 0;
       const shiftEnd = schedule.shift_end ? parseTime(schedule.shift_end) : 0;
-      
+
       // Check if schedule overlaps with this time slot
       return (
-        (shiftStart <= timeSlot.start && shiftEnd > timeSlot.start) || 
+        (shiftStart <= timeSlot.start && shiftEnd > timeSlot.start) ||
         (shiftStart >= timeSlot.start && shiftStart < timeSlot.end)
       );
     });
@@ -112,6 +125,6 @@ export function useScheduleTimeGrid(dateRange: DateRange | undefined) {
     getOverlappingSchedules,
     isLoading: isSettingsLoading || isEmployeesLoading,
     hasDateRange: Boolean(dateRange?.from && dateRange?.to),
-    hasOpeningDays: Boolean(days.length > 0)
+    hasOpeningDays: Boolean(days.length > 0),
   };
-} 
+}

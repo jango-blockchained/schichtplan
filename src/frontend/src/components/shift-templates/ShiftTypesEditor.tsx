@@ -1,218 +1,237 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Trash2, Plus, Pencil } from 'lucide-react';
-import { ColorPicker } from '@/components/ui/color-picker';
-import { useDebouncedCallback } from 'use-debounce';
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Trash2, Plus, Pencil } from "lucide-react";
+import { ColorPicker } from "@/components/ui/color-picker";
+import { useDebouncedCallback } from "use-debounce";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
-import { ShiftType } from './types';
+import { ShiftType } from "./types";
 
 const defaultShiftTypes: ShiftType[] = [
-    { id: 'EARLY', name: 'Früh', color: '#22c55e' },
-    { id: 'MIDDLE', name: 'Mitte', color: '#3b82f6' },
-    { id: 'LATE', name: 'Spät', color: '#f59e0b' },
+  { id: "EARLY", name: "Früh", color: "#22c55e" },
+  { id: "MIDDLE", name: "Mitte", color: "#3b82f6" },
+  { id: "LATE", name: "Spät", color: "#f59e0b" },
 ];
 
 interface ShiftTypesEditorProps {
-    shifts: ShiftType[];
-    onChange: (shifts: ShiftType[]) => void;
+  shifts: ShiftType[];
+  onChange: (shifts: ShiftType[]) => void;
 }
 
-export const ShiftTypesEditor: React.FC<ShiftTypesEditorProps> = ({ shifts, onChange }) => {
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingType, setEditingType] = useState<ShiftType | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    const [localShiftTypes, setLocalShiftTypes] = useState<ShiftType[]>(shifts);
+export const ShiftTypesEditor: React.FC<ShiftTypesEditorProps> = ({
+  shifts,
+  onChange,
+}) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingType, setEditingType] = useState<ShiftType | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [localShiftTypes, setLocalShiftTypes] = useState<ShiftType[]>(shifts);
 
-    // Debounced update function
-    const debouncedOnChange = useDebouncedCallback(
-        (updatedTypes: ShiftType[]) => {
-            onChange(updatedTypes);
-        },
-        1000 // 1 second delay
-    );
+  // Debounced update function
+  const debouncedOnChange = useDebouncedCallback(
+    (updatedTypes: ShiftType[]) => {
+      onChange(updatedTypes);
+    },
+    1000, // 1 second delay
+  );
 
-    function getDefaultShiftType(): ShiftType {
-        return {
-            id: 'EARLY',
-            name: '',
-            color: '#4CAF50',
-        };
+  function getDefaultShiftType(): ShiftType {
+    return {
+      id: "EARLY",
+      name: "",
+      color: "#4CAF50",
+    };
+  }
+
+  const handleOpenModal = (type?: ShiftType) => {
+    if (type) {
+      setEditingType({ ...type });
+    } else {
+      setEditingType(getDefaultShiftType());
+    }
+    setIsModalOpen(true);
+    setError(null);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingType(null);
+    setError(null);
+  };
+
+  const handleSaveType = () => {
+    if (!editingType?.id || !editingType?.name) {
+      setError("ID and Name are required");
+      return;
     }
 
-    const handleOpenModal = (type?: ShiftType) => {
-        if (type) {
-            setEditingType({ ...type });
-        } else {
-            setEditingType(getDefaultShiftType());
-        }
-        setIsModalOpen(true);
-        setError(null);
-    };
+    const existingIndex = localShiftTypes.findIndex(
+      (t) => t.id === editingType.id,
+    );
+    let updatedTypes: ShiftType[];
 
-    const handleCloseModal = () => {
-        setIsModalOpen(false);
-        setEditingType(null);
-        setError(null);
-    };
+    if (
+      existingIndex >= 0 &&
+      editingType.id === localShiftTypes[existingIndex].id
+    ) {
+      // Update existing type
+      updatedTypes = [...localShiftTypes];
+      updatedTypes[existingIndex] = editingType;
+    } else if (localShiftTypes.some((type) => type.id === editingType.id)) {
+      setError("Shift Type ID must be unique");
+      return;
+    } else {
+      // Add new type
+      updatedTypes = [...localShiftTypes, editingType];
+    }
 
-    const handleSaveType = () => {
-        if (!editingType?.id || !editingType?.name) {
-            setError('ID and Name are required');
-            return;
-        }
+    setLocalShiftTypes(updatedTypes);
+    onChange(updatedTypes);
+    handleCloseModal();
+  };
 
-        const existingIndex = localShiftTypes.findIndex(t => t.id === editingType.id);
-        let updatedTypes: ShiftType[];
+  const handleDeleteType = (typeId: string) => {
+    const updatedTypes = localShiftTypes.filter((t) => t.id !== typeId);
+    setLocalShiftTypes(updatedTypes);
+    onChange(updatedTypes);
+  };
 
-        if (existingIndex >= 0 && editingType.id === localShiftTypes[existingIndex].id) {
-            // Update existing type
-            updatedTypes = [...localShiftTypes];
-            updatedTypes[existingIndex] = editingType;
-        } else if (localShiftTypes.some(type => type.id === editingType.id)) {
-            setError('Shift Type ID must be unique');
-            return;
-        } else {
-            // Add new type
-            updatedTypes = [...localShiftTypes, editingType];
-        }
+  const handleColorChange = (color: string) => {
+    // ... rest of the function
+  };
 
-        setLocalShiftTypes(updatedTypes);
-        onChange(updatedTypes);
-        handleCloseModal();
-    };
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold">Shift Types</h3>
+        <Button onClick={() => handleOpenModal()} size="sm">
+          <Plus className="h-4 w-4 mr-1" />
+          Add Shift Type
+        </Button>
+      </div>
 
-    const handleDeleteType = (typeId: string) => {
-        const updatedTypes = localShiftTypes.filter(t => t.id !== typeId);
-        setLocalShiftTypes(updatedTypes);
-        onChange(updatedTypes);
-    };
-
-    const handleColorChange = (color: string) => {
-        // ... rest of the function
-    };
-
-    return (
-        <div className="space-y-4">
-            <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold">Shift Types</h3>
-                <Button
-                    onClick={() => handleOpenModal()}
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>ID</TableHead>
+            <TableHead>Name</TableHead>
+            <TableHead>Color</TableHead>
+            <TableHead className="w-[100px]">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {localShiftTypes.map((type) => (
+            <TableRow key={type.id}>
+              <TableCell>{type.id}</TableCell>
+              <TableCell>{type.name}</TableCell>
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-6 h-6 rounded border"
+                    style={{ backgroundColor: type.color }}
+                  />
+                  {type.color}
+                </div>
+              </TableCell>
+              <TableCell>
+                <div className="flex space-x-2">
+                  <Button
+                    variant="ghost"
                     size="sm"
-                >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add Shift Type
-                </Button>
+                    onClick={() => handleOpenModal(type)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDeleteType(type.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingType?.id ? "Edit Shift Type" : "Add Shift Type"}
+            </DialogTitle>
+          </DialogHeader>
+
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>ID</Label>
+                <Input
+                  value={editingType?.id || ""}
+                  onChange={(e) =>
+                    setEditingType((prev) =>
+                      prev ? { ...prev, id: e.target.value } : null,
+                    )
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Name</Label>
+                <Input
+                  value={editingType?.name || ""}
+                  onChange={(e) =>
+                    setEditingType((prev) =>
+                      prev ? { ...prev, name: e.target.value } : null,
+                    )
+                  }
+                />
+              </div>
             </div>
 
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>ID</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Color</TableHead>
-                        <TableHead className="w-[100px]">Actions</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {localShiftTypes.map((type) => (
-                        <TableRow key={type.id}>
-                            <TableCell>{type.id}</TableCell>
-                            <TableCell>{type.name}</TableCell>
-                            <TableCell>
-                                <div className="flex items-center gap-2">
-                                    <div
-                                        className="w-6 h-6 rounded border"
-                                        style={{ backgroundColor: type.color }}
-                                    />
-                                    {type.color}
-                                </div>
-                            </TableCell>
-                            <TableCell>
-                                <div className="flex space-x-2">
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handleOpenModal(type)}
-                                    >
-                                        <Pencil className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handleDeleteType(type.id)}
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
+            <div className="space-y-2">
+              <Label>Color</Label>
+              <ColorPicker
+                color={editingType?.color || "#4CAF50"}
+                onChange={(color) =>
+                  setEditingType((prev) => (prev ? { ...prev, color } : null))
+                }
+              />
+            </div>
+          </div>
 
-            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>
-                            {editingType?.id ? 'Edit Shift Type' : 'Add Shift Type'}
-                        </DialogTitle>
-                    </DialogHeader>
-
-                    {error && (
-                        <Alert variant="destructive">
-                            <AlertDescription>{error}</AlertDescription>
-                        </Alert>
-                    )}
-
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label>ID</Label>
-                                <Input
-                                    value={editingType?.id || ''}
-                                    onChange={(e) => setEditingType(prev => prev ? { ...prev, id: e.target.value } : null)}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label>Name</Label>
-                                <Input
-                                    value={editingType?.name || ''}
-                                    onChange={(e) => setEditingType(prev => prev ? { ...prev, name: e.target.value } : null)}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label>Color</Label>
-                            <ColorPicker
-                                color={editingType?.color || '#4CAF50'}
-                                onChange={(color) => setEditingType(prev => prev ? { ...prev, color } : null)}
-                            />
-                        </div>
-                    </div>
-
-                    <DialogFooter>
-                        <Button variant="outline" onClick={handleCloseModal}>
-                            Cancel
-                        </Button>
-                        <Button onClick={handleSaveType}>
-                            Save
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </div>
-    );
-} 
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCloseModal}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveType}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};

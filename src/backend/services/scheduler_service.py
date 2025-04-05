@@ -1,251 +1,438 @@
 """
-Scheduler service for managing and generating schedules with proper app context.
-This service ensures all database operations run with the correct Flask app context
-and SQLAlchemy session.
+Scheduler Service Module
+
+This module provides a service layer for scheduler operations, ensuring proper
+Flask app context management and SQLAlchemy session handling.
+
+It applies the monkey patch to fix SQLAlchemy app context issues for all
+scheduler database operations.
 """
 
-import sys
-import os
 import logging
 import traceback
 from datetime import date, timedelta
 from functools import wraps
-from typing import Dict, List, Optional, Any, Union, Callable
+import inspect
 
-# Setup logging
-logger = logging.getLogger(__name__)
-handler = logging.StreamHandler()
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-logger.setLevel(logging.INFO)
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger("scheduler_service")
 
-# Add parent directory to path for imports if needed
-current_dir = os.path.dirname(os.path.abspath(__file__))
-src_backend_dir = os.path.abspath(os.path.join(current_dir, "..", ".."))
-if src_backend_dir not in sys.path:
-    sys.path.insert(0, src_backend_dir)
+# Apply the monkey patch to fix SQLAlchemy issues
+try:
+    from src.backend.tools.debug.fix_scheduler_db import apply_monkey_patch
+    patch_success = apply_monkey_patch()
+    if not patch_success:
+        logger.warning("Failed to apply scheduler resources monkey patch")
+    else:
+        logger.info("Successfully applied scheduler resources monkey patch")
+except Exception as e:
+    logger.error(f"Error applying monkey patch: {str(e)}")
+    logger.error(traceback.format_exc())
 
-# Import the app factory and db
-from src.backend.app import create_app
-from src.backend.models import db
+# Create a Flask app instance
+try:
+    from src.backend.app import create_app
+    app = create_app()
+    logger.info("Successfully created Flask app instance")
+except Exception as e:
+    logger.error(f"Error creating Flask app: {str(e)}")
+    logger.error(traceback.format_exc())
+    app = None
+
 
 class SchedulerService:
     """
-    Service for managing schedule generation and data retrieval with proper app context.
-    This service ensures all database operations run with the correct Flask app context.
+    Service class for scheduler operations with proper context management.
+    
+    This service handles all scheduler operations including:
+    - Loading scheduler resources
+    - Generating schedules
+    - Retrieving schedule data from the database
+    
+    All operations are performed within the Flask app context to ensure
+    proper SQLAlchemy registration.
     """
-
+    
     def __init__(self):
-        """Initialize the scheduler service with Flask app"""
-        self.app = None
-        self._init_app()
-        logger.info("[SCHEDULER SERVICE] Initialized scheduler service")
-
-    def _init_app(self):
-        """Initialize the Flask app and register it with the database"""
-        if self.app is None:
-            # Create the Flask app - this already registers the database in create_app()
-            self.app = create_app()
-            logger.info("[SCHEDULER SERVICE] Created Flask app for scheduler service")
-
-    def generate_schedule(self, start_date: date, end_date: date, 
-                         version: int = 1, **kwargs) -> Dict[str, Any]:
+        """Initialize the scheduler service with app context management"""
+        self.app = app
+        logger.info("Initialized SchedulerService")
+    
+    def _ensure_app_context(func):
+        """Decorator to ensure function runs within Flask app context"""
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            # Check if we're already in an app context
+            if self.app is None:
+                logger.error("Flask app is not available")
+                return {
+                    "success": False,
+                    "error": "Flask app is not available for context management"
+                }
+                
+            # Run the function within app context if not already in one
+            try:
+                with self.app.app_context():
+                    logger.debug(f"Running {func.__name__} within app context")
+                    return func(self, *args, **kwargs)
+            except Exception as e:
+                logger.error(f"Error in {func.__name__}: {str(e)}")
+                logger.error(traceback.format_exc())
+                return {
+                    "success": False,
+                    "error": str(e),
+                    "message": f"An error occurred in {func.__name__}"
+                }
+                
+        return wrapper
+    
+    @_ensure_app_context
+    def generate_schedule(self, start_date, end_date, version=1, session_id=None):
         """
-        Generate a schedule for the specified date range using the scheduler.
-        Ensures operations run within Flask app context.
+        Generate a schedule for the given date range.
+        
+        This method ensures all operations are performed within
+        the Flask app context, and handles backward compatibility with
+        different versions of the ScheduleGenerator class.
         
         Args:
-            start_date: Starting date for the schedule
-            end_date: Ending date for the schedule
-            version: Schedule version number (default: 1)
-            **kwargs: Additional keyword arguments for the scheduler
+            start_date (date): Start date for the schedule
+            end_date (date): End date for the schedule
+            version (int, optional): Version of the schedule generation algorithm. Defaults to 1.
+            session_id (str, optional): Session ID for logging. Defaults to None.
             
         Returns:
-            Dict containing the generation result with success flag and message
+            dict: Result of the schedule generation including:
+                - success: Whether the generation was successful
+                - entries: List of generated schedule entries (if successful)
+                - error: Error message (if unsuccessful)
         """
+        logger.info(f"Generating schedule from {start_date} to {end_date}, version={version}")
+        
         try:
-            # Import scheduler components here to ensure they use the correct app context
-            from src.backend.services.scheduler import ScheduleGenerator
+            # Import scheduler components
+            from src.backend.services.scheduler.generator import ScheduleGenerator
             from src.backend.services.scheduler.resources import ScheduleResources
             
-            logger.info(f"[SCHEDULER SERVICE] Generating schedule from {start_date} to {end_date}, version {version}")
+            # Initialize scheduler resources
+            logger.info("Initializing scheduler resources")
+            resources = ScheduleResources(start_date, end_date)
             
-            # Push app context for the database operations
-            with self.app.app_context():
-                # Initialize the schedule generator
-                generator = ScheduleGenerator(logger=logger)
-                
-                # Determine if we should use the generate() or generate_schedule() method
-                # based on what's available in the ScheduleGenerator class
-                if hasattr(generator, 'generate_schedule') and callable(getattr(generator, 'generate_schedule')):
-                    # Use the newer generate_schedule method if available
-                    result = generator.generate_schedule(
-                        start_date=start_date,
-                        end_date=end_date,
-                        version=version,
-                        **kwargs
-                    )
-                else:
-                    # Use the older generate method
-                    session_id = kwargs.get('session_id', 'default_session')
-                    result = generator.generate(
-                        start_date=start_date,
-                        end_date=end_date,
-                        version=version,
-                        session_id=session_id
-                    )
-                    
-                logger.info(f"[SCHEDULER SERVICE] Schedule generation completed: {result.get('success', False)}")
-                return result
-                
-        except Exception as e:
-            logger.error(f"[SCHEDULER SERVICE] Error generating schedule: {str(e)}", exc_info=True)
-            return {
-                "success": False,
-                "message": f"Error generating schedule: {str(e)}",
-                "error": traceback.format_exc()
-            }
-
-    def get_schedule_data(self, start_date: Optional[date] = None, 
-                         end_date: Optional[date] = None,
-                         employee_id: Optional[int] = None) -> Dict[str, Any]:
-        """
-        Retrieve schedule entries from the database, optionally filtered by date range and employee.
-        Ensures operations run within Flask app context.
-        
-        Args:
-            start_date: Optional starting date for filtering
-            end_date: Optional ending date for filtering
-            employee_id: Optional employee ID for filtering
-            
-        Returns:
-            Dict containing schedule data with success flag
-        """
-        try:
-            # Push app context for the database operations
-            with self.app.app_context():
-                # Import models here to ensure they use the correct context
-                from src.backend.models import Schedule
-                
-                query = Schedule.query
-                
-                # Apply filters if provided
-                if start_date:
-                    query = query.filter(Schedule.date >= start_date)
-                if end_date:
-                    query = query.filter(Schedule.date <= end_date)
-                if employee_id:
-                    query = query.filter(Schedule.employee_id == employee_id)
-                
-                # Execute query and get results
-                entries = query.all()
-                
-                # Prepare response data
-                schedule_entries = []
-                for entry in entries:
-                    schedule_entries.append({
-                        "id": entry.id,
-                        "date": entry.date.isoformat() if hasattr(entry.date, 'isoformat') else str(entry.date),
-                        "employee_id": entry.employee_id,
-                        "shift_id": entry.shift_id,
-                        "version": getattr(entry, 'version', 1),
-                        # Add other fields as needed
-                    })
-                
-                logger.info(f"[SCHEDULER SERVICE] Retrieved {len(schedule_entries)} schedule entries")
+            # Load resources
+            resources_loaded = resources.load()
+            if not resources_loaded:
+                logger.warning("Failed to load critical scheduler resources")
                 return {
-                    "success": True,
-                    "entries": schedule_entries,
-                    "count": len(schedule_entries)
+                    "success": False,
+                    "message": "Failed to load critical scheduler resources",
+                    "entries": []
                 }
+            
+            # Check if resources were loaded properly
+            if not hasattr(resources, 'employees') or not resources.employees:
+                logger.warning("No employees loaded in scheduler resources")
+                return {
+                    "success": False,
+                    "message": "No employees available for scheduling",
+                    "entries": []
+                }
+            
+            if not hasattr(resources, 'shifts') or not resources.shifts:
+                logger.warning("No shifts loaded in scheduler resources")
+                return {
+                    "success": False,
+                    "message": "No shifts available for scheduling",
+                    "entries": []
+                }
+            
+            # Initialize schedule generator
+            logger.info("Initializing schedule generator")
+            generator = ScheduleGenerator(resources)
+            
+            # Check which method to use (backward compatibility)
+            logger.info("Checking available generator methods")
+            
+            # Check if generate_schedule exists and its signature
+            if hasattr(generator, 'generate_schedule'):
+                generate_method = generator.generate_schedule
+                # Check if it accepts version parameter
+                generate_sig = inspect.signature(generate_method)
+                params = list(generate_sig.parameters.keys())
                 
+                if 'version' in params and 'session_id' in params:
+                    logger.info("Using generate_schedule method with version and session_id")
+                    result = generate_method(version=version, session_id=session_id)
+                elif 'version' in params:
+                    logger.info("Using generate_schedule method with version only")
+                    result = generate_method(version=version)
+                else:
+                    logger.info("Using generate_schedule method without parameters")
+                    result = generate_method()
+            
+            # Fall back to older generate method if needed
+            elif hasattr(generator, 'generate'):
+                generate_method = generator.generate
+                # Check signature for backward compatibility
+                generate_sig = inspect.signature(generate_method)
+                params = list(generate_sig.parameters.keys())
+                
+                if 'version' in params:
+                    logger.info("Using generate method with version parameter")
+                    result = generate_method(version=version)
+                else:
+                    logger.info("Using generate method without parameters")
+                    result = generate_method()
+            else:
+                logger.error("No generation method found in ScheduleGenerator")
+                return {
+                    "success": False,
+                    "error": "No generation method available in scheduler",
+                    "entries": []
+                }
+            
+            logger.info(f"Schedule generation completed with result: {result is not None}")
+            return {
+                "success": True,
+                "entries": result if result is not None else [],
+                "message": "Schedule generated successfully"
+            }
+            
         except Exception as e:
-            logger.error(f"[SCHEDULER SERVICE] Error retrieving schedule data: {str(e)}", exc_info=True)
+            logger.error(f"Error generating schedule: {str(e)}")
+            logger.error(traceback.format_exc())
             return {
                 "success": False,
-                "message": f"Error retrieving schedule data: {str(e)}",
-                "error": traceback.format_exc(),
+                "error": str(e),
+                "message": "An error occurred during schedule generation",
                 "entries": []
             }
-
-    def load_resources(self, start_date: Optional[date] = None, 
-                      end_date: Optional[date] = None) -> Dict[str, Any]:
+    
+    @_ensure_app_context
+    def get_schedule_data(self, start_date=None, end_date=None, employee_id=None):
         """
-        Load scheduler resources for diagnostics and testing.
-        Ensures operations run within Flask app context.
+        Retrieve schedule entries from the database.
         
         Args:
-            start_date: Optional starting date for resource loading
-            end_date: Optional ending date for resource loading
+            start_date (date, optional): Start date for filtering. Defaults to None.
+            end_date (date, optional): End date for filtering. Defaults to None.
+            employee_id (int, optional): Employee ID for filtering. Defaults to None.
             
         Returns:
-            Dict containing loaded resources summary
+            dict: Result containing:
+                - success: Whether the retrieval was successful
+                - entries: List of schedule entries
+                - error: Error message (if unsuccessful)
         """
+        logger.info(f"Retrieving schedule data: {start_date} to {end_date}, employee={employee_id}")
+        
         try:
-            # Set default dates if not provided
-            if not start_date:
-                start_date = date.today()
-            if not end_date:
-                end_date = start_date + timedelta(days=6)  # Default to one week
+            # Import the models directly
+            from src.backend.models import Schedule, Employee, ShiftTemplate, db
             
-            logger.info(f"[SCHEDULER SERVICE] Loading resources for {start_date} to {end_date}")
+            # Build query with filters
+            query = db.session.query(
+                Schedule, 
+                Employee, 
+                ShiftTemplate
+            ).join(
+                Employee, 
+                Schedule.employee_id == Employee.id
+            ).join(
+                ShiftTemplate, 
+                Schedule.shift_id == ShiftTemplate.id
+            )
             
-            # Push app context for the database operations
-            with self.app.app_context():
-                # Import resource class here to ensure correct context
-                from src.backend.services.scheduler.resources import ScheduleResources
+            # Apply date filters if provided
+            if start_date:
+                query = query.filter(Schedule.date >= start_date)
+            if end_date:
+                query = query.filter(Schedule.date <= end_date)
+            if employee_id:
+                query = query.filter(Schedule.employee_id == employee_id)
                 
-                # Initialize resources with date range
-                resources = ScheduleResources(start_date=start_date, end_date=end_date)
-                
-                # Load all resources
-                success = resources.load()
-                
-                # Create summary of loaded resources
-                resource_summary = {
-                    "success": success,
-                    "date_range": {
-                        "start_date": start_date.isoformat(),
-                        "end_date": end_date.isoformat()
-                    },
-                    "employees": {
-                        "count": len(resources.employees),
-                        "ids": [emp.id for emp in resources.employees[:10]]  # First 10 employee IDs
-                    },
-                    "shifts": {
-                        "count": len(resources.shifts),
-                        "ids": [shift.id for shift in resources.shifts[:10]]  # First 10 shift IDs
-                    },
-                    "settings": resources.settings is not None,
-                    "coverage": {
-                        "count": len(resources.coverage)
-                    }
-                }
-                
-                logger.info(f"[SCHEDULER SERVICE] Resources loaded: {success}")
-                return resource_summary
-                
+            # Execute query
+            results = query.all()
+            
+            # Format results
+            entries = []
+            for entry, employee, shift in results:
+                entries.append({
+                    "id": entry.id,
+                    "date": entry.date.isoformat() if hasattr(entry.date, 'isoformat') else str(entry.date),
+                    "employee_id": entry.employee_id,
+                    "employee_name": f"{employee.first_name} {employee.last_name}",
+                    "shift_id": entry.shift_id,
+                    "shift_name": shift.name,
+                    "shift_start": shift.start_time,
+                    "shift_end": shift.end_time
+                })
+            
+            logger.info(f"Retrieved {len(entries)} schedule entries")
+            return {
+                "success": True,
+                "entries": entries,
+                "message": f"Retrieved {len(entries)} schedule entries"
+            }
+            
         except Exception as e:
-            logger.error(f"[SCHEDULER SERVICE] Error loading resources: {str(e)}", exc_info=True)
+            logger.error(f"Error retrieving schedule data: {str(e)}")
+            logger.error(traceback.format_exc())
             return {
                 "success": False,
-                "message": f"Error loading resources: {str(e)}",
-                "error": traceback.format_exc()
+                "error": str(e),
+                "message": "An error occurred while retrieving schedule data",
+                "entries": []
+            }
+    
+    @_ensure_app_context
+    def load_resources(self, start_date=None, end_date=None):
+        """
+        Load scheduler resources for diagnostics and testing.
+        
+        Args:
+            start_date (date, optional): Start date for resources. Defaults to today.
+            end_date (date, optional): End date for resources. Defaults to a week from today.
+            
+        Returns:
+            dict: Summary of loaded resources and any errors encountered
+        """
+        logger.info(f"Loading scheduler resources: {start_date} to {end_date}")
+        
+        # Set default dates if not provided
+        if start_date is None:
+            start_date = date.today()
+        if end_date is None:
+            end_date = start_date + timedelta(days=6)
+            
+        logger.info(f"Using date range: {start_date} to {end_date}")
+        
+        try:
+            # Import scheduler resources
+            from src.backend.services.scheduler.resources import ScheduleResources
+            
+            # Initialize resources and load them
+            resources = ScheduleResources(start_date, end_date)
+            load_result = resources.load()
+            
+            # Check what was loaded
+            settings_loaded = hasattr(resources, 'settings') and resources.settings is not None
+            employees_loaded = hasattr(resources, 'employees') and len(resources.employees) > 0
+            shifts_loaded = hasattr(resources, 'shifts') and len(resources.shifts) > 0
+            
+            # Get counts
+            employee_count = len(resources.employees) if hasattr(resources, 'employees') else 0
+            shift_count = len(resources.shifts) if hasattr(resources, 'shifts') else 0
+            
+            # Calculate coverage count
+            coverage_count = 0
+            if hasattr(resources, 'coverage'):
+                for date_str, day_coverage in resources.coverage.items():
+                    coverage_count += len(day_coverage)
+            
+            # Check for critical issues
+            has_critical_issues = False
+            critical_messages = []
+            
+            if not settings_loaded:
+                has_critical_issues = True
+                critical_messages.append("Settings not loaded")
+                
+            if not employees_loaded:
+                has_critical_issues = True
+                critical_messages.append("No employees loaded")
+                
+            if not shifts_loaded:
+                has_critical_issues = True
+                critical_messages.append("No shifts loaded")
+            
+            # Prepare result
+            result = {
+                "success": load_result and not has_critical_issues,
+                "settings": settings_loaded,
+                "employees": {
+                    "loaded": employees_loaded,
+                    "count": employee_count
+                },
+                "shifts": {
+                    "loaded": shifts_loaded,
+                    "count": shift_count
+                },
+                "coverage": {
+                    "loaded": coverage_count > 0,
+                    "count": coverage_count
+                }
+            }
+            
+            if has_critical_issues:
+                result["message"] = "Critical resources missing: " + ", ".join(critical_messages)
+            else:
+                result["message"] = "All critical resources loaded successfully"
+                
+            logger.info(f"Resource loading completed: {result['message']}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error loading scheduler resources: {str(e)}")
+            logger.error(traceback.format_exc())
+            return {
+                "success": False,
+                "error": str(e),
+                "message": "An error occurred while loading scheduler resources"
             }
 
-# Create a global instance for easier access
-_scheduler_service = SchedulerService()
+
+# Create a global scheduler service instance for easier access
+_service = SchedulerService()
 
 # Helper functions that use the global service instance
-def generate_schedule(start_date: date, end_date: date, version: int = 1, **kwargs) -> Dict[str, Any]:
-    """Generate a schedule using the scheduler service"""
-    return _scheduler_service.generate_schedule(start_date, end_date, version, **kwargs)
+def generate_schedule(start_date, end_date, version=1, session_id=None):
+    """
+    Generate a schedule for the given date range.
+    
+    This helper function uses the global SchedulerService instance.
+    
+    Args:
+        start_date (date): Start date for the schedule
+        end_date (date): End date for the schedule
+        version (int, optional): Version of the schedule generation algorithm. Defaults to 1.
+        session_id (str, optional): Session ID for logging. Defaults to None.
+        
+    Returns:
+        dict: Result of the schedule generation
+    """
+    return _service.generate_schedule(start_date, end_date, version, session_id)
 
-def get_schedule_data(start_date=None, end_date=None, employee_id=None) -> Dict[str, Any]:
-    """Get schedule data using the scheduler service"""
-    return _scheduler_service.get_schedule_data(start_date, end_date, employee_id)
+def get_schedule_data(start_date=None, end_date=None, employee_id=None):
+    """
+    Retrieve schedule entries from the database.
+    
+    This helper function uses the global SchedulerService instance.
+    
+    Args:
+        start_date (date, optional): Start date for filtering. Defaults to None.
+        end_date (date, optional): End date for filtering. Defaults to None.
+        employee_id (int, optional): Employee ID for filtering. Defaults to None.
+        
+    Returns:
+        dict: Result containing schedule entries
+    """
+    return _service.get_schedule_data(start_date, end_date, employee_id)
 
-def load_resources(start_date=None, end_date=None) -> Dict[str, Any]:
-    """Load scheduler resources using the scheduler service"""
-    return _scheduler_service.load_resources(start_date, end_date) 
+def load_resources(start_date=None, end_date=None):
+    """
+    Load scheduler resources for diagnostics and testing.
+    
+    This helper function uses the global SchedulerService instance.
+    
+    Args:
+        start_date (date, optional): Start date for resources. Defaults to today.
+        end_date (date, optional): End date for resources. Defaults to a week from today.
+        
+    Returns:
+        dict: Summary of loaded resources
+    """
+    return _service.load_resources(start_date, end_date) 

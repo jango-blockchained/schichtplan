@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getSettings, updateSettings, generateDemoData, generateOptimizedDemoData, resetOptimizedDemoDataStatus, backupDatabase, restoreDatabase, wipeTables } from "@/services/api";
+import {
+  getSettings,
+  updateSettings,
+  generateDemoData,
+  generateOptimizedDemoData,
+  resetOptimizedDemoDataStatus,
+  backupDatabase,
+  restoreDatabase,
+  wipeTables,
+} from "@/services/api";
 import type { Settings } from "@/types/index";
 import {
   Card,
@@ -24,17 +33,21 @@ import {
 } from "@/components/ui/select";
 import { ColorPicker } from "@/components/ui/color-picker";
 import { PDFLayoutEditor } from "@/components/pdf-editor";
-import { EmployeeSettingsEditor, EmployeeType, AbsenceType } from "@/components/employees";
+import {
+  EmployeeSettingsEditor,
+  EmployeeType,
+  AbsenceType,
+} from "@/components/employees";
 import { ShiftTypesEditor } from "@/components/shift-templates";
 import { Loader2, Save, Trash2, Plus, Download, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useDebouncedCallback } from 'use-debounce';
-import { useTheme } from '@/hooks/use-theme';
+import { useDebouncedCallback } from "use-debounce";
+import { useTheme } from "@/hooks/use-theme";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { DateTimePicker } from '@/components/ui/date-time-picker';
-import { format } from 'date-fns';
+import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { format } from "date-fns";
 import { ScheduleGenerationSettings } from "@/components/schedule";
 import {
   AlertDialog,
@@ -57,12 +70,12 @@ export interface BaseGroup {
 export interface BaseEmployeeType extends BaseGroup {
   min_hours: number;
   max_hours: number;
-  type: 'employee';
+  type: "employee";
 }
 
 export interface BaseAbsenceType extends BaseGroup {
   color: string;
-  type: 'absence';
+  type: "absence";
 }
 
 type GroupType = BaseEmployeeType | BaseAbsenceType;
@@ -77,7 +90,11 @@ export function SettingsPage() {
   const [selectedTables, setSelectedTables] = useState<string[]>([]);
   const [availableTables, setAvailableTables] = useState<string[]>([]);
 
-  const { data: settings, isLoading, error } = useQuery({
+  const {
+    data: settings,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ["settings"],
     queryFn: getSettings,
     retry: 3,
@@ -90,14 +107,17 @@ export function SettingsPage() {
     if (settings) {
       setLocalSettings(settings);
       setSelectedDemoModule(settings.actions.demo_data.selected_module || "");
-      
+
       // Reset stale "started" status on component mount
-      if (settings.actions.demo_data.status === "started" && 
-          settings.actions.demo_data.start_time) {
+      if (
+        settings.actions.demo_data.status === "started" &&
+        settings.actions.demo_data.start_time
+      ) {
         const startTime = new Date(settings.actions.demo_data.start_time);
         const now = new Date();
-        const timeDiffMinutes = (now.getTime() - startTime.getTime()) / (1000 * 60);
-        
+        const timeDiffMinutes =
+          (now.getTime() - startTime.getTime()) / (1000 * 60);
+
         // If process has been "started" for more than 5 minutes, reset it
         if (timeDiffMinutes > 5) {
           resetOptimizedDemoDataStatus().catch(console.error);
@@ -133,17 +153,37 @@ export function SettingsPage() {
     (updatedSettings: Settings) => {
       updateMutation.mutate(updatedSettings);
     },
-    1000 // 1 second delay
+    1000, // 1 second delay
   );
 
   const handleSave = (
-    category: keyof Omit<Settings, "id" | "store_name" | "store_address" | "store_contact" | "timezone" | "language" | "date_format" | "time_format" | "store_opening" | "store_closing" | "keyholder_before_minutes" | "keyholder_after_minutes" | "opening_days" | "special_hours" | "availability_types">,
-    updates: Partial<Settings[typeof category]>
+    category: keyof Omit<
+      Settings,
+      | "id"
+      | "store_name"
+      | "store_address"
+      | "store_contact"
+      | "timezone"
+      | "language"
+      | "date_format"
+      | "time_format"
+      | "store_opening"
+      | "store_closing"
+      | "keyholder_before_minutes"
+      | "keyholder_after_minutes"
+      | "opening_days"
+      | "special_hours"
+      | "availability_types"
+    >,
+    updates: Partial<Settings[typeof category]>,
   ) => {
     if (!localSettings) return;
 
     // Initialize generation_requirements if it doesn't exist
-    if (category === 'scheduling' && !localSettings.scheduling.generation_requirements) {
+    if (
+      category === "scheduling" &&
+      !localSettings.scheduling.generation_requirements
+    ) {
       localSettings.scheduling.generation_requirements = {
         enforce_minimum_coverage: true,
         enforce_contracted_hours: true,
@@ -158,7 +198,7 @@ export function SettingsPage() {
         enforce_shift_distribution: true,
         enforce_availability: true,
         enforce_qualifications: true,
-        enforce_opening_hours: true
+        enforce_opening_hours: true,
       };
     }
 
@@ -166,8 +206,8 @@ export function SettingsPage() {
       ...localSettings,
       [category]: {
         ...localSettings[category],
-        ...updates
-      }
+        ...updates,
+      },
     };
 
     setLocalSettings(updatedSettings);
@@ -184,25 +224,25 @@ export function SettingsPage() {
 
   const handleEmployeeGroupChange = (groups: GroupType[]) => {
     const employeeTypes = groups
-      .filter((group): group is BaseEmployeeType => group.type === 'employee')
+      .filter((group): group is BaseEmployeeType => group.type === "employee")
       .map(({ type, ...rest }) => rest);
     handleSave("employee_groups", {
-      employee_types: employeeTypes.map(type => ({
+      employee_types: employeeTypes.map((type) => ({
         ...type,
-        type: 'employee' as const
-      }))
+        type: "employee" as const,
+      })),
     });
   };
 
   const handleAbsenceGroupChange = (groups: GroupType[]) => {
     const absenceTypes = groups
-      .filter((group): group is BaseAbsenceType => group.type === 'absence')
+      .filter((group): group is BaseAbsenceType => group.type === "absence")
       .map(({ type, ...rest }) => rest);
     handleSave("employee_groups", {
-      absence_types: absenceTypes.map(type => ({
+      absence_types: absenceTypes.map((type) => ({
         ...type,
-        type: 'absence' as const
-      }))
+        type: "absence" as const,
+      })),
     });
   };
 
@@ -216,7 +256,7 @@ export function SettingsPage() {
 
   // Convert time string to Date object for DateTimePicker
   const timeStringToDate = (timeStr: string): Date => {
-    const [hours, minutes] = timeStr.split(':').map(Number);
+    const [hours, minutes] = timeStr.split(":").map(Number);
     const date = new Date();
     date.setHours(hours);
     date.setMinutes(minutes);
@@ -225,16 +265,16 @@ export function SettingsPage() {
 
   // Convert Date object back to time string
   const dateToTimeString = (date: Date): string => {
-    return format(date, 'HH:mm');
+    return format(date, "HH:mm");
   };
 
   const handleBackup = async () => {
     try {
       const blob = await backupDatabase();
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
-      a.download = `backup_${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `backup_${new Date().toISOString().split("T")[0]}.json`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -246,7 +286,8 @@ export function SettingsPage() {
     } catch (error) {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to backup database",
+        description:
+          error instanceof Error ? error.message : "Failed to backup database",
         variant: "destructive",
       });
     }
@@ -267,7 +308,8 @@ export function SettingsPage() {
     } catch (error) {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to restore database",
+        description:
+          error instanceof Error ? error.message : "Failed to restore database",
         variant: "destructive",
       });
     }
@@ -277,7 +319,7 @@ export function SettingsPage() {
   useEffect(() => {
     const fetchTables = async () => {
       try {
-        const response = await api.get('/settings/tables');
+        const response = await api.get("/settings/tables");
         setAvailableTables(response.data.tables);
       } catch (error) {
         toast({
@@ -310,7 +352,8 @@ export function SettingsPage() {
     } catch (error) {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to wipe tables",
+        description:
+          error instanceof Error ? error.message : "Failed to wipe tables",
         variant: "destructive",
       });
     }
@@ -341,21 +384,40 @@ export function SettingsPage() {
 
       <Card>
         <CardContent className="p-6">
-          <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-6">
+          <Tabs
+            value={currentTab}
+            onValueChange={setCurrentTab}
+            className="space-y-6"
+          >
             <TabsList className="grid w-full grid-cols-3 lg:grid-cols-5 gap-4">
-              <TabsTrigger value="general" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <TabsTrigger
+                value="general"
+                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              >
                 General
               </TabsTrigger>
-              <TabsTrigger value="scheduling" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <TabsTrigger
+                value="scheduling"
+                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              >
                 Scheduling
               </TabsTrigger>
-              <TabsTrigger value="display" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <TabsTrigger
+                value="display"
+                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              >
                 Display
               </TabsTrigger>
-              <TabsTrigger value="pdf" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <TabsTrigger
+                value="pdf"
+                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              >
                 PDF Layout
               </TabsTrigger>
-              <TabsTrigger value="actions" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <TabsTrigger
+                value="actions"
+                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              >
                 Actions
               </TabsTrigger>
             </TabsList>
@@ -375,9 +437,11 @@ export function SettingsPage() {
                         <Label htmlFor="storeName">Store Name</Label>
                         <Input
                           id="storeName"
-                          value={localSettings?.general.store_name ?? ''}
+                          value={localSettings?.general.store_name ?? ""}
                           onChange={(e) =>
-                            handleSave("general", { store_name: e.target.value })
+                            handleSave("general", {
+                              store_name: e.target.value,
+                            })
                           }
                           onBlur={handleImmediateUpdate}
                           className="w-full"
@@ -388,9 +452,11 @@ export function SettingsPage() {
                         <Label htmlFor="storeAddress">Store Address</Label>
                         <Input
                           id="storeAddress"
-                          value={localSettings?.general.store_address ?? ''}
+                          value={localSettings?.general.store_address ?? ""}
                           onChange={(e) =>
-                            handleSave("general", { store_address: e.target.value })
+                            handleSave("general", {
+                              store_address: e.target.value,
+                            })
                           }
                           onBlur={handleImmediateUpdate}
                           className="w-full"
@@ -401,9 +467,11 @@ export function SettingsPage() {
                         <Label htmlFor="storeContact">Store Contact</Label>
                         <Input
                           id="storeContact"
-                          value={localSettings?.general.store_contact ?? ''}
+                          value={localSettings?.general.store_contact ?? ""}
                           onChange={(e) =>
-                            handleSave("general", { store_contact: e.target.value })
+                            handleSave("general", {
+                              store_contact: e.target.value,
+                            })
                           }
                           onBlur={handleImmediateUpdate}
                           className="w-full"
@@ -420,8 +488,14 @@ export function SettingsPage() {
                             <Input
                               type="time"
                               id="store-opening"
-                              value={localSettings?.general.store_opening ?? '09:00'}
-                              onChange={(e) => handleSave("general", { store_opening: e.target.value })}
+                              value={
+                                localSettings?.general.store_opening ?? "09:00"
+                              }
+                              onChange={(e) =>
+                                handleSave("general", {
+                                  store_opening: e.target.value,
+                                })
+                              }
                               onBlur={handleImmediateUpdate}
                             />
                           </div>
@@ -430,8 +504,14 @@ export function SettingsPage() {
                             <Input
                               type="time"
                               id="store-closing"
-                              value={localSettings?.general.store_closing ?? '20:00'}
-                              onChange={(e) => handleSave("general", { store_closing: e.target.value })}
+                              value={
+                                localSettings?.general.store_closing ?? "20:00"
+                              }
+                              onChange={(e) =>
+                                handleSave("general", {
+                                  store_closing: e.target.value,
+                                })
+                              }
                               onBlur={handleImmediateUpdate}
                             />
                           </div>
@@ -441,7 +521,9 @@ export function SettingsPage() {
 
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label htmlFor="keyholder-before">Keyholder Time Before Opening</Label>
+                            <Label htmlFor="keyholder-before">
+                              Keyholder Time Before Opening
+                            </Label>
                             <div className="flex items-center space-x-2">
                               <input
                                 id="keyholder-before"
@@ -449,16 +531,29 @@ export function SettingsPage() {
                                 min="0"
                                 max="120"
                                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                value={localSettings?.general.keyholder_before_minutes ?? 30}
-                                onChange={(e) => handleSave("general", { keyholder_before_minutes: parseInt(e.target.value) })}
+                                value={
+                                  localSettings?.general
+                                    .keyholder_before_minutes ?? 30
+                                }
+                                onChange={(e) =>
+                                  handleSave("general", {
+                                    keyholder_before_minutes: parseInt(
+                                      e.target.value,
+                                    ),
+                                  })
+                                }
                                 title="Minutes before opening for keyholders"
                                 aria-label="Minutes before opening for keyholders"
                               />
-                              <span className="text-sm text-muted-foreground">min</span>
+                              <span className="text-sm text-muted-foreground">
+                                min
+                              </span>
                             </div>
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="keyholder-after">Keyholder Time After Closing</Label>
+                            <Label htmlFor="keyholder-after">
+                              Keyholder Time After Closing
+                            </Label>
                             <div className="flex items-center space-x-2">
                               <input
                                 id="keyholder-after"
@@ -466,12 +561,23 @@ export function SettingsPage() {
                                 min="0"
                                 max="120"
                                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                value={localSettings?.general.keyholder_after_minutes ?? 30}
-                                onChange={(e) => handleSave("general", { keyholder_after_minutes: parseInt(e.target.value) })}
+                                value={
+                                  localSettings?.general
+                                    .keyholder_after_minutes ?? 30
+                                }
+                                onChange={(e) =>
+                                  handleSave("general", {
+                                    keyholder_after_minutes: parseInt(
+                                      e.target.value,
+                                    ),
+                                  })
+                                }
                                 title="Minutes after closing for keyholders"
                                 aria-label="Minutes after closing for keyholders"
                               />
-                              <span className="text-sm text-muted-foreground">min</span>
+                              <span className="text-sm text-muted-foreground">
+                                min
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -481,29 +587,38 @@ export function SettingsPage() {
                     <div className="space-y-4">
                       <Label>Opening Days</Label>
                       <div className="grid grid-cols-7 gap-2">
-                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => (
-                          <div key={day} className="flex flex-col items-center space-y-2">
-                            <Label className="text-sm">{day}</Label>
-                            <Switch
-                              checked={localSettings?.general.opening_days?.[index.toString()] ?? false}
-                              onCheckedChange={(checked) => {
-                                if (!localSettings) return;
-                                const updatedSettings = {
-                                  ...localSettings,
-                                  general: {
-                                    ...localSettings.general,
-                                    opening_days: {
-                                      ...localSettings.general.opening_days,
-                                      [index.toString()]: checked
-                                    }
-                                  }
-                                };
-                                setLocalSettings(updatedSettings);
-                                updateMutation.mutate(updatedSettings);
-                              }}
-                            />
-                          </div>
-                        ))}
+                        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(
+                          (day, index) => (
+                            <div
+                              key={day}
+                              className="flex flex-col items-center space-y-2"
+                            >
+                              <Label className="text-sm">{day}</Label>
+                              <Switch
+                                checked={
+                                  localSettings?.general.opening_days?.[
+                                    index.toString()
+                                  ] ?? false
+                                }
+                                onCheckedChange={(checked) => {
+                                  if (!localSettings) return;
+                                  const updatedSettings = {
+                                    ...localSettings,
+                                    general: {
+                                      ...localSettings.general,
+                                      opening_days: {
+                                        ...localSettings.general.opening_days,
+                                        [index.toString()]: checked,
+                                      },
+                                    },
+                                  };
+                                  setLocalSettings(updatedSettings);
+                                  updateMutation.mutate(updatedSettings);
+                                }}
+                              />
+                            </div>
+                          ),
+                        )}
                       </div>
                     </div>
                   </div>
@@ -542,7 +657,10 @@ export function SettingsPage() {
                           value={selectedDemoModule}
                           onValueChange={setSelectedDemoModule}
                         >
-                          <SelectTrigger id="demo-data-module" className="w-[200px]">
+                          <SelectTrigger
+                            id="demo-data-module"
+                            className="w-[200px]"
+                          >
                             <SelectValue placeholder="Choose a module" />
                           </SelectTrigger>
                           <SelectContent>
@@ -550,7 +668,9 @@ export function SettingsPage() {
                             <SelectItem value="employees">Employees</SelectItem>
                             <SelectItem value="shifts">Shifts</SelectItem>
                             <SelectItem value="coverage">Coverage</SelectItem>
-                            <SelectItem value="availability">Availability</SelectItem>
+                            <SelectItem value="availability">
+                              Availability
+                            </SelectItem>
                             <SelectItem value="all">All Modules</SelectItem>
                           </SelectContent>
                         </Select>
@@ -560,7 +680,9 @@ export function SettingsPage() {
                         <Label>Last Execution</Label>
                         <span className="text-sm text-muted-foreground">
                           {localSettings?.actions.demo_data.last_execution
-                            ? new Date(localSettings.actions.demo_data.last_execution).toLocaleString()
+                            ? new Date(
+                                localSettings.actions.demo_data.last_execution,
+                              ).toLocaleString()
                             : "Never"}
                         </span>
                       </div>
@@ -570,18 +692,28 @@ export function SettingsPage() {
                           if (!selectedDemoModule) return;
                           try {
                             await generateDemoData(selectedDemoModule);
-                            if (selectedDemoModule === 'settings' || selectedDemoModule === 'all') {
-                              await queryClient.invalidateQueries({ queryKey: ["settings"] });
+                            if (
+                              selectedDemoModule === "settings" ||
+                              selectedDemoModule === "all"
+                            ) {
+                              await queryClient.invalidateQueries({
+                                queryKey: ["settings"],
+                              });
                             }
                             toast({
                               title: "Success",
                               description: `Demo data generated for ${selectedDemoModule} module`,
                             });
-                            queryClient.invalidateQueries({ queryKey: ["settings"] });
+                            queryClient.invalidateQueries({
+                              queryKey: ["settings"],
+                            });
                           } catch (error) {
                             toast({
                               title: "Error",
-                              description: error instanceof Error ? error.message : "Failed to generate demo data",
+                              description:
+                                error instanceof Error
+                                  ? error.message
+                                  : "Failed to generate demo data",
                               variant: "destructive",
                             });
                           }
@@ -596,9 +728,12 @@ export function SettingsPage() {
 
                       <div className="flex flex-col space-y-4">
                         <div>
-                          <h3 className="text-lg font-semibold">Optimized Schedule Generation</h3>
+                          <h3 className="text-lg font-semibold">
+                            Optimized Schedule Generation
+                          </h3>
                           <p className="text-sm text-muted-foreground">
-                            Generate optimized demo data with more diverse shift patterns and granular coverage requirements
+                            Generate optimized demo data with more diverse shift
+                            patterns and granular coverage requirements
                           </p>
                         </div>
 
@@ -607,15 +742,21 @@ export function SettingsPage() {
                             onClick={async () => {
                               try {
                                 await generateOptimizedDemoData();
-                                await queryClient.invalidateQueries({ queryKey: ["settings"] });
+                                await queryClient.invalidateQueries({
+                                  queryKey: ["settings"],
+                                });
                                 toast({
                                   title: "Success",
-                                  description: "Optimized demo data generated with diverse shift patterns",
+                                  description:
+                                    "Optimized demo data generated with diverse shift patterns",
                                 });
                               } catch (error) {
                                 toast({
                                   title: "Error",
-                                  description: error instanceof Error ? error.message : "Failed to generate optimized demo data",
+                                  description:
+                                    error instanceof Error
+                                      ? error.message
+                                      : "Failed to generate optimized demo data",
                                   variant: "destructive",
                                 });
                               }
@@ -625,21 +766,27 @@ export function SettingsPage() {
                           >
                             Generate Optimized Schedule Data
                           </Button>
-                          
+
                           {localSettings?.actions.demo_data.status && (
                             <Button
                               onClick={async () => {
                                 try {
                                   await resetOptimizedDemoDataStatus();
-                                  await queryClient.invalidateQueries({ queryKey: ["settings"] });
+                                  await queryClient.invalidateQueries({
+                                    queryKey: ["settings"],
+                                  });
                                   toast({
                                     title: "Success",
-                                    description: "Demo data status reset successfully",
+                                    description:
+                                      "Demo data status reset successfully",
                                   });
                                 } catch (error) {
                                   toast({
                                     title: "Error",
-                                    description: error instanceof Error ? error.message : "Failed to reset demo data status",
+                                    description:
+                                      error instanceof Error
+                                        ? error.message
+                                        : "Failed to reset demo data status",
                                     variant: "destructive",
                                   });
                                 }
@@ -647,34 +794,57 @@ export function SettingsPage() {
                               variant="ghost"
                               size="icon"
                             >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                <path d="M3 3v5h5" />
+                              </svg>
                             </Button>
                           )}
                         </div>
-                        
-                        {localSettings?.actions.demo_data.status && 
-                         localSettings.actions.demo_data.status !== "completed" && 
-                         localSettings.actions.demo_data.status !== "failed" &&
-                         localSettings.actions.demo_data.progress > 0 && 
-                         localSettings.actions.demo_data.start_time && (
-                          <div className="mt-4 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium">Status: {localSettings.actions.demo_data.status}</span>
-                              <span className="text-sm">{localSettings.actions.demo_data.progress || 0}%</span>
-                            </div>
-                            <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-primary rounded-full"
-                                style={{ width: `${localSettings.actions.demo_data.progress || 0}%` }}
-                              ></div>
-                            </div>
-                            {localSettings.actions.demo_data.error && (
-                              <div className="text-sm text-destructive">
-                                Error: {localSettings.actions.demo_data.error}
+
+                        {localSettings?.actions.demo_data.status &&
+                          localSettings.actions.demo_data.status !==
+                            "completed" &&
+                          localSettings.actions.demo_data.status !== "failed" &&
+                          localSettings.actions.demo_data.progress > 0 &&
+                          localSettings.actions.demo_data.start_time && (
+                            <div className="mt-4 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium">
+                                  Status:{" "}
+                                  {localSettings.actions.demo_data.status}
+                                </span>
+                                <span className="text-sm">
+                                  {localSettings.actions.demo_data.progress ||
+                                    0}
+                                  %
+                                </span>
                               </div>
-                            )}
-                          </div>
-                        )}
+                              <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-primary rounded-full"
+                                  style={{
+                                    width: `${localSettings.actions.demo_data.progress || 0}%`,
+                                  }}
+                                ></div>
+                              </div>
+                              {localSettings.actions.demo_data.error && (
+                                <div className="text-sm text-destructive">
+                                  Error: {localSettings.actions.demo_data.error}
+                                </div>
+                              )}
+                            </div>
+                          )}
                       </div>
                     </div>
                   </CardContent>
@@ -684,7 +854,8 @@ export function SettingsPage() {
                   <CardHeader>
                     <CardTitle>Database Management</CardTitle>
                     <CardDescription>
-                      Manage your database backups and perform maintenance operations
+                      Manage your database backups and perform maintenance
+                      operations
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
@@ -714,8 +885,10 @@ export function SettingsPage() {
                       <div className="space-y-2">
                         <Label>Select Tables to Wipe</Label>
                         <Select
-                          value={selectedTables.join(',')}
-                          onValueChange={(value) => setSelectedTables(value ? value.split(',') : [])}
+                          value={selectedTables.join(",")}
+                          onValueChange={(value) =>
+                            setSelectedTables(value ? value.split(",") : [])
+                          }
                         >
                           <SelectTrigger className="w-full">
                             <SelectValue placeholder="Select tables..." />
@@ -742,9 +915,12 @@ export function SettingsPage() {
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                            <AlertDialogTitle>
+                              Are you absolutely sure?
+                            </AlertDialogTitle>
                             <AlertDialogDescription>
-                              This action will permanently delete all data from the selected tables:
+                              This action will permanently delete all data from
+                              the selected tables:
                               <ul className="list-disc list-inside mt-2">
                                 {selectedTables.map((table) => (
                                   <li key={table}>{table}</li>
@@ -774,7 +950,9 @@ export function SettingsPage() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Scheduling Settings</CardTitle>
-                    <CardDescription>Configure scheduling rules and preferences</CardDescription>
+                    <CardDescription>
+                      Configure scheduling rules and preferences
+                    </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -782,9 +960,13 @@ export function SettingsPage() {
                         <div className="space-y-2">
                           <Label htmlFor="resourceType">Resource Type</Label>
                           <Select
-                            value={localSettings?.scheduling.scheduling_resource_type}
-                            onValueChange={(value: 'shifts' | 'coverage') =>
-                              handleSave("scheduling", { scheduling_resource_type: value })
+                            value={
+                              localSettings?.scheduling.scheduling_resource_type
+                            }
+                            onValueChange={(value: "shifts" | "coverage") =>
+                              handleSave("scheduling", {
+                                scheduling_resource_type: value,
+                              })
                             }
                           >
                             <SelectTrigger className="w-full">
@@ -798,14 +980,21 @@ export function SettingsPage() {
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="defaultShiftDuration">Default Shift Duration (hours)</Label>
+                          <Label htmlFor="defaultShiftDuration">
+                            Default Shift Duration (hours)
+                          </Label>
                           <Input
                             type="number"
                             id="defaultShiftDuration"
-                            value={localSettings?.scheduling.default_shift_duration ?? ''}
+                            value={
+                              localSettings?.scheduling
+                                .default_shift_duration ?? ""
+                            }
                             onChange={(e) =>
                               handleSave("scheduling", {
-                                default_shift_duration: parseFloat(e.target.value),
+                                default_shift_duration: parseFloat(
+                                  e.target.value,
+                                ),
                               })
                             }
                             onBlur={handleImmediateUpdate}
@@ -814,11 +1003,15 @@ export function SettingsPage() {
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="minBreakDuration">Minimum Break Duration (minutes)</Label>
+                          <Label htmlFor="minBreakDuration">
+                            Minimum Break Duration (minutes)
+                          </Label>
                           <Input
                             type="number"
                             id="minBreakDuration"
-                            value={localSettings?.scheduling.min_break_duration ?? ''}
+                            value={
+                              localSettings?.scheduling.min_break_duration ?? ""
+                            }
                             onChange={(e) =>
                               handleSave("scheduling", {
                                 min_break_duration: Number(e.target.value),
@@ -832,11 +1025,15 @@ export function SettingsPage() {
 
                       <div className="space-y-4">
                         <div className="space-y-2">
-                          <Label htmlFor="maxDailyHours">Maximum Daily Hours</Label>
+                          <Label htmlFor="maxDailyHours">
+                            Maximum Daily Hours
+                          </Label>
                           <Input
                             type="number"
                             id="maxDailyHours"
-                            value={localSettings?.scheduling.max_daily_hours ?? ''}
+                            value={
+                              localSettings?.scheduling.max_daily_hours ?? ""
+                            }
                             onChange={(e) =>
                               handleSave("scheduling", {
                                 max_daily_hours: Number(e.target.value),
@@ -848,11 +1045,15 @@ export function SettingsPage() {
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="maxWeeklyHours">Maximum Weekly Hours</Label>
+                          <Label htmlFor="maxWeeklyHours">
+                            Maximum Weekly Hours
+                          </Label>
                           <Input
                             type="number"
                             id="maxWeeklyHours"
-                            value={localSettings?.scheduling.max_weekly_hours ?? ''}
+                            value={
+                              localSettings?.scheduling.max_weekly_hours ?? ""
+                            }
                             onChange={(e) =>
                               handleSave("scheduling", {
                                 max_weekly_hours: Number(e.target.value),
@@ -866,7 +1067,10 @@ export function SettingsPage() {
                         <div className="flex items-center space-x-2 pt-2">
                           <Switch
                             id="autoSchedulePreferences"
-                            checked={localSettings?.scheduling.auto_schedule_preferences ?? false}
+                            checked={
+                              localSettings?.scheduling
+                                .auto_schedule_preferences ?? false
+                            }
                             onCheckedChange={(checked) =>
                               handleSave("scheduling", {
                                 auto_schedule_preferences: checked,
@@ -881,10 +1085,7 @@ export function SettingsPage() {
                     </div>
                   </CardContent>
                   <CardFooter className="flex justify-end space-x-2">
-                    <Button
-                      variant="outline"
-                      onClick={handleImmediateUpdate}
-                    >
+                    <Button variant="outline" onClick={handleImmediateUpdate}>
                       <Save className="w-4 h-4 mr-2" />
                       Save Changes
                     </Button>
@@ -892,125 +1093,127 @@ export function SettingsPage() {
                 </Card>
 
                 <ScheduleGenerationSettings
-                  settings={localSettings ?? {
-                    id: 0,
-                    store_name: '',
-                    store_address: null,
-                    store_contact: null,
-                    timezone: 'Europe/Berlin',
-                    language: 'de',
-                    date_format: 'DD.MM.YYYY',
-                    time_format: '24h',
-                    store_opening: '09:00',
-                    store_closing: '20:00',
-                    keyholder_before_minutes: 30,
-                    keyholder_after_minutes: 30,
-                    opening_days: {},
-                    special_hours: {},
-                    availability_types: { types: [] },
-                    general: {
-                      store_name: '',
-                      store_address: '',
-                      store_contact: '',
-                      timezone: 'Europe/Berlin',
-                      language: 'de',
-                      date_format: 'DD.MM.YYYY',
-                      time_format: '24h',
-                      store_opening: '09:00',
-                      store_closing: '20:00',
+                  settings={
+                    localSettings ?? {
+                      id: 0,
+                      store_name: "",
+                      store_address: null,
+                      store_contact: null,
+                      timezone: "Europe/Berlin",
+                      language: "de",
+                      date_format: "DD.MM.YYYY",
+                      time_format: "24h",
+                      store_opening: "09:00",
+                      store_closing: "20:00",
                       keyholder_before_minutes: 30,
                       keyholder_after_minutes: 30,
                       opening_days: {},
-                      special_hours: {}
-                    },
-                    scheduling: {
-                      scheduling_resource_type: 'shifts',
-                      default_shift_duration: 8,
-                      min_break_duration: 30,
-                      max_daily_hours: 10,
-                      max_weekly_hours: 40,
-                      min_rest_between_shifts: 11,
-                      scheduling_period_weeks: 1,
-                      auto_schedule_preferences: true,
-                      generation_requirements: {
-                        enforce_minimum_coverage: true,
-                        enforce_contracted_hours: true,
-                        enforce_keyholder_coverage: true,
-                        enforce_rest_periods: true,
-                        enforce_early_late_rules: true,
-                        enforce_employee_group_rules: true,
-                        enforce_break_rules: true,
-                        enforce_max_hours: true,
-                        enforce_consecutive_days: true,
-                        enforce_weekend_distribution: true,
-                        enforce_shift_distribution: true,
-                        enforce_availability: true,
-                        enforce_qualifications: true,
-                        enforce_opening_hours: true
-                      }
-                    },
-                    display: {
-                      theme: 'light',
-                      primary_color: '#000000',
-                      secondary_color: '#000000',
-                      accent_color: '#000000',
-                      background_color: '#ffffff',
-                      surface_color: '#ffffff',
-                      text_color: '#000000',
-                      dark_theme: {
-                        primary_color: '#ffffff',
-                        secondary_color: '#ffffff',
-                        accent_color: '#ffffff',
-                        background_color: '#000000',
-                        surface_color: '#000000',
-                        text_color: '#ffffff'
+                      special_hours: {},
+                      availability_types: { types: [] },
+                      general: {
+                        store_name: "",
+                        store_address: "",
+                        store_contact: "",
+                        timezone: "Europe/Berlin",
+                        language: "de",
+                        date_format: "DD.MM.YYYY",
+                        time_format: "24h",
+                        store_opening: "09:00",
+                        store_closing: "20:00",
+                        keyholder_before_minutes: 30,
+                        keyholder_after_minutes: 30,
+                        opening_days: {},
+                        special_hours: {},
                       },
-                      show_sunday: false,
-                      show_weekdays: true,
-                      start_of_week: 1,
-                      email_notifications: false,
-                      schedule_published: false,
-                      shift_changes: false,
-                      time_off_requests: false
-                    },
-                    pdf_layout: {
-                      page_size: 'A4',
-                      orientation: 'portrait',
-                      margins: {
-                        top: 20,
-                        right: 20,
-                        bottom: 20,
-                        left: 20
+                      scheduling: {
+                        scheduling_resource_type: "shifts",
+                        default_shift_duration: 8,
+                        min_break_duration: 30,
+                        max_daily_hours: 10,
+                        max_weekly_hours: 40,
+                        min_rest_between_shifts: 11,
+                        scheduling_period_weeks: 1,
+                        auto_schedule_preferences: true,
+                        generation_requirements: {
+                          enforce_minimum_coverage: true,
+                          enforce_contracted_hours: true,
+                          enforce_keyholder_coverage: true,
+                          enforce_rest_periods: true,
+                          enforce_early_late_rules: true,
+                          enforce_employee_group_rules: true,
+                          enforce_break_rules: true,
+                          enforce_max_hours: true,
+                          enforce_consecutive_days: true,
+                          enforce_weekend_distribution: true,
+                          enforce_shift_distribution: true,
+                          enforce_availability: true,
+                          enforce_qualifications: true,
+                          enforce_opening_hours: true,
+                        },
                       },
-                      table_style: {
-                        header_bg_color: '#f5f5f5',
-                        border_color: '#e0e0e0',
-                        text_color: '#000000',
-                        header_text_color: '#000000'
+                      display: {
+                        theme: "light",
+                        primary_color: "#000000",
+                        secondary_color: "#000000",
+                        accent_color: "#000000",
+                        background_color: "#ffffff",
+                        surface_color: "#ffffff",
+                        text_color: "#000000",
+                        dark_theme: {
+                          primary_color: "#ffffff",
+                          secondary_color: "#ffffff",
+                          accent_color: "#ffffff",
+                          background_color: "#000000",
+                          surface_color: "#000000",
+                          text_color: "#ffffff",
+                        },
+                        show_sunday: false,
+                        show_weekdays: true,
+                        start_of_week: 1,
+                        email_notifications: false,
+                        schedule_published: false,
+                        shift_changes: false,
+                        time_off_requests: false,
                       },
-                      fonts: {
-                        family: 'Arial',
-                        size: 12,
-                        header_size: 14
+                      pdf_layout: {
+                        page_size: "A4",
+                        orientation: "portrait",
+                        margins: {
+                          top: 20,
+                          right: 20,
+                          bottom: 20,
+                          left: 20,
+                        },
+                        table_style: {
+                          header_bg_color: "#f5f5f5",
+                          border_color: "#e0e0e0",
+                          text_color: "#000000",
+                          header_text_color: "#000000",
+                        },
+                        fonts: {
+                          family: "Arial",
+                          size: 12,
+                          header_size: 14,
+                        },
+                        content: {
+                          show_employee_id: true,
+                          show_position: true,
+                          show_breaks: true,
+                          show_total_hours: true,
+                        },
                       },
-                      content: {
-                        show_employee_id: true,
-                        show_position: true,
-                        show_breaks: true,
-                        show_total_hours: true
-                      }
-                    },
-                    employee_groups: {
-                      employee_types: [],
-                      absence_types: []
-                    },
-                    actions: {
-                      demo_data: {
-                        selected_module: '',
-                        last_execution: null
-                      }
+                      employee_groups: {
+                        employee_types: [],
+                        absence_types: [],
+                      },
+                      actions: {
+                        demo_data: {
+                          selected_module: "",
+                          last_execution: null,
+                        },
+                      },
                     }
-                  }}
+                  }
                   onUpdate={(updates) => {
                     if (!localSettings?.scheduling) return;
 
@@ -1020,9 +1223,9 @@ export function SettingsPage() {
                         ...localSettings.scheduling,
                         generation_requirements: {
                           ...localSettings.scheduling.generation_requirements,
-                          ...updates
-                        }
-                      }
+                          ...updates,
+                        },
+                      },
                     };
 
                     setLocalSettings(updatedSettings);
@@ -1037,7 +1240,9 @@ export function SettingsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>Display Settings</CardTitle>
-                  <CardDescription>Customize the appearance and notifications</CardDescription>
+                  <CardDescription>
+                    Customize the appearance and notifications
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1045,13 +1250,21 @@ export function SettingsPage() {
                       <div className="space-y-2">
                         <Label htmlFor="theme">Theme</Label>
                         <Select
-                          value={localSettings?.display.theme ?? ''}
+                          value={localSettings?.display.theme ?? ""}
                           onValueChange={(value) => {
                             if (!localSettings) return;
-                            const theme = value as 'light' | 'dark' | 'system';
-                            const updatedSettings = Object.assign({}, localSettings, {
-                              display: Object.assign({}, localSettings.display, { theme })
-                            }) as Settings;
+                            const theme = value as "light" | "dark" | "system";
+                            const updatedSettings = Object.assign(
+                              {},
+                              localSettings,
+                              {
+                                display: Object.assign(
+                                  {},
+                                  localSettings.display,
+                                  { theme },
+                                ),
+                              },
+                            ) as Settings;
                             setLocalSettings(updatedSettings);
                             updateMutation.mutate(updatedSettings);
                             setTheme(theme);
@@ -1075,17 +1288,25 @@ export function SettingsPage() {
                           <Input
                             id="primary-color"
                             type="color"
-                            value={localSettings?.display.primary_color ?? '#000000'}
+                            value={
+                              localSettings?.display.primary_color ?? "#000000"
+                            }
                             onChange={(e) => {
-                              handleSave("display", { primary_color: e.target.value });
+                              handleSave("display", {
+                                primary_color: e.target.value,
+                              });
                               handleImmediateUpdate();
                             }}
                             className="w-[100px]"
                           />
                           <Input
-                            value={localSettings?.display.primary_color ?? '#000000'}
+                            value={
+                              localSettings?.display.primary_color ?? "#000000"
+                            }
                             onChange={(e) => {
-                              handleSave("display", { primary_color: e.target.value });
+                              handleSave("display", {
+                                primary_color: e.target.value,
+                              });
                               handleImmediateUpdate();
                             }}
                             className="flex-1"
@@ -1099,17 +1320,27 @@ export function SettingsPage() {
                           <Input
                             id="secondary-color"
                             type="color"
-                            value={localSettings?.display.secondary_color ?? '#000000'}
+                            value={
+                              localSettings?.display.secondary_color ??
+                              "#000000"
+                            }
                             onChange={(e) => {
-                              handleSave("display", { secondary_color: e.target.value });
+                              handleSave("display", {
+                                secondary_color: e.target.value,
+                              });
                               handleImmediateUpdate();
                             }}
                             className="w-[100px]"
                           />
                           <Input
-                            value={localSettings?.display.secondary_color ?? '#000000'}
+                            value={
+                              localSettings?.display.secondary_color ??
+                              "#000000"
+                            }
                             onChange={(e) => {
-                              handleSave("display", { secondary_color: e.target.value });
+                              handleSave("display", {
+                                secondary_color: e.target.value,
+                              });
                               handleImmediateUpdate();
                             }}
                             className="flex-1"
@@ -1126,7 +1357,9 @@ export function SettingsPage() {
                             <Label htmlFor="show-sunday">Show Sunday</Label>
                             <Switch
                               id="show-sunday"
-                              checked={localSettings?.display.show_sunday ?? false}
+                              checked={
+                                localSettings?.display.show_sunday ?? false
+                              }
                               onCheckedChange={(checked) => {
                                 handleSave("display", { show_sunday: checked });
                                 handleImmediateUpdate();
@@ -1138,9 +1371,13 @@ export function SettingsPage() {
                             <Label htmlFor="show-weekdays">Show Weekdays</Label>
                             <Switch
                               id="show-weekdays"
-                              checked={localSettings?.display.show_weekdays ?? false}
+                              checked={
+                                localSettings?.display.show_weekdays ?? false
+                              }
                               onCheckedChange={(checked) => {
-                                handleSave("display", { show_weekdays: checked });
+                                handleSave("display", {
+                                  show_weekdays: checked,
+                                });
                                 handleImmediateUpdate();
                               }}
                             />
@@ -1149,13 +1386,21 @@ export function SettingsPage() {
                           <div className="flex items-center justify-between">
                             <Label htmlFor="start-of-week">Start of Week</Label>
                             <Select
-                              value={localSettings?.display.start_of_week?.toString() ?? ''}
+                              value={
+                                localSettings?.display.start_of_week?.toString() ??
+                                ""
+                              }
                               onValueChange={(value) => {
-                                handleSave("display", { start_of_week: Number(value) });
+                                handleSave("display", {
+                                  start_of_week: Number(value),
+                                });
                                 handleImmediateUpdate();
                               }}
                             >
-                              <SelectTrigger id="start-of-week" className="w-[140px]">
+                              <SelectTrigger
+                                id="start-of-week"
+                                className="w-[140px]"
+                              >
                                 <SelectValue placeholder="Select day" />
                               </SelectTrigger>
                               <SelectContent>
@@ -1171,24 +1416,38 @@ export function SettingsPage() {
                         <Label>Notifications</Label>
                         <div className="rounded-lg border p-4 space-y-4">
                           <div className="flex items-center justify-between">
-                            <Label htmlFor="email-notifications">Email Notifications</Label>
+                            <Label htmlFor="email-notifications">
+                              Email Notifications
+                            </Label>
                             <Switch
                               id="email-notifications"
-                              checked={localSettings?.display.email_notifications ?? false}
+                              checked={
+                                localSettings?.display.email_notifications ??
+                                false
+                              }
                               onCheckedChange={(checked) => {
-                                handleSave("display", { email_notifications: checked });
+                                handleSave("display", {
+                                  email_notifications: checked,
+                                });
                                 handleImmediateUpdate();
                               }}
                             />
                           </div>
 
                           <div className="flex items-center justify-between">
-                            <Label htmlFor="schedule-published">Schedule Published</Label>
+                            <Label htmlFor="schedule-published">
+                              Schedule Published
+                            </Label>
                             <Switch
                               id="schedule-published"
-                              checked={localSettings?.display.schedule_published ?? false}
+                              checked={
+                                localSettings?.display.schedule_published ??
+                                false
+                              }
                               onCheckedChange={(checked) => {
-                                handleSave("display", { schedule_published: checked });
+                                handleSave("display", {
+                                  schedule_published: checked,
+                                });
                                 handleImmediateUpdate();
                               }}
                             />
@@ -1198,21 +1457,32 @@ export function SettingsPage() {
                             <Label htmlFor="shift-changes">Shift Changes</Label>
                             <Switch
                               id="shift-changes"
-                              checked={localSettings?.display.shift_changes ?? false}
+                              checked={
+                                localSettings?.display.shift_changes ?? false
+                              }
                               onCheckedChange={(checked) => {
-                                handleSave("display", { shift_changes: checked });
+                                handleSave("display", {
+                                  shift_changes: checked,
+                                });
                                 handleImmediateUpdate();
                               }}
                             />
                           </div>
 
                           <div className="flex items-center justify-between">
-                            <Label htmlFor="time-off-requests">Time Off Requests</Label>
+                            <Label htmlFor="time-off-requests">
+                              Time Off Requests
+                            </Label>
                             <Switch
                               id="time-off-requests"
-                              checked={localSettings?.display.time_off_requests ?? false}
+                              checked={
+                                localSettings?.display.time_off_requests ??
+                                false
+                              }
                               onCheckedChange={(checked) => {
-                                handleSave("display", { time_off_requests: checked });
+                                handleSave("display", {
+                                  time_off_requests: checked,
+                                });
                                 handleImmediateUpdate();
                               }}
                             />
@@ -1223,10 +1493,7 @@ export function SettingsPage() {
                   </div>
                 </CardContent>
                 <CardFooter className="flex justify-end space-x-2">
-                  <Button
-                    variant="outline"
-                    onClick={handleImmediateUpdate}
-                  >
+                  <Button variant="outline" onClick={handleImmediateUpdate}>
                     <Save className="w-4 h-4 mr-2" />
                     Save Changes
                   </Button>
@@ -1238,7 +1505,9 @@ export function SettingsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>PDF Layout Settings</CardTitle>
-                  <CardDescription>Customize the appearance of exported PDF schedules</CardDescription>
+                  <CardDescription>
+                    Customize the appearance of exported PDF schedules
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-6">
@@ -1250,13 +1519,20 @@ export function SettingsPage() {
                             <div className="space-y-2">
                               <Label htmlFor="page-size">Page Size</Label>
                               <Select
-                                value={localSettings?.pdf_layout.page_size ?? 'A4'}
+                                value={
+                                  localSettings?.pdf_layout.page_size ?? "A4"
+                                }
                                 onValueChange={(value) => {
-                                  handleSave("pdf_layout", { page_size: value });
+                                  handleSave("pdf_layout", {
+                                    page_size: value,
+                                  });
                                   handleImmediateUpdate();
                                 }}
                               >
-                                <SelectTrigger id="page-size" className="w-full">
+                                <SelectTrigger
+                                  id="page-size"
+                                  className="w-full"
+                                >
                                   <SelectValue placeholder="Select size" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1271,18 +1547,30 @@ export function SettingsPage() {
                             <div className="space-y-2">
                               <Label htmlFor="orientation">Orientation</Label>
                               <Select
-                                value={localSettings?.pdf_layout.orientation ?? 'portrait'}
+                                value={
+                                  localSettings?.pdf_layout.orientation ??
+                                  "portrait"
+                                }
                                 onValueChange={(value) => {
-                                  handleSave("pdf_layout", { orientation: value });
+                                  handleSave("pdf_layout", {
+                                    orientation: value,
+                                  });
                                   handleImmediateUpdate();
                                 }}
                               >
-                                <SelectTrigger id="orientation" className="w-full">
+                                <SelectTrigger
+                                  id="orientation"
+                                  className="w-full"
+                                >
                                   <SelectValue placeholder="Select orientation" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="portrait">Portrait</SelectItem>
-                                  <SelectItem value="landscape">Landscape</SelectItem>
+                                  <SelectItem value="portrait">
+                                    Portrait
+                                  </SelectItem>
+                                  <SelectItem value="landscape">
+                                    Landscape
+                                  </SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -1297,15 +1585,23 @@ export function SettingsPage() {
                               <Input
                                 id="margin-top"
                                 type="number"
-                                value={localSettings?.pdf_layout.margins?.top ?? 20}
+                                value={
+                                  localSettings?.pdf_layout.margins?.top ?? 20
+                                }
                                 onChange={(e) => {
                                   handleSave("pdf_layout", {
                                     margins: {
                                       top: Number(e.target.value),
-                                      right: localSettings?.pdf_layout.margins?.right ?? 20,
-                                      bottom: localSettings?.pdf_layout.margins?.bottom ?? 20,
-                                      left: localSettings?.pdf_layout.margins?.left ?? 20
-                                    }
+                                      right:
+                                        localSettings?.pdf_layout.margins
+                                          ?.right ?? 20,
+                                      bottom:
+                                        localSettings?.pdf_layout.margins
+                                          ?.bottom ?? 20,
+                                      left:
+                                        localSettings?.pdf_layout.margins
+                                          ?.left ?? 20,
+                                    },
                                   });
                                   handleImmediateUpdate();
                                 }}
@@ -1317,15 +1613,23 @@ export function SettingsPage() {
                               <Input
                                 id="margin-right"
                                 type="number"
-                                value={localSettings?.pdf_layout.margins?.right ?? 20}
+                                value={
+                                  localSettings?.pdf_layout.margins?.right ?? 20
+                                }
                                 onChange={(e) => {
                                   handleSave("pdf_layout", {
                                     margins: {
-                                      top: localSettings?.pdf_layout.margins?.top ?? 20,
+                                      top:
+                                        localSettings?.pdf_layout.margins
+                                          ?.top ?? 20,
                                       right: Number(e.target.value),
-                                      bottom: localSettings?.pdf_layout.margins?.bottom ?? 20,
-                                      left: localSettings?.pdf_layout.margins?.left ?? 20
-                                    }
+                                      bottom:
+                                        localSettings?.pdf_layout.margins
+                                          ?.bottom ?? 20,
+                                      left:
+                                        localSettings?.pdf_layout.margins
+                                          ?.left ?? 20,
+                                    },
                                   });
                                   handleImmediateUpdate();
                                 }}
@@ -1337,15 +1641,24 @@ export function SettingsPage() {
                               <Input
                                 id="margin-bottom"
                                 type="number"
-                                value={localSettings?.pdf_layout.margins?.bottom ?? 20}
+                                value={
+                                  localSettings?.pdf_layout.margins?.bottom ??
+                                  20
+                                }
                                 onChange={(e) => {
                                   handleSave("pdf_layout", {
                                     margins: {
-                                      top: localSettings?.pdf_layout.margins?.top ?? 20,
-                                      right: localSettings?.pdf_layout.margins?.right ?? 20,
+                                      top:
+                                        localSettings?.pdf_layout.margins
+                                          ?.top ?? 20,
+                                      right:
+                                        localSettings?.pdf_layout.margins
+                                          ?.right ?? 20,
                                       bottom: Number(e.target.value),
-                                      left: localSettings?.pdf_layout.margins?.left ?? 20
-                                    }
+                                      left:
+                                        localSettings?.pdf_layout.margins
+                                          ?.left ?? 20,
+                                    },
                                   });
                                   handleImmediateUpdate();
                                 }}
@@ -1357,15 +1670,23 @@ export function SettingsPage() {
                               <Input
                                 id="margin-left"
                                 type="number"
-                                value={localSettings?.pdf_layout.margins?.left ?? 20}
+                                value={
+                                  localSettings?.pdf_layout.margins?.left ?? 20
+                                }
                                 onChange={(e) => {
                                   handleSave("pdf_layout", {
                                     margins: {
-                                      top: localSettings?.pdf_layout.margins?.top ?? 20,
-                                      right: localSettings?.pdf_layout.margins?.right ?? 20,
-                                      bottom: localSettings?.pdf_layout.margins?.bottom ?? 20,
-                                      left: Number(e.target.value)
-                                    }
+                                      top:
+                                        localSettings?.pdf_layout.margins
+                                          ?.top ?? 20,
+                                      right:
+                                        localSettings?.pdf_layout.margins
+                                          ?.right ?? 20,
+                                      bottom:
+                                        localSettings?.pdf_layout.margins
+                                          ?.bottom ?? 20,
+                                      left: Number(e.target.value),
+                                    },
                                   });
                                   handleImmediateUpdate();
                                 }}
@@ -1381,18 +1702,29 @@ export function SettingsPage() {
                           <Label>Content Settings</Label>
                           <div className="rounded-lg border p-4 space-y-4">
                             <div className="flex items-center justify-between">
-                              <Label htmlFor="show-employee-id">Show Employee ID</Label>
+                              <Label htmlFor="show-employee-id">
+                                Show Employee ID
+                              </Label>
                               <Switch
                                 id="show-employee-id"
-                                checked={localSettings?.pdf_layout.content?.show_employee_id ?? true}
+                                checked={
+                                  localSettings?.pdf_layout.content
+                                    ?.show_employee_id ?? true
+                                }
                                 onCheckedChange={(checked) => {
                                   handleSave("pdf_layout", {
                                     content: {
                                       show_employee_id: checked,
-                                      show_position: localSettings?.pdf_layout.content?.show_position ?? true,
-                                      show_breaks: localSettings?.pdf_layout.content?.show_breaks ?? true,
-                                      show_total_hours: localSettings?.pdf_layout.content?.show_total_hours ?? true
-                                    }
+                                      show_position:
+                                        localSettings?.pdf_layout.content
+                                          ?.show_position ?? true,
+                                      show_breaks:
+                                        localSettings?.pdf_layout.content
+                                          ?.show_breaks ?? true,
+                                      show_total_hours:
+                                        localSettings?.pdf_layout.content
+                                          ?.show_total_hours ?? true,
+                                    },
                                   });
                                   handleImmediateUpdate();
                                 }}
@@ -1400,18 +1732,29 @@ export function SettingsPage() {
                             </div>
 
                             <div className="flex items-center justify-between">
-                              <Label htmlFor="show-position">Show Position</Label>
+                              <Label htmlFor="show-position">
+                                Show Position
+                              </Label>
                               <Switch
                                 id="show-position"
-                                checked={localSettings?.pdf_layout.content?.show_position ?? true}
+                                checked={
+                                  localSettings?.pdf_layout.content
+                                    ?.show_position ?? true
+                                }
                                 onCheckedChange={(checked) => {
                                   handleSave("pdf_layout", {
                                     content: {
-                                      show_employee_id: localSettings?.pdf_layout.content?.show_employee_id ?? true,
+                                      show_employee_id:
+                                        localSettings?.pdf_layout.content
+                                          ?.show_employee_id ?? true,
                                       show_position: checked,
-                                      show_breaks: localSettings?.pdf_layout.content?.show_breaks ?? true,
-                                      show_total_hours: localSettings?.pdf_layout.content?.show_total_hours ?? true
-                                    }
+                                      show_breaks:
+                                        localSettings?.pdf_layout.content
+                                          ?.show_breaks ?? true,
+                                      show_total_hours:
+                                        localSettings?.pdf_layout.content
+                                          ?.show_total_hours ?? true,
+                                    },
                                   });
                                   handleImmediateUpdate();
                                 }}
@@ -1422,15 +1765,24 @@ export function SettingsPage() {
                               <Label htmlFor="show-breaks">Show Breaks</Label>
                               <Switch
                                 id="show-breaks"
-                                checked={localSettings?.pdf_layout.content?.show_breaks ?? true}
+                                checked={
+                                  localSettings?.pdf_layout.content
+                                    ?.show_breaks ?? true
+                                }
                                 onCheckedChange={(checked) => {
                                   handleSave("pdf_layout", {
                                     content: {
-                                      show_employee_id: localSettings?.pdf_layout.content?.show_employee_id ?? true,
-                                      show_position: localSettings?.pdf_layout.content?.show_position ?? true,
+                                      show_employee_id:
+                                        localSettings?.pdf_layout.content
+                                          ?.show_employee_id ?? true,
+                                      show_position:
+                                        localSettings?.pdf_layout.content
+                                          ?.show_position ?? true,
                                       show_breaks: checked,
-                                      show_total_hours: localSettings?.pdf_layout.content?.show_total_hours ?? true
-                                    }
+                                      show_total_hours:
+                                        localSettings?.pdf_layout.content
+                                          ?.show_total_hours ?? true,
+                                    },
                                   });
                                   handleImmediateUpdate();
                                 }}
@@ -1438,18 +1790,29 @@ export function SettingsPage() {
                             </div>
 
                             <div className="flex items-center justify-between">
-                              <Label htmlFor="show-total-hours">Show Total Hours</Label>
+                              <Label htmlFor="show-total-hours">
+                                Show Total Hours
+                              </Label>
                               <Switch
                                 id="show-total-hours"
-                                checked={localSettings?.pdf_layout.content?.show_total_hours ?? true}
+                                checked={
+                                  localSettings?.pdf_layout.content
+                                    ?.show_total_hours ?? true
+                                }
                                 onCheckedChange={(checked) => {
                                   handleSave("pdf_layout", {
                                     content: {
-                                      show_employee_id: localSettings?.pdf_layout.content?.show_employee_id ?? true,
-                                      show_position: localSettings?.pdf_layout.content?.show_position ?? true,
-                                      show_breaks: localSettings?.pdf_layout.content?.show_breaks ?? true,
-                                      show_total_hours: checked
-                                    }
+                                      show_employee_id:
+                                        localSettings?.pdf_layout.content
+                                          ?.show_employee_id ?? true,
+                                      show_position:
+                                        localSettings?.pdf_layout.content
+                                          ?.show_position ?? true,
+                                      show_breaks:
+                                        localSettings?.pdf_layout.content
+                                          ?.show_breaks ?? true,
+                                      show_total_hours: checked,
+                                    },
                                   });
                                   handleImmediateUpdate();
                                 }}
@@ -1464,25 +1827,39 @@ export function SettingsPage() {
                             <div className="space-y-2">
                               <Label htmlFor="font-family">Font Family</Label>
                               <Select
-                                value={localSettings?.pdf_layout.fonts?.family ?? 'Arial'}
+                                value={
+                                  localSettings?.pdf_layout.fonts?.family ??
+                                  "Arial"
+                                }
                                 onValueChange={(value) => {
                                   handleSave("pdf_layout", {
                                     fonts: {
                                       family: value,
-                                      size: localSettings?.pdf_layout.fonts?.size ?? 12,
-                                      header_size: localSettings?.pdf_layout.fonts?.header_size ?? 14
-                                    }
+                                      size:
+                                        localSettings?.pdf_layout.fonts?.size ??
+                                        12,
+                                      header_size:
+                                        localSettings?.pdf_layout.fonts
+                                          ?.header_size ?? 14,
+                                    },
                                   });
                                   handleImmediateUpdate();
                                 }}
                               >
-                                <SelectTrigger id="font-family" className="w-full">
+                                <SelectTrigger
+                                  id="font-family"
+                                  className="w-full"
+                                >
                                   <SelectValue placeholder="Select font" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="Arial">Arial</SelectItem>
-                                  <SelectItem value="Times New Roman">Times New Roman</SelectItem>
-                                  <SelectItem value="Helvetica">Helvetica</SelectItem>
+                                  <SelectItem value="Times New Roman">
+                                    Times New Roman
+                                  </SelectItem>
+                                  <SelectItem value="Helvetica">
+                                    Helvetica
+                                  </SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -1493,14 +1870,20 @@ export function SettingsPage() {
                                 <Input
                                   id="font-size"
                                   type="number"
-                                  value={localSettings?.pdf_layout.fonts?.size ?? 12}
+                                  value={
+                                    localSettings?.pdf_layout.fonts?.size ?? 12
+                                  }
                                   onChange={(e) => {
                                     handleSave("pdf_layout", {
                                       fonts: {
-                                        family: localSettings?.pdf_layout.fonts?.family ?? 'Arial',
+                                        family:
+                                          localSettings?.pdf_layout.fonts
+                                            ?.family ?? "Arial",
                                         size: Number(e.target.value),
-                                        header_size: localSettings?.pdf_layout.fonts?.header_size ?? 14
-                                      }
+                                        header_size:
+                                          localSettings?.pdf_layout.fonts
+                                            ?.header_size ?? 14,
+                                      },
                                     });
                                     handleImmediateUpdate();
                                   }}
@@ -1512,14 +1895,21 @@ export function SettingsPage() {
                                 <Input
                                   id="header-size"
                                   type="number"
-                                  value={localSettings?.pdf_layout.fonts?.header_size ?? 14}
+                                  value={
+                                    localSettings?.pdf_layout.fonts
+                                      ?.header_size ?? 14
+                                  }
                                   onChange={(e) => {
                                     handleSave("pdf_layout", {
                                       fonts: {
-                                        family: localSettings?.pdf_layout.fonts?.family ?? 'Arial',
-                                        size: localSettings?.pdf_layout.fonts?.size ?? 12,
-                                        header_size: Number(e.target.value)
-                                      }
+                                        family:
+                                          localSettings?.pdf_layout.fonts
+                                            ?.family ?? "Arial",
+                                        size:
+                                          localSettings?.pdf_layout.fonts
+                                            ?.size ?? 12,
+                                        header_size: Number(e.target.value),
+                                      },
                                     });
                                     handleImmediateUpdate();
                                   }}
@@ -1538,26 +1928,32 @@ export function SettingsPage() {
                   <h3 className="text-lg font-semibold mb-4">Layout Preview</h3>
                   <PDFLayoutEditor
                     config={{
-                      page_size: localSettings?.pdf_layout.page_size ?? 'A4',
-                      orientation: localSettings?.pdf_layout.orientation ?? 'portrait',
-                      margins: localSettings?.pdf_layout.margins ?? { top: 20, right: 20, bottom: 20, left: 20 },
+                      page_size: localSettings?.pdf_layout.page_size ?? "A4",
+                      orientation:
+                        localSettings?.pdf_layout.orientation ?? "portrait",
+                      margins: localSettings?.pdf_layout.margins ?? {
+                        top: 20,
+                        right: 20,
+                        bottom: 20,
+                        left: 20,
+                      },
                       table_style: localSettings?.pdf_layout.table_style ?? {
-                        header_bg_color: '#f5f5f5',
-                        border_color: '#e0e0e0',
-                        text_color: '#000000',
-                        header_text_color: '#000000'
+                        header_bg_color: "#f5f5f5",
+                        border_color: "#e0e0e0",
+                        text_color: "#000000",
+                        header_text_color: "#000000",
                       },
                       fonts: localSettings?.pdf_layout.fonts ?? {
-                        family: 'Arial',
+                        family: "Arial",
                         size: 12,
-                        header_size: 14
+                        header_size: 14,
                       },
                       content: localSettings?.pdf_layout.content ?? {
                         show_employee_id: true,
                         show_position: true,
                         show_breaks: true,
-                        show_total_hours: true
-                      }
+                        show_total_hours: true,
+                      },
                     }}
                     onChange={(config) => {
                       handleSave("pdf_layout", config);
@@ -1567,10 +1963,7 @@ export function SettingsPage() {
                 </div>
 
                 <CardFooter className="flex justify-end space-x-2">
-                  <Button
-                    variant="outline"
-                    onClick={handleImmediateUpdate}
-                  >
+                  <Button variant="outline" onClick={handleImmediateUpdate}>
                     <Save className="w-4 h-4 mr-2" />
                     Save Changes
                   </Button>

@@ -1,17 +1,17 @@
-import { Employee } from './employee';
-import { DateRange } from 'react-day-picker';
+import { Employee } from "./employee";
+import { DateRange } from "react-day-picker";
 
 // Schedule Status types
-export type ScheduleStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+export type ScheduleStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 
 // Shift type identifiers
-export type ShiftTypeId = 'EARLY' | 'MIDDLE' | 'LATE';
+export type ShiftTypeId = "EARLY" | "MIDDLE" | "LATE";
 
 // TimeSlot definition
 export interface TimeSlot {
-  start: number;  // Minutes from midnight
-  end: number;    // Minutes from midnight
-  label: string;  // Formatted time
+  start: number; // Minutes from midnight
+  end: number; // Minutes from midnight
+  label: string; // Formatted time
 }
 
 // ShiftType definition
@@ -19,7 +19,7 @@ export interface ShiftType {
   id: string;
   name: string;
   color: string;
-  type: 'shift';
+  type: "shift";
 }
 
 // AbsenceType definition
@@ -27,7 +27,7 @@ export interface AbsenceType {
   id: string;
   name: string;
   color: string;
-  type: 'absence';
+  type: "absence";
 }
 
 // Absence definition
@@ -53,7 +53,7 @@ export interface ScheduleSettings {
 
 // DragItem for react-dnd
 export interface ScheduleDragItem {
-  type: 'EMPLOYEE_SCHEDULE';
+  type: "EMPLOYEE_SCHEDULE";
   scheduleId: number;
   employeeId: number;
   shiftId: number;
@@ -102,13 +102,23 @@ export interface BaseScheduleViewProps {
 
 // Props specific to the TimeGridView
 export interface TimeGridViewProps extends BaseScheduleViewProps {
-  onDrop: (scheduleId: number, newEmployeeId: number, newDate: Date, newShiftId: number) => Promise<void>;
+  onDrop: (
+    scheduleId: number,
+    newEmployeeId: number,
+    newDate: Date,
+    newShiftId: number,
+  ) => Promise<void>;
 }
 
 // Props specific to the ScheduleDisplay component
 export interface ScheduleDisplayProps extends BaseScheduleViewProps {
-  viewType: 'grid' | 'table' | 'versions' | 'statistics' | 'overview';
-  onDrop: (scheduleId: number, newEmployeeId: number, newDate: Date, newShiftId: number) => Promise<void>;
+  viewType: "grid" | "table" | "versions" | "statistics" | "overview";
+  onDrop: (
+    scheduleId: number,
+    newEmployeeId: number,
+    newDate: Date,
+    newShiftId: number,
+  ) => Promise<void>;
 }
 
 // Context type for schedule data
@@ -120,7 +130,10 @@ export interface ScheduleContextType {
   dateRange: DateRange | undefined;
   setDateRange: (range: DateRange | undefined) => void;
   refreshSchedules: () => Promise<void>;
-  updateSchedule: (scheduleId: number, updates: ScheduleUpdate) => Promise<void>;
+  updateSchedule: (
+    scheduleId: number,
+    updates: ScheduleUpdate,
+  ) => Promise<void>;
   deleteSchedule: (scheduleId: number) => Promise<void>;
   createSchedule: (scheduleData: Partial<Schedule>) => Promise<void>;
 }
@@ -168,4 +181,4 @@ export interface GenerationResponse {
     };
     generationTimeSeconds: number;
   };
-} 
+}
