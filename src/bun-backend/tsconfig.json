@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    // Bun supports latest JS features
+    "lib": ["ESNext", "DOM"],
+    "module": "ESNext",
+    "target": "ESNext",
+
+    // Bun works best with bundler-style module resolution
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true, // If using .ts imports
+    "moduleDetection": "force",
+    "noEmit": true, // Added to satisfy allowImportingTsExtensions requirement
+
+    "jsx": "react-jsx", // Or "preserve" if using separate JSX transform
+    "allowJs": true, // Allow JavaScript files to be imported
+    "checkJs": true, // Type check JS files
+
+    // Bundler mode requires this to be set
+    // "emitDeclarationOnly": true, // Uncomment if only emitting types
+    // "declaration": true,        // Uncomment if only emitting types
+
+    // Best practices
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+
+    // Output options (adjust if needed)
+    // "outDir": "./dist",
+    // "rootDir": ".",
+
+    // *** Crucial for Bun & Elysia ***
+    "types": ["bun-types"] // Includes types for Bun APIs, Node.js, etc.
+  },
+  "include": ["./**/*.ts"], // Scan all .ts files in this directory and subdirectories
+  "exclude": ["node_modules"]
+} 
