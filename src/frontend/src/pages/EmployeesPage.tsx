@@ -53,6 +53,7 @@ import {
   Badge,
 } from "@/components/ui";
 import { useToast } from "@/components/ui/use-toast";
+import { AbsenceType } from "@/types/schedule";
 
 type ApiEmployee = {
   first_name: string;
@@ -920,7 +921,12 @@ export const EmployeesPage = () => {
           employeeId={selectedEmployeeForAbsence.id}
           isOpen={!!selectedEmployeeForAbsence}
           onClose={() => setSelectedEmployeeForAbsence(null)}
-          absenceTypes={settings?.employee_types ?? []}
+          absenceTypes={(
+            settings?.absence_types?.map(at => ({
+              ...at,
+              type: "absence" as const
+            })) ?? []
+          ) as AbsenceType[]}
         />
       )}
     </div>

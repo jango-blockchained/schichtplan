@@ -15,12 +15,38 @@ import { coverageRoutes } from './routes/coverage';
 import { recurringCoverageRoutes } from './routes/recurringCoverage'; // Import recurring coverage routes
 import { shiftPatternRoutes } from './routes/shiftPatterns'; // Import shift pattern routes
 import { swagger } from '@elysiajs/swagger';
+import { jwt } from '@elysiajs/jwt';
+import { staticPlugin } from '@elysiajs/static';
+import pino from 'pino';
+import { randomUUID } from 'node:crypto';
 // Removed incorrect import: import { globalErrorHandler } from './lib/errorHandler';
 
 // Define the port, defaulting to 5001 to avoid conflict with Flask's 5000 if run concurrently
 const PORT = process.env.PORT || 5001;
 
 console.log("Initializing Elysia application...");
+
+// Configure Pino Logger
+const logLevel = process.env.LOG_LEVEL || (process.env.NODE_ENV === 'development' ? 'debug' : 'info');
+
+const logger = pino(
+  {
+    level: logLevel,
+  },
+  // Use pino-pretty in development, otherwise default JSON
+  process.env.NODE_ENV === 'development'
+    ? pino.transport({
+        target: 'pino-pretty',
+        options: {
+          colorize: true,
+          levelFirst: true,
+          translateTime: 'SYS:HH:MM:ss.l',
+          ignore: 'pid,hostname,reqId,req,res', // Ignore these fields in pretty print
+          messageFormat: '({reqId}) {msg}', // Add reqId to the message
+        },
+      })
+    : undefined, // Use default JSON transport in production/other envs
+);
 
 // Define the global error handler WITHOUT explicit ErrorHandler type
 // Let Elysia infer the types when passed to .onError()
@@ -62,6 +88,17 @@ const globalErrorHandler = ({ code, error, set }: { code: unknown, error: any, s
 };
 
 const app = new Elysia()
+  // --- Base Logger & Request ID --- 
+  .decorate('log', logger) // Add base logger to app decoration
+  .onRequest(({ request, set, log }) => {
+    // Generate unique request ID
+    const reqId = randomUUID(); 
+    // Create request-specific child logger
+    set.headers['X-Request-ID'] = reqId; // Add header for tracing
+    // Attach child logger with reqId to context (will overwrite base log decoration for this request)
+    (set as any).log = log.child({ reqId });
+    (set as any).log.debug({ req: request }, `Request received: ${request.method} ${new URL(request.url).pathname}`);
+  })
   .use(cors()) // Enable CORS for frontend interaction
   .use(swagger({ // Setup Swagger UI
       path: '/api-docs',
@@ -100,7 +137,44 @@ const app = new Elysia()
   .use(shiftPatternRoutes) // Mounted routes
   .use(settingsRoutes)
   .use(scheduleRoutes) // Original schedule routes (likely for generation/overview)
-  .onError(globalErrorHandler) // Use the error handler (types inferred)
+  .use(jwt({
+    name: 'jwt',
+    secret: process.env.JWT_SECRET || 'fallback-secret-key-change-me!', // Use environment variable!
+    exp: '7d' // Token expiration time
+  }))
+  .onError(({ code, error, set, log }) => {
+    // Safer error message extraction
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log.error({ err: error, code }, `Error occurred: ${errorMessage}`);
+
+    // Standard Elysia error handling - use safer errorMessage
+    if (code === 'NOT_FOUND') {
+      set.status = 404;
+      return { error: `Not Found: ${errorMessage}` };
+    }
+    if (code === 'VALIDATION') {
+      set.status = 400;
+      // Accessing nested error details might still be complex, keep original for now if needed
+      return { error: `Validation Error: ${errorMessage}`, details: (error as any).validator?.Errors(error.value).First()?.message };
+    }
+    if (code === 'INTERNAL_SERVER_ERROR') {
+      set.status = 500;
+      return { error: `Internal Server Error: ${errorMessage}` };
+    }
+    
+    // Default catch-all
+    set.status = 500;
+    return { error: `An unexpected error occurred: ${errorMessage}` };
+  })
+  // --- Response Logging (using onAfterHandle) ---
+  // Explicitly type parameters if inference fails - adjust type if needed
+  .onAfterHandle((context: { request: Request; set: { status?: number | undefined, headers: Record<string, string> }; log: pino.Logger; response: any }) => {
+    const { request, set, log, response } = context;
+    // Ensure log exists on set (use request-specific log from context)
+    const reqLog = log; // Assuming log here is the request-specific child logger
+    reqLog.info({ status: set.status /*, response */ }, `Response sent: ${request.method} ${new URL(request.url).pathname} -> ${set.status}`); // Removed response from log object for brevity, can add back if needed
+  })
+  // --- Server Start --- 
   .listen(PORT);
 
 console.log(
