@@ -97,18 +97,18 @@ export const recurringCoverageRoutes = new Elysia({ prefix: '/api/recurring-cove
         detail: { summary: 'Get recurring coverage template by ID', tags: ['RecurringCoverage'] }
     })
 
-    // POST /api/recurring-coverage - Create a new entry (placeholder)
+    // POST /api/recurring-coverage - Create a new entry
     .post('/', async ({ body, set }) => {
-        console.warn("POST /api/recurring-coverage endpoint hit, but service is not implemented.");
         try {
-            // const newEntry = await createRecurringCoverage(body);
-            // set.status = 201;
-            // return { success: true, data: newEntry };
-            set.status = 501; // Not Implemented
-            return { success: false, error: 'Create functionality not yet implemented.' };
+            // Type assertion might be needed if service expects exact RecurringCoverage fields
+            // but CreateRecurringCoverageSchema might omit some internally calculated ones.
+            // Assuming service function handles the input correctly based on validated schema.
+            const newEntry = await createRecurringCoverage(body);
+            set.status = 201;
+            return { success: true, data: newEntry };
         } catch (error: any) {
             console.error(`Error creating recurring coverage: ${error.message}`);
-            set.status = 500;
+            set.status = 500; // Or 400 if it's a known validation issue not caught by schema
             return { success: false, error: 'Failed to create recurring coverage entry' };
         }
     }, {
@@ -116,21 +116,18 @@ export const recurringCoverageRoutes = new Elysia({ prefix: '/api/recurring-cove
         detail: { summary: 'Create a new recurring coverage template', tags: ['RecurringCoverage'] }
     })
 
-    // PUT /api/recurring-coverage/:id - Update an existing entry (placeholder)
+    // PUT /api/recurring-coverage/:id - Update an existing entry
     .put('/:id', async ({ params: { id }, body, set }) => {
-        console.warn(`PUT /api/recurring-coverage/${id} endpoint hit, but service is not implemented.`);
         try {
-            // const updatedEntry = await updateRecurringCoverage(id, body);
-            // return { success: true, data: updatedEntry };
-            set.status = 501; // Not Implemented
-            return { success: false, error: 'Update functionality not yet implemented.' };
+            const updatedEntry = await updateRecurringCoverage(id, body);
+            return { success: true, data: updatedEntry };
         } catch (error: any) {
             if (error instanceof NotFoundError) {
                 set.status = 404;
                 return { success: false, error: error.message };
             }
             console.error(`Error updating recurring coverage ${id}: ${error.message}`);
-            set.status = 500;
+            set.status = 500; // Or 400
             return { success: false, error: 'Failed to update recurring coverage entry' };
         }
     }, {
@@ -139,15 +136,12 @@ export const recurringCoverageRoutes = new Elysia({ prefix: '/api/recurring-cove
         detail: { summary: 'Update an existing recurring coverage template', tags: ['RecurringCoverage'] }
     })
 
-    // DELETE /api/recurring-coverage/:id - Delete an entry (placeholder)
+    // DELETE /api/recurring-coverage/:id - Delete an entry
     .delete('/:id', async ({ params: { id }, set }) => {
-         console.warn(`DELETE /api/recurring-coverage/${id} endpoint hit, but service is not implemented.`);
         try {
-            // await deleteRecurringCoverage(id);
-            // set.status = 204;
-            // return;
-            set.status = 501; // Not Implemented
-            return { success: false, error: 'Delete functionality not yet implemented.' };
+            await deleteRecurringCoverage(id);
+            set.status = 204; // No Content
+            return; // Return nothing on success
         } catch (error: any) {
             if (error instanceof NotFoundError) {
                 set.status = 404;
