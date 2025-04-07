@@ -1,53 +1,58 @@
-import db from "."; // Import the opened database connection from index.ts
 import fs from "node:fs";
 import path from "node:path";
+import type { Database } from "bun:sqlite";
 
 // Path to the initial schema SQL file
 const schemaPath = path.join(import.meta.dir, "init-schema.sql");
 
-async function runMigrations() {
-  console.log("Starting database migration...");
+/**
+ * Applies the initial database schema to the provided database instance.
+ * @param targetDb - The bun:sqlite Database instance to apply the schema to.
+ */
+export async function applySchema(targetDb: Database) {
+  console.log(`Applying schema from ${schemaPath} to the database...`);
 
   try {
     // Read the initial schema SQL file
-    console.log(`Reading schema file: ${schemaPath}`);
     const schemaSql = await Bun.file(schemaPath).text();
 
-    // Execute the SQL script
-    // Use db.exec() for multiple statements or scripts
+    // Execute the SQL script on the provided database instance
     console.log("Executing initial schema SQL...");
-    db.exec(schemaSql);
+    targetDb.exec(schemaSql);
 
-    console.log("Database schema initialized successfully.");
+    console.log("Database schema applied successfully.");
 
-    // --- Future Migration Logic ---
-    // Here you could add logic to:
-    // 1. Check a 'migrations' table for already applied migrations.
-    // 2. List '.sql' files in a 'migrations/' subdirectory.
-    // 3. Apply pending migration files sequentially using db.exec().
-    // 4. Record applied migrations in the 'migrations' table.
+    // --- Future Migration Logic Placeholder ---
+    // Logic for checking/applying subsequent migration files would go here,
+    // operating on the targetDb instance.
     // Example:
-    // const appliedMigrations = db.query("SELECT name FROM migrations;").all().map(row => row.name);
-    // const migrationFiles = fs.readdirSync(path.join(import.meta.dir, 'migrations')).filter(f => f.endsWith('.sql')).sort();
-    // for (const file of migrationFiles) {
-    //   if (!appliedMigrations.includes(file)) {
-    //      console.log(`Applying migration: ${file}`);
-    //      const migrationSql = await Bun.file(path.join(import.meta.dir, 'migrations', file)).text();
-    //      db.exec(migrationSql);
-    //      db.query("INSERT INTO migrations (name) VALUES (?);").run(file);
-    //   }
-    // }
-    // console.log("All migrations applied.");
+    // const checkTableQuery = targetDb.query("SELECT name FROM sqlite_master WHERE type='table' AND name='migrations';");
+    // if (!checkTableQuery.get()) { targetDb.exec('CREATE TABLE migrations (name TEXT PRIMARY KEY);'); }
+    // ... rest of migration logic ...
 
   } catch (error) {
-    console.error("Database migration failed:", error);
-    process.exit(1); // Exit with error code
-  } finally {
-    // db.close(); // Close connection if this script is run standalone
-    // Since db is imported from index.ts which handles closing, maybe not needed here?
-    // Depending on how this script is run, decide if db.close() is appropriate.
+    console.error("Applying schema failed:", error);
+    throw error; // Re-throw the error to be handled by the caller
   }
 }
 
-// Run the migration function
-runMigrations(); 
+// -- Standalone Execution Logic (for package.json script) --
+// This block allows running `bun run src/bun-backend/db/migrate.ts` directly
+// It checks if the script is the main module being run.
+// The `module` variable might behave differently in Bun vs Node, using `import.meta.main` is safer in Bun.
+if (import.meta.main) {
+    console.log("Running migrate.ts as a standalone script...");
+    // Import the default DB connection ONLY when run as script
+    import("../db")
+      .then(async ({ default: defaultDb }) => {
+          await applySchema(defaultDb);
+          console.log("Standalone migration finished.");
+          // Decide whether to close the default connection here.
+          // If the main app server imports and keeps the DB open, closing here might be bad.
+          // defaultDb.close(); 
+      })
+      .catch((err) => {
+          console.error("Standalone migration script failed:", err);
+          process.exit(1);
+      });
+} 
