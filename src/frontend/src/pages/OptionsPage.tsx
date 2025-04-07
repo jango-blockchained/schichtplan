@@ -84,9 +84,8 @@ const defaultAvailabilityTypes: AvailabilityType[] = [
 ];
 
 export default function OptionsPage() {
-  const [availabilityTypes, setAvailabilityTypes] = useState<
-    AvailabilityType[]
-  >(defaultAvailabilityTypes);
+  // State for local display (derived from settings)
+  const [availabilityTypes, setAvailabilityTypes] = useState<AvailabilityType[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingType, setEditingType] = useState<AvailabilityType | null>(null);
   const { toast } = useToast();
@@ -97,26 +96,28 @@ export default function OptionsPage() {
     queryFn: getSettings,
   });
 
-  // Initialize availability types from settings
+  // Update local display state when settings load/change
   useEffect(() => {
     if (settings?.availability_types) {
       const types = settings.availability_types.map((type: AvailabilityTypeSetting) => ({
+        // Map backend type to local display type
         code: type.id,
         name: type.name,
         description: type.description,
         color: type.color,
+        priority: type.priority,
+        // Determine local 'type' based on backend properties
         type: type.is_available
-          ? type.priority === 1
-            ? ("FIX" as const)
-            : type.priority === 2
-              ? ("AVL" as const)
-              : type.priority === 3
-                ? ("PRF" as const)
-                : ("UNV" as const)
+          ? type.priority === 1 ? ("FIX" as const)
+          : type.priority === 2 ? ("AVL" as const)
+          : type.priority === 3 ? ("PRF" as const)
+          : ("UNV" as const) 
           : ("UNV" as const),
-        priority: type.priority
       }));
       setAvailabilityTypes(types);
+    } else {
+      // Handle case where settings don't have the types yet (optional)
+      // setAvailabilityTypes(defaultAvailabilityTypes); 
     }
   }, [settings]);
 
@@ -144,7 +145,7 @@ export default function OptionsPage() {
   });
 
   const handleOpenModal = (type: AvailabilityType) => {
-    setEditingType({ ...type });
+    setEditingType({ ...type }); // Editing local display type
     setIsModalOpen(true);
   };
 
@@ -153,40 +154,43 @@ export default function OptionsPage() {
     setEditingType(null);
   };
 
+  // Refactored Save Handler
   const handleSaveAvailabilityType = async () => {
-    if (!editingType || !settings) return;
+    if (!editingType || !settings || !settings.availability_types) return;
 
     try {
-      const updatedTypes = availabilityTypes.map((type) =>
-        type.code === editingType.code
-          ? { ...type, color: editingType.color }
-          : type,
+      // Update local display state first (optimistic UI)
+      setAvailabilityTypes(prevTypes => 
+        prevTypes.map(type =>
+          type.code === editingType.code ? { ...type, color: editingType.color } : type
+        )
       );
-      setAvailabilityTypes(updatedTypes);
 
-      const formattedTypes: AvailabilityTypeSetting[] = updatedTypes.map((type) => ({
-        id: type.code,
-        name: type.name,
-        description: type.description,
-        color: type.color,
-        priority: 
-          type.type === "FIX" ? 1 :
-          type.type === "AVL" ? 2 :
-          type.type === "PRF" ? 3 : 4,
-        is_available: type.type !== "UNV",
-        type: "availability"
-      }));
+      // Find the corresponding setting object and update its color
+      const updatedBackendTypes = settings.availability_types.map((backendType) => {
+        if (backendType.id === editingType.code) {
+          // Return a new object with only the color updated
+          return { ...backendType, color: editingType.color };
+        }
+        return backendType; // Keep other types unchanged
+      });
 
+      // Update settings with the modified availability_types array
       const updatedSettings: Partial<Settings> = {
-        availability_types: formattedTypes,
+        availability_types: updatedBackendTypes,
       };
-      updateMutation.mutate(updatedSettings);
+      
+      updateMutation.mutate(updatedSettings); // Send partial update
       handleCloseModal();
+      toast({ description: "Availability type color updated." }); // Added success toast
+
     } catch (error) {
       toast({
         variant: "destructive",
         description: "Failed to update color.",
       });
+      // Optional: Revert optimistic UI update on error
+      // queryClient.invalidateQueries({ queryKey: ["settings"] }); 
     }
   };
 
@@ -256,7 +260,7 @@ export default function OptionsPage() {
             <CardHeader>
               <CardTitle>Availability Types</CardTitle>
               <CardDescription>
-                Configure availability status types and their colors
+                Configure colors for the core availability types.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -350,8 +354,9 @@ export default function OptionsPage() {
               <EmployeeSettingsEditor 
                  type="employee"
                  groups={employeeTypesForEditor}
-                 onChange={(updatedGroups: EmployeeType[]) => {
+                 onChange={(updatedGroups: (EmployeeType | AbsenceType)[]) => { 
                     const updatedEmployeeTypes = updatedGroups
+                       .filter((g): g is EmployeeType => g.type === 'employee')
                        .map(({ type, ...rest }) => ({ ...rest } as EmployeeTypeSetting)); 
                     handleEmployeeTypesChange(updatedEmployeeTypes);
                  }}
@@ -370,8 +375,9 @@ export default function OptionsPage() {
               <EmployeeSettingsEditor 
                  type="absence"
                  groups={absenceTypesForEditor}
-                 onChange={(updatedGroups: AbsenceType[]) => {
+                 onChange={(updatedGroups: (EmployeeType | AbsenceType)[]) => {
                     const updatedAbsenceTypes = updatedGroups
+                       .filter((g): g is AbsenceType => g.type === 'absence')
                        .map(({ type, ...rest }) => ({ ...rest } as AbsenceTypeSetting));
                     handleAbsenceTypesChange(updatedAbsenceTypes);
                  }}

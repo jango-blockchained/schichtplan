@@ -167,20 +167,20 @@ const app = new Elysia()
     return { error: `An unexpected error occurred: ${errorMessage}` };
   })
   // --- Response Logging (using onAfterHandle) ---
-  // Explicitly type parameters if inference fails - adjust type if needed
-  .onAfterHandle((context: { request: Request; set: { status?: number | undefined, headers: Record<string, string> }; log: pino.Logger; response: any }) => {
+  // Temporarily commented out due to typing issues
+  /*
+  .onAfterHandle((context) => {
     const { request, set, log, response } = context;
-    // Ensure log exists on set (use request-specific log from context)
-    const reqLog = log; // Assuming log here is the request-specific child logger
-    reqLog.info({ status: set.status /*, response */ }, `Response sent: ${request.method} ${new URL(request.url).pathname} -> ${set.status}`); // Removed response from log object for brevity, can add back if needed
+    const reqLog = log as pino.Logger; 
+    reqLog.info({ status: set.status }, `Response sent: ${request.method} ${new URL(request.url).pathname} -> ${set.status}`);
   })
+  */
   // --- Server Start --- 
   .listen(PORT);
 
-console.log(
-  `🦊 Schichtplan Bun backend is running at http://${app.server?.hostname}:${app.server?.port}`
-);
+// Log server start
+logger.info(`🦊 Schichtplan Bun backend is running at http://${app.server?.hostname}:${app.server?.port}`);
+logger.info(`📄 API Docs available at http://${app.server?.hostname}:${app.server?.port}/api-docs`);
 
-console.log(`📄 API Docs available at http://${app.server?.hostname}:${app.server?.port}/api-docs`);
-
-export default app; // Export for potential testing or programmatic use
+// Export the app instance and the base logger
+export { app, logger };

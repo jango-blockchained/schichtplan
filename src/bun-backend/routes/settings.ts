@@ -1,6 +1,7 @@
 import { Elysia, t, NotFoundError } from "elysia";
 import globalDb from "../db";
 import { Database } from "bun:sqlite";
+import { logger } from "../index";
 import {
     getSettings as getServiceSettings,
     getSettingByKey as getServiceSettingByKey,
@@ -10,6 +11,7 @@ import {
     addAbsenceType as addServiceAbsenceType,
     updateAbsenceType as updateServiceAbsenceType,
     deleteAbsenceType as deleteServiceAbsenceType,
+    updateSettings,
 } from "../services/settingsService";
 import type {
   Settings,
@@ -199,6 +201,8 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
     .get("/", async ({ set, ...ctx }) => {
         const context = ctx as { db?: Database };
         const currentDb = context.db ?? globalDb;
+        const routeLogger = (ctx as any).log || logger;
+        routeLogger.debug("Attempting to fetch settings...");
         try {
             const settings = await getServiceSettings(currentDb);
             if (!settings) {
@@ -206,8 +210,10 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
                 set.status = 404;
                 return { error: "Settings not found." };
             }
+            routeLogger.info("Settings fetched successfully.");
             return settings;
         } catch (error: any) {
+            routeLogger.error({ err: error }, "Specific error context in GET /api/settings/");
             console.error("Error fetching settings:", error.message);
             if (error instanceof NotFoundError) {
                 set.status = 404;
@@ -218,19 +224,49 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
         }
     })
 
+    // GET all settings
+    .put("/", async ({ body, set, ...ctx }) => {
+        const context = ctx as { db?: Database };
+        const currentDb = context.db ?? globalDb;
+        logger.info({ updateData: body }, "Received PUT request to update settings (using base logger)");
+        try {
+            const updatedSettings = await updateSettings(body, currentDb);
+            logger.info("Settings updated successfully via PUT / (using base logger)");
+            return updatedSettings;
+        } catch (error: any) {
+            logger.error({ err: error, updateData: body }, "Error updating settings via PUT / (using base logger)");
+            if (error instanceof NotFoundError) {
+                 set.status = 404;
+                 return { error: error.message || "Settings could not be updated (not found)." };
+            }
+            set.status = 500;
+            return { error: error.message || "Failed to update settings" };
+        }
+    }, {
+        body: SettingsUpdateSchema,
+        detail: {
+            summary: 'Update Settings',
+            description: 'Updates multiple application settings fields. Send only the fields to be changed.',
+            tags: ['Settings'],
+        }
+    })
+
     // GET setting by key
     .get("/:key", async ({ params, set, ...ctx }) => {
         const context = ctx as { db?: Database };
         const currentDb = context.db ?? globalDb;
+        const routeLogger = (ctx as any).log || logger;
+        routeLogger.debug(`Attempting to fetch setting with key ${params.key}`);
         try {
             const setting = await getServiceSettingByKey(params.key, currentDb);
             if (!setting) {
                 set.status = 404;
                 return { error: `Setting with key '${params.key}' not found` };
             }
+            routeLogger.info(`Setting with key ${params.key} fetched successfully`);
             return setting;
         } catch (error: any) {
-            console.error(`Error fetching setting by key ${params.key}:`, error.message);
+            routeLogger.error(`Error fetching setting with key ${params.key}:`, error.message);
             set.status = 500;
             return { error: "Failed to retrieve setting" };
         }
@@ -240,11 +276,14 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
     .put("/:key", async ({ params, body, set, ...ctx }) => {
         const context = ctx as { db?: Database };
         const currentDb = context.db ?? globalDb;
+        const routeLogger = (ctx as any).log || logger;
+        routeLogger.debug(`Attempting to upsert setting with key ${params.key}`);
         try {
             const setting = await upsertServiceSetting(params.key, body.value, currentDb);
+            routeLogger.info(`Setting with key ${params.key} updated successfully`);
             return setting;
         } catch (error: any) {
-            console.error(`Error upserting setting ${params.key}:`, error.message);
+            routeLogger.error(`Error upserting setting with key ${params.key}:`, error.message);
             set.status = 500;
             return { error: "Failed to update setting" };
         }
@@ -259,10 +298,14 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
     .get("/absence-types", async ({ set, ...ctx }) => {
         const context = ctx as { db?: Database };
         const currentDb = context.db ?? globalDb;
+        const routeLogger = (ctx as any).log || logger;
+        routeLogger.debug("Attempting to fetch all absence types");
         try {
             const absenceTypes = await getServiceAllAbsenceTypes(currentDb);
+            routeLogger.info("All absence types fetched successfully");
             return absenceTypes;
         } catch (error: any) {
+            routeLogger.error("Error fetching all absence types:", error.message);
             console.error("Error fetching all absence types:", error.message);
             set.status = 500;
             return { error: "Failed to retrieve absence types" };
@@ -273,10 +316,14 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
     .get("/absence-types/:id", async ({ params, set, ...ctx }) => {
         const context = ctx as { db?: Database };
         const currentDb = context.db ?? globalDb;
+        const routeLogger = (ctx as any).log || logger;
+        routeLogger.debug(`Attempting to fetch absence type with ID ${params.id}`);
         try {
             const absenceType = await getServiceAbsenceTypeById(params.id, currentDb);
+            routeLogger.info(`Absence type with ID ${params.id} fetched successfully`);
             return absenceType;
         } catch (error: any) {
+            routeLogger.error(`Error fetching absence type with ID ${params.id}:`, error.message);
             if (error instanceof NotFoundError) {
                 set.status = 404;
                 return { error: error.message };
@@ -291,11 +338,15 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
     .post("/absence-types", async ({ body, set, ...ctx }) => {
         const context = ctx as { db?: Database };
         const currentDb = context.db ?? globalDb;
+        const routeLogger = (ctx as any).log || logger;
+        routeLogger.debug("Attempting to add new absence type");
         try {
             const newAbsenceType = await addServiceAbsenceType(body, currentDb);
+            routeLogger.info("New absence type added successfully");
             set.status = 201;
             return newAbsenceType;
         } catch (error: any) {
+            routeLogger.error("Error adding absence type:", error.message);
             console.error("Error adding absence type:", error.message);
             set.status = 500;
             return { error: "Failed to add absence type" };
@@ -306,10 +357,14 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
     .put("/absence-types/:id", async ({ params, body, set, ...ctx }) => {
         const context = ctx as { db?: Database };
         const currentDb = context.db ?? globalDb;
+        const routeLogger = (ctx as any).log || logger;
+        routeLogger.debug(`Attempting to update absence type with ID ${params.id}`);
         try {
             const updatedAbsenceType = await updateServiceAbsenceType(params.id, body, currentDb);
+            routeLogger.info(`Absence type with ID ${params.id} updated successfully`);
             return updatedAbsenceType;
         } catch (error: any) {
+            routeLogger.error(`Error updating absence type with ID ${params.id}:`, error.message);
             if (error instanceof NotFoundError) {
                 set.status = 404;
                 return { error: error.message };
@@ -327,11 +382,15 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
     .delete("/absence-types/:id", async ({ params, set, ...ctx }) => {
         const context = ctx as { db?: Database };
         const currentDb = context.db ?? globalDb;
+        const routeLogger = (ctx as any).log || logger;
+        routeLogger.debug(`Attempting to delete absence type with ID ${params.id}`);
         try {
             await deleteServiceAbsenceType(params.id, currentDb);
+            routeLogger.info(`Absence type with ID ${params.id} deleted successfully`);
             set.status = 204;
             return;
         } catch (error: any) {
+            routeLogger.error(`Error deleting absence type with ID ${params.id}:`, error.message);
             if (error instanceof NotFoundError) {
                 set.status = 404;
                 return { error: error.message };
