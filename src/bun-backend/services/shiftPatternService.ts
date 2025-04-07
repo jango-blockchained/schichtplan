@@ -1,168 +1,215 @@
 import db from "../db";
-import { SQLQueryBindings } from "bun:sqlite";
+import { type ShiftPattern, type ActiveDays } from "../db/schema"; // Import types
+import { NotFoundError } from "elysia";
 
-// Define the structure for ShiftPattern
-export interface ShiftPattern {
-    id: number;
-    name: string;
-    shift_template_ids: number[]; // Array of ShiftTemplate IDs
-    created_at: string;
-    updated_at: string;
-}
+// Input type definitions using imported types
+type CreateShiftPatternInput = Omit<ShiftPattern, 'id' | 'created_at' | 'updated_at'>;
+type UpdateShiftPatternInput = Partial<Omit<ShiftPattern, 'id' | 'created_at' | 'updated_at'>
+> ;
 
-// Input type for creating
-export interface CreateShiftPatternInput {
-    name: string;
-    shift_template_ids: number[]; // Expect an array of numbers
-}
-
-// Input type for updating
-export interface UpdateShiftPatternInput {
-    name?: string;
-    shift_template_ids?: number[]; // Allow updating the list
-}
-
-// Helper to map DB row, parsing JSON string for shift_template_ids
-function mapRowToShiftPattern(row: any): ShiftPattern | null {
-    if (!row) return null;
+// --- Helper functions ---
+// Helper to safely parse JSON array columns
+function safeJsonParseArray<T>(jsonString: string | null | undefined, defaultValue: T[]): T[] {
+    if (!jsonString) return defaultValue;
     try {
-        return {
-            id: row.id,
-            name: row.name,
-            // Parse the JSON string back into an array
-            shift_template_ids: JSON.parse(row.shift_template_ids || '[]'),
-            created_at: row.created_at,
-            updated_at: row.updated_at,
-        };
-    } catch (error) {
-        console.error(`Error parsing shift_template_ids for pattern id ${row.id}:`, error);
-        // Return pattern with empty array or handle error differently
-        return {
-             id: row.id,
-             name: row.name,
-             shift_template_ids: [],
-             created_at: row.created_at,
-             updated_at: row.updated_at,
-         };
+        const parsed = JSON.parse(jsonString);
+        return Array.isArray(parsed) ? parsed : defaultValue;
+    } catch (e) {
+        console.error("Failed to parse JSON array:", e, "String:", jsonString);
+        return defaultValue;
     }
+}
+
+// Helper to safely parse JSON object columns
+function safeJsonParseObject<T>(jsonString: string | null | undefined, defaultValue: T): T {
+    if (!jsonString) return defaultValue;
+    try {
+        return JSON.parse(jsonString) as T;
+    } catch (e) {
+        console.error("Failed to parse JSON object:", e, "String:", jsonString);
+        return defaultValue;
+    }
+}
+
+// Helper to map database row to ShiftPattern interface
+function mapRowToShiftPattern(row: any): ShiftPattern {
+    if (!row) {
+        throw new NotFoundError('ShiftPattern row is undefined in mapRowToShiftPattern');
+    }
+    return {
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        shifts: safeJsonParseArray<number>(row.shifts, []), // Array of ShiftTemplate IDs
+        active_days: safeJsonParseObject<ActiveDays>(row.active_days, {}),
+        is_active: Boolean(row.is_active),
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    };
 }
 
 // --- Service Functions ---
 
+/**
+ * Retrieves all shift patterns from the database.
+ */
 export async function getAllShiftPatterns(): Promise<ShiftPattern[]> {
-    const query = db.query("SELECT * FROM shift_patterns ORDER BY name ASC;");
-    const rows = query.all() as any[];
-    return rows.map(row => mapRowToShiftPattern(row)).filter(p => p !== null) as ShiftPattern[];
-}
-
-export async function getShiftPatternById(id: number): Promise<ShiftPattern | null> {
-    const query = db.query("SELECT * FROM shift_patterns WHERE id = ?;");
-    const row = query.get(id) as any;
-    return mapRowToShiftPattern(row);
-}
-
-export async function createShiftPattern(data: CreateShiftPatternInput): Promise<ShiftPattern> {
-    // Validate input data (basic check)
-     if (!data.name || !Array.isArray(data.shift_template_ids)) {
-        throw new Error("Invalid input data for creating shift pattern.");
+    try {
+        const query = db.query<any, []>("SELECT * FROM shift_patterns ORDER BY name;");
+        const rows = query.all();
+        return rows.map(mapRowToShiftPattern);
+    } catch (error) {
+        console.error("Error fetching all shift patterns:", error);
+        throw new Error("Failed to retrieve shift patterns.");
     }
+}
+
+/**
+ * Retrieves a single shift pattern by its ID.
+ */
+export async function getShiftPatternById(id: number): Promise<ShiftPattern> {
+    try {
+        const query = db.query<any, [number]>("SELECT * FROM shift_patterns WHERE id = ?;");
+        const row = query.get(id);
+
+        if (!row) {
+            throw new NotFoundError(`ShiftPattern with id ${id} not found.`);
+        }
+        return mapRowToShiftPattern(row);
+    } catch (error) {
+        console.error(`Error fetching shift pattern with id ${id}:`, error);
+         if (error instanceof NotFoundError) {
+             throw error;
+         }
+        throw new Error(`Failed to retrieve shift pattern ${id}.`);
+    }
+}
+
+/**
+ * Creates a new shift pattern.
+ */
+export async function createShiftPattern(data: CreateShiftPatternInput): Promise<ShiftPattern> {
+    const { name, description, shifts, active_days, is_active } = data;
+
+    // Prepare data for DB
+    const shifts_json = JSON.stringify(shifts ?? []);
+    const active_days_json = JSON.stringify(active_days ?? {});
+    const is_active_int = is_active ? 1 : 0;
 
     const sql = `
-        INSERT INTO shift_patterns (name, shift_template_ids)
-        VALUES (?, ?);
-    `;
-    // Stringify the array for storage
-    const shiftTemplateIdsJson = JSON.stringify(data.shift_template_ids);
-    const params: SQLQueryBindings[] = [data.name, shiftTemplateIdsJson];
+        INSERT INTO shift_patterns (
+            name, description, shifts, active_days, is_active,
+            created_at, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        RETURNING id;`;
 
     try {
-        let lastId: number | bigint | undefined;
-        db.transaction(() => {
-            const insertStmt = db.prepare(sql);
-            insertStmt.run(...params);
-            // Type assertion for safety
-            const result = db.query("SELECT last_insert_rowid() as id;").get() as { id?: number | bigint }; 
-            lastId = result?.id;
-        })();
+        const stmt = db.prepare(sql);
+        const result = stmt.get(
+            name,
+            description ?? null,
+            shifts_json,
+            active_days_json,
+            is_active_int
+        ) as { id: number };
 
-        if (lastId === undefined || lastId === null) {
-            throw new Error("Failed to get last insert ID after creating shift pattern.");
+        if (!result || !result.id) {
+            throw new Error("Failed to create shift pattern, no ID returned.");
         }
-
-        const newRecord = await getShiftPatternById(Number(lastId));
-        if (!newRecord) {
-            throw new Error("Failed to retrieve newly created shift pattern.");
-        }
-        return newRecord;
+        console.log(`Shift pattern created with ID: ${result.id}`);
+        return getShiftPatternById(result.id);
     } catch (error: any) {
         console.error("Error creating shift pattern:", error);
-         if (error.message?.includes('UNIQUE constraint failed: shift_patterns.name')) {
-            throw new Error(`Shift pattern name '${data.name}' already exists.`);
-         }
-        // Consider checking for FK violations if shift_template_ids were validated against shift_templates table
-        throw new Error("Database error during shift pattern creation.");
+        if (error.message?.includes('UNIQUE constraint failed')) {
+            throw new Error(`Shift pattern name '${name}' already exists.`);
+        }
+        throw new Error("Failed to create shift pattern in database.");
     }
 }
 
-export async function updateShiftPattern(id: number, data: UpdateShiftPatternInput): Promise<ShiftPattern | null> {
-    const fields = Object.keys(data) as (keyof UpdateShiftPatternInput)[];
-    if (fields.length === 0) {
-        return getShiftPatternById(id); // No changes provided
+/**
+ * Updates an existing shift pattern.
+ */
+export async function updateShiftPattern(id: number, data: UpdateShiftPatternInput): Promise<ShiftPattern> {
+    // Ensure existence
+    await getShiftPatternById(id);
+
+    const updates: Record<string, any> = {};
+
+    // Map input data to DB format
+    for (const [key, value] of Object.entries(data)) {
+        if (value === undefined) continue;
+
+        switch (key as keyof UpdateShiftPatternInput) {
+            case 'shifts':
+            case 'active_days':
+                updates[key] = JSON.stringify(value ?? (key === 'shifts' ? [] : {}));
+                break;
+            case 'is_active':
+                updates[key] = value ? 1 : 0;
+                break;
+            default:
+                 updates[key] = value;
+        }
     }
 
-    const setClauses = fields.map(field => `${field} = ?`);
-    setClauses.push("updated_at = datetime('now')");
+    if (Object.keys(updates).length === 0) {
+        console.log(`No valid fields provided to update shift pattern ${id}.`);
+        return getShiftPatternById(id);
+    }
 
-    const sql = `
-        UPDATE shift_patterns
-        SET ${setClauses.join(', ')}
-        WHERE id = ?;
-    `;
+    // Build query
+    updates.updated_at = "datetime('now')";
+    const setClauses = Object.keys(updates).map(key => `${key} = ?`).join(", ");
+    const values = Object.keys(updates)
+                         .filter(key => key !== 'updated_at')
+                         .map(key => updates[key]);
 
-    // Map values, stringifying shift_template_ids if present
-    const params = fields.map(field => {
-        const value = data[field];
-        if (field === 'shift_template_ids' && Array.isArray(value)) {
-            return JSON.stringify(value);
-        }
-        return value;
-    }) as SQLQueryBindings[];
-    params.push(id);
+    const sql = `UPDATE shift_patterns SET ${setClauses.replace("updated_at = ?", "updated_at = datetime('now')")} WHERE id = ?;`;
 
     try {
-        const updateStmt = db.prepare(sql);
-        const result = updateStmt.run(...params);
+        const stmt = db.prepare(sql);
+        const info = stmt.run(...values, id);
 
-        if (result.changes === 0) {
-            const exists = await getShiftPatternById(id);
-            if (!exists) {
-                throw new Error(`Shift pattern with id ${id} not found for update.`);
-            }
-             return exists; // No change made, return existing
+        if (info.changes === 0) {
+             console.warn(`ShiftPattern update for id=${id} affected 0 rows.`);
+            return getShiftPatternById(id);
         }
 
-        return await getShiftPatternById(id); // Fetch updated record
+        console.log(`Shift pattern ${id} updated successfully.`);
+        return getShiftPatternById(id);
     } catch (error: any) {
         console.error(`Error updating shift pattern ${id}:`, error);
-        if (error.message?.includes('UNIQUE constraint failed: shift_patterns.name') && data.name) {
+        if (error.message?.includes('UNIQUE constraint failed') && data.name) {
             throw new Error(`Shift pattern name '${data.name}' already exists.`);
         }
-         if (error.message?.includes('not found for update')) {
-            throw error; // Re-throw specific error
-        }
-        // Consider FK checks if validating IDs
-        throw new Error("Database error during shift pattern update.");
+        throw new Error("Failed to update shift pattern in database.");
     }
 }
 
-export async function deleteShiftPattern(id: number): Promise<boolean> {
+/**
+ * Deletes a shift pattern by its ID.
+ */
+export async function deleteShiftPattern(id: number): Promise<{ success: boolean }> {
+    // Check existence
+    await getShiftPatternById(id);
+
     const sql = "DELETE FROM shift_patterns WHERE id = ?;";
     try {
-        const deleteStmt = db.prepare(sql);
-        const result = deleteStmt.run(id);
-        return result.changes > 0; // Return true if a row was deleted
-    } catch (error: any) {
+        const stmt = db.prepare(sql);
+        const result = stmt.run(id);
+
+        if (result.changes === 0) {
+             console.warn(`Delete operation for ShiftPattern id=${id} affected 0 rows.`);
+            throw new NotFoundError(`ShiftPattern with id ${id} likely deleted concurrently.`);
+        }
+
+        console.log(`Shift pattern ${id} deleted successfully.`);
+        return { success: true };
+    } catch (error) {
+        if (error instanceof NotFoundError) throw error;
         console.error(`Error deleting shift pattern ${id}:`, error);
-        throw new Error("Database error during shift pattern deletion.");
+        throw new Error("Failed to delete shift pattern.");
     }
 } 

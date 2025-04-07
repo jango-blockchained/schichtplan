@@ -13,7 +13,7 @@ import { employeeAbsenceRoutes, absenceRoutes } from './routes/absences';
 // Import the new coverage routes (assuming named export)
 import { coverageRoutes } from './routes/coverage';
 import { recurringCoverageRoutes } from './routes/recurringCoverage'; // Import recurring coverage routes
-import { shiftPatternRoutes } from './routes/shiftPatternRoutes.js'; // Added import, using .js extension
+import { shiftPatternRoutes } from './routes/shiftPatterns'; // Import shift pattern routes
 import { swagger } from '@elysiajs/swagger';
 // Removed incorrect import: import { globalErrorHandler } from './lib/errorHandler';
 
