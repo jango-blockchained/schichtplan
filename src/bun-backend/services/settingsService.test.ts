@@ -1,34 +1,36 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from "bun:test";
 import { Database } from "bun:sqlite";
-import { setupTestDb, teardownTestDb, resetTestDb, seedTestData, getTestDb } from "../test/setup"; // Adjust path as needed
+import { setupTestDb, teardownTestDb, getTestDb, seedTestData } from "../test/setup"; // Adjust path as needed
 import { getSettings, updateSettings } from "./settingsService";
-import { Settings } from "../db/schema"; // Import the type
+import { Settings, SpecialHours } from "../db/schema"; // Import the type and related types if needed
 import { NotFoundError } from "elysia";
 
 describe("Settings Service", () => {
     let testDb: Database;
 
-    // Setup initial DB before all tests in this suite
-    // Note: bun:test doesn't have explicit beforeAll, 
-    // so we manage DB setup/teardown per describe block or use beforeEach/afterEach carefully.
-    // Let's setup once and reset before each test for isolation.
-    beforeEach(async () => {
-         // Using reset to ensure a clean state for each test
-         testDb = resetTestDb(); 
-         // Seed necessary default data (like the settings row itself)
-         seedTestData(testDb); 
-         // Ensure applySchema promise resolves if needed - Bun test runner might handle top-level awaits?
-         // If applySchema in setup is truly async and needs awaiting, restructure test setup needed.
+    // Setup DB once for the entire suite
+    beforeAll(async () => {
+        await setupTestDb(); 
+        testDb = getTestDb(); // Get the initialized instance
     });
 
-    // Teardown after all tests in this suite
-    afterEach(() => {
+    // Teardown DB once after the entire suite
+    afterAll(() => {
         teardownTestDb();
     });
 
+    // beforeEach/afterEach can be used for test-specific state resets if needed
+    beforeEach(() => {
+         // Ensure settings row exists before tests that might need it
+         // Use testDb instance directly
+         testDb.run("INSERT OR IGNORE INTO settings (id, store_name) VALUES (1, 'Test Store');"); 
+    });
+
+    afterEach(() => {});
+
     describe("getSettings", () => {
         it("should retrieve the default settings successfully", async () => {
-            const settings = await getSettings(); // Calls service using default db import
+            const settings = await getSettings(testDb); // Pass the test DB instance to the service function
             
             expect(settings).toBeDefined();
             expect(settings).toBeObject();
@@ -40,11 +42,13 @@ describe("Settings Service", () => {
         });
 
         it("should throw NotFoundError if settings row doesn't exist", async () => {
-            // Ensure the settings row is deleted for this specific test
-             getTestDb().run("DELETE FROM settings WHERE id = 1;");
+            testDb.run("DELETE FROM settings WHERE id = 1;");
+            // Pass testDb instance
+            await expect(getSettings(testDb)).rejects.toThrow(NotFoundError);
+            await expect(getSettings(testDb)).rejects.toThrow("Settings not found (id=1).");
             
-            await expect(getSettings()).rejects.toThrow(NotFoundError);
-             await expect(getSettings()).rejects.toThrow("Settings not found (id=1). Database might not be initialized correctly.");
+            // Re-insert for subsequent tests (beforeEach will also run)
+             testDb.run("INSERT OR IGNORE INTO settings (id, store_name) VALUES (1, 'Test Store');");
         });
     });
 
@@ -56,8 +60,8 @@ describe("Settings Service", () => {
                 require_keyholder: false,
                 opening_days: { '0': true, '1': false }, // Update JSON field
             };
-
-            const updatedSettings = await updateSettings(updates);
+            // Pass testDb instance
+            const updatedSettings = await updateSettings(updates, testDb);
 
             expect(updatedSettings).toBeDefined();
             expect(updatedSettings.id).toBe(1);
@@ -68,14 +72,18 @@ describe("Settings Service", () => {
              expect(updatedSettings.opening_days['1']).toBe(false); // Verify JSON update
             // Check a field that wasn't updated remains the same
             expect(updatedSettings.timezone).toBe('Europe/Berlin'); 
+            
+            // Verify in DB using the service function (passing testDb again)
+            const dbSettings = await getSettings(testDb);
+            expect(dbSettings.store_name).toBe("Updated Test Store");
         });
 
          it("should only update provided fields", async () => {
-             const initialSettings = await getSettings();
+             const initialSettings = await getSettings(testDb);
              const updates: Partial<Omit<Settings, 'id' | 'created_at' | 'updated_at'>> = {
                  store_opening: "08:00",
              };
-             const updatedSettings = await updateSettings(updates);
+             const updatedSettings = await updateSettings(updates, testDb);
 
              expect(updatedSettings.store_opening).toBe("08:00");
              // Check other fields remain unchanged from initial state
@@ -90,7 +98,7 @@ describe("Settings Service", () => {
                  shift_types: [{ id: 'MORNING', name: 'Morning', color: '#ffff00', type: 'shift' }],
                  absence_types: [{ id: 'VAC', name: 'Vacation', color: '#0000ff', type: 'absence' }]
             };
-             const updatedSettings = await updateSettings(updates);
+             const updatedSettings = await updateSettings(updates, testDb);
 
             expect(updatedSettings.shift_types).toBeArrayOfSize(1);
             expect(updatedSettings.shift_types[0].id).toBe('MORNING');
@@ -102,31 +110,29 @@ describe("Settings Service", () => {
         });
 
         it("should handle setting nullable JSON fields to null", async () => {
-             const updates = {
-                 special_hours: null, // Test setting a nullable JSON field to null
-             };
-             const updatedSettings = await updateSettings(updates);
-
+             const updates = { special_hours: null };
+             const updatedSettings = await updateSettings(updates as any, testDb);
              expect(updatedSettings.special_hours).toBeNull();
         });
 
         it("should return current settings if no valid update fields are provided", async () => {
-            const initialSettings = await getSettings();
+            const initialSettings = await getSettings(testDb);
             const updates = { nonExistentField: 123 }; // Field not in Settings
             // Cast to any to bypass TypeScript type checking for the test
-            const updatedSettings = await updateSettings(updates as any); 
+            const updatedSettings = await updateSettings(updates as any, testDb); 
 
             expect(updatedSettings).toEqual(initialSettings);
         });
 
          it("should throw NotFoundError if trying to update non-existent settings", async () => {
-            // Ensure the settings row is deleted
-             getTestDb().run("DELETE FROM settings WHERE id = 1;");
-
-            const updates = { store_name: "Doesn't Matter" };
-             await expect(updateSettings(updates)).rejects.toThrow(NotFoundError);
-             // Service function checks existence first using getSettings
-             await expect(updateSettings(updates)).rejects.toThrow("Settings not found (id=1). Database might not be initialized correctly.");
-         });
+             testDb.run("DELETE FROM settings WHERE id = 1;");
+             const updates = { store_name: "Doesn't Matter" };
+              // Pass testDb instance
+              await expect(updateSettings(updates, testDb)).rejects.toThrow(NotFoundError);
+              await expect(updateSettings(updates, testDb)).rejects.toThrow("Settings not found (id=1).");
+              
+             // Re-insert for subsequent tests
+              testDb.run("INSERT OR IGNORE INTO settings (id, store_name) VALUES (1, 'Test Store');");
+          });
     });
 }); 

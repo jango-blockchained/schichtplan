@@ -197,8 +197,8 @@ CREATE TABLE IF NOT EXISTS settings (
 INSERT OR IGNORE INTO settings (id) VALUES (1);
 
 
--- Coverage Table (Note: Renamed from original Coverage model, as it seems non-recurring)
-CREATE TABLE IF NOT EXISTS coverage_requirements (
+-- Coverage Table (Renaming back from coverage_requirements)
+CREATE TABLE IF NOT EXISTS coverage (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     day_index INTEGER NOT NULL, -- 0-6, assuming Mon-Sun convention needed
     start_time TEXT NOT NULL, -- "HH:MM"

@@ -1,4 +1,5 @@
-import db from '../db';
+import globalDb from '../db'; // Default instance
+import { Database } from "bun:sqlite"; // Type
 import type {
     Settings,
     OpeningDays, SpecialHours, AvailabilityTypeDefinition,
@@ -95,9 +96,11 @@ function mapSettingsToDbRow(settings: Partial<Settings>): Record<string, any> {
  * Retrieves the application settings.
  * Assumes settings are stored in a single row with id = 1.
  */
-export async function getSettings(): Promise<Settings> {
+export async function getSettings(
+    db: Database = globalDb // Use injected or global
+): Promise<Settings> {
     try {
-        // Use prepared statement for safety, though id=1 is static
+        // Use db instance
         const query = db.query<Record<string, any>, [number]>("SELECT * FROM settings WHERE id = ?");
         const result = query.get(1); // Get the single row with id = 1
 
@@ -120,7 +123,10 @@ export async function getSettings(): Promise<Settings> {
  * Assumes settings are stored in a single row with id = 1.
  * @param updatedSettings - An object containing the settings fields to update.
  */
-export async function updateSettings(updatedSettings: Partial<Omit<Settings, 'id' | 'created_at' | 'updated_at'>>): Promise<Settings> {
+export async function updateSettings(
+    updatedSettings: Partial<Omit<Settings, 'id' | 'created_at' | 'updated_at'>>,
+    db: Database = globalDb // Use injected or global
+): Promise<Settings> {
     const settingsId = 1; // Assuming settings are always row with id=1
     const dbRow = mapSettingsToDbRow(updatedSettings);
 
@@ -130,19 +136,22 @@ export async function updateSettings(updatedSettings: Partial<Omit<Settings, 'id
     if (validUpdates.length === 0) {
         // If no valid fields to update, just return current settings
         console.log("No valid settings fields provided for update.");
-        return getSettings();
+        return getSettings(db);
     }
 
-    const setClauses = validUpdates.map(([key, _]) => `${key} = ?`).join(", ");
+    // Build SET clauses dynamically, excluding updated_at for placeholder binding
+    const setClausesArr = validUpdates.map(([key, _]) => `${key} = ?`);
+    // Add updated_at directly using SQLite function
+    setClausesArr.push("updated_at = datetime('now')"); 
+    const setClauses = setClausesArr.join(", ");
+    
+    // Get values corresponding to placeholders
     const values = validUpdates.map(([_, value]) => value);
 
-    // Add updated_at timestamp manually (SQLite doesn't auto-update on UPDATE)
-    const updateTimestampClause = ", updated_at = datetime('now')"; 
-
-    const sql = `UPDATE settings SET ${setClauses}${updateTimestampClause} WHERE id = ?`;
+    const sql = `UPDATE settings SET ${setClauses} WHERE id = ?`;
 
     try {
-        // Use prepared statement
+        // Use db instance
         const stmt = db.prepare(sql);
         const info = stmt.run(...values, settingsId);
 
@@ -152,7 +161,7 @@ export async function updateSettings(updatedSettings: Partial<Omit<Settings, 'id
             // Optionally, attempt an INSERT here if upsert behaviour is desired and row might not exist.
             // For now, just fetch to see if it exists.
              try {
-                 return await getSettings();
+                 return await getSettings(db);
              } catch (fetchError) {
                  if (fetchError instanceof NotFoundError) {
                      throw new NotFoundError("Settings not found (id=1) and update failed. Database might not be initialized correctly.");
@@ -163,7 +172,7 @@ export async function updateSettings(updatedSettings: Partial<Omit<Settings, 'id
         }
 
         // Fetch and return the updated settings
-        return getSettings();
+        return getSettings(db);
     } catch (error) {
         console.error("Error updating settings:", error);
         throw new Error("Failed to update settings in database.");

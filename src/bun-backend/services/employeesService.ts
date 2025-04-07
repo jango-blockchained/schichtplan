@@ -1,6 +1,8 @@
-import db from "../db"; // Import the initialized DB connection
+import globalDb from "../db"; // Import the default initialized DB connection
+import { Database } from "bun:sqlite"; // Import Database type
 import { Employee, EmployeeGroup } from "../db/schema"; // Import the Employee interface and Enum
 import { SQLQueryBindings } from "bun:sqlite"; // Import type for bindings
+import { NotFoundError } from "elysia";
 
 // Function to map database row to Employee interface, handling potential type mismatches
 function mapRowToEmployee(row: any): Employee {
@@ -34,7 +36,10 @@ interface EmployeeFilters {
 }
 
 // Updated function to handle filters
-export async function getAllEmployees(filters: EmployeeFilters = {}): Promise<Employee[]> {
+export async function getAllEmployees(
+    filters: EmployeeFilters = {},
+    db: Database = globalDb // Use injected DB or fallback to global
+): Promise<Employee[]> {
   try {
     let baseSql = "SELECT * FROM employees";
     const conditions: string[] = [];
@@ -78,7 +83,10 @@ export async function getAllEmployees(filters: EmployeeFilters = {}): Promise<Em
 }
 
 // Add getEmployeeById function
-export async function getEmployeeById(id: number): Promise<Employee | null> {
+export async function getEmployeeById(
+    id: number,
+    db: Database = globalDb // Use injected DB or fallback to global
+): Promise<Employee | null> {
     try {
         const query = db.query("SELECT * FROM employees WHERE id = ?;");
         const row = query.get(id) as any; // Use get for single result
@@ -108,7 +116,10 @@ export interface CreateEmployeeInput {
     phone?: string | null;
 }
 
-export async function createEmployee(data: CreateEmployeeInput): Promise<Employee> {
+export async function createEmployee(
+    data: CreateEmployeeInput,
+    db: Database = globalDb // Use injected DB or fallback to global
+): Promise<Employee> {
     // Validate required fields explicitly (though route validation should also cover this)
     if (!data.employee_id || !data.first_name || !data.last_name || !data.employee_group || data.contracted_hours === undefined) {
         throw new Error("Missing required fields for creating employee.");
@@ -158,7 +169,7 @@ export async function createEmployee(data: CreateEmployeeInput): Promise<Employe
         console.log(`Employee created with ID: ${lastId}`);
 
         // Fetch and return the newly created employee
-        const newEmployee = await getEmployeeById(Number(lastId));
+        const newEmployee = await getEmployeeById(Number(lastId), db);
         if (!newEmployee) {
              // This should ideally not happen if insert succeeded
              throw new Error("Failed to retrieve newly created employee.");
@@ -195,12 +206,16 @@ export interface UpdateEmployeeInput {
     phone?: string | null;
 }
 
-export async function updateEmployee(id: number, data: UpdateEmployeeInput): Promise<Employee | null> {
+export async function updateEmployee(
+    id: number,
+    data: UpdateEmployeeInput,
+    db: Database = globalDb // Use injected DB or fallback to global
+): Promise<Employee | null> {
     // Check if there is any data to update
     if (Object.keys(data).length === 0) {
         // If no data, just fetch and return the current employee
         console.log(`No update data provided for employee ${id}. Fetching current data.`);
-        return getEmployeeById(id);
+        return getEmployeeById(id, db);
     }
 
     const fieldsToUpdate: string[] = [];
@@ -247,10 +262,10 @@ export async function updateEmployee(id: number, data: UpdateEmployeeInput): Pro
 
         console.log(`Update executed for employee ${id}. Fetching updated record.`);
         // Fetch and return the updated employee
-        const updatedEmployee = await getEmployeeById(id);
+        const updatedEmployee = await getEmployeeById(id, db);
         if (!updatedEmployee) {
              // This implies the employee with the given ID didn't exist
-             throw new Error(`Employee with ID ${id} not found for update.`);
+             throw new NotFoundError(`Employee with ID ${id} not found for update.`);
         }
         return updatedEmployee;
 
@@ -270,9 +285,12 @@ export async function updateEmployee(id: number, data: UpdateEmployeeInput): Pro
     }
 }
 
-export async function deleteEmployee(id: number): Promise<boolean> {
+export async function deleteEmployee(
+    id: number,
+    db: Database = globalDb // Use injected DB or fallback to global
+): Promise<boolean> {
     // First, check if employee exists (optional, but good practice)
-    const existing = await getEmployeeById(id);
+    const existing = await getEmployeeById(id, db);
     if (!existing) {
         console.log(`Employee with ID ${id} not found for deletion.`);
         return false; // Indicate employee not found

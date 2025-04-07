@@ -1,4 +1,5 @@
-import db from "../db";
+import globalDb from "../db"; // Default instance
+import { Database } from "bun:sqlite"; // Type
 import { type Coverage, EmployeeGroup } from "../db/schema";
 import { NotFoundError } from "elysia";
 
@@ -17,7 +18,7 @@ function safeJsonParseArray<T>(jsonString: string | null | undefined, defaultVal
 // Helper to map a raw database row to the Coverage interface
 function mapRowToCoverage(row: any): Coverage {
     if (!row) {
-        throw new NotFoundError("Coverage row not found.");
+        throw new NotFoundError("Coverage row not found during mapping.");
     }
     return {
         ...row,
@@ -36,7 +37,9 @@ function mapRowToCoverage(row: any): Coverage {
  * Retrieves all coverage entries from the database.
  * TODO: Add filtering by date range if necessary (depends on how coverage is used).
  */
-export async function getAllCoverage(): Promise<Coverage[]> {
+export async function getAllCoverage(
+    db: Database = globalDb // Use injected or global
+): Promise<Coverage[]> {
     try {
         // Order by day and time for predictability
         const query = db.query("SELECT * FROM coverage ORDER BY day_index, start_time;");
@@ -51,7 +54,10 @@ export async function getAllCoverage(): Promise<Coverage[]> {
 /**
  * Retrieves a single coverage entry by ID.
  */
-export async function getCoverageById(id: number): Promise<Coverage> {
+export async function getCoverageById(
+    id: number,
+    db: Database = globalDb // Use injected or global
+): Promise<Coverage> {
     try {
         const query = db.query("SELECT * FROM coverage WHERE id = ?;");
         const row = query.get(id) as any;
@@ -73,7 +79,10 @@ type CreateCoverageInput = Omit<Coverage, 'id' | 'created_at' | 'updated_at'>;
  * Creates a new coverage entry.
  * @param data - The coverage data.
  */
-export async function createCoverage(data: CreateCoverageInput): Promise<Coverage> {
+export async function createCoverage(
+    data: CreateCoverageInput,
+    db: Database = globalDb // Use injected or global
+): Promise<Coverage> {
     const {
         day_index,
         start_time,
@@ -102,7 +111,7 @@ export async function createCoverage(data: CreateCoverageInput): Promise<Coverag
             keyholder_before_minutes, keyholder_after_minutes,
             created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
         RETURNING id;`;
 
     try {
@@ -123,7 +132,7 @@ export async function createCoverage(data: CreateCoverageInput): Promise<Coverag
         if (!result || !result.id) {
             throw new Error("Failed to create coverage entry, no ID returned.");
         }
-        return getCoverageById(result.id);
+        return getCoverageById(result.id, db);
     } catch (error) {
         console.error("Error creating coverage entry:", error);
         throw new Error("Failed to create coverage entry.");
@@ -138,8 +147,12 @@ type UpdateCoverageInput = Partial<Omit<Coverage, 'id' | 'created_at' | 'updated
  * @param id - The ID of the coverage entry to update.
  * @param data - The fields to update.
  */
-export async function updateCoverage(id: number, data: UpdateCoverageInput): Promise<Coverage> {
-    await getCoverageById(id); // Check existence
+export async function updateCoverage(
+    id: number,
+    data: UpdateCoverageInput,
+    db: Database = globalDb // Use injected or global
+): Promise<Coverage> {
+    await getCoverageById(id, db); // Check existence
 
     const updates: Record<string, any> = {};
 
@@ -162,19 +175,24 @@ export async function updateCoverage(id: number, data: UpdateCoverageInput): Pro
     }
 
     if (Object.keys(updates).length === 0) {
-        return getCoverageById(id);
+        return getCoverageById(id, db);
     }
 
-    updates.updated_at = "CURRENT_TIMESTAMP";
-    const setClauses = Object.keys(updates).map(key => `${key} = ?`).join(", ");
-    const values = Object.values(updates);
+    updates.updated_at = "datetime('now')";
+    const setClausesArr = Object.keys(updates)
+        .filter(key => key !== 'updated_at')
+        .map(key => `${key} = ?`);
+    setClausesArr.push("updated_at = datetime('now')");
+    
+    const setClauses = setClausesArr.join(", ");
+    const values = Object.values(updates).filter(v => v !== "datetime('now')");
 
     const sql = `UPDATE coverage SET ${setClauses} WHERE id = ?;`;
 
     try {
         const stmt = db.prepare(sql);
         stmt.run(...values, id);
-        return getCoverageById(id);
+        return getCoverageById(id, db);
     } catch (error) {
         console.error(`Error updating coverage entry ${id}:`, error);
         throw new Error("Failed to update coverage entry.");
@@ -185,8 +203,11 @@ export async function updateCoverage(id: number, data: UpdateCoverageInput): Pro
  * Deletes a coverage entry by its ID.
  * @param id - The ID of the coverage entry to delete.
  */
-export async function deleteCoverage(id: number): Promise<{ success: boolean }> {
-    await getCoverageById(id); // Check existence
+export async function deleteCoverage(
+    id: number,
+    db: Database = globalDb // Use injected or global
+): Promise<{ success: boolean }> {
+    await getCoverageById(id, db); // Check existence
 
     const sql = "DELETE FROM coverage WHERE id = ?;";
     try {
@@ -208,7 +229,10 @@ type BulkCoverageInput = Omit<Coverage, 'id' | 'created_at' | 'updated_at'> & { 
  * and inserts the new entries within a transaction.
  * @param coverageData - An array of Coverage-like objects representing the new desired state.
  */
-export async function bulkUpdateCoverage(coverageData: BulkCoverageInput[]): Promise<BulkCoverageInput[]> {
+export async function bulkUpdateCoverage(
+    coverageData: BulkCoverageInput[],
+    db: Database = globalDb // Use injected or global
+): Promise<Coverage[]> {
     // Use transaction for atomicity
     const transaction = db.transaction((entries: BulkCoverageInput[]) => {
         // 1. Determine affected day indices
