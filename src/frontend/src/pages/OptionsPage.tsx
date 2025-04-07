@@ -22,12 +22,10 @@ import {
   EmployeeSettingsEditor,
   EmployeeType,
   AbsenceType,
-  EmployeeSettingsEditorProps,
 } from "@/components/employees";
 import {
   ShiftTypesEditor,
   ShiftType as ShiftTypeOption,
-  ShiftTypesEditorProps,
 } from "@/components/shift-templates";
 import { Pencil } from "lucide-react";
 import {
@@ -43,6 +41,7 @@ import type { Settings, AvailabilityTypeSetting, EmployeeTypeSetting, AbsenceTyp
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
+import { Loader2 } from "lucide-react";
 
 type AvailabilityType = {
   code: string;
@@ -219,48 +218,27 @@ export default function OptionsPage() {
     return (
       <div className="container mx-auto py-6 space-y-8">
         <PageHeader title="Options" description="Configure application options" />
-
-        <Tabs defaultValue="general" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="general">Availability Types</TabsTrigger>
-            <TabsTrigger value="employees">Employee & Absence Types</TabsTrigger>
-            <TabsTrigger value="shifts">Shift Types</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="general">
-            {/* ... Availability Types Table and Modal ... */}
-          </TabsContent>
-
-          <TabsContent value="employees">
-            <EmployeeSettingsEditor 
-              employeeTypes={settings.employee_types ?? []} 
-              absenceTypes={settings.absence_types ?? []}
-              onEmployeeTypesChange={handleEmployeeTypesChange}
-              onAbsenceTypesChange={handleAbsenceTypesChange}
-            />
-          </TabsContent>
-
-          <TabsContent value="shifts">
-             <ShiftTypesEditor 
-              shiftTypes={shiftTypes as ShiftTypeSetting[]}
-              onShiftTypesChange={handleShiftTypesChange}
-            />
-          </TabsContent>
-        </Tabs>
-
-        {/* ... Availability Type Edit Modal ... */}
+        <div className="flex items-center justify-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
       </div>
     );
   }
 
-  // Prepare data for child components if they expect combined/nested structures
-  const employeeEditorGroups = [
-      ...(settings.employee_types ?? []).map(et => ({ ...et, type: 'employee' as const })),
-      ...(settings.absence_types ?? []).map(at => ({ ...at, type: 'absence' as const }))
-  ];
+  // Prepare data for child components
+  const employeeTypesForEditor = (settings?.employee_types ?? []).map(et => ({ 
+      ...et, 
+      min_hours: et.min_hours ?? 0, 
+      max_hours: et.max_hours ?? 0, 
+      type: 'employee' as const
+  }));
   
-  // Assume shiftTypes is already prepared correctly
-  const shiftTypesForEditor = settings.shift_types ?? []; 
+  const absenceTypesForEditor = (settings?.absence_types ?? []).map(at => ({ 
+      ...at, 
+      type: 'absence' as const
+  }));
+  
+  const shiftTypesForEditor = settings?.shift_types ?? [];
 
   return (
     <div className="container mx-auto py-6 space-y-8">
@@ -361,46 +339,63 @@ export default function OptionsPage() {
         </TabsContent>
 
         <TabsContent value="employees">
-          <Card>
+          <Card className="mb-6">
             <CardHeader>
-              <CardTitle>Employee & Absence Types</CardTitle>
+              <CardTitle>Employee Types</CardTitle>
               <CardDescription>
                 Manage employee types and their working hour limits
               </CardDescription>
             </CardHeader>
             <CardContent>
               <EmployeeSettingsEditor 
-                groups={employeeEditorGroups}
-                onChange={(updatedGroups: (EmployeeType | AbsenceType)[]) => {
-                   const updatedEmployeeTypes = updatedGroups
-                      .filter((g): g is EmployeeType => g.type === 'employee')
-                      .map(({ type, ...rest }) => ({ ...rest } as EmployeeTypeSetting)); 
-                   const updatedAbsenceTypes = updatedGroups
-                      .filter((g): g is AbsenceType => g.type === 'absence')
-                      .map(({ type, ...rest }) => ({ ...rest } as AbsenceTypeSetting));
-                   handleEmployeeTypesChange(updatedEmployeeTypes);
-                   handleAbsenceTypesChange(updatedAbsenceTypes);
-                }}
+                 type="employee"
+                 groups={employeeTypesForEditor}
+                 onChange={(updatedGroups: EmployeeType[]) => {
+                    const updatedEmployeeTypes = updatedGroups
+                       .map(({ type, ...rest }) => ({ ...rest } as EmployeeTypeSetting)); 
+                    handleEmployeeTypesChange(updatedEmployeeTypes);
+                 }}
+              />
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Absence Types</CardTitle>
+              <CardDescription>
+                 Manage absence types and their color coding
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <EmployeeSettingsEditor 
+                 type="absence"
+                 groups={absenceTypesForEditor}
+                 onChange={(updatedGroups: AbsenceType[]) => {
+                    const updatedAbsenceTypes = updatedGroups
+                       .map(({ type, ...rest }) => ({ ...rest } as AbsenceTypeSetting));
+                    handleAbsenceTypesChange(updatedAbsenceTypes);
+                 }}
               />
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="shifts">
-          <Card>
-            <CardHeader>
-              <CardTitle>Shift Types</CardTitle>
-              <CardDescription>
-                Manage shift types and their color coding
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ShiftTypesEditor
-                shifts={shiftTypesForEditor as ShiftTypeSetting[]}
-                onChange={handleShiftTypesChange}
-              />
-            </CardContent>
-          </Card>
+           <Card>
+             <CardHeader><CardTitle>Shift Types</CardTitle></CardHeader>
+             <CardContent>
+               <ShiftTypesEditor
+                 shifts={shiftTypesForEditor as ShiftTypeSetting[]} 
+                 onChange={(updatedShifts: ShiftTypeOption[]) => { 
+                    const settingsShifts: ShiftTypeSetting[] = updatedShifts.map(s => ({ 
+                       ...s, 
+                       type: 'shift' 
+                    }));
+                    handleShiftTypesChange(settingsShifts);
+                 }}
+               />
+             </CardContent>
+           </Card>
         </TabsContent>
       </Tabs>
     </div>
