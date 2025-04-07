@@ -51,7 +51,7 @@ export const ShiftTemplateEditor: React.FC<ShiftTemplateEditorProps> = ({
       </div>
 
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-        {shifts.map((shift) => (
+        {Array.isArray(shifts) && shifts.map((shift) => (
           <Card key={shift.id} className="flex flex-col">
             <CardHeader>
               <CardTitle className="text-lg">Schicht {shift.id}</CardTitle>
@@ -95,10 +95,18 @@ export const ShiftTemplateEditor: React.FC<ShiftTemplateEditorProps> = ({
         ))}
       </div>
 
-      {shifts.length === 0 && (
+      {Array.isArray(shifts) && shifts.length === 0 && (
         <Card>
           <CardContent className="text-center py-8 text-muted-foreground">
             No shifts defined. Click "Add Shift" to create one.
+          </CardContent>
+        </Card>
+      )}
+
+      {!Array.isArray(shifts) && (
+        <Card>
+          <CardContent className="text-center py-8 text-muted-foreground">
+            Loading shifts...
           </CardContent>
         </Card>
       )}

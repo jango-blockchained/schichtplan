@@ -163,18 +163,20 @@ export default function CoveragePage() {
   }
 
   // Convert settings to the format expected by CoverageEditor
+  // Access flat structure directly from settings (safe due to loading check above)
   const storeConfig = {
-    store_opening: settings.general.store_opening,
-    store_closing: settings.general.store_closing,
-    opening_days: settings.general.opening_days,
-    min_employees_per_shift: settings.scheduling.min_employees_per_shift ?? 1,
-    max_employees_per_shift: settings.scheduling.max_employees_per_shift ?? 3,
-    employee_types: settings.employee_groups.employee_types.map((type) => ({
+    store_opening: settings.store_opening, // Use flat key
+    store_closing: settings.store_closing, // Use flat key
+    opening_days: settings.opening_days, // Use flat key
+    min_employees_per_shift: settings.min_employees_per_shift ?? 1, // Use flat key
+    max_employees_per_shift: settings.max_employees_per_shift ?? 3, // Use flat key
+    // Use flat settings.employee_types and map needed fields
+    employee_types: settings.employee_types?.map((type) => ({
       id: type.id,
       name: type.name,
-    })),
-    keyholder_before_minutes: settings.general.keyholder_before_minutes,
-    keyholder_after_minutes: settings.general.keyholder_after_minutes,
+    })) ?? [], // Use flat key, handle potential null/undefined
+    keyholder_before_minutes: settings.keyholder_before_minutes, // Use flat key
+    keyholder_after_minutes: settings.keyholder_after_minutes, // Use flat key
   };
 
   // Initialize default coverage if none exists

@@ -1,19 +1,44 @@
 #!/bin/bash
 
+# Enable command echoing for debugging
+set -x 
+
 # Function to check if a port is in use
 check_port() {
     nc -z localhost $1 >/dev/null 2>&1
 }
 
-# Function to kill process using a port
+# Function to kill process using a port or command signature
 kill_port() {
-    pid=$(lsof -t -i:$1)
+    local port=$1
+    # Define the specific command pattern for the backend process
+    # Ensure this matches the command used in the tmux pane!
+    local cmd_pattern="bun run --watch index.ts"
+    local pid=""
+
+    echo "DEBUG: Trying to find PID for port $port using ss..."
+    # Try ss first (fastest)
+    pid=$(ss -lntp sport = :$port | grep -oP 'pid=\K\d+' | head -n 1)
+
     if [ ! -z "$pid" ]; then
-        echo "Killing process on port $1 (PID: $pid)"
-        kill -9 $pid
-        # Add a small delay to allow the port to free up
+        echo "DEBUG: Found PID $pid using ss for port $port."
+        echo "Killing process on port $port (PID: $pid)"
+        kill -9 "$pid"
         sleep 0.5
+    else
+        echo "DEBUG: ss failed or found no process for port $port. Trying pkill with pattern '$cmd_pattern'..."
+        # Try pkill based on the command pattern
+        # Use pgrep first to find PIDs without killing immediately, just for logging
+        pgrep -f "$cmd_pattern" | while read -r p;
+        do 
+            echo "DEBUG: Found process matching pattern with PID: $p. Killing..."
+            kill -9 "$p"
+        done
+        sleep 0.5 # Give time for processes to terminate
+        
+        echo "DEBUG: lsof check skipped."
     fi
+    echo "DEBUG: Kill attempt for port $port finished."
 }
 
 # Function to cleanup and validate service shutdown
@@ -60,7 +85,7 @@ cleanup() {
     exit 0
 }
 
-# Clean up any existing log files in wrong locations
+# Clean up any misplaced log files
 echo "Cleaning up any misplaced log files..."
 find . -name "backend.log" ! -path "./src/logs/*" -delete
 
@@ -69,25 +94,38 @@ echo "Setting up directory structure..."
 mkdir -p src/logs
 mkdir -p src/instance
 mkdir -p src/scripts
+echo "DEBUG: Directory structure done."
 
 # Ensure menu and ngrok scripts are executable
+echo "DEBUG: Setting menu.sh executable..."
 chmod +x src/scripts/menu.sh
+echo "DEBUG: menu.sh chmod done."
+
+echo "DEBUG: Checking/setting ngrok_manager.sh executable..."
 if [ -f src/scripts/ngrok_manager.sh ]; then
     chmod +x src/scripts/ngrok_manager.sh
 fi
+echo "DEBUG: ngrok_manager.sh check/chmod done."
 
 # Kill any existing processes
+echo "DEBUG: Killing port 5001..."
 kill_port 5001  # Bun Backend port
+echo "DEBUG: Killing port 5173..."
 kill_port 5173  # Frontend port
+echo "DEBUG: Port killing done."
 
 # Kill existing ngrok processes
+echo "DEBUG: Killing ngrok processes..."
 if pgrep -f "ngrok" > /dev/null; then
     echo "Stopping existing ngrok processes..."
     pkill -f "ngrok"
 fi
+echo "DEBUG: ngrok killing done."
 
 # Kill existing tmux session if it exists
+echo "DEBUG: Killing tmux session..."
 tmux kill-session -t schichtplan 2>/dev/null
+echo "DEBUG: tmux killing done."
 
 echo "Starting application in tmux..."
 
@@ -195,3 +233,6 @@ tmux attach-session -t schichtplan
 # Wait for Ctrl+C
 trap cleanup INT
 wait 
+
+# Disable command echoing after debugging section if desired
+# set +x 
