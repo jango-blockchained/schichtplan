@@ -5,6 +5,13 @@ export enum EmployeeGroup {
   TL = "TL",
 }
 
+export enum AvailabilityType {
+  AVAILABLE = "AVAILABLE",
+  FIXED = "FIXED",
+  PREFERRED = "PREFERRED",
+  UNAVAILABLE = "UNAVAILABLE",
+}
+
 export type ShiftType = "EARLY" | "MIDDLE" | "LATE";
 
 export interface TimeSlot {
@@ -152,8 +159,8 @@ export interface ApiError {
 export interface Settings {
   id: number;
   store_name: string;
-  store_address: string | null;
-  store_contact: string | null;
+  store_address?: string | null;
+  store_contact?: string | null;
   timezone: string;
   language: string;
   date_format: string;
@@ -163,180 +170,92 @@ export interface Settings {
   keyholder_before_minutes: number;
   keyholder_after_minutes: number;
   opening_days: { [key: string]: boolean };
-  special_hours: {
+  special_hours?: {
     [key: string]: { is_closed: boolean; opening: string; closing: string };
-  };
-  availability_types: {
-    types: Array<{
-      id: string;
-      name: string;
-      description: string;
-      color: string;
-      priority: number;
-      is_available: boolean;
-    }>;
-  };
-  shift_types: Array<{
-    id: string;
-    name: string;
-    color: string;
-    type: string;
-  }>;
-  general: {
-    store_name: string;
-    store_address: string;
-    store_contact: string;
-    timezone: string;
-    language: string;
-    date_format: string;
-    time_format: string;
-    store_opening: string;
-    store_closing: string;
-    keyholder_before_minutes: number;
-    keyholder_after_minutes: number;
-    opening_days: { [key: string]: boolean };
-    special_hours: {
-      [key: string]: { is_closed: boolean; opening: string; closing: string };
-    };
-  };
-  scheduling: {
-    scheduling_resource_type: "shifts" | "coverage";
-    default_shift_duration: number;
-    min_break_duration: number;
-    max_daily_hours: number;
-    max_weekly_hours: number;
-    min_rest_between_shifts: number;
-    scheduling_period_weeks: number;
-    auto_schedule_preferences: boolean;
+  } | null;
+  require_keyholder?: boolean;
+  availability_types?: {
+    types: AvailabilityTypeSetting[];
+  } | null;
+  scheduling?: {
+    scheduling_resource_type?: "shifts" | "coverage";
+    default_shift_duration?: number;
+    min_break_duration?: number;
+    max_daily_hours?: number;
+    max_weekly_hours?: number;
+    min_rest_between_shifts?: number;
+    scheduling_period_weeks?: number;
+    auto_schedule_preferences?: boolean;
     min_employees_per_shift?: number;
     max_employees_per_shift?: number;
-    generation_requirements: {
-      enforce_minimum_coverage: boolean;
-      enforce_contracted_hours: boolean;
-      enforce_keyholder_coverage: boolean;
-      enforce_rest_periods: boolean;
-      enforce_early_late_rules: boolean;
-      enforce_employee_group_rules: boolean;
-      enforce_break_rules: boolean;
-      enforce_max_hours: boolean;
-      enforce_consecutive_days: boolean;
-      enforce_weekend_distribution: boolean;
-      enforce_shift_distribution: boolean;
-      enforce_availability: boolean;
-      enforce_qualifications: boolean;
-      enforce_opening_hours: boolean;
+    allow_dynamic_shift_adjustment?: boolean;
+    generation_requirements?: SchedulingGenerationRequirements;
+  };
+  scheduling_advanced?: Record<string, any> | null;
+  display?: {
+    theme?: string;
+    primary_color?: string;
+    secondary_color?: string;
+    accent_color?: string;
+    background_color?: string;
+    surface_color?: string;
+    text_color?: string;
+    dark_theme?: {
+      primary_color?: string;
+      secondary_color?: string;
+      accent_color?: string;
+      background_color?: string;
+      surface_color?: string;
+      text_color?: string;
+    };
+    show_sunday?: boolean;
+    show_weekdays?: boolean;
+    start_of_week?: number;
+    email_notifications?: boolean;
+    schedule_published?: boolean;
+    shift_changes?: boolean;
+    time_off_requests?: boolean;
+  };
+  pdf_layout?: {
+    page_size?: string;
+    orientation?: string;
+    margins?: {
+      top?: number;
+      right?: number;
+      bottom?: number;
+      left?: number;
+    };
+    table_style?: {
+      header_bg_color?: string;
+      border_color?: string;
+      text_color?: string;
+      header_text_color?: string;
+    };
+    fonts?: {
+      family?: string;
+      size?: number;
+      header_size?: number;
+    };
+    content?: {
+      show_employee_id?: boolean;
+      show_position?: boolean;
+      show_breaks?: boolean;
+      show_total_hours?: boolean;
     };
   };
-  scheduling_advanced?: {
-    generation_requirements?: {
-      enforce_minimum_coverage?: boolean;
-      enforce_contracted_hours?: boolean;
-      enforce_keyholder_coverage?: boolean;
-      enforce_rest_periods?: boolean;
-      enforce_early_late_rules?: boolean;
-      enforce_employee_group_rules?: boolean;
-      enforce_break_rules?: boolean;
-      enforce_max_hours?: boolean;
-      enforce_consecutive_days?: boolean;
-      enforce_weekend_distribution?: boolean;
-      enforce_shift_distribution?: boolean;
-      enforce_availability?: boolean;
-      enforce_qualifications?: boolean;
-      enforce_opening_hours?: boolean;
-    };
+  pdf_layout_presets?: Record<string, any> | null;
+  employee_types?: EmployeeTypeSetting[] | null;
+  shift_types?: ShiftTypeSetting[] | null;
+  absence_types?: AbsenceTypeSetting[] | null;
+  actions_demo_data?: Record<string, any> | null;
+  notifications?: {
+    email_notifications?: boolean;
+    schedule_published_notify?: boolean;
+    shift_changes_notify?: boolean;
+    time_off_requests_notify?: boolean;
   };
-  display: {
-    theme: string;
-    primary_color: string;
-    secondary_color: string;
-    accent_color: string;
-    background_color: string;
-    surface_color: string;
-    text_color: string;
-    dark_theme: {
-      primary_color: string;
-      secondary_color: string;
-      accent_color: string;
-      background_color: string;
-      surface_color: string;
-      text_color: string;
-    };
-    show_sunday: boolean;
-    show_weekdays: boolean;
-    start_of_week: number;
-    email_notifications: boolean;
-    schedule_published: boolean;
-    shift_changes: boolean;
-    time_off_requests: boolean;
-  };
-  pdf_layout: {
-    page_size: string;
-    orientation: string;
-    margins: {
-      top: number;
-      right: number;
-      bottom: number;
-      left: number;
-    };
-    table_style: {
-      header_bg_color: string;
-      border_color: string;
-      text_color: string;
-      header_text_color: string;
-    };
-    fonts: {
-      family: string;
-      size: number;
-      header_size: number;
-    };
-    content: {
-      show_employee_id: boolean;
-      show_position: boolean;
-      show_breaks: boolean;
-      show_total_hours: boolean;
-    };
-  };
-  employee_groups: {
-    employee_types: Array<{
-      id: string;
-      name: string;
-      abbr?: string;
-      min_hours: number;
-      max_hours: number;
-      type: "employee";
-    }>;
-    shift_types: Array<{
-      id: string;
-      name: string;
-      color: string;
-      type: "shift";
-    }>;
-    absence_types: Array<{
-      id: string;
-      name: string;
-      color: string;
-      type: "absence";
-    }>;
-  };
-  actions: {
-    demo_data: {
-      selected_module: string;
-      last_execution: string | null;
-      task_id?: string;
-      status?: string;
-      start_time?: string;
-      end_time?: string;
-      progress?: number;
-      error?: string;
-      statistics?: {
-        employees?: number;
-        availabilities?: number;
-        absences?: number;
-        coverage_slots?: number;
-        shift_templates?: number;
-      };
-    };
-  };
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface CoverageTimeSlot {
@@ -436,9 +355,119 @@ export interface WeeklySchedule {
   shifts: WeeklyShift[];
 }
 
-// Export all types from their respective files
+export interface Absence {
+  id: number;
+  employee_id: number;
+  absence_type_id: string;
+  start_date: string;
+  end_date: string;
+  note?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface EmployeeAvailability {
+  id: number;
+  employee_id: number;
+  day_of_week: number;
+  hour: number;
+  is_available: boolean;
+  start_date?: string | null;
+  end_date?: string | null;
+  is_recurring: boolean;
+  availability_type: AvailabilityType;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface Coverage {
+  id: number;
+  day_index: number;
+  start_time: string;
+  end_time: string;
+  min_employees: number;
+  max_employees: number;
+  allowed_employee_groups?: string[];
+  requires_keyholder?: boolean;
+  keyholder_before_minutes?: number | null;
+  keyholder_after_minutes?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface RecurringCoverage {
+  id: number;
+  name: string;
+  description?: string | null;
+  days: number[];
+  start_date?: string | null;
+  end_date?: string | null;
+  start_time: string;
+  end_time: string;
+  min_employees: number;
+  max_employees: number;
+  allowed_employee_groups?: string[];
+  requires_keyholder?: boolean;
+  is_active?: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface AvailabilityTypeSetting {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+  priority: number;
+  is_available: boolean;
+}
+
+export interface ShiftTypeSetting {
+  id: string;
+  name: string;
+  color: string;
+  type: string;
+  hourConditions?: {
+    startTime: string;
+    endTime: string;
+    minDuration?: number;
+    maxDuration?: number;
+  };
+}
+
+export interface AbsenceTypeSetting {
+  id: string;
+  name: string;
+  color: string;
+  type: string;
+}
+
+export interface EmployeeTypeSetting {
+  id: string;
+  name: string;
+  min_hours?: number;
+  max_hours?: number;
+  max_daily_hours?: number;
+  type?: string;
+}
+
+export interface SchedulingGenerationRequirements {
+  enforce_minimum_coverage?: boolean;
+  enforce_contracted_hours?: boolean;
+  enforce_keyholder_coverage?: boolean;
+  enforce_rest_periods?: boolean;
+  enforce_early_late_rules?: boolean;
+  enforce_employee_group_rules?: boolean;
+  enforce_break_rules?: boolean;
+  enforce_max_hours?: boolean;
+  enforce_consecutive_days?: boolean;
+  enforce_weekend_distribution?: boolean;
+  enforce_shift_distribution?: boolean;
+  enforce_availability?: boolean;
+  enforce_qualifications?: boolean;
+  enforce_opening_hours?: boolean;
+}
+
 export * from "./employee";
 export * from "./schedule";
-
-// Add other type exports as needed
 export * from "./api";

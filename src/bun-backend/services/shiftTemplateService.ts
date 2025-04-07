@@ -49,17 +49,33 @@ function determineShiftType(startTime: string, endTime: string): ShiftType {
     return ShiftType.MIDDLE; // Use enum member
 }
 
+// Helper to parse the active_days JSON string
+function parseActiveDays(jsonString: string | null | undefined): ActiveDays {
+    if (!jsonString) return {};
+    try {
+        return JSON.parse(jsonString);
+    } catch (e) {
+        console.error("Failed to parse active_days JSON:", e);
+        return {};
+    }
+}
+
 // Helper to map a raw database row to the ShiftTemplate interface
 function mapRowToShiftTemplate(row: any): ShiftTemplate {
     if (!row) {
         throw new NotFoundError("ShiftTemplate row not found.");
     }
     return {
-        ...row,
-        duration_hours: calculateDurationHours(row.start_time, row.end_time), // Recalculate on read is safer
-        requires_break: Boolean(row.requires_break), // Convert 0/1 to boolean
-        active_days: safeJsonParse<ActiveDays>(row.active_days, {}), // Parse JSON
-        // shift_type is assumed to be stored correctly as TEXT enum value
+        id: row.id,
+        start_time: row.start_time,
+        end_time: row.end_time,
+        duration_hours: row.duration_hours,
+        requires_break: Boolean(row.requires_break),
+        shift_type: row.shift_type,
+        shift_type_id: row.shift_type_id,
+        active_days: parseActiveDays(row.active_days),
+        created_at: row.created_at,
+        updated_at: row.updated_at,
     };
 }
 
@@ -97,6 +113,8 @@ export async function getShiftTemplateById(id: number): Promise<ShiftTemplate> {
 }
 
 // Define input type for creating a new ShiftTemplate (omit calculated/generated fields)
+// Base input from API might not include shift_type, but service adds it
+// Use Omit to exclude computed/db-generated fields
 type CreateShiftTemplateInput = Omit<ShiftTemplate, 'id' | 'duration_hours' | 'created_at' | 'updated_at'>;
 
 /**
@@ -108,7 +126,8 @@ export async function createShiftTemplate(data: CreateShiftTemplateInput): Promi
 
     // Calculate derived fields
     const duration_hours = calculateDurationHours(start_time, end_time);
-    // const determinedShiftType = determineShiftType(start_time, end_time); // Use determined type?
+    // Use provided shift_type, or determine if needed (using placeholder for now)
+    const final_shift_type = shift_type || determineShiftType(start_time, end_time);
     const requires_break_int = requires_break ? 1 : 0;
     const active_days_json = JSON.stringify(active_days);
     // Ensure shift_type_id is null if undefined or null
@@ -118,27 +137,30 @@ export async function createShiftTemplate(data: CreateShiftTemplateInput): Promi
         INSERT INTO shift_templates
           (start_time, end_time, duration_hours, requires_break, shift_type, shift_type_id, active_days, created_at, updated_at)
         VALUES
-          (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        RETURNING id;`;
+          (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        RETURNING id;`; // Use datetime('now') for SQLite standard timestamp
 
     try {
         const stmt = db.prepare(sql);
         // Pass safe_shift_type_id which is guaranteed to be string or null
-        const result = stmt.get(start_time, end_time, duration_hours, requires_break_int, shift_type, safe_shift_type_id, active_days_json) as { id: number };
+        const result = stmt.get(start_time, end_time, duration_hours, requires_break_int, final_shift_type, safe_shift_type_id, active_days_json) as { id: number };
 
         if (!result || !result.id) {
             throw new Error("Failed to create shift template, no ID returned.");
         }
+        console.log(`Shift template created with ID: ${result.id}`);
         // Fetch the newly created template to return the full object
         return getShiftTemplateById(result.id);
     } catch (error) {
         console.error("Error creating shift template:", error);
-        throw new Error("Failed to create shift template.");
+        // TODO: Add more specific error handling (e.g., UNIQUE constraint violation?)
+        throw new Error("Failed to create shift template in database.");
     }
 }
 
 // Define input type for updating (all fields optional, except id is required via param)
-type UpdateShiftTemplateInput = Partial<Omit<ShiftTemplate, 'id' | 'duration_hours' | 'created_at' | 'updated_at'>>;
+// Use Partial and Omit
+type UpdateShiftTemplateInput = Partial<Omit<ShiftTemplate, 'id' | 'duration_hours' | 'created_at' | 'updated_at'> & { shift_type_id?: string | null }>; // Explicitly allow null for shift_type_id update
 
 /**
  * Updates an existing shift template.
@@ -146,7 +168,7 @@ type UpdateShiftTemplateInput = Partial<Omit<ShiftTemplate, 'id' | 'duration_hou
  * @param data - An object containing the fields to update.
  */
 export async function updateShiftTemplate(id: number, data: UpdateShiftTemplateInput): Promise<ShiftTemplate> {
-    // Fetch existing to calculate duration if times change
+    // Fetch existing to calculate duration if times change and ensure it exists
     const existing = await getShiftTemplateById(id); // Throws NotFoundError if not found
 
     const updates: Record<string, any> = {};
@@ -156,19 +178,34 @@ export async function updateShiftTemplate(id: number, data: UpdateShiftTemplateI
     for (const [key, value] of Object.entries(data)) {
         if (value === undefined) continue; // Skip undefined fields
 
-        if (key === 'active_days') {
-            updates[key] = JSON.stringify(value);
-        } else if (key === 'requires_break') {
-            updates[key] = value ? 1 : 0;
-        } else if (key === 'start_time' || key === 'end_time') {
-            updates[key] = value;
-            requiresDurationRecalc = true;
-        } else {
-            updates[key] = value;
+        // Use a switch for clarity and type safety
+        switch (key as keyof UpdateShiftTemplateInput) {
+            case 'active_days':
+                updates[key] = JSON.stringify(value);
+                break;
+            case 'requires_break':
+                updates[key] = value ? 1 : 0;
+                break;
+            case 'start_time':
+            case 'end_time':
+                updates[key] = value;
+                requiresDurationRecalc = true;
+                break;
+            case 'shift_type_id':
+                 // Ensure null is passed correctly if intended
+                 updates[key] = value === null ? null : value;
+                 break;
+            // Add other fields that need specific handling (like shift_type if determined)
+            default:
+                // Directly assign other valid fields
+                if (key in existing && key !== 'id' && key !== 'created_at' && key !== 'updated_at' && key !== 'duration_hours') {
+                     updates[key] = value;
+                }
         }
     }
 
     if (Object.keys(updates).length === 0) {
+        console.log(`No valid fields provided to update shift template ${id}.`);
         return existing; // No changes provided
     }
 
@@ -177,26 +214,43 @@ export async function updateShiftTemplate(id: number, data: UpdateShiftTemplateI
         const newStartTime = updates.start_time ?? existing.start_time;
         const newEndTime = updates.end_time ?? existing.end_time;
         updates.duration_hours = calculateDurationHours(newStartTime, newEndTime);
-        // Optionally redetermine shift_type here as well
+        // Optionally redetermine shift_type here as well, if it's purely derived
         // updates.shift_type = determineShiftType(newStartTime, newEndTime);
+        // If shift_type can also be manually set, ensure it's included if present in `data`
+        if ('shift_type' in data && data.shift_type !== undefined) {
+            updates.shift_type = data.shift_type;
+        }
     }
 
     // Build the SQL query dynamically
-    updates.updated_at = "CURRENT_TIMESTAMP"; // Always update timestamp
+    updates.updated_at = "datetime('now')"; // Use SQLite function
     const setClauses = Object.keys(updates).map(key => `${key} = ?`).join(", ");
-    const values = Object.values(updates);
+    // Filter values to match the order of setClauses, excluding the direct function call for updated_at
+    const values = Object.keys(updates)
+                         .filter(key => key !== 'updated_at')
+                         .map(key => updates[key]);
 
-    const sql = `UPDATE shift_templates SET ${setClauses} WHERE id = ?;`;
+    // Correctly handle the updated_at function call in SQL
+    const sql = `UPDATE shift_templates SET ${setClauses.replace("updated_at = ?", "updated_at = datetime('now')")} WHERE id = ?;`;
 
     try {
+        console.log(`Executing SQL: ${sql} with values:`, [...values, id]);
         const stmt = db.prepare(sql);
-        stmt.run(...values, id);
+        const info = stmt.run(...values, id);
 
+        if (info.changes === 0) {
+            // Although we checked existence earlier, the update might fail concurrently
+            console.warn(`ShiftTemplate update for id=${id} affected 0 rows.`);
+            // Re-fetch to confirm state, it might have been deleted just before update
+             return getShiftTemplateById(id); // This will throw NotFound if it was deleted
+        }
+
+        console.log(`Shift template ${id} updated successfully.`);
         // Fetch and return the updated template
         return getShiftTemplateById(id);
     } catch (error) {
         console.error(`Error updating shift template ${id}:`, error);
-        throw new Error("Failed to update shift template.");
+        throw new Error("Failed to update shift template in database.");
     }
 }
 
@@ -205,17 +259,24 @@ export async function updateShiftTemplate(id: number, data: UpdateShiftTemplateI
  * @param id - The ID of the shift template to delete.
  */
 export async function deleteShiftTemplate(id: number): Promise<{ success: boolean }> {
-    // Check if exists first
+    // Check if exists first - this provides a clearer 404 if it doesn't exist
     await getShiftTemplateById(id); // Throws NotFoundError if not found
 
     const sql = "DELETE FROM shift_templates WHERE id = ?;";
     try {
         const stmt = db.prepare(sql);
         const result = stmt.run(id);
-        // bun:sqlite run() result type might not have changes, check docs
-        // For now, assume success if no error and existed before
+
+        if (result.changes === 0) {
+            // Should not happen if getShiftTemplateById succeeded, but indicates concurrent deletion
+            console.warn(`Delete operation for ShiftTemplate id=${id} affected 0 rows.`);
+             throw new NotFoundError(`ShiftTemplate with id ${id} likely deleted concurrently.`);
+        }
+
+        console.log(`Shift template ${id} deleted successfully.`);
         return { success: true };
     } catch (error) {
+         if (error instanceof NotFoundError) throw error; // Re-throw NotFoundError from getShiftTemplateById
         console.error(`Error deleting shift template ${id}:`, error);
         throw new Error("Failed to delete shift template.");
     }

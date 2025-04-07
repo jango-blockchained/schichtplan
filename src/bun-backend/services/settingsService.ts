@@ -1,10 +1,10 @@
-import db from "../db";
+import db from '../db';
 import type {
     Settings,
     OpeningDays, SpecialHours, AvailabilityTypeDefinition,
     EmployeeTypeDefinition, ShiftTypeDefinition, AbsenceTypeDefinition,
     PdfLayoutPresets, ActionsDemoData, SchedulingAdvanced
-} from "../db/schema";
+} from '../db/schema';
 import { NotFoundError } from "elysia";
 
 // Helper to safely parse JSON columns, returning default if null/invalid
@@ -98,7 +98,7 @@ function mapSettingsToDbRow(settings: Partial<Settings>): Record<string, any> {
 export async function getSettings(): Promise<Settings> {
     try {
         // Use prepared statement for safety, though id=1 is static
-        const query = db.query("SELECT * FROM settings WHERE id = ?");
+        const query = db.query<Record<string, any>, [number]>("SELECT * FROM settings WHERE id = ?");
         const result = query.get(1); // Get the single row with id = 1
 
         if (!result) {
@@ -129,21 +129,38 @@ export async function updateSettings(updatedSettings: Partial<Omit<Settings, 'id
 
     if (validUpdates.length === 0) {
         // If no valid fields to update, just return current settings
+        console.log("No valid settings fields provided for update.");
         return getSettings();
     }
 
     const setClauses = validUpdates.map(([key, _]) => `${key} = ?`).join(", ");
     const values = validUpdates.map(([_, value]) => value);
 
-    // Add updated_at timestamp manually or rely on DB trigger if configured
-    const updateTimestampClause = ", updated_at = CURRENT_TIMESTAMP"; // Or datetime('now') for SQLite
+    // Add updated_at timestamp manually (SQLite doesn't auto-update on UPDATE)
+    const updateTimestampClause = ", updated_at = datetime('now')"; 
 
     const sql = `UPDATE settings SET ${setClauses}${updateTimestampClause} WHERE id = ?`;
 
     try {
         // Use prepared statement
         const stmt = db.prepare(sql);
-        stmt.run(...values, settingsId);
+        const info = stmt.run(...values, settingsId);
+
+        if (info.changes === 0) {
+            // This likely means the row with id=1 didn't exist, which shouldn't happen after initialization
+            console.warn(`Settings update attempt for id=${settingsId} affected 0 rows.`);
+            // Optionally, attempt an INSERT here if upsert behaviour is desired and row might not exist.
+            // For now, just fetch to see if it exists.
+             try {
+                 return await getSettings();
+             } catch (fetchError) {
+                 if (fetchError instanceof NotFoundError) {
+                     throw new NotFoundError("Settings not found (id=1) and update failed. Database might not be initialized correctly.");
+                 } else {
+                    throw fetchError;
+                 }
+             }
+        }
 
         // Fetch and return the updated settings
         return getSettings();

@@ -47,65 +47,73 @@ export const shiftTemplateRoutes = new Elysia({ prefix: "/api/shifts" })
     .get("/", async ({ set }) => {
         try {
             const templates = await getAllShiftTemplates();
-            return templates;
+            return { success: true, data: templates }; // Consistent response format
         } catch (error: any) {
             console.error(`Error fetching all shift templates: ${error.message}`);
             set.status = 500;
-            return { error: "Failed to retrieve shift templates" };
+            return { success: false, error: "Failed to retrieve shift templates" };
         }
+    }, {
+        detail: { summary: 'Get all shift templates', tags: ['ShiftTemplates'] }
     })
 
     // POST /api/shifts - Create a new shift template
     .post("/", async ({ body, set }) => {
         try {
+            // Assuming createShiftTemplate input matches the validated body structure
+            // Need to ensure the body has all required fields expected by the service
             const newTemplate = await createShiftTemplate(body);
             set.status = 201; // Created
-            return newTemplate;
+            return { success: true, data: newTemplate }; // Consistent response format
         } catch (error: any) {
             console.error(`Error creating shift template: ${error.message}`);
-            set.status = 500;
-            return { error: "Failed to create shift template" };
+            // Consider specific error codes (e.g., 400 for validation if not caught by Elysia)
+            set.status = 500; 
+            return { success: false, error: "Failed to create shift template" };
         }
     }, {
         body: CreateShiftTemplateSchema,
-        // You might add a response schema here too
+        detail: { summary: 'Create a new shift template', tags: ['ShiftTemplates'] }
     })
 
     // GET /api/shifts/:id - Get a single shift template by ID
     .get("/:id", async ({ params, set }) => {
         try {
             const template = await getShiftTemplateById(params.id);
-            return template;
+            return { success: true, data: template }; // Consistent response format
         } catch (error: any) {
             if (error instanceof NotFoundError) {
                 set.status = 404;
-                return { error: error.message };
+                return { success: false, error: error.message };
             }
             console.error(`Error fetching shift template ${params.id}: ${error.message}`);
             set.status = 500;
-            return { error: "Failed to retrieve shift template" };
+            return { success: false, error: "Failed to retrieve shift template" };
         }
     }, {
         params: IdParamSchema,
+        detail: { summary: 'Get shift template by ID', tags: ['ShiftTemplates'] }
     })
 
     // PUT /api/shifts/:id - Update a shift template by ID
     .put("/:id", async ({ params, body, set }) => {
         try {
             const updatedTemplate = await updateShiftTemplate(params.id, body);
-            return updatedTemplate;
+            return { success: true, data: updatedTemplate }; // Consistent response format
         } catch (error: any) {
             if (error instanceof NotFoundError) {
                 set.status = 404;
-                return { error: error.message };
+                return { success: false, error: error.message };
             }
             console.error(`Error updating shift template ${params.id}: ${error.message}`);
+            // Consider 400 for validation errors if update logic includes them
             set.status = 500;
-            return { error: "Failed to update shift template" };
+            return { success: false, error: "Failed to update shift template" };
         }
     }, {
         params: IdParamSchema,
         body: UpdateShiftTemplateSchema,
+        detail: { summary: 'Update an existing shift template', tags: ['ShiftTemplates'] }
     })
 
     // DELETE /api/shifts/:id - Delete a shift template by ID
@@ -116,20 +124,22 @@ export const shiftTemplateRoutes = new Elysia({ prefix: "/api/shifts" })
                 set.status = 204; // No Content
                 return; // Return nothing on successful delete
             }
-            // This part might be unreachable if service throws NotFoundError
+            // This case might be redundant if service throws NotFoundError
             set.status = 500;
-            return { error: "Deletion failed but no specific error caught." };
+            return { success: false, error: "Deletion failed unexpectedly." }; 
         } catch (error: any) {
             if (error instanceof NotFoundError) {
                 set.status = 404;
-                return { error: error.message };
+                return { success: false, error: error.message };
             }
             console.error(`Error deleting shift template ${params.id}: ${error.message}`);
             set.status = 500;
-            return { error: "Failed to delete shift template" };
+            return { success: false, error: "Failed to delete shift template" };
         }
     }, {
         params: IdParamSchema,
+        detail: { summary: 'Delete a shift template', tags: ['ShiftTemplates'] }
     });
 
-export default shiftTemplateRoutes; 
+// Keep default export if index.ts uses it, or remove if using named import
+// export default shiftTemplateRoutes; 

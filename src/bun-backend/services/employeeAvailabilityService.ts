@@ -185,4 +185,38 @@ export async function deleteAvailability(id: number): Promise<{ success: boolean
         console.error(`Error deleting availability ${id}:`, error);
         throw new Error("Failed to delete availability entry.");
     }
+}
+
+/**
+ * Retrieves all availability entries (recurring or specific date) that are relevant
+ * within a given date range for all employees.
+ * @param startDate - The start date of the range (YYYY-MM-DD).
+ * @param endDate - The end date of the range (YYYY-MM-DD).
+ */
+export async function getAvailabilitiesInRange(startDate: string, endDate: string): Promise<EmployeeAvailability[]> {
+    const sql = `
+        SELECT *
+        FROM employee_availability
+        WHERE
+            -- Include all recurring entries
+            is_recurring = 1
+            OR
+            -- Include non-recurring entries that overlap with the date range
+            (is_recurring = 0 AND start_date IS NOT NULL AND end_date IS NOT NULL AND
+             start_date <= ? AND end_date >= ?)
+        ORDER BY employee_id, day_of_week, hour;
+    `;
+    // Note: This logic fetches all recurring + overlapping non-recurring.
+    // The consuming logic (schedule generation) will need to filter/apply these correctly for each specific date.
+    // For example, checking the day_of_week for recurring entries against the specific date being scheduled.
+
+    try {
+        const query = db.query(sql);
+        // Parameters for the overlap check: range end date, range start date
+        const rows = query.all(endDate, startDate) as any[];
+        return rows.map(mapRowToEmployeeAvailability);
+    } catch (error) {
+        console.error(`Error fetching availabilities in range ${startDate} - ${endDate}:`, error);
+        throw new Error("Failed to retrieve employee availabilities for the specified range.");
+    }
 } 
