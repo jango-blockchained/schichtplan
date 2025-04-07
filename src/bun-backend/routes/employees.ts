@@ -1,7 +1,10 @@
 // src/bun-backend/routes/employees.ts
 import { Elysia, t } from "elysia"; // Import t for validation
+import globalDb from "../db"; // Import globalDb
+import { Database } from "bun:sqlite"; // Import Database type
 import { getAllEmployees, getEmployeeById, createEmployee, updateEmployee, deleteEmployee } from "../services/employeesService"; // Import service functions
 import { EmployeeGroup } from "../db/schema"; // Import EmployeeGroup enum
+import { NotFoundError } from "elysia"; // Import NotFoundError
 
 // Define validation schema for query parameters
 const getEmployeesQuerySchema = t.Object({
@@ -53,112 +56,111 @@ const updateEmployeeBodySchema = t.Partial(t.Object({
 
 // Define routes related to employees
 const employeeRoutes = new Elysia({ prefix: "/api/employees" }) // Set base path
-  // GET /api/employees with query param validation
-  .get("/", async ({ query, set }) => { // Destructure query object
+  // GET /api/employees
+  .get("/", async ({ query, set, ...ctx }) => { // Add context
+    const context = ctx as { db?: Database };
+    const currentDb = context.db ?? globalDb;
     try {
-      // Validate query params (Elysia handles this automatically if schema is provided)
-      const employees = await getAllEmployees(query); // Pass validated query params to service
-      return employees; // Elysia automatically handles JSON serialization
+      const employees = await getAllEmployees(query, currentDb); // Pass db
+      return employees; 
     } catch (error) {
       console.error("Error in GET /api/employees:", error);
-      set.status = 500; // Set response status code
-      return { error: "Failed to retrieve employees" }; // Return error object
+      set.status = 500; 
+      return { error: "Failed to retrieve employees" }; 
     }
   }, {
-    query: getEmployeesQuerySchema // Apply validation schema
+    query: getEmployeesQuerySchema 
   })
-  // GET /api/employees/:id with path param validation
-  .get("/:id", async ({ params, set }) => {
+  // GET /api/employees/:id
+  .get("/:id", async ({ params, set, ...ctx }) => { // Add context
+    const context = ctx as { db?: Database };
+    const currentDb = context.db ?? globalDb;
     try {
-      const employee = await getEmployeeById(params.id);
+      const employee = await getEmployeeById(params.id, currentDb); // Pass db
       if (employee) {
         return employee;
       } else {
         set.status = 404;
         return { error: `Employee with id ${params.id} not found` };
       }
-    } catch (error) {
-      console.error(`Error in GET /api/employees/${params.id}:`, error);
-      set.status = 500;
-      return { error: "Failed to retrieve employee" };
+    } catch (error: any) {
+        console.error(`Error in GET /api/employees/${params.id}:`, error);
+        // Let global handler manage status based on error type if possible
+        if (error instanceof NotFoundError) {
+            set.status = 404;
+            return { error: error.message };
+        }
+        set.status = 500;
+        return { error: "Failed to retrieve employee" };
     }
   }, {
-      params: employeeIdParamSchema // Apply validation schema
+      params: employeeIdParamSchema 
   })
   // POST /api/employees
-  .post("/", async ({ body, set }) => {
+  .post("/", async ({ body, set, ...ctx }) => { // Add context
+    const context = ctx as { db?: Database };
+    const currentDb = context.db ?? globalDb;
     try {
-      // Body is automatically validated by Elysia based on the schema
-      const newEmployee = await createEmployee(body);
-      set.status = 201; // Created
+      const newEmployee = await createEmployee(body, currentDb); // Pass db
+      set.status = 201; 
       return newEmployee;
     } catch (error: any) {
       console.error("Error in POST /api/employees:", error);
-      // Check for specific errors from the service
       if (error.message?.includes('already exists') || error.message?.includes('is already in use')) {
-           set.status = 409; // Conflict
-           return { error: error.message };
+           set.status = 409; 
+           return { error: error.message, details: error.message };
       } else if (error.message?.includes('Missing required fields')) {
-          set.status = 400; // Bad Request
-          return { error: error.message };
+          set.status = 400; 
+          return { error: error.message, details: error.message };
       }
-      // Generic server error
       set.status = 500;
-      return { error: "Failed to create employee" };
+      return { error: "Failed to create employee", details: error.message };
     }
   }, {
-      body: createEmployeeBodySchema // Apply validation schema to request body
+      body: createEmployeeBodySchema 
   })
   // PUT /api/employees/:id
-  .put("/:id", async ({ params, body, set }) => {
+  .put("/:id", async ({ params, body, set, ...ctx }) => { // Add context
+    const context = ctx as { db?: Database };
+    const currentDb = context.db ?? globalDb;
     try {
-        // Body and params are automatically validated by Elysia
-        const updatedEmployee = await updateEmployee(params.id, body);
-        if (updatedEmployee) {
-            return updatedEmployee;
-        } else {
-            // This case is less likely now updateEmployee throws if ID not found
-            set.status = 404;
-            return { error: `Employee with id ${params.id} not found` };
-        }
+        const updatedEmployee = await updateEmployee(params.id, body, currentDb); // Pass db
+        return updatedEmployee; // Service now throws NotFoundError
     } catch (error: any) {
         console.error(`Error in PUT /api/employees/${params.id}:`, error);
-        // Handle specific errors from the service
-        if (error.message?.includes('not found for update')) {
+        if (error instanceof NotFoundError) {
             set.status = 404;
-            return { error: error.message };
+            return { error: error.message, details: error.message };
         } else if (error.message?.includes('already exists') || error.message?.includes('is already in use')) {
-             set.status = 409; // Conflict
-             return { error: error.message };
+             set.status = 409; 
+             return { error: error.message, details: error.message };
         }
-        // Generic server error
         set.status = 500;
-        return { error: "Failed to update employee" };
+        return { error: "Failed to update employee", details: error.message };
     }
   }, {
-      params: employeeIdParamSchema, // Validate path parameter
-      body: updateEmployeeBodySchema   // Validate request body
+      params: employeeIdParamSchema, 
+      body: updateEmployeeBodySchema   
   })
   // DELETE /api/employees/:id
-  .delete("/:id", async ({ params, set }) => {
+  .delete("/:id", async ({ params, set, ...ctx }) => { // Add context
+    const context = ctx as { db?: Database };
+    const currentDb = context.db ?? globalDb;
     try {
-        // Param is automatically validated by Elysia
-        const deleted = await deleteEmployee(params.id);
-        if (deleted) {
-            set.status = 204; // No Content
-            return; // Return nothing on successful deletion
-        } else {
-            set.status = 404;
-            return { error: `Employee with id ${params.id} not found` };
-        }
+        await deleteEmployee(params.id, currentDb); // Pass db, service throws NotFoundError
+        set.status = 204; 
+        return; 
     } catch (error: any) {
         console.error(`Error in DELETE /api/employees/${params.id}:`, error);
-        // Generic server error
+        if (error instanceof NotFoundError) {
+            set.status = 404;
+            return { error: error.message, details: error.message };
+        }
         set.status = 500;
-        return { error: "Failed to delete employee" };
+        return { error: "Failed to delete employee", details: error.message };
     }
   }, {
-      params: employeeIdParamSchema // Apply validation schema
+      params: employeeIdParamSchema 
   });
 
 export default employeeRoutes; // Export the routes module 

@@ -1,11 +1,13 @@
 import { Elysia, t, NotFoundError } from "elysia";
+import globalDb from "../db"; // Import globalDb
+import { Database } from "bun:sqlite"; // Import Database type
 import {
-    getAllCoverage,
-    getCoverageById,
-    createCoverage,
-    updateCoverage,
-    deleteCoverage,
-    bulkUpdateCoverage,
+    getAllCoverage as getServiceAllCoverage, // Use aliases to avoid name clash
+    getCoverageById as getServiceCoverageById,
+    createCoverage as createServiceCoverage,
+    updateCoverage as updateServiceCoverage,
+    deleteCoverage as deleteServiceCoverage,
+    bulkUpdateCoverage as bulkServiceUpdateCoverage,
 } from "../services/coverageService";
 import { Coverage, EmployeeGroup } from "../db/schema"; // Import necessary types
 
@@ -72,43 +74,52 @@ const BulkCoverageUpdateSchema = t.Array(CoverageTimeSlotSchema);
 
 export const coverageRoutes = new Elysia({ prefix: "/api/coverage" })
     // GET all coverage entries
-    .get("/", async ({ set }) => {
+    .get("/", async ({ set, ...ctx }) => { // Add context
+        const context = ctx as { db?: Database };
+        const currentDb = context.db ?? globalDb;
         try {
-            const coverageEntries = await getAllCoverage();
-            return { success: true, data: coverageEntries };
+            const coverageEntries = await getServiceAllCoverage(currentDb); // Pass db
+            // Existing logic returned success/data wrapper, keep for now?
+            // Or just return the data directly? Assuming direct return for consistency.
+            return coverageEntries;
         } catch (error: any) {
             console.error(`Error getting all coverage entries: ${error.message}`);
             set.status = 500;
-            return { success: false, error: 'Failed to retrieve coverage entries' };
+            return { error: 'Failed to retrieve coverage entries' };
         }
     }, {
         detail: { summary: 'Get all coverage entries', tags: ['Coverage'] }
     })
 
     // POST a new coverage entry
-    .post("/", async ({ body, set }) => {
+    .post("/", async ({ body, set, ...ctx }) => { // Add context
+        const context = ctx as { db?: Database };
+        const currentDb = context.db ?? globalDb;
         try {
-            const newCoverage = await createCoverage(body);
+            const newCoverage = await createServiceCoverage(body, currentDb); // Pass db
             set.status = 201;
             return newCoverage;
         } catch (error: any) {
             console.error(`Error creating coverage entry: ${error.message}`);
-            set.status = 500; // Or 400 if validation fails
-            return { error: "Failed to create coverage entry" };
+            set.status = 500; 
+            return { error: "Failed to create coverage entry", details: error.message };
         }
     }, {
         body: CreateCoverageSchema,
+        detail: { summary: 'Create new coverage entry', tags: ['Coverage'] }
     })
 
     // GET a single coverage entry by ID
-    .get("/:id", async ({ params, set }) => {
+    .get("/:id", async ({ params, set, ...ctx }) => { // Add context
+        const context = ctx as { db?: Database };
+        const currentDb = context.db ?? globalDb;
         try {
-            const coverage = await getCoverageById(params.id);
-            return coverage;
+            const coverage = await getServiceCoverageById(params.id, currentDb); // Pass db
+            return coverage; // Service throws NotFoundError
         } catch (error: any) {
             if (error instanceof NotFoundError) {
                 set.status = 404;
-                return { error: error.message };
+                return { error: error.message, details: error.message };
             }
             console.error(`Error fetching coverage entry ${params.id}: ${error.message}`);
             set.status = 500;
@@ -116,66 +127,71 @@ export const coverageRoutes = new Elysia({ prefix: "/api/coverage" })
         }
     }, {
         params: IdParamSchema,
+        detail: { summary: 'Get coverage entry by ID', tags: ['Coverage'] }
     })
 
     // PUT update a coverage entry by ID
-    .put("/:id", async ({ params, body, set }) => {
+    .put("/:id", async ({ params, body, set, ...ctx }) => { // Add context
+        const context = ctx as { db?: Database };
+        const currentDb = context.db ?? globalDb;
         try {
-            const updatedCoverage = await updateCoverage(params.id, body);
-            return updatedCoverage;
+            const updatedCoverage = await updateServiceCoverage(params.id, body, currentDb); // Pass db
+            return updatedCoverage; // Service throws NotFoundError
         } catch (error: any) {
             if (error instanceof NotFoundError) {
                 set.status = 404;
-                return { error: error.message };
+                return { error: error.message, details: error.message };
             }
             console.error(`Error updating coverage entry ${params.id}: ${error.message}`);
-            set.status = 500; // Or 400 if validation fails
-            return { error: "Failed to update coverage entry" };
+            set.status = 500; 
+            return { error: "Failed to update coverage entry", details: error.message };
         }
     }, {
         params: IdParamSchema,
         body: UpdateCoverageSchema,
+        detail: { summary: 'Update coverage entry by ID', tags: ['Coverage'] }
     })
 
     // DELETE a coverage entry by ID
-    .delete("/:id", async ({ params, set }) => {
+    .delete("/:id", async ({ params, set, ...ctx }) => { // Add context
+        const context = ctx as { db?: Database };
+        const currentDb = context.db ?? globalDb;
         try {
-            await deleteCoverage(params.id);
-            set.status = 204; // No Content
+            await deleteServiceCoverage(params.id, currentDb); // Pass db, service throws NotFoundError
+            set.status = 204; 
             return;
         } catch (error: any) {
             if (error instanceof NotFoundError) {
                 set.status = 404;
-                return { error: error.message };
+                return { error: error.message, details: error.message };
             }
             console.error(`Error deleting coverage entry ${params.id}: ${error.message}`);
             set.status = 500;
-            return { error: "Failed to delete coverage entry" };
+            return { error: "Failed to delete coverage entry", details: error.message };
         }
     }, {
         params: IdParamSchema,
+        detail: { summary: 'Delete coverage entry by ID', tags: ['Coverage'] }
     })
 
     // POST /api/coverage/bulk - Bulk update coverage entries
-    .post('/bulk', async ({ body, set }) => {
+    .post('/bulk', async ({ body, set, ...ctx }) => { // Add context
+        const context = ctx as { db?: Database };
+        const currentDb = context.db ?? globalDb;
          try {
-            // The body should be an array of Coverage objects matching CoverageTimeSlotSchema
-            // The service function expects Coverage[], assuming validation handles this.
-            const resultCoverage = await bulkUpdateCoverage(body); 
-            // Depending on frontend needs, might return the updated list or just success
-            // Returning the input list for now as confirmation
-            return { success: true, data: resultCoverage }; 
+            const resultCoverage = await bulkServiceUpdateCoverage(body, currentDb); // Pass db
+            // Return the result from the service (which is the input data on success)
+            return resultCoverage; 
          } catch(error: any) {
              console.error(`Error bulk updating coverage: ${error.message}`);
              set.status = 500;
-             // Consider specific error codes (e.g., 400 for transaction failure?)
-             return { success: false, error: 'Failed to update coverage entries' };
+             return { error: 'Failed to update coverage entries', details: error.message };
          }
     }, {
         body: BulkCoverageUpdateSchema, 
         detail: { 
-            summary: 'Bulk update coverage entries', 
-            description: 'Replaces existing coverage with the provided set. Typically used to save the entire coverage configuration.',
+            summary: 'Bulk update/replace coverage entries', 
+            description: 'Replaces existing coverage for the days included in the input array with the provided set.',
             tags: ['Coverage'] 
         }
     }); 

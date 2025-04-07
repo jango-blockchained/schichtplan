@@ -88,12 +88,21 @@ describe("Settings Service", () => {
         });
 
         it("should handle setting nullable JSON fields to null", async () => {
-            const updates: Partial<Settings> = { 
-                special_hours: null, // Set a previously non-null JSON to null
-                pdf_layout_presets: null // Set a previously null JSON to null
-             };
+            const initialSettings = await getSettings(testDb); // Get initial state
+            const initialSpecialHours = initialSettings.special_hours; // Store initial value
+
+            // Use 'as any' to bypass strict type check for this specific test case
+            // We are intentionally providing null to test runtime handling
+            const updates = { 
+                special_hours: null, // Try to set non-nullable to null
+                pdf_layout_presets: null // Set nullable to null
+             } as any; 
+             
             const updatedSettings = await updateSettings(updates, testDb);
-            expect(updatedSettings.special_hours).toBeNull();
+            
+            // Assert that the non-nullable field was NOT changed and retained its initial value
+            expect(updatedSettings.special_hours).toEqual(initialSpecialHours); 
+            // Assert that the nullable field WAS set to null
             expect(updatedSettings.pdf_layout_presets).toBeNull();
         });
         

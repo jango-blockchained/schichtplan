@@ -1,33 +1,39 @@
-import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from "bun:test";
-import app from '../index'; // Import the running app instance for testing handlers
-import { setupTestDb, teardownTestDb, getTestDb, seedTestData } from "../test/setup";
-import { getSettings as getServiceSettings } from "../services/settingsService"; // For comparison
+import { describe, it, expect, beforeEach, afterAll, beforeAll } from "bun:test";
+import app from '../index'; // Revert to static import
+import { Database } from "bun:sqlite"; // Import Database type
+import { setupTestDb, teardownTestDb, seedTestData } from "../test/setup"; // Removed getTestDb
+import { Settings } from "../db/schema"; // Import Settings type if needed for assertions
+import { NotFoundError } from "elysia";
 
 // Use app.handle for direct testing without needing a live server.
 
 describe("Settings API Routes", () => {
+    let testDb: Database; // Suite-specific DB instance
 
-    // Setup DB once for the entire suite
     beforeAll(async () => {
-        await setupTestDb();
+        testDb = await setupTestDb(); // Create and seed DB for this suite
+        // Decorate the imported app instance with the testDb
+        app.decorate('db', testDb);
     });
 
-    // Teardown DB once after the entire suite
     afterAll(() => {
-        teardownTestDb();
+        teardownTestDb(testDb); // Close the suite-specific DB
+        // Optional: Undecorate or reset app state if necessary, 
+        // but separate test runs should handle this.
     });
 
-    // beforeEach/afterEach can be used for test-specific state resets if needed
+    // Add beforeEach to re-seed settings before each test
     beforeEach(() => {
-        // Ensure settings row exists before tests that might need it
-        getTestDb().run("INSERT OR IGNORE INTO settings (id, store_name) VALUES (?, ?);", [1, 'Test Store']); 
+        try {
+            seedTestData(testDb); // Pass instance to seeding
+        } catch (e) {
+            console.error("Error during beforeEach seed in settings.test.ts:", e);
+        }
     });
 
-    afterEach(() => {});
-
-    describe("GET /settings", () => {
+    describe("GET /api/settings", () => {
         it("should return the current settings with status 200", async () => {
-            const request = new Request("http://localhost/settings");
+            const request = new Request("http://localhost/api/settings");
             const response = await app.handle(request);
             const body = await response.json();
 
@@ -41,10 +47,15 @@ describe("Settings API Routes", () => {
         });
 
         it("should return 404 if settings row is missing", async () => {
-            // Simulate missing settings row for this test
-            getTestDb().run("DELETE FROM settings WHERE id = 1;");
+            // Manually delete settings ONLY for this test (beforeEach will restore)
+            try {
+                testDb.run("DELETE FROM settings WHERE id = 1;"); // Use testDb
+            } catch (e) {
+                console.error("Error deleting settings for 404 test:", e);
+                throw e; // Fail test if setup fails
+            }
 
-            const request = new Request("http://localhost/settings");
+            const request = new Request("http://localhost/api/settings");
             const response = await app.handle(request);
             const body = await response.json();
 
@@ -56,8 +67,8 @@ describe("Settings API Routes", () => {
         });
     });
 
-    describe("PUT /settings", () => {
-        it("should update settings with valid data and return updated settings with status 200", async () => {
+    describe("PUT /api/settings", () => {
+        it("should update settings with valid data and return 200", async () => {
             const updateData = {
                 store_name: "Updated Store Name via API",
                 max_daily_hours: 8,
@@ -66,7 +77,7 @@ describe("Settings API Routes", () => {
                 shift_types: [{ id: 'API_SHIFT', name: 'API Shift', color: '#aabbcc', type: 'shift' }],
             };
 
-            const request = new Request("http://localhost/settings", {
+            const request = new Request("http://localhost/api/settings", {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(updateData),
@@ -85,11 +96,14 @@ describe("Settings API Routes", () => {
             expect(body.shift_types).toBeArrayOfSize(1);
             expect(body.shift_types[0].id).toBe('API_SHIFT');
 
-            // Verify in DB via service function
-            const dbSettings = await getServiceSettings();
-            expect(dbSettings.store_name).toBe("Updated Store Name via API");
-            expect(dbSettings.max_daily_hours).toBe(8);
-            expect(dbSettings.shift_types?.[0]?.id).toBe('API_SHIFT');
+            // Verify by re-fetching through API instead
+             const verifyRequest = new Request("http://localhost/api/settings");
+             const verifyResponse = await app.handle(verifyRequest);
+             const verifyBody = await verifyResponse.json();
+             expect(verifyResponse.status).toBe(200);
+             expect(verifyBody.store_name).toBe("Updated Store Name via API");
+             expect(verifyBody.max_daily_hours).toBe(8);
+             expect(verifyBody.shift_types?.[0]?.id).toBe('API_SHIFT');
         });
 
         it("should return 400 for invalid data types", async () => {
@@ -98,7 +112,7 @@ describe("Settings API Routes", () => {
                 max_daily_hours: "ten" // Invalid type
             };
 
-            const request = new Request("http://localhost/settings", {
+            const request = new Request("http://localhost/api/settings", {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(invalidData),
@@ -118,7 +132,7 @@ describe("Settings API Routes", () => {
              const invalidJsonData = {
                  opening_days: { "1": "yes", "invalid-day": true } // Invalid value type, invalid key
              };
-            const request = new Request("http://localhost/settings", {
+            const request = new Request("http://localhost/api/settings", {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(invalidJsonData),
@@ -133,12 +147,15 @@ describe("Settings API Routes", () => {
         });
 
          it("should ignore fields not defined in the schema", async () => {
-             const initialSettings = await getServiceSettings();
+             // Need initial settings to compare against
+             const initialResponse = await app.handle(new Request("http://localhost/api/settings"));
+             const initialSettings = await initialResponse.json();
+
              const updateData = {
                  store_name: "Name Change Only",
                  non_existent_field: "should be ignored"
              };
-            const request = new Request("http://localhost/settings", {
+            const request = new Request("http://localhost/api/settings", {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(updateData),
@@ -150,16 +167,22 @@ describe("Settings API Routes", () => {
             expect(body.store_name).toBe("Name Change Only");
             expect(body.non_existent_field).toBeUndefined(); // Field should not be present
             
-            // Check other fields unchanged
-            expect(body.max_daily_hours).toBe(initialSettings.max_daily_hours);
+            // Remove check via service
+            // expect(body.max_daily_hours).toBe(initialSettings.max_daily_hours);
+             expect(body.max_daily_hours).toBe(initialSettings.max_daily_hours); // Compare against fetched initial settings
         });
 
         // Add test for updating when settings row doesn't exist (should ideally be 404)
          it("should return 404 if trying to update non-existent settings", async () => {
-             // Ensure row is deleted for this test
-             getTestDb().run("DELETE FROM settings WHERE id = 1;");
+             // Manually delete settings ONLY for this test (beforeEach will restore)
+             try {
+                 testDb.run("DELETE FROM settings WHERE id = 1;"); // Use testDb
+             } catch (e) {
+                 console.error("Error deleting settings for 404 update test:", e);
+                 throw e; 
+             }
              const updateData = { store_name: "Update attempt" };
-             const request = new Request("http://localhost/settings", {
+             const request = new Request("http://localhost/api/settings", {
                  method: "PUT",
                  headers: { "Content-Type": "application/json" },
                  body: JSON.stringify(updateData),

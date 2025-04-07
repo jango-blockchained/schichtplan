@@ -1,5 +1,16 @@
-import { Elysia, t } from "elysia";
-import { getSettings, updateSettings } from "../services/settingsService";
+import { Elysia, t, NotFoundError } from "elysia";
+import globalDb from "../db";
+import { Database } from "bun:sqlite";
+import {
+    getAllSettings as getServiceAllSettings,
+    getSettingByKey as getServiceSettingByKey,
+    upsertSetting as upsertServiceSetting,
+    getAllAbsenceTypes as getServiceAllAbsenceTypes,
+    getAbsenceTypeById as getServiceAbsenceTypeById,
+    addAbsenceType as addServiceAbsenceType,
+    updateAbsenceType as updateServiceAbsenceType,
+    deleteAbsenceType as deleteServiceAbsenceType,
+} from "../services/settingsService";
 import type {
   Settings,
   OpeningDays,
@@ -169,38 +180,159 @@ const SettingsUpdateSchema = t.Partial(t.Object({
   actions_demo_data: t.Optional(t.Nullable(ActionsDemoDataSchema)),
 }));
 
+// Schemas for validation
+const SettingKeyParamSchema = t.Object({ key: t.String() });
+const SettingBodySchema = t.Object({
+    value: t.String({ minLength: 1 }),
+});
+const AbsenceTypeIdParamSchema = t.Object({ id: t.Numeric() });
+const CreateAbsenceTypeSchema = t.Object({
+    name: t.String({ minLength: 1 }),
+    is_paid: t.Boolean(),
+});
+const UpdateAbsenceTypeSchema = t.Partial(CreateAbsenceTypeSchema);
 
 // --- Define Elysia Routes --- //
 
-export const settingsRoutes = new Elysia({ prefix: "/settings" })
-  // GET /api/settings
-  .get("/", async ({ set }) => {
-    try {
-      const settings = await getSettings();
-      return settings;
-    } catch (error: any) {
-      console.error(`Error fetching settings: ${error.message}`);
-      set.status = 500;
-      return { error: "Failed to retrieve settings" };
-    }
-  })
+export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
+    // GET all settings
+    .get("/", async ({ set, ...ctx }) => {
+        const context = ctx as { db?: Database };
+        const currentDb = context.db ?? globalDb;
+        try {
+            const settings = await getServiceAllSettings(currentDb);
+            return settings;
+        } catch (error: any) {
+            console.error("Error fetching all settings:", error.message);
+            set.status = 500;
+            return { error: "Failed to retrieve settings" };
+        }
+    })
 
-  // PUT /api/settings
-  .put("/", async ({ body, set }) => {
-      try {
-        const updatedSettings = await updateSettings(body);
-        return updatedSettings;
-      } catch (error: any) {
-        console.error(`Error updating settings: ${error.message}`);
-        // Consider more specific error codes based on service errors
-        set.status = 500;
-        return { error: "Failed to update settings" };
-      }
-    },
-    {
-      // Validate the request body against the schema
-      body: SettingsUpdateSchema,
-      // We can add response schema later if needed
-      // response: SettingsSchema // Assuming a full Settings schema exists
-    }
-  ); 
+    // GET setting by key
+    .get("/:key", async ({ params, set, ...ctx }) => {
+        const context = ctx as { db?: Database };
+        const currentDb = context.db ?? globalDb;
+        try {
+            const setting = await getServiceSettingByKey(params.key, currentDb);
+            if (!setting) {
+                set.status = 404;
+                return { error: `Setting with key '${params.key}' not found` };
+            }
+            return setting;
+        } catch (error: any) {
+            console.error(`Error fetching setting by key ${params.key}:`, error.message);
+            set.status = 500;
+            return { error: "Failed to retrieve setting" };
+        }
+    }, { params: SettingKeyParamSchema })
+
+    // PUT (Upsert) setting by key
+    .put("/:key", async ({ params, body, set, ...ctx }) => {
+        const context = ctx as { db?: Database };
+        const currentDb = context.db ?? globalDb;
+        try {
+            const setting = await upsertServiceSetting(params.key, body.value, currentDb);
+            return setting;
+        } catch (error: any) {
+            console.error(`Error upserting setting ${params.key}:`, error.message);
+            set.status = 500;
+            return { error: "Failed to update setting" };
+        }
+    }, {
+        params: SettingKeyParamSchema,
+        body: SettingBodySchema,
+    })
+
+    // --- Absence Types --- 
+
+    // GET all absence types
+    .get("/absence-types", async ({ set, ...ctx }) => {
+        const context = ctx as { db?: Database };
+        const currentDb = context.db ?? globalDb;
+        try {
+            const absenceTypes = await getServiceAllAbsenceTypes(currentDb);
+            return absenceTypes;
+        } catch (error: any) {
+            console.error("Error fetching all absence types:", error.message);
+            set.status = 500;
+            return { error: "Failed to retrieve absence types" };
+        }
+    })
+
+    // GET absence type by ID
+    .get("/absence-types/:id", async ({ params, set, ...ctx }) => {
+        const context = ctx as { db?: Database };
+        const currentDb = context.db ?? globalDb;
+        try {
+            const absenceType = await getServiceAbsenceTypeById(params.id, currentDb);
+            return absenceType;
+        } catch (error: any) {
+            if (error instanceof NotFoundError) {
+                set.status = 404;
+                return { error: error.message };
+            }
+            console.error(`Error fetching absence type ${params.id}:`, error.message);
+            set.status = 500;
+            return { error: "Failed to retrieve absence type" };
+        }
+    }, { params: AbsenceTypeIdParamSchema })
+
+    // POST new absence type
+    .post("/absence-types", async ({ body, set, ...ctx }) => {
+        const context = ctx as { db?: Database };
+        const currentDb = context.db ?? globalDb;
+        try {
+            const newAbsenceType = await addServiceAbsenceType(body, currentDb);
+            set.status = 201;
+            return newAbsenceType;
+        } catch (error: any) {
+            console.error("Error adding absence type:", error.message);
+            set.status = 500;
+            return { error: "Failed to add absence type" };
+        }
+    }, { body: CreateAbsenceTypeSchema })
+
+    // PUT update absence type
+    .put("/absence-types/:id", async ({ params, body, set, ...ctx }) => {
+        const context = ctx as { db?: Database };
+        const currentDb = context.db ?? globalDb;
+        try {
+            const updatedAbsenceType = await updateServiceAbsenceType(params.id, body, currentDb);
+            return updatedAbsenceType;
+        } catch (error: any) {
+            if (error instanceof NotFoundError) {
+                set.status = 404;
+                return { error: error.message };
+            }
+            console.error(`Error updating absence type ${params.id}:`, error.message);
+            set.status = 500;
+            return { error: "Failed to update absence type" };
+        }
+    }, {
+        params: AbsenceTypeIdParamSchema,
+        body: UpdateAbsenceTypeSchema,
+    })
+
+    // DELETE absence type
+    .delete("/absence-types/:id", async ({ params, set, ...ctx }) => {
+        const context = ctx as { db?: Database };
+        const currentDb = context.db ?? globalDb;
+        try {
+            await deleteServiceAbsenceType(params.id, currentDb);
+            set.status = 204;
+            return;
+        } catch (error: any) {
+            if (error instanceof NotFoundError) {
+                set.status = 404;
+                return { error: error.message };
+            }
+            if (error.message.includes("currently in use")) {
+                set.status = 400;
+                return { error: error.message };
+            }
+            console.error(`Error deleting absence type ${params.id}:`, error.message);
+            set.status = 500;
+            return { error: "Failed to delete absence type" };
+        }
+    }, { params: AbsenceTypeIdParamSchema }); 

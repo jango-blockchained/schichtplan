@@ -30,7 +30,7 @@ function mapRowToEmployee(row: any): Employee {
 }
 
 // Define filter types based on API documentation (status isn't explicitly in schema, using is_active)
-interface EmployeeFilters {
+export interface EmployeeFilters {
     status?: 'active' | 'inactive' | 'all';
     group?: EmployeeGroup | 'all';
 }

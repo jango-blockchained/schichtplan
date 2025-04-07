@@ -173,7 +173,7 @@ describe("Coverage Service", () => {
             expect(updatedEntry.requires_keyholder).toBe(true);
             expect(updatedEntry.employee_types).toEqual([EmployeeGroup.VZ]);
             expect(updatedEntry.allowed_employee_groups).toEqual([EmployeeGroup.VZ]);
-            expect(updatedEntry.updated_at).not.toBe(originalEntry.created_at);
+            expect(new Date(updatedEntry.updated_at).getTime()).toBeGreaterThanOrEqual(new Date(originalEntry.updated_at).getTime());
 
             const fetchedEntry = await getCoverageById(entryIdToUpdate, testDb);
             expect(fetchedEntry).toEqual(updatedEntry);

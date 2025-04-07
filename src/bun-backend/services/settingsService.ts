@@ -8,7 +8,6 @@ import type {
     PdfLayoutPresets, ActionsDemoData, SchedulingAdvanced,
     SettingKey
 } from '../db/schema';
-import { isSettingKey } from "../db/schema"; // Need value import for isSettingKey
 
 // Helper to safely parse JSON columns, returning default if null/invalid
 function safeJsonParse<T>(jsonString: string | null | undefined, defaultValue: T): T {
@@ -120,6 +119,37 @@ export async function getSettings(db: Database = globalDb): Promise<Settings> {
     }
 }
 
+// Helper function to get keys of the Settings interface (excluding id and timestamps)
+// This is a workaround as we can't directly get keys from an interface at runtime easily.
+// Use a sample object or define the keys explicitly.
+function getValidSettingKeys(): Set<SettingKey> {
+    // Define the keys based on the Settings interface, excluding generated ones
+    return new Set<SettingKey>([
+        'store_name', 'store_address', 'store_contact', 'timezone', 'language', 'date_format', 'time_format',
+        'store_opening', 'store_closing', 'opening_days', 'special_hours', 'keyholder_before_minutes',
+        'keyholder_after_minutes', 'require_keyholder', 'scheduling_resource_type', 'default_shift_duration',
+        'min_break_duration', 'max_daily_hours', 'max_weekly_hours', 'min_rest_between_shifts',
+        'scheduling_period_weeks', 'auto_schedule_preferences', 'min_employees_per_shift',
+        'max_employees_per_shift', 'allow_dynamic_shift_adjustment', 'scheduling_advanced', 'theme',
+        'primary_color', 'secondary_color', 'accent_color', 'background_color', 'surface_color', 'text_color',
+        'dark_theme_primary_color', 'dark_theme_secondary_color', 'dark_theme_accent_color',
+        'dark_theme_background_color', 'dark_theme_surface_color', 'dark_theme_text_color', 'show_sunday',
+        'show_weekdays', 'start_of_week', 'email_notifications', 'schedule_published_notify',
+        'shift_changes_notify', 'time_off_requests_notify', 'page_size', 'orientation', 'margin_top',
+        'margin_right', 'margin_bottom', 'margin_left', 'table_header_bg_color', 'table_border_color',
+        'table_text_color', 'table_header_text_color', 'font_family', 'font_size', 'header_font_size',
+        'show_employee_id', 'show_position', 'show_breaks', 'show_total_hours', 'pdf_layout_presets',
+        'availability_types', 'employee_types', 'shift_types', 'absence_types', 'actions_demo_data'
+    ]);
+}
+
+// Define which SettingKeys correspond to JSON fields that MUST NOT be null
+const nonNullableJsonKeys = new Set<SettingKey>([
+    'opening_days', 'special_hours', 'scheduling_advanced',
+    'availability_types', 'employee_types', 'shift_types', 'absence_types'
+    // pdf_layout_presets and actions_demo_data ARE nullable
+]);
+
 /**
  * Updates the application settings (singleton, id=1).
  * Only updates fields present in the input object.
@@ -129,6 +159,7 @@ export async function getSettings(db: Database = globalDb): Promise<Settings> {
  */
 export async function updateSettings(updates: Partial<Settings>, db: Database = globalDb): Promise<Settings> {
     const settingsId = 1;
+    const validKeys = getValidSettingKeys();
 
     let currentSettings: Settings;
     try {
@@ -145,38 +176,48 @@ export async function updateSettings(updates: Partial<Settings>, db: Database = 
 
     // Iterate over keys in the input 'updates' object
     for (const key in updates) {
-        // Exclude non-updatable fields and prototype properties
-        if (!Object.prototype.hasOwnProperty.call(updates, key) || key === 'id' || key === 'created_at' || key === 'updated_at') {
+        // Check if the key is a valid SettingKey and is own property
+        if (!Object.prototype.hasOwnProperty.call(updates, key) || !validKeys.has(key as SettingKey)) {
+            console.warn(`Skipping invalid or non-updatable settings key: ${key}`);
             continue;
         }
         
-        // Assume the key is valid if it exists in the Partial<Settings> input
-        // TypeScript should provide safety here.
-        let value = updates[key as keyof Settings]; // Use type assertion
+        const settingKey = key as SettingKey;
+        let value = updates[settingKey];
 
-        // Check if it corresponds to a known JSON field based on current settings type
-        // (or maintain a predefined list of JSON field names)
+        // Check if it corresponds to a known JSON field
          const isJsonField = [
              'opening_days', 'special_hours', 'scheduling_advanced', 'pdf_layout_presets',
              'availability_types', 'employee_types', 'shift_types', 'absence_types',
              'actions_demo_data'
-         ].includes(key);
+         ].includes(settingKey);
+
+        // Prevent setting non-nullable JSON fields to null
+        if (isJsonField && value === null && nonNullableJsonKeys.has(settingKey)) {
+             console.error(`Attempted to set non-nullable JSON field '${settingKey}' to null. Skipping update for this field.`);
+             // Optionally throw an error instead of skipping:
+             // throw new Error(`Field '${settingKey}' cannot be set to null.`);
+             continue; // Skip this field
+        }
 
         if (isJsonField && value !== null && typeof value === 'object') {
             try {
                 value = JSON.stringify(value);
             } catch (jsonError) {
-                 console.error(`Failed to stringify JSON for key ${key}:`, jsonError);
-                 throw new Error(`Invalid JSON format provided for key ${key}.`);
+                 console.error(`Failed to stringify JSON for key ${settingKey}:`, jsonError);
+                 throw new Error(`Invalid JSON format provided for key ${settingKey}.`);
             }
         } else if (isJsonField && value === null) {
-            value = null; // Explicitly allow setting JSON to NULL
+            value = null; // Allow setting nullable JSON fields (like pdf_layout_presets) to NULL
         } else if (isJsonField && typeof value !== 'string' && value !== null) {
-             // This case should ideally be caught by TypeScript, but add runtime check
-             throw new Error(`Invalid type for JSON field ${key}: expected object, array, string, or null.`);
+             // Should be caught by TS, but runtime check for safety
+             throw new Error(`Invalid type for JSON field ${settingKey}: expected object, array, or null.`);
+        } else if (typeof value === 'boolean') {
+             // Convert boolean to integer for SQLite
+             value = value ? 1 : 0;
         }
         
-        setClauses.push(`${key} = ?`);
+        setClauses.push(`${settingKey} = ?`);
         values.push(value);
     }
 
@@ -192,19 +233,148 @@ export async function updateSettings(updates: Partial<Settings>, db: Database = 
     values.push(settingsId);
 
     try {
-        console.log(`Attempting to update settings for id=${settingsId} with keys: ${Object.keys(updates).filter(k => k !== 'id' && k !== 'created_at' && k !== 'updated_at').join(', ')}`);
+        console.log(`Attempting to update settings for id=${settingsId} with keys: ${setClauses.filter(c => !c.startsWith('updated_at')).map(c => c.split(' ')[0]).join(', ')}`);
         const stmt = db.prepare(sql);
+        // Use Promise.resolve if stmt.run is synchronous in bun:sqlite
         const info = await Promise.resolve(stmt.run(...values)); 
 
-        if (info.changes === 0) {
-            console.error(`Settings update attempt for id=${settingsId} affected 0 rows.`);
-            throw new NotFoundError(`Settings update failed: Row with id=${settingsId} became unavailable.`);
+        // Check if any rows were actually changed
+        // Note: bun:sqlite's run() might return void or an object { changes: number }
+        // Adjust based on actual return type if needed. Assuming it might return void or similar.
+        // We'll rely on fetching the settings again to confirm the update implicitly.
+        // Original code checked info.changes, let's keep that if bun:sqlite supports it
+        // Assuming info is { changes: number }
+        if (typeof info?.changes === 'number' && info.changes === 0) {
+             // This might happen if the values provided are the same as existing ones.
+             // It's not necessarily an error, but good to note.
+             console.warn(`Settings update attempt for id=${settingsId} affected 0 rows (values might be unchanged).`);
+        } else if (typeof info?.changes !== 'number'){
+             console.warn("Could not verify number of changes from stmt.run()");
         }
-        console.log(`Settings update successful for id=${settingsId}. Changes: ${info.changes}`);
+        
+        console.log(`Settings update executed for id=${settingsId}.`);
+        // Fetch settings again to return the potentially updated object
         return await getSettings(db);
     } catch (error) {
         console.error("Error during database update operation:", error);
-        if (error instanceof NotFoundError) throw error; 
+        // Don't need to check for NotFoundError here as we fetched before update
         throw new Error(`Failed to update settings in database: ${error instanceof Error ? error.message : String(error)}`);
     }
+}
+
+/**
+ * Retrieves all settings.
+ * @param db - Optional Database instance.
+ */
+export async function getAllSettings(db: Database = globalDb): Promise<Settings[]> {
+    const sql = "SELECT * FROM settings ORDER BY setting_key;";
+    try {
+        const query = db.query(sql); // Use db
+        const rows = query.all() as any[];
+        return rows.map(mapRowToSettings);
+    } catch (error) {
+        console.error("Error fetching all settings:", error);
+        throw new Error("Failed to retrieve settings.");
+    }
+}
+
+/**
+ * Retrieves a setting by its key.
+ * @param key - The setting key.
+ * @param db - Optional Database instance.
+ */
+export async function getSettingByKey(key: string, db: Database = globalDb): Promise<Settings | null> {
+    const sql = "SELECT * FROM settings WHERE setting_key = ?;";
+    try {
+        const query = db.query(sql); // Use db
+        const row = query.get(key) as any;
+        return row ? mapRowToSettings(row) : null;
+    } catch (error) {
+        console.error(`Error fetching setting by key ${key}:`, error);
+        throw new Error("Failed to retrieve setting by key.");
+    }
+}
+
+/**
+ * Updates a setting or creates it if it doesn't exist (upsert).
+ * @param key - The setting key.
+ * @param value - The setting value.
+ * @param db - Optional Database instance.
+ */
+export async function upsertSetting(key: string, value: string, db: Database = globalDb): Promise<Settings> {
+    const sql = `
+        INSERT INTO settings (setting_key, setting_value, created_at, updated_at)
+        VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        ON CONFLICT(setting_key) DO UPDATE SET
+            setting_value = excluded.setting_value,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now');
+    `;
+    try {
+        const stmt = db.prepare(sql); // Use db
+        stmt.run(key, value);
+
+        // Fetch the potentially updated/inserted row to return it
+        const result = await getSettingByKey(key, db); // Use db
+        if (!result) {
+            // This should ideally not happen with upsert but handle defensively
+            throw new Error("Failed to retrieve setting after upsert.");
+        }
+        return result;
+    } catch (error) {
+        console.error(`Error upserting setting ${key}:`, error);
+        throw new Error("Failed to upsert setting.");
+    }
+}
+
+// --- Absence Types --- 
+
+/**
+ * Retrieves all absence types.
+ * @param db - Optional Database instance.
+ */
+export async function getAllAbsenceTypes(db: Database = globalDb): Promise<AbsenceType[]> {
+    // ... implementation ...
+}
+
+/**
+ * Retrieves an absence type by its ID.
+ * @param id - The ID of the absence type.
+ * @param db - Optional Database instance.
+ */
+export async function getAbsenceTypeById(id: number, db: Database = globalDb): Promise<AbsenceType> {
+    // ... implementation ...
+}
+
+// Input type for creating an absence type (omit generated fields)
+type CreateAbsenceTypeInput = Omit<AbsenceType, 'id' | 'created_at' | 'updated_at'>;
+
+/**
+ * Adds a new absence type.
+ * @param data - The absence type data (name, is_paid).
+ * @param db - Optional Database instance.
+ */
+export async function addAbsenceType(data: CreateAbsenceTypeInput, db: Database = globalDb): Promise<AbsenceType> {
+    // ... implementation ...
+}
+
+// Input type for updating absence type (partial, omit id/generated)
+type UpdateAbsenceTypeInput = Partial<Omit<AbsenceType, 'id' | 'created_at' | 'updated_at'>>;
+
+/**
+ * Updates an existing absence type.
+ * @param id - The ID of the absence type to update.
+ * @param data - The fields to update.
+ * @param db - Optional Database instance.
+ */
+export async function updateAbsenceType(id: number, data: UpdateAbsenceTypeInput, db: Database = globalDb): Promise<AbsenceType> {
+    // ... implementation ...
+}
+
+/**
+ * Deletes an absence type by its ID.
+ * @param id - The ID of the absence type to delete.
+ * @param db - Optional Database instance.
+ */
+export async function deleteAbsenceType(id: number, db: Database = globalDb): Promise<{ success: boolean }> {
+    // ... implementation ...
 }

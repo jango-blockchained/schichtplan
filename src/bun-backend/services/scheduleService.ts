@@ -3,10 +3,10 @@ import { Schedule, Employee, ShiftTemplate, ScheduleVersionMeta, ScheduleStatus 
 import { SQLQueryBindings } from "bun:sqlite";
 
 // Corrected imports based on actual filenames
-import { getAllEmployees } from './employeesService.js';
+import { getAllEmployees, getEmployeeById } from './employeesService.js';
 import { getAllShiftTemplates } from './shiftTemplateService.js';
-import { getAllCoverageEntries } from './coverageService.js';
-import { getAllRecurringCoverages } from './recurringCoverageService.js';
+import { getAllCoverage } from './coverageService.js';
+import { getAllRecurringCoverage } from './recurringCoverageService.js';
 import { getAvailabilitiesInRange } from './employeeAvailabilityService.js';
 import { getAbsencesInRange } from './absenceService.js';
 
@@ -163,8 +163,8 @@ export async function generateSchedule(startDate: string, endDate: string /*, op
 
         const employees = await getAllEmployees({ status: 'active' });
         const shiftTemplates = await getAllShiftTemplates();
-        const coverages = await getAllCoverageEntries();
-        const recurringCoverages = await getAllRecurringCoverages();
+        const coverages = await getAllCoverage();
+        const recurringCoverages = await getAllRecurringCoverage();
         const availabilities = await getAvailabilitiesInRange(startDate, endDate);
         const absences = await getAbsencesInRange(startDate, endDate);
 
