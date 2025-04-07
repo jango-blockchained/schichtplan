@@ -209,17 +209,15 @@ export interface UpdateEmployeeInput {
 export async function updateEmployee(
     id: number,
     data: UpdateEmployeeInput,
-    db: Database = globalDb // Use injected DB or fallback to global
-): Promise<Employee | null> {
-    // Check if there is any data to update
-    if (Object.keys(data).length === 0) {
-        // If no data, just fetch and return the current employee
-        console.log(`No update data provided for employee ${id}. Fetching current data.`);
-        return getEmployeeById(id, db);
+    db: Database = globalDb
+): Promise<Employee> {
+    // Check if employee exists *before* attempting update
+    const existingEmployee = await getEmployeeById(id, db);
+    if (!existingEmployee) {
+        throw new NotFoundError(`Employee with ID ${id} not found for update.`);
     }
 
-    const fieldsToUpdate: string[] = [];
-    const params: SQLQueryBindings[] = [];
+    const updates: Record<string, any> = {};
 
     // Dynamically build the SET part of the query
     for (const [key, value] of Object.entries(data)) {
@@ -235,84 +233,65 @@ export async function updateEmployee(
             // Handle nullable fields specifically if needed (though SQLite handles ? with null)
             // SQLite comparison with NULL needs IS, not =. But SET works fine.
 
-            fieldsToUpdate.push(`${columnName} = ?`);
-            params.push(paramValue);
+            updates[columnName] = paramValue;
         }
     }
 
-    // Always update the updated_at timestamp
-    fieldsToUpdate.push("updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')");
+    if (Object.keys(updates).length === 0) {
+        return existingEmployee; // Return existing if no valid updates
+    }
 
-    // Add the employee id to the parameters list for the WHERE clause
-    params.push(id);
+    updates.updated_at = "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')";
 
-    const sql = `
-        UPDATE employees
-        SET ${fieldsToUpdate.join(', ')}
-        WHERE id = ?;
-    `;
+    const sql = `UPDATE employees SET ${Object.keys(updates).map(key => `${key} = ?`).join(', ')} WHERE id = ?;`;
 
     try {
-        console.log(`Updating employee ${id} with query: ${sql.replace(/\s\s+/g, ' ')} and params: ${JSON.stringify(params)}`);
-        const query = db.query(sql);
-        const result = query.run(...params);
+        const stmt = db.prepare(sql);
+        const info = await Promise.resolve(stmt.run(...Object.values(updates), id));
 
-        // Check if any row was actually updated (SQLite doesn't directly return this easily via run)
-        // We rely on fetching the employee again to confirm the update or if it existed.
-
-        console.log(`Update executed for employee ${id}. Fetching updated record.`);
-        // Fetch and return the updated employee
+        // Re-fetch the updated employee to return the latest state
         const updatedEmployee = await getEmployeeById(id, db);
-        if (!updatedEmployee) {
-             // This implies the employee with the given ID didn't exist
-             throw new NotFoundError(`Employee with ID ${id} not found for update.`);
-        }
-        return updatedEmployee;
+         if (!updatedEmployee) { 
+             // Should not happen if initial check passed and update didn't error
+             throw new Error("Failed to fetch employee after update.");
+         }
+         return updatedEmployee;
 
-    } catch (error: any) {
+    } catch (error) {
         console.error(`Error updating employee ${id}:`, error);
-
-        // Handle specific SQLite errors (like UNIQUE constraint violation)
-        if (error.message?.includes('UNIQUE constraint failed: employees.employee_id')) {
-            throw new Error(`Employee ID '${data.employee_id}' already exists.`);
-        }
-        if (error.message?.includes('UNIQUE constraint failed: employees.email')) {
-            throw new Error(`Email '${data.email}' is already in use.`);
-        }
-
-        // Re-throw generic error
-        throw new Error("Failed to update employee in database.");
+        // Don't re-throw NotFoundError here, already checked.
+        // Throw generic error for SQL issues.
+        throw new Error(`Failed to update employee in database: ${error instanceof Error ? error.message : String(error)}`);
     }
 }
 
 export async function deleteEmployee(
     id: number,
-    db: Database = globalDb // Use injected DB or fallback to global
-): Promise<boolean> {
-    // First, check if employee exists (optional, but good practice)
-    const existing = await getEmployeeById(id, db);
-    if (!existing) {
-        console.log(`Employee with ID ${id} not found for deletion.`);
-        return false; // Indicate employee not found
+    db: Database = globalDb
+): Promise<{ success: boolean }> { // Keep return type consistent for now
+    // Check existence first
+    const employee = await getEmployeeById(id, db);
+    if (!employee) {
+        // Throw NotFoundError if not found
+        throw new NotFoundError(`Employee with ID ${id} not found for deletion.`);
     }
 
     const sql = "DELETE FROM employees WHERE id = ?;";
-
     try {
-        console.log(`Deleting employee ${id}...`);
-        const query = db.query(sql);
-        query.run(id);
-
-        // Verify deletion (optional, could re-query or assume success if no error)
-        // For simplicity, we assume success if run() doesn't throw.
+        const stmt = db.prepare(sql);
+        const info = await Promise.resolve(stmt.run(id));
+        
+        if (info.changes === 0) {
+             // Should not happen if initial check passed
+             console.warn(`Delete operation for employee ${id} affected 0 rows.`);
+              throw new Error(`Delete failed unexpectedly for employee ${id}.`);
+        }
         console.log(`Employee ${id} deleted successfully.`);
-        return true; // Indicate successful deletion
-
-    } catch (error: any) {
+        return { success: true };
+    } catch (error) {
         console.error(`Error deleting employee ${id}:`, error);
-        // Handle potential foreign key constraint errors if ON DELETE CASCADE/SET NULL wasn't used correctly
-        // For now, re-throw a generic error
-        throw new Error("Failed to delete employee from database.");
+         // Don't re-throw NotFoundError
+        throw new Error(`Failed to delete employee: ${error instanceof Error ? error.message : String(error)}`);
     }
 }
 

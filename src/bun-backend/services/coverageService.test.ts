@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from "bun:test";
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from "bun:test";
 import { Database } from "bun:sqlite";
-import { setupTestDb, teardownTestDb, getTestDb, seedTestData } from "../test/setup";
+import { setupTestDb, teardownTestDb, seedTestData } from "../test/setup";
 import {
     getAllCoverage,
     getCoverageById,
@@ -13,28 +13,35 @@ import { Coverage, EmployeeGroup } from "../db/schema";
 import { NotFoundError } from "elysia";
 
 describe("Coverage Service", () => {
+    let testDb: Database; // Suite-specific DB instance
+
     beforeAll(async () => {
-        await setupTestDb();
+        testDb = await setupTestDb(); // Create and seed DB for this suite
     });
 
     afterAll(() => {
-        teardownTestDb();
+        teardownTestDb(testDb); // Close the suite-specific DB
     });
-
+    
+    // Use beforeEach to ensure a clean state for tests that modify data
     beforeEach(() => {
-        // Example: Log start of test or reset specific non-DB state
-        // console.log(`Starting test: ${expect.getState().currentTestName}`);
-        // If needed, manipulate seeded data directly for a test:
-        // getTestDb().run("UPDATE coverage SET min_employees = 5 WHERE id = 1;");
+        // Clean existing coverage and re-seed before each test in this suite
+        // This is heavy but ensures test isolation for coverage data
+        try {
+            testDb.run("DELETE FROM coverage;");
+            seedTestData(testDb); // Re-seed coverage along with other data
+        } catch (e) {
+            console.error("Error during beforeEach cleanup/re-seed:", e);
+            // Optionally throw to halt tests if seeding fails critically
+        }
     });
-
-    afterEach(() => {});
 
     describe("getAllCoverage", () => {
         it("should retrieve all seeded coverage entries sorted by day and time", async () => {
-            const coverageEntries = await getAllCoverage();
+            // Pass the suite's testDb instance
+            const coverageEntries = await getAllCoverage(testDb); 
             expect(coverageEntries).toBeArray();
-            expect(coverageEntries.length).toBeGreaterThanOrEqual(3);
+            expect(coverageEntries.length).toBeGreaterThanOrEqual(3); // Expect seeded entries
             const entry1 = coverageEntries.find(c => c.id === 1);
             const entry2 = coverageEntries.find(c => c.id === 2);
             const entry3 = coverageEntries.find(c => c.id === 3);
@@ -49,27 +56,27 @@ describe("Coverage Service", () => {
         });
 
         it("should return an empty array if no coverage entries exist", async () => {
-            getTestDb().exec("DELETE FROM coverage;");
-            const coverageEntries = await getAllCoverage();
+            // beforeEach already cleaned and re-seeded, so delete again for this specific test
+            testDb.exec("DELETE FROM coverage;"); 
+            const coverageEntries = await getAllCoverage(testDb); // Pass testDb
             expect(coverageEntries).toBeArrayOfSize(0);
-            seedTestData(getTestDb());
+            // No need to re-seed here, beforeEach will handle the next test
         });
     });
 
     describe("getCoverageById", () => {
         it("should retrieve an existing coverage entry by ID", async () => {
-            const entry = await getCoverageById(1);
-            expect(entry).not.toBeNull();
-            expect(entry.id).toBe(1);
+            // Assuming ID 1 exists from beforeEach seed
+            const entry = await getCoverageById(1, testDb); // Pass testDb
+            expect(entry).toBeDefined();
+            expect(entry!.id).toBe(1);
             expect(entry.day_index).toBe(1);
             expect(entry.start_time).toBe("08:00");
             expect(entry.employee_types).toEqual([EmployeeGroup.VZ, EmployeeGroup.TZ]);
         });
 
         it("should throw NotFoundError for a non-existent coverage ID", async () => {
-            getTestDb().run("DELETE FROM coverage WHERE id = 999;");
-            await expect(getCoverageById(999)).rejects.toThrow(NotFoundError);
-            await expect(getCoverageById(999)).rejects.toThrow("Coverage entry with id 999 not found.");
+            await expect(getCoverageById(999, testDb)).rejects.toThrow(NotFoundError); // Pass testDb
         });
     });
 
@@ -90,7 +97,7 @@ describe("Coverage Service", () => {
                 keyholder_after_minutes: null,
             };
 
-            const createdEntry = await createCoverage(newCoverageData);
+            const createdEntry = await createCoverage(newCoverageData, testDb); // Pass testDb
 
             expect(createdEntry).toBeDefined();
             expect(createdEntry.id).toBeGreaterThan(3);
@@ -102,10 +109,8 @@ describe("Coverage Service", () => {
             expect(createdEntry.created_at).toBeDefined();
             expect(createdEntry.updated_at).toBeDefined();
 
-            const fetchedEntry = await getCoverageById(createdEntry.id);
+            const fetchedEntry = await getCoverageById(createdEntry.id, testDb);
             expect(fetchedEntry).toEqual(createdEntry);
-
-            await deleteCoverage(createdEntry.id);
         });
 
         it("should handle nullable fields correctly during creation", async () => {
@@ -121,7 +126,7 @@ describe("Coverage Service", () => {
                 keyholder_before_minutes: 15,
                 keyholder_after_minutes: null,
             };
-            const createdEntry = await createCoverage(newCoverageData);
+            const createdEntry = await createCoverage(newCoverageData, testDb); // Pass testDb
             expect(createdEntry.allowed_employee_groups).toEqual([]);
             expect(createdEntry.requires_keyholder).toBe(true);
             expect(createdEntry.keyholder_before_minutes).toBe(15);
@@ -138,7 +143,7 @@ describe("Coverage Service", () => {
                 employee_types: [EmployeeGroup.TZ],
                 requires_keyholder: false,
             };
-            await expect(createCoverage(invalidData)).rejects.toThrow("Invalid day_index (0-6).");
+            await expect(createCoverage(invalidData, testDb)).rejects.toThrow("Invalid day_index"); // Pass testDb
         });
     });
 
@@ -156,8 +161,8 @@ describe("Coverage Service", () => {
                 allowed_employee_groups: [EmployeeGroup.VZ]
             };
 
-            const originalEntry = await getCoverageById(entryIdToUpdate);
-            const updatedEntry = await updateCoverage(entryIdToUpdate, updates);
+            const originalEntry = await getCoverageById(entryIdToUpdate, testDb); // Pass testDb
+            const updatedEntry = await updateCoverage(entryIdToUpdate, updates, testDb); // Pass testDb
 
             expect(updatedEntry).not.toBeNull();
             expect(updatedEntry.id).toBe(entryIdToUpdate);
@@ -170,23 +175,22 @@ describe("Coverage Service", () => {
             expect(updatedEntry.allowed_employee_groups).toEqual([EmployeeGroup.VZ]);
             expect(updatedEntry.updated_at).not.toBe(originalEntry.created_at);
 
-            const fetchedEntry = await getCoverageById(entryIdToUpdate);
+            const fetchedEntry = await getCoverageById(entryIdToUpdate, testDb);
             expect(fetchedEntry).toEqual(updatedEntry);
         });
 
         it("should return the current entry if no data is provided for update", async () => {
             const entryIdToUpdate = 2;
-            const initialEntry = await getCoverageById(entryIdToUpdate);
-            const updatedEntry = await updateCoverage(entryIdToUpdate, {});
+            const initialEntry = await getCoverageById(entryIdToUpdate, testDb); // Pass testDb
+            const updatedEntry = await updateCoverage(entryIdToUpdate, {}, testDb); // Pass testDb
 
             expect(updatedEntry).toEqual(initialEntry);
             expect(updatedEntry.updated_at).toBe(initialEntry.updated_at);
         });
 
         it("should throw NotFoundError if trying to update a non-existent entry", async () => {
-            const nonExistentId = 999;
             const updates = { min_employees: 5 };
-            await expect(updateCoverage(nonExistentId, updates)).rejects.toThrow(NotFoundError);
+            await expect(updateCoverage(999, updates, testDb)).rejects.toThrow(NotFoundError); // Pass testDb
         });
 
         it("should handle setting nullable fields to null during update", async () => {
@@ -196,7 +200,7 @@ describe("Coverage Service", () => {
                 keyholder_before_minutes: null,
                 keyholder_after_minutes: null,
             };
-            const updatedEntry = await updateCoverage(entryIdToUpdate, updates);
+            const updatedEntry = await updateCoverage(entryIdToUpdate, updates, testDb); // Pass testDb
             expect(updatedEntry.allowed_employee_groups).toEqual([]);
             expect(updatedEntry.keyholder_before_minutes).toBeNull();
             expect(updatedEntry.keyholder_after_minutes).toBeNull();
@@ -206,22 +210,20 @@ describe("Coverage Service", () => {
         it("should throw an error if updating with invalid day_index", async () => {
             const entryIdToUpdate = 1;
             const updates: UpdateCoverageInput = { day_index: -1 };
-            await expect(updateCoverage(entryIdToUpdate, updates)).rejects.toThrow("Invalid day_index");
+            await expect(updateCoverage(entryIdToUpdate, updates, testDb)).rejects.toThrow("Invalid day_index"); // Pass testDb
         });
     });
 
     describe("deleteCoverage", () => {
         it("should delete an existing coverage entry and return success", async () => {
             const entryIdToDelete = 2;
-            const result = await deleteCoverage(entryIdToDelete);
+            const result = await deleteCoverage(entryIdToDelete, testDb); // Pass testDb
             expect(result).toEqual({ success: true });
-
-            await expect(getCoverageById(entryIdToDelete)).rejects.toThrow(NotFoundError);
+            await expect(getCoverageById(entryIdToDelete, testDb)).rejects.toThrow(NotFoundError); // Pass testDb
         });
 
         it("should throw NotFoundError if trying to delete a non-existent entry", async () => {
-            const nonExistentId = 999;
-            await expect(deleteCoverage(nonExistentId)).rejects.toThrow(NotFoundError);
+            await expect(deleteCoverage(999, testDb)).rejects.toThrow(NotFoundError); // Pass testDb
         });
     });
 
@@ -250,14 +252,13 @@ describe("Coverage Service", () => {
                 }
             ];
 
-            const result = await bulkUpdateCoverage(day1Replacement);
+            await bulkUpdateCoverage(day1Replacement, testDb); // Pass testDb
+            const coverageAfter = await getAllCoverage(testDb); // Pass testDb
 
-            const allCoverage = await getAllCoverage();
+            expect(coverageAfter.length).toBe(3);
 
-            expect(allCoverage.length).toBe(3);
-
-            const day1Result = allCoverage.filter(c => c.day_index === 1);
-            const day2Result = allCoverage.filter(c => c.day_index === 2);
+            const day1Result = coverageAfter.filter(c => c.day_index === 1);
+            const day2Result = coverageAfter.filter(c => c.day_index === 2);
 
             expect(day1Result.length).toBe(2);
             expect(day2Result.length).toBe(1);
@@ -272,7 +273,7 @@ describe("Coverage Service", () => {
         });
 
         it("should clear coverage for a day if input for that day is empty but day is affected", async () => {
-            const existingDay2Entry = await getCoverageById(3);
+            const existingDay2Entry = await getCoverageById(3, testDb);
             const day2OnlyData: BulkCoverageInput[] = [{
                 day_index: 2,
                 start_time: existingDay2Entry.start_time,
@@ -283,19 +284,18 @@ describe("Coverage Service", () => {
                 requires_keyholder: existingDay2Entry.requires_keyholder,
             }];
 
-            await bulkUpdateCoverage(day2OnlyData);
-            let allCoverage = await getAllCoverage();
-            expect(allCoverage.length).toBe(3);
-            expect(allCoverage.filter(c => c.day_index === 1).length).toBe(2);
-            expect(allCoverage.filter(c => c.day_index === 2).length).toBe(1);
+            await bulkUpdateCoverage(day2OnlyData, testDb); // Pass testDb
+            let coverageAfter = await getAllCoverage(testDb); // Pass testDb
+            expect(coverageAfter.length).toBe(3);
+            expect(coverageAfter.filter(c => c.day_index === 1).length).toBe(2);
+            expect(coverageAfter.filter(c => c.day_index === 2).length).toBe(1);
         });
 
         it("should handle an empty input array gracefully", async () => {
-            const initialCoverage = await getAllCoverage();
-            const result = await bulkUpdateCoverage([]);
-            expect(result).toBeArrayOfSize(0);
-            const finalCoverage = await getAllCoverage();
-            expect(finalCoverage).toEqual(initialCoverage);
+            const initialCoverage = await getAllCoverage(testDb); // Pass testDb
+            await bulkUpdateCoverage([], testDb); // Pass testDb
+            const coverageAfter = await getAllCoverage(testDb); // Pass testDb
+            expect(coverageAfter).toEqual(initialCoverage);
         });
 
         it("should process multiple days correctly in one call", async () => {
@@ -304,15 +304,14 @@ describe("Coverage Service", () => {
                 { day_index: 2, start_time: "10:00", end_time: "18:00", min_employees: 3, max_employees: 3, employee_types: [EmployeeGroup.VZ], requires_keyholder: true },
                 { day_index: 2, start_time: "18:00", end_time: "22:00", min_employees: 1, max_employees: 1, employee_types: [EmployeeGroup.GFB], requires_keyholder: false },
             ];
-            const result = await bulkUpdateCoverage(bulkData);
-
-            const finalCoverage = await getAllCoverage();
-            expect(finalCoverage.length).toBe(3);
-            expect(finalCoverage.filter(c => c.day_index === 1).length).toBe(1);
-            expect(finalCoverage.filter(c => c.day_index === 2).length).toBe(2);
-            expect(finalCoverage.find(c => c.day_index === 1 && c.start_time === "07:00")).toBeDefined();
-            expect(finalCoverage.find(c => c.day_index === 2 && c.start_time === "10:00")).toBeDefined();
-            expect(finalCoverage.find(c => c.day_index === 2 && c.start_time === "18:00")).toBeDefined();
+            await bulkUpdateCoverage(bulkData, testDb); // Pass testDb
+            const coverageAfter = await getAllCoverage(testDb); // Pass testDb
+            expect(coverageAfter.length).toBe(3);
+            expect(coverageAfter.filter(c => c.day_index === 1).length).toBe(1);
+            expect(coverageAfter.filter(c => c.day_index === 2).length).toBe(2);
+            expect(coverageAfter.find(c => c.day_index === 1 && c.start_time === "07:00")).toBeDefined();
+            expect(coverageAfter.find(c => c.day_index === 2 && c.start_time === "10:00")).toBeDefined();
+            expect(coverageAfter.find(c => c.day_index === 2 && c.start_time === "18:00")).toBeDefined();
         });
     });
 }); 

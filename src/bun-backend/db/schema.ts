@@ -374,5 +374,29 @@ export interface Settings {
   updated_at: string; // TEXT (Timestamp ISO8601)
 }
 
+/**
+ * Helper type representing valid keys for the Settings object.
+ */
+export type SettingKey = keyof Settings;
+
+/**
+ * Type guard to check if a string is a valid key of the Settings interface.
+ * @param key The key to check.
+ * @returns True if the key is a valid SettingKey, false otherwise.
+ */
+export function isSettingKey(key: string | number | symbol): key is SettingKey {
+  // This is a basic check. In a real application, you might fetch
+  // the actual keys from a sample Settings object or use a more robust method
+  // if the Settings interface isn't readily available at runtime.
+  // However, for TypeScript checking during development, this often suffices.
+  // A placeholder check to satisfy the type guard structure:
+  const sampleSettings: Partial<Settings> = {}; // Or fetch a default object if available
+  return typeof key === 'string' && key in sampleSettings;
+  // A more robust runtime check is difficult without reflection or having
+  // an instance of the object. This guard mainly helps TypeScript.
+  // A simpler, though less safe, check could be:
+  // return typeof key === 'string' && key !== 'id' && key !== 'created_at' && key !== 'updated_at'; 
+  // But this doesn't actually check against the interface keys.
+}
 
 // ... other interfaces will follow ... 
