@@ -174,86 +174,75 @@ export interface Settings {
     [key: string]: { is_closed: boolean; opening: string; closing: string };
   } | null;
   require_keyholder?: boolean;
-  availability_types?: {
-    types: AvailabilityTypeSetting[];
-  } | null;
-  scheduling?: {
-    scheduling_resource_type?: "shifts" | "coverage";
-    default_shift_duration?: number;
-    min_break_duration?: number;
-    max_daily_hours?: number;
-    max_weekly_hours?: number;
-    min_rest_between_shifts?: number;
-    scheduling_period_weeks?: number;
-    auto_schedule_preferences?: boolean;
-    min_employees_per_shift?: number;
-    max_employees_per_shift?: number;
-    allow_dynamic_shift_adjustment?: boolean;
-    generation_requirements?: SchedulingGenerationRequirements;
-  };
+  
+  // Flattened Scheduling fields
+  scheduling_resource_type?: "shifts" | "coverage";
+  default_shift_duration?: number;
+  min_break_duration?: number;
+  max_daily_hours?: number;
+  max_weekly_hours?: number;
+  min_rest_between_shifts?: number;
+  scheduling_period_weeks?: number;
+  auto_schedule_preferences?: boolean;
+  min_employees_per_shift?: number;
+  max_employees_per_shift?: number;
+  allow_dynamic_shift_adjustment?: boolean;
+  generation_requirements?: SchedulingGenerationRequirements;
   scheduling_advanced?: Record<string, any> | null;
-  display?: {
-    theme?: string;
-    primary_color?: string;
-    secondary_color?: string;
-    accent_color?: string;
-    background_color?: string;
-    surface_color?: string;
-    text_color?: string;
-    dark_theme?: {
-      primary_color?: string;
-      secondary_color?: string;
-      accent_color?: string;
-      background_color?: string;
-      surface_color?: string;
-      text_color?: string;
-    };
-    show_sunday?: boolean;
-    show_weekdays?: boolean;
-    start_of_week?: number;
-    email_notifications?: boolean;
-    schedule_published?: boolean;
-    shift_changes?: boolean;
-    time_off_requests?: boolean;
-  };
-  pdf_layout?: {
-    page_size?: string;
-    orientation?: string;
-    margins?: {
-      top?: number;
-      right?: number;
-      bottom?: number;
-      left?: number;
-    };
-    table_style?: {
-      header_bg_color?: string;
-      border_color?: string;
-      text_color?: string;
-      header_text_color?: string;
-    };
-    fonts?: {
-      family?: string;
-      size?: number;
-      header_size?: number;
-    };
-    content?: {
-      show_employee_id?: boolean;
-      show_position?: boolean;
-      show_breaks?: boolean;
-      show_total_hours?: boolean;
-    };
-  };
+  
+  // Flattened Display fields
+  theme?: string;
+  primary_color?: string;
+  secondary_color?: string;
+  accent_color?: string;
+  background_color?: string;
+  surface_color?: string;
+  text_color?: string;
+  dark_theme_primary_color?: string;
+  dark_theme_secondary_color?: string;
+  dark_theme_accent_color?: string;
+  dark_theme_background_color?: string;
+  dark_theme_surface_color?: string;
+  dark_theme_text_color?: string;
+  show_sunday?: boolean;
+  show_weekdays?: boolean;
+  start_of_week?: number;
+  
+  // Flattened Notification fields
+  email_notifications?: boolean;
+  schedule_published_notify?: boolean;
+  shift_changes_notify?: boolean;
+  time_off_requests_notify?: boolean;
+  
+  // Flattened PDF Layout fields
+  page_size?: string;
+  orientation?: string;
+  margin_top?: number;
+  margin_right?: number;
+  margin_bottom?: number;
+  margin_left?: number;
+  table_header_bg_color?: string;
+  table_border_color?: string;
+  table_text_color?: string;
+  table_header_text_color?: string;
+  font_family?: string;
+  font_size?: number;
+  header_font_size?: number;
+  show_employee_id?: boolean;
+  show_position?: boolean;
+  show_breaks?: boolean;
+  show_total_hours?: boolean;
   pdf_layout_presets?: Record<string, any> | null;
+  
+  // Corrected availability_types (assuming API returns array directly)
+  availability_types?: AvailabilityTypeSetting[] | null;
+  
+  // Existing top-level types
   employee_types?: EmployeeTypeSetting[] | null;
   shift_types?: ShiftTypeSetting[] | null;
   absence_types?: AbsenceTypeSetting[] | null;
   actions_demo_data?: Record<string, any> | null;
-  notifications?: {
-    email_notifications?: boolean;
-    schedule_published_notify?: boolean;
-    shift_changes_notify?: boolean;
-    time_off_requests_notify?: boolean;
-  };
+  
   created_at?: string | null;
   updated_at?: string | null;
 }

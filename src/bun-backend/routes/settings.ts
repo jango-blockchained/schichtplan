@@ -2,7 +2,7 @@ import { Elysia, t, NotFoundError } from "elysia";
 import globalDb from "../db";
 import { Database } from "bun:sqlite";
 import {
-    getAllSettings as getServiceAllSettings,
+    getSettings as getServiceSettings,
     getSettingByKey as getServiceSettingByKey,
     upsertSetting as upsertServiceSetting,
     getAllAbsenceTypes as getServiceAllAbsenceTypes,
@@ -195,15 +195,24 @@ const UpdateAbsenceTypeSchema = t.Partial(CreateAbsenceTypeSchema);
 // --- Define Elysia Routes --- //
 
 export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
-    // GET all settings
+    // GET all settings (actually the single settings object)
     .get("/", async ({ set, ...ctx }) => {
         const context = ctx as { db?: Database };
         const currentDb = context.db ?? globalDb;
         try {
-            const settings = await getServiceAllSettings(currentDb);
+            const settings = await getServiceSettings(currentDb);
+            if (!settings) {
+                console.error("Settings object not found after calling getServiceSettings.");
+                set.status = 404;
+                return { error: "Settings not found." };
+            }
             return settings;
         } catch (error: any) {
-            console.error("Error fetching all settings:", error.message);
+            console.error("Error fetching settings:", error.message);
+            if (error instanceof NotFoundError) {
+                set.status = 404;
+                return { error: error.message || "Settings not found." };
+            }
             set.status = 500;
             return { error: "Failed to retrieve settings" };
         }

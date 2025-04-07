@@ -9,6 +9,7 @@ import {
   Download,
   Search,
   Filter,
+  Loader2,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -52,7 +53,6 @@ import {
   Badge,
 } from "@/components/ui";
 import { useToast } from "@/components/ui/use-toast";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 type ApiEmployee = {
   first_name: string;
@@ -133,7 +133,7 @@ export const EmployeesPage = () => {
   const [formData, setFormData] = useState<EmployeeFormData>(initialFormData);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { employeeGroups, getGroup, getHoursRange } = useEmployeeGroups();
+  const { employeeGroups, getGroup, getHoursRange, isLoading: isLoadingGroups } = useEmployeeGroups();
   const [currentPage, setCurrentPage] = useState(1);
   const [filters, setFilters] = useState<FilterState>({
     search: "",
@@ -145,8 +145,8 @@ export const EmployeesPage = () => {
 
   const {
     data: employeesData,
-    isLoading,
-    error,
+    isLoading: isLoadingEmployees,
+    error: errorEmployees,
   } = useQuery({
     queryKey: ["employees"],
     queryFn: getEmployees,
@@ -156,6 +156,10 @@ export const EmployeesPage = () => {
     queryKey: ["settings"],
     queryFn: getSettings,
   });
+
+  // Combine loading states
+  const isLoading = isLoadingEmployees || isLoadingGroups;
+  const error = errorEmployees;
 
   // Update employees state when data is loaded
   useEffect(() => {
@@ -189,29 +193,37 @@ export const EmployeesPage = () => {
   });
 
   const handleOpenDialog = (employee?: Employee) => {
-    if (employee) {
-      setEditingEmployee(employee);
-      setFormData({
-        first_name: employee.first_name,
-        last_name: employee.last_name,
-        employee_group: employee.employee_group,
-        contracted_hours: employee.contracted_hours,
-        is_keyholder: employee.is_keyholder,
-        is_active: employee.is_active,
-        birthday: employee.birthday || null,
-        email: employee.email || null,
-        phone: employee.phone || null,
-      });
-    } else {
-      const defaultGroup = employeeGroups[0];
-      setEditingEmployee(null);
-      setFormData({
-        ...initialFormData,
-        employee_group: defaultGroup.id,
-        contracted_hours: defaultGroup.minHours,
+    if (!isLoadingGroups && employeeGroups.length > 0) {
+      if (employee) {
+        setEditingEmployee(employee);
+        setFormData({
+          first_name: employee.first_name,
+          last_name: employee.last_name,
+          employee_group: employee.employee_group,
+          contracted_hours: employee.contracted_hours,
+          is_keyholder: employee.is_keyholder,
+          is_active: employee.is_active,
+          birthday: employee.birthday || null,
+          email: employee.email || null,
+          phone: employee.phone || null,
+        });
+      } else {
+        const defaultGroup = employeeGroups[0];
+        setEditingEmployee(null);
+        setFormData({
+          ...initialFormData,
+          employee_group: defaultGroup.id,
+          contracted_hours: defaultGroup.minHours,
+        });
+      }
+      setIsDialogOpen(true);
+    } else if (!isLoadingGroups && employeeGroups.length === 0) {
+      toast({ 
+        title: "Warning: No employee groups defined", 
+        description: "Please define employee groups in settings first.", 
+        variant: "default"
       });
     }
-    setIsDialogOpen(true);
   };
 
   const handleCloseDialog = () => {
@@ -436,18 +448,18 @@ export const EmployeesPage = () => {
     currentPage * ITEMS_PER_PAGE,
   );
 
-  if (error) {
+  if (isLoading) {
     return (
-      <div className="rounded-md bg-destructive/15 p-4 text-destructive">
-        Fehler beim Laden der Mitarbeiter
+      <div className="flex items-center justify-center h-[calc(100vh-200px)]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
-  if (isLoading || !employeeGroups.length) {
+  if (error) {
     return (
-      <div className="flex justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="rounded-md bg-destructive/15 p-4 text-destructive">
+        Fehler beim Laden der Mitarbeiter
       </div>
     );
   }
@@ -462,25 +474,20 @@ export const EmployeesPage = () => {
         description="Verwalte deine Mitarbeiter und deren Verfügbarkeiten"
         actions={
           <div className="flex gap-2 items-center">
-            <ThemeToggle />
-            {selectedEmployees.size > 0 && (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={() => setSelectedEmployees(new Set())}
-                >
-                  Auswahl aufheben ({selectedEmployees.size})
-                </Button>
-                <Button variant="outline" onClick={handleExportSelected}>
-                  <Download className="mr-2 h-4 w-4" />
-                  Exportieren
-                </Button>
-                <Button variant="destructive" onClick={handleBulkDelete}>
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Löschen
-                </Button>
-              </>
-            )}
+            <Button
+              variant="outline"
+              onClick={() => setSelectedEmployees(new Set())}
+            >
+              Auswahl aufheben ({selectedEmployees.size})
+            </Button>
+            <Button variant="outline" onClick={handleExportSelected}>
+              <Download className="mr-2 h-4 w-4" />
+              Exportieren
+            </Button>
+            <Button variant="destructive" onClick={handleBulkDelete}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              Löschen
+            </Button>
             <Button onClick={() => handleOpenDialog()}>
               <Plus className="mr-2 h-4 w-4" />
               Mitarbeiter hinzufügen
@@ -640,8 +647,7 @@ export const EmployeesPage = () => {
                   {employee.first_name} {employee.last_name}
                 </TableCell>
                 <TableCell>
-                  {getGroup(employee.employee_group)?.name ||
-                    employee.employee_group}
+                  {isLoadingGroups ? <Loader2 className="h-4 w-4 animate-spin"/> : getGroup(employee.employee_group)?.name || employee.employee_group}
                 </TableCell>
                 <TableCell>{employee.contracted_hours}</TableCell>
                 <TableCell>
@@ -823,16 +829,21 @@ export const EmployeesPage = () => {
                 <Select
                   value={formData.employee_group}
                   onValueChange={handleEmployeeGroupChange}
+                  disabled={isLoadingGroups}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {employeeGroups.map((group) => (
-                      <SelectItem key={group.id} value={group.id}>
-                        {group.name}
-                      </SelectItem>
-                    ))}
+                    {isLoadingGroups ? (
+                      <SelectItem value="loading" disabled>Loading...</SelectItem>
+                    ) : (
+                      employeeGroups.map((group) => (
+                        <SelectItem key={group.id} value={group.id}>
+                          {group.name}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -880,7 +891,8 @@ export const EmployeesPage = () => {
             <Button variant="outline" onClick={handleCloseDialog}>
               Abbrechen
             </Button>
-            <Button onClick={handleSubmit}>
+            <Button onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending || isLoadingGroups}>
+              {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
               {editingEmployee ? "Speichern" : "Erstellen"}
             </Button>
           </DialogFooter>
@@ -908,7 +920,7 @@ export const EmployeesPage = () => {
           employeeId={selectedEmployeeForAbsence.id}
           isOpen={!!selectedEmployeeForAbsence}
           onClose={() => setSelectedEmployeeForAbsence(null)}
-          absenceTypes={settings.employee_groups.absence_types}
+          absenceTypes={settings?.employee_types ?? []}
         />
       )}
     </div>

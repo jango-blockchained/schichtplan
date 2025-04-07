@@ -4,13 +4,15 @@ import path from "node:path";
 import fs from "node:fs";
 
 // Define the path to the database directory and file
-const dataDir = path.resolve(import.meta.dir, "../data"); // Go up one level from db/ to bun-backend/, then into data/
-const dbPath = path.join(dataDir, "schichtplan.db");
+// import.meta.dir is /path/to/project/src/bun-backend/db
+// ../../instance resolves to /path/to/project/src/instance
+const instanceDir = path.resolve(import.meta.dir, "../../instance"); 
+const dbPath = path.join(instanceDir, "bun.db");
 
-// Ensure the data directory exists
-if (!fs.existsSync(dataDir)) {
-  console.log(`Creating data directory: ${dataDir}`);
-  fs.mkdirSync(dataDir, { recursive: true });
+// Ensure the instance directory exists
+if (!fs.existsSync(instanceDir)) {
+  console.log(`Creating instance directory: ${instanceDir}`);
+  fs.mkdirSync(instanceDir, { recursive: true });
 }
 
 console.log(`Connecting to database at: ${dbPath}`);

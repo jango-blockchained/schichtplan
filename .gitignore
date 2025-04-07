@@ -39,6 +39,8 @@ flask.log
 # Database
 src/db/*.db
 src/db/*.db-journal
+src/instance/*.db
+src/instance/*.db-journal
 
 # TypeScript
 *.tsbuildinfo

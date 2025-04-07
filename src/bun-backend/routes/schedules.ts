@@ -65,6 +65,24 @@ const scheduleRoutes = new Elysia({ prefix: "/api/schedules" })
         }
   })
 
+  // ADDED: GET /api/schedules/ (Alias for /versions)
+  .get("/", async ({ set }) => {
+      try {
+          const versions = await getScheduleVersions();
+          return versions;
+      } catch (error: any) {
+          console.error("Error in GET /api/schedules/ (alias for /versions):", error);
+          set.status = 500;
+          return { error: error.message || "Failed to retrieve schedule versions" };
+      }
+  }, {
+      detail: { 
+          summary: 'List Schedule Versions (Alias)',
+          description: 'Alias for /versions. Retrieves a list of available schedule version identifiers.',
+          tags: ['Schedules'],
+      }
+  })
+
   // POST /api/schedules/generate
   .post("/generate", async ({ body, set }) => {
       try {

@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { getSettings } from "@/services/api";
+import { useMemo } from 'react';
+import type { Settings, EmployeeTypeSetting } from '@/types/index';
 
 export interface EmployeeGroup {
   id: string; // Matches backend's EmployeeGroup enum values: VZ, TZ, GFB, TL
@@ -11,19 +13,24 @@ export interface EmployeeGroup {
 }
 
 export const useEmployeeGroups = () => {
-  const { data: settings } = useQuery({
+  const { data: settings, isLoading: isLoadingSettings } = useQuery<Settings>({
     queryKey: ["settings"],
     queryFn: getSettings,
   });
 
-  const employeeGroups: EmployeeGroup[] =
-    settings?.employee_groups.employee_types.map((type) => ({
+  const employeeGroups: EmployeeGroup[] = useMemo(() => {
+    if (isLoadingSettings || !settings?.employee_types) {
+      return [];
+    }
+    
+    return settings.employee_types.map((type: EmployeeTypeSetting) => ({
       id: type.id,
       name: type.name,
-      minHours: type.min_hours,
-      maxHours: type.max_hours,
-      isFullTime: type.min_hours >= 35, // Consider full time if min hours is 35 or more
-    })) ?? [];
+      minHours: type.min_hours ?? 0,
+      maxHours: type.max_hours ?? 40,
+      isFullTime: (type.min_hours ?? 0) >= 35,
+    }));
+  }, [settings, isLoadingSettings]);
 
   const getGroup = (id: string) => {
     return employeeGroups.find((group) => group.id === id);
@@ -36,6 +43,7 @@ export const useEmployeeGroups = () => {
 
   return {
     employeeGroups,
+    isLoading: isLoadingSettings,
     getGroup,
     getHoursRange,
   };

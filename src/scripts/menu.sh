@@ -17,11 +17,11 @@ kill_port() {
 # Function to restart backend
 restart_backend() {
     echo "Restarting backend..."
-    kill_port 5000
+    kill_port 5001
     sleep 1
     tmux send-keys -t schichtplan:0.0 C-c
     sleep 1
-    tmux send-keys -t schichtplan:0.0 "python3 -m src.backend.run" C-m
+    tmux send-keys -t schichtplan:0.0 "bun run --watch index.ts" C-m
     echo "Backend restarted!"
 }
 
@@ -45,7 +45,7 @@ restart_all() {
 # Function to stop backend
 stop_backend() {
     echo "Stopping backend..."
-    kill_port 5000
+    kill_port 5001
     tmux send-keys -t schichtplan:0.0 C-c
     echo "Backend stopped!"
 }

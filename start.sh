@@ -11,6 +11,8 @@ kill_port() {
     if [ ! -z "$pid" ]; then
         echo "Killing process on port $1 (PID: $pid)"
         kill -9 $pid
+        # Add a small delay to allow the port to free up
+        sleep 0.5
     fi
 }
 
@@ -18,17 +20,17 @@ kill_port() {
 cleanup() {
     echo -e "\nGracefully shutting down services..."
     
-    # Kill backend (port 5000)
-    if check_port 5000; then
-        kill_port 5000
-        sleep 1
-        if ! check_port 5000; then
-            echo "✓ Backend successfully stopped"
+    # Kill Bun Backend (port 5001)
+    if check_port 5001; then
+        kill_port 5001
+        sleep 1 # Give time for port to release
+        if ! check_port 5001; then
+            echo "✓ Bun Backend successfully stopped"
         else
-            echo "! Warning: Backend may still be running"
+            echo "! Warning: Bun Backend may still be running (port 5001)"
         fi
     else
-        echo "✓ Backend is not running"
+        echo "✓ Bun Backend is not running"
     fi
     
     # Kill frontend (port 5173)
@@ -75,7 +77,7 @@ if [ -f src/scripts/ngrok_manager.sh ]; then
 fi
 
 # Kill any existing processes
-kill_port 5000  # Backend port
+kill_port 5001  # Bun Backend port
 kill_port 5173  # Frontend port
 
 # Kill existing ngrok processes
@@ -92,12 +94,10 @@ echo "Starting application in tmux..."
 # Create new tmux session
 tmux new-session -d -s schichtplan
 
-# Configure first pane (Backend)
-tmux send-keys -t schichtplan "export FLASK_ENV=development" C-m
-tmux send-keys -t schichtplan "export DEBUG_MODE=1" C-m
-tmux send-keys -t schichtplan "echo 'Starting Backend...'" C-m
-# Use --auto-port and --kill options to handle port conflicts automatically
-tmux send-keys -t schichtplan "python3 -m src.backend.run --auto-port --kill" C-m
+# Configure first pane (Bun Backend)
+tmux send-keys -t schichtplan "cd src/bun-backend" C-m
+tmux send-keys -t schichtplan "echo 'Starting Bun Backend...'" C-m
+tmux send-keys -t schichtplan "bun run --watch index.ts" C-m
 
 # Split window vertically for frontend
 tmux split-window -h
@@ -122,40 +122,37 @@ echo "Waiting for services to start..."
 max_attempts=30
 attempt=0
 backend_ready=false
+backend_port=5001 # Default bun backend port
 
 while [ $attempt -lt $max_attempts ] && [ "$backend_ready" = false ]; do
-    # Check if backend is running
-    if curl -s http://localhost:5000/api/health >/dev/null 2>&1; then
+    # Check if bun backend is running on port 5001
+    # Use curl's --fail to return non-zero on HTTP errors, check for expected status
+    if curl -sf http://localhost:${backend_port}/ | grep -q '"status":"Bun backend running"'; then
         backend_ready=true
-        backend_port=5000
     else
-        # Check other potential ports if 5000 isn't available
-        for port in {5001..5020}; do
-            if curl -s http://localhost:$port/api/health >/dev/null 2>&1; then
-                backend_ready=true
-                backend_port=$port
-                break
-            fi
-        done
-    fi
-    
-    if [ "$backend_ready" = false ]; then
-        echo "Waiting for backend..."
+        # Bun backend doesn't auto-select ports like Flask was configured to.
+        # If we needed to check other ports, logic would go here.
+        # For now, we just wait for 5001.
+        echo "Waiting for bun backend on port ${backend_port}..."
         sleep 1
         attempt=$((attempt + 1))
     fi
 done
 
 if [ "$backend_ready" = false ]; then
-    echo "Backend did not start within the timeout period."
-    echo "Check the backend logs for errors."
+    echo "Bun Backend did not start within the timeout period on port ${backend_port}."
+    echo "Check the bun backend logs/output for errors."
+    # Exit if backend failed
+    tmux kill-session -t schichtplan 2>/dev/null # Clean up tmux session
+    exit 1
 else
-    echo "Backend started on port $backend_port"
+    echo "✓ Bun Backend started successfully on port $backend_port"
 fi
 
 # Wait for frontend to be ready
 attempt=0
 frontend_ready=false
+max_attempts=30 # Reset max attempts for frontend check
 
 while [ $attempt -lt $max_attempts ] && [ "$frontend_ready" = false ]; do
     if check_port 5173; then
@@ -170,16 +167,20 @@ done
 if [ "$frontend_ready" = false ]; then
     echo "Frontend did not start within the timeout period."
     echo "Check the frontend logs for errors."
+    # Exit if frontend failed
+    tmux kill-session -t schichtplan 2>/dev/null # Clean up tmux session
+    exit 1
 else
-    echo "Frontend started on port 5173"
+    echo "✓ Frontend started successfully on port 5173"
 fi
 
 echo -e "\nApplication started successfully!"
-echo "Backend: http://localhost:${backend_port:-5000}"
+echo "Bun Backend: http://localhost:$backend_port"
 echo "Frontend: http://localhost:5173"
-echo "Logs location: src/logs/backend.log"
+# Note: Bun backend might log to stdout/stderr in tmux pane, not a file by default.
+echo "Logs location: Check tmux panes"
 echo -e "\nTmux session 'schichtplan' created:"
-echo "- Left pane: Backend"
+echo "- Left pane: Bun Backend"
 echo "- Right pane: Frontend"
 echo "- Bottom pane: Service Control Menu"
 echo -e "\nTo attach to tmux session: tmux attach-session -t schichtplan"

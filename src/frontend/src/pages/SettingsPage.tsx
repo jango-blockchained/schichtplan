@@ -80,6 +80,9 @@ export interface BaseAbsenceType extends BaseGroup {
 
 type GroupType = BaseEmployeeType | BaseAbsenceType;
 
+// Define SettingKey locally for now
+type SettingKey = keyof Settings;
+
 export function SettingsPage() {
   const { toast } = useToast();
   const { setTheme, theme } = useTheme();
@@ -106,14 +109,14 @@ export function SettingsPage() {
   useEffect(() => {
     if (settings) {
       setLocalSettings(settings);
-      setSelectedDemoModule(settings.actions.demo_data.selected_module || "");
+      setSelectedDemoModule(settings.actions_demo_data?.selected_module || "");
 
       // Reset stale "started" status on component mount
       if (
-        settings.actions.demo_data.status === "started" &&
-        settings.actions.demo_data.start_time
+        settings.actions_demo_data?.status === "started" &&
+        settings.actions_demo_data?.start_time
       ) {
-        const startTime = new Date(settings.actions.demo_data.start_time);
+        const startTime = new Date(settings.actions_demo_data.start_time);
         const now = new Date();
         const timeDiffMinutes =
           (now.getTime() - startTime.getTime()) / (1000 * 60);
@@ -150,74 +153,25 @@ export function SettingsPage() {
   });
 
   const debouncedUpdate = useDebouncedCallback(
-    (updatedSettings: Settings) => {
+    (updatedSettings: Partial<Settings>) => {
       updateMutation.mutate(updatedSettings);
     },
     1000, // 1 second delay
   );
 
-  const handleSave = (
-    category: keyof Omit<
-      Settings,
-      | "id"
-      | "store_name"
-      | "store_address"
-      | "store_contact"
-      | "timezone"
-      | "language"
-      | "date_format"
-      | "time_format"
-      | "store_opening"
-      | "store_closing"
-      | "keyholder_before_minutes"
-      | "keyholder_after_minutes"
-      | "opening_days"
-      | "special_hours"
-      | "availability_types"
-    >,
-    updates: Partial<Settings[typeof category]>,
+  const handleSave = <K extends SettingKey>(
+    key: K,
+    value: Settings[K],
   ) => {
     if (!localSettings) return;
-
-    // Initialize generation_requirements if it doesn't exist
-    if (
-      category === "scheduling" &&
-      !localSettings.scheduling.generation_requirements
-    ) {
-      localSettings.scheduling.generation_requirements = {
-        enforce_minimum_coverage: true,
-        enforce_contracted_hours: true,
-        enforce_keyholder_coverage: true,
-        enforce_rest_periods: true,
-        enforce_early_late_rules: true,
-        enforce_employee_group_rules: true,
-        enforce_break_rules: true,
-        enforce_max_hours: true,
-        enforce_consecutive_days: true,
-        enforce_weekend_distribution: true,
-        enforce_shift_distribution: true,
-        enforce_availability: true,
-        enforce_qualifications: true,
-        enforce_opening_hours: true,
-      };
-    }
-
-    const updatedSettings = {
-      ...localSettings,
-      [category]: {
-        ...localSettings[category],
-        ...updates,
-      },
-    };
-
-    setLocalSettings(updatedSettings);
-    debouncedUpdate(updatedSettings);
+    const updatePayload: Partial<Settings> = { [key]: value };
+    setLocalSettings(prevSettings => prevSettings ? { ...prevSettings, ...updatePayload } : null);
+    debouncedUpdate(updatePayload);
   };
 
   const handleImmediateUpdate = () => {
     if (localSettings) {
       debouncedUpdate.cancel();
-
       updateMutation.mutate(localSettings);
     }
   };
@@ -226,24 +180,14 @@ export function SettingsPage() {
     const employeeTypes = groups
       .filter((group): group is BaseEmployeeType => group.type === "employee")
       .map(({ type, ...rest }) => rest);
-    handleSave("employee_groups", {
-      employee_types: employeeTypes.map((type) => ({
-        ...type,
-        type: "employee" as const,
-      })),
-    });
+    handleSave("employee_types", employeeTypes.map((type) => ({ ...type, type: "employee" as const })) );
   };
 
   const handleAbsenceGroupChange = (groups: GroupType[]) => {
     const absenceTypes = groups
       .filter((group): group is BaseAbsenceType => group.type === "absence")
       .map(({ type, ...rest }) => rest);
-    handleSave("employee_groups", {
-      absence_types: absenceTypes.map((type) => ({
-        ...type,
-        type: "absence" as const,
-      })),
-    });
+    handleSave("absence_types", absenceTypes.map((type) => ({ ...type, type: "absence" as const })));
   };
 
   const renderTypeList = (types: Array<{ id: string; name: string }>) => {
@@ -425,23 +369,19 @@ export function SettingsPage() {
             <TabsContent value="general">
               <Card>
                 <CardHeader>
-                  <CardTitle>General Settings</CardTitle>
-                  <CardDescription>
-                    Configure your store's basic information and operating hours
-                  </CardDescription>
+                  <CardTitle>Store Information</CardTitle>
+                  <CardDescription>Basic store details.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="storeName">Store Name</Label>
+                        <Label htmlFor="store_name">Store Name</Label>
                         <Input
-                          id="storeName"
-                          value={localSettings?.general.store_name ?? ""}
+                          id="store_name"
+                          value={localSettings?.store_name ?? ""}
                           onChange={(e) =>
-                            handleSave("general", {
-                              store_name: e.target.value,
-                            })
+                            handleSave("store_name", e.target.value)
                           }
                           onBlur={handleImmediateUpdate}
                           className="w-full"
@@ -452,11 +392,9 @@ export function SettingsPage() {
                         <Label htmlFor="storeAddress">Store Address</Label>
                         <Input
                           id="storeAddress"
-                          value={localSettings?.general.store_address ?? ""}
+                          value={localSettings?.store_address ?? ""}
                           onChange={(e) =>
-                            handleSave("general", {
-                              store_address: e.target.value,
-                            })
+                            handleSave("store_address", e.target.value)
                           }
                           onBlur={handleImmediateUpdate}
                           className="w-full"
@@ -467,11 +405,9 @@ export function SettingsPage() {
                         <Label htmlFor="storeContact">Store Contact</Label>
                         <Input
                           id="storeContact"
-                          value={localSettings?.general.store_contact ?? ""}
+                          value={localSettings?.store_contact ?? ""}
                           onChange={(e) =>
-                            handleSave("general", {
-                              store_contact: e.target.value,
-                            })
+                            handleSave("store_contact", e.target.value)
                           }
                           onBlur={handleImmediateUpdate}
                           className="w-full"
@@ -488,13 +424,9 @@ export function SettingsPage() {
                             <Input
                               type="time"
                               id="store-opening"
-                              value={
-                                localSettings?.general.store_opening ?? "09:00"
-                              }
+                              value={localSettings?.store_opening ?? "09:00"}
                               onChange={(e) =>
-                                handleSave("general", {
-                                  store_opening: e.target.value,
-                                })
+                                handleSave("store_opening", e.target.value)
                               }
                               onBlur={handleImmediateUpdate}
                             />
@@ -504,13 +436,9 @@ export function SettingsPage() {
                             <Input
                               type="time"
                               id="store-closing"
-                              value={
-                                localSettings?.general.store_closing ?? "20:00"
-                              }
+                              value={localSettings?.store_closing ?? "20:00"}
                               onChange={(e) =>
-                                handleSave("general", {
-                                  store_closing: e.target.value,
-                                })
+                                handleSave("store_closing", e.target.value)
                               }
                               onBlur={handleImmediateUpdate}
                             />
@@ -531,16 +459,12 @@ export function SettingsPage() {
                                 min="0"
                                 max="120"
                                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                value={
-                                  localSettings?.general
-                                    .keyholder_before_minutes ?? 30
-                                }
+                                value={localSettings?.keyholder_before_minutes ?? 30}
                                 onChange={(e) =>
-                                  handleSave("general", {
-                                    keyholder_before_minutes: parseInt(
-                                      e.target.value,
-                                    ),
-                                  })
+                                  handleSave(
+                                    "keyholder_before_minutes",
+                                    parseInt(e.target.value) || 0,
+                                  )
                                 }
                                 title="Minutes before opening for keyholders"
                                 aria-label="Minutes before opening for keyholders"
@@ -561,16 +485,12 @@ export function SettingsPage() {
                                 min="0"
                                 max="120"
                                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                value={
-                                  localSettings?.general
-                                    .keyholder_after_minutes ?? 30
-                                }
+                                value={localSettings?.keyholder_after_minutes ?? 30}
                                 onChange={(e) =>
-                                  handleSave("general", {
-                                    keyholder_after_minutes: parseInt(
-                                      e.target.value,
-                                    ),
-                                  })
+                                  handleSave(
+                                    "keyholder_after_minutes",
+                                    parseInt(e.target.value) || 0,
+                                  )
                                 }
                                 title="Minutes after closing for keyholders"
                                 aria-label="Minutes after closing for keyholders"
@@ -595,25 +515,14 @@ export function SettingsPage() {
                             >
                               <Label className="text-sm">{day}</Label>
                               <Switch
-                                checked={
-                                  localSettings?.general.opening_days?.[
-                                    index.toString()
-                                  ] ?? false
-                                }
+                                checked={localSettings?.opening_days?.[index.toString()] ?? false}
                                 onCheckedChange={(checked) => {
                                   if (!localSettings) return;
-                                  const updatedSettings = {
-                                    ...localSettings,
-                                    general: {
-                                      ...localSettings.general,
-                                      opening_days: {
-                                        ...localSettings.general.opening_days,
-                                        [index.toString()]: checked,
-                                      },
-                                    },
+                                  const updatedOpeningDays = {
+                                    ...(localSettings.opening_days || {}),
+                                    [index.toString()]: checked,
                                   };
-                                  setLocalSettings(updatedSettings);
-                                  updateMutation.mutate(updatedSettings);
+                                  handleSave("opening_days", updatedOpeningDays);
                                 }}
                               />
                             </div>
@@ -626,12 +535,7 @@ export function SettingsPage() {
                 <CardFooter className="flex justify-end space-x-2">
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      if (localSettings) {
-                        debouncedUpdate.cancel();
-                        updateMutation.mutate(localSettings);
-                      }
-                    }}
+                    onClick={handleImmediateUpdate}
                   >
                     <Save className="w-4 h-4 mr-2" />
                     Save Changes
@@ -679,9 +583,9 @@ export function SettingsPage() {
                       <div className="flex items-center justify-between py-2">
                         <Label>Last Execution</Label>
                         <span className="text-sm text-muted-foreground">
-                          {localSettings?.actions.demo_data.last_execution
+                          {localSettings?.actions_demo_data?.last_execution
                             ? new Date(
-                                localSettings.actions.demo_data.last_execution,
+                                localSettings.actions_demo_data.last_execution,
                               ).toLocaleString()
                             : "Never"}
                         </span>
@@ -767,7 +671,7 @@ export function SettingsPage() {
                             Generate Optimized Schedule Data
                           </Button>
 
-                          {localSettings?.actions.demo_data.status && (
+                          {localSettings?.actions_demo_data?.status && (
                             <Button
                               onClick={async () => {
                                 try {
@@ -812,21 +716,21 @@ export function SettingsPage() {
                           )}
                         </div>
 
-                        {localSettings?.actions.demo_data.status &&
-                          localSettings.actions.demo_data.status !==
+                        {localSettings?.actions_demo_data?.status &&
+                          localSettings.actions_demo_data.status !==
                             "completed" &&
-                          localSettings.actions.demo_data.status !== "failed" &&
-                          localSettings.actions.demo_data.progress > 0 &&
-                          localSettings.actions.demo_data.start_time && (
+                          localSettings.actions_demo_data.status !== "failed" &&
+                          localSettings.actions_demo_data.progress != null &&
+                          localSettings.actions_demo_data.progress > 0 &&
+                          localSettings.actions_demo_data.start_time && (
                             <div className="mt-4 space-y-2">
                               <div className="flex items-center justify-between">
                                 <span className="text-sm font-medium">
                                   Status:{" "}
-                                  {localSettings.actions.demo_data.status}
+                                  {localSettings.actions_demo_data.status}
                                 </span>
                                 <span className="text-sm">
-                                  {localSettings.actions.demo_data.progress ||
-                                    0}
+                                  {localSettings.actions_demo_data.progress ?? 0}
                                   %
                                 </span>
                               </div>
@@ -834,13 +738,13 @@ export function SettingsPage() {
                                 <div
                                   className="h-full bg-primary rounded-full"
                                   style={{
-                                    width: `${localSettings.actions.demo_data.progress || 0}%`,
+                                    width: `${localSettings.actions_demo_data.progress ?? 0}%`,
                                   }}
                                 ></div>
                               </div>
-                              {localSettings.actions.demo_data.error && (
+                              {localSettings.actions_demo_data.error && (
                                 <div className="text-sm text-destructive">
-                                  Error: {localSettings.actions.demo_data.error}
+                                  Error: {localSettings.actions_demo_data.error}
                                 </div>
                               )}
                             </div>
@@ -960,13 +864,9 @@ export function SettingsPage() {
                         <div className="space-y-2">
                           <Label htmlFor="resourceType">Resource Type</Label>
                           <Select
-                            value={
-                              localSettings?.scheduling.scheduling_resource_type
-                            }
+                            value={localSettings?.scheduling_resource_type ?? "shifts"}
                             onValueChange={(value: "shifts" | "coverage") =>
-                              handleSave("scheduling", {
-                                scheduling_resource_type: value,
-                              })
+                              handleSave("scheduling_resource_type", value)
                             }
                           >
                             <SelectTrigger className="w-full">
@@ -986,16 +886,12 @@ export function SettingsPage() {
                           <Input
                             type="number"
                             id="defaultShiftDuration"
-                            value={
-                              localSettings?.scheduling
-                                .default_shift_duration ?? ""
-                            }
+                            value={localSettings?.default_shift_duration ?? ""}
                             onChange={(e) =>
-                              handleSave("scheduling", {
-                                default_shift_duration: parseFloat(
-                                  e.target.value,
-                                ),
-                              })
+                              handleSave(
+                                "default_shift_duration", 
+                                parseFloat(e.target.value) || 0
+                              )
                             }
                             onBlur={handleImmediateUpdate}
                             className="w-full"
@@ -1009,13 +905,12 @@ export function SettingsPage() {
                           <Input
                             type="number"
                             id="minBreakDuration"
-                            value={
-                              localSettings?.scheduling.min_break_duration ?? ""
-                            }
+                            value={localSettings?.min_break_duration ?? ""}
                             onChange={(e) =>
-                              handleSave("scheduling", {
-                                min_break_duration: Number(e.target.value),
-                              })
+                              handleSave(
+                                "min_break_duration", 
+                                Number(e.target.value) || 0
+                              )
                             }
                             onBlur={handleImmediateUpdate}
                             className="w-full"
@@ -1031,13 +926,12 @@ export function SettingsPage() {
                           <Input
                             type="number"
                             id="maxDailyHours"
-                            value={
-                              localSettings?.scheduling.max_daily_hours ?? ""
-                            }
+                            value={localSettings?.max_daily_hours ?? ""}
                             onChange={(e) =>
-                              handleSave("scheduling", {
-                                max_daily_hours: Number(e.target.value),
-                              })
+                              handleSave(
+                                "max_daily_hours", 
+                                Number(e.target.value) || 0
+                              )
                             }
                             onBlur={handleImmediateUpdate}
                             className="w-full"
@@ -1051,13 +945,12 @@ export function SettingsPage() {
                           <Input
                             type="number"
                             id="maxWeeklyHours"
-                            value={
-                              localSettings?.scheduling.max_weekly_hours ?? ""
-                            }
+                            value={localSettings?.max_weekly_hours ?? ""}
                             onChange={(e) =>
-                              handleSave("scheduling", {
-                                max_weekly_hours: Number(e.target.value),
-                              })
+                              handleSave(
+                                "max_weekly_hours", 
+                                Number(e.target.value) || 0
+                              )
                             }
                             onBlur={handleImmediateUpdate}
                             className="w-full"
@@ -1067,14 +960,9 @@ export function SettingsPage() {
                         <div className="flex items-center space-x-2 pt-2">
                           <Switch
                             id="autoSchedulePreferences"
-                            checked={
-                              localSettings?.scheduling
-                                .auto_schedule_preferences ?? false
-                            }
+                            checked={localSettings?.auto_schedule_preferences ?? false}
                             onCheckedChange={(checked) =>
-                              handleSave("scheduling", {
-                                auto_schedule_preferences: checked,
-                              })
+                              handleSave("auto_schedule_preferences", checked)
                             }
                           />
                           <Label htmlFor="autoSchedulePreferences">
@@ -1093,144 +981,77 @@ export function SettingsPage() {
                 </Card>
 
                 <ScheduleGenerationSettings
-                  settings={
-                    localSettings ?? {
-                      id: 0,
-                      store_name: "",
-                      store_address: null,
-                      store_contact: null,
-                      timezone: "Europe/Berlin",
-                      language: "de",
-                      date_format: "DD.MM.YYYY",
-                      time_format: "24h",
-                      store_opening: "09:00",
-                      store_closing: "20:00",
-                      keyholder_before_minutes: 30,
-                      keyholder_after_minutes: 30,
-                      opening_days: {},
-                      special_hours: {},
-                      availability_types: { types: [] },
-                      general: {
-                        store_name: "",
-                        store_address: "",
-                        store_contact: "",
-                        timezone: "Europe/Berlin",
-                        language: "de",
-                        date_format: "DD.MM.YYYY",
-                        time_format: "24h",
-                        store_opening: "09:00",
-                        store_closing: "20:00",
-                        keyholder_before_minutes: 30,
-                        keyholder_after_minutes: 30,
-                        opening_days: {},
-                        special_hours: {},
-                      },
-                      scheduling: {
-                        scheduling_resource_type: "shifts",
-                        default_shift_duration: 8,
-                        min_break_duration: 30,
-                        max_daily_hours: 10,
-                        max_weekly_hours: 40,
-                        min_rest_between_shifts: 11,
-                        scheduling_period_weeks: 1,
-                        auto_schedule_preferences: true,
-                        generation_requirements: {
-                          enforce_minimum_coverage: true,
-                          enforce_contracted_hours: true,
-                          enforce_keyholder_coverage: true,
-                          enforce_rest_periods: true,
-                          enforce_early_late_rules: true,
-                          enforce_employee_group_rules: true,
-                          enforce_break_rules: true,
-                          enforce_max_hours: true,
-                          enforce_consecutive_days: true,
-                          enforce_weekend_distribution: true,
-                          enforce_shift_distribution: true,
-                          enforce_availability: true,
-                          enforce_qualifications: true,
-                          enforce_opening_hours: true,
-                        },
-                      },
-                      display: {
-                        theme: "light",
-                        primary_color: "#000000",
-                        secondary_color: "#000000",
-                        accent_color: "#000000",
-                        background_color: "#ffffff",
-                        surface_color: "#ffffff",
-                        text_color: "#000000",
-                        dark_theme: {
-                          primary_color: "#ffffff",
-                          secondary_color: "#ffffff",
-                          accent_color: "#ffffff",
-                          background_color: "#000000",
-                          surface_color: "#000000",
-                          text_color: "#ffffff",
-                        },
-                        show_sunday: false,
-                        show_weekdays: true,
-                        start_of_week: 1,
-                        email_notifications: false,
-                        schedule_published: false,
-                        shift_changes: false,
-                        time_off_requests: false,
-                      },
-                      pdf_layout: {
-                        page_size: "A4",
-                        orientation: "portrait",
-                        margins: {
-                          top: 20,
-                          right: 20,
-                          bottom: 20,
-                          left: 20,
-                        },
-                        table_style: {
-                          header_bg_color: "#f5f5f5",
-                          border_color: "#e0e0e0",
-                          text_color: "#000000",
-                          header_text_color: "#000000",
-                        },
-                        fonts: {
-                          family: "Arial",
-                          size: 12,
-                          header_size: 14,
-                        },
-                        content: {
-                          show_employee_id: true,
-                          show_position: true,
-                          show_breaks: true,
-                          show_total_hours: true,
-                        },
-                      },
-                      employee_groups: {
-                        employee_types: [],
-                        absence_types: [],
-                      },
-                      actions: {
-                        demo_data: {
-                          selected_module: "",
-                          last_execution: null,
-                        },
-                      },
-                    }
-                  }
+                  settings={localSettings ?? {
+                    id: 0,
+                    store_name: "",
+                    store_address: null,
+                    store_contact: null,
+                    timezone: "Europe/Berlin",
+                    language: "de",
+                    date_format: "DD.MM.YYYY",
+                    time_format: "24h",
+                    store_opening: "09:00",
+                    store_closing: "20:00",
+                    keyholder_before_minutes: 30,
+                    keyholder_after_minutes: 30,
+                    opening_days: {},
+                    special_hours: {},
+                    availability_types: [],
+                    scheduling_resource_type: "shifts",
+                    default_shift_duration: 8,
+                    min_break_duration: 30,
+                    max_daily_hours: 10,
+                    max_weekly_hours: 40,
+                    min_rest_between_shifts: 11,
+                    scheduling_period_weeks: 1,
+                    auto_schedule_preferences: true,
+                    theme: "light",
+                    primary_color: "#000000",
+                    secondary_color: "#000000",
+                    accent_color: "#000000",
+                    background_color: "#ffffff",
+                    surface_color: "#ffffff",
+                    text_color: "#000000",
+                    dark_theme_primary_color: "#ffffff",
+                    dark_theme_secondary_color: "#ffffff",
+                    dark_theme_accent_color: "#ffffff",
+                    dark_theme_background_color: "#000000",
+                    dark_theme_surface_color: "#000000",
+                    dark_theme_text_color: "#ffffff",
+                    show_sunday: false,
+                    show_weekdays: true,
+                    start_of_week: 1,
+                    email_notifications: false,
+                    schedule_published_notify: false,
+                    shift_changes_notify: false,
+                    time_off_requests_notify: false,
+                    page_size: "A4",
+                    orientation: "portrait",
+                    margin_top: 20,
+                    margin_right: 20,
+                    margin_bottom: 20,
+                    margin_left: 20,
+                    table_header_bg_color: "#f5f5f5",
+                    table_border_color: "#e0e0e0",
+                    table_text_color: "#000000",
+                    table_header_text_color: "#000000",
+                    font_family: "Arial",
+                    font_size: 12,
+                    header_font_size: 14,
+                    show_employee_id: true,
+                    show_position: true,
+                    show_breaks: true,
+                    show_total_hours: true,
+                    pdf_layout_presets: null,
+                    employee_types: [],
+                    absence_types: [],
+                    actions_demo_data: null,
+                    require_keyholder: true,
+                    scheduling_advanced: {},
+                  }}
                   onUpdate={(updates) => {
-                    if (!localSettings?.scheduling) return;
-
-                    const updatedSettings: Settings = {
-                      ...localSettings,
-                      scheduling: {
-                        ...localSettings.scheduling,
-                        generation_requirements: {
-                          ...localSettings.scheduling.generation_requirements,
-                          ...updates,
-                        },
-                      },
-                    };
-
-                    setLocalSettings(updatedSettings);
-                    debouncedUpdate.cancel();
-                    updateMutation.mutate(updatedSettings);
+                    if (!localSettings) return;
+                    handleSave("generation_requirements", updates);
                   }}
                 />
               </div>
@@ -1250,25 +1071,11 @@ export function SettingsPage() {
                       <div className="space-y-2">
                         <Label htmlFor="theme">Theme</Label>
                         <Select
-                          value={localSettings?.display.theme ?? ""}
+                          value={localSettings?.theme ?? "system"}
                           onValueChange={(value) => {
-                            if (!localSettings) return;
                             const theme = value as "light" | "dark" | "system";
-                            const updatedSettings = Object.assign(
-                              {},
-                              localSettings,
-                              {
-                                display: Object.assign(
-                                  {},
-                                  localSettings.display,
-                                  { theme },
-                                ),
-                              },
-                            ) as Settings;
-                            setLocalSettings(updatedSettings);
-                            updateMutation.mutate(updatedSettings);
+                            handleSave("theme", theme);
                             setTheme(theme);
-                            debouncedUpdate.cancel();
                           }}
                         >
                           <SelectTrigger id="theme" className="w-full">
@@ -1288,27 +1095,18 @@ export function SettingsPage() {
                           <Input
                             id="primary-color"
                             type="color"
-                            value={
-                              localSettings?.display.primary_color ?? "#000000"
-                            }
+                            value={localSettings?.primary_color ?? "#000000"}
                             onChange={(e) => {
-                              handleSave("display", {
-                                primary_color: e.target.value,
-                              });
-                              handleImmediateUpdate();
+                              handleSave("primary_color", e.target.value);
                             }}
                             className="w-[100px]"
                           />
                           <Input
-                            value={
-                              localSettings?.display.primary_color ?? "#000000"
-                            }
+                            value={localSettings?.primary_color ?? "#000000"}
                             onChange={(e) => {
-                              handleSave("display", {
-                                primary_color: e.target.value,
-                              });
-                              handleImmediateUpdate();
+                              handleSave("primary_color", e.target.value);
                             }}
+                            onBlur={handleImmediateUpdate}
                             className="flex-1"
                           />
                         </div>
@@ -1320,29 +1118,18 @@ export function SettingsPage() {
                           <Input
                             id="secondary-color"
                             type="color"
-                            value={
-                              localSettings?.display.secondary_color ??
-                              "#000000"
-                            }
+                            value={localSettings?.secondary_color ?? "#000000"}
                             onChange={(e) => {
-                              handleSave("display", {
-                                secondary_color: e.target.value,
-                              });
-                              handleImmediateUpdate();
+                              handleSave("secondary_color", e.target.value);
                             }}
                             className="w-[100px]"
                           />
                           <Input
-                            value={
-                              localSettings?.display.secondary_color ??
-                              "#000000"
-                            }
+                            value={localSettings?.secondary_color ?? "#000000"}
                             onChange={(e) => {
-                              handleSave("display", {
-                                secondary_color: e.target.value,
-                              });
-                              handleImmediateUpdate();
+                              handleSave("secondary_color", e.target.value);
                             }}
+                            onBlur={handleImmediateUpdate}
                             className="flex-1"
                           />
                         </div>
@@ -1357,12 +1144,9 @@ export function SettingsPage() {
                             <Label htmlFor="show-sunday">Show Sunday</Label>
                             <Switch
                               id="show-sunday"
-                              checked={
-                                localSettings?.display.show_sunday ?? false
-                              }
+                              checked={localSettings?.show_sunday ?? false}
                               onCheckedChange={(checked) => {
-                                handleSave("display", { show_sunday: checked });
-                                handleImmediateUpdate();
+                                handleSave("show_sunday", checked);
                               }}
                             />
                           </div>
@@ -1371,14 +1155,9 @@ export function SettingsPage() {
                             <Label htmlFor="show-weekdays">Show Weekdays</Label>
                             <Switch
                               id="show-weekdays"
-                              checked={
-                                localSettings?.display.show_weekdays ?? false
-                              }
+                              checked={localSettings?.show_weekdays ?? false}
                               onCheckedChange={(checked) => {
-                                handleSave("display", {
-                                  show_weekdays: checked,
-                                });
-                                handleImmediateUpdate();
+                                handleSave("show_weekdays", checked);
                               }}
                             />
                           </div>
@@ -1386,15 +1165,9 @@ export function SettingsPage() {
                           <div className="flex items-center justify-between">
                             <Label htmlFor="start-of-week">Start of Week</Label>
                             <Select
-                              value={
-                                localSettings?.display.start_of_week?.toString() ??
-                                ""
-                              }
+                              value={localSettings?.start_of_week?.toString() ?? "1"}
                               onValueChange={(value) => {
-                                handleSave("display", {
-                                  start_of_week: Number(value),
-                                });
-                                handleImmediateUpdate();
+                                handleSave("start_of_week", Number(value));
                               }}
                             >
                               <SelectTrigger
@@ -1421,15 +1194,9 @@ export function SettingsPage() {
                             </Label>
                             <Switch
                               id="email-notifications"
-                              checked={
-                                localSettings?.display.email_notifications ??
-                                false
-                              }
+                              checked={localSettings?.email_notifications ?? false}
                               onCheckedChange={(checked) => {
-                                handleSave("display", {
-                                  email_notifications: checked,
-                                });
-                                handleImmediateUpdate();
+                                handleSave("email_notifications", checked);
                               }}
                             />
                           </div>
@@ -1440,15 +1207,9 @@ export function SettingsPage() {
                             </Label>
                             <Switch
                               id="schedule-published"
-                              checked={
-                                localSettings?.display.schedule_published ??
-                                false
-                              }
+                              checked={localSettings?.schedule_published_notify ?? false}
                               onCheckedChange={(checked) => {
-                                handleSave("display", {
-                                  schedule_published: checked,
-                                });
-                                handleImmediateUpdate();
+                                handleSave("schedule_published_notify", checked);
                               }}
                             />
                           </div>
@@ -1457,14 +1218,9 @@ export function SettingsPage() {
                             <Label htmlFor="shift-changes">Shift Changes</Label>
                             <Switch
                               id="shift-changes"
-                              checked={
-                                localSettings?.display.shift_changes ?? false
-                              }
+                              checked={localSettings?.shift_changes_notify ?? false}
                               onCheckedChange={(checked) => {
-                                handleSave("display", {
-                                  shift_changes: checked,
-                                });
-                                handleImmediateUpdate();
+                                handleSave("shift_changes_notify", checked);
                               }}
                             />
                           </div>
@@ -1475,15 +1231,9 @@ export function SettingsPage() {
                             </Label>
                             <Switch
                               id="time-off-requests"
-                              checked={
-                                localSettings?.display.time_off_requests ??
-                                false
-                              }
+                              checked={localSettings?.time_off_requests_notify ?? false}
                               onCheckedChange={(checked) => {
-                                handleSave("display", {
-                                  time_off_requests: checked,
-                                });
-                                handleImmediateUpdate();
+                                handleSave("time_off_requests_notify", checked);
                               }}
                             />
                           </div>
@@ -1519,22 +1269,10 @@ export function SettingsPage() {
                             <div className="space-y-2">
                               <Label htmlFor="page-size">Page Size</Label>
                               <Select
-                                value={
-                                  localSettings?.pdf_layout.page_size ?? "A4"
-                                }
-                                onValueChange={(value) => {
-                                  handleSave("pdf_layout", {
-                                    page_size: value,
-                                  });
-                                  handleImmediateUpdate();
-                                }}
+                                value={localSettings?.page_size ?? "A4"}
+                                onValueChange={(value) => { handleSave("page_size", value); }}
                               >
-                                <SelectTrigger
-                                  id="page-size"
-                                  className="w-full"
-                                >
-                                  <SelectValue placeholder="Select size" />
-                                </SelectTrigger>
+                                <SelectTrigger id="page-size" className="w-full"><SelectValue placeholder="Select size" /></SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="A4">A4</SelectItem>
                                   <SelectItem value="A3">A3</SelectItem>
@@ -1543,155 +1281,39 @@ export function SettingsPage() {
                                 </SelectContent>
                               </Select>
                             </div>
-
                             <div className="space-y-2">
                               <Label htmlFor="orientation">Orientation</Label>
                               <Select
-                                value={
-                                  localSettings?.pdf_layout.orientation ??
-                                  "portrait"
-                                }
-                                onValueChange={(value) => {
-                                  handleSave("pdf_layout", {
-                                    orientation: value,
-                                  });
-                                  handleImmediateUpdate();
-                                }}
+                                value={localSettings?.orientation ?? "portrait"}
+                                onValueChange={(value) => { handleSave("orientation", value as "portrait" | "landscape"); }}
                               >
-                                <SelectTrigger
-                                  id="orientation"
-                                  className="w-full"
-                                >
-                                  <SelectValue placeholder="Select orientation" />
-                                </SelectTrigger>
+                                <SelectTrigger id="orientation" className="w-full"><SelectValue placeholder="Select orientation" /></SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="portrait">
-                                    Portrait
-                                  </SelectItem>
-                                  <SelectItem value="landscape">
-                                    Landscape
-                                  </SelectItem>
+                                  <SelectItem value="portrait">Portrait</SelectItem>
+                                  <SelectItem value="landscape">Landscape</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
                           </div>
                         </div>
-
                         <div className="space-y-2">
                           <Label>Margins (mm)</Label>
                           <div className="rounded-lg border p-4 grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                               <Label htmlFor="margin-top">Top</Label>
-                              <Input
-                                id="margin-top"
-                                type="number"
-                                value={
-                                  localSettings?.pdf_layout.margins?.top ?? 20
-                                }
-                                onChange={(e) => {
-                                  handleSave("pdf_layout", {
-                                    margins: {
-                                      top: Number(e.target.value),
-                                      right:
-                                        localSettings?.pdf_layout.margins
-                                          ?.right ?? 20,
-                                      bottom:
-                                        localSettings?.pdf_layout.margins
-                                          ?.bottom ?? 20,
-                                      left:
-                                        localSettings?.pdf_layout.margins
-                                          ?.left ?? 20,
-                                    },
-                                  });
-                                  handleImmediateUpdate();
-                                }}
-                                className="w-full"
-                              />
+                              <Input id="margin-top" type="number" value={localSettings?.margin_top ?? 20} onChange={(e) => handleSave("margin_top", Number(e.target.value) || 0)} />
                             </div>
                             <div className="space-y-2">
                               <Label htmlFor="margin-right">Right</Label>
-                              <Input
-                                id="margin-right"
-                                type="number"
-                                value={
-                                  localSettings?.pdf_layout.margins?.right ?? 20
-                                }
-                                onChange={(e) => {
-                                  handleSave("pdf_layout", {
-                                    margins: {
-                                      top:
-                                        localSettings?.pdf_layout.margins
-                                          ?.top ?? 20,
-                                      right: Number(e.target.value),
-                                      bottom:
-                                        localSettings?.pdf_layout.margins
-                                          ?.bottom ?? 20,
-                                      left:
-                                        localSettings?.pdf_layout.margins
-                                          ?.left ?? 20,
-                                    },
-                                  });
-                                  handleImmediateUpdate();
-                                }}
-                                className="w-full"
-                              />
+                              <Input id="margin-right" type="number" value={localSettings?.margin_right ?? 20} onChange={(e) => handleSave("margin_right", Number(e.target.value) || 0)} />
                             </div>
                             <div className="space-y-2">
                               <Label htmlFor="margin-bottom">Bottom</Label>
-                              <Input
-                                id="margin-bottom"
-                                type="number"
-                                value={
-                                  localSettings?.pdf_layout.margins?.bottom ??
-                                  20
-                                }
-                                onChange={(e) => {
-                                  handleSave("pdf_layout", {
-                                    margins: {
-                                      top:
-                                        localSettings?.pdf_layout.margins
-                                          ?.top ?? 20,
-                                      right:
-                                        localSettings?.pdf_layout.margins
-                                          ?.right ?? 20,
-                                      bottom: Number(e.target.value),
-                                      left:
-                                        localSettings?.pdf_layout.margins
-                                          ?.left ?? 20,
-                                    },
-                                  });
-                                  handleImmediateUpdate();
-                                }}
-                                className="w-full"
-                              />
+                              <Input id="margin-bottom" type="number" value={localSettings?.margin_bottom ?? 20} onChange={(e) => handleSave("margin_bottom", Number(e.target.value) || 0)} />
                             </div>
                             <div className="space-y-2">
                               <Label htmlFor="margin-left">Left</Label>
-                              <Input
-                                id="margin-left"
-                                type="number"
-                                value={
-                                  localSettings?.pdf_layout.margins?.left ?? 20
-                                }
-                                onChange={(e) => {
-                                  handleSave("pdf_layout", {
-                                    margins: {
-                                      top:
-                                        localSettings?.pdf_layout.margins
-                                          ?.top ?? 20,
-                                      right:
-                                        localSettings?.pdf_layout.margins
-                                          ?.right ?? 20,
-                                      bottom:
-                                        localSettings?.pdf_layout.margins
-                                          ?.bottom ?? 20,
-                                      left: Number(e.target.value),
-                                    },
-                                  });
-                                  handleImmediateUpdate();
-                                }}
-                                className="w-full"
-                              />
+                              <Input id="margin-left" type="number" value={localSettings?.margin_left ?? 20} onChange={(e) => handleSave("margin_left", Number(e.target.value) || 0)} />
                             </div>
                           </div>
                         </div>
@@ -1702,221 +1324,68 @@ export function SettingsPage() {
                           <Label>Content Settings</Label>
                           <div className="rounded-lg border p-4 space-y-4">
                             <div className="flex items-center justify-between">
-                              <Label htmlFor="show-employee-id">
-                                Show Employee ID
-                              </Label>
-                              <Switch
-                                id="show-employee-id"
-                                checked={
-                                  localSettings?.pdf_layout.content
-                                    ?.show_employee_id ?? true
-                                }
-                                onCheckedChange={(checked) => {
-                                  handleSave("pdf_layout", {
-                                    content: {
-                                      show_employee_id: checked,
-                                      show_position:
-                                        localSettings?.pdf_layout.content
-                                          ?.show_position ?? true,
-                                      show_breaks:
-                                        localSettings?.pdf_layout.content
-                                          ?.show_breaks ?? true,
-                                      show_total_hours:
-                                        localSettings?.pdf_layout.content
-                                          ?.show_total_hours ?? true,
-                                    },
-                                  });
-                                  handleImmediateUpdate();
-                                }}
-                              />
+                              <Label htmlFor="show-employee-id">Show Employee ID</Label>
+                              <Switch id="show-employee-id" checked={localSettings?.show_employee_id ?? true} onCheckedChange={(checked) => handleSave("show_employee_id", checked)} />
                             </div>
-
                             <div className="flex items-center justify-between">
-                              <Label htmlFor="show-position">
-                                Show Position
-                              </Label>
-                              <Switch
-                                id="show-position"
-                                checked={
-                                  localSettings?.pdf_layout.content
-                                    ?.show_position ?? true
-                                }
-                                onCheckedChange={(checked) => {
-                                  handleSave("pdf_layout", {
-                                    content: {
-                                      show_employee_id:
-                                        localSettings?.pdf_layout.content
-                                          ?.show_employee_id ?? true,
-                                      show_position: checked,
-                                      show_breaks:
-                                        localSettings?.pdf_layout.content
-                                          ?.show_breaks ?? true,
-                                      show_total_hours:
-                                        localSettings?.pdf_layout.content
-                                          ?.show_total_hours ?? true,
-                                    },
-                                  });
-                                  handleImmediateUpdate();
-                                }}
-                              />
+                              <Label htmlFor="show-position">Show Position</Label>
+                              <Switch id="show-position" checked={localSettings?.show_position ?? true} onCheckedChange={(checked) => handleSave("show_position", checked)} />
                             </div>
-
                             <div className="flex items-center justify-between">
                               <Label htmlFor="show-breaks">Show Breaks</Label>
-                              <Switch
-                                id="show-breaks"
-                                checked={
-                                  localSettings?.pdf_layout.content
-                                    ?.show_breaks ?? true
-                                }
-                                onCheckedChange={(checked) => {
-                                  handleSave("pdf_layout", {
-                                    content: {
-                                      show_employee_id:
-                                        localSettings?.pdf_layout.content
-                                          ?.show_employee_id ?? true,
-                                      show_position:
-                                        localSettings?.pdf_layout.content
-                                          ?.show_position ?? true,
-                                      show_breaks: checked,
-                                      show_total_hours:
-                                        localSettings?.pdf_layout.content
-                                          ?.show_total_hours ?? true,
-                                    },
-                                  });
-                                  handleImmediateUpdate();
-                                }}
-                              />
+                              <Switch id="show-breaks" checked={localSettings?.show_breaks ?? true} onCheckedChange={(checked) => handleSave("show_breaks", checked)} />
                             </div>
-
                             <div className="flex items-center justify-between">
-                              <Label htmlFor="show-total-hours">
-                                Show Total Hours
-                              </Label>
-                              <Switch
-                                id="show-total-hours"
-                                checked={
-                                  localSettings?.pdf_layout.content
-                                    ?.show_total_hours ?? true
-                                }
-                                onCheckedChange={(checked) => {
-                                  handleSave("pdf_layout", {
-                                    content: {
-                                      show_employee_id:
-                                        localSettings?.pdf_layout.content
-                                          ?.show_employee_id ?? true,
-                                      show_position:
-                                        localSettings?.pdf_layout.content
-                                          ?.show_position ?? true,
-                                      show_breaks:
-                                        localSettings?.pdf_layout.content
-                                          ?.show_breaks ?? true,
-                                      show_total_hours: checked,
-                                    },
-                                  });
-                                  handleImmediateUpdate();
-                                }}
-                              />
+                              <Label htmlFor="show-total-hours">Show Total Hours</Label>
+                              <Switch id="show-total-hours" checked={localSettings?.show_total_hours ?? true} onCheckedChange={(checked) => handleSave("show_total_hours", checked)} />
                             </div>
                           </div>
                         </div>
-
                         <div className="space-y-2">
                           <Label>Font Settings</Label>
                           <div className="rounded-lg border p-4 space-y-4">
                             <div className="space-y-2">
                               <Label htmlFor="font-family">Font Family</Label>
-                              <Select
-                                value={
-                                  localSettings?.pdf_layout.fonts?.family ??
-                                  "Arial"
-                                }
-                                onValueChange={(value) => {
-                                  handleSave("pdf_layout", {
-                                    fonts: {
-                                      family: value,
-                                      size:
-                                        localSettings?.pdf_layout.fonts?.size ??
-                                        12,
-                                      header_size:
-                                        localSettings?.pdf_layout.fonts
-                                          ?.header_size ?? 14,
-                                    },
-                                  });
-                                  handleImmediateUpdate();
-                                }}
-                              >
-                                <SelectTrigger
-                                  id="font-family"
-                                  className="w-full"
-                                >
-                                  <SelectValue placeholder="Select font" />
-                                </SelectTrigger>
+                              <Select value={localSettings?.font_family ?? "Arial"} onValueChange={(value) => handleSave("font_family", value)} >
+                                <SelectTrigger id="font-family" className="w-full"><SelectValue placeholder="Select font" /></SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="Arial">Arial</SelectItem>
-                                  <SelectItem value="Times New Roman">
-                                    Times New Roman
-                                  </SelectItem>
-                                  <SelectItem value="Helvetica">
-                                    Helvetica
-                                  </SelectItem>
+                                  <SelectItem value="Times New Roman">Times New Roman</SelectItem>
+                                  <SelectItem value="Helvetica">Helvetica</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
-
                             <div className="grid grid-cols-2 gap-4">
                               <div className="space-y-2">
                                 <Label htmlFor="font-size">Base Size</Label>
-                                <Input
-                                  id="font-size"
-                                  type="number"
-                                  value={
-                                    localSettings?.pdf_layout.fonts?.size ?? 12
-                                  }
-                                  onChange={(e) => {
-                                    handleSave("pdf_layout", {
-                                      fonts: {
-                                        family:
-                                          localSettings?.pdf_layout.fonts
-                                            ?.family ?? "Arial",
-                                        size: Number(e.target.value),
-                                        header_size:
-                                          localSettings?.pdf_layout.fonts
-                                            ?.header_size ?? 14,
-                                      },
-                                    });
-                                    handleImmediateUpdate();
-                                  }}
-                                  className="w-full"
-                                />
+                                <Input id="font-size" type="number" value={localSettings?.font_size ?? 12} onChange={(e) => handleSave("font_size", Number(e.target.value) || 0)} />
                               </div>
                               <div className="space-y-2">
                                 <Label htmlFor="header-size">Header Size</Label>
-                                <Input
-                                  id="header-size"
-                                  type="number"
-                                  value={
-                                    localSettings?.pdf_layout.fonts
-                                      ?.header_size ?? 14
-                                  }
-                                  onChange={(e) => {
-                                    handleSave("pdf_layout", {
-                                      fonts: {
-                                        family:
-                                          localSettings?.pdf_layout.fonts
-                                            ?.family ?? "Arial",
-                                        size:
-                                          localSettings?.pdf_layout.fonts
-                                            ?.size ?? 12,
-                                        header_size: Number(e.target.value),
-                                      },
-                                    });
-                                    handleImmediateUpdate();
-                                  }}
-                                  className="w-full"
-                                />
+                                <Input id="header-size" type="number" value={localSettings?.header_font_size ?? 14} onChange={(e) => handleSave("header_font_size", Number(e.target.value) || 0)} />
                               </div>
                             </div>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Table Style</Label>
+                          <div className="rounded-lg border p-4 space-y-4">
+                            <div className="space-y-2">
+                               <Label htmlFor="table_header_bg_color">Header Background Color</Label>
+                               <Input id="table_header_bg_color" type="color" value={localSettings?.table_header_bg_color ?? "#f5f5f5"} onChange={(e) => handleSave("table_header_bg_color", e.target.value)} />
+                             </div>
+                             <div className="space-y-2">
+                               <Label htmlFor="table_border_color">Border Color</Label>
+                               <Input id="table_border_color" type="color" value={localSettings?.table_border_color ?? "#e0e0e0"} onChange={(e) => handleSave("table_border_color", e.target.value)} />
+                             </div>
+                             <div className="space-y-2">
+                               <Label htmlFor="table_text_color">Text Color</Label>
+                               <Input id="table_text_color" type="color" value={localSettings?.table_text_color ?? "#000000"} onChange={(e) => handleSave("table_text_color", e.target.value)} />
+                             </div>
+                             <div className="space-y-2">
+                               <Label htmlFor="table_header_text_color">Header Text Color</Label>
+                               <Input id="table_header_text_color" type="color" value={localSettings?.table_header_text_color ?? "#000000"} onChange={(e) => handleSave("table_header_text_color", e.target.value)} />
+                             </div>
                           </div>
                         </div>
                       </div>
@@ -1928,36 +1397,59 @@ export function SettingsPage() {
                   <h3 className="text-lg font-semibold mb-4">Layout Preview</h3>
                   <PDFLayoutEditor
                     config={{
-                      page_size: localSettings?.pdf_layout.page_size ?? "A4",
-                      orientation:
-                        localSettings?.pdf_layout.orientation ?? "portrait",
-                      margins: localSettings?.pdf_layout.margins ?? {
-                        top: 20,
-                        right: 20,
-                        bottom: 20,
-                        left: 20,
+                      page_size: localSettings?.page_size ?? "A4",
+                      orientation: localSettings?.orientation ?? "portrait",
+                      margins: {
+                        top: localSettings?.margin_top ?? 20,
+                        right: localSettings?.margin_right ?? 20,
+                        bottom: localSettings?.margin_bottom ?? 20,
+                        left: localSettings?.margin_left ?? 20,
                       },
-                      table_style: localSettings?.pdf_layout.table_style ?? {
-                        header_bg_color: "#f5f5f5",
-                        border_color: "#e0e0e0",
-                        text_color: "#000000",
-                        header_text_color: "#000000",
+                      table_style: {
+                        header_bg_color: localSettings?.table_header_bg_color ?? "#f5f5f5",
+                        border_color: localSettings?.table_border_color ?? "#e0e0e0",
+                        text_color: localSettings?.table_text_color ?? "#000000",
+                        header_text_color: localSettings?.table_header_text_color ?? "#000000",
                       },
-                      fonts: localSettings?.pdf_layout.fonts ?? {
-                        family: "Arial",
-                        size: 12,
-                        header_size: 14,
+                      fonts: {
+                        family: localSettings?.font_family ?? "Arial",
+                        size: localSettings?.font_size ?? 12,
+                        header_size: localSettings?.header_font_size ?? 14,
                       },
-                      content: localSettings?.pdf_layout.content ?? {
-                        show_employee_id: true,
-                        show_position: true,
-                        show_breaks: true,
-                        show_total_hours: true,
+                      content: {
+                        show_employee_id: localSettings?.show_employee_id ?? true,
+                        show_position: localSettings?.show_position ?? true,
+                        show_breaks: localSettings?.show_breaks ?? true,
+                        show_total_hours: localSettings?.show_total_hours ?? true,
                       },
                     }}
                     onChange={(config) => {
-                      handleSave("pdf_layout", config);
-                      handleImmediateUpdate();
+                      if (!config) return;
+                      handleSave("page_size", config.page_size);
+                      handleSave("orientation", config.orientation as "portrait" | "landscape");
+                      if (config.margins) {
+                        handleSave("margin_top", config.margins.top);
+                        handleSave("margin_right", config.margins.right);
+                        handleSave("margin_bottom", config.margins.bottom);
+                        handleSave("margin_left", config.margins.left);
+                      }
+                      if (config.table_style) {
+                        handleSave("table_header_bg_color", config.table_style.header_bg_color);
+                        handleSave("table_border_color", config.table_style.border_color);
+                        handleSave("table_text_color", config.table_style.text_color);
+                        handleSave("table_header_text_color", config.table_style.header_text_color);
+                      }
+                      if (config.fonts) {
+                        handleSave("font_family", config.fonts.family);
+                        handleSave("font_size", config.fonts.size);
+                        handleSave("header_font_size", config.fonts.header_size);
+                      }
+                      if (config.content) {
+                        handleSave("show_employee_id", config.content.show_employee_id);
+                        handleSave("show_position", config.content.show_position);
+                        handleSave("show_breaks", config.content.show_breaks);
+                        handleSave("show_total_hours", config.content.show_total_hours);
+                      }
                     }}
                   />
                 </div>
