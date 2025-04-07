@@ -12,7 +12,7 @@ import { employeeAvailabilityRoutes, availabilityRoutes } from './routes/employe
 import { employeeAbsenceRoutes, absenceRoutes } from './routes/absences';
 // Import the new coverage routes (assuming named export)
 import { coverageRoutes } from './routes/coverage';
-import { recurringCoverageRoutes } from './routes/recurringCoverageRoutes.js'; // Trying .js extension
+import { recurringCoverageRoutes } from './routes/recurringCoverage'; // Import recurring coverage routes
 import { shiftPatternRoutes } from './routes/shiftPatternRoutes.js'; // Added import, using .js extension
 import { swagger } from '@elysiajs/swagger';
 // Removed incorrect import: import { globalErrorHandler } from './lib/errorHandler';
@@ -96,7 +96,7 @@ const app = new Elysia()
   .use(employeeAbsenceRoutes) // Mount employee-nested absence routes
   .use(absenceRoutes)         // Mount top-level absence routes (PUT/DELETE by ID)
   .use(coverageRoutes) // Mount coverage routes
-  .use(recurringCoverageRoutes) // Mounted routes
+  .use(recurringCoverageRoutes) // Mount recurring coverage routes
   .use(shiftPatternRoutes) // Mounted routes
   .use(settingsRoutes)
   .use(scheduleRoutes) // Original schedule routes (likely for generation/overview)
