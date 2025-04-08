@@ -196,6 +196,32 @@ CREATE TABLE IF NOT EXISTS settings (
 -- Insert default settings row if it doesn't exist
 INSERT OR IGNORE INTO settings (id) VALUES (1);
 
+-- Update the newly inserted or existing default settings row with default JSON types based on @Types
+UPDATE settings
+SET
+    availability_types = '[
+        {"id": "available", "name": "AVAILABLE", "description": "Mitarbeiter ist verfügbar", "color": "#4CAF50", "priority": 1, "is_available": true},
+        {"id": "unavailable", "name": "UNAVAILABLE", "description": "Mitarbeiter ist nicht verfügbar", "color": "#F44336", "priority": 10, "is_available": false},
+        {"id": "fixed", "name": "FIXED", "description": "Mitarbeiter hat feste Arbeitszeiten", "color": "#FF9800", "priority": 8, "is_available": true},
+        {"id": "preferred", "name": "PREFERRED", "description": "Mitarbeiter bevorzugt diese Zeit", "color": "#2196F3", "priority": 5, "is_available": true}
+    ]',
+    employee_types = '[
+        {"id": "tl", "name": "Teamleiter", "min_hours": 38, "max_hours": 40, "max_daily_hours": 10, "type": "employee"},
+        {"id": "vz", "name": "Vollzeit", "min_hours": 35, "max_hours": 40, "max_daily_hours": 10, "type": "employee"},
+        {"id": "tz", "name": "Teilzeit", "min_hours": 15, "max_hours": 30, "max_daily_hours": 8, "type": "employee"},
+        {"id": "gfb", "name": "Geringfügig", "min_hours": 0, "max_hours": 12, "max_daily_hours": 6, "type": "employee"}
+    ]',
+    shift_types = '[
+        {"id": "early", "name": "EARLY", "color": "#FFC107", "type": "shift"},
+        {"id": "middle", "name": "MIDDLE", "color": "#03A9F4", "type": "shift"},
+        {"id": "late", "name": "LATE", "color": "#673AB7", "type": "shift"}
+    ]',
+    absence_types = '[
+        {"id": "url", "name": "Urlaub", "color": "#FF9800", "type": "absence"},
+        {"id": "abw", "name": "Abwesend", "color": "#E91E63", "type": "absence"},
+        {"id": "ext", "name": "Extern", "color": "#9E9E9E", "type": "absence"}
+    ]'
+WHERE id = 1;
 
 -- Coverage Table (Renaming back from coverage_requirements)
 CREATE TABLE IF NOT EXISTS coverage (

@@ -201,3 +201,56 @@ export async function generateSchedule(startDate: string, endDate: string /*, op
 
 
 // --- Placeholder for createNewVersion, updateScheduleEntry etc. --- 
+
+interface CreateVersionRequest {
+  start_date: string;
+  end_date: string;
+  base_version?: number;
+  notes?: string;
+}
+
+interface CreateVersionResponse {
+  new_version: number;
+  status: string; // e.g., "DRAFT_CREATED"
+}
+
+export async function createNewScheduleVersion(data: CreateVersionRequest): Promise<CreateVersionResponse> {
+  console.log("Attempting to create new schedule version with data:", data);
+  
+  // Basic Input Validation (Example)
+  if (!data.start_date || !data.end_date) {
+    throw new Error("Start date and end date are required to create a new version.");
+  }
+  // TODO: Add more robust validation (date format, start before end, etc.)
+
+  // Placeholder logic: 
+  // 1. Determine the next available version number.
+  // 2. Insert a new record into schedule_version_meta.
+  // 3. Optionally copy entries from base_version if provided.
+  
+  try {
+    // Fetch the latest version to determine the next one
+    const versions = await getScheduleVersions();
+    const latestVersion = versions.length > 0 ? versions[0].version : 0;
+    const newVersionNumber = latestVersion + 1;
+
+    console.log(`Assigning new version number: ${newVersionNumber}`);
+
+    // TODO: Implement the actual database INSERT operation for schedule_version_meta
+    // const insertSql = `INSERT INTO schedule_version_meta (version, date_range_start, date_range_end, base_version, notes, status) VALUES (?, ?, ?, ?, ?, ?)`;
+    // db.run(insertSql, newVersionNumber, data.start_date, data.end_date, data.base_version ?? null, data.notes ?? null, ScheduleStatus.DRAFT);
+
+    // TODO: Implement copying entries from base_version if applicable
+
+    console.log(`Placeholder: Successfully created schedule version meta for ${newVersionNumber}.`);
+
+    return {
+      new_version: newVersionNumber,
+      status: "DRAFT_CREATED (Placeholder)",
+    };
+
+  } catch (error: any) {
+    console.error("Failed to create new schedule version:", error);
+    throw new Error(`Failed to create new schedule version: ${error.message}`);
+  }
+} 

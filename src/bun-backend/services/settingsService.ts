@@ -332,8 +332,10 @@ export async function upsertSetting(key: string, value: string, db: Database = g
  * Retrieves all absence types.
  * @param db - Optional Database instance.
  */
-export async function getAllAbsenceTypes(db: Database = globalDb): Promise<AbsenceType[]> {
-    // ... implementation ...
+export async function getAllAbsenceTypes(db: Database = globalDb): Promise<AbsenceTypeDefinition[]> {
+    // Placeholder: return empty array or throw error
+    console.warn("getAllAbsenceTypes not implemented");
+    return []; 
 }
 
 /**
@@ -341,24 +343,36 @@ export async function getAllAbsenceTypes(db: Database = globalDb): Promise<Absen
  * @param id - The ID of the absence type.
  * @param db - Optional Database instance.
  */
-export async function getAbsenceTypeById(id: number, db: Database = globalDb): Promise<AbsenceType> {
-    // ... implementation ...
+export async function getAbsenceTypeById(id: string | number, db: Database = globalDb): Promise<AbsenceTypeDefinition> {
+    // Placeholder: throw error
+    console.warn(`getAbsenceTypeById (${id}) not implemented`);
+    throw new NotFoundError(`Absence type with ID ${id} not found (Not Implemented).`);
 }
 
 // Input type for creating an absence type (omit generated fields)
-type CreateAbsenceTypeInput = Omit<AbsenceType, 'id' | 'created_at' | 'updated_at'>;
+// Align with CreateAbsenceTypeSchema from routes/settings.ts
+type CreateAbsenceTypeInput = {
+    name: string;
+    is_paid: boolean;
+    // color and type are optional or handled differently based on schema/db
+};
 
 /**
  * Adds a new absence type.
  * @param data - The absence type data (name, is_paid).
  * @param db - Optional Database instance.
  */
-export async function addAbsenceType(data: CreateAbsenceTypeInput, db: Database = globalDb): Promise<AbsenceType> {
-    // ... implementation ...
+export async function addAbsenceType(data: CreateAbsenceTypeInput, db: Database = globalDb): Promise<AbsenceTypeDefinition> {
+    // Placeholder: throw error
+    console.warn("addAbsenceType not implemented");
+    // Need to map data to the full AbsenceTypeDefinition structure before inserting
+    // For now, just throw the error
+    throw new Error("Add absence type not implemented.");
 }
 
 // Input type for updating absence type (partial, omit id/generated)
-type UpdateAbsenceTypeInput = Partial<Omit<AbsenceType, 'id' | 'created_at' | 'updated_at'>>;
+// Use the imported type and Omit/Partial
+type UpdateAbsenceTypeInput = Partial<Omit<AbsenceTypeDefinition, 'id' | 'created_at' | 'updated_at'> | CreateAbsenceTypeInput>; // Allow partial update with create fields
 
 /**
  * Updates an existing absence type.
@@ -366,8 +380,10 @@ type UpdateAbsenceTypeInput = Partial<Omit<AbsenceType, 'id' | 'created_at' | 'u
  * @param data - The fields to update.
  * @param db - Optional Database instance.
  */
-export async function updateAbsenceType(id: number, data: UpdateAbsenceTypeInput, db: Database = globalDb): Promise<AbsenceType> {
-    // ... implementation ...
+export async function updateAbsenceType(id: string | number, data: UpdateAbsenceTypeInput, db: Database = globalDb): Promise<AbsenceTypeDefinition> {
+    // Placeholder: throw error
+    console.warn(`updateAbsenceType (${id}) not implemented`);
+    throw new Error(`Update absence type ${id} not implemented.`);
 }
 
 /**
@@ -375,6 +391,105 @@ export async function updateAbsenceType(id: number, data: UpdateAbsenceTypeInput
  * @param id - The ID of the absence type to delete.
  * @param db - Optional Database instance.
  */
-export async function deleteAbsenceType(id: number, db: Database = globalDb): Promise<{ success: boolean }> {
-    // ... implementation ...
+export async function deleteAbsenceType(id: string | number, db: Database = globalDb): Promise<{ success: boolean }> {
+    // Placeholder: throw error
+    console.warn(`deleteAbsenceType (${id}) not implemented`);
+    throw new Error(`Delete absence type ${id} not implemented.`);
+}
+
+// --- Table Management --- 
+
+/**
+ * Retrieves a list of user-manageable table names from the database.
+ * Excludes internal SQLite tables and the settings table.
+ * @param db - Optional Database instance.
+ */
+export async function getDatabaseTables(db: Database = globalDb): Promise<string[]> {
+    const internalTables = [
+        'sqlite_sequence', // SQLite internal sequence tracking
+        'drizzle__migrations', // Drizzle internal migration tracking
+        'settings' // Exclude the main settings table from wiping
+        // Add any other tables that should NOT be wipeable here
+    ];
+    
+    // Query to get all table names, excluding sqlite internal ones
+    const sql = "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';";
+    
+    try {
+        const query = db.query(sql);
+        // Use Promise.resolve() if .all() is sync in bun:sqlite
+        const rows = await Promise.resolve(query.all()) as { name: string }[];
+        
+        // Filter out the internal/protected tables
+        const tables = rows
+            .map(row => row.name)
+            .filter(name => !internalTables.includes(name));
+            
+        return tables;
+    } catch (error) {
+        console.error("Error fetching database table names:", error);
+        throw new Error("Failed to retrieve database table names.");
+    }
+}
+
+/**
+ * Deletes all rows from the specified tables.
+ * Use with caution!
+ * @param tablesToWipe - An array of table names to wipe.
+ * @param db - Optional Database instance.
+ * @returns A promise resolving when the operation is complete.
+ */
+export async function wipeTablesService(tablesToWipe: string[], db: Database = globalDb): Promise<void> {
+    if (!Array.isArray(tablesToWipe) || tablesToWipe.length === 0) {
+        throw new Error("No tables specified for wiping.");
+    }
+
+    // Sanitize table names (basic example - prevent SQL injection if names were dynamic)
+    const validTables = await getDatabaseTables(db); // Get list of wipeable tables
+    const sanitizedTables = tablesToWipe.filter(table => 
+        /^[a-zA-Z0-9_]+$/.test(table) && validTables.includes(table)
+    );
+
+    if (sanitizedTables.length === 0) {
+        console.warn("No valid or allowed tables found to wipe after filtering.");
+        return; // Or throw an error?
+    }
+
+    console.warn(`Attempting to WIPE data from tables: ${sanitizedTables.join(", ")}`);
+
+    // Execute DELETE statements in a transaction
+    const transaction = db.transaction(() => {
+        for (const table of sanitizedTables) {
+            try {
+                const deleteSql = `DELETE FROM ${table};`;
+                db.run(deleteSql, []); // Pass empty array for bindings
+                console.log(`Successfully wiped table: ${table}`);
+                 // Optionally reset auto-increment counter if applicable (SQLite specific)
+                 if (table !== 'sqlite_sequence') { // Don't delete the sequence table itself
+                    try {
+                        const resetSeqSql = `DELETE FROM sqlite_sequence WHERE name = ?;`;
+                        db.run(resetSeqSql, [table]); // Pass table name as binding
+                        console.log(`Reset sequence for table: ${table}`);
+                    } catch (seqError) {
+                         console.warn(`Could not reset sequence for table ${table}:`, seqError);
+                    }
+                 }
+            } catch (error) {
+                console.error(`Error wiping table ${table}:`, error);
+                // IMPORTANT: Bun SQLite transactions might not automatically roll back.
+                // Consider manual rollback or ensuring atomicity if partial wipes are critical.
+                throw new Error(`Failed to wipe table ${table}: ${error instanceof Error ? error.message : String(error)}`); 
+            }
+        }
+    });
+
+    try {
+        // Use Promise.resolve() if transaction is synchronous
+        await Promise.resolve(transaction());
+        console.log(`Successfully wiped tables: ${sanitizedTables.join(", ")}`);
+    } catch (error) {
+         // Error already thrown within the transaction loop, rethrow if needed
+         console.error("Transaction failed during table wipe:", error);
+         throw error;
+    }
 }

@@ -1,5 +1,5 @@
 import { Elysia, t } from "elysia";
-import { getScheduleByVersion, getScheduleVersions, generateSchedule } from "../services/scheduleService.js";
+import { getScheduleByVersion, getScheduleVersions, generateSchedule, createNewScheduleVersion } from "../services/scheduleService.js";
 import { NotFoundError } from "elysia";
 
 // Validation schema for version path parameter
@@ -14,6 +14,14 @@ const generateScheduleBodySchema = t.Object({
     // Add any other parameters needed for generation (e.g., specific constraints, version name?)
     // versionName: t.Optional(t.String({minLength: 1})),
     // options: t.Optional(t.Object({...}))
+});
+
+// Schema for creating a new version
+const createVersionBodySchema = t.Object({
+    start_date: t.String({ format: 'date', error: "start_date is required (YYYY-MM-DD)." }),
+    end_date: t.String({ format: 'date', error: "end_date is required (YYYY-MM-DD)." }),
+    base_version: t.Optional(t.Numeric({ minimum: 1, error: "base_version must be a positive integer." })),
+    notes: t.Optional(t.String())
 });
 
 const scheduleRoutes = new Elysia({ prefix: "/api/schedules" })
@@ -79,6 +87,33 @@ const scheduleRoutes = new Elysia({ prefix: "/api/schedules" })
       detail: { 
           summary: 'List Schedule Versions (Alias)',
           description: 'Alias for /versions. Retrieves a list of available schedule version identifiers.',
+          tags: ['Schedules'],
+      }
+  })
+
+  // POST /api/schedules/version (Create a new schedule version)
+  .post("/version", async ({ body, set }) => {
+      try {
+          console.log("Received request to create new schedule version:", body);
+          const result = await createNewScheduleVersion(body);
+          set.status = 201; // Created
+          console.log("New schedule version created:", result);
+          return result;
+      } catch (error: any) {
+          console.error("Error in POST /api/schedules/version:", error);
+          // Check for specific validation errors from service?
+          if (error.message?.includes("Start date and end date are required")) {
+              set.status = 400;
+          } else {
+              set.status = 500;
+          }
+          return { error: error.message || "Failed to create new schedule version." };
+      }
+  }, {
+      body: createVersionBodySchema, // Apply validation
+      detail: {
+          summary: 'Create New Schedule Version',
+          description: 'Creates a new, empty schedule version (or based on a base version) for the specified date range.',
           tags: ['Schedules'],
       }
   })

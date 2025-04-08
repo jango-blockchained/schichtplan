@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Enable command echoing for debugging
-set -x 
+# set -x 
 
 # Function to check if a port is in use
 check_port() {
@@ -226,6 +226,9 @@ echo "To detach from tmux: press Ctrl+B, then D"
 echo "To exit completely: press Ctrl+C in this terminal"
 echo -e "\nFor public access via ngrok, use option 8 in the Service Control Menu"
 echo ""
+
+# Select the menu pane (index 2) before attaching
+tmux select-pane -t schichtplan:0.2
 
 # Attach to tmux session
 tmux attach-session -t schichtplan

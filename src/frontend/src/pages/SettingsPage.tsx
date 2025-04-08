@@ -261,20 +261,34 @@ export function SettingsPage() {
 
   // Fetch available tables when component mounts
   useEffect(() => {
+    // Uncommenting: Backend endpoint /api/settings/tables should now exist
     const fetchTables = async () => {
       try {
-        const response = await api.get("/settings/tables");
-        setAvailableTables(response.data.tables);
+        const response = await api.get("/settings/tables"); // Ensure api object uses correct base URL
+        // Check if response.data exists and has a tables property which is an array
+        if (response.data && Array.isArray(response.data.tables)) {
+          setAvailableTables(response.data.tables);
+        } else {
+          console.error("Invalid response structure from /api/settings/tables:", response.data);
+          setAvailableTables([]); // Set to empty array on invalid structure
+          toast({
+            title: "Error",
+            description: "Received invalid data for database tables.",
+            variant: "destructive",
+          });
+        }
       } catch (error) {
+        console.error("Error fetching tables:", error);
         toast({
           title: "Error",
-          description: "Failed to fetch database tables",
+          description: `Failed to fetch database tables: ${error instanceof Error ? error.message : 'Unknown error'}`,
           variant: "destructive",
         });
       }
     };
     fetchTables();
-  }, []);
+    
+  }, [toast]); // Add toast to dependency array as it's used inside the effect
 
   const handleWipeTables = async () => {
     if (selectedTables.length === 0) {

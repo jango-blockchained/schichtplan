@@ -834,9 +834,16 @@ export const generateDemoData = async (
 
 // Generate optimized demo data with more diverse shift patterns
 export const generateOptimizedDemoData = async (): Promise<void | Settings> => {
+  // Uncommenting: Backend endpoint /api/demo-data/optimized/ should now exist (placeholder)
+  // console.warn("generateOptimizedDemoData called, but the backend endpoint is not implemented.");
+  
   try {
+    // The backend endpoint exists now, but is a placeholder.
+    // The response won't have task_id yet unless the placeholder is updated.
     const response = await api.post("/demo-data/optimized/");
 
+    // Keep the polling logic commented out for now, as the placeholder doesn't return task_id
+    /*
     if (response.data && response.data.task_id) {
       // Task started successfully, begin polling
       const taskId = response.data.task_id;
@@ -872,10 +879,14 @@ export const generateOptimizedDemoData = async (): Promise<void | Settings> => {
       // Return initial settings
       return settings;
     }
+    */
 
-    // Fallback to just returning settings
+    // Since the backend is just a placeholder, immediately fetch current settings
+    // This mimics the original fallback behavior if no task_id was returned.
+    console.log("Optimized demo data generation requested (placeholder). Fetching current settings as fallback.");
     const settings = await getSettings();
     return settings;
+    
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(
@@ -884,6 +895,8 @@ export const generateOptimizedDemoData = async (): Promise<void | Settings> => {
     }
     throw error;
   }
+  
+  // Removed fallback return undefined;
 };
 
 // Reset optimized demo data generation status

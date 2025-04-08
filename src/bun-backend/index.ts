@@ -14,6 +14,7 @@ import { employeeAbsenceRoutes, absenceRoutes } from './routes/absences';
 import { coverageRoutes } from './routes/coverage';
 import { recurringCoverageRoutes } from './routes/recurringCoverage'; // Import recurring coverage routes
 import { shiftPatternRoutes } from './routes/shiftPatterns'; // Import shift pattern routes
+import { demoDataRoutes } from './routes/demoData'; // Import demo data routes
 import { swagger } from '@elysiajs/swagger';
 import { jwt } from '@elysiajs/jwt';
 import { staticPlugin } from '@elysiajs/static';
@@ -99,7 +100,19 @@ const app = new Elysia()
     (set as any).log = log.child({ reqId });
     (set as any).log.debug({ req: request }, `Request received: ${request.method} ${new URL(request.url).pathname}`);
   })
-  .use(cors()) // Enable CORS for frontend interaction
+  .use(cors({ // Enable and configure CORS
+      origin: [ // Allow specific origins
+          'http://localhost:3000', // Common React dev port
+          'http://localhost:8080', // Common dev port
+          'http://localhost:5173', // Common Vite dev port
+          // Add your frontend's actual origin if different
+          /localhost:\d+/ // Regex to allow any localhost port (less secure)
+      ],
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Allowed methods
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'], // Allowed headers
+      credentials: true, // IMPORTANT: Allow cookies and authorization headers
+      preflight: true, // Handle OPTIONS preflight requests
+  }))
   .use(swagger({ // Setup Swagger UI
       path: '/api-docs',
       documentation: {
@@ -119,6 +132,7 @@ const app = new Elysia()
                 { name: 'EmployeeAvailability', description: 'Employee Availability management endpoints' },
                 { name: 'Schedules', description: 'Schedule management and generation endpoints' },
                 { name: 'Settings', description: 'Application settings endpoints' },
+                { name: 'DemoData', description: 'Demo Data generation endpoints' }
             ]
       },
   }))
@@ -135,8 +149,7 @@ const app = new Elysia()
   .use(coverageRoutes) // Mount coverage routes
   .use(recurringCoverageRoutes) // Mount recurring coverage routes
   .use(shiftPatternRoutes) // Mounted routes
-  .use(settingsRoutes)
-  .use(scheduleRoutes) // Original schedule routes (likely for generation/overview)
+  .use(demoDataRoutes) // Mount demo data routes
   .use(jwt({
     name: 'jwt',
     secret: process.env.JWT_SECRET || 'fallback-secret-key-change-me!', // Use environment variable!
@@ -167,14 +180,11 @@ const app = new Elysia()
     return { error: `An unexpected error occurred: ${errorMessage}` };
   })
   // --- Response Logging (using onAfterHandle) ---
-  // Temporarily commented out due to typing issues
-  /*
   .onAfterHandle((context) => {
     const { request, set, log, response } = context;
     const reqLog = log as pino.Logger; 
     reqLog.info({ status: set.status }, `Response sent: ${request.method} ${new URL(request.url).pathname} -> ${set.status}`);
   })
-  */
   // --- Server Start --- 
   .listen(PORT);
 

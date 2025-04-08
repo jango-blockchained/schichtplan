@@ -12,6 +12,8 @@ import {
     updateAbsenceType as updateServiceAbsenceType,
     deleteAbsenceType as deleteServiceAbsenceType,
     updateSettings,
+    getDatabaseTables,
+    wipeTablesService
 } from "../services/settingsService";
 import type {
   Settings,
@@ -194,6 +196,11 @@ const CreateAbsenceTypeSchema = t.Object({
 });
 const UpdateAbsenceTypeSchema = t.Partial(CreateAbsenceTypeSchema);
 
+// Schema for wipe tables endpoint
+const WipeTablesBodySchema = t.Object({
+    tables: t.Array(t.String({ minLength: 1 }), { minItems: 1, error: "At least one table name must be provided." })
+});
+
 // --- Define Elysia Routes --- //
 
 export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
@@ -249,6 +256,30 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
             description: 'Updates multiple application settings fields. Send only the fields to be changed.',
             tags: ['Settings'],
         }
+    })
+
+    // GET list of database tables
+    .get("/tables", async ({ set, ...ctx }) => {
+        const context = ctx as { db?: Database };
+        const currentDb = context.db ?? globalDb;
+        const routeLogger = (ctx as any).log || logger;
+        routeLogger.debug("Attempting to fetch database table names");
+        try {
+            const tables = await getDatabaseTables(currentDb);
+            routeLogger.info("Database table names fetched successfully");
+            return { tables }; // Return tables wrapped in an object
+        } catch (error: any) {
+            routeLogger.error("Error fetching database table names:", error.message);
+            console.error("Error fetching database table names:", error.message);
+            set.status = 500;
+            return { error: "Failed to retrieve database table names" };
+        }
+    }, {
+         detail: {
+            summary: 'Get Database Tables',
+            description: 'Retrieves a list of user-manageable database table names.',
+            tags: ['Settings'],
+         }
     })
 
     // GET setting by key
@@ -403,4 +434,39 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
             set.status = 500;
             return { error: "Failed to delete absence type" };
         }
-    }, { params: AbsenceTypeIdParamSchema }); 
+    }, { params: AbsenceTypeIdParamSchema })
+
+    // POST /settings/wipe-tables
+    .post("/wipe-tables", async ({ body, set, ...ctx }) => {
+        const context = ctx as { db?: Database };
+        const currentDb = context.db ?? globalDb;
+        const routeLogger = (ctx as any).log || logger;
+        routeLogger.warn({ tables: body.tables }, "Received request to WIPE tables");
+        try {
+            await wipeTablesService(body.tables, currentDb);
+            routeLogger.info("Tables wiped successfully");
+            set.status = 204; // No Content
+            return; // Return nothing on success
+        } catch (error: any) {
+            routeLogger.error({ err: error }, "Error wiping tables");
+            set.status = error.message?.includes("No tables specified") || error.message?.includes("No valid or allowed tables") ? 400 : 500;
+            return { error: error.message || "Failed to wipe tables." };
+        }
+    }, {
+        body: WipeTablesBodySchema,
+        detail: {
+            summary: 'Wipe Database Tables',
+            description: 'Deletes all data from specified database tables. USE WITH EXTREME CAUTION!',
+            tags: ['Settings', 'Actions'],
+        }
+    })
+
+    // TODO: POST /settings/backup endpoint
+    // TODO: POST /settings/restore endpoint
+
+    // --- Single Setting Key/Value Routes --- 
+    // ... GET /:key, PUT /:key ...
+
+    // --- Absence Types --- 
+    // ... absence type routes ...
+; 
