@@ -1,7 +1,7 @@
 import { Elysia, t, NotFoundError } from "elysia";
 import globalDb from "../db";
 import { Database } from "bun:sqlite";
-import { logger } from "../index";
+import logger from "../logger";
 import {
     getSettings as getServiceSettings,
     getSettingByKey as getServiceSettingByKey,
@@ -47,10 +47,10 @@ const PdfLayoutConfigSchema = t.Object({
     margin_right: t.Number(),
     margin_bottom: t.Number(),
     margin_left: t.Number(),
-    table_header_bg_color: t.String({ format: 'hex-color'}),
-    table_border_color: t.String({ format: 'hex-color'}),
-    table_text_color: t.String({ format: 'hex-color'}),
-    table_header_text_color: t.String({ format: 'hex-color'}),
+    table_header_bg_color: t.String(),
+    table_border_color: t.String(),
+    table_text_color: t.String(),
+    table_header_text_color: t.String(),
     font_family: t.String(),
     font_size: t.Number(),
     header_font_size: t.Number(),
@@ -67,7 +67,7 @@ const AvailabilityTypeDefinitionSchema = t.Object({
   id: t.String(),
   name: t.String(),
   description: t.String(),
-  color: t.String({ format: 'hex-color'}),
+  color: t.String(),
   priority: t.Number(),
   is_available: t.Boolean(),
 });
@@ -91,7 +91,7 @@ const ShiftTypeHourConditionsSchema = t.Object({
 const ShiftTypeDefinitionSchema = t.Object({
   id: t.String(),
   name: t.String(),
-  color: t.String({ format: 'hex-color'}),
+  color: t.String(),
   type: t.String(), // Could be t.Literal('shift') if fixed
   hourConditions: t.Optional(ShiftTypeHourConditionsSchema),
 });
@@ -99,7 +99,7 @@ const ShiftTypeDefinitionSchema = t.Object({
 const AbsenceTypeDefinitionSchema = t.Object({
   id: t.String(),
   name: t.String(),
-  color: t.String({ format: 'hex-color'}),
+  color: t.String(),
   type: t.String(), // Could be t.Literal('absence') if fixed
 });
 
@@ -138,18 +138,18 @@ const SettingsUpdateSchema = t.Partial(t.Object({
   allow_dynamic_shift_adjustment: t.Optional(t.Boolean()),
   scheduling_advanced: t.Optional(SchedulingAdvancedSchema),
   theme: t.Optional(t.String()),
-  primary_color: t.Optional(t.String({ format: 'hex-color'})),
-  secondary_color: t.Optional(t.String({ format: 'hex-color'})),
-  accent_color: t.Optional(t.String({ format: 'hex-color'})),
-  background_color: t.Optional(t.String({ format: 'hex-color'})),
-  surface_color: t.Optional(t.String({ format: 'hex-color'})),
-  text_color: t.Optional(t.String({ format: 'hex-color'})),
-  dark_theme_primary_color: t.Optional(t.String({ format: 'hex-color'})),
-  dark_theme_secondary_color: t.Optional(t.String({ format: 'hex-color'})),
-  dark_theme_accent_color: t.Optional(t.String({ format: 'hex-color'})),
-  dark_theme_background_color: t.Optional(t.String({ format: 'hex-color'})),
-  dark_theme_surface_color: t.Optional(t.String({ format: 'hex-color'})),
-  dark_theme_text_color: t.Optional(t.String({ format: 'hex-color'})),
+  primary_color: t.Optional(t.String()),
+  secondary_color: t.Optional(t.String()),
+  accent_color: t.Optional(t.String()),
+  background_color: t.Optional(t.String()),
+  surface_color: t.Optional(t.String()),
+  text_color: t.Optional(t.String()),
+  dark_theme_primary_color: t.Optional(t.String()),
+  dark_theme_secondary_color: t.Optional(t.String()),
+  dark_theme_accent_color: t.Optional(t.String()),
+  dark_theme_background_color: t.Optional(t.String()),
+  dark_theme_surface_color: t.Optional(t.String()),
+  dark_theme_text_color: t.Optional(t.String()),
   show_sunday: t.Optional(t.Boolean()),
   show_weekdays: t.Optional(t.Boolean()),
   start_of_week: t.Optional(t.Number({ minimum: 0, maximum: 1 })), // 0=Sun, 1=Mon
@@ -164,10 +164,10 @@ const SettingsUpdateSchema = t.Partial(t.Object({
   margin_right: t.Optional(t.Number()),
   margin_bottom: t.Optional(t.Number()),
   margin_left: t.Optional(t.Number()),
-  table_header_bg_color: t.Optional(t.String({ format: 'hex-color'})),
-  table_border_color: t.Optional(t.String({ format: 'hex-color'})),
-  table_text_color: t.Optional(t.String({ format: 'hex-color'})),
-  table_header_text_color: t.Optional(t.String({ format: 'hex-color'})),
+  table_header_bg_color: t.Optional(t.String()),
+  table_border_color: t.Optional(t.String()),
+  table_text_color: t.Optional(t.String()),
+  table_header_text_color: t.Optional(t.String()),
   font_family: t.Optional(t.String()),
   font_size: t.Optional(t.Number()),
   header_font_size: t.Optional(t.Number()),
@@ -213,7 +213,7 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
         try {
             const settings = await getServiceSettings(currentDb);
             if (!settings) {
-                console.error("Settings object not found after calling getServiceSettings.");
+                routeLogger.error("Settings object not found after calling getServiceSettings.");
                 set.status = 404;
                 return { error: "Settings not found." };
             }
@@ -221,7 +221,6 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
             return settings;
         } catch (error: any) {
             routeLogger.error({ err: error }, "Specific error context in GET /api/settings/");
-            console.error("Error fetching settings:", error.message);
             if (error instanceof NotFoundError) {
                 set.status = 404;
                 return { error: error.message || "Settings not found." };
@@ -235,13 +234,14 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
     .put("/", async ({ body, set, ...ctx }) => {
         const context = ctx as { db?: Database };
         const currentDb = context.db ?? globalDb;
-        logger.info({ updateData: body }, "Received PUT request to update settings (using base logger)");
+        const routeLogger = (ctx as any).log || logger;
+        routeLogger.info({ updateData: body }, "Received PUT request to update settings");
         try {
             const updatedSettings = await updateSettings(body, currentDb);
-            logger.info("Settings updated successfully via PUT / (using base logger)");
+            routeLogger.info("Settings updated successfully via PUT /");
             return updatedSettings;
         } catch (error: any) {
-            logger.error({ err: error, updateData: body }, "Error updating settings via PUT / (using base logger)");
+            routeLogger.error({ err: error, updateData: body }, "Error updating settings via PUT /");
             if (error instanceof NotFoundError) {
                  set.status = 404;
                  return { error: error.message || "Settings could not be updated (not found)." };
@@ -269,8 +269,7 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
             routeLogger.info("Database table names fetched successfully");
             return { tables }; // Return tables wrapped in an object
         } catch (error: any) {
-            routeLogger.error("Error fetching database table names:", error.message);
-            console.error("Error fetching database table names:", error.message);
+            routeLogger.error({ err: error }, "Error fetching database table names");
             set.status = 500;
             return { error: "Failed to retrieve database table names" };
         }
@@ -336,8 +335,7 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
             routeLogger.info("All absence types fetched successfully");
             return absenceTypes;
         } catch (error: any) {
-            routeLogger.error("Error fetching all absence types:", error.message);
-            console.error("Error fetching all absence types:", error.message);
+            routeLogger.error({ err: error }, "Error fetching all absence types");
             set.status = 500;
             return { error: "Failed to retrieve absence types" };
         }
@@ -354,12 +352,11 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
             routeLogger.info(`Absence type with ID ${params.id} fetched successfully`);
             return absenceType;
         } catch (error: any) {
-            routeLogger.error(`Error fetching absence type with ID ${params.id}:`, error.message);
+            routeLogger.error({ err: error }, `Error fetching absence type with ID ${params.id}`);
             if (error instanceof NotFoundError) {
                 set.status = 404;
                 return { error: error.message };
             }
-            console.error(`Error fetching absence type ${params.id}:`, error.message);
             set.status = 500;
             return { error: "Failed to retrieve absence type" };
         }
@@ -377,8 +374,7 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
             set.status = 201;
             return newAbsenceType;
         } catch (error: any) {
-            routeLogger.error("Error adding absence type:", error.message);
-            console.error("Error adding absence type:", error.message);
+            routeLogger.error({ err: error }, "Error adding absence type");
             set.status = 500;
             return { error: "Failed to add absence type" };
         }
@@ -395,12 +391,11 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
             routeLogger.info(`Absence type with ID ${params.id} updated successfully`);
             return updatedAbsenceType;
         } catch (error: any) {
-            routeLogger.error(`Error updating absence type with ID ${params.id}:`, error.message);
+            routeLogger.error({ err: error }, `Error updating absence type with ID ${params.id}`);
             if (error instanceof NotFoundError) {
                 set.status = 404;
                 return { error: error.message };
             }
-            console.error(`Error updating absence type ${params.id}:`, error.message);
             set.status = 500;
             return { error: "Failed to update absence type" };
         }
@@ -421,7 +416,7 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
             set.status = 204;
             return;
         } catch (error: any) {
-            routeLogger.error(`Error deleting absence type with ID ${params.id}:`, error.message);
+            routeLogger.error({ err: error }, `Error deleting absence type with ID ${params.id}`);
             if (error instanceof NotFoundError) {
                 set.status = 404;
                 return { error: error.message };
@@ -430,7 +425,6 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
                 set.status = 400;
                 return { error: error.message };
             }
-            console.error(`Error deleting absence type ${params.id}:`, error.message);
             set.status = 500;
             return { error: "Failed to delete absence type" };
         }

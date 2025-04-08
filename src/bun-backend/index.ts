@@ -18,7 +18,7 @@ import { demoDataRoutes } from './routes/demoData'; // Import demo data routes
 import { swagger } from '@elysiajs/swagger';
 import { jwt } from '@elysiajs/jwt';
 import { staticPlugin } from '@elysiajs/static';
-import pino from 'pino';
+import logger from './logger'; // IMPORT FROM NEW FILE
 import { randomUUID } from 'node:crypto';
 // Removed incorrect import: import { globalErrorHandler } from './lib/errorHandler';
 
@@ -27,27 +27,26 @@ const PORT = process.env.PORT || 5001;
 
 console.log("Initializing Elysia application...");
 
-// Configure Pino Logger
-const logLevel = process.env.LOG_LEVEL || (process.env.NODE_ENV === 'development' ? 'debug' : 'info');
-
-const logger = pino(
-  {
-    level: logLevel,
-  },
-  // Use pino-pretty in development, otherwise default JSON
-  process.env.NODE_ENV === 'development'
-    ? pino.transport({
-        target: 'pino-pretty',
-        options: {
-          colorize: true,
-          levelFirst: true,
-          translateTime: 'SYS:HH:MM:ss.l',
-          ignore: 'pid,hostname,reqId,req,res', // Ignore these fields in pretty print
-          messageFormat: '({reqId}) {msg}', // Add reqId to the message
-        },
-      })
-    : undefined, // Use default JSON transport in production/other envs
-);
+// REMOVE LOGGER SETUP FROM HERE
+// const logLevel = process.env.LOG_LEVEL || (process.env.NODE_ENV === 'development' ? 'debug' : 'info');
+// const logger = pino(
+//   {
+//     level: logLevel,
+//   },
+//   // Use pino-pretty in development, otherwise default JSON
+//   process.env.NODE_ENV === 'development'
+//     ? pino.transport({
+//         target: 'pino-pretty',
+//         options: {
+//           colorize: true,
+//           levelFirst: true,
+//           translateTime: 'SYS:HH:MM:ss.l',
+//           ignore: 'pid,hostname,reqId,req,res', // Ignore these fields in pretty print
+//           messageFormat: '({reqId}) {msg}', // Add reqId to the message
+//         },
+//       })
+//     : undefined, // Use default JSON transport in production/other envs
+// );
 
 // Define the global error handler WITHOUT explicit ErrorHandler type
 // Let Elysia infer the types when passed to .onError()
@@ -90,14 +89,12 @@ const globalErrorHandler = ({ code, error, set }: { code: unknown, error: any, s
 
 const app = new Elysia()
   // --- Base Logger & Request ID --- 
-  .decorate('log', logger) // Add base logger to app decoration
+  .decorate('log', logger) // USE IMPORTED LOGGER
   .onRequest(({ request, set, log }) => {
-    // Generate unique request ID
     const reqId = randomUUID(); 
-    // Create request-specific child logger
-    set.headers['X-Request-ID'] = reqId; // Add header for tracing
-    // Attach child logger with reqId to context (will overwrite base log decoration for this request)
-    (set as any).log = log.child({ reqId });
+    set.headers['X-Request-ID'] = reqId;
+    // USE IMPORTED LOGGER TO CREATE CHILD
+    (set as any).log = logger.child({ reqId }); 
     (set as any).log.debug({ req: request }, `Request received: ${request.method} ${new URL(request.url).pathname}`);
   })
   .use(cors({ // Enable and configure CORS
@@ -156,9 +153,10 @@ const app = new Elysia()
     exp: '7d' // Token expiration time
   }))
   .onError(({ code, error, set, log }) => {
-    // Safer error message extraction
     const errorMessage = error instanceof Error ? error.message : String(error);
-    log.error({ err: error, code }, `Error occurred: ${errorMessage}`);
+    // Use the request-specific logger from context if available, otherwise base logger
+    const reqLog = (set as any)?.log || logger; // USE IMPORTED LOGGER AS FALLBACK
+    reqLog.error({ err: error, code }, `Error occurred: ${errorMessage}`);
 
     // Standard Elysia error handling - use safer errorMessage
     if (code === 'NOT_FOUND') {
@@ -167,7 +165,6 @@ const app = new Elysia()
     }
     if (code === 'VALIDATION') {
       set.status = 400;
-      // Accessing nested error details might still be complex, keep original for now if needed
       return { error: `Validation Error: ${errorMessage}`, details: (error as any).validator?.Errors(error.value).First()?.message };
     }
     if (code === 'INTERNAL_SERVER_ERROR') {
@@ -181,14 +178,15 @@ const app = new Elysia()
   })
   // --- Response Logging (using onAfterHandle) ---
   .onAfterHandle((context) => {
-    const { request, set, log, response } = context;
-    const reqLog = log as pino.Logger; 
+    const { request, set } = context;
+    // Get request-specific logger from context
+    const reqLog = (set as any)?.log || logger; // USE IMPORTED LOGGER AS FALLBACK
     reqLog.info({ status: set.status }, `Response sent: ${request.method} ${new URL(request.url).pathname} -> ${set.status}`);
   })
   // --- Server Start --- 
   .listen(PORT);
 
-// Log server start
+// Log server start (use imported logger)
 logger.info(`🦊 Schichtplan Bun backend is running at http://${app.server?.hostname}:${app.server?.port}`);
 logger.info(`📄 API Docs available at http://${app.server?.hostname}:${app.server?.port}/api-docs`);
 

@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { Settings, EmployeeGroup, OpeningDays, ShiftTypeDefinition } from "../db/schema"; 
 import { fetch } from "bun";
-import { settingsRoutes } from "../routes/settings"; // Static import
+// import { settingsRoutes } from "../routes/settings"; // REMOVE Static import
 
 // --- Database Setup ---
 const setupAndSeedDb = (db: Database) => {
@@ -64,9 +64,9 @@ const setupAndSeedDb = (db: Database) => {
 // Create DB instance ONCE
 const testDb = new Database(":memory:");
 
-// Mock the database module BEFORE static imports are resolved
+// Mock the database module BEFORE routes are imported
 mock.module("../db", () => {
-    setupAndSeedDb(testDb); // Apply schema and seed ONCE when mock is first hit
+    setupAndSeedDb(testDb); 
     return { default: testDb, db: testDb };
 });
 
@@ -78,11 +78,12 @@ const TEST_PORT = 5557;
 describe("Settings API Routes", () => {
 
     beforeAll(async () => {
-        // Routes are now imported statically
+        // Import routes DYNAMICALLY AFTER db is mocked and seeded
+        const { settingsRoutes } = await import("../routes/settings"); 
         
         // Setup the test Elysia app
         app = new Elysia()
-            .use(settingsRoutes); // Use statically imported routes
+            .use(settingsRoutes); // Use dynamically imported routes
 
         // Start the server
         app.listen(TEST_PORT);
@@ -149,8 +150,14 @@ describe("Settings API Routes", () => {
                 body: JSON.stringify(updateData),
             });
             const body = await response.json();
+            
+            // Log the response body if the status is not 200
+            if (response.status !== 200) {
+                console.log("PUT Update Error Body:", JSON.stringify(body)); 
+            }
 
-            expect(response.status).toBe(200);
+            // Revert expectation to 200 OK for successful PUT
+            expect(response.status).toBe(200); 
             expect(body).toBeObject();
             expect(body.id).toBe(1);
             expect(body.store_name).toBe("Updated Store Name via API");
