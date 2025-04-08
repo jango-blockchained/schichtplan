@@ -6,7 +6,7 @@ import {
 } from "util";
 import { Window } from "happy-dom";
 import "@testing-library/jest-dom";
-import { beforeAll, beforeEach } from "bun:test";
+import { beforeAll, beforeEach, afterEach } from "bun:test";
 import { cleanup } from "@testing-library/react";
 
 // Add jest-dom matchers to Bun's expect
@@ -61,15 +61,40 @@ beforeAll(() => {
 });
 
 // Reset the DOM after each test
+// Remove this beforeEach block
+/*
 beforeEach(() => {
+  if (!document.body) {
+    console.error("!!! document.body does NOT exist in beforeEach !!!");
+  } else {
+    // console.log("--- document.body exists in beforeEach ---"); // Optional: uncomment for positive confirmation
+  }
   cleanup();
   // Enable pointer events for testing
   document.body.style.pointerEvents = "auto";
+});
+*/
+
+// Add cleanup in afterEach
+afterEach(() => {
+  cleanup();
 });
 
 // Polyfill for TextEncoder/TextDecoder
 global.TextEncoder = NodeTextEncoder as typeof global.TextEncoder;
 global.TextDecoder = NodeTextDecoder as typeof global.TextDecoder;
+
+// Polyfill for requestAnimationFrame
+if (typeof global.requestAnimationFrame === 'undefined') {
+  global.requestAnimationFrame = (callback: FrameRequestCallback): number => {
+    // Simple timeout based polyfill for testing environments
+    const handle = setTimeout(callback, 0);
+    // Return a number handle (required by the type)
+    // In a real browser this would be more sophisticated
+    // We convert the Timeout object to a number for type compatibility
+    return Number(handle); 
+  };
+}
 
 // Mock MutationObserver
 class MockMutationObserver implements MutationObserver {

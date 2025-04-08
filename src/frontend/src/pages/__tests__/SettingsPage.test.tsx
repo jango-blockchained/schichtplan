@@ -1,5 +1,6 @@
 import { describe, it, expect, mock, beforeEach } from "bun:test";
-import { render, screen } from "../../test-utils/test-utils";
+import { render } from "@/test-utils/test-utils";
+import { screen, fireEvent } from "@testing-library/react";
 import { SettingsPage } from "../SettingsPage";
 import * as api from "../../services/api";
 import type { Settings } from "../../types";

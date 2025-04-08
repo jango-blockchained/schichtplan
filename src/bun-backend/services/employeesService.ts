@@ -40,46 +40,48 @@ export async function getAllEmployees(
     filters: EmployeeFilters = {},
     db: Database = globalDb // Use injected DB or fallback to global
 ): Promise<Employee[]> {
-  try {
-    let baseSql = "SELECT * FROM employees";
-    const conditions: string[] = [];
-    const params: SQLQueryBindings[] = []; // Use SQLQueryBindings type
+    // ADD SMALL DELAY FOR TESTING POTENTIAL TIMING ISSUES
+    await new Promise(resolve => setTimeout(resolve, 10)); 
+    
+    try {
+        let baseSql = "SELECT * FROM employees";
+        const conditions: string[] = [];
+        const params: SQLQueryBindings[] = []; 
 
-    // Apply status filter (maps to is_active boolean/integer)
-    if (filters.status && filters.status !== 'all') {
-      conditions.push("is_active = ?");
-      params.push(filters.status === 'active' ? 1 : 0); // Map to integer 1 or 0
+        // Apply status filter (maps to is_active boolean/integer)
+        if (filters.status && filters.status !== 'all') {
+            conditions.push("is_active = ?");
+            params.push(filters.status === 'active' ? 1 : 0); 
+        }
+
+        // Apply group filter
+        if (filters.group && filters.group !== 'all') {
+            conditions.push("employee_group = ?");
+            params.push(filters.group);
+        }
+
+        // Build the final query
+        if (conditions.length > 0) {
+            baseSql += " WHERE " + conditions.join(" AND ");
+        }
+        baseSql += " ORDER BY last_name, first_name;";
+
+        console.log(`Fetching employees with query: ${baseSql} and params: ${JSON.stringify(params)}`);
+
+        // Prepare and execute the SQL query
+        const query = db.query(baseSql);
+        const rows = query.all(...params) as any[]; 
+
+        console.log(`Found ${rows.length} employees matching filters.`);
+
+        // Map database rows to Employee objects
+        const employees = rows.map(mapRowToEmployee);
+
+        return employees;
+    } catch (error) {
+        console.error("Error fetching employees:", error);
+        throw new Error("Failed to retrieve employees from database.");
     }
-
-    // Apply group filter
-    if (filters.group && filters.group !== 'all') {
-        conditions.push("employee_group = ?");
-        params.push(filters.group);
-    }
-
-    // Build the final query
-    if (conditions.length > 0) {
-      baseSql += " WHERE " + conditions.join(" AND ");
-    }
-    baseSql += " ORDER BY last_name, first_name;";
-
-    console.log(`Fetching employees with query: ${baseSql} and params: ${JSON.stringify(params)}`);
-
-    // Prepare and execute the SQL query
-    const query = db.query(baseSql);
-    const rows = query.all(...params) as any[]; // Pass params correctly
-
-    console.log(`Found ${rows.length} employees matching filters.`);
-
-    // Map database rows to Employee objects
-    const employees = rows.map(mapRowToEmployee);
-
-    return employees;
-  } catch (error) {
-    console.error("Error fetching employees:", error);
-    // Re-throw or handle error appropriately for the API layer
-    throw new Error("Failed to retrieve employees from database.");
-  }
 }
 
 // Add getEmployeeById function
@@ -109,11 +111,15 @@ export interface CreateEmployeeInput {
     last_name: string;
     employee_group: EmployeeGroup;
     contracted_hours: number;
-    is_keyholder?: boolean; // Optional, defaults to false in DB
+    can_be_keyholder?: boolean; // Changed from is_keyholder and made optional
     is_active?: boolean;    // Optional, defaults to true in DB
     birthday?: string | null;
     email?: string | null;
     phone?: string | null;
+    // Added missing fields based on usage in the function
+    notes?: string | null;
+    hire_date?: string;
+    address?: string | null;
 }
 
 export async function createEmployee(
@@ -128,13 +134,13 @@ export async function createEmployee(
     const sql = `
         INSERT INTO employees (
             employee_id, first_name, last_name, employee_group, contracted_hours,
-            is_keyholder, is_active, birthday, email, phone
+            can_be_keyholder, is_active, birthday, email, phone, hire_date, address, notes
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     `;
 
     // Set defaults for optional boolean fields if not provided
-    const isKeyholder = data.is_keyholder === true ? 1 : 0;
+    const isKeyholder = data.can_be_keyholder === true ? 1 : 0; // Corrected property name
     const isActive = data.is_active !== false ? 1 : 0; // Default to active (1) if undefined or true
 
     const params: SQLQueryBindings[] = [
@@ -143,11 +149,15 @@ export async function createEmployee(
         data.last_name,
         data.employee_group,
         data.contracted_hours,
-        isKeyholder,
+        isKeyholder, // Use the mapped variable
         isActive,
         data.birthday ?? null,
         data.email ?? null,
-        data.phone ?? null
+        data.phone ?? null,
+        // Add potentially missing params based on added interface fields
+        data.hire_date ?? null,
+        data.address ?? null,
+        data.notes ?? null
     ];
 
     try {

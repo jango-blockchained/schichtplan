@@ -1,5 +1,6 @@
 import { describe, test, expect, mock } from "bun:test";
-import { render, screen, fireEvent } from "@/test-utils/test-utils";
+import { render } from "@/test-utils/test-utils";
+import { screen, fireEvent } from "@testing-library/react";
 import { ShiftTemplateEditor } from "../components/ShiftTemplateEditor";
 
 const mockShift = {
