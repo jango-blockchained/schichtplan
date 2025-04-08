@@ -786,20 +786,26 @@ export const updateCoverage = async (
   coverage: DailyCoverage[],
 ): Promise<void> => {
   try {
-    // Ensure each coverage object has the required fields
-    const formattedCoverage = coverage.map((day) => ({
-      dayIndex: day.dayIndex,
-      timeSlots: day.timeSlots.map((slot) => ({
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        minEmployees: slot.minEmployees,
-        maxEmployees: slot.maxEmployees,
-        employeeTypes: (slot as CoverageTimeSlot).employeeTypes || [],
+    // Transform the nested structure into a flat array as expected by the backend
+    const flatCoverageSlots = coverage.flatMap((day) => // Use flatMap
+      day.timeSlots.map((slot) => ({ // Map each slot
+        day_index: day.dayIndex, // Add the dayIndex to each slot object
+        start_time: slot.startTime,
+        end_time: slot.endTime,
+        min_employees: slot.minEmployees,
+        max_employees: slot.maxEmployees,
+        employee_types: (slot as CoverageTimeSlot).employeeTypes || [], // Retain existing fields
+        requires_keyholder: (slot as CoverageTimeSlot).requiresKeyholder ?? false,
+        keyholder_before_minutes: (slot as CoverageTimeSlot).keyholderBeforeMinutes,
+        keyholder_after_minutes: (slot as CoverageTimeSlot).keyholderAfterMinutes,
+        // Remove the id field as it's not on the frontend type and not needed for bulk update
+        // id: (slot as CoverageTimeSlot).id,
       })),
-    }));
+    );
 
-    console.log("Sending coverage data:", formattedCoverage);
-    const response = await api.post("/coverage/bulk", formattedCoverage);
+    console.log("Sending flattened coverage data:", flatCoverageSlots);
+    // Send the flattened array to the bulk endpoint
+    const response = await api.post("/coverage/bulk", flatCoverageSlots);
     console.log("Coverage update response:", response.data);
   } catch (error) {
     console.error("Error updating coverage:", error);

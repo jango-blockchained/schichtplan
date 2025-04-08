@@ -27,6 +27,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { AvailabilityTypeSelect } from "@/components/common/AvailabilityTypeSelect";
+import type { AvailabilityTypeSetting } from "@/types";
 
 interface EmployeeAvailabilityModalProps {
   employeeId: number;
@@ -98,9 +99,9 @@ export const EmployeeAvailabilityModal: React.FC<
 
   // Set initial availability type to the first available type from settings
   useEffect(() => {
-    if (settings?.availability_types?.types) {
-      const availableTypes = settings.availability_types.types.filter(
-        (type) => type.is_available,
+    if (settings?.availability_types) {
+      const availableTypes = settings.availability_types.filter(
+        (type: AvailabilityTypeSetting) => type.is_available,
       );
       if (availableTypes.length > 0) {
         setCurrentType(availableTypes[0].id);
@@ -123,12 +124,12 @@ export const EmployeeAvailabilityModal: React.FC<
       // Convert opening days from backend format (0=Sunday) to frontend format (0=Monday)
       const activeWeekDays = ALL_DAYS.filter((_, frontendIndex) => {
         const backendIndex = convertFrontendDayToBackend(frontendIndex);
-        return settings.general.opening_days[backendIndex.toString()];
+        return settings.opening_days[backendIndex.toString()];
       });
 
       setActiveDays(activeWeekDays);
 
-      const { store_opening, store_closing } = settings.general;
+      const { store_opening, store_closing } = settings;
       const [startHour] = store_opening.split(":").map(Number);
       const [endHour] = store_closing.split(":").map(Number);
 
@@ -283,6 +284,20 @@ export const EmployeeAvailabilityModal: React.FC<
   };
 
   const handleSave = async () => {
+    // Ensure settings and availability types are loaded
+    if (!settings?.availability_types) {
+      console.error("Settings or availability types not loaded, cannot save.");
+      // Optionally, show a toast notification to the user
+      return;
+    }
+
+    // Create a map of ID to Name for easy lookup
+    const availabilityTypeMap = new Map<string, string>();
+    settings.availability_types.forEach(t => {
+      availabilityTypeMap.set(t.id, t.name);
+    });
+    const unavailableTypeName = availabilityTypeMap.get('unavailable') || 'UNAVAILABLE'; // Default fallback
+
     // Create a Set of all possible cell IDs for quick lookup
     const allPossibleCellIds = new Set<string>();
     timeSlots.forEach(({ time }) => {
@@ -298,19 +313,22 @@ export const EmployeeAvailabilityModal: React.FC<
 
     // Prepare availability data for selected cells
     const selectedAvailabilityData = Array.from(selectedCells.entries()).map(
-      ([cellId, type]) => {
+      ([cellId, typeId]) => { // Rename 'type' to 'typeId' for clarity
         const [day, timeRange] = cellId.split("-");
         const frontendDayIndex = ALL_DAYS.indexOf(day);
         const backendDayIndex = convertFrontendDayToBackend(frontendDayIndex);
         const [startTime] = timeRange.trim().split(" - ");
         const [hour] = startTime.split(":").map(Number);
 
+        // Use the uppercase name from the map
+        const typeName = availabilityTypeMap.get(typeId) || typeId.toUpperCase(); // Fallback to uppercasing the ID
+
         return {
           employee_id: employeeId,
           day_of_week: backendDayIndex,
           hour: hour,
           is_available: true,
-          availability_type: type,
+          availability_type: typeName, // Use the looked-up uppercase name
         };
       },
     );
@@ -328,7 +346,7 @@ export const EmployeeAvailabilityModal: React.FC<
         day_of_week: backendDayIndex,
         hour: hour,
         is_available: false, // Mark as unavailable explicitly through the flag
-        availability_type: "UNV", // Also set type to UNV for clarity
+        availability_type: unavailableTypeName, // Use the looked-up uppercase name for unavailable
       };
     });
 
@@ -347,8 +365,8 @@ export const EmployeeAvailabilityModal: React.FC<
   const getCellColor = (cellId: string) => {
     if (!selectedCells.has(cellId)) return "";
     const type = selectedCells.get(cellId);
-    const availabilityType = settings?.availability_types?.types.find(
-      (t) => t.id === type,
+    const availabilityType = settings?.availability_types?.find(
+      (t: AvailabilityTypeSetting) => t.id === type,
     );
     return availabilityType?.color || "#22c55e";
   };
@@ -399,8 +417,8 @@ export const EmployeeAvailabilityModal: React.FC<
               {settings &&
                 Array.from(calculateTypeStats()).map(([type, hours]) => {
                   const availabilityType =
-                    settings.availability_types.types.find(
-                      (t) => t.id === type,
+                    settings?.availability_types?.find(
+                      (t: AvailabilityTypeSetting) => t.id === type,
                     );
                   return (
                     availabilityType && (
@@ -475,8 +493,8 @@ export const EmployeeAvailabilityModal: React.FC<
                         : "UNV";
                       const cellColor = isSelected
                         ? getCellColor(cellId)
-                        : settings?.availability_types?.types.find(
-                            (t) => t.id === "UNV",
+                        : settings?.availability_types?.find(
+                            (t: AvailabilityTypeSetting) => t.id === "UNV",
                           )?.color || "#ef4444";
 
                       // Calculate cumulative hours for this day up to current hour for the selected type

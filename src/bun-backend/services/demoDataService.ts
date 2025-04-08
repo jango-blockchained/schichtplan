@@ -81,26 +81,56 @@ export async function generateOptimizedDemoDataService(db: Database = globalDb):
         if (absenceTypes.length === 0) console.warn("Absence types not defined in settings.");
         if (availabilityTypes.length === 0) console.warn("Availability types not defined in settings.");
 
-        // 3. Generate Employees
-        console.log("Generating demo employees...");
+        // 3. Generate Employees (30 total, specific distribution, standard hours)
+        console.log("Generating 30 demo employees with type distribution and standard hours...");
         const employeeInsertSql = `INSERT INTO employees (employee_id, first_name, last_name, employee_group, contracted_hours, is_keyholder, is_active, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?);`;
         const employeeStmt = db.prepare(employeeInsertSql);
         const employeesToInsert: any[][] = [];
-        const firstNames = ["Alex", "Jamie", "Chris", "Max", "Lea", "Nico", "Sam", "Kim", "Ben", "Mia", "Jan", "Tina", "Leo", "Sara", "Tom"];
-        const lastNames = ["Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker", "Schulz", "Hoffmann"];
+        const firstNames = ["Alex", "Jamie", "Chris", "Max", "Lea", "Nico", "Sam", "Kim", "Ben", "Mia", "Jan", "Tina", "Leo", "Sara", "Tom", "Finn", "Lina", "Luca", "Emil", "Ida", "Paul", "Clara", "Noah", "Anna", "Felix", "Lara", "Luis", "Marie", "Jona", "Ella"];
+        const lastNames = ["Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker", "Schulz", "Hoffmann", "Bauer", "Koch", "Richter", "Klein", "Wolf"];
         const usedEmails = new Set<string>();
+        let calculatedTotalHours = 0; // Still calculate for logging purposes
 
-        for (let i = 1; i <= 15; i++) {
-            const firstName = getRandomElement(firstNames) || 'Demo';
-            const lastName = getRandomElement(lastNames) || `User${i}`;
+        const tlType = employeeTypes.find(t => t.id === 'tl');
+        const vzType = employeeTypes.find(t => t.id === 'vz');
+        const tzType = employeeTypes.find(t => t.id === 'tz');
+        const gfbType = employeeTypes.find(t => t.id === 'gfb');
+
+        // Assign types and standard hours
+        for (let i = 1; i <= 30; i++) {
             const empId = String(i).padStart(3, '0');
-            const groupType = getRandomElement(employeeTypes);
-            const group = groupType?.id || 'VZ'; // Default to VZ if types missing
-            const hours = groupType?.max_hours || 40;
-            const isKeyholder = group === 'TL' || (group === 'VZ' && Math.random() < 0.3) ? 1 : 0; // TLs and ~30% VZ are keyholders
+            let assignedType: EmployeeTypeDefinition | undefined;
+            let standardHours = 0;
+
+            if (i === 1) { // Assign TL
+                assignedType = tlType;
+                standardHours = assignedType?.max_hours ?? 40;
+            } else if (i <= 3) { // Assign VZ (2 employees)
+                assignedType = vzType;
+                standardHours = assignedType?.max_hours ?? 40;
+            } else if (i <= 7) { // Assign GfB (4 employees)
+                assignedType = gfbType;
+                standardHours = assignedType?.max_hours ?? 12;
+            } else { // Assign TZ (23 employees)
+                assignedType = tzType;
+                // Assign varying TZ hours for more realism
+                standardHours = getRandomInt(assignedType?.min_hours ?? 15, assignedType?.max_hours ?? 25); 
+            }
+            calculatedTotalHours += standardHours; // Track total for logging
+            
+            const firstName = getRandomElement(firstNames) || 'Demo';
+            const lastName = getRandomElement(lastNames) || `User${empId}`;
+            const group = assignedType?.id || 'TZ'; 
+            // Ensure the group ID matches the DB constraint (uppercase)
+            let dbGroup = group.toUpperCase(); // Use let instead of const
+            // Validate against expected DB values
+            if (!['TL', 'VZ', 'TZ', 'GFB'].includes(dbGroup)) {
+                 console.warn(`Generated invalid group ID '${group}' -> '${dbGroup}' for employee ${empId}. Defaulting to 'TZ'.`);
+                 dbGroup = 'TZ'; // Now assignment is allowed
+            }
+            const isKeyholder = dbGroup === 'TL' || (dbGroup === 'VZ' && Math.random() < 0.5) ? 1 : 0; // TL and 1 of the VZ are keyholders
             const isActive = 1;
             let email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}${empId}@example.com`;
-            // Ensure unique email
             while (usedEmails.has(email)) {
                 email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}${empId}_${getRandomInt(1,99)}@example.com`;
             }
@@ -110,18 +140,20 @@ export async function generateOptimizedDemoDataService(db: Database = globalDb):
                 empId,
                 firstName,
                 lastName,
-                group,
-                hours,
+                dbGroup, // Use the uppercase, validated group ID
+                standardHours, // Use standard hours
                 isKeyholder,
                 isActive,
                 email
             ]);
         }
+
         // Bulk insert employees
         db.transaction((emps) => {
             for (const emp of emps) employeeStmt.run(...emp);
-            console.log(`Inserted ${emps.length} demo employees.`);
+            console.log(`Inserted ${emps.length} demo employees. Calculated Total Contracted Hours: ${calculatedTotalHours.toFixed(2)}h (NOTE: 170h cap applies during schedule generation, not here)`);
         })(employeesToInsert);
+
         // Fetch newly inserted employees to get their DB IDs
         const generatedEmployees = await getAllEmployees({ status: 'active' }, db);
         if (generatedEmployees.length === 0) throw new Error("Failed to generate or fetch employees.");
@@ -199,8 +231,11 @@ export async function generateOptimizedDemoDataService(db: Database = globalDb):
         const availabilityInsertSql = `INSERT INTO employee_availabilities (employee_id, day_of_week, hour, availability_type, is_recurring) VALUES (?, ?, ?, ?, ?)`;
         const availabilityStmt = db.prepare(availabilityInsertSql);
         const availabilitiesToInsert: any[][] = [];
+        // Find types by ID, but use the NAME for insertion
         const unavailableType = availabilityTypes.find(t => t.id === 'unavailable');
         const preferredType = availabilityTypes.find(t => t.id === 'preferred');
+        const availableType = availabilityTypes.find(t => t.id === 'available'); // Added for completeness if needed
+        const fixedType = availabilityTypes.find(t => t.id === 'fixed'); // Added for completeness if needed
 
         generatedEmployees.forEach(emp => {
             // Add some fixed unavailability (e.g., student has lectures)
@@ -209,28 +244,31 @@ export async function generateOptimizedDemoDataService(db: Database = globalDb):
                 const startHour = getRandomInt(8, 12);
                 const endHour = startHour + getRandomInt(2, 4);
                 for (let hour = startHour; hour < endHour; hour++) {
-                    availabilitiesToInsert.push([emp.id, unavailableDay, hour, unavailableType.id, 1]);
+                    // Use the NAME property for insertion
+                    availabilitiesToInsert.push([emp.id, unavailableDay, hour, unavailableType.name, 1]);
                 }
             }
             // Add some preferred times (e.g., prefers mornings)
             if (Math.random() < 0.3 && preferredType) {
                 const preferredDay = getRandomInt(0, 6);
                 for (let hour = 8; hour < 12; hour++) {
-                     availabilitiesToInsert.push([emp.id, preferredDay, hour, preferredType.id, 1]);
+                     // Use the NAME property for insertion
+                     availabilitiesToInsert.push([emp.id, preferredDay, hour, preferredType.name, 1]);
                 }
             }
             // Add some random hourly overrides
             for (let day = 0; day < 7; day++) { // DB: 0=Mon, 6=Sun
                 for (let hour = 0; hour < 24; hour++) {
-                    let typeIdToInsert: string | null = null;
+                    let typeNameToInsert: string | null = null; // Store the name
                     const randomVal = Math.random();
                     if (randomVal < 0.05 && unavailableType) {
-                         typeIdToInsert = unavailableType.id;
+                         typeNameToInsert = unavailableType.name; // Use NAME
                     } else if (randomVal < 0.10 && preferredType) {
-                         typeIdToInsert = preferredType.id;
+                         typeNameToInsert = preferredType.name; // Use NAME
                     }
-                    if (typeIdToInsert && !availabilitiesToInsert.some(a => a[0] === emp.id && a[1] === day && a[2] === hour)) {
-                         availabilitiesToInsert.push([emp.id, day, hour, typeIdToInsert, 1]);
+                    // Check if this slot is already filled before adding
+                    if (typeNameToInsert && !availabilitiesToInsert.some(a => a[0] === emp.id && a[1] === day && a[2] === hour)) {
+                         availabilitiesToInsert.push([emp.id, day, hour, typeNameToInsert, 1]);
                     }
                 }
             }
