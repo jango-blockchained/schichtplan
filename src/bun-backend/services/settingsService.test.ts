@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from "bun:test";
 import { Database } from "bun:sqlite";
-import { setupTestDb, teardownTestDb } from "../test/setup"; // Adjust path as needed
+import { setupTestDb, teardownTestDb, seedTestData } from "../test/setup"; // Import seedTestData
 import { getSettings, updateSettings } from "./settingsService";
 import type { Settings, ShiftTypeDefinition, AbsenceTypeDefinition } from "../db/schema"; // Import the type and related types if needed
 import { NotFoundError } from "elysia";
@@ -9,11 +9,21 @@ describe("Settings Service", () => {
     let testDb: Database; // Declare DB instance variable for the suite
 
     beforeAll(async () => {
-        testDb = await setupTestDb(); // Create and seed DB for this suite
+        testDb = await setupTestDb(); // Create and seed DB ONCE for this suite
     });
 
     afterAll(() => {
         teardownTestDb(testDb); // Close the suite-specific DB
+    });
+
+    // Add beforeEach to re-seed settings before each test
+    beforeEach(() => {
+        try {
+            seedTestData(testDb); // Reset DB to default state before each test
+        } catch (e) {
+            console.error("Error during beforeEach seed in settingsService.test.ts:", e);
+            throw e; // Fail test if seeding fails
+        }
     });
 
     describe("getSettings", () => {
@@ -23,23 +33,23 @@ describe("Settings Service", () => {
             expect(settings).toBeDefined();
             expect(settings).toBeObject();
             expect(settings.id).toBe(1);
-            expect(settings.store_name).toBe('TEDi Store'); // Expect default from schema
+            expect(settings.store_name).toBe('TEDi Store'); // Check seeded default
             expect(settings.require_keyholder).toBe(true); 
             expect(settings.opening_days).toBeInstanceOf(Object); 
             // Add more checks for default seeded values if necessary
         });
 
         it("should throw NotFoundError if settings row doesn't exist", async () => {
-            // Temporarily delete the settings row for this test
-            testDb.run("DELETE FROM settings WHERE id = 1;");
+            // Manually delete the settings row JUST for this test
+            // beforeEach will restore it for the next test
+            testDb.exec("DELETE FROM settings WHERE id = 1;");
             
             // Expect the function to throw when using the modified test DB
             await expect(getSettings(testDb)).rejects.toThrow(NotFoundError);
             await expect(getSettings(testDb)).rejects.toThrow("Settings not found (id=1). Database might not be initialized correctly.");
 
-            // Re-insert default settings row to not affect subsequent tests in suite
-             testDb.run("INSERT OR IGNORE INTO settings (id) VALUES (1);");
-             // Potentially re-seed defaults if needed, though getSettings doesn't depend on seeded values other than the row existing
+            // REMOVE manual re-insertion - beforeEach will handle reset
+            // testDb.run("INSERT OR IGNORE INTO settings (id) VALUES (1);");
         });
     });
 
@@ -114,11 +124,12 @@ describe("Settings Service", () => {
         });
 
          it("should throw NotFoundError if trying to update non-existent settings", async () => {
-             testDb.run("DELETE FROM settings WHERE id = 1;"); // Delete settings for this test
+             // Delete settings JUST for this test
+             testDb.exec("DELETE FROM settings WHERE id = 1;");
              const updates = { store_name: "Doesn't Matter" };
               await expect(updateSettings(updates, testDb)).rejects.toThrow(NotFoundError);
-              // Re-initialize settings for subsequent tests
-              testDb.run("INSERT OR IGNORE INTO settings (id) VALUES (1);");
+              // REMOVE manual re-insertion - beforeEach will handle reset
+              // testDb.run("INSERT OR IGNORE INTO settings (id) VALUES (1);");
          });
     });
 }); 

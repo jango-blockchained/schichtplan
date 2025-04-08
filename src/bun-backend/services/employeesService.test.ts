@@ -1,7 +1,10 @@
 // src/bun-backend/services/employeesService.test.ts
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from "bun:test";
 import { Database } from "bun:sqlite";
-import { setupTestDb, teardownTestDb } from "../test/setup";
+import path from "node:path"; 
+import fs from "node:fs";   
+// Remove shared setup imports
+// import { setupTestDb, teardownTestDb, seedTestData } from "../test/setup"; 
 import {
     getAllEmployees,
     getEmployeeById,
@@ -12,28 +15,94 @@ import {
     CreateEmployeeInput,
     EmployeeFilters
 } from "./employeesService";
-import { EmployeeGroup } from "../db/schema";
+import { Employee, EmployeeGroup } from "../db/schema"; // Ensure Employee is imported if used in tests
 import { NotFoundError } from "elysia";
+import { randomUUID } from "node:crypto"; // Import crypto
+
+// Function to seed only employee data
+const seedEmployeeData = (db: Database) => {
+    console.log(`[employeesService.test] Clearing and re-seeding employees table...`);
+    db.exec("DELETE FROM employees;");
+    const now = new Date().toISOString();
+    let insertedCount = 0;
+    try {
+        const stmt = db.prepare(`
+            INSERT INTO employees (id, employee_id, first_name, last_name, employee_group, contracted_hours, is_active, is_keyholder, created_at, updated_at) VALUES
+            (1, 'EMP001', 'Alice', 'Alpha', ?, 40, 1, 1, ?, ?),
+            (2, 'EMP002', 'Bob', 'Beta', ?, 30, 1, 0, ?, ?),
+            (3, 'EMP003', 'Charlie', 'Gamma', ?, 20, 1, 0, ?, ?),
+            (4, 'EMP004', 'Diana', 'Delta', ?, 40, 0, 1, ?, ?)
+        `);
+        const result = stmt.run(EmployeeGroup.VZ, now, now,
+                 EmployeeGroup.TZ, now, now,
+                 EmployeeGroup.GFB, now, now,
+                 EmployeeGroup.VZ, now, now);
+        insertedCount = result.changes;
+        console.log(`[employeesService.test] Employees table seeded. Changes: ${insertedCount}`);
+    } catch (err: any) {
+        console.error("[employeesService.test] Error seeding employees into test DB:", err.message);
+        throw new Error(`[employeesService.test] Failed to seed employee test data: ${err.message}`);
+    }
+    return insertedCount;
+};
 
 describe("Employees Service", () => {
     let testDb: Database;
+    const dbId = randomUUID(); // Generate unique ID for this suite
 
     beforeAll(async () => {
-        testDb = await setupTestDb();
+        // Use unique identifier for in-memory DB
+        testDb = new Database(`:memory:?id=${dbId}`); 
+        console.log(`[employeesService.test] Applying schema to DB ${dbId}...`);
+        const schemaPath = path.join(import.meta.dir, "../db/init-schema.sql");
+        const schemaSql = fs.readFileSync(schemaPath, "utf-8");
+        await Promise.resolve(testDb.exec(schemaSql)); 
+        console.log(`[employeesService.test] Schema applied to DB ${dbId}.`);
     });
 
     afterAll(() => {
-        teardownTestDb(testDb);
+        if (testDb) testDb.close();
+    });
+
+    beforeEach(() => {
+        try {
+            seedEmployeeData(testDb); 
+        } catch (e) {
+            console.error("[employeesService.test] Error during beforeEach seed:", e);
+            throw e; 
+        }
     });
 
     describe("getAllEmployees", () => {
-        it("should retrieve all seeded employees", async () => {
+        it("should retrieve all seeded employees by default", async () => { 
+            // The service function might filter by active by default, let's test that
             const employees = await getAllEmployees({}, testDb); 
             expect(employees).toBeArray();
-            expect(employees.length).toBeGreaterThanOrEqual(4); 
+            // Check based on seed data (3 active, 1 inactive)
+            expect(employees.length).toBe(3); // Default might be active only
+            expect(employees.every(e => e.is_active)).toBe(true);
             const alice = employees.find(e => e.employee_id === 'EMP001');
             expect(alice).toBeDefined();
             expect(alice?.first_name).toBe('Alice');
+        });
+        it("should filter by status=all", async () => {
+            const employees = await getAllEmployees({ status: 'all' }, testDb);
+            expect(employees.length).toBe(4);
+        });
+        it("should filter by status=active", async () => {
+            const employees = await getAllEmployees({ status: 'active' }, testDb);
+            expect(employees.length).toBe(3);
+            expect(employees.every(e => e.is_active)).toBe(true);
+        });
+        it("should filter by status=inactive", async () => {
+            const employees = await getAllEmployees({ status: 'inactive' }, testDb);
+            expect(employees.length).toBe(1);
+            expect(employees[0].first_name).toBe('Diana');
+        });
+        it("should filter by group=VZ", async () => {
+            const employees = await getAllEmployees({ group: EmployeeGroup.VZ, status: 'all' }, testDb);
+            expect(employees.length).toBe(2); 
+            expect(employees.every(e => e.employee_group === EmployeeGroup.VZ)).toBe(true);
         });
     });
 
@@ -71,16 +140,28 @@ describe("Employees Service", () => {
             };
             const createdEmployee = await createEmployee(newEmployeeData, testDb);
             expect(createdEmployee).toBeDefined();
-            expect(createdEmployee.id).toBeGreaterThan(4);
+            expect(createdEmployee.id).toBeGreaterThan(4); 
             expect(createdEmployee.first_name).toBe("New");
 
-            await deleteEmployee(createdEmployee.id, testDb);
+            const fetchedEmployee = await getEmployeeById(createdEmployee.id, testDb);
+            expect(fetchedEmployee).toBeDefined();
+            expect(fetchedEmployee!.employee_id).toBe("EMP_NEW_001");
+        });
+        it("should throw error for duplicate employee_id", async () => {
+             const duplicateData: CreateEmployeeInput = {
+                 employee_id: "EMP001", // Exists
+                 first_name: "Duplicate",
+                 last_name: "ID",
+                 employee_group: EmployeeGroup.GFB,
+                 contracted_hours: 10
+             };
+              await expect(createEmployee(duplicateData, testDb)).rejects.toThrow(/already exists/);
         });
     });
 
     describe("updateEmployee", () => {
         it("should update an existing employee", async () => {
-            const employeeIdToUpdate = 2;
+            const employeeIdToUpdate = 2; // Bob
             const updates: UpdateEmployeeInput = {
                 first_name: "UpdatedBob",
                 email: "updated.bob@test.com",
@@ -93,15 +174,12 @@ describe("Employees Service", () => {
             expect(updatedEmployee!.first_name).toBe("UpdatedBob");
             expect(updatedEmployee!.is_active).toBe(false);
             expect(updatedEmployee!.contracted_hours).toBe(25);
-            expect(updatedEmployee!.last_name).toBe("Johnson");
+            expect(updatedEmployee!.last_name).toBe("Beta"); 
         });
 
         it("should throw NotFoundError if employee to update does not exist", async () => {
             const updates: UpdateEmployeeInput = {
                 first_name: "Irrelevant",
-                last_name: "X",
-                employee_group: EmployeeGroup.TZ,
-                contracted_hours: 10
             };
             await expect(updateEmployee(999999, updates, testDb)).rejects.toThrow(NotFoundError);
         });
@@ -109,21 +187,12 @@ describe("Employees Service", () => {
 
     describe("deleteEmployee", () => {
         it("should delete an existing employee", async () => {
-            const newEmployeeData: CreateEmployeeInput = {
-                employee_id: "EMP_DEL_001",
-                first_name: "ToDelete",
-                last_name: "Person",
-                employee_group: EmployeeGroup.GFB,
-                contracted_hours: 5,
-                email: "del@test.com"
-            };
-            const employeeToDelete = await createEmployee(newEmployeeData, testDb);
-            const employeeId = employeeToDelete.id;
+            const employeeIdToDelete = 3; // Charlie
             
-            const result = await deleteEmployee(employeeId, testDb);
+            const result = await deleteEmployee(employeeIdToDelete, testDb);
             expect(result).toEqual({ success: true });
 
-            const deletedEmployee = await getEmployeeById(employeeId, testDb);
+            const deletedEmployee = await getEmployeeById(employeeIdToDelete, testDb);
             expect(deletedEmployee).toBeNull();
         });
 
