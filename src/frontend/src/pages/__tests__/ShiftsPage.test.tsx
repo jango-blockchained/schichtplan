@@ -1,5 +1,6 @@
-import { describe, it as test, expect, mock } from "bun:test";
-import { render, screen, fireEvent } from "../../test-utils/test-utils";
+import { describe, it, expect, mock, beforeEach } from "bun:test";
+import { render } from "@/test-utils/test-utils";
+import { screen, fireEvent } from "@testing-library/react";
 import { ShiftsPage } from "../ShiftsPage";
 import {
   getShifts,
