@@ -1,7 +1,7 @@
 export enum EmployeeGroup {
   VZ = "VZ",
   TZ = "TZ",
-  GFB = "GfB",
+  GFB = "GFB",
   TL = "TL",
 }
 

@@ -39,8 +39,12 @@ function getRandomInt(min: number, max: number): number {
  * @param db - Optional Database instance.
  * @returns A promise resolving to a DemoDataResponse object.
  */
-export async function generateOptimizedDemoDataService(db: Database = globalDb): Promise<DemoDataResponse> {
+export async function generateOptimizedDemoDataService(db: Database | null = globalDb): Promise<DemoDataResponse> {
     console.log("Initiating comprehensive demo data generation...");
+
+    if (!db) {
+        throw new Error("Database connection is required for generating demo data");
+    }
 
     try {
         // 1. Wipe existing demo-related data
@@ -60,9 +64,9 @@ export async function generateOptimizedDemoDataService(db: Database = globalDb):
         const validTables = await getDatabaseTables(db);
         const finalTablesToWipe = tablesToWipe.filter(t => validTables.includes(t));
         if (finalTablesToWipe.length > 0) {
-             await wipeTablesService(finalTablesToWipe, db);
+            await wipeTablesService(finalTablesToWipe, db);
         } else {
-             console.warn("No valid tables found to wipe.");
+            console.warn("No valid tables found to wipe.");
         }
 
         // 2. Fetch Settings (needed for types)
@@ -91,10 +95,10 @@ export async function generateOptimizedDemoDataService(db: Database = globalDb):
         const usedEmails = new Set<string>();
         let calculatedTotalHours = 0; // Still calculate for logging purposes
 
-        const tlType = employeeTypes.find(t => t.id === 'tl');
-        const vzType = employeeTypes.find(t => t.id === 'vz');
-        const tzType = employeeTypes.find(t => t.id === 'tz');
-        const gfbType = employeeTypes.find(t => t.id === 'gfb');
+        const tlType = employeeTypes.find(t => t.id === 'TL');
+        const vzType = employeeTypes.find(t => t.id === 'VZ');
+        const tzType = employeeTypes.find(t => t.id === 'TZ');
+        const gfbType = employeeTypes.find(t => t.id === 'GFB');
 
         // Calculate how many employees should be keyholders (70% of total)
         const totalEmployees = 30;
@@ -397,4 +401,18 @@ export async function generateOptimizedDemoDataService(db: Database = globalDb):
 // export async function getOptimizedDemoDataStatus(taskId: string, db: Database = globalDb) { ... }
 
 // TODO: Add function for POST /demo-data/optimized/reset if needed
-// export async function resetOptimizedDemoDataStatusService(db: Database = globalDb) { ... } 
+// export async function resetOptimizedDemoDataStatusService(db: Database = globalDb) { ... }
+
+export async function generateDemoData(db: Database | null, settings: Settings) {
+    if (!db) {
+        throw new Error('Database connection is required for generating demo data');
+    }
+    
+    // Wipe existing data
+    const validTables = await getDatabaseTables(db);
+    if (validTables.length > 0) {
+        await wipeTablesService(validTables, db);
+    }
+
+    // ... rest of the function ...
+} 

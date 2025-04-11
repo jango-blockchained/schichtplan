@@ -18,8 +18,9 @@ import {
 import { CoverageEditor } from "@/components/coverage-editor";
 import { useToast } from "@/components/ui/use-toast";
 import { getAllCoverage, updateCoverage, getSettings } from "@/services/api";
-import { DailyCoverage, Settings, CoverageTimeSlot } from "@/types/index";
+import { DailyCoverage, Settings, CoverageTimeSlot, Coverage } from "@/types/index";
 import { PageHeader } from "@/components/layout";
+import { StoreConfigProps } from "@/components/coverage-editor/types";
 
 const CustomTooltip = ({
   active,
@@ -49,46 +50,45 @@ export default function CoveragePage() {
   const queryClient = useQueryClient();
 
   // Fetch coverage data
-  const { data: coverageData, isLoading: isCoverageLoading } = useQuery({
+  const { data: coverageData, isLoading: isCoverageLoading } = useQuery<DailyCoverage[]>({
     queryKey: ["coverage"],
     queryFn: getAllCoverage,
   });
 
   // Fetch settings
-  const { data: settings, isLoading: isSettingsLoading } = useQuery({
+  const { data: settings, isLoading: isSettingsLoading } = useQuery<Settings>({
     queryKey: ["settings"],
     queryFn: getSettings,
   });
 
   // Prepare initial coverage data
   const initialCoverage = useMemo(() => {
-    if (!coverageData) return undefined;
+    if (!coverageData || !Array.isArray(coverageData)) return undefined;
     
-    // Ensure coverage data is properly formatted
-    return coverageData.map((day: DailyCoverage) => ({
-      dayIndex: day.dayIndex,
-      timeSlots: day.timeSlots.map((slot: CoverageTimeSlot) => ({
-        ...slot,
-        startTime: slot.startTime || "09:00",
-        endTime: slot.endTime || "17:00",
-        minEmployees: slot.minEmployees || 1,
-        maxEmployees: slot.maxEmployees || 3,
-        employeeTypes: slot.employeeTypes || [],
-        requiresKeyholder: slot.requiresKeyholder || false,
-        keyholderBeforeMinutes: slot.keyholderBeforeMinutes || 0,
-        keyholderAfterMinutes: slot.keyholderAfterMinutes || 0,
-      })),
+    // Group time slots by day
+    const groupedByDay = coverageData.reduce((acc, day) => {
+      const daySlots = acc[day.dayIndex] || [];
+      // Ensure timeSlots is an array before spreading
+      if (Array.isArray(day.timeSlots)) {
+        daySlots.push(...day.timeSlots);
+      }
+      acc[day.dayIndex] = daySlots;
+      return acc;
+    }, {} as Record<number, CoverageTimeSlot[]>);
+
+    // Convert to array format expected by CoverageEditor
+    return Object.entries(groupedByDay).map(([dayIndex, timeSlots]) => ({
+      dayIndex: parseInt(dayIndex),
+      timeSlots,
     }));
   }, [coverageData]);
 
   // Prepare store config from settings
   const storeConfig = useMemo(() => {
-    if (!settings) return undefined;
-    
-    return {
-      store_opening: settings.store_opening || "09:00",
-      store_closing: settings.store_closing || "20:00",
-      opening_days: settings.opening_days || {
+    const defaultConfig: StoreConfigProps = {
+      store_opening: "09:00",
+      store_closing: "20:00",
+      opening_days: {
         "0": false,
         "1": true,
         "2": true,
@@ -97,22 +97,35 @@ export default function CoveragePage() {
         "5": true,
         "6": true,
       },
-      min_employees_per_shift: settings.min_employees_per_shift || 1,
-      max_employees_per_shift: settings.max_employees_per_shift || 3,
-      employee_types: settings.employee_types || [],
-      keyholder_before_minutes: settings.keyholder_before_minutes || 30,
-      keyholder_after_minutes: settings.keyholder_after_minutes || 30,
+      min_employees_per_shift: 1,
+      max_employees_per_shift: 3,
+      employee_types: [],
+      keyholder_before_minutes: 30,
+      keyholder_after_minutes: 30,
+    };
+
+    if (!settings) return defaultConfig;
+    
+    return {
+      store_opening: settings.store_opening || defaultConfig.store_opening,
+      store_closing: settings.store_closing || defaultConfig.store_closing,
+      opening_days: settings.opening_days || defaultConfig.opening_days,
+      min_employees_per_shift: settings.min_employees_per_shift || defaultConfig.min_employees_per_shift,
+      max_employees_per_shift: settings.max_employees_per_shift || defaultConfig.max_employees_per_shift,
+      employee_types: Array.isArray(settings.employee_types) 
+        ? settings.employee_types.map(type => ({
+            id: type.id,
+            name: type.name,
+            min_hours: type.min_hours || 0,
+            max_hours: type.max_hours || 40,
+            type: "employee" as const,
+            abbr: type.name.substring(0, 3)
+          }))
+        : defaultConfig.employee_types,
+      keyholder_before_minutes: settings.keyholder_before_minutes || defaultConfig.keyholder_before_minutes,
+      keyholder_after_minutes: settings.keyholder_after_minutes || defaultConfig.keyholder_after_minutes,
     };
   }, [settings]);
-
-  // Show loading state
-  if (isCoverageLoading || isSettingsLoading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
 
   // Calculate real stats from coverage data
   const stats = useMemo(() => {
@@ -132,7 +145,11 @@ export default function CoveragePage() {
       const existingDay = coverageData.find(
         (day) => day.dayIndex === defaultDay.dayIndex,
       );
-      return existingDay || defaultDay;
+      // Ensure timeSlots is always an array
+      return {
+        dayIndex: existingDay?.dayIndex ?? defaultDay.dayIndex,
+        timeSlots: Array.isArray(existingDay?.timeSlots) ? existingDay.timeSlots : [],
+      };
     });
 
     const totalTimeSlots = fullCoverage.reduce(
@@ -142,10 +159,11 @@ export default function CoveragePage() {
     );
 
     const totalRequiredEmployees = fullCoverage.reduce((acc, day) => {
-      if (!Array.isArray(day.timeSlots)) return acc;
+      // Ensure timeSlots is an array before reducing
+      const timeSlots = Array.isArray(day.timeSlots) ? day.timeSlots : [];
       return (
         acc +
-        day.timeSlots.reduce((sum, slot) => {
+        timeSlots.reduce((sum, slot) => {
           return sum + (slot.minEmployees || 0);
         }, 0)
       );
@@ -157,15 +175,17 @@ export default function CoveragePage() {
         const dayName = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][
           day.dayIndex
         ];
-        if (!Array.isArray(day.timeSlots) || day.timeSlots.length === 0) {
+        // Ensure timeSlots is an array
+        const timeSlots = Array.isArray(day.timeSlots) ? day.timeSlots : [];
+        if (timeSlots.length === 0) {
           return { day: dayName, coverage: 0 };
         }
 
-        const totalRequired = day.timeSlots.reduce((sum, slot) => {
+        const totalRequired = timeSlots.reduce((sum, slot) => {
           return sum + (slot.minEmployees || 0);
         }, 0);
 
-        const totalScheduled = day.timeSlots.reduce((sum, slot) => {
+        const totalScheduled = timeSlots.reduce((sum, slot) => {
           return sum + (slot.maxEmployees || 0);
         }, 0);
 
@@ -183,10 +203,11 @@ export default function CoveragePage() {
 
     // Calculate average hours per employee
     const totalHours = fullCoverage.reduce((acc, day) => {
-      if (!Array.isArray(day.timeSlots)) return acc;
+      // Ensure timeSlots is an array before reducing
+      const timeSlots = Array.isArray(day.timeSlots) ? day.timeSlots : [];
       return (
         acc +
-        day.timeSlots.reduce((sum, slot) => {
+        timeSlots.reduce((sum, slot) => {
           if (!slot.startTime || !slot.endTime) return sum;
           const start = parseInt(slot.startTime.split(":")[0]);
           const end = parseInt(slot.endTime.split(":")[0]);
@@ -210,6 +231,7 @@ export default function CoveragePage() {
     };
   }, [coverageData]);
 
+  // Remove the first loading check and keep only the comprehensive one
   if (isSettingsLoading || !settings || isCoverageLoading || !stats) {
     return (
       <div className="flex items-center justify-center h-screen">

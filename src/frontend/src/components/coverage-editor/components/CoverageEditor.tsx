@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { Card } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { CoverageEditorProps, DailyCoverage, StoreConfigProps, CoverageTimeSlot 
 import { DAYS_SHORT, GRID_CONSTANTS } from "../utils/constants";
 import { DayRow } from "./DayRow";
 import { timeToMinutes, minutesToTime } from "../utils/time";
+import { isEqual } from "lodash";
 
 const { TIME_COLUMN_WIDTH, TIME_ROW_HEIGHT, HEADER_HEIGHT } = GRID_CONSTANTS;
 
@@ -88,6 +89,8 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [gridWidth, setGridWidth] = useState(0);
+  const saveTimeoutRef = useRef<NodeJS.Timeout>();
+  const lastSavedCoverageRef = useRef<DailyCoverage[]>();
 
   // Normalize store config
   const storeConfig = normalizeStoreConfig(rawStoreConfig);
@@ -152,35 +155,64 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
     }));
 
     if (initialCoverage) {
-      return defaultCoverage.map((defaultDay) => {
+      const newCoverage = defaultCoverage.map((defaultDay) => {
         const initialDay = initialCoverage.find(
           (day) => day.dayIndex === defaultDay.dayIndex,
         );
         return initialDay || defaultDay;
       });
+      lastSavedCoverageRef.current = newCoverage;
+      return newCoverage;
     }
 
+    lastSavedCoverageRef.current = defaultCoverage;
     return defaultCoverage;
   });
+
+  // Debounced save function
+  const debouncedSave = useCallback((newCoverage: DailyCoverage[]) => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setTimeout(() => {
+      // Only save if there are actual changes
+      if (!isEqual(newCoverage, lastSavedCoverageRef.current)) {
+        onChange?.(newCoverage);
+        lastSavedCoverageRef.current = newCoverage;
+      }
+    }, 1000); // 1 second debounce
+  }, [onChange]);
 
   // Update coverage when initialCoverage changes
   useEffect(() => {
     if (initialCoverage) {
-      setCoverage((prevCoverage) =>
-        prevCoverage.map((defaultDay) => {
+      setCoverage((prevCoverage) => {
+        const newCoverage = prevCoverage.map((defaultDay) => {
           const initialDay = initialCoverage.find(
             (day) => day.dayIndex === defaultDay.dayIndex,
           );
           return initialDay || defaultDay;
-        })
-      );
+        });
+        lastSavedCoverageRef.current = newCoverage;
+        return newCoverage;
+      });
     }
   }, [initialCoverage]);
 
   // Call onChange when coverage changes
   useEffect(() => {
-    onChange?.(coverage);
-  }, [coverage, onChange]);
+    debouncedSave(coverage);
+  }, [coverage, debouncedSave]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Validate time slot
   const validateTimeSlot = (
