@@ -120,7 +120,7 @@
     "eslint": "^8.55.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
-    "happy-dom": "^17.1.4",
+    "happy-dom": "^15.10.2",
     "jsdom": "^26.0.0",
     "msw": "^2.2.1",
     "postcss": "^8.4.33",
@@ -129,7 +129,7 @@
     "tailwindcss": "^3.4.1",
     "ts-unused-exports": "^11.0.1",
     "typescript": "^5.8.2",
-    "vite": "^6.2.1",
+    "vite": "^6.2.4",
     "vite-bundle-visualizer": "^1.0.0"
   }
 }
