@@ -211,6 +211,29 @@ MIT License - see LICENSE file for details.
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
+### Branch Management
+
+#### Main Branches
+- `main` - Production-ready code
+- `develop` - Integration branch for features
+
+#### Feature Branches
+- Create from: `develop`
+- Naming: `feature/feature-name`
+- Merge back into: `develop`
+
+#### Release Process
+1. Feature branches merge into `develop`
+2. `develop` merges into `main` after testing
+3. Tag releases with version numbers
+
+### Merging Guidelines
+1. Ensure all tests pass
+2. Update documentation if needed
+3. Resolve any conflicts
+4. Use squash merging for cleaner history
+5. Delete feature branch after successful merge
+
 ## Database Management
 
 The application uses SQLite as its database, with the following setup:

@@ -80,9 +80,9 @@ export async function getAllEmployees(
         console.log(`[getAllEmployees] Final SQL query: ${baseSql}`);
         console.log(`[getAllEmployees] Query parameters:`, params);
 
-        // Execute the query
-        const query = db.prepare(baseSql);
-        const rows = query.all(...params) as any[];
+        // Execute the query using prepare and run
+        const stmt = db.prepare(baseSql);
+        const rows = stmt.all(...params) as any[];
 
         console.log(`[getAllEmployees] Found ${rows.length} employees matching filters.`);
         if (rows.length > 0) {
@@ -111,8 +111,9 @@ export async function getEmployeeById(
             throw new Error("Invalid database instance provided.");
         }
         console.log(`[getEmployeeById] Using DB file for id ${id}: ${db.filename}`);
-        const query = db.query("SELECT * FROM employees WHERE id = ?;");
-        const row = query.get(id) as any; // Use get for single result
+        
+        const stmt = db.prepare("SELECT * FROM employees WHERE id = ?;");
+        const row = stmt.get(id) as any; // Use get for single result
 
         if (row) {
             return mapRowToEmployee(row);
