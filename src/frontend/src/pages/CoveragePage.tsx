@@ -50,7 +50,7 @@ export default function CoveragePage() {
   const queryClient = useQueryClient();
 
   // Fetch coverage data
-  const { data: coverageData, isLoading: isCoverageLoading } = useQuery<DailyCoverage[]>({
+  const { data: coverageData, isLoading: isCoverageLoading } = useQuery<Coverage[]>({
     queryKey: ["coverage"],
     queryFn: getAllCoverage,
   });
@@ -65,21 +65,29 @@ export default function CoveragePage() {
   const initialCoverage = useMemo(() => {
     if (!coverageData || !Array.isArray(coverageData)) return undefined;
     
-    // Group time slots by day
-    const groupedByDay = coverageData.reduce((acc, day) => {
-      const daySlots = acc[day.dayIndex] || [];
-      // Ensure timeSlots is an array before spreading
-      if (Array.isArray(day.timeSlots)) {
-        daySlots.push(...day.timeSlots);
-      }
-      acc[day.dayIndex] = daySlots;
+    // Group entries by day index
+    const groupedByDay = coverageData.reduce((acc, entry) => {
+      const daySlots = acc[entry.day_index] || [];
+      // Transform the entry into a time slot
+      const timeSlot: CoverageTimeSlot = {
+        startTime: entry.start_time,
+        endTime: entry.end_time,
+        minEmployees: entry.min_employees,
+        maxEmployees: entry.max_employees,
+        employeeTypes: [],  // Coverage type doesn't have employee_types
+        requiresKeyholder: entry.requires_keyholder || false,
+        keyholderBeforeMinutes: entry.keyholder_before_minutes || 0,
+        keyholderAfterMinutes: entry.keyholder_after_minutes || 0,
+      };
+      daySlots.push(timeSlot);
+      acc[entry.day_index] = daySlots;
       return acc;
     }, {} as Record<number, CoverageTimeSlot[]>);
 
     // Convert to array format expected by CoverageEditor
     return Object.entries(groupedByDay).map(([dayIndex, timeSlots]) => ({
       dayIndex: parseInt(dayIndex),
-      timeSlots,
+      timeSlots: timeSlots.sort((a, b) => a.startTime.localeCompare(b.startTime)), // Sort by start time
     }));
   }, [coverageData]);
 
@@ -106,10 +114,14 @@ export default function CoveragePage() {
 
     if (!settings) return defaultConfig;
     
+    const opening_days = Object.keys(settings.opening_days || {}).length === 0 
+      ? defaultConfig.opening_days 
+      : settings.opening_days;
+    
     return {
       store_opening: settings.store_opening || defaultConfig.store_opening,
       store_closing: settings.store_closing || defaultConfig.store_closing,
-      opening_days: settings.opening_days || defaultConfig.opening_days,
+      opening_days,
       min_employees_per_shift: settings.min_employees_per_shift || defaultConfig.min_employees_per_shift,
       max_employees_per_shift: settings.max_employees_per_shift || defaultConfig.max_employees_per_shift,
       employee_types: Array.isArray(settings.employee_types) 
@@ -143,11 +155,11 @@ export default function CoveragePage() {
     // Merge existing coverage with defaults
     const fullCoverage = defaultCoverage.map((defaultDay) => {
       const existingDay = coverageData.find(
-        (day) => day.dayIndex === defaultDay.dayIndex,
+        (day) => day.day_index === defaultDay.dayIndex,
       );
       // Ensure timeSlots is always an array
       return {
-        dayIndex: existingDay?.dayIndex ?? defaultDay.dayIndex,
+        dayIndex: existingDay?.day_index ?? defaultDay.dayIndex,
         timeSlots: Array.isArray(existingDay?.timeSlots) ? existingDay.timeSlots : [],
       };
     });
@@ -175,25 +187,18 @@ export default function CoveragePage() {
         const dayName = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][
           day.dayIndex
         ];
-        // Ensure timeSlots is an array
         const timeSlots = Array.isArray(day.timeSlots) ? day.timeSlots : [];
-        if (timeSlots.length === 0) {
-          return { day: dayName, coverage: 0 };
-        }
-
-        const totalRequired = timeSlots.reduce((sum, slot) => {
-          return sum + (slot.minEmployees || 0);
-        }, 0);
-
-        const totalScheduled = timeSlots.reduce((sum, slot) => {
-          return sum + (slot.maxEmployees || 0);
-        }, 0);
-
-        const coverage =
-          totalRequired > 0 ? (totalScheduled / totalRequired) * 100 : 0;
+        
+        const totalRequired = timeSlots.reduce((sum, slot) => sum + (slot.minEmployees || 0), 0);
+        const totalScheduled = timeSlots.reduce((sum, slot) => sum + (slot.maxEmployees || 0), 0);
+        
+        const coverage = totalRequired > 0 ? (totalScheduled / totalRequired) * 100 : 0;
+        
         return {
           day: dayName,
           coverage: Math.round(coverage),
+          required: totalRequired,
+          scheduled: totalScheduled
         };
       })
       .sort((a, b) => {
@@ -219,15 +224,35 @@ export default function CoveragePage() {
     const averageHours =
       totalRequiredEmployees > 0 ? totalHours / totalRequiredEmployees : 0;
 
+    const totalScheduledEmployees = fullCoverage.reduce((acc, day) => {
+      const timeSlots = Array.isArray(day.timeSlots) ? day.timeSlots : [];
+      return acc + timeSlots.reduce((sum, slot) => sum + (slot.maxEmployees || 0), 0);
+    }, 0);
+
+    // Calculate daily and weekly hour ranges
+    const dailyHours = fullCoverage.map(day => {
+      const timeSlots = Array.isArray(day.timeSlots) ? day.timeSlots : [];
+      return timeSlots.reduce((sum, slot) => {
+        if (!slot.startTime || !slot.endTime) return sum;
+        const start = parseInt(slot.startTime.split(":")[0]);
+        const end = parseInt(slot.endTime.split(":")[0]);
+        return sum + (end - start) * (slot.minEmployees || 0);
+      }, 0);
+    });
+
+    const minDailyHours = Math.min(...dailyHours.filter(hours => hours > 0));
+    const maxDailyHours = Math.max(...dailyHours);
+    const totalWeeklyHours = dailyHours.reduce((sum, hours) => sum + hours, 0);
+
     return {
       totalEmployees: totalRequiredEmployees,
-      scheduledEmployees: Math.round(totalRequiredEmployees * 0.85), // Assuming 85% coverage
+      scheduledEmployees: totalScheduledEmployees,
       averageHours: Math.round(averageHours * 10) / 10,
-      coverageRate:
-        totalRequiredEmployees > 0
-          ? Math.round((totalRequiredEmployees / totalRequiredEmployees) * 100)
-          : 0,
+      coverageRate: Math.round((totalTimeSlots > 0 ? (totalRequiredEmployees / totalTimeSlots) * 100 : 0)),
       weeklyData,
+      minDailyHours: Math.round(minDailyHours * 10) / 10,
+      maxDailyHours: Math.round(maxDailyHours * 10) / 10,
+      totalWeeklyHours: Math.round(totalWeeklyHours * 10) / 10,
     };
   }, [coverageData]);
 
@@ -247,7 +272,7 @@ export default function CoveragePage() {
         description="Monitor employee coverage and scheduling statistics"
       />
 
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-5">
         {/* Total Employees Card */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -274,6 +299,20 @@ export default function CoveragePage() {
             <div className="text-2xl font-bold">{stats.averageHours}h</div>
             <p className="text-xs text-muted-foreground">
               Per employee per week
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Hour Ranges Card */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Hour Ranges</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.minDailyHours}-{stats.maxDailyHours}h</div>
+            <p className="text-xs text-muted-foreground">
+              Daily range ({stats.totalWeeklyHours}h/week)
             </p>
           </CardContent>
         </Card>

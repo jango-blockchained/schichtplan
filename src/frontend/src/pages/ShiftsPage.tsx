@@ -11,10 +11,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Plus, Loader2 } from "lucide-react";
 import { ShiftTemplateEditor } from "@/components/shift-templates";
-import { Settings } from "@/types";
+import { Settings, ShiftTemplate } from "@/types";
 import {
-  Shift,
-  getShifts,
+  getShiftTemplates,
   createShift,
   updateShift,
   deleteShift,
@@ -43,7 +42,7 @@ const convertActiveDaysToObject = (
 
 export const ShiftsPage: React.FC = () => {
   const { toast } = useToast();
-  const [shifts, setShifts] = useState<Shift[]>([]);
+  const [shifts, setShifts] = useState<ShiftTemplate[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -52,7 +51,7 @@ export const ShiftsPage: React.FC = () => {
       try {
         setLoading(true);
         const [shiftsData, settingsData] = await Promise.all([
-          getShifts(),
+          getShiftTemplates(),
           getSettings(),
         ]);
         setShifts(shiftsData);
@@ -107,7 +106,7 @@ export const ShiftsPage: React.FC = () => {
     }
   };
 
-  const handleUpdateShift = async (updatedShift: Shift) => {
+  const handleUpdateShift = async (updatedShift: ShiftTemplate) => {
     try {
       const result = await updateShift(updatedShift);
       setShifts((prev) =>

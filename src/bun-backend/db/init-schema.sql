@@ -205,26 +205,26 @@ INSERT OR IGNORE INTO settings (id) VALUES (1);
 UPDATE settings
 SET
     availability_types = '[
-        {"id": "available", "name": "AVAILABLE", "description": "Mitarbeiter ist verfügbar", "color": "#4CAF50", "priority": 1, "is_available": true},
-        {"id": "unavailable", "name": "UNAVAILABLE", "description": "Mitarbeiter ist nicht verfügbar", "color": "#F44336", "priority": 10, "is_available": false},
-        {"id": "fixed", "name": "FIXED", "description": "Mitarbeiter hat feste Arbeitszeiten", "color": "#FF9800", "priority": 8, "is_available": true},
-        {"id": "preferred", "name": "PREFERRED", "description": "Mitarbeiter bevorzugt diese Zeit", "color": "#2196F3", "priority": 5, "is_available": true}
+        {"id": "AVAILABLE", "name": "AVAILABLE", "description": "Mitarbeiter ist verfügbar", "color": "#4CAF50", "priority": 1, "is_available": true},
+        {"id": "UNAVAILABLE", "name": "UNAVAILABLE", "description": "Mitarbeiter ist nicht verfügbar", "color": "#F44336", "priority": 10, "is_available": false},
+        {"id": "FIXED", "name": "FIXED", "description": "Mitarbeiter hat feste Arbeitszeiten", "color": "#FF9800", "priority": 8, "is_available": true},
+        {"id": "PREFERRED", "name": "PREFERRED", "description": "Mitarbeiter bevorzugt diese Zeit", "color": "#2196F3", "priority": 5, "is_available": true}
     ]',
     employee_types = '[
-        {"id": "tl", "name": "Teamleiter", "min_hours": 38, "max_hours": 40, "max_daily_hours": 10, "type": "employee"},
-        {"id": "vz", "name": "Vollzeit", "min_hours": 35, "max_hours": 40, "max_daily_hours": 10, "type": "employee"},
-        {"id": "tz", "name": "Teilzeit", "min_hours": 15, "max_hours": 30, "max_daily_hours": 8, "type": "employee"},
-        {"id": "gfb", "name": "Geringfügig", "min_hours": 0, "max_hours": 12, "max_daily_hours": 6, "type": "employee"}
+        {"id": "TL", "name": "Teamleiter", "min_hours": 38, "max_hours": 40, "max_daily_hours": 10, "type": "employee"},
+        {"id": "VZ", "name": "Vollzeit", "min_hours": 35, "max_hours": 40, "max_daily_hours": 10, "type": "employee"},
+        {"id": "TZ", "name": "Teilzeit", "min_hours": 15, "max_hours": 30, "max_daily_hours": 8, "type": "employee"},
+        {"id": "GFB", "name": "Geringfügig", "min_hours": 0, "max_hours": 12, "max_daily_hours": 6, "type": "employee"}
     ]',
     shift_types = '[
-        {"id": "early", "name": "EARLY", "color": "#FFC107", "type": "shift"},
-        {"id": "middle", "name": "MIDDLE", "color": "#03A9F4", "type": "shift"},
-        {"id": "late", "name": "LATE", "color": "#673AB7", "type": "shift"}
+        {"id": "EARLY", "name": "EARLY", "color": "#FFC107", "type": "shift"},
+        {"id": "MIDDLE", "name": "MIDDLE", "color": "#03A9F4", "type": "shift"},
+        {"id": "LATE", "name": "LATE", "color": "#673AB7", "type": "shift"}
     ]',
     absence_types = '[
-        {"id": "url", "name": "Urlaub", "color": "#FF9800", "type": "absence"},
-        {"id": "abw", "name": "Abwesend", "color": "#E91E63", "type": "absence"},
-        {"id": "ext", "name": "Extern", "color": "#9E9E9E", "type": "absence"}
+        {"id": "URL", "name": "Urlaub", "color": "#FF9800", "type": "absence"},
+        {"id": "ABW", "name": "Abwesend", "color": "#E91E63", "type": "absence"},
+        {"id": "EXT", "name": "Extern", "color": "#9E9E9E", "type": "absence"}
     ]'
 WHERE id = 1;
 

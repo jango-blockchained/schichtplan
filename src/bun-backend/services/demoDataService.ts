@@ -202,14 +202,14 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
         const coveragesToInsert: any[][] = [];
         
         // Generate coverage blocks for each day
-        [0, 1, 2, 3, 4, 5].forEach(day => {
+        [0, 1, 2, 3, 4, 5, 6].forEach(day => {  // Added day 6 (Saturday)
             // Morning block (store opening to mid-morning)
             coveragesToInsert.push([
                 day,
                 storeOpening,
                 "12:00",
-                day === 5 ? 3 : 2, // More staff on Saturday mornings
-                day === 5 ? 4 : 3,
+                day === 5 || day === 6 ? 3 : 2, // More staff on Saturday and Friday mornings
+                day === 5 || day === 6 ? 4 : 3,
                 1 // Requires keyholder for opening
             ]);
             
@@ -218,8 +218,8 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
                 day,
                 "12:00",
                 "16:00",
-                day === 5 ? 3 : 2,
-                day === 5 ? 4 : 3,
+                day === 5 || day === 6 ? 3 : 2,
+                day === 5 || day === 6 ? 4 : 3,
                 0 // No keyholder required during mid-day
             ]);
             
@@ -228,8 +228,8 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
                 day,
                 "16:00",
                 storeClosing,
-                day === 5 ? 2 : 1,
-                day === 5 ? 3 : 2,
+                day === 5 || day === 6 ? 2 : 1,
+                day === 5 || day === 6 ? 3 : 2,
                 1 // Requires keyholder for closing
             ]);
         });
@@ -393,15 +393,6 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
         throw new Error(`Demo data generation failed: ${error.message}`);
     }
 }
-
-// TODO: Add function for the simple POST /demo-data/ endpoint if needed
-// export async function generateSimpleDemoDataService(module: string, db: Database = globalDb) { ... }
-
-// TODO: Add function for GET /demo-data/optimized/status/:taskId if implementing polling
-// export async function getOptimizedDemoDataStatus(taskId: string, db: Database = globalDb) { ... }
-
-// TODO: Add function for POST /demo-data/optimized/reset if needed
-// export async function resetOptimizedDemoDataStatusService(db: Database = globalDb) { ... }
 
 export async function generateDemoData(db: Database | null, settings: Settings) {
     if (!db) {
