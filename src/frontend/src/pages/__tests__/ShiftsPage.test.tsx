@@ -1,5 +1,5 @@
 import { describe, test, expect, spyOn } from 'bun:test';
-import { render, screen } from '@/test-utils/test-utils';
+import { render, screen, waitFor } from '@/test-utils/test-utils';
 import { ShiftsPage } from '../ShiftsPage';
 import * as api from '@/services/api';
 
@@ -26,15 +26,21 @@ const mockSettings = {
   ]
 };
 
-// Mock API functions
-const getShiftsSpy = spyOn(api, 'getShifts').mockImplementation(() => Promise.resolve([mockShift]));
-const getSettingsSpy = spyOn(api, 'getSettings').mockImplementation(() => Promise.resolve(mockSettings));
-
 describe("ShiftsPage", () => {
-  test("renders shifts list", async () => {
+  test("renders shifts page and loads data", async () => {
+    // Mock API calls
+    spyOn(api, 'getShifts').mockResolvedValue([mockShift]);
+    spyOn(api, 'getSettings').mockResolvedValue(mockSettings);
+
     render(<ShiftsPage />);
-    expect(screen.getByText(/Schichten/i)).toBeDefined();
-    expect(getShiftsSpy).toHaveBeenCalled();
-    expect(getSettingsSpy).toHaveBeenCalled();
+
+    // Wait for data to load
+    await waitFor(() => {
+      expect(screen.getByText("Schichten")).toBeDefined();
+    });
+
+    // Verify shift data is displayed
+    expect(screen.getByText("08:00")).toBeDefined();
+    expect(screen.getByText("16:00")).toBeDefined();
   });
 });

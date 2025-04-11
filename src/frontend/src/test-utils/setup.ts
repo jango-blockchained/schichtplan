@@ -1,4 +1,4 @@
-import { afterEach, expect } from 'bun:test';
+import { afterEach } from 'bun:test';
 import { cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { Window } from 'happy-dom';
@@ -14,41 +14,59 @@ if (!document.body) {
 }
 
 // Setup global objects
-Object.defineProperty(global, 'window', { value: window });
-Object.defineProperty(global, 'document', { value: document });
-Object.defineProperty(global, 'navigator', { value: window.navigator });
-Object.defineProperty(global, 'HTMLElement', { value: window.HTMLElement });
-Object.defineProperty(global, 'Element', { value: window.Element });
-Object.defineProperty(global, 'Node', { value: window.Node });
-Object.defineProperty(global, 'getComputedStyle', { value: window.getComputedStyle.bind(window) });
+global.window = window;
+global.document = document;
+global.navigator = window.navigator;
+global.HTMLElement = window.HTMLElement;
+global.Element = window.Element;
+global.Node = window.Node;
+global.localStorage = {
+  getItem: (key: string) => null,
+  setItem: (key: string, value: string) => {},
+  removeItem: (key: string) => {},
+  clear: () => {},
+  key: (index: number) => null,
+  length: 0,
+};
 
 // Mock ResizeObserver
-global.ResizeObserver = class ResizeObserver {
+class MockResizeObserver implements ResizeObserver {
   observe() {}
   unobserve() {}
   disconnect() {}
-};
+}
+global.ResizeObserver = MockResizeObserver;
 
 // Mock IntersectionObserver
-global.IntersectionObserver = class IntersectionObserver {
+class MockIntersectionObserver implements IntersectionObserver {
+  root: Element | null = null;
+  rootMargin: string = '0px';
+  thresholds: ReadonlyArray<number> = [0];
   observe() {}
   unobserve() {}
   disconnect() {}
-};
+  takeRecords(): IntersectionObserverEntry[] { return []; }
+}
+global.IntersectionObserver = MockIntersectionObserver;
 
 // Mock matchMedia
-window.matchMedia = () => ({
-  matches: false,
-  addListener: () => {},
-  removeListener: () => {},
-  addEventListener: () => {},
-  removeEventListener: () => {},
-  dispatchEvent: () => true,
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => true,
+  }),
 });
 
 // Mock requestAnimationFrame
 global.requestAnimationFrame = (callback: FrameRequestCallback): number => {
-  return setTimeout(() => callback(Date.now()), 0);
+  return setTimeout(() => callback(Date.now()), 0) as unknown as number;
 };
 
 // Mock cancelAnimationFrame
@@ -56,10 +74,9 @@ global.cancelAnimationFrame = (handle: number): void => {
   clearTimeout(handle);
 };
 
-// Cleanup after each test
+// Clean up after each test
 afterEach(() => {
   cleanup();
-  document.body.innerHTML = '';
 });
 
 // Add custom matchers
