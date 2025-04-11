@@ -29,10 +29,14 @@ export interface Employee {
   employee_group: EmployeeGroup; // TEXT NOT NULL (matches enum values)
   contracted_hours: number; // REAL NOT NULL
   is_keyholder: boolean; // INTEGER (0 or 1) NOT NULL DEFAULT 0
+  can_be_keyholder: boolean; // Added
   is_active: boolean; // INTEGER (0 or 1) NOT NULL DEFAULT 1
   birthday?: string | null; // TEXT (Date YYYY-MM-DD), nullable
   email?: string | null; // TEXT UNIQUE, nullable
   phone?: string | null; // TEXT, nullable
+  address?: string | null; // Added
+  hire_date?: string | null; // Added
+  notes?: string | null; // Added
   created_at: string; // TEXT (Timestamp ISO8601) NOT NULL
   updated_at: string; // TEXT (Timestamp ISO8601) NOT NULL
 }

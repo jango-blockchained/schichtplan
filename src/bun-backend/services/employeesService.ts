@@ -1,4 +1,4 @@
-import globalDb from "../db"; // Import the default initialized DB connection
+// import globalDb from "../db"; // REMOVED - Ensure tests cannot accidentally use this
 import { Database } from "bun:sqlite"; // Import Database type
 import { Employee, EmployeeGroup } from "../db/schema"; // Import the Employee interface and Enum
 import { SQLQueryBindings } from "bun:sqlite"; // Import type for bindings
@@ -16,10 +16,14 @@ function mapRowToEmployee(row: any): Employee {
     contracted_hours: typeof row.contracted_hours === 'number' ? row.contracted_hours : 0,
     // SQLite stores boolean as 0/1
     is_keyholder: row.is_keyholder === 1,
+    can_be_keyholder: row.can_be_keyholder === 1, // Added mapping
     is_active: row.is_active === 1,
     birthday: typeof row.birthday === 'string' ? row.birthday : null,
     email: typeof row.email === 'string' ? row.email : null,
     phone: typeof row.phone === 'string' ? row.phone : null,
+    address: typeof row.address === 'string' ? row.address : null, // Added mapping
+    hire_date: typeof row.hire_date === 'string' ? row.hire_date : null, // Added mapping
+    notes: typeof row.notes === 'string' ? row.notes : null, // Added mapping
     created_at: typeof row.created_at === 'string' ? row.created_at : '',
     updated_at: typeof row.updated_at === 'string' ? row.updated_at : '',
   };
@@ -38,10 +42,10 @@ export interface EmployeeFilters {
 // Updated function to handle filters
 export async function getAllEmployees(
     filters: EmployeeFilters = {},
-    db: Database = globalDb // Use injected DB or fallback to global
+    db: Database
 ): Promise<Employee[]> {
-    // ADD SMALL DELAY FOR TESTING POTENTIAL TIMING ISSUES
-    await new Promise(resolve => setTimeout(resolve, 10)); 
+    // REMOVED: Suspicious delay
+    // await new Promise(resolve => setTimeout(resolve, 10)); 
     
     try {
         let baseSql = "SELECT * FROM employees";
@@ -66,6 +70,7 @@ export async function getAllEmployees(
         }
         baseSql += " ORDER BY last_name, first_name;";
 
+        console.log(`[getAllEmployees] Using DB file: ${db.filename}`);
         console.log(`Fetching employees with query: ${baseSql} and params: ${JSON.stringify(params)}`);
 
         // Prepare and execute the SQL query
@@ -87,9 +92,15 @@ export async function getAllEmployees(
 // Add getEmployeeById function
 export async function getEmployeeById(
     id: number,
-    db: Database = globalDb // Use injected DB or fallback to global
+    db: Database
 ): Promise<Employee | null> {
     try {
+        // Ensure the db object is valid before querying
+        if (!db) {
+            console.error("getEmployeeById received an invalid database instance!");
+            throw new Error("Invalid database instance provided.");
+        }
+        console.log(`[getEmployeeById] Using DB file for id ${id}: ${db.filename}`);
         const query = db.query("SELECT * FROM employees WHERE id = ?;");
         const row = query.get(id) as any; // Use get for single result
 
@@ -111,7 +122,7 @@ export interface CreateEmployeeInput {
     last_name: string;
     employee_group: EmployeeGroup;
     contracted_hours: number;
-    can_be_keyholder?: boolean; // Changed from is_keyholder and made optional
+    is_keyholder?: boolean; // Changed from can_be_keyholder to match the UI form
     is_active?: boolean;    // Optional, defaults to true in DB
     birthday?: string | null;
     email?: string | null;
@@ -124,7 +135,7 @@ export interface CreateEmployeeInput {
 
 export async function createEmployee(
     data: CreateEmployeeInput,
-    db: Database = globalDb // Use injected DB or fallback to global
+    db: Database
 ): Promise<Employee> {
     // Validate required fields explicitly (though route validation should also cover this)
     if (!data.employee_id || !data.first_name || !data.last_name || !data.employee_group || data.contracted_hours === undefined) {
@@ -134,13 +145,14 @@ export async function createEmployee(
     const sql = `
         INSERT INTO employees (
             employee_id, first_name, last_name, employee_group, contracted_hours,
-            can_be_keyholder, is_active, birthday, email, phone, hire_date, address, notes
+            is_keyholder, can_be_keyholder, is_active, birthday, email, phone, hire_date, address, notes
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     `;
 
     // Set defaults for optional boolean fields if not provided
-    const isKeyholder = data.can_be_keyholder === true ? 1 : 0; // Corrected property name
+    const isKeyholder = data.is_keyholder === true ? 1 : 0; // Use is_keyholder (from form) directly
+    const canBeKeyholder = data.is_keyholder === true ? 1 : 0; // Duplicate setting for schema compatibility
     const isActive = data.is_active !== false ? 1 : 0; // Default to active (1) if undefined or true
 
     const params: SQLQueryBindings[] = [
@@ -149,18 +161,19 @@ export async function createEmployee(
         data.last_name,
         data.employee_group,
         data.contracted_hours,
-        isKeyholder, // Use the mapped variable
+        isKeyholder,
+        canBeKeyholder, // Add this parameter for the new column
         isActive,
         data.birthday ?? null,
         data.email ?? null,
         data.phone ?? null,
-        // Add potentially missing params based on added interface fields
         data.hire_date ?? null,
         data.address ?? null,
         data.notes ?? null
     ];
 
     try {
+        console.log(`[createEmployee] Using DB file: ${db.filename}`);
         // Execute the insert query in a transaction
         db.transaction(() => {
             const insertQuery = db.query(sql);
@@ -176,8 +189,7 @@ export async function createEmployee(
             throw new Error("Failed to get last insert ID after creating employee.");
         }
 
-        console.log(`Employee created with ID: ${lastId}`);
-
+        console.log(`[createEmployee] Fetching newly created employee with ID: ${lastId} using DB file: ${db.filename}`);
         // Fetch and return the newly created employee
         const newEmployee = await getEmployeeById(Number(lastId), db);
         if (!newEmployee) {
@@ -219,7 +231,7 @@ export interface UpdateEmployeeInput {
 export async function updateEmployee(
     id: number,
     data: UpdateEmployeeInput,
-    db: Database = globalDb
+    db: Database
 ): Promise<Employee> {
     // Check if employee exists *before* attempting update
     const existingEmployee = await getEmployeeById(id, db);
@@ -256,9 +268,11 @@ export async function updateEmployee(
     const sql = `UPDATE employees SET ${Object.keys(updates).map(key => `${key} = ?`).join(', ')} WHERE id = ?;`;
 
     try {
+        console.log(`[updateEmployee] Using DB file for id ${id}: ${db.filename}`);
         const stmt = db.prepare(sql);
         const info = await Promise.resolve(stmt.run(...Object.values(updates), id));
 
+        console.log(`[updateEmployee] Re-fetching employee ${id} using DB file: ${db.filename}`);
         // Re-fetch the updated employee to return the latest state
         const updatedEmployee = await getEmployeeById(id, db);
          if (!updatedEmployee) { 
@@ -277,17 +291,17 @@ export async function updateEmployee(
 
 export async function deleteEmployee(
     id: number,
-    db: Database = globalDb
+    db: Database
 ): Promise<{ success: boolean }> { // Keep return type consistent for now
-    // Check existence first
-    const employee = await getEmployeeById(id, db);
-    if (!employee) {
-        // Throw NotFoundError if not found
+    // Ensure employee exists before trying to delete
+    const existingEmployee = await getEmployeeById(id, db);
+    if (!existingEmployee) {
         throw new NotFoundError(`Employee with ID ${id} not found for deletion.`);
     }
 
     const sql = "DELETE FROM employees WHERE id = ?;";
     try {
+        console.log(`[deleteEmployee] Using DB file for id ${id}: ${db.filename}`);
         const stmt = db.prepare(sql);
         const info = await Promise.resolve(stmt.run(id));
         
@@ -303,6 +317,4 @@ export async function deleteEmployee(
          // Don't re-throw NotFoundError
         throw new Error(`Failed to delete employee: ${error instanceof Error ? error.message : String(error)}`);
     }
-}
-
-// End of employee service functions 
+} 

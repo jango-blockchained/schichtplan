@@ -1,10 +1,10 @@
 [test]
 # Use happy-dom to align with setup.ts
-# environment = "happy-dom"
+environment = "happy-dom"
 preload = ["./src/test-utils/setup.ts"]
 coverage = true
 timeout = 5000
 # Exclude the Playwright tests directory
 exclude = ["./tests/**"]
 
-# Removed [test.dom] section as setup.ts handles DOM setup manually 
+# Removed [test.dom] section as setup.ts handles DOM setup manually

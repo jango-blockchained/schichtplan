@@ -5,8 +5,7 @@ import { ThemeProvider } from "../providers/ThemeProvider";
 // import { JSDOM } from "jsdom"; // REMOVED - Rely on setup.ts (happy-dom)
 import "@testing-library/jest-dom";
 import { MemoryRouter } from "react-router-dom"; // Import MemoryRouter
-
-// REMOVED all JSDOM setup and global assignments here - Handled by setup.ts
+// Removed explicit HappyDOM setup
 
 // Mock localStorage (Keep this, may be needed specifically for tests using this util)
 const localStorageMock = (() => {
@@ -78,6 +77,5 @@ afterEach(() => {
   }
 });
 
-// Remove the re-export
-// export * from "@testing-library/react";
+// Re-exporting custom render
 export { customRender as render };

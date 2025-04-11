@@ -655,7 +655,7 @@ export const getEmployeeAvailabilities = async (
   employeeId: number,
 ): Promise<EmployeeAvailability[]> => {
   const response = await api.get<EmployeeAvailability[]>(
-    `/employees/${employeeId}/availabilities`,
+    `/employees/${employeeId}/availability/`,
   );
   return response.data;
 };
@@ -1464,4 +1464,17 @@ export const createSchedule = async (
     }
     throw error;
   }
+};
+
+// Add this new function
+export const addEmployeeAvailability = async (
+  employeeId: number,
+  availability: Omit<EmployeeAvailability, "id" | "created_at" | "updated_at" | "employee_id"> & { employee_id?: number },
+): Promise<EmployeeAvailability> => {
+  const payload = { ...availability, employee_id: employeeId };
+  const response = await api.post<EmployeeAvailability>(
+    `/employees/${employeeId}/availability/`, // Use trailing slash as per backend route
+    payload,
+  );
+  return response.data;
 };

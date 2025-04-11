@@ -98,3 +98,8 @@ venv/*
 docs/
 
 .cursor/
+PROMPT.md
+:memory:*
+*/:memory:*
+*/*/:memory:*
+bun.lock

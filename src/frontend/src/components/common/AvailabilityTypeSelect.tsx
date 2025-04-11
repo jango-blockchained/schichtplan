@@ -37,7 +37,7 @@ export function AvailabilityTypeSelect({
   });
 
   // Filter out UNAVAILABLE type unless showUnavailable is true
-  const availabilityTypes = (settings?.availability_types?.types || [])
+  const availabilityTypes = (settings?.availability_types || [])
     .filter((type: AvailabilityType) => showUnavailable || type.is_available)
     .sort(
       (a: AvailabilityType, b: AvailabilityType) => a.priority - b.priority,

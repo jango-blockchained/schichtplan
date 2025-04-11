@@ -2,6 +2,7 @@ import { describe, it, expect, mock, beforeEach } from "bun:test";
 import { render } from "@/test-utils/test-utils";
 import { screen } from "@testing-library/react";
 import { ShiftTable } from "../ShiftTable";
+import { WeeklySchedule } from "@/types";
 
 // Mock data matching the WeeklySchedule structure
 const mockWeekData: WeeklySchedule[] = [
@@ -42,7 +43,7 @@ const mockWeekData: WeeklySchedule[] = [
 ];
 
 describe("ShiftTable", () => {
-  test("renders shift data correctly", () => {
+  it("renders shift data correctly", () => {
     render(
       <ShiftTable
         weekStart={new Date("2023-01-01")}
@@ -60,7 +61,7 @@ describe("ShiftTable", () => {
     expect(screen.getByText("09:00 - 17:00")).toBeDefined();
   });
 
-  test("shows loading state", () => {
+  it("shows loading state", () => {
     render(
       <ShiftTable
         weekStart={new Date("2023-01-01")}
@@ -76,7 +77,7 @@ describe("ShiftTable", () => {
     expect(loadingElements.length).toBeGreaterThan(0);
   });
 
-  test("shows error state", () => {
+  it("shows error state", () => {
     render(
       <ShiftTable
         weekStart={new Date("2023-01-01")}

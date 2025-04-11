@@ -6,7 +6,7 @@ import {
 } from "util";
 import { Window } from "happy-dom";
 import "@testing-library/jest-dom";
-import { beforeAll, beforeEach, afterEach } from "bun:test";
+import { beforeAll, beforeEach } from "bun:test";
 import { cleanup } from "@testing-library/react";
 
 // Add jest-dom matchers to Bun's expect
@@ -60,24 +60,11 @@ beforeAll(() => {
   });
 });
 
-// Reset the DOM after each test
-// Remove this beforeEach block
-/*
+// Restore beforeEach cleanup
 beforeEach(() => {
-  if (!document.body) {
-    console.error("!!! document.body does NOT exist in beforeEach !!!");
-  } else {
-    // console.log("--- document.body exists in beforeEach ---"); // Optional: uncomment for positive confirmation
-  }
   cleanup();
   // Enable pointer events for testing
   document.body.style.pointerEvents = "auto";
-});
-*/
-
-// Add cleanup in afterEach
-afterEach(() => {
-  cleanup();
 });
 
 // Polyfill for TextEncoder/TextDecoder

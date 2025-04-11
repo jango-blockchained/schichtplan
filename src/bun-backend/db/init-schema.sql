@@ -12,10 +12,14 @@ CREATE TABLE IF NOT EXISTS employees (
     employee_group TEXT NOT NULL CHECK(employee_group IN ('VZ', 'TZ', 'GFB', 'TL')),
     contracted_hours REAL NOT NULL,
     is_keyholder INTEGER NOT NULL DEFAULT 0, -- 0 = false, 1 = true
+    can_be_keyholder INTEGER NOT NULL DEFAULT 0, -- 0 = false, 1 = true (Added for test compatibility)
     is_active INTEGER NOT NULL DEFAULT 1,    -- 0 = false, 1 = true
     birthday TEXT,                            -- ISO Date string 'YYYY-MM-DD'
+    hire_date TEXT,                             -- ISO Date string 'YYYY-MM-DD' (Added)
     email TEXT UNIQUE,
     phone TEXT,
+    address TEXT,                               -- Employee address (Added)
+    notes TEXT,                                 -- Employee notes (Added)
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')), -- ISO8601 Timestamp
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))  -- ISO8601 Timestamp
 );

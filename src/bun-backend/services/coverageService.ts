@@ -38,12 +38,17 @@ function mapRowToCoverage(row: any): Coverage {
  * TODO: Add filtering by date range if necessary (depends on how coverage is used).
  */
 export async function getAllCoverage(
-    db: Database = globalDb // Use injected or global
+    db: Database = globalDb
 ): Promise<Coverage[]> {
     try {
         // Order by day and time for predictability
         const query = db.query("SELECT * FROM coverage ORDER BY day_index, start_time;");
         const rows = query.all() as any[];
+        
+        if (!rows || rows.length === 0) {
+            return []; // Return empty array if no entries
+        }
+        
         return rows.map(mapRowToCoverage);
     } catch (error) {
         console.error("Error fetching all coverage entries:", error);
@@ -231,82 +236,80 @@ type BulkCoverageInput = Omit<Coverage, 'id' | 'created_at' | 'updated_at'> & { 
  */
 export async function bulkUpdateCoverage(
     coverageData: BulkCoverageInput[],
-    db: Database = globalDb // Use injected or global
+    db: Database = globalDb
 ): Promise<Coverage[]> {
-    // Use transaction for atomicity
-    const transaction = db.transaction((entries: BulkCoverageInput[]) => {
-        // 1. Determine affected day indices
-        const affectedDays = [...new Set(entries.map(entry => entry.day_index))];
-        if (affectedDays.length === 0) {
+    try {
+        // Safeguard: if no data provided, return empty array
+        if (!coverageData || coverageData.length === 0) {
             console.log("bulkUpdateCoverage called with empty data, no changes made.");
-            return []; // Nothing to do
+            return [];
         }
 
-        // 2. Delete existing coverage for affected days
-        // Ensure the placeholder count matches the number of affected days
-        const placeholders = affectedDays.map(() => '?').join(',');
-        const deleteSql = `DELETE FROM coverage WHERE day_index IN (${placeholders});`;
-        const deleteStmt = db.prepare(deleteSql);
-        try {
-            console.log(`Deleting existing coverage for days: ${affectedDays.join(', ')}`);
-            // Ensure affectedDays is treated as array of numbers for the run method
-            deleteStmt.run(...affectedDays as number[]); 
-        } catch (delError) {
-            console.error("Error deleting existing coverage:", delError);
-            throw new Error("Failed to clear existing coverage before update."); // Causes transaction rollback
-        }
+        // First, identify which days we're updating
+        const dayIndices = [...new Set(coverageData.map(item => item.day_index))];
+        console.log(`Deleting existing coverage for days: ${dayIndices.join(', ')}`);
 
-        // 3. Prepare INSERT statement (corrected column names based on schema.ts if necessary)
-        // Assuming column names in schema.ts match the Coverage interface keys used below.
-        const insertSql = `
-            INSERT INTO coverage (
-                day_index, start_time, end_time, min_employees, max_employees,
-                employee_types, allowed_employee_groups, requires_keyholder,
-                keyholder_before_minutes, keyholder_after_minutes,
-                created_at, updated_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'));`;
-        const insertStmt = db.prepare(insertSql);
+        // Start a transaction
+        db.transaction(() => {
+            // Delete existing entries for the affected days
+            for (const dayIndex of dayIndices) {
+                const deleteStmt = db.prepare("DELETE FROM coverage WHERE day_index = ?");
+                deleteStmt.run(dayIndex);
+            }
 
-        // 4. Insert new entries
-        for (const entry of entries) {
-            try {
-                // Map input type to database values
-                const requires_keyholder_int = entry.requires_keyholder ? 1 : 0;
-                // Ensure arrays are stringified, handle null/undefined cases gracefully
-                const employee_types_json = JSON.stringify(entry.employee_types ?? []); 
-                const allowed_groups_json = entry.allowed_employee_groups ? JSON.stringify(entry.allowed_employee_groups) : null;
+            // Insert the new entries
+            const sql = `
+                INSERT INTO coverage (
+                    day_index, start_time, end_time, min_employees, max_employees,
+                    employee_types, allowed_employee_groups, requires_keyholder,
+                    keyholder_before_minutes, keyholder_after_minutes,
+                    created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            `;
+            const insertStmt = db.prepare(sql);
+
+            for (const item of coverageData) {
+                const requires_keyholder_int = item.requires_keyholder ? 1 : 0;
+                const employee_types_json = JSON.stringify(item.employee_types ?? []);
+                const allowed_groups_json = item.allowed_employee_groups 
+                    ? JSON.stringify(item.allowed_employee_groups) 
+                    : null;
 
                 insertStmt.run(
-                    entry.day_index,
-                    entry.start_time,
-                    entry.end_time,
-                    entry.min_employees,
-                    entry.max_employees,
+                    item.day_index,
+                    item.start_time,
+                    item.end_time,
+                    item.min_employees ?? 1,
+                    item.max_employees ?? 3,
                     employee_types_json,
-                    allowed_groups_json, 
+                    allowed_groups_json,
                     requires_keyholder_int,
-                    entry.keyholder_before_minutes ?? null,
-                    entry.keyholder_after_minutes ?? null
+                    item.keyholder_before_minutes ?? null,
+                    item.keyholder_after_minutes ?? null
                 );
-            } catch (insError) {
-                console.error("Error inserting coverage entry:", insError, "Entry:", entry);
-                throw new Error("Failed to insert new coverage entry during bulk update."); // Causes transaction rollback
+            }
+        })();
+
+        console.log(`Successfully inserted ${coverageData.length} coverage entries for days: ${dayIndices.join(', ')}`);
+        
+        // Return all coverage entries for the affected days
+        const result: Coverage[] = [];
+        
+        for (const dayIndex of dayIndices) {
+            const query = db.query("SELECT * FROM coverage WHERE day_index = ?");
+            const rows = query.all(dayIndex) as any[];
+            
+            if (rows && rows.length > 0) {
+                rows.forEach(row => {
+                    result.push(mapRowToCoverage(row));
+                });
             }
         }
-
-        // 5. Transaction commits automatically if no error is thrown
-        console.log(`Successfully inserted ${entries.length} coverage entries for days: ${affectedDays.join(', ')}`);
-        // Return the input data as confirmation.
-        return entries; 
-    });
-
-    try {
-        // Execute the transaction
-        return transaction(coverageData);
+        
+        return result;
     } catch (error) {
-        console.error("Bulk coverage update transaction failed:", error);
-        // Ensure a generic error is thrown if the transaction itself fails
-        throw new Error("Bulk coverage update failed.");
+        console.error("Error in bulkUpdateCoverage:", error);
+        throw new Error("Failed to update coverage entries in bulk.");
     }
 } 
