@@ -174,28 +174,49 @@ export const EmployeeAvailabilityModal: React.FC<
     setDailyHours(dayHours);
 
     const newSelectedCells = new Map<string, string>();
+    
+    // Process each availability entry
     availabilities.forEach((availability) => {
-      // Ensure the backend day index is within the bounds of ALL_DAYS
-      if (availability.day_of_week >= 0 && availability.day_of_week < ALL_DAYS.length) {
-         const dayName = ALL_DAYS[availability.day_of_week]; // Use direct index
-         if (activeDays.includes(dayName) && availability.is_available) {
-            const timeSlot = timeSlots.find(slot => slot.hour === availability.hour);
-            if (timeSlot) {
-                const cellId = `${dayName}-${timeSlot.time}`;
-                const typeId = Object.keys(AvailabilityType).find(key => AvailabilityType[key as keyof typeof AvailabilityType] === availability.availability_type);
-                if (typeId) {
-                    newSelectedCells.set(cellId, typeId);
-                } else {
-                     console.warn(`Could not find type ID for enum value: ${availability.availability_type}`);
-                }
-            } else {
-                console.warn(`Could not find timeSlot for hour: ${availability.hour}`);
-            }
-         }
-      } else {
-           console.warn(`Invalid day_of_week index received from backend: ${availability.day_of_week}`);
+      // Convert backend day index (0=Mon) to frontend day name
+      const dayName = ALL_DAYS[availability.day_of_week];
+      
+      if (activeDays.includes(dayName)) {
+        // Find the time slot that corresponds to this hour
+        const timeSlot = timeSlots.find(slot => {
+          const [slotStartHour] = slot.time.split(" - ")[0].split(":").map(Number);
+          return slotStartHour === availability.hour;
+        });
+
+        if (timeSlot) {
+          const cellId = `${dayName}-${timeSlot.time}`;
+          
+          // Map the availability type to the correct type ID
+          let typeId;
+          switch (availability.availability_type) {
+            case "UNAVAILABLE":
+              typeId = "unavailable";
+              break;
+            case "AVAILABLE":
+              typeId = "available";
+              break;
+            case "PREFERRED":
+              typeId = "preferred";
+              break;
+            case "FIXED":
+              typeId = "fixed";
+              break;
+            default:
+              console.warn(`Unknown availability type: ${availability.availability_type}`);
+              return;
+          }
+          
+          if (availability.is_available) {
+            newSelectedCells.set(cellId, typeId);
+          }
+        }
       }
     });
+
     setSelectedCells(newSelectedCells);
     calculateHours(newSelectedCells);
   }, [availabilities, activeDays, timeSlots]);

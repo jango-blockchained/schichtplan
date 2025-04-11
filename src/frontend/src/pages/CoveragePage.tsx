@@ -48,19 +48,75 @@ export default function CoveragePage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: settings, isLoading: isSettingsLoading } = useQuery({
-    queryKey: ["settings"] as const,
-    queryFn: getSettings,
-  });
-
-  const { data: coverage, isLoading: isCoverageLoading } = useQuery({
-    queryKey: ["coverage"] as const,
+  // Fetch coverage data
+  const { data: coverageData, isLoading: isCoverageLoading } = useQuery({
+    queryKey: ["coverage"],
     queryFn: getAllCoverage,
   });
 
+  // Fetch settings
+  const { data: settings, isLoading: isSettingsLoading } = useQuery({
+    queryKey: ["settings"],
+    queryFn: getSettings,
+  });
+
+  // Prepare initial coverage data
+  const initialCoverage = useMemo(() => {
+    if (!coverageData) return undefined;
+    
+    // Ensure coverage data is properly formatted
+    return coverageData.map((day: DailyCoverage) => ({
+      dayIndex: day.dayIndex,
+      timeSlots: day.timeSlots.map((slot: CoverageTimeSlot) => ({
+        ...slot,
+        startTime: slot.startTime || "09:00",
+        endTime: slot.endTime || "17:00",
+        minEmployees: slot.minEmployees || 1,
+        maxEmployees: slot.maxEmployees || 3,
+        employeeTypes: slot.employeeTypes || [],
+        requiresKeyholder: slot.requiresKeyholder || false,
+        keyholderBeforeMinutes: slot.keyholderBeforeMinutes || 0,
+        keyholderAfterMinutes: slot.keyholderAfterMinutes || 0,
+      })),
+    }));
+  }, [coverageData]);
+
+  // Prepare store config from settings
+  const storeConfig = useMemo(() => {
+    if (!settings) return undefined;
+    
+    return {
+      store_opening: settings.store_opening || "09:00",
+      store_closing: settings.store_closing || "20:00",
+      opening_days: settings.opening_days || {
+        "0": false,
+        "1": true,
+        "2": true,
+        "3": true,
+        "4": true,
+        "5": true,
+        "6": true,
+      },
+      min_employees_per_shift: settings.min_employees_per_shift || 1,
+      max_employees_per_shift: settings.max_employees_per_shift || 3,
+      employee_types: settings.employee_types || [],
+      keyholder_before_minutes: settings.keyholder_before_minutes || 30,
+      keyholder_after_minutes: settings.keyholder_after_minutes || 30,
+    };
+  }, [settings]);
+
+  // Show loading state
+  if (isCoverageLoading || isSettingsLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
   // Calculate real stats from coverage data
   const stats = useMemo(() => {
-    if (!coverage || !Array.isArray(coverage)) return null;
+    if (!coverageData || !Array.isArray(coverageData)) return null;
 
     // Initialize default coverage array if empty
     const defaultCoverage: DailyCoverage[] = Array.from(
@@ -73,7 +129,7 @@ export default function CoveragePage() {
 
     // Merge existing coverage with defaults
     const fullCoverage = defaultCoverage.map((defaultDay) => {
-      const existingDay = coverage.find(
+      const existingDay = coverageData.find(
         (day) => day.dayIndex === defaultDay.dayIndex,
       );
       return existingDay || defaultDay;
@@ -152,7 +208,7 @@ export default function CoveragePage() {
           : 0,
       weeklyData,
     };
-  }, [coverage]);
+  }, [coverageData]);
 
   if (isSettingsLoading || !settings || isCoverageLoading || !stats) {
     return (
@@ -161,31 +217,6 @@ export default function CoveragePage() {
       </div>
     );
   }
-
-  // Convert settings to the format expected by CoverageEditor
-  // Access flat structure directly from settings (safe due to loading check above)
-  const storeConfig = {
-    store_opening: settings.store_opening, // Use flat key
-    store_closing: settings.store_closing, // Use flat key
-    opening_days: settings.opening_days, // Use flat key
-    min_employees_per_shift: settings.min_employees_per_shift ?? 1, // Use flat key
-    max_employees_per_shift: settings.max_employees_per_shift ?? 3, // Use flat key
-    // Use flat settings.employee_types and map needed fields
-    employee_types: settings.employee_types?.map((type) => ({
-      id: type.id,
-      name: type.name,
-    })) ?? [], // Use flat key, handle potential null/undefined
-    keyholder_before_minutes: settings.keyholder_before_minutes, // Use flat key
-    keyholder_after_minutes: settings.keyholder_after_minutes, // Use flat key
-  };
-
-  // Initialize default coverage if none exists
-  const initialCoverage =
-    coverage ||
-    Array.from({ length: 7 }, (_, index) => ({
-      dayIndex: index,
-      timeSlots: [] as CoverageTimeSlot[],
-    }));
 
   return (
     <div className="container mx-auto py-6 space-y-6">

@@ -96,8 +96,13 @@ export async function generateOptimizedDemoDataService(db: Database = globalDb):
         const tzType = employeeTypes.find(t => t.id === 'tz');
         const gfbType = employeeTypes.find(t => t.id === 'gfb');
 
+        // Calculate how many employees should be keyholders (70% of total)
+        const totalEmployees = 30;
+        const targetKeyholders = Math.ceil(totalEmployees * 0.7); // 70% of employees
+        let remainingKeyholders = targetKeyholders;
+
         // Assign types and standard hours
-        for (let i = 1; i <= 30; i++) {
+        for (let i = 1; i <= totalEmployees; i++) {
             const empId = String(i).padStart(3, '0');
             let assignedType: EmployeeTypeDefinition | undefined;
             let standardHours = 0;
@@ -116,19 +121,24 @@ export async function generateOptimizedDemoDataService(db: Database = globalDb):
                 // Assign varying TZ hours for more realism
                 standardHours = getRandomInt(assignedType?.min_hours ?? 15, assignedType?.max_hours ?? 25); 
             }
-            calculatedTotalHours += standardHours; // Track total for logging
+            calculatedTotalHours += standardHours;
             
             const firstName = getRandomElement(firstNames) || 'Demo';
             const lastName = getRandomElement(lastNames) || `User${empId}`;
             const group = assignedType?.id || 'TZ'; 
-            // Ensure the group ID matches the DB constraint (uppercase)
-            let dbGroup = group.toUpperCase(); // Use let instead of const
-            // Validate against expected DB values
+            let dbGroup = group.toUpperCase();
             if (!['TL', 'VZ', 'TZ', 'GFB'].includes(dbGroup)) {
-                 console.warn(`Generated invalid group ID '${group}' -> '${dbGroup}' for employee ${empId}. Defaulting to 'TZ'.`);
-                 dbGroup = 'TZ'; // Now assignment is allowed
+                console.warn(`Generated invalid group ID '${group}' -> '${dbGroup}' for employee ${empId}. Defaulting to 'TZ'.`);
+                dbGroup = 'TZ';
             }
-            const isKeyholder = dbGroup === 'TL' || (dbGroup === 'VZ' && Math.random() < 0.5) ? 1 : 0; // TL and 1 of the VZ are keyholders
+
+            // Determine if this employee should be a keyholder
+            let isKeyholder = 0;
+            if (remainingKeyholders > 0 && (dbGroup === 'TL' || Math.random() < (remainingKeyholders / (totalEmployees - i + 1)))) {
+                isKeyholder = 1;
+                remainingKeyholders--;
+            }
+
             const isActive = 1;
             let email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}${empId}@example.com`;
             while (usedEmails.has(email)) {
@@ -140,8 +150,8 @@ export async function generateOptimizedDemoDataService(db: Database = globalDb):
                 empId,
                 firstName,
                 lastName,
-                dbGroup, // Use the uppercase, validated group ID
-                standardHours, // Use standard hours
+                dbGroup,
+                standardHours,
                 isKeyholder,
                 isActive,
                 email
@@ -180,21 +190,51 @@ export async function generateOptimizedDemoDataService(db: Database = globalDb):
         console.log("Generating demo coverage requirements...");
         const coverageInsertSql = `INSERT INTO coverage (day_index, start_time, end_time, min_employees, max_employees, requires_keyholder) VALUES (?, ?, ?, ?, ?, ?);`;
         const coverageStmt = db.prepare(coverageInsertSql);
-        const coveragesToInsert: any[][] = [
-            // Weekdays 09:00-18:00 (Need 2 people, 1 keyholder)
-            ...[0, 1, 2, 3, 4].map(day => [day, '09:00', '18:00', 2, 3, 1]),
-            // Weekdays 18:00-21:00 (Need 1 person)
-             ...[0, 1, 2, 3, 4].map(day => [day, '18:00', '21:00', 1, 2, 0]),
-             // Saturday 09:00-18:00 (Need 3 people, 1 keyholder)
-             [5, '09:00', '18:00', 3, 4, 1],
-              // Saturday 18:00-21:00 (Need 2 people)
-              [5, '18:00', '21:00', 2, 3, 0],
-        ];
-         // Bulk insert coverage
-         db.transaction((covers) => {
-             for (const cover of covers) coverageStmt.run(...cover);
-             console.log(`Inserted ${covers.length} demo coverage blocks.`);
-         })(coveragesToInsert);
+        
+        // Get store hours from settings
+        const storeOpening = settings.store_opening || "09:00";
+        const storeClosing = settings.store_closing || "20:00";
+        
+        const coveragesToInsert: any[][] = [];
+        
+        // Generate coverage blocks for each day
+        [0, 1, 2, 3, 4, 5].forEach(day => {
+            // Morning block (store opening to mid-morning)
+            coveragesToInsert.push([
+                day,
+                storeOpening,
+                "12:00",
+                day === 5 ? 3 : 2, // More staff on Saturday mornings
+                day === 5 ? 4 : 3,
+                1 // Requires keyholder for opening
+            ]);
+            
+            // Mid-day block
+            coveragesToInsert.push([
+                day,
+                "12:00",
+                "16:00",
+                day === 5 ? 3 : 2,
+                day === 5 ? 4 : 3,
+                0 // No keyholder required during mid-day
+            ]);
+            
+            // Evening block (late afternoon to closing)
+            coveragesToInsert.push([
+                day,
+                "16:00",
+                storeClosing,
+                day === 5 ? 2 : 1,
+                day === 5 ? 3 : 2,
+                1 // Requires keyholder for closing
+            ]);
+        });
+
+        // Bulk insert coverage
+        db.transaction((covers) => {
+            for (const cover of covers) coverageStmt.run(...cover);
+            console.log(`Inserted ${covers.length} demo coverage blocks.`);
+        })(coveragesToInsert);
          // TODO: Generate recurring_coverage examples?
 
         // 6. Generate Absences (using generated employees)
@@ -228,54 +268,109 @@ export async function generateOptimizedDemoDataService(db: Database = globalDb):
 
         // 7. Generate Availabilities (using generated employees)
         console.log("Generating demo availabilities...");
-        const availabilityInsertSql = `INSERT INTO employee_availabilities (employee_id, day_of_week, hour, availability_type, is_recurring) VALUES (?, ?, ?, ?, ?)`;
+        const availabilityInsertSql = `INSERT INTO employee_availabilities (employee_id, day_of_week, hour, availability_type, is_recurring, is_available) VALUES (?, ?, ?, ?, ?, ?)`;
         const availabilityStmt = db.prepare(availabilityInsertSql);
         const availabilitiesToInsert: any[][] = [];
-        // Find types by ID, but use the NAME for insertion
+        
         const unavailableType = availabilityTypes.find(t => t.id === 'unavailable');
         const preferredType = availabilityTypes.find(t => t.id === 'preferred');
-        const availableType = availabilityTypes.find(t => t.id === 'available'); // Added for completeness if needed
-        const fixedType = availabilityTypes.find(t => t.id === 'fixed'); // Added for completeness if needed
+        const availableType = availabilityTypes.find(t => t.id === 'available');
+        
+        // Convert store hours to numbers for comparison
+        const [openingHour] = storeOpening.split(':').map(Number);
+        const [closingHour] = storeClosing.split(':').map(Number);
 
         generatedEmployees.forEach(emp => {
+            // First, mark all store hours as available by default
+            for (let day = 0; day < 7; day++) {
+                for (let hour = openingHour; hour < closingHour; hour++) {
+                    availabilitiesToInsert.push([
+                        emp.id,
+                        day,
+                        hour,
+                        availableType?.name || 'AVAILABLE',
+                        1, // is_recurring
+                        1  // is_available
+                    ]);
+                }
+            }
+
             // Add some fixed unavailability (e.g., student has lectures)
             if (emp.employee_group === 'GFB' && Math.random() < 0.5 && unavailableType) {
                 const unavailableDay = getRandomInt(0, 4); // Mon-Fri
-                const startHour = getRandomInt(8, 12);
-                const endHour = startHour + getRandomInt(2, 4);
+                const startHour = getRandomInt(openingHour, closingHour - 2);
+                const endHour = Math.min(startHour + getRandomInt(2, 4), closingHour);
                 for (let hour = startHour; hour < endHour; hour++) {
-                    // Use the NAME property for insertion
-                    availabilitiesToInsert.push([emp.id, unavailableDay, hour, unavailableType.name, 1]);
+                    // Remove any existing availability for this slot
+                    const existingIndex = availabilitiesToInsert.findIndex(
+                        a => a[0] === emp.id && a[1] === unavailableDay && a[2] === hour
+                    );
+                    if (existingIndex !== -1) {
+                        availabilitiesToInsert.splice(existingIndex, 1);
+                    }
+                    // Add unavailable slot
+                    availabilitiesToInsert.push([
+                        emp.id,
+                        unavailableDay,
+                        hour,
+                        unavailableType.name,
+                        1, // is_recurring
+                        0  // is_available
+                    ]);
                 }
             }
+
             // Add some preferred times (e.g., prefers mornings)
             if (Math.random() < 0.3 && preferredType) {
                 const preferredDay = getRandomInt(0, 6);
-                for (let hour = 8; hour < 12; hour++) {
-                     // Use the NAME property for insertion
-                     availabilitiesToInsert.push([emp.id, preferredDay, hour, preferredType.name, 1]);
+                for (let hour = openingHour; hour < Math.min(openingHour + 4, closingHour); hour++) {
+                    // Remove any existing availability for this slot
+                    const existingIndex = availabilitiesToInsert.findIndex(
+                        a => a[0] === emp.id && a[1] === preferredDay && a[2] === hour
+                    );
+                    if (existingIndex !== -1) {
+                        availabilitiesToInsert.splice(existingIndex, 1);
+                    }
+                    // Add preferred slot
+                    availabilitiesToInsert.push([
+                        emp.id,
+                        preferredDay,
+                        hour,
+                        preferredType.name,
+                        1, // is_recurring
+                        1  // is_available
+                    ]);
                 }
             }
-            // Add some random hourly overrides
-            for (let day = 0; day < 7; day++) { // DB: 0=Mon, 6=Sun
-                for (let hour = 0; hour < 24; hour++) {
-                    let typeNameToInsert: string | null = null; // Store the name
-                    const randomVal = Math.random();
-                    if (randomVal < 0.05 && unavailableType) {
-                         typeNameToInsert = unavailableType.name; // Use NAME
-                    } else if (randomVal < 0.10 && preferredType) {
-                         typeNameToInsert = preferredType.name; // Use NAME
+
+            // Add some random unavailable slots
+            for (let day = 0; day < 7; day++) {
+                if (Math.random() < 0.1 && unavailableType) { // 10% chance per day
+                    const randomHour = getRandomInt(openingHour, closingHour - 1);
+                    // Remove any existing availability for this slot
+                    const existingIndex = availabilitiesToInsert.findIndex(
+                        a => a[0] === emp.id && a[1] === day && a[2] === randomHour
+                    );
+                    if (existingIndex !== -1) {
+                        availabilitiesToInsert.splice(existingIndex, 1);
                     }
-                    // Check if this slot is already filled before adding
-                    if (typeNameToInsert && !availabilitiesToInsert.some(a => a[0] === emp.id && a[1] === day && a[2] === hour)) {
-                         availabilitiesToInsert.push([emp.id, day, hour, typeNameToInsert, 1]);
-                    }
+                    // Add unavailable slot
+                    availabilitiesToInsert.push([
+                        emp.id,
+                        day,
+                        randomHour,
+                        unavailableType.name,
+                        1, // is_recurring
+                        0  // is_available
+                    ]);
                 }
             }
         });
+
+        // Bulk insert availabilities
         db.transaction((availabilities) => {
-             for (const availability of availabilities) availabilityStmt.run(...availability);
-             console.log(`Inserted ${availabilities.length} demo availability overrides.`);
+            for (const availability of availabilities) availabilityStmt.run(...availability);
+            console.log(`Inserted ${availabilities.length} demo availability overrides.`);
         })(availabilitiesToInsert);
 
         // 8. Generate Schedules (Placeholder/Skipped)

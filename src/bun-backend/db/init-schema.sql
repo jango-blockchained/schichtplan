@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS employee_availabilities (
     start_date TEXT,              -- ISO Date string 'YYYY-MM-DD'
     end_date TEXT,                -- ISO Date string 'YYYY-MM-DD'
     is_recurring INTEGER NOT NULL DEFAULT 1, -- 0 = false, 1 = true
+    is_available INTEGER NOT NULL DEFAULT 1, -- 0 = false, 1 = true
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE

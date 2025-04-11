@@ -6,6 +6,7 @@ import type {
   ScheduleUpdate,
   DailyCoverage,
   CoverageTimeSlot,
+  ShiftTemplate,
 } from "@/types/index";
 import { CreateEmployeeRequest, UpdateEmployeeRequest } from "../types";
 
@@ -1477,4 +1478,64 @@ export const addEmployeeAvailability = async (
     payload,
   );
   return response.data;
+};
+
+// Shift Templates
+export const getShiftTemplates = async (): Promise<ShiftTemplate[]> => {
+  try {
+    const response = await api.get<ShiftTemplate[]>("/shifts/");
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to fetch shift templates: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
+export const getShiftTemplateById = async (id: number): Promise<ShiftTemplate> => {
+  try {
+    const response = await api.get<ShiftTemplate>(`/shifts/${id}`);
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to fetch shift template: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
+export const createShiftTemplate = async (data: Omit<ShiftTemplate, 'id' | 'created_at' | 'updated_at'>): Promise<ShiftTemplate> => {
+  try {
+    const response = await api.post<ShiftTemplate>("/shifts/", data);
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to create shift template: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
+export const updateShiftTemplate = async (id: number, data: Partial<Omit<ShiftTemplate, 'id' | 'created_at' | 'updated_at'>>): Promise<ShiftTemplate> => {
+  try {
+    const response = await api.put<ShiftTemplate>(`/shifts/${id}`, data);
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to update shift template: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
+export const deleteShiftTemplate = async (id: number): Promise<void> => {
+  try {
+    await api.delete(`/shifts/${id}`);
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to delete shift template: ${error.message}`);
+    }
+    throw error;
+  }
 };

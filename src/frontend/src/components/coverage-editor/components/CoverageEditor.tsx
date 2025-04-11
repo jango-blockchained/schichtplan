@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, PencilIcon } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { CoverageEditorProps, DailyCoverage, StoreConfigProps } from "../types";
+import { CoverageEditorProps, DailyCoverage, StoreConfigProps, CoverageTimeSlot } from "../types";
 import { DAYS_SHORT, GRID_CONSTANTS } from "../utils/constants";
 import { DayRow } from "./DayRow";
 import { timeToMinutes, minutesToTime } from "../utils/time";
@@ -163,6 +163,73 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
     return defaultCoverage;
   });
 
+  // Update coverage when initialCoverage changes
+  useEffect(() => {
+    if (initialCoverage) {
+      setCoverage((prevCoverage) =>
+        prevCoverage.map((defaultDay) => {
+          const initialDay = initialCoverage.find(
+            (day) => day.dayIndex === defaultDay.dayIndex,
+          );
+          return initialDay || defaultDay;
+        })
+      );
+    }
+  }, [initialCoverage]);
+
+  // Call onChange when coverage changes
+  useEffect(() => {
+    onChange?.(coverage);
+  }, [coverage, onChange]);
+
+  // Validate time slot
+  const validateTimeSlot = (
+    startTime: string,
+    endTime: string,
+    dayIndex: number,
+    currentSlotIndex?: number
+  ): boolean => {
+    const startMinutes = timeToMinutes(startTime);
+    const endMinutes = timeToMinutes(endTime);
+    const storeOpeningMinutes = timeToMinutes(storeConfig.store_opening);
+    const storeClosingMinutes = timeToMinutes(storeConfig.store_closing);
+
+    // Check if time is within store hours
+    if (startMinutes < storeOpeningMinutes || endMinutes > storeClosingMinutes) {
+      toast({
+        title: "Invalid Time Slot",
+        description: "Time slot must be within store hours",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    // Check for overlapping slots
+    const hasOverlap = coverage[dayIndex].timeSlots.some((slot, index) => {
+      if (currentSlotIndex !== undefined && index === currentSlotIndex) {
+        return false;
+      }
+      const slotStart = timeToMinutes(slot.startTime);
+      const slotEnd = timeToMinutes(slot.endTime);
+      return (
+        (startMinutes >= slotStart && startMinutes < slotEnd) ||
+        (endMinutes > slotStart && endMinutes <= slotEnd) ||
+        (startMinutes <= slotStart && endMinutes >= slotEnd)
+      );
+    });
+
+    if (hasOverlap) {
+      toast({
+        title: "Invalid Time Slot",
+        description: "Time slots cannot overlap",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    return true;
+  };
+
   useEffect(() => {
     const updateWidth = () => {
       if (containerRef.current) {
@@ -199,8 +266,9 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
       endHour === storeClosingHour ? storeClosingMinutes : startMinutes;
     const endTime = `${endHour.toString().padStart(2, "0")}:${endMinutes.toString().padStart(2, "0")}`;
 
-    if (startHour >= storeClosingHour) {
-      return; // Don't add slots outside opening hours
+    // Validate the new time slot
+    if (!validateTimeSlot(startTime, endTime, dayIndex)) {
+      return;
     }
 
     // Determine if this is an opening or closing shift
@@ -244,31 +312,29 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
   const handleUpdateSlot = (
     dayIndex: number,
     slotIndex: number,
-    updates: any,
+    updates: Partial<CoverageTimeSlot>,
   ) => {
-    const newCoverage = [...coverage];
-    const currentSlot = newCoverage[dayIndex].timeSlots[slotIndex];
+    // If updating times, validate the new slot
+    if (updates.startTime || updates.endTime) {
+      const slot = coverage[dayIndex].timeSlots[slotIndex];
+      const newStartTime = updates.startTime || slot.startTime;
+      const newEndTime = updates.endTime || slot.endTime;
+      
+      if (!validateTimeSlot(newStartTime, newEndTime, dayIndex, slotIndex)) {
+        return;
+      }
+    }
 
-    // Determine if this is an opening or closing shift after the update
-    const isEarlyShift =
-      (updates.startTime || currentSlot.startTime) ===
-      storeConfig.store_opening;
-    const isLateShift =
-      (updates.endTime || currentSlot.endTime) === storeConfig.store_closing;
-
-    newCoverage[dayIndex].timeSlots[slotIndex] = {
-      ...currentSlot,
-      ...updates,
-      requiresKeyholder: isEarlyShift || isLateShift,
-      keyholderBeforeMinutes: isEarlyShift
-        ? storeConfig.keyholder_before_minutes
-        : 0,
-      keyholderAfterMinutes: isLateShift
-        ? storeConfig.keyholder_after_minutes
-        : 0,
-    };
-    setCoverage(newCoverage);
-    onChange?.(newCoverage);
+    setCoverage((prevCoverage) => {
+      const newCoverage = [...prevCoverage];
+      newCoverage[dayIndex] = {
+        ...newCoverage[dayIndex],
+        timeSlots: newCoverage[dayIndex].timeSlots.map((slot, idx) =>
+          idx === slotIndex ? { ...slot, ...updates } : slot
+        ),
+      };
+      return newCoverage;
+    });
   };
 
   const handleDeleteSlot = (dayIndex: number, slotIndex: number) => {
