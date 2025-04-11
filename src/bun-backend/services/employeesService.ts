@@ -3,6 +3,7 @@ import { Database } from "bun:sqlite"; // Import Database type
 import { Employee, EmployeeGroup } from "../db/schema"; // Import the Employee interface and Enum
 import { SQLQueryBindings } from "bun:sqlite"; // Import type for bindings
 import { NotFoundError } from "elysia";
+import globalDb from "../db"; // Add back the globalDb import
 
 // Function to map database row to Employee interface, handling potential type mismatches
 function mapRowToEmployee(row: any): Employee {
@@ -42,26 +43,31 @@ export interface EmployeeFilters {
 // Updated function to handle filters
 export async function getAllEmployees(
     filters: EmployeeFilters = {},
-    db: Database
+    db: Database = globalDb as Database
 ): Promise<Employee[]> {
-    // REMOVED: Suspicious delay
-    // await new Promise(resolve => setTimeout(resolve, 10)); 
-    
+    if (!db) {
+        throw new Error("Database instance is required");
+    }
     try {
         let baseSql = "SELECT * FROM employees";
         const conditions: string[] = [];
         const params: SQLQueryBindings[] = []; 
 
+        console.log(`[getAllEmployees] Starting with filters:`, filters);
+
         // Apply status filter (maps to is_active boolean/integer)
         if (filters.status && filters.status !== 'all') {
             conditions.push("is_active = ?");
-            params.push(filters.status === 'active' ? 1 : 0); 
+            const isActive = filters.status === 'active' ? 1 : 0;
+            params.push(isActive);
+            console.log(`[getAllEmployees] Added status filter: is_active = ${isActive}`);
         }
 
         // Apply group filter
         if (filters.group && filters.group !== 'all') {
             conditions.push("employee_group = ?");
             params.push(filters.group);
+            console.log(`[getAllEmployees] Added group filter: employee_group = ${filters.group}`);
         }
 
         // Build the final query
@@ -71,20 +77,24 @@ export async function getAllEmployees(
         baseSql += " ORDER BY last_name, first_name;";
 
         console.log(`[getAllEmployees] Using DB file: ${db.filename}`);
-        console.log(`Fetching employees with query: ${baseSql} and params: ${JSON.stringify(params)}`);
+        console.log(`[getAllEmployees] Final SQL query: ${baseSql}`);
+        console.log(`[getAllEmployees] Query parameters:`, params);
 
-        // Prepare and execute the SQL query
-        const query = db.query(baseSql);
-        const rows = query.all(...params) as any[]; 
+        // Execute the query
+        const query = db.prepare(baseSql);
+        const rows = query.all(...params) as any[];
 
-        console.log(`Found ${rows.length} employees matching filters.`);
+        console.log(`[getAllEmployees] Found ${rows.length} employees matching filters.`);
+        if (rows.length > 0) {
+            console.log(`[getAllEmployees] First row sample:`, rows[0]);
+        }
 
         // Map database rows to Employee objects
         const employees = rows.map(mapRowToEmployee);
 
         return employees;
     } catch (error) {
-        console.error("Error fetching employees:", error);
+        console.error("[getAllEmployees] Error fetching employees:", error);
         throw new Error("Failed to retrieve employees from database.");
     }
 }

@@ -1,5 +1,11 @@
 # ShiftWise - Shift Scheduling Application
 
+![Coverage - Functions](https://img.shields.io/badge/Coverage%20(Functions)-56.07%25-yellow)
+![Coverage - Lines](https://img.shields.io/badge/Coverage%20(Lines)-51.95%25-yellow)
+![Status](https://img.shields.io/badge/Status-Under%20Heavy%20Development-red)
+
+> ⚠️ **Note:** This project is under heavy development. Features and APIs may change frequently. Use with caution in production environments.
+
 A modern web application for automated shift scheduling in retail stores. The application generates 4-week schedules while adhering to complex constraints, allows manual adjustments, and produces printable PDF reports.
 
 ## Features

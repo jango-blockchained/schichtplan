@@ -38,15 +38,19 @@ function mapRowToCoverage(row: any): Coverage {
  * TODO: Add filtering by date range if necessary (depends on how coverage is used).
  */
 export async function getAllCoverage(
-    db: Database = globalDb
+    db: Database = globalDb as Database
 ): Promise<Coverage[]> {
+    if (!db) {
+        throw new Error("Database instance is required");
+    }
     try {
-        // Order by day and time for predictability
+        // Get the records, ordered by day and time for predictability
         const query = db.query("SELECT * FROM coverage ORDER BY day_index, start_time;");
         const rows = query.all() as any[];
         
+        // Return empty array if no records
         if (!rows || rows.length === 0) {
-            return []; // Return empty array if no entries
+            return [];
         }
         
         return rows.map(mapRowToCoverage);
@@ -61,8 +65,11 @@ export async function getAllCoverage(
  */
 export async function getCoverageById(
     id: number,
-    db: Database = globalDb // Use injected or global
+    db: Database = globalDb as Database
 ): Promise<Coverage> {
+    if (!db) {
+        throw new Error("Database instance is required");
+    }
     try {
         const query = db.query("SELECT * FROM coverage WHERE id = ?;");
         const row = query.get(id) as any;
@@ -86,8 +93,11 @@ type CreateCoverageInput = Omit<Coverage, 'id' | 'created_at' | 'updated_at'>;
  */
 export async function createCoverage(
     data: CreateCoverageInput,
-    db: Database = globalDb // Use injected or global
+    db: Database = globalDb as Database
 ): Promise<Coverage> {
+    if (!db) {
+        throw new Error("Database instance is required");
+    }
     const {
         day_index,
         start_time,
@@ -155,8 +165,11 @@ type UpdateCoverageInput = Partial<Omit<Coverage, 'id' | 'created_at' | 'updated
 export async function updateCoverage(
     id: number,
     data: UpdateCoverageInput,
-    db: Database = globalDb // Use injected or global
+    db: Database = globalDb as Database
 ): Promise<Coverage> {
+    if (!db) {
+        throw new Error("Database instance is required");
+    }
     await getCoverageById(id, db); // Check existence
 
     const updates: Record<string, any> = {};
@@ -210,8 +223,11 @@ export async function updateCoverage(
  */
 export async function deleteCoverage(
     id: number,
-    db: Database = globalDb // Use injected or global
+    db: Database = globalDb as Database
 ): Promise<{ success: boolean }> {
+    if (!db) {
+        throw new Error("Database instance is required");
+    }
     await getCoverageById(id, db); // Check existence
 
     const sql = "DELETE FROM coverage WHERE id = ?;";
@@ -236,8 +252,11 @@ type BulkCoverageInput = Omit<Coverage, 'id' | 'created_at' | 'updated_at'> & { 
  */
 export async function bulkUpdateCoverage(
     coverageData: BulkCoverageInput[],
-    db: Database = globalDb
+    db: Database = globalDb as Database
 ): Promise<Coverage[]> {
+    if (!db) {
+        throw new Error("Database instance is required");
+    }
     try {
         // Safeguard: if no data provided, return empty array
         if (!coverageData || coverageData.length === 0) {
@@ -311,5 +330,53 @@ export async function bulkUpdateCoverage(
     } catch (error) {
         console.error("Error in bulkUpdateCoverage:", error);
         throw new Error("Failed to update coverage entries in bulk.");
+    }
+}
+
+export async function getCoverageForDay(
+    dayIndex: number,
+    db: Database = globalDb as Database
+): Promise<Coverage[]> {
+    if (!db) {
+        throw new Error("Database instance is required");
+    }
+    try {
+        const query = db.query("SELECT * FROM coverage WHERE day_index = ? ORDER BY start_time;");
+        const rows = query.all(dayIndex) as any[];
+        
+        // Convert rows to array if it isn't already
+        const resultsArray = Array.isArray(rows) ? rows : [];
+        
+        return resultsArray.map(mapRowToCoverage);
+    } catch (error) {
+        console.error(`Error fetching coverage entries for day ${dayIndex}:`, error);
+        throw new Error(`Failed to retrieve coverage entries for day ${dayIndex}.`);
+    }
+}
+
+export async function deleteCoverageEntry(
+    id: number,
+    db: Database = globalDb as Database
+): Promise<boolean> {
+    if (!db) {
+        throw new Error("Database instance is required");
+    }
+    try {
+        // Check if entry exists first
+        const checkQuery = db.query("SELECT id FROM coverage WHERE id = ?;");
+        const exists = checkQuery.get(id);
+        
+        if (!exists) {
+            throw new NotFoundError(`Coverage entry with id ${id} not found.`);
+        }
+        
+        const query = db.query("DELETE FROM coverage WHERE id = ?;");
+        query.run(id);
+        
+        return true;
+    } catch (error) {
+        console.error(`Error deleting coverage entry ${id}:`, error);
+        if (error instanceof NotFoundError) throw error;
+        throw new Error(`Failed to delete coverage entry ${id}.`);
     }
 } 

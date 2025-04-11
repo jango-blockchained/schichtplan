@@ -114,47 +114,47 @@ describe("Employees Service", () => {
         it("should retrieve all seeded employees by default", async () => {
             expect(currentTestDb).toBeDefined(); // Ensure DB is defined here
             const employees = await getAllEmployees({}, currentTestDb);
-            expect(employees.length).toBe(2); // Updated from 4 to 2
+            expect(employees.length).toBe(4); // Updated to match seeded data
         });
         it("should filter by status=all", async () => {
              expect(currentTestDb).toBeDefined();
             const employees = await getAllEmployees({ status: 'all' }, currentTestDb);
-            expect(employees.length).toBe(2); // Updated from 4 to 2
+            expect(employees.length).toBe(4); // Updated to match seeded data
         });
         it("should filter by status=active", async () => {
              expect(currentTestDb).toBeDefined();
             const employees = await getAllEmployees({ status: 'active' }, currentTestDb);
-            expect(employees.length).toBe(2); // Updated expected number
+            expect(employees.length).toBe(3); // Updated to match seeded data (3 active employees)
         });
         it("should filter by status=inactive", async () => {
              expect(currentTestDb).toBeDefined();
             const employees = await getAllEmployees({ status: 'inactive' }, currentTestDb);
-            expect(employees.length).toBe(2); // Updated expected number
+            expect(employees.length).toBe(1); // Updated to match seeded data (1 inactive employee)
         });
         it("should filter by group=VZ", async () => {
              expect(currentTestDb).toBeDefined();
             const employees = await getAllEmployees({ group: EmployeeGroup.VZ }, currentTestDb);
-            expect(employees.length).toBe(2); // Updated expected count
+            expect(employees.length).toBe(2); // Correct - matches seeded data
         });
          it("should filter by group=TZ", async () => {
              expect(currentTestDb).toBeDefined();
             const employees = await getAllEmployees({ group: EmployeeGroup.TZ }, currentTestDb);
-            expect(employees.length).toBe(2); // Updated expected count
+            expect(employees.length).toBe(1); // Updated to match seeded data
         });
          it("should filter by group=GFB", async () => {
              expect(currentTestDb).toBeDefined();
             const employees = await getAllEmployees({ group: EmployeeGroup.GFB }, currentTestDb);
-            expect(employees.length).toBe(2); // Updated expected count
+            expect(employees.length).toBe(1); // Updated to match seeded data
         });
           it("should filter by status=active and group=VZ", async () => {
               expect(currentTestDb).toBeDefined();
               const employees = await getAllEmployees({ status: 'active', group: EmployeeGroup.VZ }, currentTestDb);
-              expect(employees.length).toBe(2); // Updated expected count
+              expect(employees.length).toBe(1); // Updated to match seeded data
           });
         it("should return an empty array for non-matching filters", async () => {
             expect(currentTestDb).toBeDefined();
             const employees = await getAllEmployees({ group: EmployeeGroup.TZ, status: 'inactive' }, currentTestDb);
-            expect(employees.length).toBe(2); // Updated expected count
+            expect(employees.length).toBe(0); // Updated to match seeded data
         });
     });
 
@@ -164,7 +164,7 @@ describe("Employees Service", () => {
             const employeeId = 1;
             const employee = await getEmployeeById(employeeId, currentTestDb);
             expect(employee).toBeDefined();
-            expect(employee!.first_name).toBe('John'); // Updated to match the actual first name
+            expect(employee!.first_name).toBe('Alice'); // Updated to match seeded data
         });
         it("should return null if employee not found", async () => {
             expect(currentTestDb).toBeDefined();
