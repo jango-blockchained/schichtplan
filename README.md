@@ -3,6 +3,7 @@
 ![Coverage - Functions](https://img.shields.io/badge/Coverage%20(Functions)-56.07%25-yellow)
 ![Coverage - Lines](https://img.shields.io/badge/Coverage%20(Lines)-51.95%25-yellow)
 ![Status](https://img.shields.io/badge/Status-Under%20Heavy%20Development-red)
+![PRs](https://img.shields.io/badge/PRs-Welcome-brightgreen)
 
 > ⚠️ **Note:** This project is under heavy development. Features and APIs may change frequently. Use with caution in production environments.
 
