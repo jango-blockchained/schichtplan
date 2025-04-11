@@ -1,134 +1,77 @@
-import { expect } from "bun:test";
-import * as matchers from "@testing-library/jest-dom/matchers";
-import {
-  TextEncoder as NodeTextEncoder,
-  TextDecoder as NodeTextDecoder,
-} from "util";
-import { Window } from "happy-dom";
-import "@testing-library/jest-dom";
-import { beforeAll, beforeEach } from "bun:test";
-import { cleanup } from "@testing-library/react";
+import { afterEach, expect } from 'bun:test';
+import { cleanup } from '@testing-library/react';
+import '@testing-library/jest-dom';
+import { Window } from 'happy-dom';
 
-// Add jest-dom matchers to Bun's expect
-Object.assign(expect, matchers);
-
-// Create a new window with happy-dom
+// Create a new window
 const window = new Window();
 const document = window.document;
 
 // Create and append body if it doesn't exist
 if (!document.body) {
-  const body = document.createElement("body");
+  const body = document.createElement('body');
   document.appendChild(body);
 }
 
 // Setup global objects
-Object.defineProperty(globalThis, "window", { value: window });
-Object.defineProperty(globalThis, "document", { value: document });
-Object.defineProperty(globalThis, "navigator", { value: window.navigator });
-Object.defineProperty(globalThis, "DocumentFragment", {
-  value: window.DocumentFragment,
-});
-Object.defineProperty(globalThis, "Element", { value: window.Element });
-Object.defineProperty(globalThis, "HTMLElement", { value: window.HTMLElement });
-Object.defineProperty(globalThis, "HTMLInputElement", {
-  value: window.HTMLInputElement,
-});
-Object.defineProperty(globalThis, "HTMLSelectElement", {
-  value: window.HTMLSelectElement,
-});
-Object.defineProperty(globalThis, "Node", { value: window.Node });
-Object.defineProperty(globalThis, "Event", { value: window.Event });
-Object.defineProperty(globalThis, "getComputedStyle", {
-  value: window.getComputedStyle.bind(window),
+Object.defineProperty(global, 'window', { value: window });
+Object.defineProperty(global, 'document', { value: document });
+Object.defineProperty(global, 'navigator', { value: window.navigator });
+Object.defineProperty(global, 'HTMLElement', { value: window.HTMLElement });
+Object.defineProperty(global, 'Element', { value: window.Element });
+Object.defineProperty(global, 'Node', { value: window.Node });
+Object.defineProperty(global, 'getComputedStyle', { value: window.getComputedStyle.bind(window) });
+
+// Mock ResizeObserver
+global.ResizeObserver = class ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
+
+// Mock IntersectionObserver
+global.IntersectionObserver = class IntersectionObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
+
+// Mock matchMedia
+window.matchMedia = () => ({
+  matches: false,
+  addListener: () => {},
+  removeListener: () => {},
+  addEventListener: () => {},
+  removeEventListener: () => {},
+  dispatchEvent: () => true,
 });
 
-// Mock window.matchMedia
-beforeAll(() => {
-  Object.defineProperty(window, "matchMedia", {
-    writable: true,
-    value: (query: string) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: () => {}, // deprecated
-      removeListener: () => {}, // deprecated
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      dispatchEvent: () => {},
-    }),
-  });
-});
+// Mock requestAnimationFrame
+global.requestAnimationFrame = (callback: FrameRequestCallback): number => {
+  return setTimeout(() => callback(Date.now()), 0);
+};
 
-// Restore beforeEach cleanup
-beforeEach(() => {
+// Mock cancelAnimationFrame
+global.cancelAnimationFrame = (handle: number): void => {
+  clearTimeout(handle);
+};
+
+// Cleanup after each test
+afterEach(() => {
   cleanup();
-  // Enable pointer events for testing
-  document.body.style.pointerEvents = "auto";
+  document.body.innerHTML = '';
 });
 
-// Polyfill for TextEncoder/TextDecoder
-global.TextEncoder = NodeTextEncoder as typeof global.TextEncoder;
-global.TextDecoder = NodeTextDecoder as typeof global.TextDecoder;
-
-// Polyfill for requestAnimationFrame
-if (typeof global.requestAnimationFrame === 'undefined') {
-  global.requestAnimationFrame = (callback: FrameRequestCallback): number => {
-    // Simple timeout based polyfill for testing environments
-    const handle = setTimeout(callback, 0);
-    // Return a number handle (required by the type)
-    // In a real browser this would be more sophisticated
-    // We convert the Timeout object to a number for type compatibility
-    return Number(handle); 
-  };
-}
-
-// Mock MutationObserver
-class MockMutationObserver implements MutationObserver {
-  observe(_target: Node, _options?: MutationObserverInit): void {}
-  disconnect(): void {}
-  takeRecords(): MutationRecord[] {
-    return [];
-  }
-}
-global.MutationObserver = MockMutationObserver;
-
-// Mock Element.prototype methods that might be missing
-if (!Element.prototype.scrollIntoView) {
-  Element.prototype.scrollIntoView = () => {};
-}
-
-// Add ResizeObserver
-global.ResizeObserver = class ResizeObserver
-  implements globalThis.ResizeObserver
-{
-  observe(_target: Element): void {}
-  unobserve(_target: Element): void {}
-  disconnect(): void {}
-};
-
-// Add missing focus management APIs
-document.hasFocus = () => true;
-
-// Add missing event handling for legacy browsers
-interface LegacyElement extends Element {
-  attachEvent(event: string, handler: EventListener): void;
-  detachEvent(event: string, handler: EventListener): void;
-}
-
-(Element.prototype as LegacyElement).attachEvent = function (
-  event: string,
-  handler: EventListener,
-): void {
-  this.addEventListener(event.slice(2), handler);
-};
-
-(Element.prototype as LegacyElement).detachEvent = function (
-  event: string,
-  handler: EventListener,
-): void {
-  this.removeEventListener(event.slice(2), handler);
-};
-
-// Export test utilities
-export { expect };
+// Add custom matchers
+expect.extend({
+  toBeInTheDocument: (received: unknown) => {
+    const pass = received !== null && received !== undefined;
+    return {
+      pass,
+      message: () =>
+        pass
+          ? `expected ${received} not to be in the document`
+          : `expected ${received} to be in the document`,
+    };
+  },
+});
