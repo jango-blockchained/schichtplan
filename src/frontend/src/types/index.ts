@@ -62,6 +62,9 @@ export interface Shift {
   shift_type_id?: string;
 }
 
+// Alias for Shift to support the renamed terminology
+export type ShiftTemplate = Shift;
+
 export interface Schedule {
   id: number;
   employee_id: number;
@@ -76,7 +79,7 @@ export interface Schedule {
   break_end?: string | null;
   notes?: string | null;
   employee_name?: string;
-  availability_type?: "AVL" | "FIX" | "PRF" | "UNV";
+  availability_type?: "AVAILABLE" | "FIXED" | "PREFFERED" | "UNAVAILABLE";
   shift_type_id?: ShiftType;
   shift_type_name?: string;
 }
@@ -105,7 +108,7 @@ export interface ScheduleUpdate {
   break_duration?: number | null;
   notes?: string | null;
   version?: number | null;
-  availability_type?: "AVL" | "FIX" | "PRF" | "UNV" | null;
+  availability_type?: "AVAILABLE" | "FIXED" | "PREFFERED" | "UNAVAILABLE" | null;
 }
 
 export interface DateRange {
@@ -133,22 +136,6 @@ export interface StoreConfig {
   break_duration_minutes: number;
   created_at?: string;
   updated_at?: string;
-}
-
-export interface ShiftTemplate {
-  id: number;
-  name: string;
-  description: string | null;
-  is_active: boolean;
-  is_default: boolean;
-  shifts: {
-    shift_type: ShiftType;
-    start_time: string;
-    end_time: string;
-    days: ("MO" | "TU" | "WE" | "TH" | "FR" | "SA")[];
-  }[];
-  created_at: string | null;
-  updated_at: string | null;
 }
 
 export interface ApiError {

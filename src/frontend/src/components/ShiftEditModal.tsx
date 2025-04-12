@@ -60,7 +60,7 @@ export function ShiftEditModal({
     setNotes(schedule.notes ?? "");
     console.log(
       "📋 ShiftEditModal initialized with availability_type:",
-      schedule.availability_type || "AVL",
+      schedule.availability_type || "AVAILABLE",
     );
   }, [schedule]);
 
@@ -72,7 +72,7 @@ export function ShiftEditModal({
         shift_id: selectedShiftId ? parseInt(selectedShiftId, 10) : null,
         break_duration: breakDuration || null,
         notes: notes || null,
-        availability_type: schedule.availability_type || "AVL",
+        availability_type: schedule.availability_type || "AVAILABLE",
       };
 
       console.log("🟢 Calling onSave with:", {

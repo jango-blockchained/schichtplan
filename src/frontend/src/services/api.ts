@@ -29,7 +29,7 @@ export interface Schedule {
   is_empty?: boolean;
   shift_start?: string | null;
   shift_end?: string | null;
-  availability_type?: "AVL" | "FIX" | "PRF" | "UNV";
+  availability_type?: "AVAILABLE" | "FIXED" | "PREFFERED" | "UNAVAILABLE";
   shift_type_id?: string; // EARLY, MIDDLE, LATE
   shift_type_name?: string; // early, middle, late
 }
@@ -229,6 +229,7 @@ export const deleteEmployee = async (id: number): Promise<void> => {
 // Shifts
 export interface Shift {
   id: number;
+  name?: string;
   start_time: string;
   end_time: string;
   duration_hours: number;
@@ -237,13 +238,31 @@ export interface Shift {
   created_at?: string;
   updated_at?: string;
   shift_type_id?: string;
+  type?: string;
+  break_duration?: number;
 }
 
 export const getShifts = async (): Promise<Shift[]> => {
   try {
-    const response = await api.get<Shift[]>("/shifts/");
-    return response.data;
+    console.log('Fetching shifts from API');
+    const response = await api.get<{success: boolean, data: Shift[]}>("/shifts/");
+    console.log('Shifts response:', response.data);
+    
+    // Check if response has the expected structure with "data" property
+    if (response.data && response.data.success && Array.isArray(response.data.data)) {
+      return response.data.data;
+    }
+    
+    // If response doesn't have expected structure but is an array, return it
+    if (Array.isArray(response.data)) {
+      return response.data;
+    }
+    
+    // Otherwise return empty array
+    console.error('Unexpected shifts response format:', response.data);
+    return [];
   } catch (error) {
+    console.error('Error fetching shifts:', error);
     if (error instanceof Error) {
       throw new Error(`Failed to fetch shifts: ${error.message}`);
     }
@@ -255,8 +274,61 @@ export const createShift = async (
   data: Omit<Shift, "id" | "duration_hours" | "created_at" | "updated_at">,
 ): Promise<Shift> => {
   try {
-    const response = await api.post<Shift>("/shifts/", data);
-    return response.data;
+    // Create a copy of the data to avoid mutating the original
+    const requestData = { ...data };
+    
+    // Remove shift_type property if it exists (should use shift_type_id instead)
+    if ('shift_type' in requestData) {
+      delete requestData.shift_type;
+    }
+    
+    // Ensure shift_type_id is uppercase
+    if (requestData.shift_type_id) {
+      requestData.shift_type_id = requestData.shift_type_id.toUpperCase();
+      
+      // Add type field matching shift_type_id as per API documentation
+      requestData.type = requestData.shift_type_id.toLowerCase();
+    }
+    
+    // Generate a name field if not present
+    if (!requestData.name) {
+      requestData.name = "New Shift Template";
+    }
+    
+    // Calculate duration in hours
+    const timeToMinutes = (time: string): number => {
+      const [hours, minutes] = time.split(":").map(Number);
+      return hours * 60 + minutes;
+    };
+    
+    const startMinutes = timeToMinutes(requestData.start_time);
+    const endMinutes = timeToMinutes(requestData.end_time);
+    
+    let duration = endMinutes - startMinutes;
+    if (duration < 0) duration += 24 * 60; // Handle overnight shifts
+    
+    const durationHours = duration / 60;
+    
+    // Break duration in minutes if required (optional field in API)
+    if (requestData.requires_break && !requestData.break_duration) {
+      if (durationHours >= 8) {
+        requestData.break_duration = 60;
+      } else if (durationHours >= 6) {
+        requestData.break_duration = 30;
+      }
+    }
+    
+    console.log(`Creating shift with data:`, {
+      ...requestData,
+      duration_hours: durationHours
+    });
+    
+    const response = await api.post<Shift>("/shifts/", {
+      ...requestData,
+      duration_hours: durationHours,
+    });
+    
+    return response.data as Shift;
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to create shift: ${error.message}`);
@@ -270,9 +342,67 @@ export const updateShift = async ({
   ...data
 }: Partial<Shift> & { id: number }): Promise<Shift> => {
   try {
-    const response = await api.put<Shift>(`/shifts/${id}/`, data);
-    return response.data;
+    console.log(`Updating shift ID ${id} with data:`, data);
+    
+    // Create a copy of the data to avoid mutating the original
+    const requestData = { ...data };
+    
+    // Ensure shift_type_id is uppercase
+    if (requestData.shift_type_id) {
+      requestData.shift_type_id = requestData.shift_type_id.toUpperCase();
+      console.log(`Normalized shift_type_id to uppercase: ${requestData.shift_type_id}`);
+      
+      // Add type field matching shift_type_id as per API documentation
+      requestData.type = requestData.shift_type_id.toLowerCase();
+    }
+    
+    // Generate a name field if not present
+    if (!requestData.name) {
+      requestData.name = `Shift ${id}`;
+    }
+    
+    // Ensure duration_hours is included if start_time and end_time are provided
+    if (requestData.start_time && requestData.end_time && requestData.duration_hours === undefined) {
+      // Calculate duration if not provided
+      const timeToMinutes = (time: string): number => {
+        const [hours, minutes] = time.split(":").map(Number);
+        return hours * 60 + minutes;
+      };
+    
+      const startMinutes = timeToMinutes(requestData.start_time);
+      const endMinutes = timeToMinutes(requestData.end_time);
+      
+      let duration = endMinutes - startMinutes;
+      if (duration < 0) duration += 24 * 60; // Handle overnight shifts
+      
+      requestData.duration_hours = duration / 60;
+      console.log(`Calculated duration_hours: ${requestData.duration_hours}`);
+    }
+    
+    // Break duration in minutes if required (optional field in API)
+    if (requestData.requires_break && !requestData.break_duration) {
+      // Calculate break duration based on shift length
+      const durationHours = requestData.duration_hours || 0;
+      if (durationHours >= 8) {
+        requestData.break_duration = 60;
+      } else if (durationHours >= 6) {
+        requestData.break_duration = 30;
+      }
+    }
+    
+    console.log(`Sending request data to API:`, requestData);
+    
+    const response = await api.put<{success: boolean, data: Shift} | Shift>(`/shifts/${id}/`, requestData);
+    console.log(`Update response for shift ID ${id}:`, response.data);
+    
+    // Handle different response formats
+    if (response.data && typeof response.data === 'object' && 'success' in response.data && 'data' in response.data) {
+      return response.data.data;
+    }
+    
+    return response.data as Shift;
   } catch (error) {
+    console.error(`Error updating shift ID ${id}:`, error);
     if (error instanceof Error) {
       throw new Error(`Failed to update shift: ${error.message}`);
     }
@@ -629,7 +759,7 @@ export interface Availability {
   end_date: string;
   start_time?: string;
   end_time?: string;
-  availability_type: "AVL" | "FIX" | "PRF" | "UNV";
+  availability_type: "AVAILABLE" | "FIXED" | "PREFFERED" | "UNAVAILABLE";
   reason?: string;
   is_recurring: boolean;
   recurrence_day?: number;
@@ -1447,7 +1577,7 @@ export interface CreateScheduleRequest {
   break_start?: string;
   break_end?: string;
   notes?: string;
-  availability_type?: "AVL" | "FIX" | "PRF" | "UNV";
+  availability_type?: "AVAILABLE" | "FIXED" | "PREFFERED" | "UNAVAILABLE";
 }
 
 export const createSchedule = async (
@@ -1481,61 +1611,23 @@ export const addEmployeeAvailability = async (
 };
 
 // Shift Templates
-export const getShiftTemplates = async (): Promise<ShiftTemplate[]> => {
-  try {
-    const response = await api.get<ShiftTemplate[]>("/shifts/");
-    return response.data;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Failed to fetch shift templates: ${error.message}`);
-    }
-    throw error;
-  }
+export const getShiftTemplates = async (): Promise<Shift[]> => {
+  return getShifts();
 };
 
-export const getShiftTemplateById = async (id: number): Promise<ShiftTemplate> => {
-  try {
-    const response = await api.get<ShiftTemplate>(`/shifts/${id}`);
-    return response.data;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Failed to fetch shift template: ${error.message}`);
-    }
-    throw error;
-  }
+export const createShiftTemplate = async (
+  data: Omit<Shift, "id" | "duration_hours" | "created_at" | "updated_at">
+): Promise<Shift> => {
+  return createShift(data);
 };
 
-export const createShiftTemplate = async (data: Omit<ShiftTemplate, 'id' | 'created_at' | 'updated_at'>): Promise<ShiftTemplate> => {
-  try {
-    const response = await api.post<ShiftTemplate>("/shifts/", data);
-    return response.data;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Failed to create shift template: ${error.message}`);
-    }
-    throw error;
-  }
-};
-
-export const updateShiftTemplate = async (id: number, data: Partial<Omit<ShiftTemplate, 'id' | 'created_at' | 'updated_at'>>): Promise<ShiftTemplate> => {
-  try {
-    const response = await api.put<ShiftTemplate>(`/shifts/${id}`, data);
-    return response.data;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Failed to update shift template: ${error.message}`);
-    }
-    throw error;
-  }
+export const updateShiftTemplate = async ({
+  id,
+  ...data
+}: Partial<Shift> & { id: number }): Promise<Shift> => {
+  return updateShift({ id, ...data });
 };
 
 export const deleteShiftTemplate = async (id: number): Promise<void> => {
-  try {
-    await api.delete(`/shifts/${id}`);
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Failed to delete shift template: ${error.message}`);
-    }
-    throw error;
-  }
+  return deleteShift(id);
 };

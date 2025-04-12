@@ -306,7 +306,7 @@ const ScheduleCell = ({
     if (schedule.notes) {
       const notes = schedule.notes.toLowerCase();
       if (notes.includes("fix") || notes.includes("fest")) {
-        return "FIX";
+        return "FIXED";
       }
       if (
         notes.includes("wunsch") ||
@@ -322,7 +322,7 @@ const ScheduleCell = ({
     if (schedule.shift_start && schedule.shift_end) {
       // Example: Consider specific shift patterns as fixed
       if (schedule.shift_start === "12:00" && schedule.shift_end === "16:00") {
-        return "FIX"; // Consider afternoon shifts as fixed
+        return "FIXED"; // Consider afternoon shifts as fixed
       }
     }
 

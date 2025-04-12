@@ -70,22 +70,33 @@ The frontend for the ShiftWise scheduling application, built with React and Mate
 
 ### Prerequisites
 
-- Node.js (v14 or later)
-- npm or yarn
+- Bun >= 1.2
 
 ### Installation
 
 1. Clone the repository
 2. Navigate to the frontend directory
+   ```bash
+   cd src/frontend
+   ```
 3. Install dependencies:
    ```bash
-   npm install
+   bun install
+   ```
+4. Navigate to the backend directory
+   ```bash
+   cd ../backend
+   ```
+5. Install backend dependencies
+   ```bash
+   bun install
    ```
 
 ### Running the Application
 
+Start the application from root directory
 ```bash
-npm start
+./start.sh
 ```
 
 ## Configuration
@@ -135,13 +146,13 @@ interface EmployeeGroup {
 Run tests with:
 
 ```bash
-npm test
+bun test
 ```
 
 ## Deployment
 
 ```bash
-npm run build
+bun run build
 ```
 
 ## Technologies

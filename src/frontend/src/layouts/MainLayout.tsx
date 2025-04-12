@@ -35,7 +35,7 @@ export const MainLayout = () => {
       { label: "Schichtplan", path: "/", icon: LayoutDashboard },
       { label: "Mitarbeiter", path: "/employees", icon: Users },
       { label: "Coverage", path: "/coverage", icon: BarChart },
-      { label: "Schichten", path: "/shifts", icon: FileText },
+      { label: "Schicht-Vorlagen", path: "/shift-templates", icon: FileText },
       { label: "Formulars", path: "/formulars", icon: FileText },
       { label: "Optionen", path: "/options", icon: Cog },
     ],

@@ -66,16 +66,14 @@ const ALL_DAYS = [
 ];
 const TIME_FORMAT = "HH:mm";
 
-export const EmployeeAvailabilityModal: React.FC<
-  EmployeeAvailabilityModalProps
-> = ({
+export const EmployeeAvailabilityModal = ({
   employeeId,
   employeeName,
   employeeGroup,
   contractedHours,
   isOpen,
   onClose,
-}) => {
+}: EmployeeAvailabilityModalProps): React.ReactElement => {
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [selectedCells, setSelectedCells] = useState<Map<string, string>>(
     new Map(),
@@ -85,7 +83,10 @@ export const EmployeeAvailabilityModal: React.FC<
   const [dailyHours, setDailyHours] = useState<{ [key: string]: number }>({});
   const [weeklyHours, setWeeklyHours] = useState(0);
   const [activeDays, setActiveDays] = useState<string[]>([]);
-  const [currentType, setCurrentType] = useState<string>("AVL");
+  const [currentType, setCurrentType] = useState<string>("AVAILABLE");
+
+  const [pendingCellToggles, setPendingCellToggles] = useState<Map<string, 'select' | 'delete'>>(new Map());
+  const [dragAction, setDragAction] = useState<'select' | 'delete' | null>(null);
 
   const { data: settings } = useQuery({
     queryKey: ["settings"],
@@ -98,7 +99,7 @@ export const EmployeeAvailabilityModal: React.FC<
     enabled: isOpen,
   });
 
-  // Map availability type IDs (e.g., 'AVL') to enum values (e.g., AvailabilityType.AVAILABLE)
+  // Map availability type IDs (e.g., 'AVAILABLE') to enum values (e.g., AvailabilityType.AVAILABLE)
   const availabilityTypeIdToEnumMap = useMemo(() => {
     const map = new Map<string, AvailabilityType>();
     if (settings?.availability_types) {
@@ -246,22 +247,51 @@ export const EmployeeAvailabilityModal: React.FC<
   };
 
   const handleCellMouseDown = (day: string, time: string) => {
-    setIsDragging(true);
     const cellId = `${day}-${time}`;
+    setIsDragging(true);
     setDragStart(cellId);
-    toggleCell(cellId);
+
+    const newPendingToggles = new Map<string, 'select' | 'delete'>();
+    const currentAction: 'select' | 'delete' = selectedCells.has(cellId) ? 'delete' : 'select';
+    setDragAction(currentAction);
+    newPendingToggles.set(cellId, currentAction);
+
+    setPendingCellToggles(newPendingToggles);
   };
 
   const handleCellMouseEnter = (day: string, time: string) => {
-    if (isDragging && dragStart) {
+    if (isDragging && dragAction) {
       const cellId = `${day}-${time}`;
-      toggleCell(cellId);
+      setPendingCellToggles(prev => new Map(prev).set(cellId, dragAction));
     }
   };
 
   const handleMouseUp = () => {
-    setIsDragging(false);
-    setDragStart(null);
+    if (isDragging) {
+      const wasDrag = pendingCellToggles.size > 1 || (dragStart && !selectedCells.has(dragStart) && pendingCellToggles.size > 0);
+
+      if (pendingCellToggles.size > 0) {
+         if (wasDrag) {
+             const newSelectedCells = new Map(selectedCells);
+             pendingCellToggles.forEach((action, cellId) => {
+               if (action === 'select') {
+                 newSelectedCells.set(cellId, currentType);
+               } else {
+                 newSelectedCells.delete(cellId);
+               }
+             });
+             setSelectedCells(newSelectedCells);
+             calculateHours(newSelectedCells);
+         } else if (dragStart) {
+             toggleCell(dragStart);
+         }
+      }
+
+      setIsDragging(false);
+      setDragStart(null);
+      setPendingCellToggles(new Map());
+      setDragAction(null);
+    }
   };
 
   const toggleCell = (cellId: string) => {
@@ -387,7 +417,7 @@ export const EmployeeAvailabilityModal: React.FC<
             // Existing: AVAILABLE - Check if type changed
             if (existing.availability_type !== desired.typeEnum) {
               console.log(`🔄 [handleSave] Action: UPDATE Type for ID ${existing.id} (key ${key}) to ${desired.typeEnum}`);
-              const typeString = Object.keys(AvailabilityType).find(k => AvailabilityType[k as keyof typeof AvailabilityType] === desired.typeEnum) as "AVL" | "FIX" | "PRF" | "UNV";
+              const typeString = Object.keys(AvailabilityType).find(k => AvailabilityType[k as keyof typeof AvailabilityType] === desired.typeEnum) as "AVAILABLE" | "FIXED" | "PREFFERED" | "UNAVAILABLE";
               if (typeString) {
                   const updatePayload: Partial<Availability> = { availability_type: typeString };
                   promises.push(updateAvailability(existing.id, updatePayload));
@@ -476,12 +506,58 @@ export const EmployeeAvailabilityModal: React.FC<
   };
 
   const getCellColor = (cellId: string) => {
-    if (!selectedCells.has(cellId)) return "";
-    const type = selectedCells.get(cellId);
-    const availabilityType = settings?.availability_types?.find(
-      (t: AvailabilityTypeSetting) => t.id === type,
-    );
+    const pendingAction = pendingCellToggles.get(cellId);
+    let isPendingSelected: boolean | null = null;
+    if (pendingAction !== undefined) {
+        isPendingSelected = pendingAction === 'select';
+    }
+
+    const isCurrentlySelected = selectedCells.has(cellId);
+    const displaySelected = isPendingSelected !== null ? isPendingSelected : isCurrentlySelected;
+
+    if (!displaySelected) {
+        const typeId = isCurrentlySelected ? selectedCells.get(cellId) : currentType;
+        const availabilityType = settings?.availability_types?.find(t => t.id === typeId);
+        if (isPendingSelected === true) {
+            return availabilityType?.color ? `${availabilityType.color}40` : `#22c55e40`;
+        }
+        return "";
+    }
+
+    const typeId = isCurrentlySelected ? selectedCells.get(cellId) : currentType;
+    const availabilityType = settings?.availability_types?.find(t => t.id === typeId);
+
     return availabilityType?.color || "#22c55e";
+  };
+
+  const getCellStyle = (cellId: string) => {
+      const pendingAction = pendingCellToggles.get(cellId);
+      const isCurrentlySelected = selectedCells.has(cellId);
+
+      const displaySelected = pendingAction === 'select' || (pendingAction !== 'delete' && isCurrentlySelected);
+      const cellTypeId = displaySelected
+          ? (pendingAction === 'select' ? currentType : selectedCells.get(cellId))
+          : 'unavailable';
+
+      const cellTypeSetting = settings?.availability_types?.find(t => t.id === cellTypeId);
+
+      let backgroundColor = "#ffffff";
+      let opacity = 0.1;
+
+      if (displaySelected) {
+          backgroundColor = cellTypeSetting?.color || "#22c55e";
+          opacity = 0.5;
+      } else if (pendingAction === 'delete') {
+          backgroundColor = cellTypeSetting?.color || "#ef4444";
+          opacity = 0.2;
+      } else {
+          backgroundColor = "#ef4444";
+          opacity = 0.1;
+      }
+
+      return {
+          backgroundColor: `${backgroundColor}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`,
+      };
   };
 
   const calculateTypeStats = () => {
@@ -510,153 +586,153 @@ export const EmployeeAvailabilityModal: React.FC<
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-7xl" onMouseUp={handleMouseUp}>
-        <DialogHeader>
-          <DialogTitle>Availability for {employeeName}</DialogTitle>
-          <div className="flex flex-col gap-2 mt-2">
-            <div className="text-sm text-muted-foreground mb-2">
-              Select time slots when the employee is available. Unselected time
-              slots will be marked as unavailable.
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-sm">
-                {employeeGroup}
-              </Badge>
-              <span className="text-sm text-muted-foreground">
-                Contracted: {contractedHours}h/week
-              </span>
-              <span className="text-sm text-muted-foreground">
-                Selected: {weeklyHours}h/week
-              </span>
-              {settings &&
-                Array.from(calculateTypeStats()).map(([typeId, hours]) => {
-                  const availabilityType =
-                    settings?.availability_types?.find(
-                      (t: AvailabilityTypeSetting) => t.id === typeId,
-                    );
-                  return (
-                    availabilityType && (
-                      <div
-                        key={typeId}
-                        className="flex items-center gap-1 text-sm"
-                        style={{ color: availabilityType.color }}
-                      >
+      <DialogContent className="max-w-7xl">
+        <div onMouseUp={handleMouseUp} onMouseLeave={isDragging ? handleMouseUp : undefined}>
+          <DialogHeader>
+            <DialogTitle>Availability for {employeeName}</DialogTitle>
+            <div className="flex flex-col gap-2 mt-2">
+              <div className="text-sm text-muted-foreground mb-2">
+                Select time slots when the employee is available. Unselected time
+                slots will be marked as unavailable.
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-sm">
+                  {employeeGroup}
+                </Badge>
+                <span className="text-sm text-muted-foreground">
+                  Contracted: {contractedHours}h/week
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  Selected: {weeklyHours}h/week
+                </span>
+                {settings &&
+                  Array.from(calculateTypeStats()).map(([typeId, hours]) => {
+                    const availabilityType =
+                      settings?.availability_types?.find(
+                        (t: AvailabilityTypeSetting) => t.id === typeId,
+                      );
+                    return (
+                      availabilityType && (
                         <div
-                          className="w-2 h-2 rounded-full"
-                          style={{ backgroundColor: availabilityType.color }}
-                        />
-                        {availabilityType.name}: {hours}h
-                      </div>
-                    )
-                  );
-                })}
-            </div>
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Type:</span>
-                <AvailabilityTypeSelect
-                  value={currentType}
-                  onChange={setCurrentType}
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Button onClick={handleSelectAll} variant="outline" size="sm">
-                  Select All
-                </Button>
-                <Button onClick={handleDeselectAll} variant="outline" size="sm">
-                  Clear All
-                </Button>
-              </div>
-            </div>
-          </div>
-        </DialogHeader>
-
-        <div className="overflow-x-auto">
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-24">Zeit</TableHead>
-                  {activeDays.map((day) => (
-                    <TableHead key={day} className="text-center">
-                      <Button
-                        variant="ghost"
-                        className="w-full h-full p-1 text-left"
-                        onClick={() => handleToggleDay(day)}
-                      >
-                        <div>
-                          {day}
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {dailyHours[day] || 0}h
-                          </div>
-                        </div>
-                      </Button>
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {timeSlots.map(({ time, hour }) => (
-                  <TableRow key={time}>
-                    <TableCell className="font-medium">{time}</TableCell>
-                    {activeDays.map((day) => {
-                      const cellId = `${day}-${time}`;
-                      const isSelected = selectedCells.has(cellId);
-                      const cellTypeId = isSelected ? selectedCells.get(cellId) : 'unavailable'; // Use 'unavailable' ID
-                      const cellTypeSetting = settings?.availability_types?.find(
-                          (t: AvailabilityTypeSetting) => t.id === cellTypeId
-                      );
-                      // Determine color: Use type color if selected, otherwise a default unavailable color
-                      const cellColor = isSelected && cellTypeSetting ? cellTypeSetting.color : "#ef4444"; // Default red for unavailable
-
-                      // Calculate cumulative hours for this day up to current hour for the selected type
-                      const cumulativeHours = calculateCumulativeHours(day, hour);
-
-                      return (
-                        <TableCell
-                          key={cellId}
-                          className={cn(
-                            "relative p-0 h-12 w-12 transition-colors cursor-pointer",
-                            isSelected
-                              ? "border-2 border-primary"
-                              : "border border-muted",
-                          )}
-                          style={{
-                            backgroundColor: isSelected
-                              ? `${cellColor}80` // Selected cells with 50% opacity
-                              : `${cellColor}20`, // Unselected cells with 12.5% opacity
-                          }}
-                          onMouseDown={() => handleCellMouseDown(day, time)}
-                          onMouseEnter={() => handleCellMouseEnter(day, time)}
+                          key={typeId}
+                          className="flex items-center gap-1 text-sm"
+                          style={{ color: availabilityType.color }}
                         >
-                          {isSelected && cellTypeId ? (
-                            <>
-                              <Check className="h-4 w-4 mx-auto text-white" />
-                              <div className="absolute bottom-0 right-1 text-[10px] text-white">
-                                {cumulativeHours.get(cellTypeId) || 0}
-                              </div>
-                            </>
-                          ) : (
-                            <X className="h-3 w-3 mx-auto text-gray-400 opacity-25" />
-                          )}
-                        </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
+                          <div
+                            className="w-2 h-2 rounded-full"
+                            style={{ backgroundColor: availabilityType.color }}
+                          />
+                          {availabilityType.name}: {hours}h
+                        </div>
+                      )
+                    );
+                  })}
+              </div>
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Type:</span>
+                  <AvailabilityTypeSelect
+                    value={currentType}
+                    onChange={setCurrentType}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button onClick={handleSelectAll} variant="outline" size="sm">
+                    Select All
+                  </Button>
+                  <Button onClick={handleDeselectAll} variant="outline" size="sm">
+                    Clear All
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </DialogHeader>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={isLoadingAvailabilities}>
-            {isLoadingAvailabilities ? "Loading..." : "Save"}
-          </Button>
-        </DialogFooter>
+          <div className="overflow-x-auto">
+            <div className="border rounded-lg">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-24">Zeit</TableHead>
+                    {activeDays.map((day) => (
+                      <TableHead key={day} className="text-center">
+                        <Button
+                          variant="ghost"
+                          className="w-full h-full p-1 text-left"
+                          onClick={() => handleToggleDay(day)}
+                        >
+                          <div>
+                            {day}
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {dailyHours[day] || 0}h
+                            </div>
+                          </div>
+                        </Button>
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {timeSlots.map(({ time, hour }) => (
+                    <TableRow key={time}>
+                      <TableCell className="font-medium">{time}</TableCell>
+                      {activeDays.map((day) => {
+                        const cellId = `${day}-${time}`;
+                        const pendingAction = pendingCellToggles.get(cellId);
+                        const isCurrentlySelected = selectedCells.has(cellId);
+                        const displaySelected = pendingAction === 'select' || (pendingAction !== 'delete' && isCurrentlySelected);
+                        const displayAsPendingDelete = pendingAction === 'delete';
+
+                        const cellTypeId = displaySelected ? (pendingAction === 'select' ? currentType : selectedCells.get(cellId)) : 'unavailable';
+                        const cellTypeSetting = settings?.availability_types?.find(t => t.id === cellTypeId);
+                        const cellColor = displaySelected ? (cellTypeSetting?.color || '#22c55e') : '#ef4444';
+
+                        const cumulativeHours = calculateCumulativeHours(day, hour);
+
+                        return (
+                          <TableCell
+                            key={cellId}
+                            className={cn(
+                              "relative p-0 h-12 w-12 transition-colors cursor-pointer select-none",
+                              "border border-muted",
+                              (displaySelected || displayAsPendingDelete) && "border-primary",
+                              displayAsPendingDelete && "opacity-75"
+                            )}
+                            style={{
+                                backgroundColor: `${cellColor}${displaySelected ? '80' : (displayAsPendingDelete ? '40' : '20')}`
+                            }}
+                            onMouseDown={(e) => { e.preventDefault(); handleCellMouseDown(day, time); }}
+                            onMouseEnter={() => handleCellMouseEnter(day, time)}
+                          >
+                            {displaySelected ? (
+                              <>
+                                <Check className="h-4 w-4 mx-auto text-white" />
+                                <div className="absolute bottom-0 right-1 text-[10px] text-white">
+                                   {cumulativeHours.get(selectedCells.get(cellId) || '') || 0}
+                                </div>
+                              </>
+                            ) : (
+                              <X className="h-3 w-3 mx-auto text-gray-400 opacity-25" />
+                            )}
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={isLoadingAvailabilities}>
+              {isLoadingAvailabilities ? "Loading..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -141,7 +141,7 @@ const isEmployeeAvailableForSlot = (
 
     // TODO: Consider recurring vs specific date availability record validity? Assuming map only contains relevant ones for now.
 
-    // If we get here, the employee has *some* available status (AVL, FIX, PRF) for this hour.
+    // If we get here, the employee has *some* available status (AVAILABLE, FIXED, PREFFERED) for this hour.
     // We need them to be available for *all* hours of the slot.
   }
 
@@ -297,8 +297,8 @@ const parseTimeString = (timeStr: string, baseDate: Date): Date => {
 // --- Helper Function: determineRequiredSlots --- //
 /**
  * Determines the required staffing slots for a given date.
- * Needs to interpret settings, coverages, recurring coverages, and employee FIX/PRF availability.
- * Should generate slots prioritizing FIX, then PRF, then general AVL/Coverage needs.
+ * Needs to interpret settings, coverages, recurring coverages, and employee FIXED/PREFFERED availability.
+ * Should generate slots prioritizing FIXED, then PREFFERED, then general AVAILABLE/Coverage needs.
  */
 const determineRequiredSlots = (
   currentDate: Date,
@@ -644,7 +644,7 @@ const selectBestCandidate = (
     // TODO: Implement actual selection logic:
     // 1. Filter out candidates violating hard constraints (max hours, rest time)
     //    - Need to calculate hours worked so far from `generatedEntries`
-    // 2. Score remaining candidates based on preferences (PRF > AVL), fairness (hours vs contract), etc.
+    // 2. Score remaining candidates based on preferences (PREFFERED > AVAILABLE), fairness (hours vs contract), etc.
     // 3. Return the best-scoring candidate.
 
     // TEMP: Return the first candidate for now if any exist

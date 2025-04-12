@@ -48,38 +48,38 @@ type AvailabilityType = {
   name: string;
   color: string;
   description: string;
-  type: "AVL" | "FIX" | "PRF" | "UNV";
+  type: "AVAILABLE" | "FIXED" | "PREFFERED" | "UNAVAILABLE";
   priority?: number;
 };
 
 const defaultAvailabilityTypes: AvailabilityType[] = [
   {
-    code: "FIX",
+    code: "FIXED",
     name: "Fixed",
     color: "#3b82f6",
     description: "Fixed schedule",
-    type: "FIX",
+    type: "FIXED",
   },
   {
-    code: "AVL",
+    code: "AVAILABLE",
     name: "Available",
     color: "#22c55e",
     description: "Available for scheduling",
-    type: "AVL",
+    type: "AVAILABLE",
   },
   {
-    code: "PRF",
+    code: "PREFFERED",
     name: "Preferred",
     color: "#f59e0b",
     description: "Preferred hours",
-    type: "PRF",
+    type: "PREFFERED",
   },
   {
-    code: "UNV",
+    code: "UNAVAILABLE",
     name: "Unavailable",
     color: "#ef4444",
     description: "Not available",
-    type: "UNV",
+    type: "UNAVAILABLE",
   },
 ];
 
@@ -108,11 +108,11 @@ export default function OptionsPage() {
         priority: type.priority,
         // Determine local 'type' based on backend properties
         type: type.is_available
-          ? type.priority === 1 ? ("FIX" as const)
-          : type.priority === 2 ? ("AVL" as const)
-          : type.priority === 3 ? ("PRF" as const)
-          : ("UNV" as const) 
-          : ("UNV" as const),
+          ? type.priority === 1 ? ("FIXED" as const)
+          : type.priority === 2 ? ("AVAILABLE" as const)
+          : type.priority === 3 ? ("PREFFERED" as const)
+          : ("UNAVAILABLE" as const) 
+          : ("UNAVAILABLE" as const),
       }));
       setAvailabilityTypes(types);
     } else {

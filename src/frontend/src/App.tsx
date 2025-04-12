@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MainLayout } from "./layouts/MainLayout";
 import { SchedulePage } from "./pages/SchedulePage";
-import { ShiftsPage } from "./pages/ShiftsPage";
+import ShiftTemplatesPage from "./pages/ShiftTemplatesPage";
 import { EmployeesPage } from "./pages/EmployeesPage";
 import SettingsPage from "./pages/SettingsPage";
 import { Toaster } from "@/components/ui/toaster";
@@ -14,6 +14,7 @@ import CoveragePage from "./pages/CoveragePage";
 import OptionsPage from "./pages/OptionsPage";
 import LayoutCustomizerPage from "./pages/LayoutCustomizerPage";
 import { AxiosError } from "axios";
+import ShiftsPage from "./pages/ShiftsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -46,6 +47,7 @@ const App: React.FC = () => {
           <Routes>
             <Route path="/" element={<MainLayout />}>
               <Route index element={<SchedulePage />} />
+              <Route path="shift-templates" element={<ShiftTemplatesPage />} />
               <Route path="shifts" element={<ShiftsPage />} />
               <Route path="coverage" element={<CoveragePage />} />
               <Route path="employees" element={<EmployeesPage />} />

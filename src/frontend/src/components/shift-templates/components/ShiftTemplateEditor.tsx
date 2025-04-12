@@ -25,11 +25,25 @@ export const ShiftTemplateEditor: React.FC<ShiftTemplateEditorProps> = ({
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
 
   const formatTime = (time: string) => {
-    return new Date(`2000-01-01T${time}`).toLocaleTimeString("de-DE", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
+    // Ensure time is in a proper format for new Date()
+    let timeString = time;
+    if (!timeString.includes(':')) return ''; // Invalid time
+    
+    // Add seconds if needed for Date constructor
+    if (timeString.split(':').length === 2) {
+      timeString = `${timeString}:00`;
+    }
+    
+    try {
+      return new Date(`2000-01-01T${timeString}`).toLocaleTimeString("de-DE", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+    } catch (error) {
+      console.error("Error formatting time:", error);
+      return time; // Return the original time string as fallback
+    }
   };
 
   const getDayNames = (activeDays: { [key: string]: boolean }) => {
@@ -121,12 +135,64 @@ export const ShiftTemplateEditor: React.FC<ShiftTemplateEditorProps> = ({
               <ShiftTemplateForm
                 settings={settings}
                 shift={editingShift}
-                onSave={(data) => {
-                  onUpdateShift &&
-                    onUpdateShift({
+                onSave={(updatedData) => {
+                  if (onUpdateShift) {
+                    // Preserve all important properties from the original shift
+                    const updatedShift = {
                       ...editingShift,
-                      ...data,
-                    });
+                      ...updatedData,
+                      id: editingShift.id, // Ensure ID is preserved
+                      created_at: editingShift.created_at,
+                      updated_at: editingShift.updated_at,
+                    };
+                    
+                    // Ensure shift_type_id is uppercase
+                    if (updatedShift.shift_type_id) {
+                      updatedShift.shift_type_id = updatedShift.shift_type_id.toUpperCase();
+                      // Ensure type field matches shift_type_id in lowercase
+                      updatedShift.type = updatedShift.shift_type_id.toLowerCase();
+                    }
+                    
+                    // Remove shift_type property if it exists
+                    if ('shift_type' in updatedShift) {
+                      delete updatedShift.shift_type;
+                    }
+                    
+                    // Ensure a name is present
+                    if (!updatedShift.name) {
+                      const shiftTypeObj = settings?.shift_types?.find(
+                        type => type.id === updatedShift.shift_type_id
+                      );
+                      updatedShift.name = shiftTypeObj?.name || `Shift ${updatedShift.id}`;
+                    }
+                    
+                    // Ensure time values are properly formatted (HH:MM:SS for API)
+                    if (updatedShift.start_time && updatedShift.start_time.includes(':')) {
+                      if (updatedShift.start_time.split(':').length === 2) {
+                        updatedShift.start_time = `${updatedShift.start_time}:00`;
+                      }
+                    }
+                    
+                    if (updatedShift.end_time && updatedShift.end_time.includes(':')) {
+                      if (updatedShift.end_time.split(':').length === 2) {
+                        updatedShift.end_time = `${updatedShift.end_time}:00`;
+                      }
+                    }
+                    
+                    // Calculate break duration if not already present
+                    if (updatedShift.requires_break && !updatedShift.break_duration) {
+                      if (updatedShift.duration_hours >= 8) {
+                        updatedShift.break_duration = 60;
+                      } else if (updatedShift.duration_hours >= 6) {
+                        updatedShift.break_duration = 30;
+                      }
+                    }
+                    
+                    // Log the data being sent to the API
+                    console.log("Updating shift with data:", updatedShift);
+                    
+                    onUpdateShift(updatedShift);
+                  }
                   setEditingShift(null);
                 }}
               />
