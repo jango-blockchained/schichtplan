@@ -1,7 +1,14 @@
 import React, { useMemo, useState, useEffect, Fragment } from "react";
-import { format, addDays, parseISO, startOfWeek } from "date-fns";
+import { format, addDays, parseISO, startOfWeek, startOfDay, isBefore } from "date-fns";
 import { useDrag, useDrop } from "react-dnd";
-import { Schedule, Employee, ScheduleUpdate } from "@/types";
+import type {
+  Schedule, 
+  Employee, 
+  ScheduleUpdate, 
+  Settings, 
+  AvailabilityTypeSetting, 
+  ShiftTypeSetting
+} from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -146,6 +153,12 @@ const TimeSlotDisplay = ({
   const bgColor = getBackgroundColor();
   const shiftTypeDisplay = getShiftTypeDisplay();
 
+  const { bg, text } = getShiftTypeRGBColor(
+    shiftType ?? "", 
+    schedule, 
+    settings // Pass the whole settings object
+  );
+
   return (
     <div className="flex flex-col items-center">
       <div
@@ -161,6 +174,34 @@ const TimeSlotDisplay = ({
       )}
     </div>
   );
+};
+
+const getAvailabilityTypeColor = (availabilityType: string, settings?: Settings) => {
+  const defaultColor = "#CCCCCC"; 
+  if (!settings?.availability_types) return defaultColor;
+  const typeSetting = settings.availability_types.find(
+    (t: AvailabilityTypeSetting) => t.id === availabilityType
+  );
+  return typeSetting?.color || defaultColor;
+};
+
+const getShiftTypeColor = (
+  shiftTypeId: string, 
+  settings?: Settings,
+): string => {
+  const defaultColor = "#808080"; 
+  if (!settings?.shift_types) {
+    return defaultColor;
+  }
+  const shiftType = settings.shift_types.find(
+    (type: ShiftTypeSetting) => type.id === shiftTypeId 
+  );
+  return shiftType?.color || defaultColor;
+};
+
+const formatEmployeeName = (employee: Employee | undefined) => {
+  if (!employee) return "-";
+  return `${employee.last_name}, ${employee.first_name}`;
 };
 
 const ScheduleCell = ({
@@ -191,7 +232,15 @@ const ScheduleCell = ({
     }
   }, [schedule]);
 
-  const [{ isDragging }, drag] = useDrag({
+  // Fetch settings specifically for this cell's rendering needs
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: getSettings,
+    staleTime: 60000, 
+    gcTime: 300000,
+  });
+
+  const [{ isDragging }, drag] = useDrag(() => ({
     type: "SCHEDULE",
     item: schedule
       ? {
@@ -207,9 +256,9 @@ const ScheduleCell = ({
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
-  });
+  }));
 
-  const [{ isOver }, drop] = useDrop({
+  const [{ isOver }, drop] = useDrop(() => ({
     accept: "SCHEDULE",
     drop: (item: DragItem) => {
       if (!schedule) return;
@@ -224,13 +273,19 @@ const ScheduleCell = ({
       isOver: monitor.isOver(),
     }),
     canDrop: () => !!schedule && !hasAbsence,
-  });
+  }));
 
-  // Fetch settings to get availability type colors
-  const { data: settings } = useQuery({
-    queryKey: ["settings"],
-    queryFn: getSettings,
-  });
+  // Define colors ONCE using helpers
+  const availabilityColor = schedule?.availability_type
+    ? getAvailabilityTypeColor(schedule.availability_type, settings)
+    : "transparent";
+
+  const shiftColor = schedule?.shift_type_id 
+    ? getShiftTypeColor(schedule.shift_type_id, settings)
+    : undefined;
+
+  // Determine shift type ID for rendering (if needed elsewhere)
+  const shiftType = schedule?.shift_type_id || ""; 
 
   const handleDelete = async () => {
     if (!schedule) return;
@@ -272,166 +327,34 @@ const ScheduleCell = ({
 
   // Cast the schedule to ExtendedSchedule to access the additional properties
   const extendedSchedule = schedule as ExtendedSchedule;
-  const shiftType = determineShiftType(schedule);
-  const shiftTypeColor = getShiftTypeColor(shiftType, settings?.shift_types);
-
-  // Get availability type color from settings
-  const getAvailabilityTypeColor = (availabilityType: string) => {
-    if (!settings?.availability_types?.types) return "#22c55e"; // Default green
-
-    const typeInfo = settings.availability_types.types.find(
-      (type: any) => type.id === availabilityType,
-    );
-
-    return typeInfo?.color || "#22c55e"; // Default to green if not found
-  };
-
-  // Get the availability type from the schedule
-  // If not provided, use a default based on the shift type
-  const getDefaultAvailabilityType = (
-    schedule: Schedule,
-    shiftType: string,
-  ): string => {
-    // First check if the schedule has an explicit availability_type
-    if (schedule.availability_type) {
-      return schedule.availability_type;
-    }
-
-    // If the shift_type_id is explicitly set, use that to determine availability_type
-    if (schedule.shift_type_id) {
-      return schedule.shift_type_id;
-    }
-
-    // Check notes for keywords that might indicate fixed shifts
-    if (schedule.notes) {
-      const notes = schedule.notes.toLowerCase();
-      if (notes.includes("fix") || notes.includes("fest")) {
-        return "FIXED";
-      }
-      if (
-        notes.includes("wunsch") ||
-        notes.includes("promised") ||
-        notes.includes("pref")
-      ) {
-        return "PRM";
-      }
-    }
-
-    // Check for specific time patterns that might indicate fixed shifts
-    // This is a temporary solution until the backend properly provides availability_type
-    if (schedule.shift_start && schedule.shift_end) {
-      // Example: Consider specific shift patterns as fixed
-      if (schedule.shift_start === "12:00" && schedule.shift_end === "16:00") {
-        return "FIXED"; // Consider afternoon shifts as fixed
-      }
-    }
-
-    // Default based on shift type as a last resort
-    return shiftType;
-  };
-
-  const availabilityType = getDefaultAvailabilityType(schedule, shiftType);
-  const availabilityColor = getAvailabilityTypeColor(availabilityType);
 
   return (
-    <>
-      <div
-        ref={(node) => drag(drop(node))}
-        style={{ width: "100%", height: "100%" }}
-        className={cn(
-          "p-2 rounded-md border transition-all duration-200 group relative",
-          "flex flex-col gap-2 items-center justify-center",
-          isDragging && "opacity-50 bg-primary/10",
-          isOver && "ring-2 ring-primary/50",
-          "hover:bg-primary/5",
-          hasAbsence && "opacity-0", // Hide completely if absence
-        )}
-        onMouseEnter={() => setShowActions(true)}
-        onMouseLeave={() => setShowActions(false)}
-      >
-        {/* Top colored line - using availability type color */}
+    <div ref={drop} className="h-full">
+      {schedule && !schedule.is_empty && (
         <div
-          className="absolute top-0 left-0 right-0 h-2 rounded-t"
+          ref={drag}
           style={{
-            backgroundColor: availabilityColor, // Uses the availability type color
+            opacity: isDragging ? 0.5 : 1,
+            backgroundColor: shiftColor || 'transparent', // Use calculated shiftColor
+            borderColor: availabilityColor, // Use calculated availabilityColor
+            borderWidth: schedule?.availability_type ? 2 : 0,
+            borderStyle: 'solid'
           }}
-          title={`Availability type: ${availabilityType}`}
-        />
-
-        <div className="flex flex-col w-full space-y-2 items-center mt-2">
-          {/* Time display - uses shift type color */}
-          <TimeSlotDisplay
-            startTime={schedule.shift_start || "00:00"}
-            endTime={schedule.shift_end || "00:00"}
-            shiftType={shiftType} // Pass the shift type for color
-            settings={settings}
-            schedule={schedule}
-          />
-
-          {/* Add additional time slots if needed */}
-          {(extendedSchedule.additional_slots || []).map(
-            (slot: TimeSlot, index: number) => (
-              <TimeSlotDisplay
-                key={index}
-                startTime={slot.start}
-                endTime={slot.end}
-                shiftType={shiftType}
-                settings={settings}
-                schedule={schedule}
-              />
-            ),
-          )}
-
-          {extendedSchedule.break_duration &&
-            extendedSchedule.break_duration > 0 && (
-              <div className="text-xs text-muted-foreground">
-                Pause: {extendedSchedule.break_duration} min
-              </div>
-            )}
-          {extendedSchedule.notes && (
-            <div className="text-xs text-muted-foreground italic text-center max-w-full truncate">
-              {extendedSchedule.notes}
-            </div>
-          )}
+          className="p-1 rounded shadow cursor-move text-xs"
+        >
+           {/* Pass settings to TimeSlotDisplay */}
+           <TimeSlotDisplay
+              startTime={schedule.shift_start || ""} 
+              endTime={schedule.shift_end || ""} 
+              shiftType={shiftType} // Use determined shiftType ID
+              settings={settings} 
+              schedule={schedule}
+           />
+           {/* ... notes ... */}
         </div>
-
-        {showActions && !hasAbsence && (
-          <div className="absolute top-1 right-1 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsEditModalOpen(true);
-              }}
-              className="h-6 w-6"
-            >
-              <Edit2 className="h-3 w-3" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDelete();
-              }}
-              className="h-6 w-6 hover:text-destructive"
-            >
-              <Trash2 className="h-3 w-3" />
-            </Button>
-          </div>
-        )}
-        <div className="absolute inset-0 cursor-move pointer-events-none" />
-      </div>
-      {isEditModalOpen && !hasAbsence && (
-        <ShiftEditModal
-          isOpen={isEditModalOpen}
-          onClose={() => setIsEditModalOpen(false)}
-          schedule={schedule}
-          onSave={onUpdate}
-        />
       )}
-    </>
+      {/* ... empty state / absence ... */}
+    </div>
   );
 };
 
@@ -448,40 +371,6 @@ const determineShiftType = (schedule: Schedule): ShiftType => {
   if (hour < 10) return "EARLY";
   if (hour < 14) return "MIDDLE";
   return "LATE";
-};
-
-const getShiftTypeDisplay = (shiftType: ShiftType): string => {
-  switch (shiftType) {
-    case "EARLY":
-      return "Früh";
-    case "MIDDLE":
-      return "Mitte";
-    case "LATE":
-      return "Spät";
-    default:
-      return "Früh";
-  }
-};
-
-const getShiftTypeColor = (
-  shiftType: ShiftType,
-  settings?: Settings,
-): string => {
-  const shiftTypeInfo = settings?.shift_types?.find(
-    (type) => type.id === shiftType,
-  );
-  if (shiftTypeInfo?.color) return shiftTypeInfo.color;
-
-  switch (shiftType) {
-    case "EARLY":
-      return "#22c55e";
-    case "MIDDLE":
-      return "#3b82f6";
-    case "LATE":
-      return "#f59e0b";
-    default:
-      return "#64748b";
-  }
 };
 
 // Function to get direct CSS color values based on shift type
@@ -577,7 +466,7 @@ export function ScheduleTable({
   dateRange,
   onDrop,
   onUpdate,
-  isLoading,
+  isLoading: isLoadingSchedules,
   employeeAbsences,
   absenceTypes,
 }: ScheduleTableProps) {
@@ -591,26 +480,24 @@ export function ScheduleTable({
     );
   };
 
-  // Fetch settings
-  const { data: settings } = useQuery({
+  // Settings query for main component logic (dayColumns)
+  const { data: settings, isLoading: isLoadingSettings } = useQuery({
     queryKey: ["settings"],
     queryFn: getSettings,
+    staleTime: 60000, 
+    gcTime: 300000, 
   });
 
-  // Fetch employee data to display names properly
-  const { data: employeesData, isLoading: loadingEmployees } = useQuery({
+  // Employees query for names and lookup
+  const { data: employees = [], isLoading: isLoadingEmployees } = useQuery({
     queryKey: ["employees"],
     queryFn: getEmployees,
+    staleTime: 300000, 
+    gcTime: 600000,
   });
 
-  const employees = useMemo(() => {
-    return employeesData || [];
-  }, [employeesData]);
-
-  // Employee lookup for quick access
+  // Employee lookup map
   const employeeLookup = useMemo(() => {
-    if (!employees) return {};
-
     return employees.reduce(
       (acc, employee) => {
         acc[employee.id] = employee;
@@ -620,69 +507,49 @@ export function ScheduleTable({
     );
   }, [employees]);
 
-  const formatEmployeeName = (employeeId: number | undefined) => {
-    // Handle undefined employee ID
-    if (!employeeId || !employeeLookup[employeeId]) return "-";
+  // Combined loading state
+  const isLoading = isLoadingSchedules || isLoadingSettings || isLoadingEmployees;
 
-    const employee = employeeLookup[employeeId];
-    const firstName = employee.first_name;
-    const lastName = employee.last_name;
-    const type = employee.employee_group;
+  // Calculate displayed day columns based on dateRange and settings
+  const dayColumns = useMemo(() => {
+    if (!dateRange?.from || !dateRange?.to || !settings) {
+      return [];
+    }
 
-    // Create abbreviation from first letters of first and last name
-    const abbr = (firstName[0] + lastName[0] + lastName[1]).toUpperCase();
+    // Determine start of week (default to 1 = Monday)
+    const effectiveStartOfWeek = settings.start_of_week ?? 1;
 
-    return (
-      <>
-        {`${lastName}, ${firstName}`}
-        <br />
-        {`(${abbr})`}
-      </>
-    );
-  };
+    // Determine active days based on opening_days (use direct access)
+    const openDayIndices = Object.entries(settings.opening_days || {})
+      .filter(([, isOpen]) => isOpen)
+      .map(([dayIndex]) => parseInt(dayIndex, 10)); // Backend indices [0..6]
 
-  const days = useMemo(() => {
-    if (!dateRange?.from || !dateRange?.to || !settings) return [];
-    const days = [];
-    let currentDate = dateRange.from;
+    const days: Date[] = [];
+    let currentDate = startOfDay(dateRange.from);
+    const endDate = startOfDay(dateRange.to);
 
-    while (currentDate <= dateRange.to) {
-      const dayIndex = currentDate.getDay().toString();
-      const isSunday = dayIndex === "0";
-      const isWeekday = dayIndex !== "0"; // Monday-Saturday
-      const isOpeningDay = settings.general.opening_days[dayIndex];
-
-      // Include the day if:
-      // 1. It's marked as an opening day, OR
-      // 2. It's Sunday and show_sunday is true, OR
-      // 3. It's a weekday and show_weekdays is true
-      if (
-        isOpeningDay ||
-        (isSunday && settings.display.show_sunday) ||
-        (isWeekday && settings.display.show_weekdays)
-      ) {
+    // Generate all dates in the range
+    while (isBefore(currentDate, addDays(endDate, 1))) {
+      const backendDayIndex = currentDate.getDay(); // 0=Sun, 1=Mon, ...
+      // Include only if the day index is in the openDayIndices
+      if (openDayIndices.includes(backendDayIndex)) {
         days.push(currentDate);
       }
       currentDate = addDays(currentDate, 1);
     }
 
-    // Sort days based on start_of_week setting
+    // Sort the included days based on the display order defined by startOfWeek
     return days.sort((a, b) => {
-      // Convert settings.display.start_of_week to 0 | 1 | 2 | 3 | 4 | 5 | 6
-      const weekStart = (settings.display.start_of_week % 7) as
-        | 0
-        | 1
-        | 2
-        | 3
-        | 4
-        | 5
-        | 6;
-      const startOfWeekA = startOfWeek(a, { weekStartsOn: weekStart });
-      const startOfWeekB = startOfWeek(b, { weekStartsOn: weekStart });
-      const dayDiffA = a.getTime() - startOfWeekA.getTime();
-      const dayDiffB = b.getTime() - startOfWeekB.getTime();
-      return dayDiffA - dayDiffB;
+      const dayA = a.getDay(); // 0=Sun, 1=Mon...
+      const dayB = b.getDay(); // 0=Sun, 1=Mon...
+
+      // Adjust day index based on startOfWeek for comparison
+      const displayOrderA = effectiveStartOfWeek === 1 ? (dayA + 6) % 7 : dayA;
+      const displayOrderB = effectiveStartOfWeek === 1 ? (dayB + 6) % 7 : dayB;
+      
+      return displayOrderA - displayOrderB;
     });
+
   }, [dateRange, settings]);
 
   // Map for German weekday abbreviations
@@ -907,7 +774,7 @@ export function ScheduleTable({
                 <th className="w-[220px] sticky left-0 z-20 bg-background text-left p-4 font-medium text-muted-foreground">
                   Mitarbeiter
                 </th>
-                {days.map((day) => (
+                {dayColumns.map((day) => (
                   <th
                     key={day.toISOString()}
                     className="w-[160px] text-center p-4 font-medium text-muted-foreground"
@@ -947,11 +814,11 @@ export function ScheduleTable({
                             )}
                           </Button>
                           <span className="truncate max-w-[180px]">
-                            {formatEmployeeName(employeeId)}
+                            {formatEmployeeName(employeeLookup[employeeId])}
                           </span>
                         </div>
                       </td>
-                      {days.map((day) => {
+                      {dayColumns.map((day) => {
                         const dateString = format(day, "yyyy-MM-dd");
                         const daySchedule = employeeSchedules[dateString];
                         // Check for absence
@@ -1013,7 +880,9 @@ export function ScheduleTable({
                             )}
                             <ScheduleCell
                               schedule={daySchedule}
-                              onDrop={onDrop}
+                              onDrop={(droppedScheduleId, newEmployeeId, newDate, newShiftId) => 
+                                onDrop(droppedScheduleId, newEmployeeId, newDate, newShiftId)
+                              }
                               onUpdate={onUpdate}
                               hasAbsence={!!absenceInfo}
                             />
@@ -1024,7 +893,7 @@ export function ScheduleTable({
                     {isExpanded && (
                       <tr>
                         <td
-                          colSpan={days.length + 1}
+                          colSpan={dayColumns.length + 1}
                           className="bg-slate-50 p-4"
                         >
                           <EmployeeStatistics

@@ -1,6 +1,7 @@
 import db from "../db";
 import { Schedule, Employee, ShiftTemplate, ScheduleVersionMeta, ScheduleStatus } from "../db/schema"; // Import relevant interfaces
 import { SQLQueryBindings } from "bun:sqlite";
+import { scheduleLogger } from "../logger"; // Import the specialized schedule logger
 
 // Corrected imports based on actual filenames
 import { getAllEmployees, getEmployeeById } from './employeesService.js';
@@ -90,17 +91,17 @@ export async function getScheduleByVersion(version: number): Promise<ScheduleEnt
     `;
 
     try {
-        console.log(`Fetching schedule entries for version ${version}...`);
+        scheduleLogger.info(`Fetching schedule entries for version ${version}...`);
         const query = db.query(sql);
         const rows = query.all(version) as any[];
 
-        console.log(`Found ${rows.length} schedule entries for version ${version}.`);
+        scheduleLogger.info(`Found ${rows.length} schedule entries for version ${version}.`);
 
         const scheduleEntries = rows.map(mapRowToScheduleEntry);
         return scheduleEntries;
 
     } catch (error) {
-        console.error(`Error fetching schedule for version ${version}:`, error);
+        scheduleLogger.error({ err: error }, `Error fetching schedule for version ${version}`);
         throw new Error("Failed to retrieve schedule from database.");
     }
 }
@@ -138,28 +139,28 @@ export async function getScheduleVersions(): Promise<ScheduleVersionMeta[]> {
     `;
 
     try {
-        console.log("Fetching all schedule version metadata...");
+        scheduleLogger.info("Fetching all schedule version metadata...");
         const query = db.query(sql);
         const rows = query.all() as any[];
 
-        console.log(`Found ${rows.length} schedule versions.`);
+        scheduleLogger.info(`Found ${rows.length} schedule versions.`);
 
         const versions = rows.map(mapRowToScheduleVersionMeta);
         return versions;
 
     } catch (error) {
-        console.error("Error fetching schedule versions:", error);
+        scheduleLogger.error("Error fetching schedule versions:", error);
         throw new Error("Failed to retrieve schedule versions from database.");
     }
 }
 
 // --- Schedule Generation Logic --- 
 export async function generateSchedule(startDate: string, endDate: string /*, options? */): Promise<any> {
-    console.log(`Initiating schedule generation from ${startDate} to ${endDate}...`);
+    scheduleLogger.info(`Initiating schedule generation from ${startDate} to ${endDate}...`);
 
     try {
         // 1. Fetch necessary data
-        console.log("Fetching input data for generation...");
+        scheduleLogger.info("Fetching input data for generation...");
 
         const employees = await getAllEmployees({ status: 'active' });
         const shiftTemplates = await getAllShiftTemplates();
@@ -168,10 +169,10 @@ export async function generateSchedule(startDate: string, endDate: string /*, op
         const availabilities = await getAvailabilitiesInRange(startDate, endDate);
         const absences = await getAbsencesInRange(startDate, endDate);
 
-        console.log(`Data fetched: ${employees.length} employees, ${shiftTemplates.length} templates, ${coverages.length} coverage rules, ${recurringCoverages.length} recurring patterns, ${availabilities.length} availabilities, ${absences.length} absences.`);
+        scheduleLogger.info(`Data fetched: ${employees.length} employees, ${shiftTemplates.length} templates, ${coverages.length} coverage rules, ${recurringCoverages.length} recurring patterns, ${availabilities.length} availabilities, ${absences.length} absences.`);
 
         // 2. Preprocess data 
-        console.log("Preprocessing data...");
+        scheduleLogger.info("Preprocessing data...");
         
         // 2.1 Create date range array for the schedule period
         const dates: string[] = [];
@@ -327,7 +328,7 @@ export async function generateSchedule(startDate: string, endDate: string /*, op
         }
 
         // 3. Core Scheduling Algorithm
-        console.log("Running core scheduling algorithm...");
+        scheduleLogger.info("Running core scheduling algorithm...");
         
         // Create a result array to hold all generated assignments
         const generatedEntries: Array<{
@@ -344,13 +345,13 @@ export async function generateSchedule(startDate: string, endDate: string /*, op
         
         // Process each date in the schedule
         for (const date of dates) {
-            console.log(`Generating schedule for ${date}...`);
+            scheduleLogger.info(`Generating schedule for ${date}...`);
             
             const dayRequirements = coverageRequirements.get(date) || [];
             
             // Skip if no coverage is needed for this day
             if (dayRequirements.length === 0) {
-                console.log(`No coverage requirements for ${date}, skipping.`);
+                scheduleLogger.info(`No coverage requirements for ${date}, skipping.`);
                 continue;
             }
             
@@ -421,7 +422,7 @@ export async function generateSchedule(startDate: string, endDate: string /*, op
         }
 
         // 4. Save the generated schedule
-        console.log(`Saving generated schedule as version ${nextVersion}...`);
+        scheduleLogger.info(`Saving generated schedule as version ${nextVersion}...`);
         
         // 4.1 Create the version metadata entry
         const versionMetaSQL = `
@@ -472,7 +473,7 @@ export async function generateSchedule(startDate: string, endDate: string /*, op
             }
         }
         
-        console.log(`Schedule Version ${nextVersion} generated and saved with ${generatedEntries.length} entries.`);
+        scheduleLogger.info(`Schedule Version ${nextVersion} generated and saved with ${generatedEntries.length} entries.`);
 
         return { 
             newVersion: nextVersion, 
@@ -481,7 +482,7 @@ export async function generateSchedule(startDate: string, endDate: string /*, op
         };
 
     } catch (error: any) {
-        console.error("Schedule generation failed:", error);
+        scheduleLogger.error({ err: error }, "Error in schedule generation");
         throw new Error(`Schedule generation failed: ${error.message}`);
     }
 }
@@ -502,7 +503,7 @@ interface CreateVersionResponse {
 }
 
 export async function createNewScheduleVersion(data: CreateVersionRequest): Promise<CreateVersionResponse> {
-  console.log("Creating new schedule version with data:", data);
+  scheduleLogger.info("Creating new schedule version with data:", data);
   
   // Basic Input Validation
   if (!data.start_date || !data.end_date) {
@@ -527,7 +528,7 @@ export async function createNewScheduleVersion(data: CreateVersionRequest): Prom
     const latestVersion = versions.length > 0 ? versions[0].version : 0;
     const newVersionNumber = latestVersion + 1;
 
-    console.log(`Assigning new version number: ${newVersionNumber}`);
+    scheduleLogger.info(`Assigning new version number: ${newVersionNumber}`);
 
     // If baseVersion specified, check that it exists
     if (data.base_version) {
@@ -560,11 +561,11 @@ export async function createNewScheduleVersion(data: CreateVersionRequest): Prom
       ScheduleStatus.DRAFT]
     );
 
-    console.log(`Created schedule version metadata for version ${newVersionNumber}.`);
+    scheduleLogger.info(`Created schedule version metadata for version ${newVersionNumber}.`);
 
     // Copy entries from base version if specified
     if (data.base_version) {
-      console.log(`Copying entries from base version ${data.base_version}...`);
+      scheduleLogger.info(`Copying entries from base version ${data.base_version}...`);
       
       // Get date range of base version to determine which entries to copy
       const baseVersionMeta = versions.find(v => v.version === data.base_version);
@@ -580,7 +581,7 @@ export async function createNewScheduleVersion(data: CreateVersionRequest): Prom
         (targetStartDate.getTime() - baseStartDate.getTime()) / (1000 * 60 * 60 * 24)
       );
       
-      console.log(`Date shift: ${daysDifference} days from base schedule`);
+      scheduleLogger.info(`Date shift: ${daysDifference} days from base schedule`);
       
       // Copy and shift entries
       if (daysDifference === 0) {
@@ -659,7 +660,7 @@ export async function createNewScheduleVersion(data: CreateVersionRequest): Prom
         SELECT COUNT(*) as count FROM schedules WHERE version = ?
       `).get(newVersionNumber) as { count: number } | undefined;
       
-      console.log(`Copied ${entryCount?.count || 0} entries to the new version.`);
+      scheduleLogger.info(`Copied ${entryCount?.count || 0} entries to the new version.`);
     }
 
     return {
@@ -668,7 +669,7 @@ export async function createNewScheduleVersion(data: CreateVersionRequest): Prom
     };
 
   } catch (error: any) {
-    console.error("Failed to create new schedule version:", error);
+    scheduleLogger.error("Failed to create new schedule version:", error);
     throw new Error(`Failed to create new schedule version: ${error.message}`);
   }
 } 

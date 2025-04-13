@@ -108,15 +108,39 @@ export function useVersionControl({
       }
     },
     onSuccess: (data) => {
-      toast({
-        title: "Neue Version erstellt",
-        description: `Version ${data.version} wurde erfolgreich erstellt.`,
-      });
+      // Ensure we have a valid version number before showing the toast
+      if (data && data.version !== undefined) {
+        toast({
+          title: "Neue Version erstellt",
+          description: `Version ${data.version} wurde erfolgreich erstellt.`,
+        });
 
-      // Automatically select the new version
-      setSelectedVersion(data.version);
-      if (onVersionSelected) {
-        onVersionSelected(data.version);
+        // Automatically select the new version
+        setSelectedVersion(data.version);
+        if (onVersionSelected) {
+          onVersionSelected(data.version);
+        }
+      } else {
+        // Handle the case where version is undefined
+        console.error("Created version response is missing version number:", data);
+        toast({
+          title: "Neue Version erstellt",
+          description: "Eine neue Version wurde erstellt, aber die Versionsnummer konnte nicht abgerufen werden.",
+        });
+        
+        // Refresh to get the latest version
+        versionsQuery.refetch().then(result => {
+          if (result.data?.versions && result.data.versions.length > 0) {
+            // Get the latest version
+            const latestVersion = [...result.data.versions]
+              .sort((a, b) => b.version - a.version)[0].version;
+            
+            setSelectedVersion(latestVersion);
+            if (onVersionSelected) {
+              onVersionSelected(latestVersion);
+            }
+          }
+        });
       }
 
       // Refresh the versions list

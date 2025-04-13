@@ -1,4 +1,5 @@
 // src/scheduler/assignment.ts
+import { scheduleLogger } from "../logger"; // Import the specialized schedule logger
 
 // --- Configuration Interface ---
 export interface SchedulerConfiguration {
@@ -280,7 +281,7 @@ function determinePotentialShiftEnd(
     // Check if the determined shift meets the minimum duration requirement
     if (currentDuration < config.minShiftMinutes) {
          // Maybe allow shorter shifts if it's the only way to fill coverage? Configurable.
-         console.log(`Proposed shift for ${candidateId} starting at ${startSlot.startTime.toISOString()} is too short (${currentDuration} min vs min ${config.minShiftMinutes}). Not creating.`);
+         scheduleLogger.debug(`Proposed shift for ${candidateId} starting at ${startSlot.startTime.toISOString()} is too short (${currentDuration} min vs min ${config.minShiftMinutes}). Not creating.`);
         return null;
     }
 
@@ -295,7 +296,7 @@ function checkOverlaps(proposedStartTime: Date, proposedEndTime: Date, existingS
         // Check if proposed shift overlaps with an existing shift
         // Overlap occurs if: StartA < EndB AND StartB < EndA
         if (proposedStartTime < existing.endTime && existing.startTime < proposedEndTime) {
-            console.warn(`Constraint Violation: Proposed shift (${proposedStartTime.toISOString()} - ${proposedEndTime.toISOString()}) overlaps with existing shift (${existing.startTime.toISOString()} - ${existing.endTime.toISOString()})`);
+            scheduleLogger.warn(`Constraint Violation: Proposed shift (${proposedStartTime.toISOString()} - ${proposedEndTime.toISOString()}) overlaps with existing shift (${existing.startTime.toISOString()} - ${existing.endTime.toISOString()})`);
             return false; // Found overlap
         }
     }
@@ -312,7 +313,7 @@ function checkRestPeriod(
     }
     const restMinutes = (proposedStartTime.getTime() - lastShiftEndTime.getTime()) / 60000;
     if (restMinutes < minRestMinutes) {
-        console.warn(`Constraint Violation: Insufficient rest period. Needed: ${minRestMinutes} min, Actual: ${restMinutes.toFixed(0)} min`);
+        scheduleLogger.warn(`Constraint Violation: Insufficient rest period. Needed: ${minRestMinutes} min, Actual: ${restMinutes.toFixed(0)} min`);
         return false;
     }
     return true;
@@ -349,7 +350,7 @@ function checkDailyLimits(
             minutesOnEndDay = (proposedEndTime.getTime() - midnightAfterStart.getTime()) / 60000;
             // Sanity check for durations around DST changes - might need refinement
             if(Math.abs(minutesOnStartDay + minutesOnEndDay - proposedDuration) > 1) { // Allow small floating point diffs
-                 console.warn("Potential DST issue or calculation error in daily split", {start: proposedStartTime, end: proposedEndTime, dur: proposedDuration, d1: minutesOnStartDay, d2: minutesOnEndDay });
+                 scheduleLogger.warn("Potential DST issue or calculation error in daily split", {start: proposedStartTime, end: proposedEndTime, dur: proposedDuration, d1: minutesOnStartDay, d2: minutesOnEndDay });
                  // Fallback to simpler check or handle more robustly if needed
                  minutesOnStartDay = proposedDuration; // Revert to simple check if split fails
                  minutesOnEndDay = 0;
@@ -365,11 +366,11 @@ function checkDailyLimits(
     const currentMinutesStartDay = state.minutesScheduledByDate.get(startDayStr) || 0;
     const totalMinutesStartDay = currentMinutesStartDay + minutesOnStartDay;
     if (totalMinutesStartDay > absMaxDaily) {
-        console.warn(`Constraint Violation (Start Day): Exceeds absolute daily max (${absMaxDaily} min). Date: ${startDayStr}, Current: ${currentMinutesStartDay}, Adding: ${minutesOnStartDay.toFixed(0)}`);
+        scheduleLogger.warn(`Constraint Violation (Start Day): Exceeds absolute daily max (${absMaxDaily} min). Date: ${startDayStr}, Current: ${currentMinutesStartDay}, Adding: ${minutesOnStartDay.toFixed(0)}`);
         return false;
     }
     if (totalMinutesStartDay > maxDaily) {
-        console.log(`Info (Start Day): Exceeds standard daily max (${maxDaily} min). Date: ${startDayStr}, New Total: ${totalMinutesStartDay.toFixed(0)}`);
+        scheduleLogger.log(`Info (Start Day): Exceeds standard daily max (${maxDaily} min). Date: ${startDayStr}, New Total: ${totalMinutesStartDay.toFixed(0)}`);
     }
 
     // Check limits for the end day (if applicable)
@@ -377,11 +378,11 @@ function checkDailyLimits(
         const currentMinutesEndDay = state.minutesScheduledByDate.get(endDayStr) || 0;
         const totalMinutesEndDay = currentMinutesEndDay + minutesOnEndDay;
         if (totalMinutesEndDay > absMaxDaily) {
-            console.warn(`Constraint Violation (End Day): Exceeds absolute daily max (${absMaxDaily} min). Date: ${endDayStr}, Current: ${currentMinutesEndDay}, Adding: ${minutesOnEndDay.toFixed(0)}`);
+            scheduleLogger.warn(`Constraint Violation (End Day): Exceeds absolute daily max (${absMaxDaily} min). Date: ${endDayStr}, Current: ${currentMinutesEndDay}, Adding: ${minutesOnEndDay.toFixed(0)}`);
             return false;
         }
         if (totalMinutesEndDay > maxDaily) {
-            console.log(`Info (End Day): Exceeds standard daily max (${maxDaily} min). Date: ${endDayStr}, New Total: ${totalMinutesEndDay.toFixed(0)}`);
+            scheduleLogger.log(`Info (End Day): Exceeds standard daily max (${maxDaily} min). Date: ${endDayStr}, New Total: ${totalMinutesEndDay.toFixed(0)}`);
         }
     }
 
@@ -402,7 +403,7 @@ function checkWeeklyLimits(
     const newTotalWeeklyMinutes = currentWeeklyMinutes + proposedDuration;
 
     if (newTotalWeeklyMinutes > maxWeekly * 60) { // Assuming maxWeekly is in hours
-        console.warn(`Constraint Violation: Proposed shift exceeds weekly max (${maxWeekly} hrs). Week: ${weekNum}, Current: ${(currentWeeklyMinutes/60).toFixed(1)} hrs, Proposed: ${(proposedDuration/60).toFixed(1)} hrs`);
+        scheduleLogger.warn(`Constraint Violation: Proposed shift exceeds weekly max (${maxWeekly} hrs). Week: ${weekNum}, Current: ${(currentWeeklyMinutes/60).toFixed(1)} hrs, Proposed: ${(proposedDuration/60).toFixed(1)} hrs`);
         return false;
     }
     return true;
@@ -430,7 +431,7 @@ function checkConsecutiveDays(
     // If the proposed shift starts on the day *after* the last work day
     if (areConsecutiveDays(state.lastWorkDate, proposedStartDay)) {
         if (state.consecutiveWorkDays >= maxConsecutive) {
-            console.warn(`Constraint Violation: Exceeds max consecutive days (${maxConsecutive}). Last worked: ${getDateString(state.lastWorkDate)}, Proposing: ${getDateString(proposedStartTime)}`);
+            scheduleLogger.warn(`Constraint Violation: Exceeds max consecutive days (${maxConsecutive}). Last worked: ${getDateString(state.lastWorkDate)}, Proposing: ${getDateString(proposedStartTime)}`);
             return false;
         }
     } else {
@@ -442,7 +443,7 @@ function checkConsecutiveDays(
     proposedEndDay.setUTCHours(0,0,0,0);
     if (proposedEndDay.getTime() !== proposedStartDay.getTime() && areConsecutiveDays(state.lastWorkDate, proposedEndDay)) {
          if (state.consecutiveWorkDays >= maxConsecutive) {
-             console.warn(`Constraint Violation: Shift ending day exceeds max consecutive days (${maxConsecutive}). Last worked: ${getDateString(state.lastWorkDate)}, Shift ends: ${getDateString(proposedEndTime)}`);
+             scheduleLogger.warn(`Constraint Violation: Shift ending day exceeds max consecutive days (${maxConsecutive}). Last worked: ${getDateString(state.lastWorkDate)}, Shift ends: ${getDateString(proposedEndTime)}`);
             return false;
          }
     }
@@ -478,16 +479,16 @@ function checkMaxCoverage(
                 // Only count if the candidate isn't already assigned here (relevant for shift extensions starting mid-covered block)
                 const currentAssignees = status.assignedEmployeeIds;
                 if (!currentAssignees.has(candidateId) && status.assignedCount >= slotInfo.maxEmployees) {
-                    console.warn(`Constraint Violation (Max Coverage): Assigning ${candidateId} to shift would exceed maxEmployees (${slotInfo.maxEmployees}) for slot ${slotInfo.id} (${slotInfo.startTime.toISOString()}). Currently ${status.assignedCount} assigned.`);
+                    scheduleLogger.warn(`Constraint Violation (Max Coverage): Assigning ${candidateId} to shift would exceed maxEmployees (${slotInfo.maxEmployees}) for slot ${slotInfo.id} (${slotInfo.startTime.toISOString()}). Currently ${status.assignedCount} assigned.`);
                     return false;
                 }
             } else {
                 // This shouldn't happen if initialized correctly
-                console.error(`Error: Could not find coverage status for slot ${slotInfo.id} during max coverage check.`);
+                scheduleLogger.error(`Error: Could not find coverage status for slot ${slotInfo.id} during max coverage check.`);
                 return false; // Fail safe
             }
         } else {
-             console.error(`Error: Could not find slot definition for ID ${slotId} (Time: ${checkTime.toISOString()}) during max coverage check.`);
+             scheduleLogger.error(`Error: Could not find slot definition for ID ${slotId} (Time: ${checkTime.toISOString()}) during max coverage check.`);
              return false; // Fail safe
         }
 
@@ -543,7 +544,7 @@ function checkAllConstraints(
     // 7. Check Employee Specific Unavailability
     for (const unavailable of employee.unavailability) {
         if (proposedStartTime < unavailable.end && unavailable.start < proposedEndTime) {
-            console.warn(`Constraint Violation: Proposed shift overlaps with employee unavailability (${unavailable.start.toISOString()} - ${unavailable.end.toISOString()})`);
+            scheduleLogger.warn(`Constraint Violation: Proposed shift overlaps with employee unavailability (${unavailable.start.toISOString()} - ${unavailable.end.toISOString()})`);
             return false;
         }
     }
@@ -651,9 +652,9 @@ export async function generateScheduleAssignments(
   config: SchedulerConfiguration = DEFAULT_SCHEDULER_CONFIG
 ): Promise<ScheduleResult> {
 
-  console.log(`Starting assignment with config:`, config);
+  scheduleLogger.debug(`Starting assignment with config:`, config);
   if (config.enforceKeyholderRule) {
-      console.log(`Keyholder Rule Enabled.`);
+      scheduleLogger.debug(`Keyholder Rule Enabled.`);
   }
 
   // 1. Initialization
@@ -729,14 +730,14 @@ export async function generateScheduleAssignments(
      if (previousDayString !== null && currentDayString !== previousDayString) {
          // Moved to a new day *after* the closer for the previous day was processed.
          // previousDayKeyholderId should now hold the correct ID for today's opening.
-         console.log(`New Day ${currentDayString}. Previous keyholder: ${previousDayKeyholderId || 'None'}`);
+         scheduleLogger.debug(`New Day ${currentDayString}. Previous keyholder: ${previousDayKeyholderId || 'None'}`);
      }
     // -----------------------------------------
 
 
     // While minimum coverage for this slot is not met
     while (needed > 0) {
-      console.log(`Slot ${slot.id} (${slot.startTime.toISOString()}) needs ${needed} more employee(s).`);
+      scheduleLogger.debug(`Slot ${slot.id} (${slot.startTime.toISOString()}) needs ${needed} more employee(s).`);
 
       let assignedThisIteration = false;
 
@@ -777,7 +778,7 @@ export async function generateScheduleAssignments(
       if (isOpeningSlotAttempt && previousDayKeyholderId !== null) {
           const keyholderAvailable = eligibleCandidates.some(c => c.employeeId === previousDayKeyholderId);
           if (keyholderAvailable) {
-              console.log(`Filtering for required keyholder ${previousDayKeyholderId} for opening slot ${slot.id}.`);
+              scheduleLogger.debug(`Filtering for required keyholder ${previousDayKeyholderId} for opening slot ${slot.id}.`);
               eligibleCandidates = eligibleCandidates.filter(c => c.employeeId === previousDayKeyholderId);
           } else {
               warnings.push(`Critical: Previous keyholder ${previousDayKeyholderId} is unavailable or fails constraints for opening slot ${slot.id} on ${currentDayString}. Attempting fallback.`);
@@ -843,7 +844,7 @@ export async function generateScheduleAssignments(
       const prioritizedCandidates = [...extendableCandidates, ...otherEligibleCandidates];
        // Check if any candidates remain after filtering
        if (prioritizedCandidates.length === 0) {
-           console.log(`No eligible candidates found for slot ${slot.id} after filtering (including keyholder).`);
+           scheduleLogger.debug(`No eligible candidates found for slot ${slot.id} after filtering (including keyholder).`);
            break; // Break the inner while loop, cannot fill this need
        }
       // 3c. Attempt assignment using the prioritized list
@@ -867,11 +868,11 @@ export async function generateScheduleAssignments(
           if (config.enforceKeyholderRule && requiredOpeningStartTime && requiredClosingEndTime) {
                if (isDesignatedOpeningShift && potentialStartTime.getTime() !== requiredOpeningStartTime.getTime()) {
                    // This should ideally not happen if isOpeningSlot was check correctly, but as a safeguard:
-                   console.warn(`Opening shift candidate ${candidateId} slot time ${potentialStartTime.toISOString()} doesn't match required opening start ${requiredOpeningStartTime.toISOString()}. Skipping keyholder logic.`);
+                   scheduleLogger.warn(`Opening shift candidate ${candidateId} slot time ${potentialStartTime.toISOString()} doesn't match required opening start ${requiredOpeningStartTime.toISOString()}. Skipping keyholder logic.`);
                    isDesignatedOpeningShift = false;
                } else if (isDesignatedOpeningShift && !(employee.isKeyholderQualified ?? false)) {
                    // If fallback occurred and selected candidate isn't qualified, don't treat as designated opener
-                    console.warn(`Opening shift fallback candidate ${candidateId} not keyholder qualified.`);
+                    scheduleLogger.warn(`Opening shift fallback candidate ${candidateId} not keyholder qualified.`);
                    isDesignatedOpeningShift = false; 
                }
 
@@ -879,13 +880,13 @@ export async function generateScheduleAssignments(
                if (potentialEndTime && potentialEndTime.getTime() >= requiredClosingEndTime.getTime()) {
                     // Can this candidate *be* the closer? Check qualification.
                      if (!(employee.isKeyholderQualified ?? false)) {
-                          console.log(`Candidate ${candidateId} cannot be closer: Not keyholder qualified.`);
+                          scheduleLogger.log(`Candidate ${candidateId} cannot be closer: Not keyholder qualified.`);
                           // If not qualified, they cannot perform the closing shift ending at the specific time.
                           // We might need to shorten their potential shift here? Or just let validation fail?
                           // For now, let's not force the end time if they aren't qualified.
                      } else {
                          // If qualified and shift reaches/passes the required closing time, force it.
-                         console.log(`Adjusting potential end time for ${candidateId} to match required closing time: ${requiredClosingEndTime.toISOString()}`);
+                         scheduleLogger.log(`Adjusting potential end time for ${candidateId} to match required closing time: ${requiredClosingEndTime.toISOString()}`);
                          potentialEndTime = requiredClosingEndTime;
                          isDesignatedClosingShift = true;
                      }
@@ -893,16 +894,16 @@ export async function generateScheduleAssignments(
           }
 
           if (!potentialEndTime) { 
-              console.log(`Could not determine a valid shift duration for ${candidateId}. Trying next candidate.`);
+              scheduleLogger.debug(`Could not determine a valid shift duration for ${candidateId}. Trying next candidate.`);
               continue; 
           }
 
           const potentialDuration = (potentialEndTime.getTime() - potentialStartTime.getTime()) / 60000;
            if (potentialDuration < config.minShiftMinutes && !(isDesignatedOpeningShift || isDesignatedClosingShift)) { // Allow potentially short keyholder shifts if necessary?
-                console.log(`Shift for ${candidateId} is too short (${potentialDuration} min). Skipping.`);
+                scheduleLogger.debug(`Shift for ${candidateId} is too short (${potentialDuration} min). Skipping.`);
                 continue;
            }
-          console.log(`Potential ${isDesignatedOpeningShift ? 'OPENING ' : ''}${isDesignatedClosingShift ? 'CLOSING ' : ''}shift for ${candidateId}: ${potentialStartTime.toISOString()} - ${potentialEndTime.toISOString()} (${potentialDuration} min)`);
+          scheduleLogger.debug(`Potential ${isDesignatedOpeningShift ? 'OPENING ' : ''}${isDesignatedClosingShift ? 'CLOSING ' : ''}shift for ${candidateId}: ${potentialStartTime.toISOString()} - ${potentialEndTime.toISOString()} (${potentialDuration} min)`);
 
 
           // --- Full Shift Validation --- 
@@ -933,7 +934,7 @@ export async function generateScheduleAssignments(
                }
 
                if (shiftToUpdate) {
-                   console.log(`Extending existing shift ${shiftToUpdate.id} for ${candidateId}`);
+                   scheduleLogger.debug(`Extending existing shift ${shiftToUpdate.id} for ${candidateId}`);
                    shiftToUpdate.endTime = potentialEndTime;
                    shiftToUpdate.durationMinutes = (potentialEndTime.getTime() - shiftToUpdate.startTime.getTime()) / 60000;
                    finalShift = shiftToUpdate;
@@ -964,7 +965,7 @@ export async function generateScheduleAssignments(
               if (isDesignatedClosingShift) {
                   previousDayKeyholderId = finalShift.employeeId;
                   previousDayString = getDateString(finalShift.startTime); 
-                  console.log(`Recorded ${previousDayKeyholderId} as keyholder after closing shift on ${previousDayString}.`);
+                  scheduleLogger.log(`Recorded ${previousDayKeyholderId} as keyholder after closing shift on ${previousDayString}.`);
               }
 
               let slotTimeToUpdate = new Date(potentialStartTime);
@@ -990,12 +991,12 @@ export async function generateScheduleAssignments(
               needed--;
               break; 
           } else {
-              console.log(`Proposed ${isDesignatedOpeningShift ? 'OPENING ' : ''}${isDesignatedClosingShift ? 'CLOSING ' : ''}shift/extension for ${candidateId} failed validation.`);
+              scheduleLogger.debug(`Proposed ${isDesignatedOpeningShift ? 'OPENING ' : ''}${isDesignatedClosingShift ? 'CLOSING ' : ''}shift/extension for ${candidateId} failed validation.`);
           }
       } 
 
       if (!assignedThisIteration) {
-          console.log(`Could not find/validate assignment for slot ${slot.id} need.`);
+          scheduleLogger.debug(`Could not find/validate assignment for slot ${slot.id} need.`);
           break; 
       }
     } 
@@ -1003,11 +1004,11 @@ export async function generateScheduleAssignments(
 
   // 4. Finalization & Post-Processing
   if (config.breakThresholdMinutes && config.breakDurationMinutes) {
-      console.log("Checking for required break durations (> " + config.breakThresholdMinutes / 60 + " hours)...");
+      scheduleLogger.debug("Checking for required break durations (> " + config.breakThresholdMinutes / 60 + " hours)...");
       for (const shift of assignments) {
           if (shift.durationMinutes > config.breakThresholdMinutes) {
               shift.breakDurationMinutes = config.breakDurationMinutes;
-              console.log(`Shift ${shift.id} (${shift.durationMinutes} min) requires a ${config.breakDurationMinutes} min break.`);
+              scheduleLogger.log(`Shift ${shift.id} (${shift.durationMinutes} min) requires a ${config.breakDurationMinutes} min break.`);
           }
       }
   }
@@ -1023,7 +1024,7 @@ export async function generateScheduleAssignments(
     }
   }
 
-  console.log(`Assignment finished. ${assignments.length} shifts assigned. ${unfilledSlots.length} unfilled slots.`);
+  scheduleLogger.debug(`Assignment finished. ${assignments.length} shifts assigned. ${unfilledSlots.length} unfilled slots.`);
 
   return { assignments, unfilledSlots, warnings };
 }

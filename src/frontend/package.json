@@ -15,7 +15,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "preview": "vite preview",
-    "test": "bun test",
+    "test": "bun test --preload ./setupTests.ts",
     "test:watch": "bun test --watch",
     "test:coverage": "c8 bun test",
     "test:e2e": "playwright test",
@@ -82,6 +82,7 @@
     "@types/jest": "^29.5.14",
     "@types/lodash": "^4.17.16",
     "@types/recharts": "^1.8.29",
+    "@vitejs/plugin-react-swc": "^3.8.1",
     "axios": "^1.7.4",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
@@ -105,6 +106,7 @@
     "tailwind-merge": "^2.2.1",
     "tailwindcss-animate": "^1.0.7",
     "use-debounce": "^10.0.4",
+    "vitest": "^3.1.1",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
@@ -113,6 +115,8 @@
     "@tailwindcss/container-queries": "^0.1.1",
     "@testing-library/react": "^14.2.1",
     "@testing-library/user-event": "^14.5.2",
+    "@testing-library/jest-dom": "^6.4.8",
+    "@types/testing-library__jest-dom": "^6.0.0",
     "@types/date-fns": "^2.6.3",
     "@types/jsdom": "^21.1.7",
     "@types/node": "^22.14.0",

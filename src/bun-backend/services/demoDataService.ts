@@ -85,6 +85,14 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
         if (absenceTypes.length === 0) console.warn("Absence types not defined in settings.");
         if (availabilityTypes.length === 0) console.warn("Availability types not defined in settings.");
 
+        // Use actual opening days from settings
+        const actualOpeningDays = settings.opening_days || {}; // Default to empty if undefined
+        const openDayIndices = Object.entries(actualOpeningDays)
+            .filter(([, isOpen]) => isOpen)
+            .map(([dayIndex]) => parseInt(dayIndex, 10)); // Get numerical indices [1, 2, 3, 4, 5, 6]
+
+        console.log("Actual open day indices from settings:", openDayIndices);
+
         // 3. Generate Employees (30 total, specific distribution, standard hours)
         console.log("Generating 30 demo employees with type distribution and standard hours...");
         const employeeInsertSql = `INSERT INTO employees (employee_id, first_name, last_name, employee_group, contracted_hours, is_keyholder, is_active, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?);`;
@@ -176,13 +184,23 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
         console.log("Generating demo shift templates...");
         const templateInsertSql = `INSERT INTO shift_templates (start_time, end_time, duration_hours, requires_break, shift_type, shift_type_id, active_days) VALUES (?, ?, ?, ?, ?, ?, ?);`;
         const templateStmt = db.prepare(templateInsertSql);
+
+        // Generate active_days JSON dynamically based on settings
+        const activeDaysJson = JSON.stringify(
+            Array.from({ length: 7 }, (_, i) => i).reduce((acc, dayIndex) => {
+                acc[dayIndex.toString()] = openDayIndices.includes(dayIndex);
+                return acc;
+            }, {} as { [key: string]: boolean })
+        );
+        console.log("Generated active_days JSON for templates:", activeDaysJson);
+
         const templatesToInsert: any[][] = [
-             // Early Shift (Mon-Sat)
-             ['08:00', '16:30', 8.0, 1, 'EARLY', shiftTypes.find(st => st.id === 'early')?.id || 'early', '{"0":true,"1":true,"2":true,"3":true,"4":true,"5":true,"6":false}'],
-             // Mid Shift (Mon-Sat)
-             ['11:00', '19:30', 8.0, 1, 'MIDDLE', shiftTypes.find(st => st.id === 'middle')?.id || 'middle', '{"0":true,"1":true,"2":true,"3":true,"4":true,"5":true,"6":false}'],
-             // Late Shift (Mon-Sat)
-             ['13:30', '22:00', 8.0, 1, 'LATE', shiftTypes.find(st => st.id === 'late')?.id || 'late', '{"0":true,"1":true,"2":true,"3":true,"4":true,"5":true,"6":false}']
+             // Early Shift (Active based on settings)
+             ['08:00', '16:30', 8.0, 1, 'EARLY', shiftTypes.find(st => st.id === 'early')?.id || 'early', activeDaysJson],
+             // Mid Shift (Active based on settings)
+             ['11:00', '19:30', 8.0, 1, 'MIDDLE', shiftTypes.find(st => st.id === 'middle')?.id || 'middle', activeDaysJson],
+             // Late Shift (Active based on settings)
+             ['13:30', '22:00', 8.0, 1, 'LATE', shiftTypes.find(st => st.id === 'late')?.id || 'late', activeDaysJson]
         ];
         // Bulk insert templates
         db.transaction((temps) => {
@@ -201,8 +219,8 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
         
         const coveragesToInsert: any[][] = [];
         
-        // Generate coverage blocks for each day
-        [0, 1, 2, 3, 4, 5, 6].forEach(day => {  // Added day 6 (Saturday)
+        // Generate coverage blocks ONLY for open days
+        openDayIndices.forEach(day => {
             // Morning block (store opening to mid-morning)
             coveragesToInsert.push([
                 day,

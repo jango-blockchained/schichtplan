@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { Check, X } from "lucide-react";
 import {
@@ -22,17 +22,18 @@ import {
   getSettings,
   updateEmployeeAvailability,
   getEmployeeAvailabilities,
-  addEmployeeAvailability,
-  updateAvailability,
-  deleteAvailability,
   EmployeeAvailability,
-  Availability,
 } from "@/services/api";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { AvailabilityTypeSelect } from "@/components/common/AvailabilityTypeSelect";
-import type { AvailabilityTypeSetting } from "@/types";
-import { AvailabilityType } from "@/types/index";
+import type { AvailabilityTypeSetting } from "@/types/index";
+import {
+  convertBackendDayToDisplay,
+  convertDisplayDayToBackend,
+  getActiveDisplayDays,
+  getAllDisplayDays,
+} from "@/utils/dateUtils";
 
 interface EmployeeAvailabilityModalProps {
   employeeId: number;
@@ -41,6 +42,7 @@ interface EmployeeAvailabilityModalProps {
   contractedHours: number;
   isOpen: boolean;
   onClose: () => void;
+  type: string;
 }
 
 type TimeSlot = {
@@ -54,26 +56,20 @@ type CellState = {
   type: string;
 };
 
-// Define days starting with Monday (1) to Sunday (7)
-const ALL_DAYS = [
-  "Montag",
-  "Dienstag",
-  "Mittwoch",
-  "Donnerstag",
-  "Freitag",
-  "Samstag",
-  "Sonntag",
-];
+// Define days based on backend standard (Sun=0, Mon=1, ... Sat=6)
 const TIME_FORMAT = "HH:mm";
 
-export const EmployeeAvailabilityModal = ({
+export const EmployeeAvailabilityModal: React.FC<
+  EmployeeAvailabilityModalProps
+> = ({
   employeeId,
   employeeName,
   employeeGroup,
   contractedHours,
   isOpen,
   onClose,
-}: EmployeeAvailabilityModalProps): React.ReactElement => {
+  type,
+}) => {
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [selectedCells, setSelectedCells] = useState<Map<string, string>>(
     new Map(),
@@ -83,151 +79,152 @@ export const EmployeeAvailabilityModal = ({
   const [dailyHours, setDailyHours] = useState<{ [key: string]: number }>({});
   const [weeklyHours, setWeeklyHours] = useState(0);
   const [activeDays, setActiveDays] = useState<string[]>([]);
-  const [currentType, setCurrentType] = useState<string>("AVAILABLE");
-
-  const [pendingCellToggles, setPendingCellToggles] = useState<Map<string, 'select' | 'delete'>>(new Map());
-  const [dragAction, setDragAction] = useState<'select' | 'delete' | null>(null);
+  const [displayDays, setDisplayDays] = useState<string[]>([]); // State for display order
+  const [startOfWeek, setStartOfWeek] = useState<number>(1); // Default to Monday start
+  const [currentType, setCurrentType] = useState<string>("AVL");
 
   const { data: settings } = useQuery({
     queryKey: ["settings"],
     queryFn: getSettings,
+    staleTime: 0,
+    gcTime: 0,
   });
 
-  const { data: availabilities, refetch: refetchAvailabilities, isLoading: isLoadingAvailabilities } = useQuery({
+  // Set initial availability type to the first available type from settings
+  useEffect(() => {
+    // Check if availability_types exists and is an array
+    if (settings?.availability_types) {
+      const availableTypes = settings.availability_types.filter(
+        // Add explicit type for 'type'
+        (type: AvailabilityTypeSetting) => type.is_available,
+      );
+      if (availableTypes.length > 0) {
+        setCurrentType(availableTypes[0].id);
+      }
+    }
+  }, [settings]);
+
+  const { data: availabilities, refetch: refetchAvailabilities } = useQuery({
     queryKey: ["employee-availabilities", employeeId],
     queryFn: () => getEmployeeAvailabilities(employeeId),
-    enabled: isOpen,
   });
 
-  // Map availability type IDs (e.g., 'AVAILABLE') to enum values (e.g., AvailabilityType.AVAILABLE)
-  const availabilityTypeIdToEnumMap = useMemo(() => {
-    const map = new Map<string, AvailabilityType>();
-    if (settings?.availability_types) {
-      settings.availability_types.forEach(t => {
-        const enumKey = t.id.toUpperCase() as keyof typeof AvailabilityType;
-        if (AvailabilityType[enumKey]) {
-          map.set(t.id, AvailabilityType[enumKey]);
-        } else {
-          console.warn(`Could not map availability type ID '${t.id}' to enum.`);
-        }
-      });
-    }
-     // Ensure UNAVAILABLE is mapped if it exists in settings or add manually
-     if (!map.has('UNAVAILABLE') && AvailabilityType.UNAVAILABLE) { // Check enum exists
-         map.set('UNAVAILABLE', AvailabilityType.UNAVAILABLE);
-     }
-    return map;
-  }, [settings]);
-
-  // Memoize existing availabilities mapped by day and hour for quick lookup
-  const existingAvailabilityMap = useMemo(() => {
-    const map = new Map<string, EmployeeAvailability>();
-    if (availabilities) {
-      availabilities.forEach((avail) => {
-        const key = `${avail.day_of_week}-${avail.hour}`;
-        map.set(key, avail);
-      });
-    }
-    return map;
-  }, [availabilities]);
-
   useEffect(() => {
+    // Initialize with empty selection and hours immediately
+    setSelectedCells(new Map());
+    setDailyHours({});
+    setWeeklyHours(0);
+    setDisplayDays([]); // Reset display days
+    setActiveDays([]); // Reset active days
+
     if (settings) {
-      console.log("⚙️ Settings received:", settings);
-      console.log("⚙️ Settings opening_days:", settings.opening_days);
-
-      const days = Object.entries(settings.opening_days)
-        .filter(([, isOpen]) => isOpen)
-        .map(([dayIndex]) => ALL_DAYS[parseInt(dayIndex, 10)]);
+      // Determine start of week (default to 1 if not set)
+      // 0 = Sunday, 1 = Monday as the start of the week
+      const effectiveStartOfWeek = settings.start_of_week ?? 1;
+      setStartOfWeek(effectiveStartOfWeek);
       
-      console.log("⚙️ Calculated active days:", days);
-      setActiveDays(days);
+      console.log("[EmployeeAvailabilityModal] Settings:", settings);
+      console.log("[EmployeeAvailabilityModal] StartOfWeek:", effectiveStartOfWeek);
+      console.log("[EmployeeAvailabilityModal] Opening Days:", settings.opening_days);
+      
+      // Important: opening_days uses 0=Sunday, 1=Monday, etc. indexing in the backend
+      
+      // Generate display days order using utility function
+      const allDaysInDisplayOrder = getAllDisplayDays(effectiveStartOfWeek);
+      setDisplayDays(allDaysInDisplayOrder);
+      console.log("[EmployeeAvailabilityModal] All Display Days:", allDaysInDisplayOrder);
 
-      // Initialize time slots based on store hours
-      const startHour = parseInt(settings.store_opening.split(":")[0], 10);
-      const endHour = parseInt(settings.store_closing.split(":")[0], 10);
+      // Filter for active days using utility function
+      const activeWeekDays = getActiveDisplayDays(
+        settings.opening_days,
+        effectiveStartOfWeek,
+      );
+      setActiveDays(activeWeekDays);
+      console.log("[EmployeeAvailabilityModal] Active Days based on opening_days:", activeWeekDays);
+
+      // Access store_opening and store_closing directly from settings
+      const { store_opening, store_closing } = settings;
+      const [startHour] = store_opening.split(":").map(Number);
+      const [endHour] = store_closing.split(":").map(Number);
+
       const slots: TimeSlot[] = [];
       for (let hour = startHour; hour < endHour; hour++) {
-        const time = `${hour.toString().padStart(2, "0")}:00 - ${(hour + 1).toString().padStart(2, "0")}:00`;
-        slots.push({ time, hour, days: {} });
+        const nextHour = hour + 1;
+        slots.push({
+          time: `${format(new Date().setHours(hour, 0), TIME_FORMAT)} - ${format(new Date().setHours(nextHour, 0), TIME_FORMAT)}`,
+          hour: hour,
+          days: activeWeekDays.reduce(
+            (acc, day) => ({ ...acc, [day]: false }),
+            {},
+          ),
+        });
       }
       setTimeSlots(slots);
-
-       // Set initial availability type to the first *available* type from settings
-       if (settings?.availability_types) {
-         const availableTypes = settings.availability_types.filter(
-           (type: AvailabilityTypeSetting) => type.is_available,
-         );
-         if (availableTypes.length > 0) {
-           setCurrentType(availableTypes[0].id);
-         }
-       }
     }
   }, [settings]);
 
   useEffect(() => {
-    if (!activeDays.length || !availabilities) return;
+    if (!activeDays.length) return;
 
     const dayHours: { [key: string]: number } = {};
-    activeDays.forEach((day) => {
-      dayHours[day] = 0;
+    // Initialize hours based on display order, but only for ACTIVE days
+    displayDays.forEach((day) => {
+      if (activeDays.includes(day)) {
+        dayHours[day] = 0;
+      }
     });
     setDailyHours(dayHours);
 
-    const newSelectedCells = new Map<string, string>();
-    
-    // Process each availability entry
-    availabilities.forEach((availability) => {
-      // Convert backend day index (0=Mon) to frontend day name
-      const dayName = ALL_DAYS[availability.day_of_week];
-      
-      if (activeDays.includes(dayName)) {
-        // Find the time slot that corresponds to this hour
-        const timeSlot = timeSlots.find(slot => {
-          const [slotStartHour] = slot.time.split(" - ")[0].split(":").map(Number);
-          return slotStartHour === availability.hour;
-        });
+    if (availabilities && settings?.availability_types) {
+      const newSelectedCells = new Map<string, string>();
+      const availabilitySettings = settings.availability_types; // Cache for lookup
 
-        if (timeSlot) {
-          const cellId = `${dayName}-${timeSlot.time}`;
-          
-          // Map the availability type to the correct type ID
-          let typeId;
-          switch (availability.availability_type) {
-            case "UNAVAILABLE":
-              typeId = "unavailable";
-              break;
-            case "AVAILABLE":
-              typeId = "available";
-              break;
-            case "PREFERRED":
-              typeId = "preferred";
-              break;
-            case "FIXED":
-              typeId = "fixed";
-              break;
-            default:
-              console.warn(`Unknown availability type: ${availability.availability_type}`);
-              return;
-          }
-          
-          if (availability.is_available) {
-            newSelectedCells.set(cellId, typeId);
+      availabilities.forEach((availability) => {
+        // Find the setting corresponding to the availability type from the API
+        const typeSetting = availabilitySettings.find(
+          (setting: AvailabilityTypeSetting) => setting.id === availability.availability_type
+        );
+
+        // Check if the type setting exists and indicates availability
+        if (typeSetting?.is_available) {
+          // Convert backend day to display day INDEX first
+          const displayDayIndex = convertBackendDayToDisplay(
+            availability.day_of_week,
+            startOfWeek,
+          );
+          // Get day NAME from the full displayDays array
+          const day = displayDays[displayDayIndex];
+
+          // Check if the day name exists and is active
+          if (day && activeDays.includes(day)) {
+            const hour = format(
+              new Date().setHours(availability.hour, 0),
+              TIME_FORMAT,
+            );
+            const nextHour = format(
+              new Date().setHours(availability.hour + 1, 0),
+              TIME_FORMAT,
+            );
+            const cellId = `${day}-${hour} - ${nextHour}`;
+            // Use the availability_type string from the API response as the value
+            newSelectedCells.set(cellId, availability.availability_type);
           }
         }
-      }
-    });
-
-    setSelectedCells(newSelectedCells);
-    calculateHours(newSelectedCells);
-  }, [availabilities, activeDays, timeSlots]);
+      });
+      setSelectedCells(newSelectedCells);
+      calculateHours(newSelectedCells);
+    }
+  }, [availabilities, activeDays, displayDays, settings, startOfWeek]);
 
   const calculateHours = (cells: Map<string, string>) => {
     if (!activeDays.length) return;
 
     const dayHours: { [key: string]: number } = {};
-    activeDays.forEach((day) => {
-      dayHours[day] = 0;
+    // Initialize based on display days that are active
+    displayDays.forEach((day) => {
+      if (activeDays.includes(day)) {
+        dayHours[day] = 0;
+      }
     });
 
     Array.from(cells.keys()).forEach((cellId) => {
@@ -247,51 +244,22 @@ export const EmployeeAvailabilityModal = ({
   };
 
   const handleCellMouseDown = (day: string, time: string) => {
-    const cellId = `${day}-${time}`;
     setIsDragging(true);
+    const cellId = `${day}-${time}`;
     setDragStart(cellId);
-
-    const newPendingToggles = new Map<string, 'select' | 'delete'>();
-    const currentAction: 'select' | 'delete' = selectedCells.has(cellId) ? 'delete' : 'select';
-    setDragAction(currentAction);
-    newPendingToggles.set(cellId, currentAction);
-
-    setPendingCellToggles(newPendingToggles);
+    toggleCell(cellId);
   };
 
   const handleCellMouseEnter = (day: string, time: string) => {
-    if (isDragging && dragAction) {
+    if (isDragging && dragStart) {
       const cellId = `${day}-${time}`;
-      setPendingCellToggles(prev => new Map(prev).set(cellId, dragAction));
+      toggleCell(cellId);
     }
   };
 
   const handleMouseUp = () => {
-    if (isDragging) {
-      const wasDrag = pendingCellToggles.size > 1 || (dragStart && !selectedCells.has(dragStart) && pendingCellToggles.size > 0);
-
-      if (pendingCellToggles.size > 0) {
-         if (wasDrag) {
-             const newSelectedCells = new Map(selectedCells);
-             pendingCellToggles.forEach((action, cellId) => {
-               if (action === 'select') {
-                 newSelectedCells.set(cellId, currentType);
-               } else {
-                 newSelectedCells.delete(cellId);
-               }
-             });
-             setSelectedCells(newSelectedCells);
-             calculateHours(newSelectedCells);
-         } else if (dragStart) {
-             toggleCell(dragStart);
-         }
-      }
-
-      setIsDragging(false);
-      setDragStart(null);
-      setPendingCellToggles(new Map());
-      setDragAction(null);
-    }
+    setIsDragging(false);
+    setDragStart(null);
   };
 
   const toggleCell = (cellId: string) => {
@@ -324,18 +292,12 @@ export const EmployeeAvailabilityModal = ({
   const handleToggleDay = (day: string) => {
     const newSelectedCells = new Map(selectedCells);
 
-    // Find all cell IDs for this day based on timeSlots
-    const dayCells = timeSlots.map(({ time }) => `${day}-${time}`);
-
     // Count how many cells are selected for this day
-    const selectedDayCellsCount = dayCells.filter((cellId) =>
+    const dayCells = timeSlots.map(({ time }) => `${day}-${time}`);
+    const selectedDayCells = dayCells.filter((cellId) =>
       selectedCells.has(cellId),
-    ).length;
-
-    const totalDayCells = dayCells.length;
-    if (totalDayCells === 0) return; // Avoid division by zero
-
-    const selectedRatio = selectedDayCellsCount / totalDayCells;
+    );
+    const selectedRatio = selectedDayCells.length / dayCells.length;
 
     // If more than 50% are selected, deselect all cells for the day
     // Otherwise, select all cells for the day with current type
@@ -354,210 +316,79 @@ export const EmployeeAvailabilityModal = ({
   };
 
   const handleSave = async () => {
-    if (!settings?.availability_types || isLoadingAvailabilities) {
-      console.error("Settings or existing availabilities not loaded/loading.");
-      return;
-    }
-    console.log("💾 [handleSave] Starting save process...");
-    console.log("💾 [handleSave] Existing availabilities map:", existingAvailabilityMap);
-
-    // 1. Prepare the desired state
-    const desiredState = new Map<string, { typeEnum: AvailabilityType; isAvailable: boolean }>();
-    timeSlots.forEach(({ hour }) => {
+    // Create a Set of all possible cell IDs for quick lookup, based on ACTIVE days
+    const allPossibleCellIds = new Set<string>();
+    timeSlots.forEach(({ time }) => {
       activeDays.forEach((day) => {
-        const frontendDayIndex = ALL_DAYS.indexOf(day);
-        // Use the direct backendDayIndex for the key
-        const backendDayIndex = frontendDayIndex; // No conversion needed
-        const timeSlot = timeSlots.find(slot => slot.hour === hour);
-
-        if (timeSlot) {
-            const cellId = `${day}-${timeSlot.time}`;
-            const selectedTypeId = selectedCells.get(cellId);
-            // Use the direct backendDayIndex for the key
-            const key = `${backendDayIndex}-${hour}`;
-            const typeEnum = selectedTypeId ? availabilityTypeIdToEnumMap.get(selectedTypeId) : availabilityTypeIdToEnumMap.get('UNAVAILABLE');
-
-            if (!typeEnum) {
-                console.error(`[handleSave] Could not map type ID for key ${key}: TypeID='${selectedTypeId || 'UNAVAILABLE'}'`);
-                return;
-            }
-
-            if (selectedTypeId) {
-              desiredState.set(key, { typeEnum: typeEnum, isAvailable: true });
-            } else {
-              desiredState.set(key, { typeEnum: typeEnum, isAvailable: false });
-            }
-        } else {
-            console.warn(`[handleSave] Could not find timeSlot for hour: ${hour} while building desired state.`);
-        }
+        allPossibleCellIds.add(`${day}-${time}`);
       });
     });
-    console.log("💾 [handleSave] Desired state map:", desiredState);
 
-    // 2. Calculate differences and prepare API calls
-    const promises: Promise<any>[] = [];
-    const processedExistingKeys = new Set<string>();
+    // Get all time slots that were not selected
+    const unselectedCellIds = Array.from(allPossibleCellIds).filter(
+      (cellId) => !selectedCells.has(cellId),
+    );
 
-    console.log("💾 [handleSave] Comparing desired state with existing...");
-    for (const [key, desired] of desiredState.entries()) {
-       // day_of_week is parsed directly from key, which now uses correct index
-      const [dayOfWeekStr, hourStr] = key.split('-'); 
-      const day_of_week = parseInt(dayOfWeekStr, 10);
-      const hour = parseInt(hourStr, 10);
-      const existing = existingAvailabilityMap.get(key);
+    // Prepare availability data for selected cells
+    const selectedAvailabilityData = Array.from(selectedCells.entries()).map(
+      ([cellId, type]) => {
+        const [day, timeRange] = cellId.split("-");
+        // Find the display index from the full displayDays array
+        const displayIndex = displayDays.indexOf(day);
+        // Convert display index to backend index
+        const backendDayIndex = convertDisplayDayToBackend(displayIndex, startOfWeek);
+        const [startTime] = timeRange.trim().split(" - ");
+        const [hour] = startTime.split(":").map(Number);
 
-      processedExistingKeys.add(key);
-      console.log(`💾 [handleSave] Processing key: ${key}`, { desired, existing });
+        return {
+          employee_id: employeeId,
+          day_of_week: backendDayIndex,
+          hour: hour,
+          is_available: true,
+          availability_type: type,
+        };
+      },
+    );
 
-      if (existing && typeof existing.id === 'number') {
-        // --- Entry exists --- 
-        if (desired.isAvailable) {
-          // Desired: AVAILABLE
-          if (existing.is_available) {
-            // Existing: AVAILABLE - Check if type changed
-            if (existing.availability_type !== desired.typeEnum) {
-              console.log(`🔄 [handleSave] Action: UPDATE Type for ID ${existing.id} (key ${key}) to ${desired.typeEnum}`);
-              const typeString = Object.keys(AvailabilityType).find(k => AvailabilityType[k as keyof typeof AvailabilityType] === desired.typeEnum) as "AVAILABLE" | "FIXED" | "PREFFERED" | "UNAVAILABLE";
-              if (typeString) {
-                  const updatePayload: Partial<Availability> = { availability_type: typeString };
-                  promises.push(updateAvailability(existing.id, updatePayload));
-              } else {
-                   console.error(`[handleSave] Could not map enum ${desired.typeEnum} back to string for update.`);
-              }
-            } else {
-                 console.log(`⏭️ [handleSave] Action: NO CHANGE needed (already available with same type) for key ${key}`);
-            }
-          } else {
-            // Existing: UNAVAILABLE - Need to delete old and create new available one
-            console.log(`🗑️ [handleSave] Action: DELETE unavailable ID ${existing.id} (key ${key})`);
-            promises.push(deleteAvailability(existing.id));
-            console.log(`➕ [handleSave] Action: CREATE available (key ${key}) with type ${desired.typeEnum}`);
-            // Ensure payload uses correct day_of_week from key
-            const createPayload = {
-              day_of_week: day_of_week, 
-              hour: hour,
-              availability_type: desired.typeEnum,
-              is_available: true,
-              is_recurring: true,
-            };
-             promises.push(addEmployeeAvailability(employeeId, createPayload));
-          }
-        } else {
-          // Desired: UNAVAILABLE
-          if (existing.is_available) {
-            // Existing: AVAILABLE - Need to delete it
-            console.log(`🗑️ [handleSave] Action: DELETE available ID ${existing.id} (key ${key})`);
-            promises.push(deleteAvailability(existing.id));
-          } else {
-            // Existing: UNAVAILABLE - Do nothing
-            console.log(`⏭️ [handleSave] Action: NO CHANGE needed (already unavailable) for key ${key}`);
-          }
-        }
-      } else {
-        // --- Entry does NOT exist (or existing.id was invalid) --- 
-        if (desired.isAvailable) {
-           // Desired: AVAILABLE - Create it
-            console.log(`➕ [handleSave] Action: CREATE available (key ${key}) with type ${desired.typeEnum}`);
-             // Ensure payload uses correct day_of_week from key
-            const createPayload = {
-              day_of_week: day_of_week,
-              hour: hour,
-              availability_type: desired.typeEnum,
-              is_available: true,
-              is_recurring: true,
-            };
-            promises.push(addEmployeeAvailability(employeeId, createPayload));
-        } else {
-             // Desired: UNAVAILABLE - Do nothing (absence of record means unavailable)
-             console.log(`⏭️ [handleSave] Action: NO CHANGE needed (implicitly unavailable) for key ${key}`);
-        }
-      }
-    }
+    // Prepare availability data for unselected cells
+    const unavailableAvailabilityData = unselectedCellIds.map((cellId) => {
+      const [day, timeRange] = cellId.split("-");
+      // Find the display index from the full displayDays array
+      const displayIndex = displayDays.indexOf(day);
+      // Convert display index to backend index
+      const backendDayIndex = convertDisplayDayToBackend(displayIndex, startOfWeek);
+      const [startTime] = timeRange.trim().split(" - ");
+      const [hour] = startTime.split(":").map(Number);
 
-    // Check for obsolete entries
-    console.log("💾 [handleSave] Checking for obsolete existing entries...");
-     for (const [key, existing] of existingAvailabilityMap.entries()) {
-       if (!processedExistingKeys.has(key)) {
-           if (existing && typeof existing.id === 'number' && existing.is_available) {
-               console.log(`🗑️ [handleSave] Action: DELETE obsolete available ID ${existing.id} (key ${key})`);
-               promises.push(deleteAvailability(existing.id));
-           } else {
-               console.log(`⏭️ [handleSave] Obsolete key ${key} is already unavailable or invalid, no action needed.`);
-           }
-       }
-     }
+      return {
+        employee_id: employeeId,
+        day_of_week: backendDayIndex,
+        hour: hour,
+        is_available: false, // Mark as unavailable explicitly through the flag
+        availability_type: "UNV", // Also set type to UNV for clarity
+      };
+    });
 
-    // 3. Execute all API calls
-    if (promises.length > 0) {
-        console.log(`💾 [handleSave] Executing ${promises.length} API calls...`, promises);
-        try {
-            await Promise.all(promises);
-            console.log("✅ [handleSave] All availability changes saved successfully.");
-            await refetchAvailabilities();
-            onClose();
-        } catch (error) {
-            console.error("❌ [handleSave] Failed to save one or more availability changes:", error);
-            // TODO: Add user feedback (toast)
-        }
-    } else {
-        console.log("💾 [handleSave] No availability changes detected.");
-        onClose();
-    }
+    // Combine both selected and unselected availability data
+    const availabilityData = [
+      ...selectedAvailabilityData,
+      ...unavailableAvailabilityData,
+    ];
+
+    // Send the combined data to the backend
+    await updateEmployeeAvailability(employeeId, availabilityData);
+    await refetchAvailabilities();
+    onClose();
   };
 
   const getCellColor = (cellId: string) => {
-    const pendingAction = pendingCellToggles.get(cellId);
-    let isPendingSelected: boolean | null = null;
-    if (pendingAction !== undefined) {
-        isPendingSelected = pendingAction === 'select';
-    }
-
-    const isCurrentlySelected = selectedCells.has(cellId);
-    const displaySelected = isPendingSelected !== null ? isPendingSelected : isCurrentlySelected;
-
-    if (!displaySelected) {
-        const typeId = isCurrentlySelected ? selectedCells.get(cellId) : currentType;
-        const availabilityType = settings?.availability_types?.find(t => t.id === typeId);
-        if (isPendingSelected === true) {
-            return availabilityType?.color ? `${availabilityType.color}40` : `#22c55e40`;
-        }
-        return "";
-    }
-
-    const typeId = isCurrentlySelected ? selectedCells.get(cellId) : currentType;
-    const availabilityType = settings?.availability_types?.find(t => t.id === typeId);
-
-    return availabilityType?.color || "#22c55e";
-  };
-
-  const getCellStyle = (cellId: string) => {
-      const pendingAction = pendingCellToggles.get(cellId);
-      const isCurrentlySelected = selectedCells.has(cellId);
-
-      const displaySelected = pendingAction === 'select' || (pendingAction !== 'delete' && isCurrentlySelected);
-      const cellTypeId = displaySelected
-          ? (pendingAction === 'select' ? currentType : selectedCells.get(cellId))
-          : 'unavailable';
-
-      const cellTypeSetting = settings?.availability_types?.find(t => t.id === cellTypeId);
-
-      let backgroundColor = "#ffffff";
-      let opacity = 0.1;
-
-      if (displaySelected) {
-          backgroundColor = cellTypeSetting?.color || "#22c55e";
-          opacity = 0.5;
-      } else if (pendingAction === 'delete') {
-          backgroundColor = cellTypeSetting?.color || "#ef4444";
-          opacity = 0.2;
-      } else {
-          backgroundColor = "#ef4444";
-          opacity = 0.1;
-      }
-
-      return {
-          backgroundColor: `${backgroundColor}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`,
-      };
+    if (!selectedCells.has(cellId)) return "";
+    const type = selectedCells.get(cellId);
+    // Ensure availability_types is accessed correctly and 't' has a type
+    const availabilityType = settings?.availability_types?.find(
+      (t: AvailabilityTypeSetting) => t.id === type,
+    );
+    return availabilityType?.color || "#22c55e"; // Use a default green color
   };
 
   const calculateTypeStats = () => {
@@ -571,168 +402,190 @@ export const EmployeeAvailabilityModal = ({
   const calculateCumulativeHours = (day: string, currentHour: number) => {
     const stats = new Map<string, number>();
     timeSlots.forEach(({ time }) => {
-        const [startHourStr] = time.split(" - ")[0].split(":");
-        const slotStartHour = parseInt(startHourStr, 10);
-        if (!isNaN(slotStartHour) && slotStartHour <= currentHour) {
-            const cellId = `${day}-${time}`;
-            const typeId = selectedCells.get(cellId);
-            if (typeId) {
-                stats.set(typeId, (stats.get(typeId) || 0) + 1);
-            }
+      const [startTime] = time.split(" - ")[0].split(":").map(Number);
+      if (startTime <= currentHour) {
+        const cellId = `${day}-${time}`;
+        const type = selectedCells.get(cellId);
+        if (type) {
+          stats.set(type, (stats.get(type) || 0) + 1);
         }
+      }
     });
     return stats;
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-7xl">
-        <div onMouseUp={handleMouseUp} onMouseLeave={isDragging ? handleMouseUp : undefined}>
-          <DialogHeader>
-            <DialogTitle>Availability for {employeeName}</DialogTitle>
-            <div className="flex flex-col gap-2 mt-2">
-              <div className="text-sm text-muted-foreground mb-2">
-                Select time slots when the employee is available. Unselected time
-                slots will be marked as unavailable.
+      <DialogContent className="max-w-7xl" onMouseUp={handleMouseUp}>
+        <DialogHeader>
+          <DialogTitle>Availability for {employeeName}</DialogTitle>
+          <div className="flex flex-col gap-2 mt-2">
+            <div className="text-sm text-muted-foreground mb-2">
+              Select time slots when the employee is available. Unselected time
+              slots will be marked as unavailable.
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-sm">
+                {employeeGroup}
+              </Badge>
+              <span className="text-sm text-muted-foreground">
+                Contracted: {contractedHours}h/week
+              </span>
+              <span className="text-sm text-muted-foreground">
+                Selected: {weeklyHours}h/week
+              </span>
+              {settings &&
+                Array.from(calculateTypeStats()).map(([type, hours]) => {
+                  const availabilityType =
+                    settings.availability_types?.find(
+                      (t: AvailabilityTypeSetting) => t.id === type,
+                    );
+                  return (
+                    availabilityType && (
+                      <div
+                        key={type}
+                        className="flex items-center gap-1 text-sm"
+                        style={{ color: availabilityType.color }}
+                      >
+                        <div
+                          className="w-2 h-2 rounded-full"
+                          style={{ backgroundColor: availabilityType.color }}
+                        />
+                        {availabilityType.name}: {hours}h
+                      </div>
+                    )
+                  );
+                })}
+            </div>
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Type:</span>
+                <AvailabilityTypeSelect
+                  value={currentType}
+                  onChange={setCurrentType}
+                />
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-sm">
-                  {employeeGroup}
-                </Badge>
-                <span className="text-sm text-muted-foreground">
-                  Contracted: {contractedHours}h/week
-                </span>
-                <span className="text-sm text-muted-foreground">
-                  Selected: {weeklyHours}h/week
-                </span>
-                {settings &&
-                  Array.from(calculateTypeStats()).map(([typeId, hours]) => {
-                    const availabilityType =
-                      settings?.availability_types?.find(
-                        (t: AvailabilityTypeSetting) => t.id === typeId,
-                      );
-                    return (
-                      availabilityType && (
-                        <div
-                          key={typeId}
-                          className="flex items-center gap-1 text-sm"
-                          style={{ color: availabilityType.color }}
-                        >
-                          <div
-                            className="w-2 h-2 rounded-full"
-                            style={{ backgroundColor: availabilityType.color }}
-                          />
-                          {availabilityType.name}: {hours}h
-                        </div>
-                      )
-                    );
-                  })}
+                <Button onClick={handleSelectAll} variant="outline" size="sm">
+                  Select All
+                </Button>
+                <Button onClick={handleDeselectAll} variant="outline" size="sm">
+                  Clear All
+                </Button>
               </div>
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Type:</span>
-                  <AvailabilityTypeSelect
-                    value={currentType}
-                    onChange={setCurrentType}
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button onClick={handleSelectAll} variant="outline" size="sm">
-                    Select All
-                  </Button>
-                  <Button onClick={handleDeselectAll} variant="outline" size="sm">
-                    Clear All
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </DialogHeader>
-
-          <div className="overflow-x-auto">
-            <div className="border rounded-lg">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-24">Zeit</TableHead>
-                    {activeDays.map((day) => (
-                      <TableHead key={day} className="text-center">
-                        <Button
-                          variant="ghost"
-                          className="w-full h-full p-1 text-left"
-                          onClick={() => handleToggleDay(day)}
-                        >
-                          <div>
-                            {day}
-                            <div className="text-xs text-muted-foreground mt-1">
-                              {dailyHours[day] || 0}h
-                            </div>
-                          </div>
-                        </Button>
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {timeSlots.map(({ time, hour }) => (
-                    <TableRow key={time}>
-                      <TableCell className="font-medium">{time}</TableCell>
-                      {activeDays.map((day) => {
-                        const cellId = `${day}-${time}`;
-                        const pendingAction = pendingCellToggles.get(cellId);
-                        const isCurrentlySelected = selectedCells.has(cellId);
-                        const displaySelected = pendingAction === 'select' || (pendingAction !== 'delete' && isCurrentlySelected);
-                        const displayAsPendingDelete = pendingAction === 'delete';
-
-                        const cellTypeId = displaySelected ? (pendingAction === 'select' ? currentType : selectedCells.get(cellId)) : 'unavailable';
-                        const cellTypeSetting = settings?.availability_types?.find(t => t.id === cellTypeId);
-                        const cellColor = displaySelected ? (cellTypeSetting?.color || '#22c55e') : '#ef4444';
-
-                        const cumulativeHours = calculateCumulativeHours(day, hour);
-
-                        return (
-                          <TableCell
-                            key={cellId}
-                            className={cn(
-                              "relative p-0 h-12 w-12 transition-colors cursor-pointer select-none",
-                              "border border-muted",
-                              (displaySelected || displayAsPendingDelete) && "border-primary",
-                              displayAsPendingDelete && "opacity-75"
-                            )}
-                            style={{
-                                backgroundColor: `${cellColor}${displaySelected ? '80' : (displayAsPendingDelete ? '40' : '20')}`
-                            }}
-                            onMouseDown={(e) => { e.preventDefault(); handleCellMouseDown(day, time); }}
-                            onMouseEnter={() => handleCellMouseEnter(day, time)}
-                          >
-                            {displaySelected ? (
-                              <>
-                                <Check className="h-4 w-4 mx-auto text-white" />
-                                <div className="absolute bottom-0 right-1 text-[10px] text-white">
-                                   {cumulativeHours.get(selectedCells.get(cellId) || '') || 0}
-                                </div>
-                              </>
-                            ) : (
-                              <X className="h-3 w-3 mx-auto text-gray-400 opacity-25" />
-                            )}
-                          </TableCell>
-                        );
-                      })}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
             </div>
           </div>
+        </DialogHeader>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave} disabled={isLoadingAvailabilities}>
-              {isLoadingAvailabilities ? "Loading..." : "Save"}
-            </Button>
-          </DialogFooter>
+        <div className="overflow-x-auto">
+          <div className="border rounded-lg">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-24">Zeit</TableHead>
+                  {displayDays.map((day) => (
+                    <TableHead key={day} className="text-center">
+                      <Button
+                        variant="ghost"
+                        className="w-full"
+                        // Only allow toggling for active days
+                        disabled={!activeDays.includes(day)}
+                        onClick={() => activeDays.includes(day) && handleToggleDay(day)}
+                      >
+                        <div>
+                          {day}
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {/* Only display hours for active days */}
+                            {activeDays.includes(day) ? `${dailyHours[day] ?? 0}h` : "Closed"}
+                          </div>
+                        </div>
+                      </Button>
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {timeSlots.map(({ time, hour }) => (
+                  <TableRow key={time}>
+                    <TableCell className="font-medium">{time}</TableCell>
+                    {displayDays.map((day) => {
+                      // Only render TableCell if the day is active
+                      return activeDays.includes(day) ? (
+                        <TableCell
+                          key={`${day}-${time}`}
+                          className={cn(
+                            "relative p-0 h-12 w-12 transition-colors cursor-pointer",
+                            {
+                              "border-2 border-primary": selectedCells.has(
+                                `${day}-${time}`,
+                              ),
+                              "border border-muted": !selectedCells.has(
+                                `${day}-${time}`,
+                              ),
+                              "bg-muted opacity-50 cursor-not-allowed": !activeDays.includes(day), // Style inactive days
+                            },
+                          )}
+                          style={{
+                            backgroundColor: activeDays.includes(day)
+                              ? selectedCells.has(`${day}-${time}`)
+                                ? `${getCellColor(`${day}-${time}`)}80` // Selected cells with 50% opacity
+                                : `${settings?.availability_types?.find((t: AvailabilityTypeSetting) => t.id === "UNV")?.color || "#ef4444"}20` // Unselected cells with 12.5% opacity
+                              : undefined, // No background for inactive days
+                          }}
+                          onMouseDown={() => activeDays.includes(day) && handleCellMouseDown(day, time)}
+                          onMouseEnter={() => activeDays.includes(day) && handleCellMouseEnter(day, time)}
+                        >
+                          {activeDays.includes(day) ? (
+                            (() => {
+                              const cellId = `${day}-${time}`;
+                              const isSelected = selectedCells.has(cellId);
+                              const cellType = isSelected
+                                ? selectedCells.get(cellId)
+                                : "UNV";
+                              const cumulativeHours = calculateCumulativeHours(
+                                day,
+                                hour,
+                              );
+
+                              return isSelected ? (
+                                <>
+                                  <Check className="h-4 w-4 mx-auto text-white" />
+                                  <div className="absolute bottom-0 right-1 text-[10px] text-white">
+                                    {Array.from(cumulativeHours)
+                                      .map(([type, count]) =>
+                                        type === cellType ? count : null,
+                                      )
+                                      .filter(Boolean)
+                                      .join("")}
+                                  </div>
+                                </>)
+                                : (
+                                  <X className="h-3 w-3 mx-auto text-gray-400 opacity-25" />
+                                );
+                            })()
+                          ) : null} 
+                        </TableCell>
+                      ) : (
+                        // Render a placeholder or visually distinct cell for inactive days
+                        <TableCell
+                          key={`${day}-${time}`}
+                          className="p-0 h-12 w-12 border border-muted bg-muted opacity-50"
+                        />
+                      );
+                    })}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave}>Save</Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

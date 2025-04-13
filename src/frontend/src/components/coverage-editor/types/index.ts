@@ -11,6 +11,7 @@ export interface StoreConfigProps {
   keyholder_after_minutes: number;
   min_employees_per_shift: number;
   max_employees_per_shift: number;
+  start_of_week?: number;
 }
 
 export interface CoverageTimeSlot {

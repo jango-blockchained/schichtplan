@@ -29,8 +29,9 @@ function mapRowToEmployeeAvailability(row: any): EmployeeAvailability {
  */
 export async function getAvailabilitiesForEmployee(
     employeeId: number,
-    db: Database = globalDb
+    db: Database | null = globalDb
 ): Promise<EmployeeAvailability[]> {
+    if (!db) throw new Error("Database connection is not available.");
     const sql = "SELECT * FROM employee_availabilities WHERE employee_id = ? ORDER BY day_of_week, hour;";
     try {
         const query = db.query(sql);
@@ -49,8 +50,9 @@ export async function getAvailabilitiesForEmployee(
  */
 export async function getAvailabilityById(
     id: number,
-    db: Database = globalDb
+    db: Database | null = globalDb
 ): Promise<EmployeeAvailability> {
+    if (!db) throw new Error("Database connection is not available.");
     const sql = "SELECT * FROM employee_availabilities WHERE id = ?;";
     try {
         const query = db.query(sql);
@@ -76,8 +78,9 @@ type CreateAvailabilityInput = Omit<EmployeeAvailability, 'id' | 'created_at' | 
  */
 export async function addAvailability(
     data: CreateAvailabilityInput,
-    db: Database = globalDb
+    db: Database | null = globalDb
 ): Promise<EmployeeAvailability> {
+    if (!db) throw new Error("Database connection is not available.");
     const { employee_id, day_of_week, hour, availability_type, start_date, end_date, is_recurring } = data;
 
     // Basic validation
@@ -134,8 +137,9 @@ type UpdateAvailabilityInput = Partial<Omit<EmployeeAvailability, 'id' | 'employ
 export async function updateAvailability(
     id: number,
     data: UpdateAvailabilityInput,
-    db: Database = globalDb
+    db: Database | null = globalDb
 ): Promise<EmployeeAvailability> {
+    if (!db) throw new Error("Database connection is not available.");
     await getAvailabilityById(id, db); // Check existence using db
 
     const updates: Record<string, any> = {};
@@ -176,8 +180,9 @@ export async function updateAvailability(
  */
 export async function deleteAvailability(
     id: number,
-    db: Database = globalDb
+    db: Database | null = globalDb
 ): Promise<{ success: boolean }> {
+    if (!db) throw new Error("Database connection is not available.");
     await getAvailabilityById(id, db); // Check existence using db
     const sql = "DELETE FROM employee_availabilities WHERE id = ?;";
     try {
@@ -201,8 +206,9 @@ export async function deleteAvailability(
 export async function getAvailabilitiesInRange(
     startDate: string, 
     endDate: string,
-    db: Database = globalDb
+    db: Database | null = globalDb
 ): Promise<EmployeeAvailability[]> {
+    if (!db) throw new Error("Database connection is not available.");
     // Corrected SQL to handle date ranges and recurring entries
     const sql = `
         SELECT *
@@ -226,5 +232,74 @@ export async function getAvailabilitiesInRange(
     } catch (error) {
         console.error(`Error fetching availabilities in range ${startDate} - ${endDate}:`, error);
         throw new Error("Failed to retrieve availabilities in range.");
+    }
+}
+
+// Type for the bulk update payload items (matches frontend structure)
+interface BulkAvailabilityEntry {
+    day_of_week: number;
+    hour: number;
+    // is_available: boolean; // Frontend sends this
+    availability_type: string; // Frontend sends this
+}
+
+/**
+ * Replaces all availability entries for a specific employee within a transaction.
+ * Deletes existing entries and inserts new ones.
+ * @param employeeId - The ID of the employee.
+ * @param availabilities - Array of new availability data.
+ * @param db - Optional Database instance.
+ */
+export async function replaceEmployeeAvailabilities(
+    employeeId: number,
+    availabilities: BulkAvailabilityEntry[],
+    db: Database | null = globalDb
+): Promise<void> {
+    if (!db) throw new Error("Database connection is not available.");
+    const deleteSql = "DELETE FROM employee_availabilities WHERE employee_id = ?;";
+    const insertSql = `
+        INSERT INTO employee_availabilities
+          (employee_id, day_of_week, hour, availability_type, start_date, end_date, is_recurring, created_at, updated_at)
+        VALUES
+          (?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+    `;
+
+    // Start transaction
+    const transaction = db.transaction(() => {
+        // Delete existing entries
+        const deleteStmt = db.prepare(deleteSql);
+        deleteStmt.run(employeeId);
+
+        // Insert new entries
+        const insertStmt = db.prepare(insertSql);
+        for (const avail of availabilities) {
+             // Validate input from frontend
+            if (avail.day_of_week < 0 || avail.day_of_week > 6) throw new Error(`Invalid day_of_week: ${avail.day_of_week}`);
+            if (avail.hour < 0 || avail.hour > 23) throw new Error(`Invalid hour: ${avail.hour}`);
+            // We trust availability_type string for now, could add validation against settings if needed
+            
+            // Assuming is_recurring is true by default for modal saves, and dates are null
+            const is_recurring_int = 1; 
+            const start_date = null;
+            const end_date = null;
+
+            insertStmt.run(
+                employeeId,
+                avail.day_of_week,
+                avail.hour,
+                avail.availability_type, // Use the string type from frontend
+                start_date,
+                end_date,
+                is_recurring_int
+            );
+        }
+    });
+
+    try {
+        // Execute transaction
+        transaction();
+    } catch (error) {
+        console.error(`Error replacing availabilities for employee ${employeeId}:`, error);
+        throw new Error(`Failed to replace employee availabilities: ${error instanceof Error ? error.message : String(error)}`);
     }
 } 

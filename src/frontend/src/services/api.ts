@@ -245,21 +245,34 @@ export interface Shift {
 export const getShifts = async (): Promise<Shift[]> => {
   try {
     console.log('Fetching shifts from API');
-    const response = await api.get<{success: boolean, data: Shift[]}>("/shifts/");
+    const response = await api.get<any>("/shifts/");
     console.log('Shifts response:', response.data);
     
-    // Check if response has the expected structure with "data" property
-    if (response.data && response.data.success && Array.isArray(response.data.data)) {
-      return response.data.data;
-    }
-    
-    // If response doesn't have expected structure but is an array, return it
+    // Handle different response formats consistently
     if (Array.isArray(response.data)) {
       return response.data;
+    } 
+    
+    // Handle structured response with data property
+    if (response.data && typeof response.data === 'object') {
+      // Case: { success: boolean, data: Shift[] }
+      if ('data' in response.data && Array.isArray(response.data.data)) {
+        return response.data.data;
+      }
+      
+      // Case: { shifts: Shift[] } or similar nested property
+      const potentialArrayProps = Object.keys(response.data).filter(key => 
+        Array.isArray(response.data[key])
+      );
+      
+      if (potentialArrayProps.length > 0) {
+        console.log(`Found array in response at property: ${potentialArrayProps[0]}`);
+        return response.data[potentialArrayProps[0]];
+      }
     }
     
-    // Otherwise return empty array
-    console.error('Unexpected shifts response format:', response.data);
+    // If we can't find a proper array, log and return empty
+    console.error('Failed to parse shifts from response:', response.data);
     return [];
   } catch (error) {
     console.error('Error fetching shifts:', error);
@@ -500,9 +513,39 @@ export const generateSchedule = async (
       timestamp: new Date().toISOString(),
     });
 
+    // Validiere Eingabedaten
+    if (!startDate || !endDate) {
+      throw new Error("Start- und Enddatum sind erforderlich");
+    }
+
+    if (!version || isNaN(version) || version <= 0) {
+      throw new Error("Eine gültige Version ist erforderlich");
+    }
+
+    // Validiere Datumsformat (sollte YYYY-MM-DD sein)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+      throw new Error("Datumsformat muss YYYY-MM-DD sein");
+    }
+
     // Get all shifts to validate they have durations
-    const shiftsResponse = await api.get<Shift[]>("/shifts/");
-    let shifts = shiftsResponse.data;
+    const shiftsResponse = await api.get<Shift[] | {success: boolean, data: Shift[]}>("/shifts/");
+    
+    // Ensure shifts is always an array, regardless of API response format
+    let shifts: Shift[] = [];
+    
+    if (Array.isArray(shiftsResponse.data)) {
+      shifts = shiftsResponse.data;
+    } else if (shiftsResponse.data && typeof shiftsResponse.data === 'object' && 'data' in shiftsResponse.data && Array.isArray(shiftsResponse.data.data)) {
+      shifts = shiftsResponse.data.data;
+    } else {
+      console.error("❌ Unexpected shifts response format:", shiftsResponse.data);
+      throw new Error("Unerwartetes Format der Schichtdaten. Bitte aktualisieren Sie die Seite und versuchen Sie es erneut.");
+    }
+
+    if (shifts.length === 0) {
+      throw new Error("Keine Schichten definiert. Bitte erstellen Sie zuerst Schichten.");
+    }
 
     console.log(`📊 Loaded ${shifts.length} shifts from the server`);
 
@@ -600,8 +643,18 @@ export const generateSchedule = async (
         }
 
         // Fetch shifts again to make sure we have the updated data
-        const updatedShiftsResponse = await api.get<Shift[]>("/shifts/");
-        shifts = updatedShiftsResponse.data;
+        const updatedShiftsResponse = await api.get<Shift[] | {success: boolean, data: Shift[]}>("/shifts/");
+        
+        // Ensure we have an array again after refetching
+        if (Array.isArray(updatedShiftsResponse.data)) {
+          shifts = updatedShiftsResponse.data;
+        } else if (updatedShiftsResponse.data && typeof updatedShiftsResponse.data === 'object' && 'data' in updatedShiftsResponse.data && Array.isArray(updatedShiftsResponse.data.data)) {
+          shifts = updatedShiftsResponse.data.data;
+        } else {
+          console.error("❌ Unexpected format in updated shifts response:", updatedShiftsResponse.data);
+          throw new Error("Unerwartetes Format der aktualisierten Schichtdaten. Bitte aktualisieren Sie die Seite und versuchen Sie es erneut.");
+        }
+        
         console.log(
           `📊 Reloaded ${shifts.length} shifts after fixing durations`,
         );
@@ -611,7 +664,8 @@ export const generateSchedule = async (
           (shift) =>
             shift.duration_hours === null ||
             shift.duration_hours === undefined ||
-            isNaN(shift.duration_hours),
+            isNaN(shift.duration_hours) ||
+            shift.duration_hours <= 0,
         );
 
         if (remainingInvalidShifts.length > 0) {
@@ -621,10 +675,11 @@ export const generateSchedule = async (
               id: s.id,
               start: s.start_time,
               end: s.end_time,
+              duration: s.duration_hours,
             })),
           );
           throw new Error(
-            "Einige Schichten haben immer noch keine gültige Dauer. Bitte überprüfen Sie die Schichteinstellungen manuell.",
+            "Schichtdauer fehlt: Einige Schichten haben immer noch keine gültige Dauer. Bitte überprüfen Sie die Schichteinstellungen manuell.",
           );
         }
       }
@@ -638,12 +693,128 @@ export const generateSchedule = async (
       version: version,
     });
 
-    const response = await api.post<ScheduleResponse>("/schedules/generate", {
-      start_date: startDate,
-      end_date: endDate,
-      create_empty_schedules: createEmptySchedules,
-      version: version,
-    });
+    // Baue Request-Daten - angepasst an das Backend-Schema (generateScheduleBodySchema)
+    // Das Backend erwartet startDate und endDate, NICHT start_date und end_date
+    const requestData = {
+      startDate: startDate,  // camelCase wie im Backend-Schema definiert
+      endDate: endDate,      // camelCase wie im Backend-Schema definiert
+      create_empty_schedules: createEmptySchedules, // optional: später anpassen, falls benötigt
+      version: version,      // optional: später anpassen, falls benötigt
+    };
+
+    console.log("🔄 Anfrage wird nach Backend-Schema formatiert:", requestData);
+
+    // Überprüfe Anfrage-Format gegen Backend-Erwartungen
+    console.log("Starte Verarbeitung");
+    let response;
+    try {
+      // Verwende direkt das richtige Format entsprechend des Backend-Schemas
+      response = await api.post<ScheduleResponse>("/schedules/generate", requestData);
+    } catch (apiError: any) {
+      if (apiError.response && apiError.response.status === 422) {
+        // Wenn 422 Fehler, versuche alternative Parameterformate
+        console.log("Versuche alternatives Request-Format");
+        try {
+          // Alternative 1: camelCase Format
+          const altRequestData1 = {
+            startDate: startDate,
+            endDate: endDate,
+            createEmptySchedules: createEmptySchedules,
+            version: version,
+          };
+          response = await api.post<ScheduleResponse>("/schedules/generate", altRequestData1);
+        } catch (altError1: any) {
+          // Alternative 2: Noch ein anderes Format mit Start/End als separate Parameter
+          try {
+            const altRequestData2 = {
+              startDate: startDate,
+              endDate: endDate,
+              create_empty: createEmptySchedules,
+              versionId: version,
+            };
+            response = await api.post<ScheduleResponse>("/schedules/generate", altRequestData2);
+          } catch (altError2: any) {
+            // Wenn alle Alternativen fehlschlagen, werfe den ursprünglichen Fehler
+            // Bessere Fehlerbehandlung für API-Fehler
+            console.error("❌ Schedule generation API error:", apiError);
+            
+            if (apiError.response) {
+              // Der Server hat mit einem Fehlercode geantwortet
+              const status = apiError.response.status;
+              const responseData = apiError.response.data;
+              
+              console.error(`❌ API error ${status}:`, responseData);
+              
+              if (status === 422) {
+                // Unprocessable Entity - Validierungsfehler
+                const errorMessage = responseData.error || responseData.message || 
+                  (responseData.detail ? (Array.isArray(responseData.detail) ? 
+                    responseData.detail.map((d: any) => `${d.loc.join('.')}: ${d.msg}`).join(', ') : 
+                    responseData.detail) : 
+                    "Validierungsfehler bei der Schichtplan-Generierung");
+                
+                console.error("❌ Validation error details:", errorMessage);
+                
+                // API Dokumentation prüfen und korrektes Format ausgeben
+                console.error("❌ Expected API format:", {
+                  "Laut Dokumentation": "/api/schedules/generate erwartet: start_date, end_date, create_empty_schedules, version",
+                  "Tatsächliche Anfrage": requestData,
+                  "API Fehlermeldung": errorMessage
+                });
+                
+                // Versuche, benutzerfreundliche Fehlermeldung zu erstellen
+                if (typeof errorMessage === 'string') {
+                  if (errorMessage.includes("start_date") || errorMessage.includes("startDate")) {
+                    throw new Error("Start-Datum fehlt oder ist ungültig. Format sollte YYYY-MM-DD sein.");
+                  } else if (errorMessage.includes("end_date") || errorMessage.includes("endDate")) {
+                    throw new Error("End-Datum fehlt oder ist ungültig. Format sollte YYYY-MM-DD sein.");
+                  } else if (errorMessage.includes("shift")) {
+                    throw new Error("Schichtprobleme: " + errorMessage);
+                  } else if (errorMessage.includes("employee")) {
+                    throw new Error("Mitarbeiterprobleme: " + errorMessage);
+                  } else if (errorMessage.includes("version")) {
+                    throw new Error("Versionsprobleme: " + errorMessage);
+                  } else {
+                    throw new Error("Fehler bei der API-Anfrage: " + errorMessage);
+                  }
+                } else {
+                  throw new Error("Fehler bei der API-Anfrage: Validierungsproblem mit den gesendeten Daten.");
+                }
+              } else if (status === 404) {
+                throw new Error("Die angeforderte Ressource wurde nicht gefunden. Eventuell existiert die Version nicht.");
+              } else if (status === 400) {
+                throw new Error("Ungültige Anfrage: " + (responseData.error || responseData.message || "Bitte überprüfen Sie die eingegebenen Daten."));
+              } else {
+                throw new Error(`Fehler bei der API-Anfrage (${status}): ` + (responseData.error || responseData.message || "Unbekannter Fehler"));
+              }
+            }
+            
+            // Wenn kein Response-Objekt vorhanden ist, handelt es sich um einen Netzwerkfehler
+            throw new Error("Netzwerkfehler bei der Schichtplan-Generierung. Bitte überprüfen Sie Ihre Internetverbindung.");
+          }
+        }
+      } else {
+        // Für andere Fehlertypen als 422
+        if (apiError.response) {
+          // Der Server hat mit einem Fehlercode geantwortet
+          const status = apiError.response.status;
+          const responseData = apiError.response.data;
+          
+          console.error(`❌ API error ${status}:`, responseData);
+          
+          if (status === 404) {
+            throw new Error("Die angeforderte Ressource wurde nicht gefunden. Eventuell existiert die Version nicht.");
+          } else if (status === 400) {
+            throw new Error("Ungültige Anfrage: " + (responseData.error || responseData.message || "Bitte überprüfen Sie die eingegebenen Daten."));
+          } else {
+            throw new Error(`Fehler bei der API-Anfrage (${status}): ` + (responseData.error || responseData.message || "Unbekannter Fehler"));
+          }
+        } else {
+          // Wenn kein Response-Objekt vorhanden ist, handelt es sich um einen Netzwerkfehler
+          throw new Error("Netzwerkfehler bei der Schichtplan-Generierung. Bitte überprüfen Sie Ihre Internetverbindung.");
+        }
+      }
+    }
 
     // Log generation success details
     console.log("✅ Schedule generation successful:", {
@@ -1320,11 +1491,78 @@ export const getAllVersions = async (
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
 
-    const response = await api.get<VersionResponse>("/schedules/versions", {
+    console.log("🔍 Fetching versions with params:", params);
+    
+    const response = await api.get<any>("/schedules/versions", {
       params,
     });
-    return response.data;
+    
+    console.log("📋 Raw versions response:", response.data);
+    
+    // Reshape response data to expected format
+    let formattedVersions: VersionMeta[] = [];
+    
+    // Handle different response formats
+    if (Array.isArray(response.data)) {
+      console.log("📋 Response is an array, transforming to expected format");
+      
+      formattedVersions = response.data.map(version => {
+        // Check if version already has the expected structure
+        if (version.date_range && typeof version.date_range === 'object' && 'start' in version.date_range) {
+          return version;
+        }
+        
+        // Transform from flat structure to nested date_range
+        return {
+          ...version,
+          date_range: {
+            start: version.date_range_start || version.date_range?.start,
+            end: version.date_range_end || version.date_range?.end
+          }
+        };
+      });
+      
+      return { versions: formattedVersions };
+    }
+    
+    // If we already have the correct structure
+    if ('versions' in response.data && Array.isArray(response.data.versions)) {
+      console.log(`📋 Response has versions array, transforming elements if needed`);
+      
+      formattedVersions = response.data.versions.map(version => {
+        // Check if version already has the expected structure
+        if (version.date_range && typeof version.date_range === 'object' && 'start' in version.date_range) {
+          return version;
+        }
+        
+        // Transform from flat structure to nested date_range
+        return {
+          ...version,
+          date_range: {
+            start: version.date_range_start || version.date_range?.start,
+            end: version.date_range_end || version.date_range?.end
+          }
+        };
+      });
+      
+      return { versions: formattedVersions };
+    }
+    
+    // If empty or invalid response
+    console.warn("⚠️ Invalid versions response format:", response.data);
+    return { versions: [] };
   } catch (error) {
+    console.error("❌ Error fetching versions:", error);
+    
+    // Log more details about the error
+    if (error && typeof error === "object" && "response" in error) {
+      console.error("❌ API error details:", {
+        status: (error as any).response?.status,
+        statusText: (error as any).response?.statusText,
+        data: (error as any).response?.data,
+      });
+    }
+    
     if (error instanceof Error) {
       throw new Error(`Failed to fetch versions: ${error.message}`);
     }
@@ -1357,6 +1595,13 @@ export const createNewVersion = async (
       data,
     );
     console.log("🔵 Create new version response:", response.data);
+    
+    // Validate response data before returning
+    if (!response.data || typeof response.data.version !== 'number') {
+      console.error("🔴 Invalid response from create version API:", response.data);
+      throw new Error("Server returned an invalid response: Missing or invalid version number");
+    }
+    
     return response.data;
   } catch (error) {
     console.error("🔴 Create new version error:", error);

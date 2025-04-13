@@ -1,602 +1,257 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { DndProvider } from "react-dnd";
-import { HTML5Backend } from "react-dnd-html5-backend";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Plus, PencilIcon } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
-import { CoverageEditorProps, DailyCoverage, StoreConfigProps, CoverageTimeSlot } from "../types";
-import { DAYS_SHORT, GRID_CONSTANTS } from "../utils/constants";
-import { DayRow } from "./DayRow";
-import { timeToMinutes, minutesToTime } from "../utils/time";
-import { isEqual } from "lodash";
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Plus, PencilIcon } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
+import { CoverageEditorProps, DailyCoverage } from '../types';
+import { GRID_CONSTANTS } from '../utils/constants';
+import { DayRow } from './DayRow';
+import { getActiveDisplayDays, getAllDisplayDays, DayInfo } from '@/utils/dateUtils';
 
 const { TIME_COLUMN_WIDTH, TIME_ROW_HEIGHT, HEADER_HEIGHT } = GRID_CONSTANTS;
 
-// Helper function to normalize store config
-const normalizeStoreConfig = (config: any): StoreConfigProps => {
-  // Handle undefined or null config
-  if (!config) {
-    return {
-      store_opening: "09:00",
-      store_closing: "20:00",
-      opening_days: {
-        "0": false, // Sunday
-        "1": true, // Monday
-        "2": true, // Tuesday
-        "3": true, // Wednesday
-        "4": true, // Thursday
-        "5": true, // Friday
-        "6": true, // Saturday
-      },
-      min_employees_per_shift: 1,
-      max_employees_per_shift: 3,
-      employee_types: [],
-      keyholder_before_minutes: 30,
-      keyholder_after_minutes: 30,
-    };
-  }
+export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage, storeConfig, onChange }) => {
+    const { toast } = useToast();
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [isEditing, setIsEditing] = useState(false);
+    const [gridWidth, setGridWidth] = useState(0);
 
-  // If the config has a 'general' property, it's using the Settings type
-  if (config.general) {
-    return {
-      store_opening: config.general.store_opening || "09:00",
-      store_closing: config.general.store_closing || "20:00",
-      opening_days: config.general.opening_days || {
-        "0": false,
-        "1": true,
-        "2": true,
-        "3": true,
-        "4": true,
-        "5": true,
-        "6": true,
-      },
-      min_employees_per_shift: config.scheduling?.min_employees_per_shift ?? 1,
-      max_employees_per_shift: config.scheduling?.max_employees_per_shift ?? 3,
-      employee_types: config.employee_groups?.employee_types ?? [],
-      keyholder_before_minutes: config.general.keyholder_before_minutes ?? 30,
-      keyholder_after_minutes: config.general.keyholder_after_minutes ?? 30,
-    };
-  }
+    // Get startOfWeek from storeConfig (assuming 0=Sun, 1=Mon)
+    const startOfWeek = storeConfig.start_of_week === 0 ? 0 : 1;
 
-  // If it's already in StoreConfigProps format, ensure all properties have values
-  return {
-    store_opening: config.store_opening || "09:00",
-    store_closing: config.store_closing || "20:00",
-    opening_days: config.opening_days || {
-      "0": false,
-      "1": true,
-      "2": true,
-      "3": true,
-      "4": true,
-      "5": true,
-      "6": true,
-    },
-    min_employees_per_shift: config.min_employees_per_shift ?? 1,
-    max_employees_per_shift: config.max_employees_per_shift ?? 3,
-    employee_types: config.employee_types ?? [],
-    keyholder_before_minutes: config.keyholder_before_minutes ?? 30,
-    keyholder_after_minutes: config.keyholder_after_minutes ?? 30,
-  };
-};
-
-export const CoverageEditor: React.FC<CoverageEditorProps> = ({
-  initialCoverage,
-  storeConfig: rawStoreConfig,
-  onChange,
-}) => {
-  const { toast } = useToast();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [gridWidth, setGridWidth] = useState(0);
-  const saveTimeoutRef = useRef<NodeJS.Timeout>();
-  const lastSavedCoverageRef = useRef<DailyCoverage[]>();
-
-  // Normalize store config
-  const storeConfig = normalizeStoreConfig(rawStoreConfig);
-
-  const [openingMinEmployees, setOpeningMinEmployees] = useState(
-    storeConfig.min_employees_per_shift,
-  );
-  const [closingMinEmployees, setClosingMinEmployees] = useState(
-    storeConfig.min_employees_per_shift,
-  );
-
-  // Calculate opening days from settings
-  const openingDays = React.useMemo(() => {
-    return Object.entries(storeConfig.opening_days)
-      .filter(([_, isOpen]) => isOpen)
-      .map(([dayIndex]) => Number(dayIndex))
-      .sort((a, b) => a - b);
-  }, [storeConfig.opening_days]);
-
-  // Calculate hours array
-  const hours = React.useMemo(() => {
-    // Ensure we have valid store hours
-    if (!storeConfig?.store_opening || !storeConfig?.store_closing) {
-      return [
-        "09:00",
-        "10:00",
-        "11:00",
-        "12:00",
-        "13:00",
-        "14:00",
-        "15:00",
-        "16:00",
-        "17:00",
-        "18:00",
-        "19:00",
-        "20:00",
-      ];
-    }
-
-    const [openingHour, openingMinute] = storeConfig.store_opening
-      .split(":")
-      .map(Number);
-    const [closingHour, closingMinute] = storeConfig.store_closing
-      .split(":")
-      .map(Number);
-
-    // Calculate the number of hours needed (including partial hours)
-    const totalHours =
-      closingHour - openingHour + (closingMinute >= openingMinute ? 1 : 0);
-
-    return Array.from({ length: totalHours }, (_, i) => {
-      const hour = (openingHour + i).toString().padStart(2, "0");
-      return `${hour}:00`;
-    });
-  }, [storeConfig?.store_opening, storeConfig?.store_closing]);
-
-  // Initialize coverage state
-  const [coverage, setCoverage] = useState<DailyCoverage[]>(() => {
-    const defaultCoverage = Array.from({ length: 7 }, (_, index) => ({
-      dayIndex: index,
-      timeSlots: [],
-    }));
-
-    if (initialCoverage) {
-      const newCoverage = defaultCoverage.map((defaultDay) => {
-        const initialDay = initialCoverage.find(
-          (day) => day.dayIndex === defaultDay.dayIndex,
+    // Calculate active days with correct display order and backend indices
+    const activeDaysInfo = useMemo(() => {
+        const allDisplayDays = getAllDisplayDays(startOfWeek);
+        return allDisplayDays.filter(dayInfo =>
+          storeConfig.opening_days[String(dayInfo.backendIndex)] === true
         );
-        return initialDay || defaultDay;
-      });
-      lastSavedCoverageRef.current = newCoverage;
-      return newCoverage;
-    }
+    }, [storeConfig.opening_days, startOfWeek]);
 
-    lastSavedCoverageRef.current = defaultCoverage;
-    return defaultCoverage;
-  });
+    // Calculate hours array
+    const hours = React.useMemo(() => {
+        const startHour = parseInt(storeConfig.store_opening);
+        const endHour = parseInt(storeConfig.store_closing);
+        return Array.from(
+            { length: endHour - startHour + 1 }, // +1 to include the last hour
+            (_, i) => `${(startHour + i).toString().padStart(2, '0')}:00`
+        );
+    }, [storeConfig.store_opening, storeConfig.store_closing]);
 
-  // Debounced save function
-  const debouncedSave = useCallback((newCoverage: DailyCoverage[]) => {
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
+    // Initialize coverage state
+    const [coverage, setCoverage] = useState<DailyCoverage[]>(() => {
+        const defaultCoverage = Array.from({ length: 7 }, (_, index) => ({
+            dayIndex: index,
+            timeSlots: []
+        }));
 
-    saveTimeoutRef.current = setTimeout(() => {
-      // Only save if there are actual changes
-      if (!isEqual(newCoverage, lastSavedCoverageRef.current)) {
-        onChange?.(newCoverage);
-        lastSavedCoverageRef.current = newCoverage;
-      }
-    }, 1000); // 1 second debounce
-  }, [onChange]);
+        if (initialCoverage) {
+            return defaultCoverage.map((defaultDay) => {
+                const initialDay = initialCoverage.find(day => day.dayIndex === defaultDay.dayIndex);
+                return initialDay || defaultDay;
+            });
+        }
 
-  // Update coverage when initialCoverage changes
-  useEffect(() => {
-    if (initialCoverage) {
-      setCoverage((prevCoverage) => {
-        const newCoverage = prevCoverage.map((defaultDay) => {
-          const initialDay = initialCoverage.find(
-            (day) => day.dayIndex === defaultDay.dayIndex,
-          );
-          return initialDay || defaultDay;
+        return defaultCoverage;
+    });
+
+    useEffect(() => {
+        const updateWidth = () => {
+            if (containerRef.current) {
+                setGridWidth(containerRef.current.offsetWidth);
+            }
+        };
+
+        updateWidth();
+        window.addEventListener('resize', updateWidth);
+        return () => window.removeEventListener('resize', updateWidth);
+    }, []);
+
+    const handleAddSlot = (dayIndex: number, hour: number) => {
+        const startHour = parseInt(storeConfig.store_opening.split(':')[0]) + hour;
+        const endHour = Math.min(startHour + 1, parseInt(storeConfig.store_closing.split(':')[0]));
+
+        if (startHour >= parseInt(storeConfig.store_closing.split(':')[0])) {
+            return; // Don't add slots outside opening hours
+        }
+
+        const newCoverage = [...coverage];
+        const newSlot = {
+            startTime: `${startHour.toString().padStart(2, '0')}:00`,
+            endTime: `${endHour.toString().padStart(2, '0')}:00`,
+            minEmployees: storeConfig.min_employees_per_shift,
+            maxEmployees: storeConfig.max_employees_per_shift,
+            employeeTypes: storeConfig.employee_types.map(t => t.id),
+            requiresKeyholder: false,
+            keyholderBeforeMinutes: storeConfig.keyholder_before_minutes,
+            keyholderAfterMinutes: storeConfig.keyholder_after_minutes
+        };
+
+        // Check if there's already a slot at this time
+        const hasConflict = newCoverage[dayIndex].timeSlots.some(slot => {
+            const slotStartHour = parseInt(slot.startTime);
+            const slotEndHour = parseInt(slot.endTime);
+            return (startHour < slotEndHour && endHour > slotStartHour);
         });
-        lastSavedCoverageRef.current = newCoverage;
-        return newCoverage;
-      });
-    }
-  }, [initialCoverage]);
 
-  // Call onChange when coverage changes
-  useEffect(() => {
-    debouncedSave(coverage);
-  }, [coverage, debouncedSave]);
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // Validate time slot
-  const validateTimeSlot = (
-    startTime: string,
-    endTime: string,
-    dayIndex: number,
-    currentSlotIndex?: number
-  ): boolean => {
-    const startMinutes = timeToMinutes(startTime);
-    const endMinutes = timeToMinutes(endTime);
-    const storeOpeningMinutes = timeToMinutes(storeConfig.store_opening);
-    const storeClosingMinutes = timeToMinutes(storeConfig.store_closing);
-
-    // Check if time is within store hours
-    if (startMinutes < storeOpeningMinutes || endMinutes > storeClosingMinutes) {
-      toast({
-        title: "Invalid Time Slot",
-        description: "Time slot must be within store hours",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    // Check for overlapping slots
-    const hasOverlap = coverage[dayIndex].timeSlots.some((slot, index) => {
-      if (currentSlotIndex !== undefined && index === currentSlotIndex) {
-        return false;
-      }
-      const slotStart = timeToMinutes(slot.startTime);
-      const slotEnd = timeToMinutes(slot.endTime);
-      return (
-        (startMinutes >= slotStart && startMinutes < slotEnd) ||
-        (endMinutes > slotStart && endMinutes <= slotEnd) ||
-        (startMinutes <= slotStart && endMinutes >= slotEnd)
-      );
-    });
-
-    if (hasOverlap) {
-      toast({
-        title: "Invalid Time Slot",
-        description: "Time slots cannot overlap",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    return true;
-  };
-
-  useEffect(() => {
-    const updateWidth = () => {
-      if (containerRef.current) {
-        setGridWidth(containerRef.current.offsetWidth);
-      }
-    };
-
-    updateWidth();
-    window.addEventListener("resize", updateWidth);
-    return () => window.removeEventListener("resize", updateWidth);
-  }, []);
-
-  const handleAddSlot = (dayIndex: number, hour: number) => {
-    const storeOpeningHour = parseInt(storeConfig.store_opening.split(":")[0]);
-    const storeClosingHour = parseInt(storeConfig.store_closing.split(":")[0]);
-    const storeOpeningMinutes = parseInt(
-      storeConfig.store_opening.split(":")[1],
-    );
-    const storeClosingMinutes = parseInt(
-      storeConfig.store_closing.split(":")[1],
-    );
-
-    // Get the hour from the hours array
-    const hourString = hours[hour];
-    const startHour = parseInt(hourString.split(":")[0]);
-    const startMinutes = parseInt(hourString.split(":")[1] || "0");
-
-    // Calculate start time
-    const startTime = `${startHour.toString().padStart(2, "0")}:${startMinutes.toString().padStart(2, "0")}`;
-
-    // Calculate end time - either next hour or store closing time
-    const endHour = Math.min(startHour + 1, storeClosingHour);
-    const endMinutes =
-      endHour === storeClosingHour ? storeClosingMinutes : startMinutes;
-    const endTime = `${endHour.toString().padStart(2, "0")}:${endMinutes.toString().padStart(2, "0")}`;
-
-    // Validate the new time slot
-    if (!validateTimeSlot(startTime, endTime, dayIndex)) {
-      return;
-    }
-
-    // Determine if this is an opening or closing shift
-    const isEarlyShift = startTime === storeConfig.store_opening;
-    const isLateShift = endTime === storeConfig.store_closing;
-
-    const newCoverage = [...coverage];
-    const newSlot = {
-      startTime,
-      endTime,
-      minEmployees: storeConfig.min_employees_per_shift,
-      maxEmployees: storeConfig.max_employees_per_shift,
-      employeeTypes: storeConfig.employee_types.map((t) => t.id),
-      requiresKeyholder: isEarlyShift || isLateShift,
-      keyholderBeforeMinutes: isEarlyShift
-        ? storeConfig.keyholder_before_minutes
-        : 0,
-      keyholderAfterMinutes: isLateShift
-        ? storeConfig.keyholder_after_minutes
-        : 0,
-    };
-
-    // Check if there's already a slot at this time
-    const hasConflict = newCoverage[dayIndex].timeSlots.some((slot) => {
-      const slotStartMinutes = timeToMinutes(slot.startTime);
-      const slotEndMinutes = timeToMinutes(slot.endTime);
-      const newStartMinutes = timeToMinutes(startTime);
-      const newEndMinutes = timeToMinutes(endTime);
-      return (
-        newStartMinutes < slotEndMinutes && newEndMinutes > slotStartMinutes
-      );
-    });
-
-    if (!hasConflict) {
-      newCoverage[dayIndex].timeSlots.push(newSlot);
-      setCoverage(newCoverage);
-      onChange?.(newCoverage);
-    }
-  };
-
-  const handleUpdateSlot = (
-    dayIndex: number,
-    slotIndex: number,
-    updates: Partial<CoverageTimeSlot>,
-  ) => {
-    // If updating times, validate the new slot
-    if (updates.startTime || updates.endTime) {
-      const slot = coverage[dayIndex].timeSlots[slotIndex];
-      const newStartTime = updates.startTime || slot.startTime;
-      const newEndTime = updates.endTime || slot.endTime;
-      
-      if (!validateTimeSlot(newStartTime, newEndTime, dayIndex, slotIndex)) {
-        return;
-      }
-    }
-
-    setCoverage((prevCoverage) => {
-      const newCoverage = [...prevCoverage];
-      newCoverage[dayIndex] = {
-        ...newCoverage[dayIndex],
-        timeSlots: newCoverage[dayIndex].timeSlots.map((slot, idx) =>
-          idx === slotIndex ? { ...slot, ...updates } : slot
-        ),
-      };
-      return newCoverage;
-    });
-  };
-
-  const handleDeleteSlot = (dayIndex: number, slotIndex: number) => {
-    const newCoverage = [...coverage];
-    newCoverage[dayIndex].timeSlots.splice(slotIndex, 1);
-    setCoverage(newCoverage);
-    onChange?.(newCoverage);
-  };
-
-  const handleUpdateOpeningMinEmployees = (value: number) => {
-    const newValue = Math.max(1, value);
-    setOpeningMinEmployees(newValue);
-
-    const newCoverage = coverage.map((day) => ({
-      ...day,
-      timeSlots: day.timeSlots.map((slot) => {
-        if (slot.startTime === storeConfig.store_opening) {
-          return {
-            ...slot,
-            minEmployees: newValue,
-            maxEmployees: Math.max(slot.maxEmployees, newValue),
-          };
+        if (!hasConflict) {
+            newCoverage[dayIndex].timeSlots.push(newSlot);
+            setCoverage(newCoverage);
+            onChange?.(newCoverage);
         }
-        return slot;
-      }),
-    }));
-
-    setCoverage(newCoverage);
-    onChange?.(newCoverage);
-  };
-
-  const handleUpdateClosingMinEmployees = (value: number) => {
-    const newValue = Math.max(1, value);
-    setClosingMinEmployees(newValue);
-
-    const newCoverage = coverage.map((day) => ({
-      ...day,
-      timeSlots: day.timeSlots.map((slot) => {
-        if (slot.endTime === storeConfig.store_closing) {
-          return {
-            ...slot,
-            minEmployees: newValue,
-            maxEmployees: Math.max(slot.maxEmployees, newValue),
-          };
-        }
-        return slot;
-      }),
-    }));
-
-    setCoverage(newCoverage);
-    onChange?.(newCoverage);
-  };
-
-  const handleAddDefaultSlots = () => {
-    // Use the exact store opening and closing times
-    const morningShift = {
-      startTime: storeConfig.store_opening,
-      endTime: "14:00",
-      minEmployees: openingMinEmployees,
-      maxEmployees: Math.max(2, openingMinEmployees),
-      employeeTypes: storeConfig.employee_types.map((t) => t.id),
-      requiresKeyholder: true,
-      keyholderBeforeMinutes: storeConfig.keyholder_before_minutes,
-      keyholderAfterMinutes: 0,
     };
 
-    const afternoonShift = {
-      startTime: "14:00",
-      endTime: storeConfig.store_closing,
-      minEmployees: closingMinEmployees,
-      maxEmployees: Math.max(2, closingMinEmployees),
-      employeeTypes: storeConfig.employee_types.map((t) => t.id),
-      requiresKeyholder: true,
-      keyholderBeforeMinutes: 0,
-      keyholderAfterMinutes: storeConfig.keyholder_after_minutes,
+    const handleUpdateSlot = (dayIndex: number, slotIndex: number, updates: any) => {
+        const newCoverage = [...coverage];
+        const currentSlot = newCoverage[dayIndex].timeSlots[slotIndex];
+        newCoverage[dayIndex].timeSlots[slotIndex] = {
+            ...currentSlot,
+            ...updates
+        };
+        setCoverage(newCoverage);
+        onChange?.(newCoverage);
     };
 
-    // Add morning and afternoon shifts for each day
-    const newCoverage = [...coverage];
-    openingDays.forEach((dayIdx) => {
-      if (dayIdx !== 0) {
-        // Skip Sunday (index 0)
-        // Clear existing slots first to avoid conflicts
-        newCoverage[dayIdx].timeSlots = [];
-        // Add the new shifts
-        newCoverage[dayIdx].timeSlots.push(morningShift, afternoonShift);
-      }
-    });
-    setCoverage(newCoverage);
-    onChange?.(newCoverage);
+    const handleDeleteSlot = (dayIndex: number, slotIndex: number) => {
+        const newCoverage = [...coverage];
+        newCoverage[dayIndex].timeSlots.splice(slotIndex, 1);
+        setCoverage(newCoverage);
+        onChange?.(newCoverage);
+    };
 
-    toast({
-      title: "Default shifts added",
-      description: "Added shifts for Monday through Saturday",
-    });
-  };
+    const handleAddDefaultSlots = () => {
+        const morningShift = {
+            startTime: "09:00",
+            endTime: "14:00",
+            minEmployees: 1,
+            maxEmployees: 2,
+            employeeTypes: storeConfig.employee_types.map(t => t.id),
+            requiresKeyholder: true,
+            keyholderBeforeMinutes: storeConfig.keyholder_before_minutes,
+            keyholderAfterMinutes: 0
+        };
 
-  return (
-    <DndProvider backend={HTML5Backend}>
-      <div className="space-y-4">
-        <Card className="p-6">
-          <div className="flex items-center justify-between border-b p-4 bg-card">
-            <h2 className="text-lg font-semibold">
-              Employee Coverage Requirements
-            </h2>
-            <div className="flex items-center gap-2">
-              <Button
-                variant={isEditing ? "secondary" : "outline"}
-                size="sm"
-                className="gap-2"
-                onClick={() => setIsEditing(!isEditing)}
-              >
-                <PencilIcon className="h-4 w-4" />
-                {isEditing ? "Done" : "Edit"}
-              </Button>
-              {isEditing && (
-                <Button
-                  variant="default"
-                  size="sm"
-                  className="gap-2"
-                  onClick={handleAddDefaultSlots}
-                >
-                  <Plus className="h-4 w-4" />
-                  Add All
-                </Button>
-              )}
-            </div>
-          </div>
+        const afternoonShift = {
+            startTime: "14:00",
+            endTime: "20:00",
+            minEmployees: 1,
+            maxEmployees: 2,
+            employeeTypes: storeConfig.employee_types.map(t => t.id),
+            requiresKeyholder: true,
+            keyholderBeforeMinutes: 0,
+            keyholderAfterMinutes: storeConfig.keyholder_after_minutes
+        };
 
-          <div ref={containerRef} className="overflow-auto relative">
-            {/* Time header */}
-            <div className="flex" style={{ height: HEADER_HEIGHT }}>
-              <div
-                style={{ width: TIME_COLUMN_WIDTH }}
-                className="shrink-0 border-r border-border/50"
-              />
-              <div className="flex-1 flex relative border-b border-border/50">
-                {hours.map((hour, i) => (
-                  <div
-                    key={hour}
-                    className="flex-1 relative border-r border-border/50 flex items-center justify-center text-sm font-medium text-muted-foreground"
-                  >
-                    {hour}
-                  </div>
-                ))}
-              </div>
-            </div>
+        // Add morning and afternoon shifts for each active day
+        const newCoverage = [...coverage];
+        activeDaysInfo.forEach((dayInfo) => {
+            // Ensure timeslots array exists
+            if (!newCoverage[dayInfo.backendIndex]) {
+                newCoverage[dayInfo.backendIndex] = { dayIndex: dayInfo.backendIndex, timeSlots: [] };
+            }
+             // Avoid adding duplicates if slots already exist
+             if (newCoverage[dayInfo.backendIndex].timeSlots.length === 0) {
+                 newCoverage[dayInfo.backendIndex].timeSlots.push(morningShift, afternoonShift);
+             }
+        });
+        setCoverage(newCoverage);
+        onChange?.(newCoverage);
 
-            {/* Days grid */}
-            {openingDays.map((dayIndex) => (
-              <DayRow
-                key={dayIndex}
-                dayName={DAYS_SHORT[dayIndex]}
-                dayIndex={dayIndex}
-                slots={
-                  coverage.find((c) => c.dayIndex === dayIndex)?.timeSlots || []
-                }
-                hours={hours}
-                onAddSlot={(hourIndex) => handleAddSlot(dayIndex, hourIndex)}
-                onUpdateSlot={(slotIndex, updates) =>
-                  handleUpdateSlot(dayIndex, slotIndex, updates)
-                }
-                onDeleteSlot={(slotIndex) =>
-                  handleDeleteSlot(dayIndex, slotIndex)
-                }
-                isEditing={isEditing}
-                gridWidth={gridWidth}
-                storeConfig={storeConfig}
-              />
-            ))}
-          </div>
-        </Card>
+        toast({
+            title: "Default shifts added",
+            description: `Added shifts for all open days starting from ${startOfWeek === 1 ? 'Monday' : 'Sunday'}.`,
+        });
+    };
 
-        {/* Minimum Employee Requirements Section */}
-        <Card className="p-4">
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">
-              Minimum Employee Requirements
-            </h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label
-                  htmlFor="openingMin"
-                  className="text-sm text-muted-foreground"
-                >
-                  Opening (incl. 1 keyholder)
-                </label>
-                <input
-                  id="openingMin"
-                  type="number"
-                  min="1"
-                  value={openingMinEmployees}
-                  onChange={(e) =>
-                    handleUpdateOpeningMinEmployees(
-                      parseInt(e.target.value) || 1,
-                    )
-                  }
-                  className="w-full px-3 py-2 border rounded-md text-sm text-foreground bg-background disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={!isEditing}
-                />
-              </div>
-              <div className="space-y-2">
-                <label
-                  htmlFor="closingMin"
-                  className="text-sm text-muted-foreground"
-                >
-                  Closing (incl. 1 keyholder)
-                </label>
-                <input
-                  id="closingMin"
-                  type="number"
-                  min="1"
-                  value={closingMinEmployees}
-                  onChange={(e) =>
-                    handleUpdateClosingMinEmployees(
-                      parseInt(e.target.value) || 1,
-                    )
-                  }
-                  className="w-full px-3 py-2 border rounded-md text-sm text-foreground bg-background disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={!isEditing}
-                />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              These settings will be applied to all opening and closing shifts
-              respectively.
-            </p>
-          </div>
-        </Card>
-      </div>
-    </DndProvider>
-  );
-};
+    return (
+        <DndProvider backend={HTML5Backend}>
+            <Card className="overflow-hidden">
+                <div className="flex items-center justify-between border-b p-4 bg-card">
+                    <h2 className="text-lg font-semibold">Employee Coverage Requirements</h2>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant={isEditing ? "secondary" : "outline"}
+                            size="sm"
+                            className="gap-2"
+                            onClick={() => setIsEditing(!isEditing)}
+                        >
+                            <PencilIcon className="h-4 w-4" />
+                            {isEditing ? 'Done' : 'Edit'}
+                        </Button>
+                        {isEditing && (
+                            <Button
+                                variant="default"
+                                size="sm"
+                                className="gap-2"
+                                onClick={handleAddDefaultSlots}
+                            >
+                                <Plus className="h-4 w-4" />
+                                Add All
+                            </Button>
+                        )}
+                    </div>
+                </div>
+
+                <div className="overflow-x-auto" ref={containerRef}>
+                    <div className="w-full">
+                        {/* Time row */}
+                        <div className="flex border-b border-border/50" style={{ height: TIME_ROW_HEIGHT }}>
+                            <div
+                                className="shrink-0 border-r border-border/50"
+                                style={{ width: TIME_COLUMN_WIDTH }}
+                            />
+                            <div className="flex-1 relative">
+                                <div className="absolute inset-0 flex">
+                                    {hours.map((hour, index) => (
+                                        <div key={hour} className="flex-1 relative">
+                                            <div className="absolute -bottom-[1px] -left-px w-px h-2 bg-border" />
+                                            <div className="absolute -bottom-6 start-0 -translate-x-1/2 text-xs text-muted-foreground whitespace-nowrap">
+                                                {hour}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {/* Last time marker */}
+                                    <div className="absolute -bottom-[1px] right-0 w-px h-2 bg-border" />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Grid header with day labels */}
+                        <div className="flex border-b border-border/50" style={{ height: HEADER_HEIGHT }}>
+                            <div
+                                className="flex items-center justify-center font-medium shrink-0 border-r border-border/50 bg-muted/50 text-sm text-muted-foreground"
+                                style={{ width: TIME_COLUMN_WIDTH }}
+                            />
+                            <div className="flex-1 flex">
+                                {hours.map((_, index) => (
+                                    <div
+                                        key={index}
+                                        className="flex-1 border-r border-border/50 bg-muted/50"
+                                    />
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Day rows */}
+                        {activeDaysInfo.map((dayInfo) => (
+                            <DayRow
+                                key={dayInfo.backendIndex}
+                                dayName={dayInfo.name}
+                                dayIndex={dayInfo.backendIndex}
+                                slots={coverage[dayInfo.backendIndex]?.timeSlots || []}
+                                hours={hours}
+                                onAddSlot={(hourIndex) => handleAddSlot(dayInfo.backendIndex, hourIndex)}
+                                onUpdateSlot={(slotIndex, updates) => handleUpdateSlot(dayInfo.backendIndex, slotIndex, updates)}
+                                onDeleteSlot={(slotIndex) => handleDeleteSlot(dayInfo.backendIndex, slotIndex)}
+                                isEditing={isEditing}
+                                gridWidth={gridWidth}
+                                storeConfig={storeConfig}
+                            />
+                        ))}
+                    </div>
+                </div>
+            </Card>
+        </DndProvider>
+    );
+}; 

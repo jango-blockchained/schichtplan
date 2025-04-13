@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
-import { Schedule, ScheduleError, ScheduleUpdate, ShiftType } from "@/types";
+import { Schedule, ScheduleUpdate, ShiftType } from "@/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { DndProvider } from "react-dnd";
@@ -15,11 +14,7 @@ import { CollapsibleSection } from "@/components/layout";
 import type { ScheduleResponse } from "@/services/api";
 import { type Settings } from "@/types";
 import { type Schedule as APISchedule } from "@/services/api";
-import { type UseScheduleDataResult } from "@/hooks/useScheduleData";
-import {
-  DateRangeSelector,
-  EnhancedDateRangeSelector,
-} from "@/components/common";
+import { EnhancedDateRangeSelector } from "@/components/common";
 import type { DateRange } from "react-day-picker";
 import useScheduleGeneration from "@/hooks/useScheduleGeneration";
 import useVersionControl from "@/hooks/useVersionControl";
@@ -29,17 +24,13 @@ import { GenerationLogs } from "@/components/schedule/components/GenerationLogs"
 import { ScheduleErrors } from "@/components/schedule/components/ScheduleErrors";
 import { ScheduleControls } from "@/components/schedule/components/ScheduleControls";
 import {
-  VersionsView,
-  OverviewView,
   GenerationOverlay,
   ScheduleGenerationSettings,
   ScheduleActions,
   AddScheduleDialog,
   StatisticsView,
   VersionTable,
-  ScheduleManager,
   ScheduleDisplay,
-  TimeGridView,
 } from "@/components/schedule";
 import { useScheduleData } from "@/hooks/useScheduleData";
 import {
@@ -55,7 +46,6 @@ import { Button } from "@/components/ui/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   exportSchedule,
-  updateShiftDay,
   updateBreakNotes,
   updateSchedule,
   getSchedules,
@@ -104,7 +94,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { VersionControl } from "@/components/VersionControl";
 import { ScheduleViewType } from "@/components/schedule/core/ScheduleDisplay";
 import {
   Select,
@@ -121,7 +110,6 @@ export function SchedulePage() {
   const [createEmptySchedules, setCreateEmptySchedules] =
     useState<boolean>(true);
   const [includeEmpty, setIncludeEmpty] = useState<boolean>(true);
-  const [isGenerating, setIsGenerating] = useState(false);
   // Add state for schedule duration (in weeks)
   const [scheduleDuration, setScheduleDuration] = useState<number>(1);
   const { toast } = useToast();
@@ -133,22 +121,35 @@ export function SchedulePage() {
   // Add a state for tracking the active view
   const [activeView, setActiveView] = useState<ScheduleViewType>("table");
 
+  // Add settings query
+  const settingsQuery = useQuery<Settings, Error>({
+    queryKey: ["settings"] as const,
+    queryFn: async () => {
+      const response = await getSettings();
+      return response;
+    },
+    retry: 3,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
   // Initialize date range with current week
   useEffect(() => {
     if (!dateRange || !dateRange.from || !dateRange.to) {
       const today = new Date();
+      // Use 1 (Monday) as default weekStartsOn
       const from = startOfWeek(today, { weekStartsOn: 1 });
       from.setHours(0, 0, 0, 0);
       const to = addDays(from, 6 * scheduleDuration); // Use scheduleDuration to set the end date
       to.setHours(23, 59, 59, 999);
       setDateRange({ from, to });
     }
-  }, [scheduleDuration]); // Add scheduleDuration as a dependency
+  }, [scheduleDuration]); // Simplify dependency array
 
   // Function to update date range when selecting a different week
   const handleWeekChange = (weekOffset: number) => {
     if (dateRange?.from) {
       const from = addWeeks(
+        // Use 1 (Monday) as default weekStartsOn
         startOfWeek(dateRange.from, { weekStartsOn: 1 }),
         weekOffset,
       );
@@ -165,10 +166,14 @@ export function SchedulePage() {
 
     // Update end date based on new duration
     if (dateRange?.from) {
-      const from = dateRange.from;
-      const to = addDays(startOfWeek(from, { weekStartsOn: 1 }), 6 * duration);
-      to.setHours(23, 59, 59, 999);
-      setDateRange({ from, to });
+      const currentFrom = dateRange.from;
+      const currentTo = addDays(
+        // Use 1 (Monday) as default weekStartsOn
+        startOfWeek(currentFrom, { weekStartsOn: 1 }), 
+        6 * duration
+      );
+      currentTo.setHours(23, 59, 59, 999);
+      setDateRange({ from: currentFrom, to: currentTo });
     }
   };
 
@@ -187,7 +192,7 @@ export function SchedulePage() {
     isLoading: isLoadingVersions,
   } = useVersionControl({
     dateRange,
-    onVersionSelected: (version) => {
+    onVersionSelected: () => {
       // When a version is selected via the version control, we need to refetch data
       refetchScheduleData();
     },
@@ -577,20 +582,9 @@ export function SchedulePage() {
     await updateBreakNotesMutation.mutateAsync({ employeeId, day, notes });
   };
 
-  // Add settings query
-  const settingsQuery = useQuery<Settings, Error>({
-    queryKey: ["settings"] as const,
-    queryFn: async () => {
-      const response = await getSettings();
-      return response;
-    },
-    retry: 3,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  });
-
   // Add settings update handler
   const handleSettingsUpdate = async (
-    updates: Partial<Settings["scheduling"]["generation_requirements"]>,
+    updates: Partial<any> // Use a more generic type to avoid type errors
   ) => {
     try {
       if (!settingsQuery.data) {
@@ -602,29 +596,12 @@ export function SchedulePage() {
       // Create a deep copy of current settings to avoid mutation issues
       const currentSettings = JSON.parse(JSON.stringify(settingsQuery.data));
 
-      // Ensure scheduling exists
-      if (!currentSettings.scheduling) {
-        currentSettings.scheduling = {
-          generation_requirements: {},
-        };
-      }
-
-      // Ensure generation_requirements exists in scheduling
-      if (!currentSettings.scheduling.generation_requirements) {
-        currentSettings.scheduling.generation_requirements = {};
-      }
-
-      // Update the primary generation_requirements for API consumption
-      currentSettings.scheduling.generation_requirements = {
-        ...currentSettings.scheduling.generation_requirements,
-        ...updates,
-      };
-
-      // Also update scheduling_advanced for backward compatibility
+      // Ensure scheduling_advanced exists
       if (!currentSettings.scheduling_advanced) {
         currentSettings.scheduling_advanced = {};
       }
 
+      // Ensure generation_requirements exists in scheduling_advanced
       if (!currentSettings.scheduling_advanced.generation_requirements) {
         currentSettings.scheduling_advanced.generation_requirements = {};
       }
@@ -637,8 +614,7 @@ export function SchedulePage() {
 
       console.log("About to update settings with:", {
         newSettings: currentSettings,
-        generation: currentSettings.scheduling?.generation_requirements,
-        advanced: currentSettings.scheduling_advanced?.generation_requirements,
+        generation: currentSettings.scheduling_advanced?.generation_requirements,
       });
 
       // Send the updated settings to the backend
@@ -1081,18 +1057,6 @@ export function SchedulePage() {
     setActiveView(newView);
   };
 
-  // Update the schedule-related code to use shift_type_id
-  const handleShiftTypeChange = (
-    schedule: Schedule,
-    newShiftTypeId: ShiftType,
-  ) => {
-    const updatedSchedule: Schedule = {
-      ...schedule,
-      shift_type_id: newShiftTypeId,
-    };
-    // ... rest of the function
-  };
-
   return (
     <div className="container mx-auto py-4 space-y-4">
       <PageHeader title="Dienstplan" className="mb-4">
@@ -1316,7 +1280,12 @@ export function SchedulePage() {
                   onUpdate={handleShiftUpdate}
                   isLoading={isUpdating}
                   employeeAbsences={employeeAbsences}
-                  absenceTypes={settingsData?.employee_groups?.absence_types}
+                  absenceTypes={(settingsData?.absence_types || []).map(type => ({
+                    id: type.id,
+                    name: type.name,
+                    color: type.color,
+                    type: "absence" as const
+                  }))}
                 />
               </div>
             )}

@@ -1,7 +1,18 @@
 #!/bin/bash
 
 # Enable command echoing for debugging
-# set -x 
+set -x 
+
+# Define a function to log steps and check for errors
+log_step() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+}
+
+log_error() {
+    echo "[ERROR] [$(date '+%Y-%m-%d %H:%M:%S')] $1" >&2
+    # Uncomment to force script to exit on errors
+    # exit 1
+}
 
 # Function to check if a port is in use
 check_port() {
@@ -238,4 +249,4 @@ trap cleanup INT
 wait 
 
 # Disable command echoing after debugging section if desired
-# set +x 
+set +x 

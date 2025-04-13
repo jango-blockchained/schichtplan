@@ -1,6 +1,13 @@
 import { addDays, startOfWeek, endOfWeek, addWeeks, getWeek } from "date-fns";
 import { DateRange } from "react-day-picker";
 
+// Define an interface for structured day information
+interface DayInfo {
+  name: string;
+  backendIndex: number; // 0 = Sunday, ..., 6 = Saturday
+  displayIndex: number; // 0-6 based on startOfWeek
+}
+
 export function getWeekDateRange(
   year: number,
   week: number,
@@ -179,3 +186,106 @@ export function getAvailableCalendarWeeks(
 
   return weeks;
 }
+
+/**
+ * Names of the days of the week, aligned with backend indexing (0 = Sunday).
+ */
+export const BACKEND_DAYS = [
+  "Sonntag", // 0
+  "Montag", // 1
+  "Dienstag", // 2
+  "Mittwoch", // 3
+  "Donnerstag", // 4
+  "Freitag", // 5
+  "Samstag", // 6
+];
+
+/**
+ * Converts a backend day index (0=Sunday) to a frontend display index.
+ * @param backendDay - The backend day index (0-6).
+ * @param startOfWeek - The start day of the week (0=Sunday, 1=Monday).
+ * @returns The display index (0-6).
+ */
+export const convertBackendDayToDisplay = (
+  backendDay: number,
+  startOfWeek: number, // 0=Sun, 1=Mon
+): number => {
+  if (startOfWeek === 1) { // Monday start
+    // Shifts Sunday (0) to 6, Monday (1) to 0, etc.
+    return (backendDay + 6) % 7;
+  } else { // Sunday start
+    return backendDay; // No shift needed
+  }
+};
+
+/**
+ * Converts a frontend display index to a backend day index (0=Sunday).
+ * @param displayIndex - The display index (0-6).
+ * @param startOfWeek - The start day of the week (0=Sunday, 1=Monday).
+ * @returns The backend day index (0-6).
+ */
+export const convertDisplayDayToBackend = (
+  displayIndex: number,
+  startOfWeek: number, // 0=Sun, 1=Mon
+): number => {
+  if (startOfWeek === 1) { // Monday start
+    // Shifts 0 (representing Monday) to 1, 6 (representing Sunday) to 0
+    return (displayIndex + 1) % 7;
+  } else { // Sunday start
+    return displayIndex; // No shift needed
+  }
+};
+
+/**
+ * Gets the names of the days to display, ordered according to the start of the week
+ * and filtered by the opening days.
+ *
+ * @param openingDays - An object mapping backend day index (as string) to boolean indicating if the store is open.
+ * @param startOfWeek - The start day of the week (0 for Sunday, 1 for Monday).
+ * @returns An array of day name strings (e.g., ["Montag", "Dienstag", ...]) for active days in the correct display order.
+ */
+export const getActiveDisplayDays = (
+  openingDays: Record<string, boolean>, // Keys are backend day indices (0-6) as strings
+  startOfWeek: 0 | 1,
+): string[] => {
+  console.log("getActiveDisplayDays - called with:", { openingDays, startOfWeek });
+
+  // Get all days with their indices, sorted by display order
+  const allDaysInOrder: DayInfo[] = getAllDisplayDays(startOfWeek);
+  console.log("getActiveDisplayDays - all days in display order:", allDaysInOrder);
+
+  // Filter based on the openingDays map using the backendIndex
+  const activeDays = allDaysInOrder.filter(dayInfo => {
+    const isOpen = openingDays[String(dayInfo.backendIndex)] === true;
+    return isOpen;
+  });
+  console.log("getActiveDisplayDays - active days (filtered):", activeDays);
+
+  // Return just the names of the active days
+  const activeDayNames = activeDays.map(dayInfo => dayInfo.name);
+  console.log("getActiveDisplayDays - active day names:", activeDayNames);
+
+  return activeDayNames;
+};
+
+/**
+ * Gets information for all 7 days of the week, ordered according to the start of the week.
+ *
+ * @param startOfWeek - The start day of the week (0 for Sunday, 1 for Monday).
+ * @returns An array of DayInfo objects, sorted by display order.
+ */
+export const getAllDisplayDays = (
+    startOfWeek: 0 | 1, // 0=Sun, 1=Mon
+): DayInfo[] => {
+  console.log(`getAllDisplayDays called with startOfWeek: ${startOfWeek}`);
+  const days: DayInfo[] = [];
+  for (let backendIndex = 0; backendIndex < 7; backendIndex++) {
+    const name = BACKEND_DAYS[backendIndex];
+    const displayIndex = convertBackendDayToDisplay(backendIndex, startOfWeek);
+    days.push({ name, backendIndex, displayIndex });
+  }
+  // Sort by displayIndex to ensure correct order
+  days.sort((a, b) => a.displayIndex - b.displayIndex);
+  console.log("getAllDisplayDays - returning sorted days:", days);
+  return days;
+};
