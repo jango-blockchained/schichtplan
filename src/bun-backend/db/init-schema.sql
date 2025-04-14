@@ -120,7 +120,7 @@ CREATE TABLE IF NOT EXISTS settings (
     -- Store Hours
     store_opening TEXT NOT NULL DEFAULT '09:00',
     store_closing TEXT NOT NULL DEFAULT '20:00',
-    opening_days TEXT NOT NULL DEFAULT '{"0": true, "1": true, "2": true, "3": true, "4": true, "5": false, "6": false}', -- JSON: Default Mon-Fri open
+    opening_days TEXT NOT NULL DEFAULT '{"0": false, "1": true, "2": true, "3": true, "4": true, "5": true, "6": true}', -- JSON: Default Mon-Sat open, Sun closed
     special_hours TEXT NOT NULL DEFAULT '{}', -- JSON
 
     -- Keyholder Settings

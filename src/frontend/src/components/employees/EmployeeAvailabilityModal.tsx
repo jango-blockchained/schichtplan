@@ -27,7 +27,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { AvailabilityTypeSelect } from "@/components/common/AvailabilityTypeSelect";
-import type { AvailabilityTypeSetting } from "@/types/index";
+import type { AvailabilityTypeSetting, DayInfo } from "@/types/index";
 import {
   convertBackendDayToDisplay,
   convertDisplayDayToBackend,
@@ -79,8 +79,8 @@ export const EmployeeAvailabilityModal: React.FC<
   const [dailyHours, setDailyHours] = useState<{ [key: string]: number }>({});
   const [weeklyHours, setWeeklyHours] = useState(0);
   const [activeDays, setActiveDays] = useState<string[]>([]);
-  const [displayDays, setDisplayDays] = useState<string[]>([]); // State for display order
-  const [startOfWeek, setStartOfWeek] = useState<number>(1); // Default to Monday start
+  const [displayDays, setDisplayDays] = useState<DayInfo[]>([]);
+  const [startOfWeek, setStartOfWeek] = useState<number>(1);
   const [currentType, setCurrentType] = useState<string>("AVL");
 
   const { data: settings } = useQuery({
@@ -114,8 +114,8 @@ export const EmployeeAvailabilityModal: React.FC<
     setSelectedCells(new Map());
     setDailyHours({});
     setWeeklyHours(0);
-    setDisplayDays([]); // Reset display days
-    setActiveDays([]); // Reset active days
+    setDisplayDays([]);
+    setActiveDays([]);
 
     if (settings) {
       // Determine start of week (default to 1 if not set)
@@ -169,8 +169,8 @@ export const EmployeeAvailabilityModal: React.FC<
     const dayHours: { [key: string]: number } = {};
     // Initialize hours based on display order, but only for ACTIVE days
     displayDays.forEach((day) => {
-      if (activeDays.includes(day)) {
-        dayHours[day] = 0;
+      if (activeDays.includes(day.name)) {
+        dayHours[day.name] = 0;
       }
     });
     setDailyHours(dayHours);
@@ -180,13 +180,8 @@ export const EmployeeAvailabilityModal: React.FC<
       const availabilitySettings = settings.availability_types; // Cache for lookup
 
       availabilities.forEach((availability) => {
-        // Find the setting corresponding to the availability type from the API
-        const typeSetting = availabilitySettings.find(
-          (setting: AvailabilityTypeSetting) => setting.id === availability.availability_type
-        );
-
-        // Check if the type setting exists and indicates availability
-        if (typeSetting?.is_available) {
+        // Check if the availability record itself is marked as available
+        if (availability.is_available) { 
           // Convert backend day to display day INDEX first
           const displayDayIndex = convertBackendDayToDisplay(
             availability.day_of_week,
@@ -196,7 +191,7 @@ export const EmployeeAvailabilityModal: React.FC<
           const day = displayDays[displayDayIndex];
 
           // Check if the day name exists and is active
-          if (day && activeDays.includes(day)) {
+          if (day && activeDays.includes(day.name)) {
             const hour = format(
               new Date().setHours(availability.hour, 0),
               TIME_FORMAT,
@@ -205,7 +200,7 @@ export const EmployeeAvailabilityModal: React.FC<
               new Date().setHours(availability.hour + 1, 0),
               TIME_FORMAT,
             );
-            const cellId = `${day}-${hour} - ${nextHour}`;
+            const cellId = `${day.name}-${hour} - ${nextHour}`;
             // Use the availability_type string from the API response as the value
             newSelectedCells.set(cellId, availability.availability_type);
           }
@@ -220,11 +215,9 @@ export const EmployeeAvailabilityModal: React.FC<
     if (!activeDays.length) return;
 
     const dayHours: { [key: string]: number } = {};
-    // Initialize based on display days that are active
-    displayDays.forEach((day) => {
-      if (activeDays.includes(day)) {
-        dayHours[day] = 0;
-      }
+    // Initialize based on active day names
+    activeDays.forEach((dayName) => {
+        dayHours[dayName] = 0;
     });
 
     Array.from(cells.keys()).forEach((cellId) => {
@@ -277,7 +270,7 @@ export const EmployeeAvailabilityModal: React.FC<
     const newSelectedCells = new Map<string, string>();
     timeSlots.forEach(({ time }) => {
       activeDays.forEach((day) => {
-        newSelectedCells.set(`${day}-${time}`, currentType);
+        newSelectedCells.set(`${day.name}-${time}`, currentType);
       });
     });
     setSelectedCells(newSelectedCells);
@@ -320,7 +313,7 @@ export const EmployeeAvailabilityModal: React.FC<
     const allPossibleCellIds = new Set<string>();
     timeSlots.forEach(({ time }) => {
       activeDays.forEach((day) => {
-        allPossibleCellIds.add(`${day}-${time}`);
+        allPossibleCellIds.add(`${day.name}-${time}`);
       });
     });
 
@@ -332,11 +325,19 @@ export const EmployeeAvailabilityModal: React.FC<
     // Prepare availability data for selected cells
     const selectedAvailabilityData = Array.from(selectedCells.entries()).map(
       ([cellId, type]) => {
-        const [day, timeRange] = cellId.split("-");
-        // Find the display index from the full displayDays array
-        const displayIndex = displayDays.indexOf(day);
-        // Convert display index to backend index
-        const backendDayIndex = convertDisplayDayToBackend(displayIndex, startOfWeek);
+        const dayNameMatch = cellId.match(/^([^-]+)-/);
+        const dayName = dayNameMatch ? dayNameMatch[1] : "";
+        const timeRange = cellId.substring(dayName.length + 1);
+        
+        // Find the corresponding DayInfo object to get the backend index
+        const dayInfo = displayDays.find(d => d.name === dayName);
+        const backendDayIndex = dayInfo ? dayInfo.backendIndex : -1; // Handle case where dayInfo might not be found
+        
+        if (backendDayIndex === -1) {
+          console.error(`Could not find backend index for day name: ${dayName}`);
+          return null; // Skip this entry or handle error appropriately
+        }
+        
         const [startTime] = timeRange.trim().split(" - ");
         const [hour] = startTime.split(":").map(Number);
 
@@ -352,11 +353,19 @@ export const EmployeeAvailabilityModal: React.FC<
 
     // Prepare availability data for unselected cells
     const unavailableAvailabilityData = unselectedCellIds.map((cellId) => {
-      const [day, timeRange] = cellId.split("-");
-      // Find the display index from the full displayDays array
-      const displayIndex = displayDays.indexOf(day);
-      // Convert display index to backend index
-      const backendDayIndex = convertDisplayDayToBackend(displayIndex, startOfWeek);
+      const dayNameMatch = cellId.match(/^([^-]+)-/);
+      const dayName = dayNameMatch ? dayNameMatch[1] : "";
+      const timeRange = cellId.substring(dayName.length + 1);
+      
+      // Find the corresponding DayInfo object to get the backend index
+      const dayInfo = displayDays.find(d => d.name === dayName);
+      const backendDayIndex = dayInfo ? dayInfo.backendIndex : -1;
+
+      if (backendDayIndex === -1) {
+        console.error(`Could not find backend index for day name: ${dayName} in unselected data`);
+        return null; // Skip this entry
+      }
+
       const [startTime] = timeRange.trim().split(" - ");
       const [hour] = startTime.split(":").map(Number);
 
@@ -371,8 +380,8 @@ export const EmployeeAvailabilityModal: React.FC<
 
     // Combine both selected and unselected availability data
     const availabilityData = [
-      ...selectedAvailabilityData,
-      ...unavailableAvailabilityData,
+      ...selectedAvailabilityData.filter(item => item !== null), // Filter out null entries from errors
+      ...unavailableAvailabilityData.filter(item => item !== null),
     ];
 
     // Send the combined data to the backend
@@ -483,92 +492,82 @@ export const EmployeeAvailabilityModal: React.FC<
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-24">Zeit</TableHead>
-                  {displayDays.map((day) => (
-                    <TableHead key={day} className="text-center">
-                      <Button
-                        variant="ghost"
-                        className="w-full"
-                        // Only allow toggling for active days
-                        disabled={!activeDays.includes(day)}
-                        onClick={() => activeDays.includes(day) && handleToggleDay(day)}
-                      >
-                        <div>
-                          {day}
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {/* Only display hours for active days */}
-                            {activeDays.includes(day) ? `${dailyHours[day] ?? 0}h` : "Closed"}
+                  {displayDays.map((dayInfo) => {
+                    const dayName = dayInfo.name;
+                    const isActive = activeDays.includes(dayName);
+                    return (
+                      <TableHead key={dayInfo.backendIndex} className="text-center">
+                        <Button
+                          variant="ghost"
+                          className="w-full"
+                          disabled={!isActive}
+                          onClick={() => isActive && handleToggleDay(dayName)}
+                        >
+                          <div>
+                            {dayName}
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {isActive ? `${dailyHours[dayName] ?? 0}h` : "Closed"}
+                            </div>
                           </div>
-                        </div>
-                      </Button>
-                    </TableHead>
-                  ))}
+                        </Button>
+                      </TableHead>
+                    );
+                  })}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {timeSlots.map(({ time, hour }) => (
                   <TableRow key={time}>
                     <TableCell className="font-medium">{time}</TableCell>
-                    {displayDays.map((day) => {
-                      // Only render TableCell if the day is active
-                      return activeDays.includes(day) ? (
+                    {displayDays.map((dayInfo) => {
+                      const dayName = dayInfo.name;
+                      const isActive = activeDays.includes(dayName);
+                      const cellId = `${dayName}-${time}`;
+                      
+                      return isActive ? (
                         <TableCell
-                          key={`${day}-${time}`}
+                          key={cellId}
                           className={cn(
                             "relative p-0 h-12 w-12 transition-colors cursor-pointer",
-                            {
-                              "border-2 border-primary": selectedCells.has(
-                                `${day}-${time}`,
-                              ),
-                              "border border-muted": !selectedCells.has(
-                                `${day}-${time}`,
-                              ),
-                              "bg-muted opacity-50 cursor-not-allowed": !activeDays.includes(day), // Style inactive days
-                            },
                           )}
                           style={{
-                            backgroundColor: activeDays.includes(day)
-                              ? selectedCells.has(`${day}-${time}`)
-                                ? `${getCellColor(`${day}-${time}`)}80` // Selected cells with 50% opacity
-                                : `${settings?.availability_types?.find((t: AvailabilityTypeSetting) => t.id === "UNV")?.color || "#ef4444"}20` // Unselected cells with 12.5% opacity
-                              : undefined, // No background for inactive days
+                            backgroundColor: selectedCells.has(cellId)
+                                ? `${getCellColor(cellId)}80`
+                                : `${settings?.availability_types?.find((t: AvailabilityTypeSetting) => t.id === "UNV")?.color || "#ef4444"}20`,
                           }}
-                          onMouseDown={() => activeDays.includes(day) && handleCellMouseDown(day, time)}
-                          onMouseEnter={() => activeDays.includes(day) && handleCellMouseEnter(day, time)}
+                          onMouseDown={() => isActive && handleCellMouseDown(dayName, time)}
+                          onMouseEnter={() => isActive && handleCellMouseEnter(dayName, time)}
                         >
-                          {activeDays.includes(day) ? (
-                            (() => {
-                              const cellId = `${day}-${time}`;
-                              const isSelected = selectedCells.has(cellId);
-                              const cellType = isSelected
-                                ? selectedCells.get(cellId)
-                                : "UNV";
-                              const cumulativeHours = calculateCumulativeHours(
-                                day,
-                                hour,
-                              );
+                          {((): React.ReactNode => {
+                            const isSelected = selectedCells.has(cellId);
+                            const cellType = isSelected
+                              ? selectedCells.get(cellId)
+                              : "UNV";
+                            const cumulativeHours = calculateCumulativeHours(
+                              dayName,
+                              hour,
+                            );
 
-                              return isSelected ? (
-                                <>
-                                  <Check className="h-4 w-4 mx-auto text-white" />
-                                  <div className="absolute bottom-0 right-1 text-[10px] text-white">
-                                    {Array.from(cumulativeHours)
-                                      .map(([type, count]) =>
-                                        type === cellType ? count : null,
-                                      )
-                                      .filter(Boolean)
-                                      .join("")}
-                                  </div>
-                                </>)
-                                : (
-                                  <X className="h-3 w-3 mx-auto text-gray-400 opacity-25" />
-                                );
-                            })()
-                          ) : null} 
+                            return isSelected ? (
+                              <>
+                                <Check className="h-4 w-4 mx-auto text-white" />
+                                <div className="absolute bottom-0 right-1 text-[10px] text-white">
+                                  {Array.from(cumulativeHours)
+                                    .map(([type, count]) =>
+                                      type === cellType ? count : null,
+                                    )
+                                    .filter(Boolean)
+                                    .join("")}
+                                </div>
+                              </>)
+                              : (
+                                <X className="h-3 w-3 mx-auto text-gray-400 opacity-25" />
+                              );
+                          })()}
                         </TableCell>
                       ) : (
-                        // Render a placeholder or visually distinct cell for inactive days
                         <TableCell
-                          key={`${day}-${time}`}
+                          key={`${dayName}-${time}`}
                           className="p-0 h-12 w-12 border border-muted bg-muted opacity-50"
                         />
                       );

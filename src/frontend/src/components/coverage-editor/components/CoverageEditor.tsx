@@ -24,9 +24,10 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
     // Calculate active days with correct display order and backend indices
     const activeDaysInfo = useMemo(() => {
         const allDisplayDays = getAllDisplayDays(startOfWeek);
-        return allDisplayDays.filter(dayInfo =>
+        const filteredDays = allDisplayDays.filter(dayInfo =>
           storeConfig.opening_days[String(dayInfo.backendIndex)] === true
         );
+        return filteredDays;
     }, [storeConfig.opening_days, startOfWeek]);
 
     // Calculate hours array

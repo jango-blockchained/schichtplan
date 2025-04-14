@@ -288,112 +288,201 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
             console.log(`Inserted ${absences.length} demo absences.`);
         })(absencesToInsert);
 
-        // 7. Generate Availabilities (using generated employees)
-        console.log("Generating demo availabilities...");
+        // 7. Generate Availabilities (using generated employees and refined logic)
+        console.log("Generating demo availabilities with refined logic...");
         const availabilityInsertSql = `INSERT INTO employee_availabilities (employee_id, day_of_week, hour, availability_type, is_recurring, is_available) VALUES (?, ?, ?, ?, ?, ?)`;
         const availabilityStmt = db.prepare(availabilityInsertSql);
-        const availabilitiesToInsert: any[][] = [];
-        
-        const unavailableType = availabilityTypes.find(t => t.id === 'unavailable');
-        const preferredType = availabilityTypes.find(t => t.id === 'preferred');
-        const availableType = availabilityTypes.find(t => t.id === 'available');
-        
-        // Convert store hours to numbers for comparison
-        const [openingHour] = storeOpening.split(':').map(Number);
-        const [closingHour] = storeClosing.split(':').map(Number);
+        let availabilitiesToInsert: any[][] = [];
+
+        // Get Availability Types from settings
+        const availableType = availabilityTypes.find(t => t.id === 'AVAILABLE') || { id: 'AVAILABLE', name: 'Available' };
+        const unavailableType = availabilityTypes.find(t => t.id === 'UNAVAILABLE') || { id: 'UNAVAILABLE', name: 'Unavailable' };
+        const preferredType = availabilityTypes.find(t => t.id === 'PREFERRED') || { id: 'PREFERRED', name: 'Preferred' };
+        const fixedType = availabilityTypes.find(t => t.id === 'FIXED') || { id: 'FIXED', name: 'Fixed' };
+
+        // Convert store hours to numbers
+        const [openingHour] = (settings.store_opening || "09:00").split(':').map(Number);
+        const [closingHour] = (settings.store_closing || "20:00").split(':').map(Number);
+        const storeHourCount = closingHour - openingHour;
+
+        // Sort openDayIndices based on start_of_week for consistent distribution
+        const startOfWeekSetting = settings.start_of_week ?? 1; // 0=Sun, 1=Mon
+        const sortedOpenDayIndices = [...openDayIndices].sort((a, b) => {
+             const displayA = startOfWeekSetting === 1 ? (a + 6) % 7 : a;
+             const displayB = startOfWeekSetting === 1 ? (b + 6) % 7 : b;
+             return displayA - displayB;
+        });
+        const numberOfOpenDays = sortedOpenDayIndices.length;
 
         generatedEmployees.forEach(emp => {
-            // First, mark all store hours as available by default
+            let weeklyAvailableHoursGoal = 0;
+            let availabilityStrategy = 'default'; // default, fixed, preference, random_blocks
+            let dailyAvailabilityMap = new Map<number, { start: number, end: number, type: string }>();
+
+            // Determine strategy and goal based on group and contracted hours
+            if (emp.employee_group === 'VZ' || emp.employee_group === 'TL') {
+                availabilityStrategy = 'fixed';
+                weeklyAvailableHoursGoal = emp.contracted_hours;
+            } else { // TZ or GFB
+                availabilityStrategy = Math.random() < 0.3 ? 'preference' : 'random_blocks';
+                // Aim for slightly more available hours than contracted for flexibility
+                weeklyAvailableHoursGoal = Math.max(emp.contracted_hours * 1.25, emp.contracted_hours + 4);
+                // Cap availability goal for GFB to avoid excessive availability
+                if (emp.employee_group === 'GFB') {
+                    weeklyAvailableHoursGoal = Math.min(weeklyAvailableHoursGoal, 20); 
+                }
+            }
+            
+            // Ensure goal doesn't exceed total possible open hours
+            weeklyAvailableHoursGoal = Math.min(weeklyAvailableHoursGoal, storeHourCount * numberOfOpenDays);
+
+            let hoursAssigned = 0;
+
+            if (availabilityStrategy === 'fixed') {
+                const hoursPerDay = Math.ceil(weeklyAvailableHoursGoal / Math.max(1, numberOfOpenDays));
+                let daysAssigned = 0;
+                for (const dayIndex of sortedOpenDayIndices) {
+                    if (hoursAssigned >= weeklyAvailableHoursGoal) break;
+                    
+                    const dailyHoursToAssign = Math.min(hoursPerDay, storeHourCount, weeklyAvailableHoursGoal - hoursAssigned);
+                    if (dailyHoursToAssign <= 0) continue;
+                    
+                    // Slightly randomize start time but keep it continuous
+                    let startHour = openingHour + getRandomInt(0, Math.max(0, storeHourCount - dailyHoursToAssign));
+                    let endHour = startHour + dailyHoursToAssign;
+
+                    // Keyholder consideration (simple version: adjust start/end)
+                    if (emp.is_keyholder) {
+                        if (daysAssigned % 2 === 0) { // Simulate opening shifts
+                            startHour = openingHour;
+                            endHour = Math.min(startHour + dailyHoursToAssign, closingHour);
+                        } else { // Simulate closing shifts
+                            endHour = closingHour;
+                            startHour = Math.max(openingHour, endHour - dailyHoursToAssign);
+                        }
+                    }
+                    
+                    dailyAvailabilityMap.set(dayIndex, { start: startHour, end: endHour, type: fixedType.id });
+                    hoursAssigned += (endHour - startHour);
+                    daysAssigned++;
+                }
+            } else if (availabilityStrategy === 'preference') {
+                const preferredStart = Math.random() < 0.5 ? openingHour : Math.max(openingHour, closingHour - 5); // Morning or late afternoon preference
+                const preferredEnd = preferredStart === openingHour ? Math.min(openingHour + 5, closingHour) : closingHour;
+                let assignedOnPreferredDays = 0;
+
+                // Try to assign hours on preferred days first
+                const preferredDays = sortedOpenDayIndices.sort(() => 0.5 - Math.random()).slice(0, Math.ceil(numberOfOpenDays * 0.6)); // Prefer ~60% of days
+
+                for (const dayIndex of preferredDays) {
+                     if (hoursAssigned >= weeklyAvailableHoursGoal) break;
+                     const start = preferredStart;
+                     const end = preferredEnd;
+                     const duration = end - start;
+                     if (duration <= 0) continue;
+
+                     dailyAvailabilityMap.set(dayIndex, { start, end, type: preferredType.id });
+                     hoursAssigned += duration;
+                     assignedOnPreferredDays++;
+                }
+                 // Assign remaining hours on other days if needed
+                 for (const dayIndex of sortedOpenDayIndices) {
+                     if (dailyAvailabilityMap.has(dayIndex) || hoursAssigned >= weeklyAvailableHoursGoal) continue;
+                     const remainingHoursNeeded = weeklyAvailableHoursGoal - hoursAssigned;
+                     const blockDuration = Math.min(getRandomInt(Math.min(4, remainingHoursNeeded), Math.min(8, storeHourCount, remainingHoursNeeded)), storeHourCount);
+                     if (blockDuration <= 0) continue;
+                     const startHour = openingHour + getRandomInt(0, Math.max(0, storeHourCount - blockDuration));
+                     const endHour = startHour + blockDuration;
+                     dailyAvailabilityMap.set(dayIndex, { start: startHour, end: endHour, type: availableType.id });
+                     hoursAssigned += blockDuration;
+                 }
+
+            } else { // random_blocks strategy
+                let daysAttempted = 0;
+                while (hoursAssigned < weeklyAvailableHoursGoal && daysAttempted < numberOfOpenDays * 2) { // Add safety break
+                    const dayIndex = getRandomElement(sortedOpenDayIndices) ?? sortedOpenDayIndices[0];
+                    if (dailyAvailabilityMap.has(dayIndex)) {
+                        daysAttempted++;
+                        continue; // Don't overwrite existing block for simplicity
+                    }
+                    
+                    const remainingHoursNeeded = weeklyAvailableHoursGoal - hoursAssigned;
+                    const blockDuration = Math.min(getRandomInt(Math.min(3, remainingHoursNeeded), Math.min(6, storeHourCount, remainingHoursNeeded)), storeHourCount);
+                    if (blockDuration <= 0) {
+                        daysAttempted++;
+                        continue;
+                    }
+
+                    const startHour = openingHour + getRandomInt(0, Math.max(0, storeHourCount - blockDuration));
+                    const endHour = startHour + blockDuration;
+
+                    dailyAvailabilityMap.set(dayIndex, { start: startHour, end: endHour, type: availableType.id });
+                    hoursAssigned += blockDuration;
+                    daysAttempted++;
+                }
+            }
+
+            // Now, populate availabilitiesToInsert based on the dailyAvailabilityMap
             for (let day = 0; day < 7; day++) {
+                if (!openDayIndices.includes(day)) continue; // Skip closed days
+
+                const dailyBlock = dailyAvailabilityMap.get(day);
                 for (let hour = openingHour; hour < closingHour; hour++) {
-                    availabilitiesToInsert.push([
-                        emp.id,
-                        day,
-                        hour,
-                        availableType?.name || 'AVAILABLE',
-                        1, // is_recurring
-                        1  // is_available
-                    ]);
-                }
-            }
+                    let isAvailable = 0;
+                    let availabilityTypeName = unavailableType.id;
 
-            // Add some fixed unavailability (e.g., student has lectures)
-            if (emp.employee_group === 'GFB' && Math.random() < 0.5 && unavailableType) {
-                const unavailableDay = getRandomInt(0, 4); // Mon-Fri
-                const startHour = getRandomInt(openingHour, closingHour - 2);
-                const endHour = Math.min(startHour + getRandomInt(2, 4), closingHour);
-                for (let hour = startHour; hour < endHour; hour++) {
-                    // Remove any existing availability for this slot
-                    const existingIndex = availabilitiesToInsert.findIndex(
-                        a => a[0] === emp.id && a[1] === unavailableDay && a[2] === hour
-                    );
-                    if (existingIndex !== -1) {
-                        availabilitiesToInsert.splice(existingIndex, 1);
-                    }
-                    // Add unavailable slot
+                    if (dailyBlock && hour >= dailyBlock.start && hour < dailyBlock.end) {
+                        isAvailable = 1;
+                        availabilityTypeName = dailyBlock.type;
+                    } 
+                    // All other hours on open days remain unavailable implicitly by not adding them as available
+                    
                     availabilitiesToInsert.push([
                         emp.id,
-                        unavailableDay,
+                        day, // Use backend day index (0-6)
                         hour,
-                        unavailableType.name,
+                        availabilityTypeName,
                         1, // is_recurring
-                        0  // is_available
-                    ]);
-                }
-            }
-
-            // Add some preferred times (e.g., prefers mornings)
-            if (Math.random() < 0.3 && preferredType) {
-                const preferredDay = getRandomInt(0, 6);
-                for (let hour = openingHour; hour < Math.min(openingHour + 4, closingHour); hour++) {
-                    // Remove any existing availability for this slot
-                    const existingIndex = availabilitiesToInsert.findIndex(
-                        a => a[0] === emp.id && a[1] === preferredDay && a[2] === hour
-                    );
-                    if (existingIndex !== -1) {
-                        availabilitiesToInsert.splice(existingIndex, 1);
-                    }
-                    // Add preferred slot
-                    availabilitiesToInsert.push([
-                        emp.id,
-                        preferredDay,
-                        hour,
-                        preferredType.name,
-                        1, // is_recurring
-                        1  // is_available
-                    ]);
-                }
-            }
-
-            // Add some random unavailable slots
-            for (let day = 0; day < 7; day++) {
-                if (Math.random() < 0.1 && unavailableType) { // 10% chance per day
-                    const randomHour = getRandomInt(openingHour, closingHour - 1);
-                    // Remove any existing availability for this slot
-                    const existingIndex = availabilitiesToInsert.findIndex(
-                        a => a[0] === emp.id && a[1] === day && a[2] === randomHour
-                    );
-                    if (existingIndex !== -1) {
-                        availabilitiesToInsert.splice(existingIndex, 1);
-                    }
-                    // Add unavailable slot
-                    availabilitiesToInsert.push([
-                        emp.id,
-                        day,
-                        randomHour,
-                        unavailableType.name,
-                        1, // is_recurring
-                        0  // is_available
+                        isAvailable // is_available flag
                     ]);
                 }
             }
         });
 
         // Bulk insert availabilities
-        db.transaction((availabilities) => {
-            for (const availability of availabilities) availabilityStmt.run(...availability);
-            console.log(`Inserted ${availabilities.length} demo availability overrides.`);
-        })(availabilitiesToInsert);
+        const insertTx = db.transaction((inserts: any[][]) => {
+            // Delete old availabilities for these employees first to prevent duplicates/conflicts
+            const employeeIds = [...new Set(inserts.map(ins => ins[0]))];
+            if (employeeIds.length > 0) {
+                 const deleteSql = `DELETE FROM employee_availabilities WHERE employee_id IN (${employeeIds.map(() => '?').join(',')})`;
+                 try {
+                    db.prepare(deleteSql).run(...employeeIds);
+                    console.log(`Deleted old availabilities for ${employeeIds.length} employees.`);
+                 } catch (delError) {
+                    console.error("Error deleting old availabilities:", delError);
+                    throw delError; // Rethrow to abort transaction
+                 }
+            }
+            // Insert new availabilities
+            for (const availability of inserts) {
+                try {
+                    availabilityStmt.run(...availability);
+                } catch (insertError) {
+                    console.error("Error inserting availability:", availability, insertError);
+                    // Decide whether to throw and abort or just log and continue
+                    // throw insertError; 
+                }
+            }
+        });
+        
+        try {
+            insertTx(availabilitiesToInsert);
+            console.log(`Inserted/Updated ${availabilitiesToInsert.length} availability records with refined logic.`);
+        } catch (txError) {
+             console.error("Transaction failed during availability insertion:", txError);
+             // Handle transaction failure if needed
+             throw txError; // Rethrow if the entire process should fail
+        }
 
         // 8. Generate Schedules (Placeholder/Skipped)
         console.warn("Skipping demo schedule generation - requires complex algorithm implementation.");

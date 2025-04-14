@@ -61,6 +61,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { api } from "@/lib/axios";
+import { convertDisplayDayToBackend } from "@/utils/dateUtils";
 
 export interface BaseGroup {
   id: string;
@@ -522,25 +523,28 @@ export function SettingsPage() {
                       <Label>Opening Days</Label>
                       <div className="grid grid-cols-7 gap-2">
                         {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(
-                          (day, index) => (
-                            <div
-                              key={day}
-                              className="flex flex-col items-center space-y-2"
-                            >
-                              <Label className="text-sm">{day}</Label>
-                              <Switch
-                                checked={localSettings?.opening_days?.[index.toString()] ?? false}
-                                onCheckedChange={(checked) => {
-                                  if (!localSettings) return;
-                                  const updatedOpeningDays = {
-                                    ...(localSettings.opening_days || {}),
-                                    [index.toString()]: checked,
-                                  };
-                                  handleSave("opening_days", updatedOpeningDays);
-                                }}
-                              />
-                            </div>
-                          ),
+                          (day, index) => {
+                            const backendIndex = convertDisplayDayToBackend(index, 1);
+                            return (
+                              <div
+                                key={day}
+                                className="flex flex-col items-center space-y-2"
+                              >
+                                <Label className="text-sm">{day}</Label>
+                                <Switch
+                                  checked={localSettings?.opening_days?.[backendIndex.toString()] ?? false}
+                                  onCheckedChange={(checked) => {
+                                    if (!localSettings) return;
+                                    const updatedOpeningDays = {
+                                      ...(localSettings.opening_days || {}),
+                                      [backendIndex.toString()]: checked,
+                                    };
+                                    handleSave("opening_days", updatedOpeningDays);
+                                  }}
+                                />
+                              </div>
+                            );
+                          }
                         )}
                       </div>
                     </div>
