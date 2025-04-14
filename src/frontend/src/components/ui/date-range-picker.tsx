@@ -10,6 +10,8 @@ import {
 import { de } from "date-fns/locale";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { DateRange } from "react-day-picker";
+import { useQuery } from "@tanstack/react-query";
+
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -18,11 +20,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { getSettings } from "@/services/api";
+import type { Settings } from "@/types";
 
 export interface DateRangePickerProps {
   className?: string;
   dateRange?: DateRange;
-  onChange: (range: DateRange | undefined) => void;
+  onDateChange: (range: DateRange | undefined) => void;
   fromDate?: Date;
   onStartDateSelect?: (date: Date) => void;
 }
@@ -30,26 +34,35 @@ export interface DateRangePickerProps {
 export function DateRangePicker({
   className,
   dateRange,
-  onChange,
+  onDateChange,
   fromDate = startOfToday(),
   onStartDateSelect,
 }: DateRangePickerProps) {
   const today = startOfToday();
   const [isOpen, setIsOpen] = React.useState(false);
 
+  const { data: settings } = useQuery<Settings, Error>({
+    queryKey: ["settings"] as const,
+    queryFn: getSettings,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+
+  const effectiveStartOfWeek = (settings?.start_of_week ?? 1) as 0 | 1;
+
   const defaultPresets = [
     {
       label: "Diese Woche",
       dateRange: {
-        from: startOfWeek(today, { weekStartsOn: 1 }),
-        to: endOfWeek(today, { weekStartsOn: 1 }),
+        from: startOfWeek(today, { weekStartsOn: effectiveStartOfWeek }),
+        to: endOfWeek(today, { weekStartsOn: effectiveStartOfWeek }),
       },
     },
     {
       label: "Nächste Woche",
       dateRange: {
-        from: startOfWeek(addDays(today, 7), { weekStartsOn: 1 }),
-        to: endOfWeek(addDays(today, 7), { weekStartsOn: 1 }),
+        from: startOfWeek(addDays(today, 7), { weekStartsOn: effectiveStartOfWeek }),
+        to: endOfWeek(addDays(today, 7), { weekStartsOn: effectiveStartOfWeek }),
       },
     },
     {
@@ -104,7 +117,7 @@ export function DateRangePicker({
                   variant="ghost"
                   className="w-full justify-start font-normal"
                   onClick={() => {
-                    onChange(preset.dateRange);
+                    onDateChange(preset.dateRange);
                     setIsOpen(false);
                   }}
                 >
@@ -121,16 +134,16 @@ export function DateRangePicker({
                 if (range?.from && !range.to && onStartDateSelect) {
                   onStartDateSelect(range.from);
                 } else {
-                  onChange(range);
+                  onDateChange(range);
                 }
                 if (range?.from && range?.to) {
                   setIsOpen(false);
                 }
               }}
-              numberOfMonths={2}
+              numberOfMonths={1}
               disabled={(date) => isBefore(date, fromDate)}
               locale={de}
-              weekStartsOn={1}
+              weekStartsOn={effectiveStartOfWeek}
               showOutsideDays={true}
               fixedWeeks={true}
               formatters={{

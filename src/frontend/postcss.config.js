@@ -1,5 +1,9 @@
+import tailwindcss from 'tailwindcss';
+import autoprefixer from 'autoprefixer';
+
 export default {
     plugins: {
-        // Remove tailwindcss and autoprefixer, handled by vite plugin
+        tailwindcss: {},
+        autoprefixer: {},
     },
 } 

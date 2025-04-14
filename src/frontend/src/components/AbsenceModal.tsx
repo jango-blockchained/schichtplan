@@ -58,6 +58,13 @@ export default function AbsenceModal({
   useEffect(() => {
     if (isOpen) {
       loadAbsences();
+      setNewAbsence({
+        employee_id: employeeId,
+        absence_type_id: "",
+        start_date: "",
+        end_date: "",
+        note: "",
+      });
     }
   }, [isOpen, employeeId]);
 
@@ -135,8 +142,9 @@ export default function AbsenceModal({
         <div className="space-y-6">
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Absence Type</Label>
+              <Label htmlFor="absence-type">Absence Type</Label>
               <Select
+                name="absence-type"
                 value={newAbsence.absence_type_id}
                 onValueChange={(value) =>
                   setNewAbsence({
@@ -164,74 +172,70 @@ export default function AbsenceModal({
               </Select>
             </div>
 
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="start-date" className="text-right">Start Date</Label>
-              <div className="col-span-3">
-                <DatePicker
-                  id="start-date"
-                  date={
-                    newAbsence.start_date
-                      ? parseISO(newAbsence.start_date)
-                      : undefined
-                  }
-                  setDate={(date) =>
-                    setNewAbsence({
-                      ...newAbsence,
-                      start_date: date ? date.toISOString().split("T")[0] : "",
-                    })
-                  }
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="start-date">Start Date</Label>
+              <DatePicker
+                id="start-date"
+                date={
+                  newAbsence.start_date
+                    ? parseISO(newAbsence.start_date)
+                    : undefined
+                }
+                setDate={(date) =>
+                  setNewAbsence({
+                    ...newAbsence,
+                    start_date: date ? date.toISOString().split("T")[0] : "",
+                  })
+                }
+              />
             </div>
 
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="end-date" className="text-right">End Date</Label>
-              <div className="col-span-3">
-                <DatePicker
-                  id="end-date"
-                  date={
-                    newAbsence.end_date
-                      ? parseISO(newAbsence.end_date)
-                      : undefined
-                  }
-                  setDate={(date) =>
-                    setNewAbsence({
-                      ...newAbsence,
-                      end_date: date ? date.toISOString().split("T")[0] : "",
-                    })
-                  }
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="end-date">End Date</Label>
+              <DatePicker
+                id="end-date"
+                date={
+                  newAbsence.end_date
+                    ? parseISO(newAbsence.end_date)
+                    : undefined
+                }
+                setDate={(date) =>
+                  setNewAbsence({
+                    ...newAbsence,
+                    end_date: date ? date.toISOString().split("T")[0] : "",
+                  })
+                }
+              />
             </div>
 
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="note" className="text-right">Note</Label>
-              <div className="col-span-3">
-                <Input
-                  id="note"
-                  type="text"
-                  value={newAbsence.note || ""}
-                  onChange={(e) =>
-                    setNewAbsence({
-                      ...newAbsence,
-                      note: e.target.value,
-                    })
-                  }
-                  placeholder="Optional note"
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="note">Note</Label>
+              <Input
+                id="note"
+                type="text"
+                value={newAbsence.note || ""}
+                onChange={(e) =>
+                  setNewAbsence({
+                    ...newAbsence,
+                    note: e.target.value,
+                  })
+                }
+                placeholder="Optional note"
+              />
             </div>
 
-            <Button
-              onClick={handleAddAbsence}
-              disabled={
-                !newAbsence.absence_type_id ||
-                !newAbsence.start_date ||
-                !newAbsence.end_date
-              }
-            >
-              Add Absence
-            </Button>
+            <div className="flex justify-end pt-2">
+              <Button
+                onClick={handleAddAbsence}
+                disabled={
+                  !newAbsence.absence_type_id ||
+                  !newAbsence.start_date ||
+                  !newAbsence.end_date
+                }
+              >
+                Add Absence
+              </Button>
+            </div>
           </div>
 
           <Table>
