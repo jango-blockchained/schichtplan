@@ -1,5 +1,10 @@
 /** @type {import('tailwindcss').Config} */
+// This config uses Tailwind v3+ structure, compatible with the v4 engine via @tailwindcss/vite
+import containerQueries from '@tailwindcss/container-queries';
+import animatePlugin from 'tailwindcss-animate';
+
 export default {
+	darkMode: "class",
 	content: [
 		"./index.html",
 		"./src/**/*.{js,ts,jsx,tsx}",
@@ -109,7 +114,7 @@ export default {
 		}
 	},
 	plugins: [
-		require('@tailwindcss/container-queries'),
-		require('tailwindcss-animate')
+		containerQueries,
+		animatePlugin
 	],
 } 

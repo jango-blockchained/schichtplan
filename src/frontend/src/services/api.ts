@@ -956,10 +956,18 @@ export interface EmployeeAvailability {
 export const getEmployeeAvailabilities = async (
   employeeId: number,
 ): Promise<EmployeeAvailability[]> => {
-  const response = await api.get<EmployeeAvailability[]>(
-    `/employees/${employeeId}/availability/`,
-  );
-  return response.data;
+  try {
+    const response = await api.get<EmployeeAvailability[]>(
+      `/employees/${employeeId}/availabilities/`,
+    );
+    console.log("Fetched availabilities for", employeeId, ":", response.data);
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to fetch employee availabilities: ${error.message}`);
+    }
+    throw error;
+  }
 };
 
 export const createAvailability = async (

@@ -29,7 +29,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { AbsenceType } from "@/types";
 import { getAbsences, createAbsence, deleteAbsence } from "@/services/api";
-import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { DatePicker } from "@/components/ui/date-picker";
 import type { Absence } from "@/services/api";
 
 interface AbsenceModalProps {
@@ -164,53 +164,62 @@ export default function AbsenceModal({
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label>Start Date</Label>
-              <DateTimePicker
-                date={
-                  newAbsence.start_date
-                    ? new Date(newAbsence.start_date)
-                    : new Date()
-                }
-                setDate={(date) =>
-                  setNewAbsence({
-                    ...newAbsence,
-                    start_date: date.toISOString().split("T")[0],
-                  })
-                }
-              />
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="start-date" className="text-right">Start Date</Label>
+              <div className="col-span-3">
+                <DatePicker
+                  id="start-date"
+                  date={
+                    newAbsence.start_date
+                      ? parseISO(newAbsence.start_date)
+                      : undefined
+                  }
+                  setDate={(date) =>
+                    setNewAbsence({
+                      ...newAbsence,
+                      start_date: date ? date.toISOString().split("T")[0] : "",
+                    })
+                  }
+                />
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>End Date</Label>
-              <DateTimePicker
-                date={
-                  newAbsence.end_date
-                    ? new Date(newAbsence.end_date)
-                    : new Date()
-                }
-                setDate={(date) =>
-                  setNewAbsence({
-                    ...newAbsence,
-                    end_date: date.toISOString().split("T")[0],
-                  })
-                }
-              />
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="end-date" className="text-right">End Date</Label>
+              <div className="col-span-3">
+                <DatePicker
+                  id="end-date"
+                  date={
+                    newAbsence.end_date
+                      ? parseISO(newAbsence.end_date)
+                      : undefined
+                  }
+                  setDate={(date) =>
+                    setNewAbsence({
+                      ...newAbsence,
+                      end_date: date ? date.toISOString().split("T")[0] : "",
+                    })
+                  }
+                />
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Note</Label>
-              <Input
-                type="text"
-                value={newAbsence.note || ""}
-                onChange={(e) =>
-                  setNewAbsence({
-                    ...newAbsence,
-                    note: e.target.value,
-                  })
-                }
-                placeholder="Optional note"
-              />
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="note" className="text-right">Note</Label>
+              <div className="col-span-3">
+                <Input
+                  id="note"
+                  type="text"
+                  value={newAbsence.note || ""}
+                  onChange={(e) =>
+                    setNewAbsence({
+                      ...newAbsence,
+                      note: e.target.value,
+                    })
+                  }
+                  placeholder="Optional note"
+                />
+              </div>
             </div>
 
             <Button

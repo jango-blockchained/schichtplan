@@ -13,21 +13,32 @@ import {
 interface DatePickerProps {
   date?: Date;
   onChange?: (date: Date | undefined) => void;
+  id?: string;
+  className?: string;
+  placeholder?: string;
 }
 
-export function DatePicker({ date, onChange }: DatePickerProps) {
+const defaultProps: Partial<DatePickerProps> = {
+  placeholder: "Pick a date",
+};
+
+export function DatePicker(props: DatePickerProps) {
+  const { date, onChange, id, className, placeholder } = { ...defaultProps, ...props };
+
   return (
-    <Popover>
+    <Popover modal={false}>
       <PopoverTrigger asChild>
         <Button
+          id={id}
           variant={"outline"}
           className={cn(
-            "w-[280px] justify-start text-left font-normal",
+            "w-full justify-start text-left font-normal",
             !date && "text-muted-foreground",
+            className
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {date ? format(date, "PPP") : <span>Pick a date</span>}
+          {date ? format(date, "PPP") : <span>{placeholder}</span>}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">

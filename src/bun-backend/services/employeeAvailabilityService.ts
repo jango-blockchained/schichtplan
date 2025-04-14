@@ -17,6 +17,7 @@ function mapRowToEmployeeAvailability(row: any): EmployeeAvailability {
         start_date: row.start_date ?? null,
         end_date: row.end_date ?? null,
         is_recurring: Boolean(row.is_recurring),
+        is_available: Boolean(row.is_available),
         created_at: row.created_at,
         updated_at: row.updated_at,
     };

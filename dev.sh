@@ -146,15 +146,15 @@ tmux new-session -d -s schichtplan
 # Configure first pane (Bun Backend)
 tmux send-keys -t schichtplan "cd src/bun-backend" C-m
 tmux send-keys -t schichtplan "echo 'Starting Bun Backend... (NODE_ENV=development)'" C-m
-tmux send-keys -t schichtplan "NODE_ENV=development bun run --watch index.ts" C-m
+tmux send-keys -t schichtplan "NODE_ENV=development bun run --watch --hot --bun --inspect index.ts" C-m
 
 # Split window vertically for frontend
 tmux split-window -h
 
 # Configure second pane (Frontend)
 tmux send-keys -t schichtplan "cd src/frontend" C-m
-tmux send-keys -t schichtplan "echo 'Starting Frontend...'" C-m
-tmux send-keys -t schichtplan "bun run --watch --hot --bun dev" C-m
+tmux send-keys -t schichtplan "echo 'Starting Frontend... (NODE_ENV=development)'" C-m
+tmux send-keys -t schichtplan "NODE_ENV=development bun run --watch --hot --bun --inspect dev" C-m
 
 # Split horizontally for menu pane with specific size
 tmux split-window -v -l 10

@@ -24,7 +24,7 @@ __pycache__/
 instance/
 
 # IDE and editor
-.vscode/
+# .vscode/
 .idea/
 *.swp
 *.swo

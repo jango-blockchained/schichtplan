@@ -449,20 +449,35 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
             }
         });
 
-        // Bulk insert availabilities
+        // Pre-delete existing availabilities for affected employees *outside* the insert transaction
+        const employeeIdsToDelete = [...new Set(availabilitiesToInsert.map(ins => ins[0]))];
+        if (employeeIdsToDelete.length > 0) {
+            const deleteSql = `DELETE FROM employee_availabilities WHERE employee_id IN (${employeeIdsToDelete.map(() => '?').join(',')})`;
+            try {
+                db.prepare(deleteSql).run(...employeeIdsToDelete);
+                console.log(`Pre-deleted old availabilities for ${employeeIdsToDelete.length} employees.`);
+            } catch (delError) {
+                console.error("Error pre-deleting old availabilities:", delError);
+                // Decide if this is critical - maybe the inserts will handle conflicts or it's acceptable to fail here?
+                throw delError; // Re-throw to prevent potentially inconsistent state
+            }
+        }
+
+        // Bulk insert availabilities within a transaction
         const insertTx = db.transaction((inserts: any[][]) => {
             // Delete old availabilities for these employees first to prevent duplicates/conflicts
-            const employeeIds = [...new Set(inserts.map(ins => ins[0]))];
-            if (employeeIds.length > 0) {
-                 const deleteSql = `DELETE FROM employee_availabilities WHERE employee_id IN (${employeeIds.map(() => '?').join(',')})`;
-                 try {
-                    db.prepare(deleteSql).run(...employeeIds);
-                    console.log(`Deleted old availabilities for ${employeeIds.length} employees.`);
-                 } catch (delError) {
-                    console.error("Error deleting old availabilities:", delError);
-                    throw delError; // Rethrow to abort transaction
-                 }
-            }
+            // const employeeIds = [...new Set(inserts.map(ins => ins[0]))];
+            // if (employeeIds.length > 0) {
+            //      const deleteSql = `DELETE FROM employee_availabilities WHERE employee_id IN (${employeeIds.map(() => '?').join(',')})`;
+            //      try {
+            //         db.prepare(deleteSql).run(...employeeIds);
+            //         console.log(`Deleted old availabilities for ${employeeIds.length} employees.`);
+            //      } catch (delError) {
+            //         console.error("Error deleting old availabilities:", delError);
+            //         throw delError; // Rethrow to abort transaction
+            //      }
+            // }
+            
             // Insert new availabilities
             for (const availability of inserts) {
                 try {

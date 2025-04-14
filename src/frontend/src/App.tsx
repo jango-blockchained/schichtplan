@@ -7,7 +7,7 @@ import ShiftTemplatesPage from "./pages/ShiftTemplatesPage";
 import { EmployeesPage } from "./pages/EmployeesPage";
 import SettingsPage from "./pages/SettingsPage";
 import { Toaster } from "@/components/ui/toaster";
-import { ThemeProvider } from "@/providers/ThemeProvider";
+import { ThemeProvider } from "next-themes";
 import FormularsPage from "./pages/FormularsPage";
 import LogsPage from "./pages/LogsPage";
 import CoveragePage from "./pages/CoveragePage";
@@ -42,7 +42,7 @@ const queryClient = new QueryClient({
 const App: React.FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<MainLayout />}>
