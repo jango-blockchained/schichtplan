@@ -16,6 +16,7 @@ interface DatePickerProps {
   id?: string;
   className?: string;
   placeholder?: string;
+  defaultMonth?: Date;
 }
 
 const defaultProps: Partial<DatePickerProps> = {
@@ -23,7 +24,7 @@ const defaultProps: Partial<DatePickerProps> = {
 };
 
 export function DatePicker(props: DatePickerProps) {
-  const { date, onChange, id, className, placeholder } = { ...defaultProps, ...props };
+  const { date, onChange, id, className, placeholder, defaultMonth } = { ...defaultProps, ...props };
 
   return (
     <Popover modal={false}>
@@ -45,6 +46,7 @@ export function DatePicker(props: DatePickerProps) {
         <Calendar
           mode="single"
           selected={date}
+          defaultMonth={defaultMonth || date}
           onSelect={onChange}
           initialFocus
         />

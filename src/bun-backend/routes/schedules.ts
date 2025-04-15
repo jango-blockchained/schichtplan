@@ -1,6 +1,10 @@
 import { Elysia, t } from "elysia";
+import { getDb } from "../db"; // Import getDb
 import { getScheduleByVersion, getScheduleVersions, generateSchedule, createNewScheduleVersion } from "../services/scheduleService.js";
 import { NotFoundError } from "elysia";
+
+// Initialize the database instance
+const db = getDb();
 
 // Validation schema for version path parameter
 const versionParamSchema = t.Object({
@@ -441,9 +445,6 @@ const scheduleRoutes = new Elysia({ prefix: "/api/schedules" })
             tags: ['Schedules'],
         }
   });
-
-// Import DB for the new routes
-import db from "../db";
 
 // Define types for database rows
 interface VersionMetaRow {

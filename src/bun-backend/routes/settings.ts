@@ -1,5 +1,5 @@
 import { Elysia, t, NotFoundError } from "elysia";
-import globalDb from "../db";
+import { getDb } from "../db";
 import { Database } from "bun:sqlite";
 import logger from "../logger";
 import {
@@ -207,7 +207,7 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
     // GET all settings (actually the single settings object)
     .get("/", async ({ set, ...ctx }) => {
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb;
+        const currentDb = context.db ?? getDb();
         const routeLogger = (ctx as any).log || logger;
         routeLogger.debug("Attempting to fetch settings...");
         try {
@@ -233,7 +233,7 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
     // GET all settings
     .put("/", async ({ body, set, ...ctx }) => {
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb;
+        const currentDb = context.db ?? getDb();
         const routeLogger = (ctx as any).log || logger;
         routeLogger.info({ updateData: body }, "Received PUT request to update settings");
         try {
@@ -261,7 +261,7 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
     // GET list of database tables
     .get("/tables", async ({ set, ...ctx }) => {
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb;
+        const currentDb = context.db ?? getDb();
         const routeLogger = (ctx as any).log || logger;
         routeLogger.debug("Attempting to fetch database table names");
         try {
@@ -284,7 +284,7 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
     // GET setting by key
     .get("/:key", async ({ params, set, ...ctx }) => {
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb;
+        const currentDb = context.db ?? getDb();
         const routeLogger = (ctx as any).log || logger;
         routeLogger.debug(`Attempting to fetch setting with key ${params.key}`);
         try {
@@ -305,7 +305,7 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
     // PUT (Upsert) setting by key
     .put("/:key", async ({ params, body, set, ...ctx }) => {
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb;
+        const currentDb = context.db ?? getDb();
         const routeLogger = (ctx as any).log || logger;
         routeLogger.debug(`Attempting to upsert setting with key ${params.key}`);
         try {
@@ -327,7 +327,7 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
     // GET all absence types
     .get("/absence-types", async ({ set, ...ctx }) => {
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb;
+        const currentDb = context.db ?? getDb();
         const routeLogger = (ctx as any).log || logger;
         routeLogger.debug("Attempting to fetch all absence types");
         try {
@@ -344,7 +344,7 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
     // GET absence type by ID
     .get("/absence-types/:id", async ({ params, set, ...ctx }) => {
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb;
+        const currentDb = context.db ?? getDb();
         const routeLogger = (ctx as any).log || logger;
         routeLogger.debug(`Attempting to fetch absence type with ID ${params.id}`);
         try {
@@ -365,7 +365,7 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
     // POST new absence type
     .post("/absence-types", async ({ body, set, ...ctx }) => {
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb;
+        const currentDb = context.db ?? getDb();
         const routeLogger = (ctx as any).log || logger;
         routeLogger.debug("Attempting to add new absence type");
         try {
@@ -383,7 +383,7 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
     // PUT update absence type
     .put("/absence-types/:id", async ({ params, body, set, ...ctx }) => {
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb;
+        const currentDb = context.db ?? getDb();
         const routeLogger = (ctx as any).log || logger;
         routeLogger.debug(`Attempting to update absence type with ID ${params.id}`);
         try {
@@ -407,7 +407,7 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
     // DELETE absence type
     .delete("/absence-types/:id", async ({ params, set, ...ctx }) => {
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb;
+        const currentDb = context.db ?? getDb();
         const routeLogger = (ctx as any).log || logger;
         routeLogger.debug(`Attempting to delete absence type with ID ${params.id}`);
         try {
@@ -433,7 +433,7 @@ export const settingsRoutes = new Elysia({ prefix: "/api/settings" })
     // POST /settings/wipe-tables
     .post("/wipe-tables", async ({ body, set, ...ctx }) => {
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb;
+        const currentDb = context.db ?? getDb();
         const routeLogger = (ctx as any).log || logger;
         routeLogger.warn({ tables: body.tables }, "Received request to WIPE tables");
         try {

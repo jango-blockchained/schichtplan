@@ -1,7 +1,8 @@
-import { default as globalDb } from "../db";
+import { getDb } from "../db";
 import { Database } from "bun:sqlite";
 import { randomUUID } from 'node:crypto';
 import { format, addDays, eachDayOfInterval, getDay, parseISO } from 'date-fns';
+import { faker } from '@faker-js/faker';
 
 // Import necessary services
 import { getAllEmployees } from "./employeesService";
@@ -13,6 +14,7 @@ import {
     EmployeeTypeDefinition,
     ShiftTypeDefinition
 } from "../db/schema"; // Import types
+import logger from '../logger'; // Import logger
 
 interface DemoDataResponse {
     message: string;
@@ -39,8 +41,10 @@ function getRandomInt(min: number, max: number): number {
  * @param db - Optional Database instance.
  * @returns A promise resolving to a DemoDataResponse object.
  */
-export async function generateOptimizedDemoDataService(db: Database | null = globalDb): Promise<DemoDataResponse> {
-    console.log("Initiating comprehensive demo data generation...");
+export async function generateOptimizedDemoDataService(
+    db: Database | null = getDb()
+): Promise<DemoDataResponse> {
+    logger.info("Initiating comprehensive demo data generation...");
 
     if (!db) {
         throw new Error("Database connection is required for generating demo data");
@@ -59,18 +63,18 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
             'shift_templates',
             'employees' // Wipe employees last due to FK constraints
         ];
-        console.log(`Wiping tables: ${tablesToWipe.join(', ')}`);
+        logger.info(`Wiping tables: ${tablesToWipe.join(', ')}`);
         // Validate tables before wiping
         const validTables = await getDatabaseTables(db);
         const finalTablesToWipe = tablesToWipe.filter(t => validTables.includes(t));
         if (finalTablesToWipe.length > 0) {
             await wipeTablesService(finalTablesToWipe, db);
         } else {
-            console.warn("No valid tables found to wipe.");
+            logger.warn("No valid tables found to wipe.");
         }
 
         // 2. Fetch Settings (needed for types)
-        console.log("Fetching settings...");
+        logger.info("Fetching settings...");
         const settings = await getSettings(db);
         const employeeTypes: EmployeeTypeDefinition[] = settings.employee_types || [];
         const shiftTypes: ShiftTypeDefinition[] = settings.shift_types || [];
@@ -78,12 +82,12 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
         const availabilityTypes: AvailabilityTypeDefinition[] = settings.availability_types || [];
 
         if (employeeTypes.length === 0) {
-             console.warn("Employee types not defined in settings. Using placeholders.")
+             logger.warn("Employee types not defined in settings. Using placeholders.")
              // Add fallback types if needed, or throw error
         }
-        if (shiftTypes.length === 0) console.warn("Shift types not defined in settings.");
-        if (absenceTypes.length === 0) console.warn("Absence types not defined in settings.");
-        if (availabilityTypes.length === 0) console.warn("Availability types not defined in settings.");
+        if (shiftTypes.length === 0) logger.warn("Shift types not defined in settings.");
+        if (absenceTypes.length === 0) logger.warn("Absence types not defined in settings.");
+        if (availabilityTypes.length === 0) logger.warn("Availability types not defined in settings.");
 
         // Use actual opening days from settings
         const actualOpeningDays = settings.opening_days || {}; // Default to empty if undefined
@@ -91,10 +95,10 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
             .filter(([, isOpen]) => isOpen)
             .map(([dayIndex]) => parseInt(dayIndex, 10)); // Get numerical indices [1, 2, 3, 4, 5, 6]
 
-        console.log("Actual open day indices from settings:", openDayIndices);
+        logger.info("Actual open day indices from settings:", openDayIndices);
 
         // 3. Generate Employees (30 total, specific distribution, standard hours)
-        console.log("Generating 30 demo employees with type distribution and standard hours...");
+        logger.info("Generating 30 demo employees with type distribution and standard hours...");
         const employeeInsertSql = `INSERT INTO employees (employee_id, first_name, last_name, employee_group, contracted_hours, is_keyholder, is_active, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?);`;
         const employeeStmt = db.prepare(employeeInsertSql);
         const employeesToInsert: any[][] = [];
@@ -140,7 +144,7 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
             const group = assignedType?.id || 'TZ'; 
             let dbGroup = group.toUpperCase();
             if (!['TL', 'VZ', 'TZ', 'GFB'].includes(dbGroup)) {
-                console.warn(`Generated invalid group ID '${group}' -> '${dbGroup}' for employee ${empId}. Defaulting to 'TZ'.`);
+                logger.warn(`Generated invalid group ID '${group}' -> '${dbGroup}' for employee ${empId}. Defaulting to 'TZ'.`);
                 dbGroup = 'TZ';
             }
 
@@ -173,7 +177,7 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
         // Bulk insert employees
         db.transaction((emps) => {
             for (const emp of emps) employeeStmt.run(...emp);
-            console.log(`Inserted ${emps.length} demo employees. Calculated Total Contracted Hours: ${calculatedTotalHours.toFixed(2)}h (NOTE: 170h cap applies during schedule generation, not here)`);
+            logger.info(`Inserted ${emps.length} demo employees. Calculated Total Contracted Hours: ${calculatedTotalHours.toFixed(2)}h (NOTE: 170h cap applies during schedule generation, not here)`);
         })(employeesToInsert);
 
         // Fetch newly inserted employees to get their DB IDs
@@ -181,7 +185,7 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
         if (generatedEmployees.length === 0) throw new Error("Failed to generate or fetch employees.");
 
         // 4. Generate Shift Templates
-        console.log("Generating demo shift templates...");
+        logger.info("Generating demo shift templates...");
         const templateInsertSql = `INSERT INTO shift_templates (start_time, end_time, duration_hours, requires_break, shift_type, shift_type_id, active_days) VALUES (?, ?, ?, ?, ?, ?, ?);`;
         const templateStmt = db.prepare(templateInsertSql);
 
@@ -192,7 +196,7 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
                 return acc;
             }, {} as { [key: string]: boolean })
         );
-        console.log("Generated active_days JSON for templates:", activeDaysJson);
+        logger.debug("Generated active_days JSON for templates:", activeDaysJson);
 
         const templatesToInsert: any[][] = [
              // Early Shift (Active based on settings)
@@ -205,11 +209,11 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
         // Bulk insert templates
         db.transaction((temps) => {
             for (const temp of temps) templateStmt.run(...temp);
-            console.log(`Inserted ${temps.length} demo shift templates.`);
+            logger.info(`Inserted ${temps.length} demo shift templates.`);
         })(templatesToInsert);
 
         // 5. Generate Coverage
-        console.log("Generating demo coverage requirements...");
+        logger.info("Generating demo coverage requirements...");
         const coverageInsertSql = `INSERT INTO coverage (day_index, start_time, end_time, min_employees, max_employees, requires_keyholder) VALUES (?, ?, ?, ?, ?, ?);`;
         const coverageStmt = db.prepare(coverageInsertSql);
         
@@ -255,12 +259,12 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
         // Bulk insert coverage
         db.transaction((covers) => {
             for (const cover of covers) coverageStmt.run(...cover);
-            console.log(`Inserted ${covers.length} demo coverage blocks.`);
+            logger.info(`Inserted ${covers.length} demo coverage blocks.`);
         })(coveragesToInsert);
          // TODO: Generate recurring_coverage examples?
 
         // 6. Generate Absences (using generated employees)
-        console.log("Generating demo absences...");
+        logger.info("Generating demo absences...");
         const absenceInsertSql = `INSERT INTO absences (employee_id, absence_type_id, start_date, end_date, note) VALUES (?, ?, ?, ?, ?);`;
         const absenceStmt = db.prepare(absenceInsertSql);
         const today = new Date();
@@ -285,11 +289,11 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
         });
         db.transaction((absences) => {
             for (const absence of absences) absenceStmt.run(...absence);
-            console.log(`Inserted ${absences.length} demo absences.`);
+            logger.info(`Inserted ${absences.length} demo absences.`);
         })(absencesToInsert);
 
         // 7. Generate Availabilities (using generated employees and refined logic)
-        console.log("Generating demo availabilities with refined logic...");
+        logger.info("Generating demo availabilities with refined logic...");
         const availabilityInsertSql = `INSERT INTO employee_availabilities (employee_id, day_of_week, hour, availability_type, is_recurring, is_available) VALUES (?, ?, ?, ?, ?, ?)`;
         const availabilityStmt = db.prepare(availabilityInsertSql);
         let availabilitiesToInsert: any[][] = [];
@@ -455,9 +459,9 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
             const deleteSql = `DELETE FROM employee_availabilities WHERE employee_id IN (${employeeIdsToDelete.map(() => '?').join(',')})`;
             try {
                 db.prepare(deleteSql).run(...employeeIdsToDelete);
-                console.log(`Pre-deleted old availabilities for ${employeeIdsToDelete.length} employees.`);
+                logger.info(`Pre-deleted old availabilities for ${employeeIdsToDelete.length} employees.`);
             } catch (delError) {
-                console.error("Error pre-deleting old availabilities:", delError);
+                logger.error("Error pre-deleting old availabilities:", delError);
                 // Decide if this is critical - maybe the inserts will handle conflicts or it's acceptable to fail here?
                 throw delError; // Re-throw to prevent potentially inconsistent state
             }
@@ -483,7 +487,7 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
                 try {
                     availabilityStmt.run(...availability);
                 } catch (insertError) {
-                    console.error("Error inserting availability:", availability, insertError);
+                    logger.error("Error inserting availability:", availability, insertError);
                     // Decide whether to throw and abort or just log and continue
                     // throw insertError; 
                 }
@@ -492,17 +496,17 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
         
         try {
             insertTx(availabilitiesToInsert);
-            console.log(`Inserted/Updated ${availabilitiesToInsert.length} availability records with refined logic.`);
+            logger.info(`Inserted/Updated ${availabilitiesToInsert.length} availability records with refined logic.`);
         } catch (txError) {
-             console.error("Transaction failed during availability insertion:", txError);
+             logger.error("Transaction failed during availability insertion:", txError);
              // Handle transaction failure if needed
              throw txError; // Rethrow if the entire process should fail
         }
 
         // 8. Generate Schedules (Placeholder/Skipped)
-        console.warn("Skipping demo schedule generation - requires complex algorithm implementation.");
+        logger.warn("Skipping demo schedule generation - requires complex algorithm implementation.");
 
-        console.log("Comprehensive demo data generation process finished.");
+        logger.info("Comprehensive demo data generation process finished.");
 
         return {
             message: "Comprehensive demo data generated successfully.",
@@ -510,7 +514,7 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
         };
 
     } catch (error: any) {
-        console.error("Demo data generation failed:", error);
+        logger.error("Demo data generation failed:", error);
         // Consider adding more specific error handling or cleanup
         throw new Error(`Demo data generation failed: ${error.message}`);
     }
@@ -518,7 +522,10 @@ export async function generateOptimizedDemoDataService(db: Database | null = glo
 
 export async function generateDemoData(db: Database | null, settings: Settings) {
     if (!db) {
-        throw new Error('Database connection is required for generating demo data');
+        db = getDb();
+        if (!db) { 
+            throw new Error('Database connection is required for generating demo data');
+        }
     }
     
     // Wipe existing data

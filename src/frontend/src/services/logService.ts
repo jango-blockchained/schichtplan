@@ -16,6 +16,8 @@ class LogService {
   private isSending: boolean = false;
   private batchSize: number = 10;
   private batchTimeout: number = 5000; // 5 seconds
+  private retryCount: number = 0;
+  private maxRetries: number = 3;
 
   private async sendLogs() {
     if (this.isSending || this.queue.length === 0) return;
@@ -25,13 +27,21 @@ class LogService {
 
     try {
       await api.post("/logs", { logs: batch });
+      this.retryCount = 0;
       this.queue = this.queue.slice(batch.length);
     } catch (error) {
-      console.error("Failed to send logs:", error);
+      this.retryCount++;
+      
+      if (this.retryCount >= this.maxRetries) {
+        console.error("Logging API unavailable after max retries. Discarding logs.", error);
+        this.queue = this.queue.slice(batch.length);
+        this.retryCount = 0;
+      }
     } finally {
       this.isSending = false;
       if (this.queue.length > 0) {
-        setTimeout(() => this.sendLogs(), this.batchTimeout);
+        const retryTimeout = this.batchTimeout * (this.retryCount + 1);
+        setTimeout(() => this.sendLogs(), retryTimeout);
       }
     }
   }
@@ -46,9 +56,9 @@ class LogService {
 
     this.queue.push(logEntry);
 
-    if (this.queue.length >= this.batchSize) {
+    if (this.queue.length >= this.batchSize && !this.isSending) {
       this.sendLogs();
-    } else if (!this.isSending) {
+    } else if (!this.isSending && this.queue.length > 0) {
       setTimeout(() => this.sendLogs(), this.batchTimeout);
     }
   }
@@ -72,6 +82,10 @@ class LogService {
   }
 }
 
+// Export a singleton instance as the default export
+export default LogService;
+
+// Keep the existing singleton for backward compatibility
 export const logService = new LogService();
 
 export const sendLogs = async (logs: LogEntry[]) => {
@@ -82,6 +96,6 @@ export const sendLogs = async (logs: LogEntry[]) => {
     }));
     await api.post("/logs", { logs: batch });
   } catch (error) {
-    console.error("Failed to send logs:", error);
+    console.error("Failed to send logs batch via exported function:", error);
   }
 };

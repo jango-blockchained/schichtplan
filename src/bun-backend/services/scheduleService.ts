@@ -1,7 +1,10 @@
-import db from "../db";
+import { getDb } from "../db";
 import { Schedule, Employee, ShiftTemplate, ScheduleVersionMeta, ScheduleStatus } from "../db/schema"; // Import relevant interfaces
 import { SQLQueryBindings } from "bun:sqlite";
 import { scheduleLogger } from "../logger"; // Import the specialized schedule logger
+
+// Initialize the database instance
+const db = getDb();
 
 // Corrected imports based on actual filenames
 import { getAllEmployees, getEmployeeById } from './employeesService.js';

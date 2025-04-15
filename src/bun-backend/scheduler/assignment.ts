@@ -1,5 +1,8 @@
 // src/scheduler/assignment.ts
 import { scheduleLogger } from "../logger"; // Import the specialized schedule logger
+import { isWithinInterval, parseISO, differenceInMinutes, addMinutes } from 'date-fns';
+import type { Database } from 'bun:sqlite';
+import type { Employee, ShiftTemplate, ScheduleEntry, Coverage, Settings } from '../db/schema';
 
 // --- Configuration Interface ---
 export interface SchedulerConfiguration {
@@ -749,12 +752,19 @@ export async function generateScheduleAssignments(
               if (currentSlotStatus.assignedEmployeeIds.has(candidate.employeeId)) return false;
               const state = employeeStates.get(candidate.employeeId);
               if (!state) return false;
-              // Basic rest check for starting a *new* shift
-              const employee = employeeMap.get(candidate.employeeId);
-              const minRest = employee?.minRestMinutes ?? config.defaultMinRestPeriodMinutes;
-              if (state.lastShiftEndTime && (slot.startTime.getTime() - state.lastShiftEndTime.getTime()) < minRest * 60000) {
-                   // console.log(`Skipping ${candidate.employeeId} for slot ${slot.id} due to rest period.`);
-                  return false;
+              // Check REST PERIOD constraint
+              if (state.lastShiftEndTime) {
+                const requiredRestMinutes = config.defaultMinRestPeriodMinutes;
+                const actualRestMinutes = differenceInMinutes(slot.startTime, state.lastShiftEndTime);
+                if (actualRestMinutes < requiredRestMinutes) {
+                  scheduleLogger.debug(`Skipping ${candidate.employeeId} for slot ${slot.id} due to rest period. Rest needed: ${requiredRestMinutes}m, Actual: ${actualRestMinutes}m`);
+                  return false; // Not enough rest time
+                }
+              }
+              // Check MAX COVERAGE constraint (for starting slot)
+              if (currentSlotStatus.assignedCount >= currentSlotStatus.requiredSlot.maxEmployees) {
+                scheduleLogger.debug(`Skipping ${candidate.employeeId} for slot ${slot.id}: Starting slot max coverage (${currentSlotStatus.requiredSlot.maxEmployees}) reached.`);
+                return false;
               }
               // --- Add Max Employee Check for *starting* slot --- 
               if (currentSlotStatus.assignedCount >= currentSlotStatus.requiredSlot.maxEmployees) {

@@ -8,11 +8,16 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Edit2, Trash2 } from "lucide-react";
+import { Plus, Edit2, Trash2, BugPlay } from "lucide-react";
 import { Settings } from "@/types";
-import { Shift } from "@/services/api";
+import { Shift, testShiftUpdate } from "@/services/api";
 import { ShiftTemplateForm } from "./ShiftTemplateForm";
 import { ShiftTemplateEditorProps } from "../types";
+import LogService from "@/services/logService";
+
+// Create an instance of the logger
+const logger = new LogService();
+const MODULE_NAME = "ShiftTemplateEditor";
 
 export const ShiftTemplateEditor: React.FC<ShiftTemplateEditorProps> = ({
   shifts,
@@ -23,6 +28,7 @@ export const ShiftTemplateEditor: React.FC<ShiftTemplateEditorProps> = ({
   onEmployeeCountChange,
 }) => {
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
+  const [isDebugMode, setIsDebugMode] = useState(false);
 
   const formatTime = (time: string) => {
     // Ensure time is in a proper format for new Date()
@@ -41,7 +47,7 @@ export const ShiftTemplateEditor: React.FC<ShiftTemplateEditorProps> = ({
         hour12: false,
       });
     } catch (error) {
-      console.error("Error formatting time:", error);
+      logger.error(MODULE_NAME, "formatTime", "Error formatting time", error);
       return time; // Return the original time string as fallback
     }
   };
@@ -52,6 +58,58 @@ export const ShiftTemplateEditor: React.FC<ShiftTemplateEditorProps> = ({
       .filter(([_, isActive]) => isActive)
       .map(([day]) => days[parseInt(day)])
       .join(", ");
+  };
+
+  // Helper function to debug API calls
+  const debugApiCall = async (updatedShift: Shift) => {
+    try {
+      // Ensure active_days is a proper JavaScript object
+      let activeDays = updatedShift.active_days;
+      if (typeof activeDays === 'string') {
+        try {
+          activeDays = JSON.parse(activeDays);
+        } catch (e) {
+          logger.error(MODULE_NAME, "debugApiCall", "Failed to parse active_days string", e);
+        }
+      }
+      
+      // Create a simplified payload for testing that matches exactly what the backend expects
+      const testPayload = {
+        // Format times as plain HH:MM format without seconds - the backend validation expects this
+        start_time: updatedShift.start_time.split(":").slice(0, 2).join(":"),
+        end_time: updatedShift.end_time.split(":").slice(0, 2).join(":"),
+        // Convert boolean to integer (0/1) for SQLite compatibility
+        requires_break: updatedShift.requires_break ? 1 : 0,
+        // Keep active_days as a JavaScript object (not a string)
+        active_days: activeDays,
+        // Include shift_type_id if present
+        ...(updatedShift.shift_type_id && { shift_type_id: updatedShift.shift_type_id }),
+        // Include name if present
+        ...(updatedShift.name && { name: updatedShift.name }),
+        // Include type if present (lowercase shift_type_id)
+        ...(updatedShift.shift_type_id && { type: updatedShift.shift_type_id.toLowerCase() }),
+        // Include duration_hours if present
+        ...(updatedShift.duration_hours && { duration_hours: updatedShift.duration_hours }),
+        // Include break_duration if present
+        ...(updatedShift.break_duration && { break_duration: updatedShift.break_duration })
+      };
+      
+      logger.debug(MODULE_NAME, "debugApiCall", "Attempting debug API call with payload", testPayload);
+      const result = await testShiftUpdate(updatedShift.id, testPayload);
+      logger.debug(MODULE_NAME, "debugApiCall", "Debug API call result", result);
+      
+      // If successful, update the UI
+      if (result && (result.success || result.id)) {
+        alert("Debug save successful! See console for details.");
+        onUpdateShift && onUpdateShift(updatedShift);
+        setEditingShift(null);
+      } else {
+        alert("Debug save failed. See console for details.");
+      }
+    } catch (error) {
+      logger.error(MODULE_NAME, "debugApiCall", "Debug API call failed", error);
+      alert("Debug API call error: " + (error instanceof Error ? error.message : String(error)));
+    }
   };
 
   return (
@@ -166,40 +224,73 @@ export const ShiftTemplateEditor: React.FC<ShiftTemplateEditorProps> = ({
                       updatedShift.name = shiftTypeObj?.name || `Shift ${updatedShift.id}`;
                     }
                     
-                    // Ensure time values are properly formatted (HH:MM:SS for API)
-                    if (updatedShift.start_time && updatedShift.start_time.includes(':')) {
-                      if (updatedShift.start_time.split(':').length === 2) {
-                        updatedShift.start_time = `${updatedShift.start_time}:00`;
-                      }
-                    }
+                    // Create a properly formatted API payload following the successful debug pattern
+                    const apiPayload = {
+                      ...updatedShift,
+                      // Format times as HH:MM (without seconds) to match backend validation
+                      start_time: updatedShift.start_time.split(":").slice(0, 2).join(":"),
+                      end_time: updatedShift.end_time.split(":").slice(0, 2).join(":"),
+                      // SQLite expects requires_break as integer (0/1)
+                      requires_break: updatedShift.requires_break ? 1 : 0,
+                    };
                     
-                    if (updatedShift.end_time && updatedShift.end_time.includes(':')) {
-                      if (updatedShift.end_time.split(':').length === 2) {
-                        updatedShift.end_time = `${updatedShift.end_time}:00`;
-                      }
-                    }
+                    // Recalculate duration_hours based on current times
+                    apiPayload.duration_hours = calculateDuration(
+                      apiPayload.start_time,
+                      apiPayload.end_time
+                    );
                     
                     // Calculate break duration if not already present
-                    if (updatedShift.requires_break && !updatedShift.break_duration) {
-                      if (updatedShift.duration_hours >= 8) {
-                        updatedShift.break_duration = 60;
-                      } else if (updatedShift.duration_hours >= 6) {
-                        updatedShift.break_duration = 30;
+                    if (apiPayload.requires_break && !apiPayload.break_duration) {
+                      if (apiPayload.duration_hours >= 8) {
+                        apiPayload.break_duration = 60;
+                      } else if (apiPayload.duration_hours >= 6) {
+                        apiPayload.break_duration = 30;
+                      } else {
+                        apiPayload.break_duration = 0;
+                      }
+                    } else if (!apiPayload.requires_break) {
+                      apiPayload.break_duration = 0; // Explicitly set to 0 when no break is required
+                    }
+                    
+                    // Ensure active_days is properly formatted
+                    if (apiPayload.active_days && typeof apiPayload.active_days === 'object') {
+                      // Make sure all days (0-6) have a boolean value
+                      for (let i = 0; i < 7; i++) {
+                        if (apiPayload.active_days[i.toString()] === undefined) {
+                          apiPayload.active_days[i.toString()] = false;
+                        }
                       }
                     }
                     
                     // Log the data being sent to the API
-                    console.log("Updating shift with data:", updatedShift);
+                    logger.debug(MODULE_NAME, "updateShift", "Updating shift with data", apiPayload);
                     
-                    onUpdateShift(updatedShift);
+                    onUpdateShift(apiPayload);
                   }
                   setEditingShift(null);
                 }}
               />
             </CardContent>
             <CardFooter className="flex justify-end">
-              <Button variant="outline" onClick={() => setEditingShift(null)}>
+              <Button variant="outline" onClick={() => setEditingShift(null)} className="mr-2">
                 Cancel
+              </Button>
+              {isDebugMode && (
+                <Button 
+                  variant="secondary"
+                  onClick={() => editingShift && debugApiCall(editingShift)}
+                  className="mr-2"
+                >
+                  Debug Save
+                </Button>
+              )}
+              <Button 
+                variant="default" 
+                onClick={() => setIsDebugMode(!isDebugMode)}
+                className="mr-2"
+              >
+                {isDebugMode ? "Normal Mode" : "Debug Mode"}
               </Button>
             </CardFooter>
           </Card>

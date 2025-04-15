@@ -1,4 +1,4 @@
-import globalDb from "../db";
+import { getDb } from "../db";
 import { Database } from "bun:sqlite";
 import { type Absence } from "../db/schema";
 import { NotFoundError } from "elysia";
@@ -25,7 +25,7 @@ function mapRowToAbsence(row: any): Absence {
  */
 export async function getAbsencesForEmployee(
     employeeId: number,
-    db: Database = globalDb // Added db param
+    db: Database = getDb() // Use getDb()
 ): Promise<Absence[]> {
     const sql = "SELECT * FROM absences WHERE employee_id = ? ORDER BY start_date;";
     try {
@@ -45,7 +45,7 @@ export async function getAbsencesForEmployee(
  */
 export async function getAbsenceById(
     id: number,
-    db: Database = globalDb // Added db param
+    db: Database = getDb() // Use getDb()
 ): Promise<Absence> {
     const sql = "SELECT * FROM absences WHERE id = ?;";
     try {
@@ -72,7 +72,7 @@ type CreateAbsenceInput = Omit<Absence, 'id' | 'created_at' | 'updated_at'>;
  */
 export async function addAbsence(
     data: CreateAbsenceInput,
-    db: Database = globalDb // Added db param
+    db: Database = getDb() // Use getDb()
 ): Promise<Absence> {
     const { employee_id, absence_type_id, start_date, end_date, note } = data;
 
@@ -112,7 +112,7 @@ type UpdateAbsenceInput = Partial<Omit<Absence, 'id' | 'employee_id' | 'created_
 export async function updateAbsence(
     id: number,
     data: UpdateAbsenceInput,
-    db: Database = globalDb // Added db param
+    db: Database = getDb() // Use getDb()
 ): Promise<Absence> {
     await getAbsenceById(id, db); // Check existence using db
 
@@ -150,7 +150,7 @@ export async function updateAbsence(
  */
 export async function deleteAbsence(
     id: number,
-    db: Database = globalDb // Added db param
+    db: Database = getDb() // Use getDb()
 ): Promise<{ success: boolean }> {
     await getAbsenceById(id, db); // Check existence using db
     const sql = "DELETE FROM absences WHERE id = ?;";
@@ -175,7 +175,7 @@ export async function deleteAbsence(
 export async function getAbsencesInRange(
     startDate: string,
     endDate: string,
-    db: Database = globalDb // Added db param
+    db: Database = getDb() // Use getDb()
 ): Promise<Absence[]> {
     const sql = `
         SELECT * FROM absences

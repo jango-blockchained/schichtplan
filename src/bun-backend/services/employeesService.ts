@@ -3,7 +3,8 @@ import { Database } from "bun:sqlite"; // Import Database type
 import { Employee, EmployeeGroup } from "../db/schema"; // Import the Employee interface and Enum
 import { SQLQueryBindings } from "bun:sqlite"; // Import type for bindings
 import { NotFoundError } from "elysia";
-import globalDb from "../db"; // Add back the globalDb import
+import { getDb } from "../db"; // Import named export getDb
+import logger from '../logger'; // Import logger
 
 // Function to map database row to Employee interface, handling potential type mismatches
 function mapRowToEmployee(row: any): Employee {
@@ -43,7 +44,7 @@ export interface EmployeeFilters {
 // Updated function to handle filters
 export async function getAllEmployees(
     filters: EmployeeFilters = {},
-    db: Database = globalDb as Database
+    db: Database = getDb() as Database
 ): Promise<Employee[]> {
     if (!db) {
         throw new Error("Database instance is required");
@@ -53,21 +54,21 @@ export async function getAllEmployees(
         const conditions: string[] = [];
         const params: SQLQueryBindings[] = []; 
 
-        console.log(`[getAllEmployees] Starting with filters:`, filters);
+        logger.debug(`[getAllEmployees] Starting with filters:`, filters);
 
         // Apply status filter (maps to is_active boolean/integer)
         if (filters.status && filters.status !== 'all') {
             conditions.push("is_active = ?");
             const isActive = filters.status === 'active' ? 1 : 0;
             params.push(isActive);
-            console.log(`[getAllEmployees] Added status filter: is_active = ${isActive}`);
+            logger.debug(`[getAllEmployees] Added status filter: is_active = ${isActive}`);
         }
 
         // Apply group filter
         if (filters.group && filters.group !== 'all') {
             conditions.push("employee_group = ?");
             params.push(filters.group);
-            console.log(`[getAllEmployees] Added group filter: employee_group = ${filters.group}`);
+            logger.debug(`[getAllEmployees] Added group filter: employee_group = ${filters.group}`);
         }
 
         // Build the final query
@@ -76,17 +77,17 @@ export async function getAllEmployees(
         }
         baseSql += " ORDER BY last_name, first_name;";
 
-        console.log(`[getAllEmployees] Using DB file: ${db.filename}`);
-        console.log(`[getAllEmployees] Final SQL query: ${baseSql}`);
-        console.log(`[getAllEmployees] Query parameters:`, params);
+        logger.debug(`[getAllEmployees] Using DB file: ${db.filename}`);
+        logger.debug(`[getAllEmployees] Final SQL query: ${baseSql}`);
+        logger.debug(`[getAllEmployees] Query parameters:`, params);
 
         // Execute the query using prepare and run
         const stmt = db.prepare(baseSql);
         const rows = stmt.all(...params) as any[];
 
-        console.log(`[getAllEmployees] Found ${rows.length} employees matching filters.`);
+        logger.debug(`[getAllEmployees] Found ${rows.length} employees matching filters.`);
         if (rows.length > 0) {
-            console.log(`[getAllEmployees] First row sample:`, rows[0]);
+            logger.debug(`[getAllEmployees] First row sample:`, rows[0]);
         }
 
         // Map database rows to Employee objects
@@ -94,7 +95,7 @@ export async function getAllEmployees(
 
         return employees;
     } catch (error) {
-        console.error("[getAllEmployees] Error fetching employees:", error);
+        logger.error("[getAllEmployees] Error fetching employees:", error);
         throw new Error("Failed to retrieve employees from database.");
     }
 }
@@ -107,10 +108,10 @@ export async function getEmployeeById(
     try {
         // Ensure the db object is valid before querying
         if (!db) {
-            console.error("getEmployeeById received an invalid database instance!");
+            logger.error("getEmployeeById received an invalid database instance!");
             throw new Error("Invalid database instance provided.");
         }
-        console.log(`[getEmployeeById] Using DB file for id ${id}: ${db.filename}`);
+        logger.debug(`[getEmployeeById] Using DB file for id ${id}: ${db.filename}`);
         
         const stmt = db.prepare("SELECT * FROM employees WHERE id = ?;");
         const row = stmt.get(id) as any; // Use get for single result
@@ -121,7 +122,7 @@ export async function getEmployeeById(
             return null; // Not found
         }
     } catch (error) {
-        console.error(`Error fetching employee with id ${id}:`, error);
+        logger.error(`Error fetching employee with id ${id}:`, error);
         throw new Error("Failed to retrieve employee from database.");
     }
 }
@@ -184,7 +185,7 @@ export async function createEmployee(
     ];
 
     try {
-        console.log(`[createEmployee] Using DB file: ${db.filename}`);
+        logger.debug(`[createEmployee] Using DB file: ${db.filename}`);
         // Execute the insert query in a transaction
         db.transaction(() => {
             const insertQuery = db.query(sql);
@@ -200,7 +201,7 @@ export async function createEmployee(
             throw new Error("Failed to get last insert ID after creating employee.");
         }
 
-        console.log(`[createEmployee] Fetching newly created employee with ID: ${lastId} using DB file: ${db.filename}`);
+        logger.debug(`[createEmployee] Fetching newly created employee with ID: ${lastId} using DB file: ${db.filename}`);
         // Fetch and return the newly created employee
         const newEmployee = await getEmployeeById(Number(lastId), db);
         if (!newEmployee) {
@@ -210,7 +211,7 @@ export async function createEmployee(
         return newEmployee;
 
     } catch (error: any) {
-        console.error("Error creating employee:", error);
+        logger.error("Error creating employee:", error);
 
         // Handle specific SQLite errors (like UNIQUE constraint violation)
         if (error.message?.includes('UNIQUE constraint failed: employees.employee_id')) {
@@ -279,11 +280,11 @@ export async function updateEmployee(
     const sql = `UPDATE employees SET ${Object.keys(updates).map(key => `${key} = ?`).join(', ')} WHERE id = ?;`;
 
     try {
-        console.log(`[updateEmployee] Using DB file for id ${id}: ${db.filename}`);
+        logger.debug(`[updateEmployee] Using DB file for id ${id}: ${db.filename}`);
         const stmt = db.prepare(sql);
         const info = await Promise.resolve(stmt.run(...Object.values(updates), id));
 
-        console.log(`[updateEmployee] Re-fetching employee ${id} using DB file: ${db.filename}`);
+        logger.debug(`[updateEmployee] Re-fetching employee ${id} using DB file: ${db.filename}`);
         // Re-fetch the updated employee to return the latest state
         const updatedEmployee = await getEmployeeById(id, db);
          if (!updatedEmployee) { 
@@ -293,7 +294,7 @@ export async function updateEmployee(
          return updatedEmployee;
 
     } catch (error) {
-        console.error(`Error updating employee ${id}:`, error);
+        logger.error(`Error updating employee ${id}:`, error);
         // Don't re-throw NotFoundError here, already checked.
         // Throw generic error for SQL issues.
         throw new Error(`Failed to update employee in database: ${error instanceof Error ? error.message : String(error)}`);
@@ -312,19 +313,19 @@ export async function deleteEmployee(
 
     const sql = "DELETE FROM employees WHERE id = ?;";
     try {
-        console.log(`[deleteEmployee] Using DB file for id ${id}: ${db.filename}`);
+        logger.debug(`[deleteEmployee] Using DB file for id ${id}: ${db.filename}`);
         const stmt = db.prepare(sql);
         const info = await Promise.resolve(stmt.run(id));
         
         if (info.changes === 0) {
              // Should not happen if initial check passed
-             console.warn(`Delete operation for employee ${id} affected 0 rows.`);
+             logger.warn(`Delete operation for employee ${id} affected 0 rows.`);
               throw new Error(`Delete failed unexpectedly for employee ${id}.`);
         }
-        console.log(`Employee ${id} deleted successfully.`);
+        logger.info(`Employee ${id} deleted successfully.`);
         return { success: true };
     } catch (error) {
-        console.error(`Error deleting employee ${id}:`, error);
+        logger.error(`Error deleting employee ${id}:`, error);
          // Don't re-throw NotFoundError
         throw new Error(`Failed to delete employee: ${error instanceof Error ? error.message : String(error)}`);
     }

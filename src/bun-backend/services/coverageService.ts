@@ -1,7 +1,8 @@
-import globalDb from "../db"; // Default instance
 import { Database } from "bun:sqlite"; // Type
 import { type Coverage, EmployeeGroup } from "../db/schema";
 import { NotFoundError } from "elysia";
+import { getDb } from "../db"; // Import named export getDb
+import logger from '../logger'; // Import logger
 
 // Helper to safely parse JSON arrays, returning default if null/invalid
 function safeJsonParseArray<T>(jsonString: string | null | undefined, defaultValue: T[]): T[] {
@@ -10,7 +11,7 @@ function safeJsonParseArray<T>(jsonString: string | null | undefined, defaultVal
         const parsed = JSON.parse(jsonString);
         return Array.isArray(parsed) ? parsed : defaultValue;
     } catch (e) {
-        console.error("Failed to parse JSON array:", e, "String:", jsonString);
+        logger.error("Failed to parse JSON array:", e, "String:", jsonString);
         return defaultValue;
     }
 }
@@ -38,7 +39,7 @@ function mapRowToCoverage(row: any): Coverage {
  * TODO: Add filtering by date range if necessary (depends on how coverage is used).
  */
 export async function getAllCoverage(
-    db: Database = globalDb as Database
+    db: Database = getDb() as Database
 ): Promise<Coverage[]> {
     if (!db) {
         throw new Error("Database instance is required");
@@ -55,7 +56,7 @@ export async function getAllCoverage(
         
         return rows.map(mapRowToCoverage);
     } catch (error) {
-        console.error("Error fetching all coverage entries:", error);
+        logger.error("Error fetching all coverage entries:", error);
         throw new Error("Failed to retrieve coverage entries.");
     }
 }
@@ -65,7 +66,7 @@ export async function getAllCoverage(
  */
 export async function getCoverageById(
     id: number,
-    db: Database = globalDb as Database
+    db: Database = getDb() as Database
 ): Promise<Coverage> {
     if (!db) {
         throw new Error("Database instance is required");
@@ -78,7 +79,7 @@ export async function getCoverageById(
         }
         return mapRowToCoverage(row);
     } catch (error) {
-        console.error(`Error fetching coverage entry ${id}:`, error);
+        logger.error(`Error fetching coverage entry ${id}:`, error);
         if (error instanceof NotFoundError) throw error;
         throw new Error("Failed to retrieve coverage entry.");
     }
@@ -93,7 +94,7 @@ type CreateCoverageInput = Omit<Coverage, 'id' | 'created_at' | 'updated_at'>;
  */
 export async function createCoverage(
     data: CreateCoverageInput,
-    db: Database = globalDb as Database
+    db: Database = getDb() as Database
 ): Promise<Coverage> {
     if (!db) {
         throw new Error("Database instance is required");
@@ -149,7 +150,7 @@ export async function createCoverage(
         }
         return getCoverageById(result.id, db);
     } catch (error) {
-        console.error("Error creating coverage entry:", error);
+        logger.error("Error creating coverage entry:", error);
         throw new Error("Failed to create coverage entry.");
     }
 }
@@ -165,7 +166,7 @@ type UpdateCoverageInput = Partial<Omit<Coverage, 'id' | 'created_at' | 'updated
 export async function updateCoverage(
     id: number,
     data: UpdateCoverageInput,
-    db: Database = globalDb as Database
+    db: Database = getDb() as Database
 ): Promise<Coverage> {
     if (!db) {
         throw new Error("Database instance is required");
@@ -212,7 +213,7 @@ export async function updateCoverage(
         stmt.run(...values, id);
         return getCoverageById(id, db);
     } catch (error) {
-        console.error(`Error updating coverage entry ${id}:`, error);
+        logger.error(`Error updating coverage entry ${id}:`, error);
         throw new Error("Failed to update coverage entry.");
     }
 }
@@ -223,7 +224,7 @@ export async function updateCoverage(
  */
 export async function deleteCoverage(
     id: number,
-    db: Database = globalDb as Database
+    db: Database = getDb() as Database
 ): Promise<{ success: boolean }> {
     if (!db) {
         throw new Error("Database instance is required");
@@ -236,7 +237,7 @@ export async function deleteCoverage(
         stmt.run(id);
         return { success: true };
     } catch (error) {
-        console.error(`Error deleting coverage entry ${id}:`, error);
+        logger.error(`Error deleting coverage entry ${id}:`, error);
         throw new Error("Failed to delete coverage entry.");
     }
 }
@@ -252,7 +253,7 @@ type BulkCoverageInput = Omit<Coverage, 'id' | 'created_at' | 'updated_at'> & { 
  */
 export async function bulkUpdateCoverage(
     coverageData: BulkCoverageInput[],
-    db: Database = globalDb as Database
+    db: Database = getDb() as Database
 ): Promise<Coverage[]> {
     if (!db) {
         throw new Error("Database instance is required");
@@ -260,13 +261,13 @@ export async function bulkUpdateCoverage(
     try {
         // Safeguard: if no data provided, return empty array
         if (!coverageData || coverageData.length === 0) {
-            console.log("bulkUpdateCoverage called with empty data, no changes made.");
+            logger.info("bulkUpdateCoverage called with empty data, no changes made.");
             return [];
         }
 
         // First, identify which days we're updating
         const dayIndices = [...new Set(coverageData.map(item => item.day_index))];
-        console.log(`Deleting existing coverage for days: ${dayIndices.join(', ')}`);
+        logger.debug(`Deleting existing coverage for days: ${dayIndices.join(', ')}`);
 
         // Start a transaction
         db.transaction(() => {
@@ -310,7 +311,7 @@ export async function bulkUpdateCoverage(
             }
         })();
 
-        console.log(`Successfully inserted ${coverageData.length} coverage entries for days: ${dayIndices.join(', ')}`);
+        logger.info(`Successfully inserted ${coverageData.length} coverage entries for days: ${dayIndices.join(', ')}`);
         
         // Return all coverage entries for the affected days
         const result: Coverage[] = [];
@@ -328,14 +329,14 @@ export async function bulkUpdateCoverage(
         
         return result;
     } catch (error) {
-        console.error("Error in bulkUpdateCoverage:", error);
+        logger.error("Error in bulkUpdateCoverage:", error);
         throw new Error("Failed to update coverage entries in bulk.");
     }
 }
 
 export async function getCoverageForDay(
     dayIndex: number,
-    db: Database = globalDb as Database
+    db: Database = getDb() as Database
 ): Promise<Coverage[]> {
     if (!db) {
         throw new Error("Database instance is required");
@@ -349,14 +350,14 @@ export async function getCoverageForDay(
         
         return resultsArray.map(mapRowToCoverage);
     } catch (error) {
-        console.error(`Error fetching coverage entries for day ${dayIndex}:`, error);
+        logger.error(`Error fetching coverage entries for day ${dayIndex}:`, error);
         throw new Error(`Failed to retrieve coverage entries for day ${dayIndex}.`);
     }
 }
 
 export async function deleteCoverageEntry(
     id: number,
-    db: Database = globalDb as Database
+    db: Database = getDb() as Database
 ): Promise<boolean> {
     if (!db) {
         throw new Error("Database instance is required");
@@ -375,7 +376,7 @@ export async function deleteCoverageEntry(
         
         return true;
     } catch (error) {
-        console.error(`Error deleting coverage entry ${id}:`, error);
+        logger.error(`Error deleting coverage entry ${id}:`, error);
         if (error instanceof NotFoundError) throw error;
         throw new Error(`Failed to delete coverage entry ${id}.`);
     }

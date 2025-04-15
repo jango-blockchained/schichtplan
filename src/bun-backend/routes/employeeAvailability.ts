@@ -1,5 +1,5 @@
 import { Elysia, t, NotFoundError } from "elysia";
-import globalDb from "../db"; // Import globalDb
+import { getDb } from "../db"; // Import getDb
 import { Database } from "bun:sqlite"; // Import Database type
 import logger from "../logger"; // Import the logger
 import {
@@ -64,7 +64,7 @@ export const employeeAvailabilityRoutes = new Elysia({ prefix: "/api/employees/:
     // GET availability for a specific employee
     .get("/", async ({ params, set, ...ctx }) => { // Add context
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb; // Let type be inferred
+        const currentDb = context.db ?? getDb(); // Use getDb()
         const routeLogger = (ctx as any).log ?? logger; // Correct logger access
         try {
             const availabilities = await getServiceAvailabilitiesForEmployee(params.id, currentDb); // Pass db
@@ -81,7 +81,7 @@ export const employeeAvailabilityRoutes = new Elysia({ prefix: "/api/employees/:
     // POST new availability for a specific employee
     .post("/", async ({ params, body, set, ...ctx }) => { // Add context
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb; // Let type be inferred
+        const currentDb = context.db ?? getDb(); // Use getDb()
         const routeLogger = (ctx as any).log ?? logger; // Correct logger access
         try {
             const availabilityData = {
@@ -103,7 +103,7 @@ export const employeeAvailabilityRoutes = new Elysia({ prefix: "/api/employees/:
     // PUT: Replace all availability for a specific employee (Bulk Update)
     .put("/", async ({ params, body, set, ...ctx }) => {
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb; // Let type be inferred
+        const currentDb = context.db ?? getDb(); // Use getDb()
         const routeLogger = (ctx as any).log ?? logger; // Correct logger access
 
         try {
@@ -127,7 +127,7 @@ export const availabilityRoutes = new Elysia({ prefix: "/api/availability" })
     // PUT update specific availability entry
     .put("/:id", async ({ params, body, set, ...ctx }) => { // Add context
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb; // Let type be inferred
+        const currentDb = context.db ?? getDb(); // Use getDb()
         const routeLogger = (ctx as any).log ?? logger; // Correct logger access
         try {
             const updated = await updateServiceAvailability(params.id, body, currentDb); // Pass db
@@ -150,7 +150,7 @@ export const availabilityRoutes = new Elysia({ prefix: "/api/availability" })
     // DELETE specific availability entry
     .delete("/:id", async ({ params, set, ...ctx }) => { // Add context
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb; // Let type be inferred
+        const currentDb = context.db ?? getDb(); // Use getDb()
         const routeLogger = (ctx as any).log ?? logger; // Correct logger access
         try {
             await deleteServiceAvailability(params.id, currentDb); // Pass db, service throws NotFoundError

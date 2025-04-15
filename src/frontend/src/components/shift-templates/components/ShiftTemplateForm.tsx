@@ -195,14 +195,18 @@ export const ShiftTemplateForm = ({
     
     // Only proceed if validation passes
     if (startTimeValid && endTimeValid) {
-      // Format times to ensure they're in HH:MM format without seconds
+      // Format times to ensure they're in HH:MM:SS format for API
       const formatTimeString = (time: string): string => {
         if (!time) return "";
-        // If it contains seconds (HH:MM:SS), strip them
-        if (time.split(':').length > 2) {
-          const parts = time.split(':');
-          return `${parts[0]}:${parts[1]}`;
+        
+        // Extract hours and minutes, then format to HH:MM:SS
+        const parts = time.split(':');
+        if (parts.length >= 2) {
+          const hours = parts[0].padStart(2, '0');
+          const minutes = parts[1].padStart(2, '0');
+          return `${hours}:${minutes}:00`;
         }
+        
         return time;
       };
       
@@ -212,7 +216,10 @@ export const ShiftTemplateForm = ({
       // Find the shift type name from settings
       const shiftTypeObj = settings?.shift_types?.find(type => type.id === normalizedShiftTypeId);
       
-      // Create the data to save - don't include shift_type field
+      // Calculate the duration in hours for reference
+      const durationHours = calculateDuration();
+      
+      // Create the data to save with proper formatting for API
       const saveData = {
         ...shift, // Keep existing properties like id
         start_time: formatTimeString(formData.start_time),
@@ -222,8 +229,8 @@ export const ShiftTemplateForm = ({
         shift_type_id: normalizedShiftTypeId,
         type: normalizedShiftTypeId.toLowerCase(), // Add type field as lowercase shift_type_id
         name: shiftTypeObj?.name || `Shift ${shift?.id || "Template"}`, // Add name from shift type
-        duration_hours: shiftDuration, // Include calculated duration
-        break_duration: isBreakRequired ? (shiftDuration > 8 ? 60 : 30) : undefined // Add break duration
+        duration_hours: durationHours, // Include calculated duration
+        break_duration: isBreakRequired ? (durationHours > 8 ? 60 : 30) : 0 // Be explicit about break duration
       };
       
       // Log what we're saving to help with debugging

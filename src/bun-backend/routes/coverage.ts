@@ -1,5 +1,5 @@
 import { Elysia, t, NotFoundError } from "elysia";
-import globalDb from "../db"; // Import globalDb
+import { getDb } from "../db"; // Import getDb
 import { Database } from "bun:sqlite"; // Import Database type
 import {
     getAllCoverage as getServiceAllCoverage, // Use aliases to avoid name clash
@@ -76,7 +76,7 @@ export const coverageRoutes = new Elysia({ prefix: "/api/coverage" })
     // GET all coverage entries
     .get("/", async ({ set, ...ctx }) => { // Add context
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb;
+        const currentDb = context.db ?? getDb(); // Use getDb()
         try {
             const coverageEntries = await getServiceAllCoverage(currentDb); // Pass db
             // Existing logic returned success/data wrapper, keep for now?
@@ -94,7 +94,7 @@ export const coverageRoutes = new Elysia({ prefix: "/api/coverage" })
     // POST a new coverage entry
     .post("/", async ({ body, set, ...ctx }) => { // Add context
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb;
+        const currentDb = context.db ?? getDb(); // Use getDb()
         try {
             const newCoverage = await createServiceCoverage(body, currentDb); // Pass db
             set.status = 201;
@@ -112,7 +112,7 @@ export const coverageRoutes = new Elysia({ prefix: "/api/coverage" })
     // GET a single coverage entry by ID
     .get("/:id", async ({ params, set, ...ctx }) => { // Add context
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb;
+        const currentDb = context.db ?? getDb(); // Use getDb()
         try {
             const coverage = await getServiceCoverageById(params.id, currentDb); // Pass db
             return coverage; // Service throws NotFoundError
@@ -133,7 +133,7 @@ export const coverageRoutes = new Elysia({ prefix: "/api/coverage" })
     // PUT update a coverage entry by ID
     .put("/:id", async ({ params, body, set, ...ctx }) => { // Add context
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb;
+        const currentDb = context.db ?? getDb(); // Use getDb()
         try {
             const updatedCoverage = await updateServiceCoverage(params.id, body, currentDb); // Pass db
             return updatedCoverage; // Service throws NotFoundError
@@ -155,7 +155,7 @@ export const coverageRoutes = new Elysia({ prefix: "/api/coverage" })
     // DELETE a coverage entry by ID
     .delete("/:id", async ({ params, set, ...ctx }) => { // Add context
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb;
+        const currentDb = context.db ?? getDb(); // Use getDb()
         try {
             await deleteServiceCoverage(params.id, currentDb); // Pass db, service throws NotFoundError
             set.status = 204; 
@@ -177,7 +177,7 @@ export const coverageRoutes = new Elysia({ prefix: "/api/coverage" })
     // POST /api/coverage/bulk - Bulk update coverage entries
     .post('/bulk', async ({ body, set, ...ctx }) => { // Add context
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb;
+        const currentDb = context.db ?? getDb(); // Use getDb()
          try {
             const resultCoverage = await bulkServiceUpdateCoverage(body, currentDb); // Pass db
             // Return the result from the service (which is the input data on success)

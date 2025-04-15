@@ -9,6 +9,7 @@ import type {
   ShiftTemplate,
 } from "@/types/index";
 import { CreateEmployeeRequest, UpdateEmployeeRequest } from "../types";
+import LogService from "@/services/logService";
 
 interface APIErrorResponse {
   error?: string;
@@ -147,6 +148,10 @@ api.interceptors.response.use(
     }
   },
 );
+
+// Create a logger instance
+const logger = new LogService();
+const MODULE_NAME = "api";
 
 // Settings
 export const getSettings = async (): Promise<Settings> => {
@@ -355,18 +360,28 @@ export const updateShift = async ({
   ...data
 }: Partial<Shift> & { id: number }): Promise<Shift> => {
   try {
-    console.log(`Updating shift ID ${id} with data:`, data);
+    logger.debug(MODULE_NAME, "updateShift", `Updating shift ID ${id} with initial data`, data);
     
-    // Create a copy of the data to avoid mutating the original
+    // Create a copy of the data to avoid mutating the original and format it upfront
     const requestData = { ...data };
+
+    // --- Apply formatting CONSISTENTLY before any API call attempt --- 
     
-    // Ensure shift_type_id is uppercase
+    // IMPORTANT: DO NOT convert active_days to a JSON string - keep it as an object
+    if (requestData.active_days && typeof requestData.active_days === 'string') {
+      try {
+        requestData.active_days = JSON.parse(requestData.active_days);
+      } catch (e) {
+        logger.error(MODULE_NAME, "updateShift", "Failed to parse active_days string", e);
+        // Decide if we should throw, or continue with potentially invalid data
+      }
+    }
+    
+    // Ensure shift_type_id is uppercase and add lowercase type
     if (requestData.shift_type_id) {
       requestData.shift_type_id = requestData.shift_type_id.toUpperCase();
-      console.log(`Normalized shift_type_id to uppercase: ${requestData.shift_type_id}`);
-      
-      // Add type field matching shift_type_id as per API documentation
       requestData.type = requestData.shift_type_id.toLowerCase();
+      logger.debug(MODULE_NAME, "updateShift", `Normalized shift_type_id/type: ${requestData.shift_type_id}/${requestData.type}`);
     }
     
     // Generate a name field if not present
@@ -374,52 +389,111 @@ export const updateShift = async ({
       requestData.name = `Shift ${id}`;
     }
     
-    // Ensure duration_hours is included if start_time and end_time are provided
+    // Format time values as HH:MM (without seconds)
+    if (requestData.start_time) {
+      requestData.start_time = requestData.start_time.split(":").slice(0, 2).join(":");
+    }
+    
+    if (requestData.end_time) {
+      requestData.end_time = requestData.end_time.split(":").slice(0, 2).join(":");
+    }
+    
+    // Convert requires_break to integer (0/1)
+    if (requestData.requires_break !== undefined) {
+      requestData.requires_break = requestData.requires_break ? 1 : 0;
+    }
+    
+    // Calculate duration_hours if necessary
     if (requestData.start_time && requestData.end_time && requestData.duration_hours === undefined) {
-      // Calculate duration if not provided
       const timeToMinutes = (time: string): number => {
         const [hours, minutes] = time.split(":").map(Number);
         return hours * 60 + minutes;
       };
-    
       const startMinutes = timeToMinutes(requestData.start_time);
       const endMinutes = timeToMinutes(requestData.end_time);
-      
       let duration = endMinutes - startMinutes;
-      if (duration < 0) duration += 24 * 60; // Handle overnight shifts
-      
+      if (duration < 0) duration += 24 * 60;
       requestData.duration_hours = duration / 60;
-      console.log(`Calculated duration_hours: ${requestData.duration_hours}`);
+      logger.debug(MODULE_NAME, "updateShift", `Calculated duration_hours: ${requestData.duration_hours}`);
     }
     
-    // Break duration in minutes if required (optional field in API)
-    if (requestData.requires_break && !requestData.break_duration) {
-      // Calculate break duration based on shift length
+    // Calculate/set break_duration
+    if (requestData.requires_break && requestData.break_duration === undefined) { // Check for undefined, not just falsy
       const durationHours = requestData.duration_hours || 0;
       if (durationHours >= 8) {
         requestData.break_duration = 60;
       } else if (durationHours >= 6) {
         requestData.break_duration = 30;
+      } else {
+        requestData.break_duration = 0; // Ensure it's set even for short shifts if requires_break is true
+      }
+    } else if (!requestData.requires_break) { // If break not required, ensure duration is 0
+      requestData.break_duration = 0;
+    }
+
+    // --- End of formatting --- 
+
+    logger.debug(MODULE_NAME, "updateShift", "Sending FORMATTED request data to API", requestData);
+    
+    try {
+      // Try with axios first, using the already formatted requestData
+      const url = `/shifts/${id}/`;
+      const response = await api.put<{success: boolean, data: Shift} | Shift>(url, requestData);
+      logger.debug(MODULE_NAME, "updateShift", `Axios update response for shift ID ${id}:`, response.data);
+      
+      // Handle response format
+      if (response.data && typeof response.data === 'object') {
+        return ('success' in response.data && 'data' in response.data) ? response.data.data : response.data as Shift;
+      }
+      throw new Error("Invalid response format received from Axios");
+
+    } catch (axiosError) {
+      logger.warning(MODULE_NAME, "updateShift", "Axios request failed, trying with direct fetch as fallback", axiosError);
+      
+      // Fallback with direct fetch, using the SAME formatted requestData
+      const fetchUrl = `${API_BASE_URL}/shifts/${id}/`;
+      logger.debug(MODULE_NAME, "updateShift", `Using fetch fallback with payload to ${fetchUrl}`, requestData);
+      
+      const fetchResponse = await fetch(fetchUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData),
+        credentials: 'include'
+      });
+      
+      if (!fetchResponse.ok) {
+        const errorText = await fetchResponse.text();
+        logger.error(MODULE_NAME, "updateShift", `Fetch fallback error (${fetchResponse.status}):`, errorText);
+        // Throw a specific error based on the fetch response
+        throw new Error(`Failed to update shift via fetch: ${fetchResponse.statusText} - ${errorText}`); 
+      }
+      
+      const data = await fetchResponse.json();
+      logger.debug(MODULE_NAME, "updateShift", "Fetch fallback response", data);
+      
+      // Handle response format from fetch
+      if (data && typeof data === 'object') {
+         return ('success' in data && 'data' in data) ? data.data : data as Shift;
+      }
+       throw new Error("Invalid response format received from fetch fallback");
+    }
+  } catch (error) {
+    // Log the final error that bubbles up (either from initial formatting, axios, or fetch)
+    logger.error(MODULE_NAME, "updateShift", `Overall error updating shift ID ${id}:`, error);
+    // Re-throw a user-friendly error, potentially masking internal details
+    if (error instanceof Error) {
+      // Customize message based on likely cause if possible
+      if (error.message.includes("422")) { 
+          throw new Error(`Failed to update shift: Validation error on server. Please check data format.`);
+      } else if (error.message.includes("fetch")) {
+           throw new Error(`Failed to update shift: Network issue during fallback.`);
+      } else {
+          throw new Error(`Failed to update shift: ${error.message}`); 
       }
     }
-    
-    console.log(`Sending request data to API:`, requestData);
-    
-    const response = await api.put<{success: boolean, data: Shift} | Shift>(`/shifts/${id}/`, requestData);
-    console.log(`Update response for shift ID ${id}:`, response.data);
-    
-    // Handle different response formats
-    if (response.data && typeof response.data === 'object' && 'success' in response.data && 'data' in response.data) {
-      return response.data.data;
-    }
-    
-    return response.data as Shift;
-  } catch (error) {
-    console.error(`Error updating shift ID ${id}:`, error);
-    if (error instanceof Error) {
-      throw new Error(`Failed to update shift: ${error.message}`);
-    }
-    throw error;
+    throw new Error("An unknown error occurred while updating the shift.");
   }
 };
 
@@ -1014,11 +1088,16 @@ export const updateEmployeeAvailability = async (
     "id" | "created_at" | "updated_at"
   >[],
 ) => {
-  const response = await api.put(
-    `/employees/${employeeId}/availabilities`,
-    availabilities,
-  );
-  return response.data;
+  try {
+    // Wrap the availabilities array in an object as expected by the backend
+    const payload = { availabilities };
+    await api.put(`/employees/${employeeId}/availabilities`, payload);
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to update employee availabilities: ${error.message}`);
+    }
+    throw error;
+  }
 };
 
 export const updateSchedule = async (
@@ -1366,7 +1445,7 @@ export const restoreDatabase = async (file: File): Promise<void> => {
 
 export const clearLogs = async (): Promise<void> => {
   try {
-    await api.post("/api/logs/clear");
+    await api.post("/logs/clear");
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to clear logs: ${error.message}`);
@@ -1404,7 +1483,7 @@ export interface LogContent {
 
 export const getLogs = async (): Promise<LogFile[]> => {
   try {
-    const response = await api.get<{ logs: LogFile[] }>("/api/logs/", {
+    const response = await api.get<{ logs: LogFile[] }>("/logs/", {
       params: {
         type: "all",
         days: 7,
@@ -1421,7 +1500,7 @@ export const getLogs = async (): Promise<LogFile[]> => {
 
 export const getLogContent = async (filename: string): Promise<LogContent> => {
   try {
-    const response = await api.get<LogContent>(`/api/logs/${filename}`);
+    const response = await api.get<LogContent>(`/logs/${filename}`);
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -1433,7 +1512,7 @@ export const getLogContent = async (filename: string): Promise<LogContent> => {
 
 export const deleteLog = async (filename: string): Promise<void> => {
   try {
-    await api.delete(`/api/logs/${filename}`);
+    await api.delete(`/logs/${filename}`);
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to delete log: ${error.message}`);
@@ -1883,4 +1962,80 @@ export const updateShiftTemplate = async ({
 
 export const deleteShiftTemplate = async (id: number): Promise<void> => {
   return deleteShift(id);
+};
+
+// Test function to try a direct API call and understand the exact format needed
+export const testShiftUpdate = async (id: number, data: any): Promise<any> => {
+  try {
+    const url = `${API_BASE_URL}/shifts/${id}/`;
+    
+    // Create a standardized payload to match backend expectations
+    const apiPayload = { ...data };
+    
+    // Process times - backend expects HH:MM format (not HH:MM:SS)
+    if (apiPayload.start_time) {
+      if (apiPayload.start_time.includes(':')) {
+        // Ensure we only have HH:MM format
+        apiPayload.start_time = apiPayload.start_time.split(":").slice(0, 2).join(":");
+      } else {
+        logger.error(MODULE_NAME, "testShiftUpdate", "Invalid start_time format", apiPayload.start_time);
+      }
+    }
+    
+    if (apiPayload.end_time) {
+      if (apiPayload.end_time.includes(':')) {
+        // Ensure we only have HH:MM format
+        apiPayload.end_time = apiPayload.end_time.split(":").slice(0, 2).join(":");
+      } else {
+        logger.error(MODULE_NAME, "testShiftUpdate", "Invalid end_time format", apiPayload.end_time);
+      }
+    }
+    
+    // Ensure requires_break is an integer (0/1) for SQLite compatibility
+    if (apiPayload.requires_break !== undefined) {
+      if (typeof apiPayload.requires_break === 'boolean') {
+        apiPayload.requires_break = apiPayload.requires_break ? 1 : 0;
+      } else if (![0, 1].includes(apiPayload.requires_break)) {
+        logger.error(MODULE_NAME, "testShiftUpdate", "Invalid requires_break value", apiPayload.requires_break);
+        apiPayload.requires_break = apiPayload.requires_break ? 1 : 0;
+      }
+    }
+    
+    // Ensure active_days is a JavaScript object, not a string
+    if (apiPayload.active_days && typeof apiPayload.active_days === 'string') {
+      try {
+        apiPayload.active_days = JSON.parse(apiPayload.active_days);
+      } catch (e) {
+        logger.error(MODULE_NAME, "testShiftUpdate", "Failed to parse active_days string", e);
+      }
+    }
+    
+    logger.debug(MODULE_NAME, "testShiftUpdate", `Making direct request to ${url} with:`, apiPayload);
+    
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(apiPayload),
+      credentials: 'include'
+    });
+    
+    const responseText = await response.text();
+    logger.debug(MODULE_NAME, "testShiftUpdate", `Response status: ${response.status}`);
+    
+    try {
+      // Try to parse as JSON if possible
+      const jsonData = JSON.parse(responseText);
+      logger.debug(MODULE_NAME, "testShiftUpdate", "Response data", jsonData);
+      return jsonData;
+    } catch (e) {
+      // If not JSON, return the raw text
+      logger.debug(MODULE_NAME, "testShiftUpdate", "Response text", responseText);
+      return responseText;
+    }
+  } catch (error) {
+    logger.error(MODULE_NAME, "testShiftUpdate", "Test request failed", error);
+    throw error;
+  }
 };

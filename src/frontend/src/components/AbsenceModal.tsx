@@ -181,10 +181,10 @@ export default function AbsenceModal({
                     ? parseISO(newAbsence.start_date)
                     : undefined
                 }
-                setDate={(date) =>
+                onChange={(date) =>
                   setNewAbsence({
                     ...newAbsence,
-                    start_date: date ? date.toISOString().split("T")[0] : "",
+                    start_date: date ? format(date, 'yyyy-MM-dd') : "",
                   })
                 }
               />
@@ -199,10 +199,15 @@ export default function AbsenceModal({
                     ? parseISO(newAbsence.end_date)
                     : undefined
                 }
-                setDate={(date) =>
+                defaultMonth={
+                  newAbsence.start_date
+                    ? parseISO(newAbsence.start_date)
+                    : undefined
+                }
+                onChange={(date) =>
                   setNewAbsence({
                     ...newAbsence,
-                    end_date: date ? date.toISOString().split("T")[0] : "",
+                    end_date: date ? format(date, 'yyyy-MM-dd') : "",
                   })
                 }
               />

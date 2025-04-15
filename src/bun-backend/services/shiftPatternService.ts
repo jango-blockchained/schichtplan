@@ -1,6 +1,9 @@
-import db from "../db";
+import { getDb } from "../db";
 import { type ShiftPattern, type ActiveDays } from "../db/schema"; // Import types
 import { NotFoundError } from "elysia";
+
+// Initialize the database instance
+const db = getDb();
 
 // Input type definitions using imported types
 type CreateShiftPatternInput = Omit<ShiftPattern, 'id' | 'created_at' | 'updated_at'>;

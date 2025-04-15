@@ -1,7 +1,10 @@
 // src/bun-backend/migrations/001_create_recurring_coverage.ts
-import db from "../db"; // Adjust path if your db connection is elsewhere
+import { getDb } from "../db"; // Adjust path if your db connection is elsewhere
 
 console.log("Starting migration: 001_create_recurring_coverage...");
+
+// Initialize the database instance
+const db = getDb();
 
 const createTableSQL = `
 CREATE TABLE IF NOT EXISTS recurring_coverage (

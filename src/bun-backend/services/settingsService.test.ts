@@ -1,9 +1,12 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "bun:test";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { Database } from "bun:sqlite";
 import { setupTestDb, teardownTestDb, seedTestData } from "../test/setup"; // Import seedTestData
-import { getSettings, updateSettings } from "./settingsService";
+import { getSettings, updateSettings, getDefaultSettings } from "./settingsService";
 import type { Settings, ShiftTypeDefinition, AbsenceTypeDefinition } from "../db/schema"; // Import the type and related types if needed
 import { NotFoundError } from "elysia";
+import { applySchema } from "../db/migrate"; // Import the schema applicator
+import { getDb } from "../db"; // Import getDb to potentially manage test DB
+import logger from '../logger'; // Import logger
 
 describe("Settings Service", () => {
     let testDb: Database; // Declare DB instance variable for the suite
@@ -17,12 +20,14 @@ describe("Settings Service", () => {
     });
 
     // Add beforeEach to re-seed settings before each test
-    beforeEach(() => {
+    beforeEach(async () => {
         try {
-            seedTestData(testDb); // Reset DB to default state before each test
+            await applySchema(testDb); // Apply schema before seeding
+            const defaultSettings = getDefaultSettings();
+            await updateSettings(defaultSettings, testDb);
         } catch (e) {
-            console.error("Error during beforeEach seed in settingsService.test.ts:", e);
-            throw e; // Fail test if seeding fails
+            logger.error("Error during beforeEach seed in settingsService.test.ts:", e);
+            throw e; // Re-throw to fail the test setup
         }
     });
 

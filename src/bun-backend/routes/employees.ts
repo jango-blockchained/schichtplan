@@ -1,6 +1,6 @@
 // src/bun-backend/routes/employees.ts
 import { Elysia, t } from "elysia"; // Import t for validation
-import globalDb from "../db"; // Import globalDb
+import { getDb } from "../db"; // Import getDb
 import { Database } from "bun:sqlite"; // Import Database type
 import { getAllEmployees, getEmployeeById, createEmployee, updateEmployee, deleteEmployee } from "../services/employeesService"; // Import service functions
 import { EmployeeGroup } from "../db/schema"; // Import EmployeeGroup enum
@@ -59,7 +59,7 @@ const employeeRoutes = new Elysia({ prefix: "/api/employees" }) // Set base path
   // GET /api/employees
   .get("/", async ({ query, set, ...ctx }) => { // Add context
     const context = ctx as { db?: Database };
-    const currentDb = context.db ?? globalDb;
+    const currentDb = context.db ?? getDb();
     try {
       const employees = await getAllEmployees(query, currentDb); // Pass db
       return employees; 
@@ -74,7 +74,7 @@ const employeeRoutes = new Elysia({ prefix: "/api/employees" }) // Set base path
   // GET /api/employees/:id
   .get("/:id", async ({ params, set, ...ctx }) => { // Add context
     const context = ctx as { db?: Database };
-    const currentDb = context.db ?? globalDb;
+    const currentDb = context.db ?? getDb();
     try {
       const employee = await getEmployeeById(params.id, currentDb); // Pass db
       if (employee) {
@@ -99,7 +99,7 @@ const employeeRoutes = new Elysia({ prefix: "/api/employees" }) // Set base path
   // POST /api/employees
   .post("/", async ({ body, set, ...ctx }) => { // Add context
     const context = ctx as { db?: Database };
-    const currentDb = context.db ?? globalDb;
+    const currentDb = context.db ?? getDb();
     try {
       const newEmployee = await createEmployee(body, currentDb); // Pass db
       set.status = 201; 
@@ -122,7 +122,7 @@ const employeeRoutes = new Elysia({ prefix: "/api/employees" }) // Set base path
   // PUT /api/employees/:id
   .put("/:id", async ({ params, body, set, ...ctx }) => { // Add context
     const context = ctx as { db?: Database };
-    const currentDb = context.db ?? globalDb;
+    const currentDb = context.db ?? getDb();
     try {
         const updatedEmployee = await updateEmployee(params.id, body, currentDb); // Pass db
         return updatedEmployee; // Service now throws NotFoundError
@@ -145,7 +145,7 @@ const employeeRoutes = new Elysia({ prefix: "/api/employees" }) // Set base path
   // DELETE /api/employees/:id
   .delete("/:id", async ({ params, set, ...ctx }) => { // Add context
     const context = ctx as { db?: Database };
-    const currentDb = context.db ?? globalDb;
+    const currentDb = context.db ?? getDb();
     try {
         await deleteEmployee(params.id, currentDb); // Pass db, service throws NotFoundError
         set.status = 204; 

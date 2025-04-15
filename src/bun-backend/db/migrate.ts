@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Database } from "bun:sqlite";
+import logger from '../logger';
 
 // Path to the initial schema SQL file
 const schemaPath = path.join(import.meta.dir, "init-schema.sql");
@@ -12,7 +13,7 @@ const migrationsPath = path.join(import.meta.dir, "migrations");
  * @param migrationFile - The migration file name
  */
 async function applyMigration(db: Database, migrationFile: string) {
-  console.log(`Applying migration: ${migrationFile}`);
+  logger.info(`Applying migration: ${migrationFile}`);
   const migrationPath = path.join(migrationsPath, migrationFile);
   const migrationSql = await Bun.file(migrationPath).text();
   
@@ -39,11 +40,11 @@ async function applyMigration(db: Database, migrationFile: string) {
     
     // Commit transaction
     db.exec('COMMIT;');
-    console.log(`Successfully applied migration: ${migrationFile}`);
+    logger.info(`Successfully applied migration: ${migrationFile}`);
   } catch (error) {
     // Rollback on error
     db.exec('ROLLBACK;');
-    console.error(`Failed to apply migration ${migrationFile}:`, error);
+    logger.error(`Failed to apply migration ${migrationFile}:`, error);
     throw error;
   }
 }
@@ -53,14 +54,14 @@ async function applyMigration(db: Database, migrationFile: string) {
  * @param targetDb - The bun:sqlite Database instance to apply the schema to.
  */
 export async function applySchema(targetDb: Database) {
-  console.log(`Applying schema from ${schemaPath} to the database...`);
+  logger.info(`Applying schema from ${schemaPath} to the database...`);
 
   try {
     // Read and execute the initial schema SQL file
     const schemaSql = await Bun.file(schemaPath).text();
-    console.log("Executing initial schema SQL...");
+    logger.info("Executing initial schema SQL...");
     targetDb.exec(schemaSql);
-    console.log("Initial database schema applied successfully.");
+    logger.info("Initial database schema applied successfully.");
 
     // Create migrations tracking table if it doesn't exist
     targetDb.exec(`
@@ -89,23 +90,27 @@ export async function applySchema(targetDb: Database) {
       }
     }
 
-    console.log("All migrations applied successfully.");
+    logger.info("All migrations applied successfully.");
   } catch (error) {
-    console.error("Schema/migration application failed:", error);
+    logger.error("Schema/migration application failed:", error);
     throw error;
   }
 }
 
 // -- Standalone Execution Logic (for package.json script) --
 if (import.meta.main) {
-    console.log("Running migrate.ts as a standalone script...");
+    logger.info("Running migrate.ts as a standalone script...");
     import("../db")
-      .then(async ({ default: defaultDb }) => {
-          await applySchema(defaultDb);
-          console.log("Standalone migration finished.");
+      .then(async ({ getDb }) => {
+          const dbInstance = getDb();
+          if (!dbInstance) {
+              throw new Error("Failed to get database instance for standalone migration.");
+          }
+          await applySchema(dbInstance);
+          logger.info("Standalone migration finished.");
       })
       .catch((err) => {
-          console.error("Standalone migration script failed:", err);
+          logger.error("Standalone migration script failed:", err);
           process.exit(1);
       });
 } 

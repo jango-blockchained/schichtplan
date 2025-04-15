@@ -15,6 +15,7 @@ import { coverageRoutes } from './routes/coverage';
 import { recurringCoverageRoutes } from './routes/recurringCoverage'; // Import recurring coverage routes
 import { shiftPatternRoutes } from './routes/shiftPatterns'; // Import shift pattern routes
 import { demoDataRoutes } from './routes/demoData'; // Import demo data routes
+import logRoutes from './routes/logs'; // Import the new log routes
 import { swagger } from '@elysiajs/swagger';
 import { jwt } from '@elysiajs/jwt';
 import { staticPlugin } from '@elysiajs/static';
@@ -129,7 +130,8 @@ const app = new Elysia()
                 { name: 'EmployeeAvailability', description: 'Employee Availability management endpoints' },
                 { name: 'Schedules', description: 'Schedule management and generation endpoints' },
                 { name: 'Settings', description: 'Application settings endpoints' },
-                { name: 'DemoData', description: 'Demo Data generation endpoints' }
+                { name: 'DemoData', description: 'Demo Data generation endpoints' },
+                { name: 'Logs', description: 'Log management endpoints' } // Add tag for logs
             ]
       },
   }))
@@ -147,6 +149,7 @@ const app = new Elysia()
   .use(recurringCoverageRoutes) // Mount recurring coverage routes
   .use(shiftPatternRoutes) // Mounted routes
   .use(demoDataRoutes) // Mount demo data routes
+  .use(logRoutes) // Mount the log routes
   .use(jwt({
     name: 'jwt',
     secret: process.env.JWT_SECRET || 'fallback-secret-key-change-me!', // Use environment variable!

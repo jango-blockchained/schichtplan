@@ -1,7 +1,9 @@
-import globalDb from "../db";
+import { getDb } from "../db";
 import { Database } from "bun:sqlite";
 import { type EmployeeAvailability, AvailabilityType } from "../db/schema";
+import { format, parseISO, eachDayOfInterval, isSameDay, getDay } from "date-fns";
 import { NotFoundError } from "elysia";
+import logger from '../logger';
 
 // Helper to map a raw database row to the EmployeeAvailability interface
 function mapRowToEmployeeAvailability(row: any): EmployeeAvailability {
@@ -30,7 +32,7 @@ function mapRowToEmployeeAvailability(row: any): EmployeeAvailability {
  */
 export async function getAvailabilitiesForEmployee(
     employeeId: number,
-    db: Database | null = globalDb
+    db: Database | null = getDb()
 ): Promise<EmployeeAvailability[]> {
     if (!db) throw new Error("Database connection is not available.");
     const sql = "SELECT * FROM employee_availabilities WHERE employee_id = ? ORDER BY day_of_week, hour;";
@@ -39,7 +41,7 @@ export async function getAvailabilitiesForEmployee(
         const rows = query.all(employeeId) as any[];
         return rows.map(mapRowToEmployeeAvailability);
     } catch (error) {
-        console.error(`Error fetching availabilities for employee ${employeeId}:`, error);
+        logger.error(`Error fetching availabilities for employee ${employeeId}:`, error);
         throw new Error("Failed to retrieve employee availabilities.");
     }
 }
@@ -51,7 +53,7 @@ export async function getAvailabilitiesForEmployee(
  */
 export async function getAvailabilityById(
     id: number,
-    db: Database | null = globalDb
+    db: Database | null = getDb()
 ): Promise<EmployeeAvailability> {
     if (!db) throw new Error("Database connection is not available.");
     const sql = "SELECT * FROM employee_availabilities WHERE id = ?;";
@@ -63,7 +65,7 @@ export async function getAvailabilityById(
         }
         return mapRowToEmployeeAvailability(row);
     } catch (error) {
-        console.error(`Error fetching availability ${id}:`, error);
+        logger.error(`Error fetching availability ${id}:`, error);
         if (error instanceof NotFoundError) throw error;
         throw new Error("Failed to retrieve availability entry.");
     }
@@ -79,7 +81,7 @@ type CreateAvailabilityInput = Omit<EmployeeAvailability, 'id' | 'created_at' | 
  */
 export async function addAvailability(
     data: CreateAvailabilityInput,
-    db: Database | null = globalDb
+    db: Database | null = getDb()
 ): Promise<EmployeeAvailability> {
     if (!db) throw new Error("Database connection is not available.");
     const { employee_id, day_of_week, hour, availability_type, start_date, end_date, is_recurring } = data;
@@ -120,7 +122,7 @@ export async function addAvailability(
         return getAvailabilityById(Number(lastId), db);
 
     } catch (error) {
-        console.error("Error adding availability:", error);
+        logger.error("Error adding availability:", error);
         // TODO: Catch potential foreign key constraint errors
         throw new Error("Failed to add availability entry.");
     }
@@ -138,7 +140,7 @@ type UpdateAvailabilityInput = Partial<Omit<EmployeeAvailability, 'id' | 'employ
 export async function updateAvailability(
     id: number,
     data: UpdateAvailabilityInput,
-    db: Database | null = globalDb
+    db: Database | null = getDb()
 ): Promise<EmployeeAvailability> {
     if (!db) throw new Error("Database connection is not available.");
     await getAvailabilityById(id, db); // Check existence using db
@@ -169,7 +171,7 @@ export async function updateAvailability(
         stmt.run(...values, id);
         return getAvailabilityById(id, db); // Use db
     } catch (error) {
-        console.error(`Error updating availability ${id}:`, error);
+        logger.error(`Error updating availability ${id}:`, error);
         throw new Error("Failed to update availability entry.");
     }
 }
@@ -181,7 +183,7 @@ export async function updateAvailability(
  */
 export async function deleteAvailability(
     id: number,
-    db: Database | null = globalDb
+    db: Database | null = getDb()
 ): Promise<{ success: boolean }> {
     if (!db) throw new Error("Database connection is not available.");
     await getAvailabilityById(id, db); // Check existence using db
@@ -192,7 +194,7 @@ export async function deleteAvailability(
         if (info.changes === 0) throw new Error(`Delete failed unexpectedly for availability ${id}.`);
         return { success: true };
     } catch (error) {
-        console.error(`Error deleting availability ${id}:`, error);
+        logger.error(`Error deleting availability ${id}:`, error);
         if (error instanceof NotFoundError) throw error; 
         throw new Error("Failed to delete availability.");
     }
@@ -207,7 +209,7 @@ export async function deleteAvailability(
 export async function getAvailabilitiesInRange(
     startDate: string, 
     endDate: string,
-    db: Database | null = globalDb
+    db: Database | null = getDb()
 ): Promise<EmployeeAvailability[]> {
     if (!db) throw new Error("Database connection is not available.");
     // Corrected SQL to handle date ranges and recurring entries
@@ -231,7 +233,7 @@ export async function getAvailabilitiesInRange(
         const rows = query.all(endDate, startDate, startDate, endDate) as any[]; 
         return rows.map(mapRowToEmployeeAvailability);
     } catch (error) {
-        console.error(`Error fetching availabilities in range ${startDate} - ${endDate}:`, error);
+        logger.error(`Error fetching availabilities in range ${startDate} - ${endDate}:`, error);
         throw new Error("Failed to retrieve availabilities in range.");
     }
 }
@@ -254,7 +256,7 @@ interface BulkAvailabilityEntry {
 export async function replaceEmployeeAvailabilities(
     employeeId: number,
     availabilities: BulkAvailabilityEntry[],
-    db: Database | null = globalDb
+    db: Database | null = getDb()
 ): Promise<void> {
     if (!db) throw new Error("Database connection is not available.");
     const deleteSql = "DELETE FROM employee_availabilities WHERE employee_id = ?;";
@@ -300,7 +302,56 @@ export async function replaceEmployeeAvailabilities(
         // Execute transaction
         transaction();
     } catch (error) {
-        console.error(`Error replacing availabilities for employee ${employeeId}:`, error);
+        logger.error(`Error replacing availabilities for employee ${employeeId}:`, error);
         throw new Error(`Failed to replace employee availabilities: ${error instanceof Error ? error.message : String(error)}`);
     }
+}
+
+export async function getAvailabilityForEmployee(
+    employeeId: number,
+    startDate: string, // YYYY-MM-DD
+    endDate: string, // YYYY-MM-DD
+    // Use getDb() to get the default instance if db is not provided
+    db: Database = getDb() as Database
+): Promise<EmployeeAvailability[]> {
+    if (!db) {
+        throw new Error("Database instance is required");
+    }
+    // ... existing code ...
+}
+
+export async function saveEmployeeAvailability(
+    employeeId: number,
+    availabilities: SaveAvailabilityInput[],
+    // Use getDb() to get the default instance if db is not provided
+    db: Database = getDb() as Database
+): Promise<{ success: boolean }> {
+    if (!db) {
+        throw new Error("Database instance is required");
+    }
+    // ... existing code ...
+}
+
+export async function getAggregatedEmployeeAvailability(
+    employeeIds: number[],
+    startDate: string, // YYYY-MM-DD
+    endDate: string, // YYYY-MM-DD
+    // Use getDb() to get the default instance if db is not provided
+    db: Database = getDb() as Database
+): Promise<AggregatedAvailability[]> {
+     if (!db) {
+        throw new Error("Database instance is required");
+    }
+    // ... existing code ...
+}
+
+export async function getAvailabilityForDay(
+    date: string, // YYYY-MM-DD
+    // Use getDb() to get the default instance if db is not provided
+    db: Database = getDb() as Database
+): Promise<EmployeeAvailability[]> {
+    if (!db) {
+        throw new Error("Database instance is required");
+    }
+    // ... existing code ...
 } 

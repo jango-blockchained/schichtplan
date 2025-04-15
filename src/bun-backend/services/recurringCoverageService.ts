@@ -1,10 +1,13 @@
 // src/bun-backend/services/recurringCoverageService.ts
-import db from "../db"; // Import the initialized DB connection
+import { getDb } from "../db"; // Import the initialized DB connection
 import { type RecurringCoverage, EmployeeGroup } from '../db/schema'; // Import type
 import { NotFoundError } from 'elysia';
 // Potentially import Employee and ShiftTemplate types if needed for joins/return types
 // import { Employee } from "./employeesService";
 // import { ShiftTemplate } from "./shiftTemplatesService"; // Assuming this exists
+
+// Initialize the database instance
+const db = getDb();
 
 // --- Input type definitions ---
 // Input type for creating

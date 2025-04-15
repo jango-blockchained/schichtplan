@@ -1,7 +1,9 @@
-import db from "../db";
+import { getDb } from "../db";
 // Import ShiftType as a value, not just a type
 import { type ShiftTemplate, type ActiveDays, ShiftType } from "../db/schema";
 import { NotFoundError } from "elysia";
+import { Database } from "bun:sqlite";
+import logger from '../logger'; // Import logger
 // Import getSettings if needed to determine shift_type dynamically
 // import { getSettings } from "./settingsService";
 
@@ -11,7 +13,7 @@ function safeJsonParse<T>(jsonString: string | null | undefined, defaultValue: T
     try {
         return JSON.parse(jsonString) as T;
     } catch (e) {
-        console.error("Failed to parse JSON:", e, "String:", jsonString);
+        logger.error("Failed to parse JSON:", e, "String:", jsonString);
         return defaultValue;
     }
 }
@@ -34,7 +36,7 @@ function calculateDurationHours(startTime: string, endTime: string): number {
         const durationHours = durationMillis / (1000 * 60 * 60);
         return Math.round(durationHours * 100) / 100; // Round to 2 decimal places
     } catch (e) {
-        console.error("Error calculating duration:", e);
+        logger.error("Error calculating duration:", e);
         return 0; // Default or throw error?
     }
 }
@@ -55,7 +57,7 @@ function parseActiveDays(jsonString: string | null | undefined): ActiveDays {
     try {
         return JSON.parse(jsonString);
     } catch (e) {
-        console.error("Failed to parse active_days JSON:", e);
+        logger.error("Failed to parse active_days JSON:", e);
         return {};
     }
 }
@@ -82,14 +84,14 @@ function mapRowToShiftTemplate(row: any): ShiftTemplate {
 /**
  * Retrieves all shift templates.
  */
-export async function getAllShiftTemplates(): Promise<ShiftTemplate[]> {
+export async function getAllShiftTemplates(db: Database = getDb()): Promise<ShiftTemplate[]> {
+    const sql = "SELECT * FROM shift_templates ORDER BY start_time";
     try {
-        const query = db.query("SELECT * FROM shift_templates ORDER BY start_time;");
-        const rows = query.all() as any[];
+        const rows = db.prepare(sql).all() as any[];
         return rows.map(mapRowToShiftTemplate);
     } catch (error) {
-        console.error("Error fetching all shift templates:", error);
-        throw new Error("Failed to retrieve shift templates.");
+        logger.error("Error fetching all shift templates:", error);
+        throw new Error("Failed to retrieve shift templates");
     }
 }
 
@@ -97,18 +99,14 @@ export async function getAllShiftTemplates(): Promise<ShiftTemplate[]> {
  * Retrieves a single shift template by its ID.
  * @param id - The ID of the shift template.
  */
-export async function getShiftTemplateById(id: number): Promise<ShiftTemplate> {
+export async function getShiftTemplateById(id: number, db: Database = getDb()): Promise<ShiftTemplate | null> {
+    const sql = "SELECT * FROM shift_templates WHERE id = ?";
     try {
-        const query = db.query("SELECT * FROM shift_templates WHERE id = ?;");
-        const row = query.get(id) as any;
-        if (!row) {
-            throw new NotFoundError(`ShiftTemplate with id ${id} not found.`);
-        }
-        return mapRowToShiftTemplate(row);
+        const row = db.prepare(sql).get(id) as any;
+        return row ? mapRowToShiftTemplate(row) : null;
     } catch (error) {
-        console.error(`Error fetching shift template ${id}:`, error);
-        if (error instanceof NotFoundError) throw error;
-        throw new Error("Failed to retrieve shift template.");
+        logger.error(`Error fetching shift template ${id}:`, error);
+        throw new Error(`Failed to retrieve shift template with id ${id}`);
     }
 }
 
@@ -121,7 +119,7 @@ type CreateShiftTemplateInput = Omit<ShiftTemplate, 'id' | 'duration_hours' | 'c
  * Creates a new shift template.
  * @param data - The data for the new shift template.
  */
-export async function createShiftTemplate(data: CreateShiftTemplateInput): Promise<ShiftTemplate> {
+export async function createShiftTemplate(data: CreateShiftTemplateInput, db: Database = getDb()): Promise<ShiftTemplate> {
     const { start_time, end_time, requires_break, shift_type, shift_type_id, active_days } = data;
 
     // Calculate derived fields
@@ -148,11 +146,11 @@ export async function createShiftTemplate(data: CreateShiftTemplateInput): Promi
         if (!result || !result.id) {
             throw new Error("Failed to create shift template, no ID returned.");
         }
-        console.log(`Shift template created with ID: ${result.id}`);
+        logger.info(`Shift template created with ID: ${result.id}`);
         // Fetch the newly created template to return the full object
-        return getShiftTemplateById(result.id);
+        return getShiftTemplateById(result.id, db);
     } catch (error) {
-        console.error("Error creating shift template:", error);
+        logger.error("Error creating shift template:", error);
         // TODO: Add more specific error handling (e.g., UNIQUE constraint violation?)
         throw new Error("Failed to create shift template in database.");
     }
@@ -167,9 +165,9 @@ type UpdateShiftTemplateInput = Partial<Omit<ShiftTemplate, 'id' | 'duration_hou
  * @param id - The ID of the shift template to update.
  * @param data - An object containing the fields to update.
  */
-export async function updateShiftTemplate(id: number, data: UpdateShiftTemplateInput): Promise<ShiftTemplate> {
+export async function updateShiftTemplate(id: number, data: UpdateShiftTemplateInput, db: Database = getDb()): Promise<ShiftTemplate> {
     // Fetch existing to calculate duration if times change and ensure it exists
-    const existing = await getShiftTemplateById(id); // Throws NotFoundError if not found
+    const existing = await getShiftTemplateById(id, db); // Throws NotFoundError if not found
 
     const updates: Record<string, any> = {};
     let requiresDurationRecalc = false;
@@ -205,7 +203,7 @@ export async function updateShiftTemplate(id: number, data: UpdateShiftTemplateI
     }
 
     if (Object.keys(updates).length === 0) {
-        console.log(`No valid fields provided to update shift template ${id}.`);
+        logger.warn(`No valid fields provided to update shift template ${id}.`);
         return existing; // No changes provided
     }
 
@@ -234,22 +232,22 @@ export async function updateShiftTemplate(id: number, data: UpdateShiftTemplateI
     const sql = `UPDATE shift_templates SET ${setClauses.replace("updated_at = ?", "updated_at = datetime('now')")} WHERE id = ?;`;
 
     try {
-        console.log(`Executing SQL: ${sql} with values:`, [...values, id]);
+        logger.debug(`Executing SQL: ${sql} with values:`, [...values, id]);
         const stmt = db.prepare(sql);
         const info = stmt.run(...values, id);
 
         if (info.changes === 0) {
             // Although we checked existence earlier, the update might fail concurrently
-            console.warn(`ShiftTemplate update for id=${id} affected 0 rows.`);
+            logger.warn(`ShiftTemplate update for id=${id} affected 0 rows.`);
             // Re-fetch to confirm state, it might have been deleted just before update
-             return getShiftTemplateById(id); // This will throw NotFound if it was deleted
+             return getShiftTemplateById(id, db); // This will throw NotFound if it was deleted
         }
 
-        console.log(`Shift template ${id} updated successfully.`);
+        logger.info(`Shift template ${id} updated successfully.`);
         // Fetch and return the updated template
-        return getShiftTemplateById(id);
+        return getShiftTemplateById(id, db);
     } catch (error) {
-        console.error(`Error updating shift template ${id}:`, error);
+        logger.error(`Error updating shift template ${id}:`, error);
         throw new Error("Failed to update shift template in database.");
     }
 }
@@ -258,9 +256,9 @@ export async function updateShiftTemplate(id: number, data: UpdateShiftTemplateI
  * Deletes a shift template by its ID.
  * @param id - The ID of the shift template to delete.
  */
-export async function deleteShiftTemplate(id: number): Promise<{ success: boolean }> {
+export async function deleteShiftTemplate(id: number, db: Database = getDb()): Promise<boolean> {
     // Check if exists first - this provides a clearer 404 if it doesn't exist
-    await getShiftTemplateById(id); // Throws NotFoundError if not found
+    await getShiftTemplateById(id, db); // Throws NotFoundError if not found
 
     const sql = "DELETE FROM shift_templates WHERE id = ?;";
     try {
@@ -269,15 +267,15 @@ export async function deleteShiftTemplate(id: number): Promise<{ success: boolea
 
         if (result.changes === 0) {
             // Should not happen if getShiftTemplateById succeeded, but indicates concurrent deletion
-            console.warn(`Delete operation for ShiftTemplate id=${id} affected 0 rows.`);
-             throw new NotFoundError(`ShiftTemplate with id ${id} likely deleted concurrently.`);
+            logger.warn(`Delete operation for ShiftTemplate id=${id} affected 0 rows.`);
+             return false; // Indicate template not found or not deleted
         }
 
-        console.log(`Shift template ${id} deleted successfully.`);
-        return { success: true };
+        logger.info(`Shift template ${id} deleted successfully.`);
+        return true;
     } catch (error) {
          if (error instanceof NotFoundError) throw error; // Re-throw NotFoundError from getShiftTemplateById
-        console.error(`Error deleting shift template ${id}:`, error);
+        logger.error(`Error deleting shift template ${id}:`, error);
         throw new Error("Failed to delete shift template.");
     }
 } 

@@ -1,5 +1,5 @@
 import { Elysia, t, NotFoundError } from "elysia";
-import globalDb from "../db"; // Import globalDb
+import { getDb } from "../db"; // Import getDb
 import { Database } from "bun:sqlite"; // Import Database type
 import {
     getAbsencesForEmployee as getServiceAbsencesForEmployee,
@@ -46,7 +46,7 @@ export const employeeAbsenceRoutes = new Elysia({ prefix: "/api/employees/:id/ab
     // GET absences for a specific employee
     .get("/", async ({ params, set, ...ctx }) => {
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb;
+        const currentDb = context.db ?? getDb();
         try {
             const absences = await getServiceAbsencesForEmployee(params.id, currentDb);
             return absences;
@@ -62,7 +62,7 @@ export const employeeAbsenceRoutes = new Elysia({ prefix: "/api/employees/:id/ab
     // POST new absence for a specific employee
     .post("/", async ({ params, body, set, ...ctx }) => {
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb;
+        const currentDb = context.db ?? getDb();
         try {
             const absenceData = {
                 ...body,
@@ -89,7 +89,7 @@ export const absenceRoutes = new Elysia({ prefix: "/api/absences" })
     // PUT update specific absence entry
     .put("/:id", async ({ params, body, set, ...ctx }) => {
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb;
+        const currentDb = context.db ?? getDb();
         try {
             const updated = await updateServiceAbsence(params.id, body, currentDb);
             return updated;
@@ -110,7 +110,7 @@ export const absenceRoutes = new Elysia({ prefix: "/api/absences" })
     // DELETE specific absence entry
     .delete("/:id", async ({ params, set, ...ctx }) => {
         const context = ctx as { db?: Database };
-        const currentDb = context.db ?? globalDb;
+        const currentDb = context.db ?? getDb();
         try {
             await deleteServiceAbsence(params.id, currentDb);
             set.status = 204;
