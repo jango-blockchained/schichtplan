@@ -2,12 +2,10 @@
 import { getDb } from "../db"; // Import the initialized DB connection
 import { type RecurringCoverage, EmployeeGroup } from '../db/schema'; // Import type
 import { NotFoundError } from 'elysia';
+import { Database } from "bun:sqlite";
 // Potentially import Employee and ShiftTemplate types if needed for joins/return types
 // import { Employee } from "./employeesService";
 // import { ShiftTemplate } from "./shiftTemplatesService"; // Assuming this exists
-
-// Initialize the database instance
-const db = getDb();
 
 // --- Input type definitions ---
 // Input type for creating
@@ -56,8 +54,12 @@ function mapRowToRecurringCoverage(row: any): RecurringCoverage {
 
 /**
  * Retrieves all recurring coverage entries from the database.
+ * @param dbInstance - Optional Database instance for dependency injection/testing
  */
-export async function getAllRecurringCoverage(): Promise<RecurringCoverage[]> {
+export async function getAllRecurringCoverage(dbInstance?: Database): Promise<RecurringCoverage[]> {
+    // Get database instance - use provided instance or get from module
+    const db = dbInstance || getDb();
+    
     try {
         const query = db.query<any, []>("SELECT * FROM recurring_coverage ORDER BY name;");
         const rows = query.all();
@@ -70,8 +72,13 @@ export async function getAllRecurringCoverage(): Promise<RecurringCoverage[]> {
 
 /**
  * Retrieves a single recurring coverage entry by its ID.
+ * @param id - The recurring coverage ID to retrieve
+ * @param dbInstance - Optional Database instance for dependency injection/testing
  */
-export async function getRecurringCoverageById(id: number): Promise<RecurringCoverage> {
+export async function getRecurringCoverageById(id: number, dbInstance?: Database): Promise<RecurringCoverage> {
+    // Get database instance - use provided instance or get from module
+    const db = dbInstance || getDb();
+    
     try {
         const query = db.query<any, [number]>("SELECT * FROM recurring_coverage WHERE id = ?;");
         const row = query.get(id);
@@ -91,8 +98,13 @@ export async function getRecurringCoverageById(id: number): Promise<RecurringCov
 
 /**
  * Creates a new recurring coverage entry.
+ * @param data - The recurring coverage data to create
+ * @param dbInstance - Optional Database instance for dependency injection/testing
  */
-export async function createRecurringCoverage(data: CreateRecurringCoverageInput): Promise<RecurringCoverage> {
+export async function createRecurringCoverage(data: CreateRecurringCoverageInput, dbInstance?: Database): Promise<RecurringCoverage> {
+    // Get database instance - use provided instance or get from module
+    const db = dbInstance || getDb();
+    
     const {
         name, description, days, start_date, end_date,
         start_time, end_time, min_employees, max_employees,
@@ -135,7 +147,7 @@ export async function createRecurringCoverage(data: CreateRecurringCoverageInput
             throw new Error("Failed to create recurring coverage, no ID returned.");
         }
         console.log(`Recurring coverage created with ID: ${result.id}`);
-        return getRecurringCoverageById(result.id); // Fetch the full new record
+        return getRecurringCoverageById(result.id, db); // Fetch the full new record
     } catch (error) {
         console.error("Error creating recurring coverage:", error);
         throw new Error("Failed to create recurring coverage in database.");
@@ -144,10 +156,16 @@ export async function createRecurringCoverage(data: CreateRecurringCoverageInput
 
 /**
  * Updates an existing recurring coverage entry.
+ * @param id - The recurring coverage ID to update
+ * @param data - The data to update
+ * @param dbInstance - Optional Database instance for dependency injection/testing
  */
-export async function updateRecurringCoverage(id: number, data: UpdateRecurringCoverageInput): Promise<RecurringCoverage> {
+export async function updateRecurringCoverage(id: number, data: UpdateRecurringCoverageInput, dbInstance?: Database): Promise<RecurringCoverage> {
+    // Get database instance - use provided instance or get from module
+    const db = dbInstance || getDb();
+    
     // Ensure the entry exists first
-    await getRecurringCoverageById(id);
+    await getRecurringCoverageById(id, db);
 
     const updates: Record<string, any> = {};
 
@@ -178,7 +196,7 @@ export async function updateRecurringCoverage(id: number, data: UpdateRecurringC
 
     if (Object.keys(updates).length === 0) {
         console.log(`No valid fields provided to update recurring coverage ${id}.`);
-        return getRecurringCoverageById(id); // Return existing if no changes
+        return getRecurringCoverageById(id, db); // Return existing if no changes
     }
 
     // Build the SQL query dynamically
@@ -198,40 +216,42 @@ export async function updateRecurringCoverage(id: number, data: UpdateRecurringC
 
         if (info.changes === 0) {
             console.warn(`RecurringCoverage update for id=${id} affected 0 rows. Record might have been deleted or data was identical.`);
-            // Re-fetch to confirm current state (will throw if deleted)
-            return getRecurringCoverageById(id);
         }
 
-        console.log(`Recurring coverage ${id} updated successfully.`);
-        return getRecurringCoverageById(id); // Return the updated record
+        return getRecurringCoverageById(id, db);  // Return updated record
     } catch (error) {
         console.error(`Error updating recurring coverage ${id}:`, error);
-        throw new Error("Failed to update recurring coverage in database.");
+        throw new Error(`Failed to update recurring coverage ${id}.`);
     }
 }
 
 /**
- * Deletes a recurring coverage entry by its ID.
+ * Deletes a recurring coverage entry.
+ * @param id - The recurring coverage ID to delete
+ * @param dbInstance - Optional Database instance for dependency injection/testing
  */
-export async function deleteRecurringCoverage(id: number): Promise<{ success: boolean }> {
-    // Check existence first
-    await getRecurringCoverageById(id);
+export async function deleteRecurringCoverage(id: number, dbInstance?: Database): Promise<{ success: boolean }> {
+    // Get database instance - use provided instance or get from module
+    const db = dbInstance || getDb();
+    
+    // Ensure the record exists
+    await getRecurringCoverageById(id, db);
 
-    const sql = "DELETE FROM recurring_coverage WHERE id = ?;";
     try {
+        const sql = "DELETE FROM recurring_coverage WHERE id = ?;";
         const stmt = db.prepare(sql);
-        const result = stmt.run(id);
+        const info = stmt.run(id);
 
-        if (result.changes === 0) {
-            console.warn(`Delete operation for RecurringCoverage id=${id} affected 0 rows.`);
-            throw new NotFoundError(`RecurringCoverage with id ${id} likely deleted concurrently.`);
+        if (info.changes === 0) {
+            throw new Error(`Failed to delete recurring coverage with ID ${id}. No rows affected.`);
         }
 
-        console.log(`Recurring coverage ${id} deleted successfully.`);
         return { success: true };
     } catch (error) {
-        if (error instanceof NotFoundError) throw error;
         console.error(`Error deleting recurring coverage ${id}:`, error);
-        throw new Error("Failed to delete recurring coverage.");
+        if (error instanceof NotFoundError) {
+            throw error;
+        }
+        throw new Error(`Failed to delete recurring coverage ${id}.`);
     }
 } 

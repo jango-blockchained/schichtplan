@@ -30,12 +30,16 @@ if (process.env.NODE_ENV !== 'test') {
       db.close();
     }
   }
+  
+  // Register the process exit handler
+  process.on('SIGINT', closePersistentDb);
+  process.on('SIGTERM', closePersistentDb);
 } else {
   logger.info("NODE_ENV is 'test', skipping persistent database connection.");
 }
 
 // Function to get the singleton DB instance or create a new one for tests
-export const getDb = (memory = false): Database => {
+const getDb = (memory = false): Database => {
   if (memory) {
     // Create and return a new in-memory database
     logger.info("Creating new in-memory database instance.");
@@ -61,9 +65,11 @@ export const getDb = (memory = false): Database => {
 // Graceful shutdown
 process.on('exit', () => {
   if (db) {
-    // logger.info("Closing persistent database connection."); // Logging handled in closePersistentDb
-    // db.close(); // Closing handled in closePersistentDb
+    logger.info("Closing persistent database connection.");
+    db.close();
   }
 });
 
-// Removed the default export
+// Export both ways to support different import styles
+export { getDb };
+export default getDb;

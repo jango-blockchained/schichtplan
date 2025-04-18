@@ -21,6 +21,8 @@ import { jwt } from '@elysiajs/jwt';
 import { staticPlugin } from '@elysiajs/static';
 import logger from './logger'; // IMPORT FROM NEW FILE
 import { randomUUID } from 'node:crypto';
+import { getDb } from './db';
+import { ensureDatabaseInitialized } from './db/ensureInitialized';
 // Removed incorrect import: import { globalErrorHandler } from './lib/errorHandler';
 
 // Define the port, defaulting to 5001 to avoid conflict with Flask's 5000 if run concurrently
@@ -28,26 +30,15 @@ const PORT = process.env.PORT || 5001;
 
 console.log("Initializing Elysia application...");
 
-// REMOVE LOGGER SETUP FROM HERE
-// const logLevel = process.env.LOG_LEVEL || (process.env.NODE_ENV === 'development' ? 'debug' : 'info');
-// const logger = pino(
-//   {
-//     level: logLevel,
-//   },
-//   // Use pino-pretty in development, otherwise default JSON
-//   process.env.NODE_ENV === 'development'
-//     ? pino.transport({
-//         target: 'pino-pretty',
-//         options: {
-//           colorize: true,
-//           levelFirst: true,
-//           translateTime: 'SYS:HH:MM:ss.l',
-//           ignore: 'pid,hostname,reqId,req,res', // Ignore these fields in pretty print
-//           messageFormat: '({reqId}) {msg}', // Add reqId to the message
-//         },
-//       })
-//     : undefined, // Use default JSON transport in production/other envs
-// );
+// Initialize the database schema if needed
+const db = getDb();
+try {
+  // Ensure database is initialized before starting the server
+  await ensureDatabaseInitialized(db);
+} catch(error) {
+  logger.error(`Database initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+  // Continue with application startup even if initialization fails, as routes will handle DB errors
+}
 
 // Define the global error handler WITHOUT explicit ErrorHandler type
 // Let Elysia infer the types when passed to .onError()

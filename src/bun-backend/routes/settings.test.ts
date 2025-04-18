@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { Settings, EmployeeGroup, OpeningDays, ShiftTypeDefinition } from "../db/schema"; 
 import { fetch } from "bun";
-// import { settingsRoutes } from "../routes/settings"; // REMOVE Static import
+import { settingsRoutes } from "../routes/settings"; // Use static import again
 
 // --- Database Setup ---
 const setupAndSeedDb = (db: Database) => {
@@ -66,39 +66,41 @@ const testDb = new Database(":memory:");
 
 // Mock the database module BEFORE routes are imported
 mock.module("../db", () => {
-    setupAndSeedDb(testDb); 
-    return { default: testDb, db: testDb };
+    setupAndSeedDb(testDb);
+    // Fix: Return ONLY the named export used by the routes
+    return {
+        getDb: () => testDb,
+        // Remove: default: { getDb: () => testDb } // Remove default export from mock
+    };
 });
 
 let app: Elysia;
-let SERVER_URL: string;
-const TEST_PORT = 5557; 
+const TEST_PORT = 5557; // Define Port
+const SERVER_URL = `http://localhost:${TEST_PORT}`; // Define URL as const
 
 // --- Test Suite Setup ---
 describe("Settings API Routes", () => {
 
     beforeAll(async () => {
-        // Import routes DYNAMICALLY AFTER db is mocked and seeded
-        const { settingsRoutes } = await import("../routes/settings"); 
-        
+        // Remove dynamic import: const { settingsRoutes } = await import("../routes/settings");
+
         // Setup the test Elysia app
         app = new Elysia()
-            .use(settingsRoutes); // Use dynamically imported routes
+            .use(settingsRoutes); // Use statically imported routes
 
-        // Start the server
-        app.listen(TEST_PORT);
-        console.log(`Settings Test Server started on port ${TEST_PORT}`);
-        SERVER_URL = `http://localhost:${TEST_PORT}`;
-        await new Promise(resolve => setTimeout(resolve, 100)); // Wait for server
+        // Start the server and wait for it to be ready
+        await app.listen(TEST_PORT);
+        // SERVER_URL assignment moved outside
+        console.log(`Settings Test Server started on port ${TEST_PORT}, URL: ${SERVER_URL}`);
     });
 
-    afterAll(() => {
-        if (testDb) {
-            testDb.close();
-        }
+    afterAll(async () => { // Make afterAll async for await app.stop()
         if (app && app.server) {
-            app.server.stop();
+            await app.stop(); // Use await app.stop() for proper shutdown
             console.log("Settings Test Server stopped");
+        }
+        if (testDb) {
+            testDb.close(); // Close DB after server stops
         }
     });
     
@@ -168,6 +170,7 @@ describe("Settings API Routes", () => {
             expect(body.shift_types[0].id).toBe('API_SHIFT');
 
             // Verify by re-fetching through API
+             console.log("Fetching URL (Verify PUT):", `${SERVER_URL}/api/settings`); // Log URL before fetch
              const verifyResponse = await fetch(`${SERVER_URL}/api/settings`);
              const verifyBody = await verifyResponse.json();
              expect(verifyResponse.status).toBe(200);
@@ -182,6 +185,7 @@ describe("Settings API Routes", () => {
                 max_daily_hours: "ten" // Invalid type
             };
 
+            console.log("Fetching URL (Invalid Types):", `${SERVER_URL}/api/settings`); // Log URL before fetch
             const response = await fetch(`${SERVER_URL}/api/settings`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
@@ -197,6 +201,7 @@ describe("Settings API Routes", () => {
              const invalidJsonData = {
                  opening_days: { "1": "yes", "invalid-day": true } // Invalid value type, invalid key
              };
+            console.log("Fetching URL (Invalid JSON):", `${SERVER_URL}/api/settings`); // Log URL before fetch
             const response = await fetch(`${SERVER_URL}/api/settings`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
@@ -218,6 +223,7 @@ describe("Settings API Routes", () => {
                  store_name: "Name Change Only",
                  non_existent_field: "should be ignored"
              };
+            console.log("Fetching URL (Ignore Fields):", `${SERVER_URL}/api/settings`); // Log URL before fetch
             const response = await fetch(`${SERVER_URL}/api/settings`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
@@ -237,6 +243,7 @@ describe("Settings API Routes", () => {
              testDb.exec("DELETE FROM settings WHERE id = 1;");
              
              const updateData = { store_name: "Update attempt" };
+             console.log("Fetching URL (Update Non-Existent):", `${SERVER_URL}/api/settings`); // Log URL before fetch
              const response = await fetch(`${SERVER_URL}/api/settings`, {
                  method: "PUT",
                  headers: { "Content-Type": "application/json" },

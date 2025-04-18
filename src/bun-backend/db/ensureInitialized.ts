@@ -1,0 +1,28 @@
+import { Database } from "bun:sqlite";
+import { applySchema } from "./migrate";
+import logger from "../logger";
+
+/**
+ * Checks if the database has been initialized and applies schema if not
+ * @param db The database instance to check
+ * @returns Promise<boolean> True if initialization was needed and performed
+ */
+export async function ensureDatabaseInitialized(db: Database): Promise<boolean> {
+    try {
+        // Check if the settings table exists as a way to determine if DB is initialized
+        const tablesCheck = db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='settings';");
+        const tableExists = tablesCheck.get();
+        
+        if (!tableExists) {
+            logger.info("Database not initialized. Applying schema...");
+            await applySchema(db);
+            logger.info("Database schema initialization completed successfully.");
+            return true;
+        }
+        
+        return false; // No initialization needed
+    } catch (error) {
+        logger.error(`Error ensuring database initialization: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(`Failed to ensure database initialization: ${error instanceof Error ? error.message : String(error)}`);
+    }
+} 

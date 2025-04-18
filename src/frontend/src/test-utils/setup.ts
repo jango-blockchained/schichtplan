@@ -1,7 +1,8 @@
-import { afterEach } from 'bun:test';
+import { afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { Window } from 'happy-dom';
+import { expect } from 'vitest';
 
 // Create a new window
 const window = new Window();
@@ -20,6 +21,7 @@ global.navigator = window.navigator;
 global.HTMLElement = window.HTMLElement;
 global.Element = window.Element;
 global.Node = window.Node;
+global.DocumentFragment = window.DocumentFragment;
 global.localStorage = {
   getItem: (key: string) => null,
   setItem: (key: string, value: string) => {},

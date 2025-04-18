@@ -1,30 +1,62 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, mock } from "bun:test";
 import { Database } from "bun:sqlite";
 import { setupTestDb, teardownTestDb, seedTestData } from "../test/setup"; // Import seedTestData
-import { getSettings, updateSettings, getDefaultSettings } from "./settingsService";
+import { getSettings, updateSettings } from "./settingsService";
 import type { Settings, ShiftTypeDefinition, AbsenceTypeDefinition } from "../db/schema"; // Import the type and related types if needed
 import { NotFoundError } from "elysia";
 import { applySchema } from "../db/migrate"; // Import the schema applicator
-import { getDb } from "../db"; // Import getDb to potentially manage test DB
 import logger from '../logger'; // Import logger
 
-describe("Settings Service", () => {
-    let testDb: Database; // Declare DB instance variable for the suite
+// Create a mock DB first
+const testDb = new Database(":memory:");
 
+// Create default settings for testing
+const DEFAULT_TEST_SETTINGS: Partial<Settings> = {
+    store_name: 'TEDi Store',
+    timezone: 'Europe/Berlin',
+    language: 'de',
+    date_format: 'DD.MM.YYYY',
+    time_format: 'HH:mm',
+    store_opening: '09:00',
+    store_closing: '20:00',
+    opening_days: { "0": false, "1": true, "2": true, "3": true, "4": true, "5": true, "6": false },
+    require_keyholder: true,
+    max_daily_hours: 10,
+    shift_types: [
+        { id: "EARLY", name: "Early Shift", color: "#aabbcc", type: "shift" },
+        { id: "LATE", name: "Late Shift", color: "#ddeeff", type: "shift" }
+    ],
+    absence_types: [],
+    employee_types: []
+};
+
+// Mock the database module
+mock.module("../db", () => {
+    return { 
+        getDb: () => testDb,
+        default: { getDb: () => testDb }
+    };
+});
+
+describe("Settings Service", () => {
     beforeAll(async () => {
-        testDb = await setupTestDb(); // Create and seed DB ONCE for this suite
+        // Apply schema to the in-memory database
+        await applySchema(testDb);
     });
 
     afterAll(() => {
-        teardownTestDb(testDb); // Close the suite-specific DB
+        if (testDb) {
+            testDb.close();
+        }
     });
 
     // Add beforeEach to re-seed settings before each test
     beforeEach(async () => {
         try {
-            await applySchema(testDb); // Apply schema before seeding
-            const defaultSettings = getDefaultSettings();
-            await updateSettings(defaultSettings, testDb);
+            // Re-apply schema to ensure clean state
+            await applySchema(testDb);
+            // Seed with default settings
+            await updateSettings(DEFAULT_TEST_SETTINGS, testDb);
         } catch (e) {
             logger.error("Error during beforeEach seed in settingsService.test.ts:", e);
             throw e; // Re-throw to fail the test setup
@@ -52,9 +84,6 @@ describe("Settings Service", () => {
             // Expect the function to throw when using the modified test DB
             await expect(getSettings(testDb)).rejects.toThrow(NotFoundError);
             await expect(getSettings(testDb)).rejects.toThrow("Settings not found (id=1). Database might not be initialized correctly.");
-
-            // REMOVE manual re-insertion - beforeEach will handle reset
-            // testDb.run("INSERT OR IGNORE INTO settings (id) VALUES (1);");
         });
     });
 
@@ -133,8 +162,6 @@ describe("Settings Service", () => {
              testDb.exec("DELETE FROM settings WHERE id = 1;");
              const updates = { store_name: "Doesn't Matter" };
               await expect(updateSettings(updates, testDb)).rejects.toThrow(NotFoundError);
-              // REMOVE manual re-insertion - beforeEach will handle reset
-              // testDb.run("INSERT OR IGNORE INTO settings (id) VALUES (1);");
          });
     });
 }); 

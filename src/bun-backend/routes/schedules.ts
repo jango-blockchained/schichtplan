@@ -88,9 +88,10 @@ const scheduleRoutes = new Elysia({ prefix: "/api/schedules" })
         }
   })
   // GET /api/schedules/versions (List available versions)
-  .get("/versions", async ({ set }) => {
+  .get("/versions", async ({ query, set }) => {
       try {
-          const versions = await getScheduleVersions();
+          // Pass query parameters to the service function
+          const versions = await getScheduleVersions(query.start_date, query.end_date);
           return versions;
       } catch (error: any) {
           console.error("Error in GET /api/schedules/versions:", error);
@@ -98,17 +99,23 @@ const scheduleRoutes = new Elysia({ prefix: "/api/schedules" })
           return { error: error.message || "Failed to retrieve schedule versions" };
       }
   }, {
+       // Add query parameter validation
+       query: t.Optional(t.Object({
+            start_date: t.Optional(t.String({ format: 'date', error: "start_date must be YYYY-MM-DD." })),
+            end_date: t.Optional(t.String({ format: 'date', error: "end_date must be YYYY-MM-DD." }))
+       })),
        detail: { // Add Swagger details
             summary: 'List Schedule Versions',
-            description: 'Retrieves a list of available schedule version identifiers.',
+            description: 'Retrieves a list of available schedule version metadata, optionally filtered by date range.',
             tags: ['Schedules'],
         }
   })
 
-  // ADDED: GET /api/schedules/ (Alias for /versions)
-  .get("/", async ({ set }) => {
+  // ADDED: GET /api/schedules/ (Alias for /versions) - ALSO UPDATE THIS ALIAS
+  .get("/", async ({ query, set }) => { // <-- Add 'query' to destructuring
       try {
-          const versions = await getScheduleVersions();
+          // Pass query parameters to the service function
+          const versions = await getScheduleVersions(query.start_date, query.end_date);
           return versions;
       } catch (error: any) {
           console.error("Error in GET /api/schedules/ (alias for /versions):", error);
@@ -116,9 +123,14 @@ const scheduleRoutes = new Elysia({ prefix: "/api/schedules" })
           return { error: error.message || "Failed to retrieve schedule versions" };
       }
   }, {
-      detail: { 
+       // Add query parameter validation
+       query: t.Optional(t.Object({
+            start_date: t.Optional(t.String({ format: 'date', error: "start_date must be YYYY-MM-DD." })),
+            end_date: t.Optional(t.String({ format: 'date', error: "end_date must be YYYY-MM-DD." }))
+       })),
+      detail: {
           summary: 'List Schedule Versions (Alias)',
-          description: 'Alias for /versions. Retrieves a list of available schedule version identifiers.',
+          description: 'Alias for /versions. Retrieves a list of available schedule version identifiers, optionally filtered by date range.',
           tags: ['Schedules'],
       }
   })

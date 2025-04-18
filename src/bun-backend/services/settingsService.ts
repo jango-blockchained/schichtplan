@@ -1,6 +1,7 @@
 import { NotFoundError } from "elysia";
 import { Database } from "bun:sqlite";
 import { default as globalDb } from "../db";
+import logger from "../logger";
 import type {
     Settings,
     OpeningDays, SpecialHours, AvailabilityTypeDefinition,
@@ -15,7 +16,7 @@ function safeJsonParse<T>(jsonString: string | null | undefined, defaultValue: T
     try {
         return JSON.parse(jsonString) as T;
     } catch (e) {
-        console.error("Failed to parse JSON:", e, "String:", jsonString);
+        logger.error(`Failed to parse JSON: ${e instanceof Error ? e.message : String(e)}, String: ${jsonString}`);
         return defaultValue;
     }
 }
@@ -99,7 +100,7 @@ function mapSettingsToDbRow(settings: Partial<Settings>): Record<string, any> {
  * @param db - Optional Database instance for dependency injection.
  */
 export async function getSettings(db: Database = globalDb): Promise<Settings> {
-    console.log("Attempting to fetch settings...");
+    logger.info("Attempting to fetch settings...");
     const sql = "SELECT * FROM settings WHERE id = ?;";
     try {
         // Assuming db.query(...).get() might be async or requires await
@@ -107,13 +108,13 @@ export async function getSettings(db: Database = globalDb): Promise<Settings> {
         // Use Promise.resolve() or check Bun SQLite docs if .get() is sync
         const row: any = await Promise.resolve(query.get(1)); 
         if (!row) {
-            console.error("Settings row not found (id=1).");
+            logger.error("Settings row not found (id=1).");
             throw new NotFoundError("Settings not found (id=1). Database might not be initialized correctly.");
         }
-        console.log("Settings fetched successfully.");
+        logger.info("Settings fetched successfully.");
         return mapRowToSettings(row);
     } catch (error) {
-        console.error("Error fetching settings:", error);
+        logger.error(`Error fetching settings: ${error instanceof Error ? error.message : String(error)}`);
         if (error instanceof NotFoundError) throw error;
         throw new Error("Failed to retrieve settings.");
     }
@@ -178,7 +179,7 @@ export async function updateSettings(updates: Partial<Settings>, db: Database = 
     for (const key in updates) {
         // Check if the key is a valid SettingKey and is own property
         if (!Object.prototype.hasOwnProperty.call(updates, key) || !validKeys.has(key as SettingKey)) {
-            console.warn(`Skipping invalid or non-updatable settings key: ${key}`);
+            logger.warn(`Skipping invalid or non-updatable settings key: ${key}`);
             continue;
         }
         
@@ -194,7 +195,7 @@ export async function updateSettings(updates: Partial<Settings>, db: Database = 
 
         // Prevent setting non-nullable JSON fields to null
         if (isJsonField && value === null && nonNullableJsonKeys.has(settingKey)) {
-             console.error(`Attempted to set non-nullable JSON field '${settingKey}' to null. Skipping update for this field.`);
+             logger.error(`Attempted to set non-nullable JSON field '${settingKey}' to null. Skipping update for this field.`);
              // Optionally throw an error instead of skipping:
              // throw new Error(`Field '${settingKey}' cannot be set to null.`);
              continue; // Skip this field
@@ -204,7 +205,7 @@ export async function updateSettings(updates: Partial<Settings>, db: Database = 
             try {
                 value = JSON.stringify(value);
             } catch (jsonError) {
-                 console.error(`Failed to stringify JSON for key ${settingKey}:`, jsonError);
+                 logger.error(`Failed to stringify JSON for key ${settingKey}: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`);
                  throw new Error(`Invalid JSON format provided for key ${settingKey}.`);
             }
         } else if (isJsonField && value === null) {
@@ -222,7 +223,7 @@ export async function updateSettings(updates: Partial<Settings>, db: Database = 
     }
 
     if (setClauses.length === 0) { 
-        console.warn("No valid fields provided for settings update after filtering.");
+        logger.warn("No valid fields provided for settings update after filtering.");
         return currentSettings; 
     }
 
@@ -233,7 +234,7 @@ export async function updateSettings(updates: Partial<Settings>, db: Database = 
     values.push(settingsId);
 
     try {
-        console.log(`Attempting to update settings for id=${settingsId} with keys: ${setClauses.filter(c => !c.startsWith('updated_at')).map(c => c.split(' ')[0]).join(', ')}`);
+        logger.info(`Attempting to update settings for id=${settingsId} with keys: ${setClauses.filter(c => !c.startsWith('updated_at')).map(c => c.split(' ')[0]).join(', ')}`);
         const stmt = db.prepare(sql);
         // Use Promise.resolve if stmt.run is synchronous in bun:sqlite
         const info = await Promise.resolve(stmt.run(...values)); 
@@ -243,22 +244,19 @@ export async function updateSettings(updates: Partial<Settings>, db: Database = 
         // Adjust based on actual return type if needed. Assuming it might return void or similar.
         // We'll rely on fetching the settings again to confirm the update implicitly.
         // Original code checked info.changes, let's keep that if bun:sqlite supports it
-        // Assuming info is { changes: number }
         if (typeof info?.changes === 'number' && info.changes === 0) {
              // This might happen if the values provided are the same as existing ones.
              // It's not necessarily an error, but good to note.
-             console.warn(`Settings update attempt for id=${settingsId} affected 0 rows (values might be unchanged).`);
-        } else if (typeof info?.changes !== 'number'){
-             console.warn("Could not verify number of changes from stmt.run()");
+             logger.warn(`Settings update attempt for id=${settingsId} affected 0 rows (values might be unchanged).`);
         }
-        
-        console.log(`Settings update executed for id=${settingsId}.`);
-        // Fetch settings again to return the potentially updated object
+
+        // Fetch and return the updated settings
+        logger.info(`Settings updated successfully for id=${settingsId}`);
         return await getSettings(db);
+
     } catch (error) {
-        console.error("Error during database update operation:", error);
-        // Don't need to check for NotFoundError here as we fetched before update
-        throw new Error(`Failed to update settings in database: ${error instanceof Error ? error.message : String(error)}`);
+        logger.error(`Failed to update settings (SQL error): ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(`Failed to update settings: ${error instanceof Error ? error.message : String(error)}`);
     }
 }
 
@@ -387,14 +385,36 @@ export async function updateAbsenceType(id: string | number, data: UpdateAbsence
 }
 
 /**
- * Deletes an absence type by its ID.
- * @param id - The ID of the absence type to delete.
- * @param db - Optional Database instance.
+ * Deletes an absence type by ID.
+ * @param id ID of the absence type to delete.
+ * @param db Optional database connection.
+ * @throws Error if absence type cannot be deleted.
  */
 export async function deleteAbsenceType(id: string | number, db: Database = globalDb): Promise<{ success: boolean }> {
-    // Placeholder: throw error
-    console.warn(`deleteAbsenceType (${id}) not implemented`);
-    throw new Error(`Delete absence type ${id} not implemented.`);
+    try {
+        // First verify the absence type exists
+        const settings = await getSettings(db);
+        const absenceTypes = settings.absence_types || [];
+        
+        const index = absenceTypes.findIndex(at => at.id === String(id));
+        if (index === -1) {
+            logger.warn(`Attempted to delete non-existent absence type with ID: ${id}`);
+            throw new NotFoundError(`Absence type with ID ${id} not found`);
+        }
+        
+        // Remove the absence type from the array
+        absenceTypes.splice(index, 1);
+        
+        // Update the settings with modified absence types array
+        await updateSettings({ absence_types: absenceTypes }, db);
+        
+        logger.info(`Successfully deleted absence type with ID: ${id}`);
+        return { success: true };
+    } catch (error) {
+        logger.error(`Error deleting absence type: ${error instanceof Error ? error.message : String(error)}`);
+        if (error instanceof NotFoundError) throw error;
+        throw new Error(`Failed to delete absence type: ${error instanceof Error ? error.message : String(error)}`);
+    }
 }
 
 // --- Table Management --- 
@@ -405,30 +425,24 @@ export async function deleteAbsenceType(id: string | number, db: Database = glob
  * @param db - Optional Database instance.
  */
 export async function getDatabaseTables(db: Database = globalDb): Promise<string[]> {
-    const internalTables = [
-        'sqlite_sequence', // SQLite internal sequence tracking
-        'drizzle__migrations', // Drizzle internal migration tracking
-        'settings' // Exclude the main settings table from wiping
-        // Add any other tables that should NOT be wipeable here
-    ];
-    
-    // Query to get all table names, excluding sqlite internal ones
-    const sql = "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';";
-    
     try {
-        const query = db.query(sql);
-        // Use Promise.resolve() if .all() is sync in bun:sqlite
-        const rows = await Promise.resolve(query.all()) as { name: string }[];
+        logger.info("Fetching list of database tables");
+        const query = db.query(`
+            SELECT name FROM sqlite_master 
+            WHERE type='table' 
+            AND name NOT LIKE 'sqlite_%' 
+            AND name NOT IN ('applied_migrations') 
+            ORDER BY name
+        `);
         
-        // Filter out the internal/protected tables
-        const tables = rows
-            .map(row => row.name)
-            .filter(name => !internalTables.includes(name));
-            
-        return tables;
+        const results = query.all() as { name: string }[];
+        const tableNames = results.map(row => row.name);
+        
+        logger.info(`Found ${tableNames.length} tables in database`);
+        return tableNames;
     } catch (error) {
-        console.error("Error fetching database table names:", error);
-        throw new Error("Failed to retrieve database table names.");
+        logger.error(`Error fetching database tables: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error("Failed to retrieve database tables");
     }
 }
 
@@ -440,56 +454,47 @@ export async function getDatabaseTables(db: Database = globalDb): Promise<string
  * @returns A promise resolving when the operation is complete.
  */
 export async function wipeTablesService(tablesToWipe: string[], db: Database = globalDb): Promise<void> {
-    if (!Array.isArray(tablesToWipe) || tablesToWipe.length === 0) {
-        throw new Error("No tables specified for wiping.");
-    }
-
-    // Sanitize table names (basic example - prevent SQL injection if names were dynamic)
-    const validTables = await getDatabaseTables(db); // Get list of wipeable tables
-    const sanitizedTables = tablesToWipe.filter(table => 
-        /^[a-zA-Z0-9_]+$/.test(table) && validTables.includes(table)
-    );
-
-    if (sanitizedTables.length === 0) {
-        console.warn("No valid or allowed tables found to wipe after filtering.");
-        return; // Or throw an error?
-    }
-
-    console.warn(`Attempting to WIPE data from tables: ${sanitizedTables.join(", ")}`);
-
-    // Execute DELETE statements in a transaction
-    const transaction = db.transaction(() => {
-        for (const table of sanitizedTables) {
+    try {
+        logger.info(`Wiping ${tablesToWipe.length} tables: ${tablesToWipe.join(', ')}`);
+        
+        // Start a transaction
+        db.exec('BEGIN TRANSACTION;');
+        
+        // Delete data from each table
+        for (const table of tablesToWipe) {
+            // Validate table name to prevent SQL injection
+            // This is a simple validation - could be more comprehensive
+            if (!/^[a-zA-Z0-9_]+$/.test(table)) {
+                logger.error(`Invalid table name: ${table}`);
+                db.exec('ROLLBACK;');
+                throw new Error(`Invalid table name: ${table}`);
+            }
+            
+            logger.info(`Wiping table: ${table}`);
+            db.exec(`DELETE FROM ${table};`);
+            
+            // Reset autoincrement counters where applicable
             try {
-                const deleteSql = `DELETE FROM ${table};`;
-                db.run(deleteSql, []); // Pass empty array for bindings
-                console.log(`Successfully wiped table: ${table}`);
-                 // Optionally reset auto-increment counter if applicable (SQLite specific)
-                 if (table !== 'sqlite_sequence') { // Don't delete the sequence table itself
-                    try {
-                        const resetSeqSql = `DELETE FROM sqlite_sequence WHERE name = ?;`;
-                        db.run(resetSeqSql, [table]); // Pass table name as binding
-                        console.log(`Reset sequence for table: ${table}`);
-                    } catch (seqError) {
-                         console.warn(`Could not reset sequence for table ${table}:`, seqError);
-                    }
-                 }
+                db.exec(`DELETE FROM sqlite_sequence WHERE name='${table}';`);
             } catch (error) {
-                console.error(`Error wiping table ${table}:`, error);
-                // IMPORTANT: Bun SQLite transactions might not automatically roll back.
-                // Consider manual rollback or ensuring atomicity if partial wipes are critical.
-                throw new Error(`Failed to wipe table ${table}: ${error instanceof Error ? error.message : String(error)}`); 
+                // Ignore errors here as not all tables have autoincrement
+                logger.debug(`Note: Could not reset sequence for ${table}: ${error instanceof Error ? error.message : String(error)}`);
             }
         }
-    });
-
-    try {
-        // Use Promise.resolve() if transaction is synchronous
-        await Promise.resolve(transaction());
-        console.log(`Successfully wiped tables: ${sanitizedTables.join(", ")}`);
+        
+        // Commit the transaction
+        db.exec('COMMIT;');
+        
+        logger.info(`Successfully wiped tables: ${tablesToWipe.join(', ')}`);
     } catch (error) {
-         // Error already thrown within the transaction loop, rethrow if needed
-         console.error("Transaction failed during table wipe:", error);
-         throw error;
+        // Rollback transaction on error
+        try {
+            db.exec('ROLLBACK;');
+        } catch (rollbackError) {
+            logger.error(`Error during rollback: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`);
+        }
+        
+        logger.error(`Error wiping tables: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(`Failed to wipe tables: ${error instanceof Error ? error.message : String(error)}`);
     }
 }

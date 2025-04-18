@@ -47,7 +47,11 @@ const testDb = new Database(":memory:");
 // Mock the database module BEFORE routes are imported
 mock.module("../db", () => {
     setupAndSeedDb(testDb); 
-    return { default: testDb, db: testDb };
+    // Fix: Return the getDb function that returns testDb
+    return { 
+        getDb: () => testDb,
+        default: { getDb: () => testDb } 
+    };
 });
 
 let app: Elysia;

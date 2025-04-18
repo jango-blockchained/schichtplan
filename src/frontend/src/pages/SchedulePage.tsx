@@ -181,7 +181,7 @@ export function SchedulePage() {
   const {
     selectedVersion,
     handleVersionChange,
-    handleCreateNewVersion,
+    handleCreateNewVersion: originalHandleCreateNewVersion,
     handlePublishVersion,
     handleArchiveVersion,
     handleDeleteVersion,
@@ -192,11 +192,36 @@ export function SchedulePage() {
     isLoading: isLoadingVersions,
   } = useVersionControl({
     dateRange,
-    onVersionSelected: () => {
+    onVersionSelected: (version) => {
       // When a version is selected via the version control, we need to refetch data
+      console.log(`🔄 Version ${version} selected, refetching schedule data`);
       refetchScheduleData();
     },
   });
+
+  // Wrapper function to handle creating a new version and updating the date range
+  const handleCreateNewVersionAndUpdateRange = () => {
+    if (dateRange?.from) {
+      // Calculate the start of the *next* week
+      const nextWeekStart = addWeeks(startOfWeek(dateRange.from, { weekStartsOn: 1 }), 1);
+      nextWeekStart.setHours(0, 0, 0, 0);
+      const nextWeekEnd = addDays(nextWeekStart, 6 * scheduleDuration);
+      nextWeekEnd.setHours(23, 59, 59, 999);
+
+      // Update the date range state first
+      setDateRange({ from: nextWeekStart, to: nextWeekEnd });
+
+      // Now call the original function from the hook
+      // The hook will use the *updated* dateRange from its props for the mutation
+      originalHandleCreateNewVersion();
+    } else {
+      toast({
+        title: "Fehler",
+        description: "Kein aktueller Datumsbereich ausgewählt, um die nächste Woche zu bestimmen.",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Use our schedule generation hook
   const {
@@ -1073,7 +1098,7 @@ export function SchedulePage() {
         onWeekChange={handleWeekChange}
         onDurationChange={handleDurationChange}
         hasVersions={versions.length > 0}
-        onCreateNewVersion={handleCreateNewVersion}
+        onCreateNewVersion={handleCreateNewVersionAndUpdateRange}
         onCreateNewVersionWithOptions={handleCreateNewVersionWithOptions}
       />
 
@@ -1086,7 +1111,7 @@ export function SchedulePage() {
         onArchiveVersion={handleArchiveVersion}
         onDeleteVersion={handleDeleteVersion}
         onDuplicateVersion={handleDuplicateVersion}
-        onCreateNewVersion={handleCreateNewVersion}
+        onCreateNewVersion={handleCreateNewVersionAndUpdateRange}
         dateRange={
           dateRange?.from && dateRange?.to
             ? { from: dateRange.from, to: dateRange.to }
@@ -1232,7 +1257,7 @@ export function SchedulePage() {
                   </p>
                   {versions.length === 0 ? (
                     <Button
-                      onClick={handleCreateNewVersion}
+                      onClick={handleCreateNewVersionAndUpdateRange}
                       disabled={
                         isLoadingVersions || !dateRange?.from || !dateRange?.to
                       }

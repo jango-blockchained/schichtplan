@@ -32,7 +32,7 @@ const TEST_PORT = 5556; // Use a different port from other tests
 mock.module("../db", () => {
     // This mock will be used when coverageRoutes imports ../db
     testDb = createTestDb(); // Create/seed DB when mock is first called
-    return { default: testDb, db: testDb };
+    return { getDb: () => testDb };
 });
 
 // --- Test Suite Setup ---
@@ -73,7 +73,7 @@ describe("Coverage API Routes", () => {
         testDb = createTestDb(); 
          // Re-assign the mocked db instance (important if routes hold a reference)
          mock.module("../db", () => { 
-             return { default: testDb, db: testDb };
+             return { getDb: () => testDb };
          });
     });
 
