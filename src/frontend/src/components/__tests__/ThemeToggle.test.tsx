@@ -1,7 +1,7 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import { render, fireEvent } from "../../test-utils/test-utils";
-import { ThemeToggle } from "../ThemeToggle";
-import * as ThemeProvider from "../../providers/ThemeProvider";
+import ThemeToggle from "@/components/common/ThemeToggle";
+import { ThemeProvider } from "@/providers/ThemeProvider";
 
 describe("ThemeToggle", () => {
   const mockSetTheme = mock(() => {});

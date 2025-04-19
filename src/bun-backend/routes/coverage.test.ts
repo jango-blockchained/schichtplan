@@ -1,17 +1,15 @@
 import { describe, it, expect, beforeEach, afterAll, beforeAll, mock } from "bun:test";
 import { Elysia, t } from "elysia"; // Import Elysia and t
 import { Database } from "bun:sqlite";
-import fs from "node:fs";
-import path from "node:path";
+import { join } from 'path';
 import { Coverage, EmployeeGroup } from "../db/schema";
 import { fetch } from "bun";
+import { coverageRoutes } from './coverage'; // Assuming coverageRoutes is the Elysia instance or group
 
 // --- Database Setup ---
-const createTestDb = () => {
+const createTestDb = async () => {
     const db = new Database(":memory:");
-    const schemaPath = path.join(import.meta.dir, "../db/init-schema.sql");
-    const schemaSql = fs.readFileSync(schemaPath, "utf-8");
-    db.exec(schemaSql);
+    await applySchema(db); // Await async schema application
     // Seed initial data directly here for simplicity in this pattern
     const now = new Date().toISOString();
     db.exec(`
@@ -40,12 +38,12 @@ describe("Coverage API Routes", () => {
 
     beforeAll(async () => {
         // Import routes AFTER db is mocked
-        const { coverageRoutes } = await import("../routes/coverage"); 
+        const { coverageRoutes } = await import("../routes/coverage");
 
         // Setup the test Elysia app
         app = new Elysia()
              // Important: Apply the actual routes to the test app
-            .use(coverageRoutes); 
+            .use(coverageRoutes);
 
         // Start the server
         app.listen(TEST_PORT);
@@ -63,16 +61,16 @@ describe("Coverage API Routes", () => {
             console.log("Coverage Test Server stopped");
         }
     });
-    
+
     // Reset DB before each test to ensure isolation
-    beforeEach(() => {
+    beforeEach(async () => {
         if (testDb) {
             testDb.close(); // Close existing connection
         }
         // Re-create and re-seed the database for each test
-        testDb = createTestDb(); 
+        testDb = await createTestDb();
          // Re-assign the mocked db instance (important if routes hold a reference)
-         mock.module("../db", () => { 
+         mock.module("../db", () => {
              return { getDb: () => testDb };
          });
     });
@@ -142,7 +140,7 @@ describe("Coverage API Routes", () => {
             // Expect 422 for validation errors from Elysia
             expect(response.status).toBe(422);
             // Let's check if it's an object, actual content check needs inspection
-            expect(body).toBeObject(); 
+            expect(body).toBeObject();
         });
 
         it("should return 422 for invalid data types", async () => {
@@ -162,10 +160,10 @@ describe("Coverage API Routes", () => {
             });
             const body = await response.json();
             console.log("Validation Error Body (Invalid Type):", JSON.stringify(body)); // Log the body
-            
-            expect(response.status).toBe(422); 
+
+            expect(response.status).toBe(422);
             // Check if it's an object
-            expect(body).toBeObject(); 
+            expect(body).toBeObject();
         });
     });
 
@@ -187,15 +185,15 @@ describe("Coverage API Routes", () => {
             const body = await response.json();
 
             expect(response.status).toBe(404);
-            expect(body.error).toContain("Coverage entry with id 999 not found"); 
+            expect(body.error).toContain("Coverage entry with id 999 not found");
         });
-        
+
         it("should return 422 for invalid ID format", async () => {
             const response = await fetch(`${SERVER_URL}/api/coverage/invalid`);
             const body = await response.json();
             console.log("Validation Error Body (Invalid ID):", JSON.stringify(body)); // Log the body
-            
-            expect(response.status).toBe(422); 
+
+            expect(response.status).toBe(422);
             // Check if it's an object
             expect(body).toBeObject();
         });
@@ -216,7 +214,7 @@ describe("Coverage API Routes", () => {
                 body: JSON.stringify(updateData)
             });
             const body = await response.json();
-            
+
             // Expect 200 OK for successful PUT, but maybe 422 if validation fails
             // Adjusting to 422 for now
             expect(response.status).toBe(422); // TEMP: Adjusted from 200
@@ -238,7 +236,7 @@ describe("Coverage API Routes", () => {
             });
             const body = await response.json();
 
-            expect(response.status).toBe(422); 
+            expect(response.status).toBe(422);
             expect(body).toBeObject(); // Check if it's an object
         });
 
@@ -250,7 +248,7 @@ describe("Coverage API Routes", () => {
                 body: JSON.stringify(updateData)
             });
             const body = await response.json();
-            
+
             // Adjusting expectation to 422 as validation seems to run before the not-found check
             expect(response.status).toBe(422);
             expect(body).toBeObject(); // Check it's an object, content might vary
@@ -278,7 +276,7 @@ describe("Coverage API Routes", () => {
             const body = await response.json();
 
             expect(response.status).toBe(404);
-            expect(body.error).toContain("Coverage entry with id 999 not found"); 
+            expect(body.error).toContain("Coverage entry with id 999 not found");
         });
 
         it("should return 422 for invalid ID format on delete", async () => {
@@ -288,7 +286,7 @@ describe("Coverage API Routes", () => {
             const body = await response.json();
             console.log("Validation Error Body (Invalid ID Delete):", JSON.stringify(body)); // Log the body
 
-            expect(response.status).toBe(422); 
+            expect(response.status).toBe(422);
             expect(body).toBeObject(); // Check if it's an object
         });
     });
@@ -320,7 +318,7 @@ describe("Coverage API Routes", () => {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(bulkUpdateData)
             });
-            
+
              // Adjusting to 422 for now, seems bulk PUT validation might be failing
             expect(response.status).toBe(422); // TEMP: Adjusted from 200
             // Body might be empty or a simple success message, check status mainly
@@ -370,7 +368,7 @@ describe("Coverage API Routes", () => {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify([])
             });
-            
+
              // Adjusting to 422 for now, empty array might be failing validation
              expect(response.status).toBe(422); // TEMP: Adjusted from 200
              // // Check that no changes happened (Commented out as PUT fails)
@@ -379,4 +377,22 @@ describe("Coverage API Routes", () => {
              // expect(finalCoverage.length).toBe(3); // Original seeded data
          });
     });
-}); 
+});
+
+// Function to apply schema - NOW ASYNC
+const applySchema = async (db: Database) => {
+    const schemaPath = join(__dirname, '../db/init-schema.sql');
+    try {
+        const schemaSql = await Bun.file(schemaPath).text(); // USE Bun.file
+        db.exec(schemaSql);
+    } catch (error) {
+        console.error(`[applySchema - coverageRoutes Test] Error applying schema:`, error);
+        throw error;
+    }
+};
+
+// Function to seed data for coverage tests
+const seedCoverageData = (db: Database) => {
+    // ... Keep existing seed logic ...
+     console.log('[seedCoverageData - coverageRoutes Test] Coverage table seeded.');
+};

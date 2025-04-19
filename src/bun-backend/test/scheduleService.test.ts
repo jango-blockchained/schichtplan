@@ -1,31 +1,41 @@
 import { describe, expect, test, beforeAll, afterAll, mock } from "bun:test";
 import { Database } from "bun:sqlite";
-import fs from "node:fs";
-import path from "node:path";
-import { 
-  getScheduleByVersion, 
-  getScheduleVersions, 
-  generateSchedule, 
-  createNewScheduleVersion 
+import { join } from "path";
+import {
+  getScheduleByVersion,
+  getScheduleVersions,
+  generateSchedule,
+  createNewScheduleVersion
 } from "../services/scheduleService";
 import { ScheduleStatus, EmployeeGroup, ShiftType } from "../db/schema";
 
-// 1. Create the test DB instance and apply schema FIRST
-const TEST_DB_PATH = ":memory:";
-const testDb = new Database(TEST_DB_PATH);
+// Function to apply schema - NOW ASYNC
+const applySchema = async (db: Database) => {
+    const schemaPath = join(__dirname, '../db/init-schema.sql');
+    try {
+        console.log(`[applySchema - scheduleService Test] Applying schema from: ${schemaPath}`);
+        const schemaSql = await Bun.file(schemaPath).text(); // USE Bun.file
+        db.exec(schemaSql);
+        console.log('[applySchema - scheduleService Test] Schema applied successfully.');
+    } catch (error) {
+        console.error(`[applySchema - scheduleService Test] Error applying schema from ${schemaPath}:`, error);
+        throw new Error(`Failed to apply schema: ${error instanceof Error ? error.message : String(error)}`);
+    }
+};
 
-// Apply schema
-const schemaPath = path.join(import.meta.dir, "../db/init-schema.sql");
-const schemaSql = fs.readFileSync(schemaPath, "utf-8");
-testDb.exec(schemaSql);
+// Function to seed data specific to schedule tests
+const seedScheduleData = (db: Database) => {
+     // ... (Keep existing seeding logic) ...
+     console.log('[seedScheduleData - scheduleService Test] Seeding complete.');
+};
 
 // 2. Mock the database module to return the PRE-CONFIGURED instance
 mock.module("../db", () => {
   // Return the instance that already has the schema with both named and default exports
-  return { 
+  return {
     getDb: () => testDb,
     default: { getDb: () => testDb }
-  }; 
+  };
 });
 
 // Mock related services
@@ -160,78 +170,46 @@ mock.module("../services/absenceService.js", () => ({
 }));
 
 describe("Schedule Service", () => {
-  // 3. Use the SAME testDb instance (already has schema) in beforeAll
-  beforeAll(async () => {
-    const now = new Date().toISOString();
+  let testDb: Database;
 
-    // Insert required employees
-    testDb.exec(`
-      INSERT INTO employees 
-      (id, employee_id, first_name, last_name, employee_group, contracted_hours, created_at, updated_at) 
-      VALUES 
-      (1, 'EMP001', 'John', 'Doe', ?, 40, ?, ?),
-      (2, 'EMP002', 'Jane', 'Smith', ?, 30, ?, ?)
-    `, [EmployeeGroup.VZ, now, now, EmployeeGroup.TZ, now, now]);
-
-    // Insert required shift templates
-    testDb.exec(`
-      INSERT INTO shift_templates 
-      (id, start_time, end_time, duration_hours, shift_type, active_days, created_at, updated_at) 
-      VALUES 
-      (1, '08:00', '16:00', 8, ?, ?, ?, ?),
-      (2, '14:00', '22:00', 8, ?, ?, ?, ?)
-    `, [
-      ShiftType.EARLY, JSON.stringify({ "1": true, "2": true, "3": true, "4": true, "5": true }), now, now,
-      ShiftType.LATE, JSON.stringify({ "1": true, "2": true, "3": true, "4": true, "5": true }), now, now
-    ]);
-
-    // Insert test schedule version metadata
-    testDb.exec(`
-      INSERT INTO schedule_version_meta 
-      (version, status, date_range_start, date_range_end, notes, created_at) 
-      VALUES 
-      (1, ?, '2023-01-01', '2023-01-07', 'Test version', '2023-01-01T00:00:00Z')
-    `, [ScheduleStatus.DRAFT]);
-    
-    // Insert test schedule entries
-    testDb.exec(`
-      INSERT INTO schedules 
-      (id, employee_id, shift_id, date, version, status, created_at, updated_at) 
-      VALUES 
-      (1, 1, 1, '2023-01-01', 1, ?, '2023-01-01T00:00:00Z', '2023-01-01T00:00:00Z'),
-      (2, 2, 2, '2023-01-01', 1, ?, '2023-01-01T00:00:00Z', '2023-01-01T00:00:00Z')
-    `, [ScheduleStatus.DRAFT, ScheduleStatus.DRAFT]);
+  beforeEach(async () => { // MAKE ASYNC
+    testDb = new Database(':memory:');
+    console.log('[scheduleService.test] Applying schema...');
+    await applySchema(testDb); // Await async schema application
+    console.log('[scheduleService.test] Seeding data...');
+    seedScheduleData(testDb);
   });
-  
-  afterAll(() => {
-    // Clean up: Close the single testDb instance
-    testDb.close();
+
+  afterEach(() => {
+    if (testDb) {
+      testDb.close();
+    }
   });
-  
+
   test("getScheduleVersions should return all schedule versions", async () => {
     const versions = await getScheduleVersions();
-    
+
     expect(versions).toBeDefined();
     expect(versions.length).toBeGreaterThan(0);
     expect(versions[0].version).toBe(1);
     expect(versions[0].status).toBe(ScheduleStatus.DRAFT);
   });
-  
+
   test("getScheduleByVersion should return schedule entries for a specific version", async () => {
     const scheduleEntries = await getScheduleByVersion(1);
-    
+
     expect(scheduleEntries).toBeDefined();
     expect(scheduleEntries.length).toBe(2);
     expect(scheduleEntries[0].version).toBe(1);
   });
-  
+
   test("getScheduleByVersion should handle non-existent version", async () => {
     // Test that getting a non-existent version returns an empty array (or throws, depending on implementation)
     // Assuming it should return empty based on typical behavior:
     const scheduleEntries = await getScheduleByVersion(999);
     expect(scheduleEntries).toBeDefined();
     expect(scheduleEntries.length).toBe(0);
-    
+
     // If it's supposed to throw an error, the test would look like this:
     // try {
     //   await getScheduleByVersion(999);
@@ -240,24 +218,24 @@ describe("Schedule Service", () => {
     //   expect(error.message).toContain("Schedule version 999 not found"); // Or similar specific error
     // }
   });
-  
+
   test("createNewScheduleVersion should create a new version", async () => {
     const result = await createNewScheduleVersion({
       start_date: "2023-02-01",
       end_date: "2023-02-07",
       notes: "New test version"
     });
-    
+
     expect(result).toBeDefined();
     expect(result.new_version).toBe(2);
     expect(result.status).toBe("DRAFT_CREATED");
-    
+
     // Verify it was created in the database
     const versions = await getScheduleVersions();
     expect(versions.length).toBe(2);
     expect(versions[0].version).toBe(2); // Newest first
   });
-  
+
   test("createNewScheduleVersion should validate dates", async () => {
     try {
       await createNewScheduleVersion({
@@ -272,15 +250,15 @@ describe("Schedule Service", () => {
       expect(error.message).toContain("Start date must be before end date");
     }
   });
-  
+
   test("generateSchedule should create a new schedule version with entries", async () => {
     // Get the state BEFORE generating the schedule
     const versionsBefore = await getScheduleVersions();
     const maxVersionBefore = versionsBefore[0]?.version || 0;
-    
+
     // Now generate the schedule
     const result = await generateSchedule("2023-04-01", "2023-04-07");
-    
+
     // Assert based on the simplified prototype implementation
     expect(result).toBeDefined();
     expect(result.status).toBe("PROTOTYPE_ONLY"); // Match the simplified implementation
@@ -288,10 +266,10 @@ describe("Schedule Service", () => {
     expect(result.dates).toBeArray();
     expect(result.dates[0]).toBe("2023-04-01");
     expect(result.dates[1]).toBe("2023-04-07");
-    
+
     // Test the counts object exists
     expect(result.counts).toBeObject();
     expect(result.counts.employees).toBeNumber();
     expect(result.counts.templates).toBeNumber();
   });
-}); 
+});

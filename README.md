@@ -23,12 +23,11 @@ A modern web application for automated shift scheduling in retail stores. The ap
 ## Tech Stack
 
 ### Backend
-- Python 3.8+
-- Flask
-- SQLAlchemy
-- SQLite
-- Flask-Migrate
-- Flask-CORS
+- TypeScript
+- Bun runtime
+- Elysia (API framework)
+- SQLite via bun:sqlite
+- Pino (logging)
 
 ### Frontend
 - React
@@ -41,9 +40,8 @@ A modern web application for automated shift scheduling in retail stores. The ap
 ## Setup
 
 ### Prerequisites
-- Python 3.8 or higher
+- Bun runtime (v1.0.0 or higher)
 - SQLite
-- Bun (for frontend)
 
 ### Backend Setup
 
@@ -53,23 +51,19 @@ A modern web application for automated shift scheduling in retail stores. The ap
    cd schichtplan
    ```
 
-2. Create and activate a virtual environment:
+2. Navigate to the backend directory:
    ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   cd src/bun-backend
    ```
 
 3. Install dependencies:
    ```bash
-   pip install -r requirements.txt
+   bun install
    ```
 
 4. Initialize the database:
    ```bash
-   cd src/backend
-   export FLASK_APP=run.py
-   export FLASK_ENV=development
-   flask db upgrade
+   bun run db:init
    ```
 
 ### Frontend Setup
@@ -98,7 +92,7 @@ A modern web application for automated shift scheduling in retail stores. The ap
 ```
 This script:
 - Sets up required directories
-- Kills any existing processes on ports 5000 and 5173
+- Kills any existing processes on ports 5001 and 5173
 - Creates a tmux session with panes for backend, frontend, and control menu
 - Waits for services to start
 - Attaches to the tmux session
@@ -108,10 +102,8 @@ This script:
 #### Backend
 ```bash
 # From project root
-cd src/backend
-export FLASK_APP=run.py
-export FLASK_ENV=development
-python3 run.py
+cd src/bun-backend
+bun run dev
 ```
 
 #### Frontend
@@ -128,76 +120,78 @@ bun run --watch --hot --bun dev
 - **Navigate between panes**: Press `Ctrl+B`, then arrow keys
 
 ### Service Control
-- **Stop backend**: Kill process on port 5000
+- **Stop backend**: Kill process on port 5001
 - **Stop frontend**: Kill process on port 5173
 - **Check if services are running**: 
   ```bash
-  lsof -i:5000  # Check backend
+  lsof -i:5001  # Check backend
   lsof -i:5173  # Check frontend
   ```
 
 ## Development
 
-### Database Migrations
+### Database Management
 
-To create a new migration:
+The application uses SQLite as its database, with the following setup:
+
+- Database file location: `src/bun-backend/data/schichtplan.db`
+- Database schema defined in `src/bun-backend/db/init-schema.sql`
+- Database files are not tracked in version control
+
+To initialize or reset the database:
 ```bash
-flask db migrate -m "Description of changes"
-flask db upgrade
+cd src/bun-backend
+bun run db:init
 ```
 
 ### Running Tests
 
 ```bash
-pytest
+cd src/bun-backend
+bun test
 ```
 
 ### Code Style
 
 The project uses:
-- Black for Python code formatting
-- Flake8 for Python linting
-- MyPy for type checking
+- TypeScript ESLint for linting
+- Prettier for code formatting
 
 To format code:
 ```bash
-black src/
-```
-
-To run linting:
-```bash
-flake8 src/
-mypy src/
+bun run format
 ```
 
 ## API Documentation
+
+When the backend server is running, visit `/api-docs` for comprehensive API documentation via Swagger UI.
 
 ### Endpoints
 
 #### Employees
 - `GET /api/employees` - List all employees
 - `POST /api/employees` - Create new employee
-- `GET /api/employees/<id>` - Get employee details
-- `PUT /api/employees/<id>` - Update employee
-- `DELETE /api/employees/<id>` - Delete employee
+- `GET /api/employees/{id}` - Get employee details
+- `PUT /api/employees/{id}` - Update employee
+- `DELETE /api/employees/{id}` - Delete employee
 
 #### Shifts
 - `GET /api/shifts` - List all shifts
 - `POST /api/shifts` - Create new shift
-- `GET /api/shifts/<id>` - Get shift details
-- `PUT /api/shifts/<id>` - Update shift
-- `DELETE /api/shifts/<id>` - Delete shift
+- `GET /api/shifts/{id}` - Get shift details
+- `PUT /api/shifts/{id}` - Update shift
+- `DELETE /api/shifts/{id}` - Delete shift
 
 #### Schedules
 - `GET /api/schedules` - List schedules
 - `POST /api/schedules/generate` - Generate new schedule
-- `GET /api/schedules/<id>` - Get schedule details
-- `PUT /api/schedules/<id>` - Update schedule
+- `GET /api/schedules/{id}` - Get schedule details
+- `PUT /api/schedules/{id}` - Update schedule
 - `POST /api/schedules/export` - Export schedule as PDF
 
 #### Store Configuration
-- `GET /api/store/config` - Get store configuration
-- `PUT /api/store/config` - Update store configuration
+- `GET /api/settings` - Get store configuration
+- `PUT /api/settings` - Update store configuration
 
 ## License
 
@@ -234,22 +228,6 @@ MIT License - see LICENSE file for details.
 4. Use squash merging for cleaner history
 5. Delete feature branch after successful merge
 
-## Database Management
-
-The application uses SQLite as its database, with the following setup:
-
-- Database file location: `src/backend/instance/schichtplan.db`
-- The `instance/` folder is automatically created by Flask
-- Database files are not tracked in version control
-- Database migrations are handled by Flask-Migrate
-
-To initialize the database:
-```bash
-cd src/backend
-flask db upgrade  # Apply all migrations
-python init_db.py  # Initialize with default data
-```
-
 ## Resource Type Clarification
 
 The application has two resource types for schedule generation:
@@ -259,13 +237,15 @@ The application has two resource types for schedule generation:
 
 ## Recent Changes
 
-### Backend Renaming
+### Backend Migration
 
-We've renamed the `Shift` model to `ShiftTemplate` to better describe its purpose as a fixed template. This helps clarify the distinction between shifts and coverage in the application.
+We've migrated from the previous Python/Flask backend to a new TypeScript/Bun backend:
 
-- Renamed `shift.py` to `fixed_shift.py`
-- Renamed `Shift` class to `ShiftTemplate`
-- Updated all references to `Shift` in the codebase
+- **Performance**: Faster API responses and more efficient scheduling algorithm
+- **Type Safety**: Full TypeScript implementation with defined interfaces
+- **API Framework**: Elysia for fast, type-safe API routes
+- **Database**: Native SQLite integration via `bun:sqlite` for efficient database operations
+- **API Compatibility**: Maintains compatibility with the previous API endpoints
 
 ### Frontend Reorganization
 
@@ -289,17 +269,16 @@ This helps prevent confusion between similarly named components and makes the co
 
 ### Backend
 
-- Flask app
-- Python
-- Folder: `./src/backend/`
-- Virtual Env: `./.venv/`
-- Requirements File: `./requirements.txt`, `src/backend/requirements.txt`
-- Dev Cmd: `flask run`
+- TypeScript
+- Bun runtime
+- Elysia framework
+- Folder: `./src/bun-backend/`
+- Dev Cmd: `bun run dev`
 
 ### Database
 
 - SQLite
-- Folder: `./src/backend/instance/app.db`
+- Folder: `./src/bun-backend/data/schichtplan.db`
 
 ### Logs
 
@@ -311,11 +290,11 @@ This helps prevent confusion between similarly named components and makes the co
 
 The scheduling system has been refactored from a monolithic design into a modular package structure:
 
-- **Module Structure**: The original `schedule_generator.py` file has been split into separate components:
-  - `generator.py`: Core scheduling algorithm
-  - `resources.py`: Data management
-  - `validator.py`: Schedule validation
-  - `utility.py`: Common utility functions
+- **Module Structure**:
+  - `scheduler/assignment.ts`: Core scheduling algorithm
+  - `scheduler/resolver.ts`: Conflict resolution
+  - `scheduler/validator.ts`: Schedule validation
+  - `scheduler/utils.ts`: Common utility functions
 
 - **Benefits**:
   - Improved maintainability
@@ -323,7 +302,7 @@ The scheduling system has been refactored from a monolithic design into a modula
   - Enhanced testability
   - Clearer component interfaces
 
-For more details, see the [Scheduler Package Documentation](/src/backend/services/scheduler/README.md).
+For more details, see the [Scheduler Documentation](/src/bun-backend/scheduler/README.md).
 
 ## Schedule Improvements
 
@@ -357,74 +336,29 @@ The scheduling system now includes several improvements to make shift management
 - **Advanced Conflict Prevention**: Improved logic to prevent scheduling conflicts
 - **Defensive Programming**: Enhanced error handling to gracefully manage undefined or unexpected values
 
-## Schedule Generation Tests
-
-The application includes comprehensive tests for the schedule generation functionality:
-
-### Test Modules
-
-- **Extended Schedule Generation Tests**: Tests for basic schedule generation, edge cases, and performance scaling.
-- **Schedule Constraints Tests**: Tests for various constraints like keyholder requirements, weekly hour limits, rest time, employee availability, and shift requirements.
-- **Schedule Generation API Tests**: Tests for the schedule generation API endpoints, including error handling and parameter validation.
-
-### Running Tests
-
-You can run all the schedule generation tests using the provided script:
-
-```bash
-python run_schedule_tests.py
-```
-
-Or run individual test modules:
-
-```bash
-# Run extended schedule generation tests
-python -m src.backend.tests.schedule.test_schedule_generation_extended
-
-# Run schedule constraints tests
-python -m src.backend.tests.schedule.test_schedule_constraints
-
-# Run schedule generation API tests
-python -m pytest src.backend.tests.api.test_schedule_generation_api.py
-```
-
-### Performance Testing
-
-The application includes performance tests for schedule generation with different date ranges:
-
-```bash
-python run_performance_tests.py
-```
-
-This will run schedule generation for different periods (1 day, 1 week, 2 weeks, 1 month, 3 months) and measure performance metrics like generation time and schedules per second.
-
-### Test Documentation
-
-For more detailed information about the schedule generation tests, see the [Schedule Generation Tests README](src/backend/tests/schedule/README.md).
-
 ## Troubleshooting
 
 ### Backend Issues
 - **Application Won't Start**:
   - Check logs at `src/logs/backend.log`
-  - Ensure database migrations are up to date
-  - Verify environment variables are set correctly
+  - Ensure database is initialized
+  - Verify Bun is installed correctly (run `bun --version`)
 
 - **Database Errors**:
-  - Ensure SQLite database exists at `src/backend/instance/schichtplan.db`
-  - Run database migrations: `flask db upgrade`
+  - Ensure SQLite database exists at `src/bun-backend/data/schichtplan.db`
+  - Run database initialization: `bun run db:init`
   - Check database permissions
 
 - **Schedule Generation Issues**:
   - Verify employee data is complete
   - Check store configuration settings
   - Ensure shift templates exist
-  - Examine logs for specific constraint errors
+  - Examine logs for specific errors
 
 ### Frontend Issues
 - **Application Won't Start**:
   - Clear node_modules and reinstall dependencies
-  - Verify bun/npm/yarn is installed correctly
+  - Verify bun is installed correctly
   - Check console errors in browser
 
 - **API Connection Errors**:
@@ -439,9 +373,9 @@ For more detailed information about the schedule generation tests, see the [Sche
 
 ### Common Solutions
 - **Restart Services**: Use `./start.sh` to restart both frontend and backend
-- **Refresh Database**: Run `flask db downgrade` followed by `flask db upgrade`
+- **Reset Database**: Run `bun run db:init` to reset the database
 - **Check Logs**: Review logs in `src/logs/` directory
-- **Clean Install**: Remove node_modules, virtual environment, and reinstall
+- **Clean Install**: Remove node_modules and reinstall
 
 ## Public Access with ngrok
 
@@ -469,7 +403,7 @@ Example:
 ./ngrok-expose --open
 
 # Expose backend API
-./ngrok-expose 5000
+./ngrok-expose 5001
 ```
 
 For detailed information, see the [ngrok usage documentation](docs/ngrok_usage.md). 

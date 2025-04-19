@@ -1,7 +1,8 @@
 import { describe, expect, it, mock, beforeEach } from "bun:test";
 import { render, fireEvent } from "../../test-utils/test-utils";
 import userEvent from "@testing-library/user-event";
-import EmployeeForm from "../EmployeeForm";
+import EmployeeForm from "@/components/employees/EmployeeForm";
+import { Employee, EmployeeGroup } from '@/types';
 
 describe("EmployeeForm", () => {
   const mockOnSubmit = mock(() => {});

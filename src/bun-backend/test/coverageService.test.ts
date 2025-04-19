@@ -1,8 +1,7 @@
 import { Database } from "bun:sqlite";
 import { beforeEach, afterEach, describe, expect, it } from "bun:test"; // Removed beforeAll, afterAll
 import { randomUUID } from "node:crypto";
-import fs from 'node:fs';
-import path from 'node:path';
+import { join } from 'path';
 import { NotFoundError } from "elysia";
 import {
   getAllCoverage,
@@ -11,7 +10,7 @@ import {
   updateCoverage,
   deleteCoverage,
   bulkUpdateCoverage,
-} from "./coverageService";
+} from "../services/coverageService";
 import type { Coverage } from "../db/schema";
 import { EmployeeGroup } from "../db/schema";
 
@@ -21,18 +20,16 @@ type UpdateCoverageInput = Partial<Omit<Coverage, 'id' | 'created_at' | 'updated
 // Type for bulk update input matching the service function signature
 type BulkCoverageInput = Omit<Coverage, 'id' | 'created_at' | 'updated_at'> & { id?: number };
 
-// Function to apply schema (Synchronous read)
-const applySchema = (db: Database) => {
-  const schemaPath = path.join(import.meta.dir, "../db/init-schema.sql");
-  console.log(`[coverageService.test] Applying schema from: ${schemaPath}`);
-  try {
-    const schemaSql = fs.readFileSync(schemaPath, "utf-8");
-    db.exec(schemaSql);
-    console.log(`[coverageService.test] Schema applied successfully.`);
-  } catch (error) {
-    console.error(`[coverageService.test] Error applying schema: ${error}`);
-    throw error;
-  }
+// Function to apply schema - NOW ASYNC
+const applySchema = async (db: Database) => {
+    const schemaPath = join(__dirname, '../db/init-schema.sql');
+    try {
+        const schemaSql = await Bun.file(schemaPath).text(); // USE Bun.file
+        db.exec(schemaSql);
+    } catch (error) {
+        console.error(`[applySchema - coverageService Test] Error applying schema:`, error);
+        throw error;
+    }
 };
 
 // Function to seed coverage data - Adjusted to match schema (min/max employees, no notes)
@@ -72,14 +69,14 @@ describe("Coverage Service", () => {
   let currentTestDb: Database; // Variable for the current test's DB
 
   // Setup and seed before each test
-  beforeEach(() => { // Changed from sync to potentially async if needed, but setup is sync
+  beforeEach(async () => { // MAKE ASYNC
     const dbIdentifier = ':memory:'; // Use anonymous DB
     console.log(`[coverageService.test] Initializing ANONYMOUS test database for EACH test: ${dbIdentifier}`);
     currentTestDb = new Database(dbIdentifier); // Create and assign NEW DB instance
     console.log(`[coverageService.test] Applying schema to ANONYMOUS DB...`);
-    applySchema(currentTestDb);
+    await applySchema(currentTestDb); // Await async schema application
     console.log(`[coverageService.test] Schema applied to ANONYMOUS DB.`);
-    
+
     console.log('[coverageService.test] Seeding coverage data for test...');
     try {
       const count = seedCoverageData(currentTestDb); // Seed the specific instance
@@ -92,7 +89,7 @@ describe("Coverage Service", () => {
     }
      console.log('[coverageService.test] Seeding complete for current test.');
   });
-  
+
   // Close DB after each test
   afterEach(() => {
       if (currentTestDb) {
@@ -105,27 +102,27 @@ describe("Coverage Service", () => {
   describe("getAllCoverage", () => {
     it("should retrieve all seeded coverage entries", async () => {
       expect(currentTestDb).toBeDefined();
-      
+
       // First check what's actually in the database
       await seedCoverageData(currentTestDb);
-      
+
       // Now get the entries using our function
       const coverage = await getAllCoverage(currentTestDb);
-      
+
       // Log the actual result
       console.log(`getAllCoverage returned ${coverage.length} entries`);
-      
+
       // Check that we got entries back
       expect(coverage.length).toBeGreaterThan(0);
-      
+
       // Check sorting (first item should have lowest day_index or same day but earliest time)
       if (coverage.length > 1) {
         let prev = coverage[0];
         for (let i = 1; i < coverage.length; i++) {
           const curr = coverage[i];
           // Either day_index is greater, or day_index is the same but start_time is not earlier
-          const correctOrder = 
-            curr.day_index > prev.day_index || 
+          const correctOrder =
+            curr.day_index > prev.day_index ||
             (curr.day_index === prev.day_index && curr.start_time >= prev.start_time);
           expect(correctOrder).toBe(true);
           prev = curr;
@@ -135,24 +132,24 @@ describe("Coverage Service", () => {
 
     it("should return an empty array if no coverage entries exist", async () => {
       expect(currentTestDb).toBeDefined();
-      
+
       // First verify with direct SQL that we can count and check rows
       const count1 = currentTestDb.query("SELECT COUNT(*) as count FROM coverage").get() as any;
       console.log("Initial count:", count1.count);
-      
+
       // Now delete all entries
       currentTestDb.exec("DELETE FROM coverage;");
-      
+
       // Verify deletion worked with SQL
       const count2 = currentTestDb.query("SELECT COUNT(*) as count FROM coverage").get() as any;
       console.log("After DELETE, direct SQL count:", count2.count);
       expect(count2.count).toBe(0);
-      
+
       // Delete the DB and create a new one to clear any caches
       currentTestDb.close();
       currentTestDb = new Database(":memory:");
-      applySchema(currentTestDb);
-      
+      await applySchema(currentTestDb);
+
       // Now check our function returns empty array
       const coverage = await getAllCoverage(currentTestDb);
       console.log("getAllCoverage after delete and new DB returned:", coverage.length, "entries");
@@ -299,10 +296,10 @@ describe("Coverage Service", () => {
        const idToDelete = 1; // Changed from 2 to 1
        const beforeDelete = await getCoverageById(idToDelete, currentTestDb); // Use currentTestDb
        expect(beforeDelete).toBeDefined();
-       
+
        const result = await deleteCoverage(idToDelete, currentTestDb); // Use currentTestDb
        expect(result.success).toBe(true);
-       
+
        // Verify it's deleted
        await expect(getCoverageById(idToDelete, currentTestDb)) // Use currentTestDb
          .rejects
@@ -316,7 +313,7 @@ describe("Coverage Service", () => {
          .toThrow("Coverage entry with id 999 not found.");
      });
    });
-   
+
    describe("bulkUpdateCoverage", () => {
      it("should replace all coverage entries for the specified days", async () => {
         expect(currentTestDb).toBeDefined();
@@ -324,7 +321,7 @@ describe("Coverage Service", () => {
           {
             day_index: 1,
             start_time: "08:00",
-            end_time: "16:00", 
+            end_time: "16:00",
             min_employees: 1,
             max_employees: 2,
             employee_types: [],
@@ -341,14 +338,14 @@ describe("Coverage Service", () => {
     it("should handle an empty input array gracefully (deleting entries for affected days)", async () => {
         // Seed the db with coverage entries
         await seedCoverageData(currentTestDb);
-        
+
         // Call bulkUpdate with empty array for a specific day
         const result = await bulkUpdateCoverage([], currentTestDb);
-        
+
         // Should return empty array
         expect(result).toBeArray();
         expect(result.length).toBe(0);
-        
+
         // Get current coverage entries to check
         const coverage = await getAllCoverage(currentTestDb);
         // Expect the entries to remain as they were after seeding
@@ -358,12 +355,12 @@ describe("Coverage Service", () => {
 
     it("should only affect days present in the input array", async () => {
         await seedCoverageData(currentTestDb);
-        
+
         // Let's check how day 1 coverage is initially seeded
         let coverage = await getAllCoverage(currentTestDb);
         let day1Before = coverage.filter(c => c.day_index === 1);
-        
-        // Create a new entry for day 1 only 
+
+        // Create a new entry for day 1 only
         // (we'll check the actual values after creation)
         const newDay1Coverage: BulkCoverageInput = {
             day_index: 1,
@@ -374,14 +371,14 @@ describe("Coverage Service", () => {
             employee_types: [EmployeeGroup.VZ],
             requires_keyholder: false
         };
-        
+
         // Update only day 1
         await bulkUpdateCoverage([newDay1Coverage], currentTestDb);
-        
+
         // Get updated coverage from the database directly to verify
         const sql = currentTestDb.query("SELECT * FROM coverage WHERE day_index = 1");
         const rows = sql.all() as any[];
-        
+
         // Verify we have day 1 entries
         expect(rows.length).toBe(1);
         // And verify the start time is what we expect
@@ -391,7 +388,7 @@ describe("Coverage Service", () => {
 
     it("should process multiple days correctly in one call", async () => {
         await seedCoverageData(currentTestDb);
-        
+
         // Create entries for days 2 and 3
         const newCoverage: BulkCoverageInput[] = [
             {
@@ -413,23 +410,23 @@ describe("Coverage Service", () => {
                 requires_keyholder: false
             }
         ];
-        
+
         // Update days 2 and 3
         await bulkUpdateCoverage(newCoverage, currentTestDb);
-        
+
         // Get updated coverage directly from the database
         const day2Sql = currentTestDb.query("SELECT * FROM coverage WHERE day_index = 2");
         const day2Rows = day2Sql.all() as any[];
         expect(day2Rows.length).toBe(1);
         expect(day2Rows[0].start_time).toBe("09:00");
         expect(day2Rows[0].end_time).toBe("12:00");
-        
+
         const day3Sql = currentTestDb.query("SELECT * FROM coverage WHERE day_index = 3");
         const day3Rows = day3Sql.all() as any[];
         expect(day3Rows.length).toBe(1);
         expect(day3Rows[0].start_time).toBe("13:00");
         expect(day3Rows[0].end_time).toBe("17:00");
-        
+
         // Check we have the correct number of days processed
         const allRows = day2Rows.concat(day3Rows);
         expect(allRows.length).toBe(2);

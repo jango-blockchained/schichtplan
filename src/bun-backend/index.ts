@@ -1,55 +1,42 @@
 // src/bun-backend/index.ts
-import { Elysia, type Context, type ErrorHandler } from "elysia";
-import { cors } from '@elysiajs/cors'; // Import CORS plugin
-// Use correct import types based on how routes are exported
-import employeeRoutes from './routes/employees'; // Default import
-import { settingsRoutes } from './routes/settings'; // Named import
-import scheduleRoutes from './routes/schedules'; // Default import
-import { shiftTemplateRoutes } from './routes/shiftTemplates'; // Named import
-// Import the new availability routes (assuming named exports)
+import { Elysia, type Context } from "elysia";
+import { cors } from '@elysiajs/cors';
+import employeeRoutes from './routes/employees';
+import { settingsRoutes } from './routes/settings';
+import scheduleRoutes from './routes/schedules';
+import { shiftTemplateRoutes } from './routes/shiftTemplates';
+// Import availability routes
 import { employeeAvailabilityRoutes, availabilityRoutes } from './routes/employeeAvailability';
-// Import the new absence routes (assuming named exports)
+// Import absence routes
 import { employeeAbsenceRoutes, absenceRoutes } from './routes/absences';
-// Import the new coverage routes (assuming named export)
+// Import coverage routes
 import { coverageRoutes } from './routes/coverage';
-import { recurringCoverageRoutes } from './routes/recurringCoverage'; // Import recurring coverage routes
-import { shiftPatternRoutes } from './routes/shiftPatterns'; // Import shift pattern routes
-import { demoDataRoutes } from './routes/demoData'; // Import demo data routes
-import logRoutes from './routes/logs'; // Import the new log routes
+import { recurringCoverageRoutes } from './routes/recurringCoverage';
+import { shiftPatternRoutes } from './routes/shiftPatterns';
+import { demoDataRoutes } from './routes/demoData';
+import logRoutes from './routes/logs';
 import { swagger } from '@elysiajs/swagger';
 import { jwt } from '@elysiajs/jwt';
 import { staticPlugin } from '@elysiajs/static';
-import logger from './logger'; // IMPORT FROM NEW FILE
+import logger from './logger';
 import { randomUUID } from 'node:crypto';
 import { getDb } from './db';
 import { ensureDatabaseInitialized } from './db/ensureInitialized';
-// Removed incorrect import: import { globalErrorHandler } from './lib/errorHandler';
 
-// Define the port, defaulting to 5001 to avoid conflict with Flask's 5000 if run concurrently
-const PORT = process.env.PORT || 5001;
+// Log startup after logger is imported
+logger.info("[index.ts] Script execution started.");
 
-console.log("Initializing Elysia application...");
+// Define the port, defaulting to 5002
+const PORT = process.env.PORT || 5002;
 
-// Initialize the database schema if needed
-const db = getDb();
-try {
-  // Ensure database is initialized before starting the server
-  await ensureDatabaseInitialized(db);
-} catch(error) {
-  logger.error(`Database initialization failed: ${error instanceof Error ? error.message : String(error)}`);
-  // Continue with application startup even if initialization fails, as routes will handle DB errors
-}
-
-// Define the global error handler WITHOUT explicit ErrorHandler type
-// Let Elysia infer the types when passed to .onError()
+// Define error handler
 const globalErrorHandler = ({ code, error, set }: { code: unknown, error: any, set: Context['set'] }) => {
-    // Safely access message and stack
     const errorMessage = typeof error?.message === 'string' ? error.message : 'Unknown error';
     const errorStack = typeof error?.stack === 'string' ? error.stack : undefined;
 
-    console.error(`Error Code: ${code}, Message: ${errorMessage}`);
+    logger.error(`GLOBAL ERROR Handler - Code: ${code}, Message: ${errorMessage}`);
     if (process.env.NODE_ENV !== 'production' && errorStack) {
-        console.error(errorStack);
+        logger.error(`Stack trace: ${errorStack}`);
     }
 
     switch (code) {
@@ -58,7 +45,6 @@ const globalErrorHandler = ({ code, error, set }: { code: unknown, error: any, s
             return { error: `Not Found: ${errorMessage}` };
         case 'VALIDATION':
             set.status = 400;
-            // Attempt to get details from common Elysia validation error structures
             const details = error?.all ?? error?.validator?.Errors(error).First()?.message ?? errorMessage;
             return { error: `Validation Error`, details: details };
         case 'INTERNAL_SERVER_ERROR':
@@ -67,9 +53,7 @@ const globalErrorHandler = ({ code, error, set }: { code: unknown, error: any, s
         case 'PARSE':
              set.status = 400;
              return { error: `Request Parse Error`, details: errorMessage };
-        // Add other specific Elysia codes as needed
         default:
-            // Try to use status from the error if it exists
              if (typeof error?.status === 'number') {
                 set.status = error.status;
             } else {
@@ -79,110 +63,91 @@ const globalErrorHandler = ({ code, error, set }: { code: unknown, error: any, s
     }
 };
 
-const app = new Elysia()
-  // --- Base Logger & Request ID --- 
-  .decorate('log', logger) // USE IMPORTED LOGGER
-  .onRequest(({ request, set, log }) => {
-    const reqId = randomUUID(); 
-    set.headers['X-Request-ID'] = reqId;
-    // USE IMPORTED LOGGER TO CREATE CHILD
-    (set as any).log = logger.child({ reqId }); 
-    (set as any).log.debug({ req: request }, `Request received: ${request.method} ${new URL(request.url).pathname}`);
-  })
-  .use(cors({ // Enable and configure CORS
-      origin: [ // Allow specific origins
-          'http://localhost:3000', // Common React dev port
-          'http://localhost:8080', // Common dev port
-          'http://localhost:5173', // Common Vite dev port
-          // Add your frontend's actual origin if different
-          /localhost:\d+/ // Regex to allow any localhost port (less secure)
-      ],
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Allowed methods
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'], // Allowed headers
-      credentials: true, // IMPORTANT: Allow cookies and authorization headers
-      preflight: true, // Handle OPTIONS preflight requests
-  }))
-  .use(swagger({ // Setup Swagger UI
-      path: '/api-docs',
+// Async function to initialize and start the app
+async function startApp() {
+  logger.info("Initializing Elysia application...");
+
+  try {
+    await getDb();
+    logger.info("Database connection initialized (or already running).");
+  } catch(error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    logger.error(`CRITICAL: Database initialization failed: ${errorMsg}`);
+  }
+
+  const app = new Elysia()
+    // Add the logger as a decorator
+    .decorate('log', logger)
+    // Add request tracking middleware
+    .onRequest((context) => {
+      const requestId = randomUUID();
+      context.request.headers.set('X-Request-ID', requestId);
+      logger.debug(`${context.request.method} ${context.request.url} - Request ${requestId} started`);
+    })
+    // Add CORS middleware
+    .use(cors({
+      origin: ['http://localhost:3000', '*'],
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    }))
+    // Add swagger for API documentation
+    .use(swagger({
       documentation: {
-          info: {
-              title: 'Schichtplan API (Bun)',
-              version: '1.0.0',
-              description: 'API documentation for the Schichtplan application backend (Bun/Elysia)',
-          },
-          // Add tags for grouping endpoints in Swagger UI
-           tags: [
-                { name: 'Employees', description: 'Employee management endpoints' },
-                { name: 'ShiftTemplates', description: 'Shift Template management endpoints' },
-                { name: 'Coverage', description: 'Coverage record management endpoints' },
-                { name: 'RecurringCoverage', description: 'Recurring Coverage rule management endpoints' },
-                { name: 'ShiftPatterns', description: 'Shift Pattern management endpoints' },
-                { name: 'Absences', description: 'Absence record management endpoints' },
-                { name: 'EmployeeAvailability', description: 'Employee Availability management endpoints' },
-                { name: 'Schedules', description: 'Schedule management and generation endpoints' },
-                { name: 'Settings', description: 'Application settings endpoints' },
-                { name: 'DemoData', description: 'Demo Data generation endpoints' },
-                { name: 'Logs', description: 'Log management endpoints' } // Add tag for logs
-            ]
+        info: {
+          title: 'Schichtplan API',
+          version: '1.0.0',
+        },
       },
-  }))
-  .get("/", () => ({ status: "Bun backend running" })) // Simple health check route
-  // --- Mount Routes using the correct variable names ---
-  .use(employeeRoutes)
-  .use(settingsRoutes)
-  .use(scheduleRoutes)
-  .use(shiftTemplateRoutes)
-  .use(employeeAvailabilityRoutes) // Mount employee-nested availability routes
-  .use(availabilityRoutes)       // Mount top-level availability routes (PUT/DELETE by ID)
-  .use(employeeAbsenceRoutes) // Mount employee-nested absence routes
-  .use(absenceRoutes)         // Mount top-level absence routes (PUT/DELETE by ID)
-  .use(coverageRoutes) // Mount coverage routes
-  .use(recurringCoverageRoutes) // Mount recurring coverage routes
-  .use(shiftPatternRoutes) // Mounted routes
-  .use(demoDataRoutes) // Mount demo data routes
-  .use(logRoutes) // Mount the log routes
-  .use(jwt({
-    name: 'jwt',
-    secret: process.env.JWT_SECRET || 'fallback-secret-key-change-me!', // Use environment variable!
-    exp: '7d' // Token expiration time
-  }))
-  .onError(({ code, error, set, log }) => {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    // Use the request-specific logger from context if available, otherwise base logger
-    const reqLog = (set as any)?.log || logger; // USE IMPORTED LOGGER AS FALLBACK
-    reqLog.error({ err: error, code }, `Error occurred: ${errorMessage}`);
+    }))
+    // Basic route to verify server is running
+    .get("/", () => ({ status: "Bun backend running" }))
+    // Add all routes
+    .use(employeeRoutes)
+    .use(settingsRoutes)
+    .use(scheduleRoutes)
+    .use(shiftTemplateRoutes)
+    .use(employeeAvailabilityRoutes)
+    .use(availabilityRoutes)
+    .use(employeeAbsenceRoutes)
+    .use(absenceRoutes)
+    .use(coverageRoutes)
+    .use(recurringCoverageRoutes)
+    .use(shiftPatternRoutes)
+    .use(demoDataRoutes)
+    .use(logRoutes)
+    // Add JWT for authentication
+    .use(jwt({
+      name: 'jwt',
+      secret: process.env.JWT_SECRET || 'super-secret-key-change-in-production',
+    }))
+    // Global error handler
+    .onError(globalErrorHandler)
+    // After request handler
+    .onAfterHandle((context) => {
+      // Log successful responses
+      const status = context.set.status;
+      if (typeof status === 'number' && status >= 200 && status < 400) {
+        logger.debug(`${context.request.method} ${context.request.url} - ${status}`);
+      }
+    });
 
-    // Standard Elysia error handling - use safer errorMessage
-    if (code === 'NOT_FOUND') {
-      set.status = 404;
-      return { error: `Not Found: ${errorMessage}` };
-    }
-    if (code === 'VALIDATION') {
-      set.status = 400;
-      return { error: `Validation Error: ${errorMessage}`, details: (error as any).validator?.Errors(error.value).First()?.message };
-    }
-    if (code === 'INTERNAL_SERVER_ERROR') {
-      set.status = 500;
-      return { error: `Internal Server Error: ${errorMessage}` };
-    }
-    
-    // Default catch-all
-    set.status = 500;
-    return { error: `An unexpected error occurred: ${errorMessage}` };
-  })
-  // --- Response Logging (using onAfterHandle) ---
-  .onAfterHandle((context) => {
-    const { request, set } = context;
-    // Get request-specific logger from context
-    const reqLog = (set as any)?.log || logger; // USE IMPORTED LOGGER AS FALLBACK
-    reqLog.info({ status: set.status }, `Response sent: ${request.method} ${new URL(request.url).pathname} -> ${set.status}`);
-  })
-  // --- Server Start --- 
-  .listen(PORT);
+  // Start listening
+  logger.info("Starting server...");
+  app.listen({
+      port: PORT,
+      hostname: 'localhost'
+  });
 
-// Log server start (use imported logger)
-logger.info(`🦊 Schichtplan Bun backend is running at http://${app.server?.hostname}:${app.server?.port}`);
-logger.info(`📄 API Docs available at http://${app.server?.hostname}:${app.server?.port}/api-docs`);
+  // Log server info
+  const actualHostname = app.server?.hostname;
+  const actualPort = app.server?.port;
+  logger.info(`Schichtplan Bun backend is running at http://${actualHostname}:${actualPort}`);
+  logger.info(`API Docs available at http://${actualHostname}:${actualPort}/api-docs`);
 
-// Export the app instance and the base logger
-export { app, logger };
+  return app;
+}
+
+// Start the application
+const appPromise = startApp();
+
+// Export the promise which resolves to the app, and the base logger
+export { appPromise, logger };

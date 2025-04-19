@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "start": "bun run index.ts",
-    "dev": "bun run --watch index.ts",
+    "dev": "bun run --watch --hot --bun --inspect index.ts",
     "db:init": "bun run db/migrate.ts"
   },
   "devDependencies": {

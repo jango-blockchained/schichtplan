@@ -1,9 +1,8 @@
 import { describe, it, expect, beforeEach, afterAll, beforeAll, mock } from "bun:test";
 import { Elysia, t } from "elysia";
 import { Database } from "bun:sqlite";
-import fs from "node:fs";
-import path from "node:path";
-import { Settings, EmployeeGroup, OpeningDays, ShiftTypeDefinition } from "../db/schema"; 
+import { join } from 'path';
+import { Settings, EmployeeGroup, OpeningDays, ShiftTypeDefinition } from "../db/schema";
 import { fetch } from "bun";
 import { settingsRoutes } from "../routes/settings"; // Use static import again
 
@@ -16,15 +15,15 @@ const setupAndSeedDb = (db: Database) => {
         // Schema likely exists if query doesn't throw
     } catch {
         console.log("Applying schema to test DB...");
-        const schemaPath = path.join(import.meta.dir, "../db/init-schema.sql");
-        const schemaSql = fs.readFileSync(schemaPath, "utf-8");
+        const schemaPath = join(__dirname, '../db/init-schema.sql');
+        const schemaSql = await Bun.file(schemaPath).text();
         db.exec(schemaSql);
     }
-    
+
     // Clear existing data and re-seed initial settings
     console.log("Clearing and re-seeding settings table...");
     db.exec("DELETE FROM settings;"); // Clear first
-    
+
     const defaultOpeningDays: OpeningDays = {
         "0": false, "1": true, "2": true, "3": true, "4": true, "5": true, "6": false
     };
@@ -39,19 +38,19 @@ const setupAndSeedDb = (db: Database) => {
             INSERT INTO settings (
                 id, store_name, timezone, language, date_format, time_format,
                 store_opening, store_closing, opening_days, require_keyholder,
-                max_daily_hours, employee_types, shift_types, absence_types, 
+                max_daily_hours, employee_types, shift_types, absence_types,
                 created_at, updated_at
             ) VALUES (
-                1, ?, ?, ?, ?, ?, 
-                ?, ?, ?, ?, 
-                ?, ?, ?, ?, 
+                1, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?,
+                ?, ?, ?, ?,
                 ?, ?
             )
         `);
         stmt.run(
-            "Test Store", "Europe/Berlin", "en", "YYYY-MM-DD", "HH:mm", 
-            "09:00", "20:00", JSON.stringify(defaultOpeningDays), 1, 
-            10.0, JSON.stringify([]), JSON.stringify(defaultShiftTypes), JSON.stringify([]), 
+            "Test Store", "Europe/Berlin", "en", "YYYY-MM-DD", "HH:mm",
+            "09:00", "20:00", JSON.stringify(defaultOpeningDays), 1,
+            10.0, JSON.stringify([]), JSON.stringify(defaultShiftTypes), JSON.stringify([]),
             now, now
         );
         console.log("Settings table seeded.");
@@ -103,13 +102,13 @@ describe("Settings API Routes", () => {
             testDb.close(); // Close DB after server stops
         }
     });
-    
+
     // Reset DB state before each test using the *same* DB instance
     beforeEach(() => {
-       setupAndSeedDb(testDb); 
+       setupAndSeedDb(testDb);
     });
 
-    // --- Tests --- 
+    // --- Tests ---
 
     describe("GET /api/settings", () => {
         it("should return the current settings with status 200", async () => {
@@ -121,13 +120,13 @@ describe("Settings API Routes", () => {
             expect(body.id).toBe(1);
             expect(body.store_name).toBe("Test Store"); // Check against seeded value
             expect(body.require_keyholder).toBe(true); // Check seeded value (1 -> true)
-            expect(body.opening_days).toEqual({"0":false,"1":true,"2":true,"3":true,"4":true,"5":true,"6":false}); 
+            expect(body.opening_days).toEqual({"0":false,"1":true,"2":true,"3":true,"4":true,"5":true,"6":false});
         });
 
         it("should return 404 if settings row is missing", async () => {
             // Manually delete the row for THIS test
             testDb.exec("DELETE FROM settings WHERE id = 1;");
-            
+
             const response = await fetch(`${SERVER_URL}/api/settings`);
             const body = await response.json();
 
@@ -152,14 +151,14 @@ describe("Settings API Routes", () => {
                 body: JSON.stringify(updateData),
             });
             const body = await response.json();
-            
+
             // Log the response body if the status is not 200
             if (response.status !== 200) {
-                console.log("PUT Update Error Body:", JSON.stringify(body)); 
+                console.log("PUT Update Error Body:", JSON.stringify(body));
             }
 
             // Revert expectation to 200 OK for successful PUT
-            expect(response.status).toBe(200); 
+            expect(response.status).toBe(200);
             expect(body).toBeObject();
             expect(body.id).toBe(1);
             expect(body.store_name).toBe("Updated Store Name via API");
@@ -241,7 +240,7 @@ describe("Settings API Routes", () => {
          it("should return 404 if trying to update non-existent settings", async () => {
              // Manually delete the row for THIS test
              testDb.exec("DELETE FROM settings WHERE id = 1;");
-             
+
              const updateData = { store_name: "Update attempt" };
              console.log("Fetching URL (Update Non-Existent):", `${SERVER_URL}/api/settings`); // Log URL before fetch
              const response = await fetch(`${SERVER_URL}/api/settings`, {
@@ -250,10 +249,10 @@ describe("Settings API Routes", () => {
                  body: JSON.stringify(updateData),
              });
              const body = await response.json();
-            
+
              // Expect 404 because the service layer should check existence before updating
              expect(response.status).toBe(404);
              expect(body.error).toContain("Settings not found");
          });
     });
-}); 
+});

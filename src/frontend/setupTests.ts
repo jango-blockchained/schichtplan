@@ -22,7 +22,7 @@ global.Node = dom.window.Node;
 global.NodeList = dom.window.NodeList;
 global.MouseEvent = dom.window.MouseEvent;
 global.Event = dom.window.Event;
-global.MutationObserver = dom.window.MutationObserver || class { 
+global.MutationObserver = dom.window.MutationObserver || class {
   observe() {}
   disconnect() {}
   takeRecords() { return []; }
@@ -51,4 +51,4 @@ global.matchMedia = () => ({
 console.log('JSDOM environment setup complete');
 
 // Add custom matchers
-import { expect } from 'vitest'; 
+// import { expect } from 'vitest'; // Removed this conflicting import

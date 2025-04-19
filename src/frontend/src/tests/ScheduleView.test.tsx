@@ -2,11 +2,11 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import ScheduleView from '../components/schedule/ScheduleView';
-import * as apiService from '../services/api';
+import ScheduleView from '@/components/schedule/ScheduleView';
+import * as apiService from '@/services/api';
 
 // Mock the API service
-vi.mock('../services/api', () => ({
+vi.mock('@/services/api', () => ({
   getScheduleVersions: vi.fn(),
   getScheduleByVersion: vi.fn(),
   generateSchedule: vi.fn(),
@@ -95,15 +95,15 @@ describe('ScheduleView Component', () => {
 
   test('renders schedule view with versions dropdown', async () => {
     renderWithQueryClient(<ScheduleView />);
-    
+
     // Wait for versions to load
     await waitFor(() => {
       expect(apiService.getScheduleVersions).toHaveBeenCalled();
     });
-    
+
     // Check if the component shows version dropdown
     expect(screen.getByText(/schedule versions/i)).toBeInTheDocument();
-    
+
     // Verify version dropdown contains version options
     await waitFor(() => {
       expect(screen.getByText(/version 2/i)).toBeInTheDocument();
@@ -112,21 +112,21 @@ describe('ScheduleView Component', () => {
 
   test('loads schedule data when version is selected', async () => {
     renderWithQueryClient(<ScheduleView />);
-    
+
     // Wait for versions to load
     await waitFor(() => {
       expect(apiService.getScheduleVersions).toHaveBeenCalled();
     });
-    
+
     // Select a version
     const versionSelect = screen.getByLabelText(/select version/i);
     fireEvent.change(versionSelect, { target: { value: '2' } });
-    
+
     // Verify the schedule data is loaded
     await waitFor(() => {
       expect(apiService.getScheduleByVersion).toHaveBeenCalledWith(2);
     });
-    
+
     // Check if employee names are displayed in the schedule
     await waitFor(() => {
       expect(screen.getByText(/john doe/i)).toBeInTheDocument();
@@ -136,29 +136,29 @@ describe('ScheduleView Component', () => {
 
   test('publishes a schedule version', async () => {
     renderWithQueryClient(<ScheduleView />);
-    
+
     // Wait for versions to load
     await waitFor(() => {
       expect(apiService.getScheduleVersions).toHaveBeenCalled();
     });
-    
+
     // Select a draft version
     const versionSelect = screen.getByLabelText(/select version/i);
     fireEvent.change(versionSelect, { target: { value: '2' } });
-    
+
     // Find and click publish button
     const publishButton = screen.getByText(/publish/i);
     fireEvent.click(publishButton);
-    
+
     // Confirm in the dialog
     const confirmButton = screen.getByText(/confirm/i);
     fireEvent.click(confirmButton);
-    
+
     // Verify the API was called to update status
     await waitFor(() => {
       expect(apiService.updateScheduleVersionStatus).toHaveBeenCalledWith(2, 'PUBLISHED');
     });
-    
+
     // Verify schedule versions were refetched
     await waitFor(() => {
       expect(apiService.getScheduleVersions).toHaveBeenCalledTimes(2);
@@ -167,22 +167,22 @@ describe('ScheduleView Component', () => {
 
   test('creates a new schedule version', async () => {
     renderWithQueryClient(<ScheduleView />);
-    
+
     // Open the new version dialog
     const newVersionButton = screen.getByText(/new version/i);
     fireEvent.click(newVersionButton);
-    
+
     // Fill the form
     const startDateInput = screen.getByLabelText(/start date/i);
     const endDateInput = screen.getByLabelText(/end date/i);
-    
+
     fireEvent.change(startDateInput, { target: { value: '2023-06-01' } });
     fireEvent.change(endDateInput, { target: { value: '2023-06-07' } });
-    
+
     // Submit the form
     const createButton = screen.getByText(/create/i);
     fireEvent.click(createButton);
-    
+
     // Verify the API was called
     await waitFor(() => {
       expect(apiService.createScheduleVersion).toHaveBeenCalledWith({
@@ -191,7 +191,7 @@ describe('ScheduleView Component', () => {
         notes: ''
       });
     });
-    
+
     // Verify schedule versions were refetched
     await waitFor(() => {
       expect(apiService.getScheduleVersions).toHaveBeenCalledTimes(2);
@@ -200,35 +200,35 @@ describe('ScheduleView Component', () => {
 
   test('generates a new schedule', async () => {
     renderWithQueryClient(<ScheduleView />);
-    
+
     // Open the generate schedule dialog
     const generateButton = screen.getByText(/generate/i);
     fireEvent.click(generateButton);
-    
+
     // Fill the form
     const startDateInput = screen.getByLabelText(/start date/i);
     const endDateInput = screen.getByLabelText(/end date/i);
-    
+
     fireEvent.change(startDateInput, { target: { value: '2023-06-01' } });
     fireEvent.change(endDateInput, { target: { value: '2023-06-07' } });
-    
+
     // Submit the form
     const generateConfirmButton = screen.getByText(/generate schedule/i);
     fireEvent.click(generateConfirmButton);
-    
+
     // Verify the API was called
     await waitFor(() => {
       expect(apiService.generateSchedule).toHaveBeenCalledWith('2023-06-01', '2023-06-07');
     });
-    
+
     // Verify schedule versions were refetched
     await waitFor(() => {
       expect(apiService.getScheduleVersions).toHaveBeenCalledTimes(2);
     });
-    
+
     // Verify new version was loaded
     await waitFor(() => {
       expect(apiService.getScheduleByVersion).toHaveBeenCalledWith(3);
     });
   });
-}); 
+});

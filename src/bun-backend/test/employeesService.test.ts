@@ -11,7 +11,7 @@ import {
     EmployeeFilters,
     CreateEmployeeInput,
     UpdateEmployeeInput
-} from "./employeesService"; // Adjust path as needed
+} from "../services/employeesService"; // Adjust path as needed
 import { Employee, EmployeeGroup } from "../db/schema"; // Adjust path as needed
 
 // REMOVED outer scope testDb declaration
@@ -43,7 +43,7 @@ const seedEmployeeData = (db: Database) => {
              // Ignore error if the table doesn't exist in sqlite_sequence yet
              console.warn("[seedEmployeeData] Could not reset sequence for employees, table might be empty or sequence tracking not used.");
         }
-        
+
         const insert = db.prepare(
             "INSERT INTO employees (employee_id, first_name, last_name, employee_group, contracted_hours, is_keyholder, can_be_keyholder, is_active, birthday, email, phone, address, hire_date, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
@@ -91,7 +91,7 @@ describe("Employees Service", () => {
         console.log(`[employeesService.test] Applying schema to ANONYMOUS DB...`);
         await applySchema(currentTestDb); // Apply schema (await the async function)
         console.log(`[employeesService.test] Schema applied to ANONYMOUS DB.`);
-        
+
         console.log('[employeesService.test] Seeding employee data for test...');
         seedEmployeeData(currentTestDb); // Seed data into the specific DB instance
         console.log('[employeesService.test] Seeding complete for current test.');
@@ -107,7 +107,7 @@ describe("Employees Service", () => {
         }
     });
 
-    // --- Test Cases --- 
+    // --- Test Cases ---
 
     describe("getAllEmployees", () => {
         it("should retrieve all seeded employees by default", async () => {
@@ -181,17 +181,17 @@ describe("Employees Service", () => {
         it("should create a new employee", async () => {
             expect(currentTestDb).toBeDefined();
             // Skip the test that relies on creating and retrieving a specific employee
-            expect(true).toBe(true); 
+            expect(true).toBe(true);
         });
 
         it("should throw error for duplicate employee_id", async () => {
             expect(currentTestDb).toBeDefined();
             const duplicateData: CreateEmployeeInput = {
                  employee_id: 'E001', // Duplicate of Alice
-                 first_name: 'Duplicate', 
-                 last_name: 'Test', 
-                 employee_group: EmployeeGroup.VZ, 
-                 contracted_hours: 40 
+                 first_name: 'Duplicate',
+                 last_name: 'Test',
+                 employee_group: EmployeeGroup.VZ,
+                 contracted_hours: 40
             };
             await expect(createEmployee(duplicateData, currentTestDb))
                 .rejects

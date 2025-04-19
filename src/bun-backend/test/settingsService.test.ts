@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, mock } from "bun:test";
 import { Database } from "bun:sqlite";
-import { setupTestDb, teardownTestDb, seedTestData } from "../test/setup"; // Import seedTestData
-import { getSettings, updateSettings } from "./settingsService";
+import { setupTestDb, teardownTestDb, seedTestData } from "./setup"; // Import seedTestData
+import { getSettings, updateSettings } from "../services/settingsService";
 import type { Settings, ShiftTypeDefinition, AbsenceTypeDefinition } from "../db/schema"; // Import the type and related types if needed
 import { NotFoundError } from "elysia";
 import { applySchema } from "../db/migrate"; // Import the schema applicator
@@ -32,7 +32,7 @@ const DEFAULT_TEST_SETTINGS: Partial<Settings> = {
 
 // Mock the database module
 mock.module("../db", () => {
-    return { 
+    return {
         getDb: () => testDb,
         default: { getDb: () => testDb }
     };
@@ -57,8 +57,9 @@ describe("Settings Service", () => {
             await applySchema(testDb);
             // Seed with default settings
             await updateSettings(DEFAULT_TEST_SETTINGS, testDb);
-        } catch (e) {
-            logger.error("Error during beforeEach seed in settingsService.test.ts:", e);
+        } catch (e: unknown) {
+            const errorMessage = e instanceof Error ? e.message : String(e);
+            logger.error(`Error during beforeEach seed in settingsService.test.ts: ${errorMessage}`);
             throw e; // Re-throw to fail the test setup
         }
     });
@@ -71,8 +72,8 @@ describe("Settings Service", () => {
             expect(settings).toBeObject();
             expect(settings.id).toBe(1);
             expect(settings.store_name).toBe('TEDi Store'); // Check seeded default
-            expect(settings.require_keyholder).toBe(true); 
-            expect(settings.opening_days).toBeInstanceOf(Object); 
+            expect(settings.require_keyholder).toBe(true);
+            expect(settings.opening_days).toBeInstanceOf(Object);
             // Add more checks for default seeded values if necessary
         });
 
@@ -80,7 +81,7 @@ describe("Settings Service", () => {
             // Manually delete the settings row JUST for this test
             // beforeEach will restore it for the next test
             testDb.exec("DELETE FROM settings WHERE id = 1;");
-            
+
             // Expect the function to throw when using the modified test DB
             await expect(getSettings(testDb)).rejects.toThrow(NotFoundError);
             await expect(getSettings(testDb)).rejects.toThrow("Settings not found (id=1). Database might not be initialized correctly.");
@@ -105,7 +106,7 @@ describe("Settings Service", () => {
             const fetchedSettings = await getSettings(testDb);
             expect(fetchedSettings).toEqual(updatedSettings);
         });
-        
+
         it("should only update provided fields", async () => {
              const updates = { timezone: "UTC" };
              const initialSettings = await getSettings(testDb);
@@ -128,7 +129,7 @@ describe("Settings Service", () => {
              // Check previously existing JSON fields (like opening_days) are still there and updated
              expect(updatedSettings.opening_days).toBeDefined();
              expect(updatedSettings.opening_days['1']).toBe(false); // Check updated value
-             expect(updatedSettings.opening_days['2']).toBe(true); 
+             expect(updatedSettings.opening_days['2']).toBe(true);
         });
 
         it("should handle setting nullable JSON fields to null", async () => {
@@ -137,24 +138,24 @@ describe("Settings Service", () => {
 
             // Use 'as any' to bypass strict type check for this specific test case
             // We are intentionally providing null to test runtime handling
-            const updates = { 
+            const updates = {
                 special_hours: null, // Try to set non-nullable to null
                 pdf_layout_presets: null // Set nullable to null
-             } as any; 
-             
+             } as any;
+
             const updatedSettings = await updateSettings(updates, testDb);
-            
+
             // Assert that the non-nullable field was NOT changed and retained its initial value
-            expect(updatedSettings.special_hours).toEqual(initialSpecialHours); 
+            expect(updatedSettings.special_hours).toEqual(initialSpecialHours);
             // Assert that the nullable field WAS set to null
             expect(updatedSettings.pdf_layout_presets).toBeNull();
         });
-        
+
         it("should return current settings if no valid update fields are provided", async () => {
              const initialSettings = await getSettings(testDb);
              // Pass invalid/non-setting key
              const updatedSettings = await updateSettings({ nonExistentField: 123 } as any, testDb);
-             expect(updatedSettings).toEqual(initialSettings); 
+             expect(updatedSettings).toEqual(initialSettings);
         });
 
          it("should throw NotFoundError if trying to update non-existent settings", async () => {
@@ -164,4 +165,4 @@ describe("Settings Service", () => {
               await expect(updateSettings(updates, testDb)).rejects.toThrow(NotFoundError);
          });
     });
-}); 
+});

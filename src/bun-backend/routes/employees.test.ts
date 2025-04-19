@@ -1,26 +1,23 @@
 import { describe, it, expect, beforeEach, afterAll, beforeAll, mock } from "bun:test";
 import { Elysia, t } from "elysia";
 import { Database } from "bun:sqlite";
-import fs from "node:fs";
-import path from "node:path";
+import { join } from 'path';
 import { Employee, EmployeeGroup } from "../db/schema";
 import { fetch } from "bun";
-// import employeeRoutes from '../routes/employees'; // Import dynamically later
+import employeeRoutes from './employees'; // Adjust import based on export type
 
 // --- Database Setup ---
-const setupAndSeedDb = (db: Database) => {
+const setupAndSeedDb = async (db: Database) => {
     try {
         db.query("SELECT id FROM employees LIMIT 1;").get();
     } catch {
         console.log("Applying schema to test DB...");
-        const schemaPath = path.join(import.meta.dir, "../db/init-schema.sql");
-        const schemaSql = fs.readFileSync(schemaPath, "utf-8");
-        db.exec(schemaSql);
+        await applySchema(db);
     }
-    
+
     console.log("Clearing and re-seeding employees table...");
     db.exec("DELETE FROM employees;");
-    
+
     const now = new Date().toISOString();
     try {
         const stmt = db.prepare(`
@@ -46,11 +43,11 @@ const testDb = new Database(":memory:");
 
 // Mock the database module BEFORE routes are imported
 mock.module("../db", () => {
-    setupAndSeedDb(testDb); 
+    setupAndSeedDb(testDb);
     // Fix: Return the getDb function that returns testDb
-    return { 
+    return {
         getDb: () => testDb,
-        default: { getDb: () => testDb } 
+        default: { getDb: () => testDb }
     };
 });
 
@@ -63,15 +60,14 @@ describe("Employees API Routes", () => {
 
     beforeAll(async () => {
         // Import routes DYNAMICALLY AFTER db is mocked
-        const { default: employeeRoutes } = await import("../routes/employees"); 
-        
         app = new Elysia()
-            .use(employeeRoutes); 
+            .decorate('db', testDb) // Decorate with the test DB
+            .use(employeeRoutes);    // Use the actual routes
 
         app.listen(TEST_PORT);
         console.log(`Employees Test Server started on port ${TEST_PORT}`);
         SERVER_URL = `http://localhost:${TEST_PORT}`;
-        await new Promise(resolve => setTimeout(resolve, 100)); 
+        await new Promise(resolve => setTimeout(resolve, 100));
     });
 
     afterAll(() => {
@@ -81,10 +77,10 @@ describe("Employees API Routes", () => {
             console.log("Employees Test Server stopped");
         }
     });
-    
+
     // Reset DB before each test
-    beforeEach(() => {
-       setupAndSeedDb(testDb); 
+    beforeEach(async () => {
+       await setupAndSeedDb(testDb);
     });
 
     // --- Tests --- (Adapted to use fetch and /api prefix)
@@ -97,7 +93,7 @@ describe("Employees API Routes", () => {
 
             expect(response.status).toBe(200);
             expect(body).toBeArray();
-            expect(body.length).toBe(3); 
+            expect(body.length).toBe(3);
             expect(body.every((e: Employee) => e.is_active)).toBe(true);
         });
 
@@ -106,7 +102,7 @@ describe("Employees API Routes", () => {
             const body = await response.json();
 
             expect(response.status).toBe(200);
-            expect(body.length).toBe(4); 
+            expect(body.length).toBe(4);
         });
 
         it("should filter employees by status (inactive)", async () => {
@@ -124,7 +120,7 @@ describe("Employees API Routes", () => {
             const body = await response.json();
 
             expect(response.status).toBe(200);
-            expect(body.length).toBe(2); 
+            expect(body.length).toBe(2);
             expect(body.every((e: Employee) => e.employee_group === EmployeeGroup.VZ)).toBe(true);
         });
 
@@ -133,7 +129,7 @@ describe("Employees API Routes", () => {
             const body = await response.json();
 
             expect(response.status).toBe(200);
-            expect(body.length).toBe(1); 
+            expect(body.length).toBe(1);
             expect(body[0].first_name).toBe("Alice");
         });
 
@@ -142,7 +138,7 @@ describe("Employees API Routes", () => {
             // Don't assume JSON body for validation errors if parsing fails
             expect(response.status).toBe(422);
             // const body = await response.json(); // Skip body check for now
-            // expect(body).toBeObject(); 
+            // expect(body).toBeObject();
         });
 
          it("should return 422 for invalid group filter", async () => {
@@ -150,14 +146,14 @@ describe("Employees API Routes", () => {
              // Don't assume JSON body for validation errors if parsing fails
             expect(response.status).toBe(422);
             // const body = await response.json(); // Skip body check for now
-            // expect(body).toBeObject(); 
+            // expect(body).toBeObject();
         });
     });
 
     describe("POST /api/employees", () => {
         it("should create a new employee with valid data and return 201", async () => {
             const newEmployeeData = {
-                employee_id: "EMP999", 
+                employee_id: "EMP999",
                 first_name: "Test",
                 last_name: "User",
                 employee_group: EmployeeGroup.TZ,
@@ -179,10 +175,10 @@ describe("Employees API Routes", () => {
             expect(body.first_name).toBe("Test");
             expect(body.employee_group).toBe(EmployeeGroup.TZ);
             expect(body.is_keyholder).toBe(true);
-            expect(body.is_active).toBe(true); 
+            expect(body.is_active).toBe(true);
 
             // Verify via API GET
-            const verifyResponse = await fetch(`${SERVER_URL}/api/employees/${body.id}`); 
+            const verifyResponse = await fetch(`${SERVER_URL}/api/employees/${body.id}`);
             const verifyBody = await verifyResponse.json();
             expect(verifyResponse.status).toBe(200);
             expect(verifyBody.employee_id).toBe("EMP999");
@@ -200,7 +196,7 @@ describe("Employees API Routes", () => {
             // Don't assume JSON body for validation errors if parsing fails
             expect(response.status).toBe(422);
             // const body = await response.json(); // Skip body check for now
-            // expect(body).toBeObject(); 
+            // expect(body).toBeObject();
         });
 
          it("should return 422 for invalid data types", async () => {
@@ -209,7 +205,7 @@ describe("Employees API Routes", () => {
                 first_name: "Valid",
                 last_name: "User",
                 employee_group: EmployeeGroup.TZ,
-                contracted_hours: "twenty", 
+                contracted_hours: "twenty",
             };
             const response = await fetch(`${SERVER_URL}/api/employees`, {
                 method: "POST",
@@ -238,8 +234,8 @@ describe("Employees API Routes", () => {
             const body = await response.json();
 
             expect(response.status).toBe(409); // Expect Conflict
-            expect(body).toHaveProperty('error'); 
-            expect(body.details).toContain("already exists"); 
+            expect(body).toHaveProperty('error');
+            expect(body.details).toContain("already exists");
         });
 
     });
@@ -247,7 +243,7 @@ describe("Employees API Routes", () => {
     describe("GET /api/employees/:id", () => {
         it("should return an employee by ID with status 200", async () => {
             const employeeId = 1; // Alice
-            const response = await fetch(`${SERVER_URL}/api/employees/${employeeId}`); 
+            const response = await fetch(`${SERVER_URL}/api/employees/${employeeId}`);
             const body = await response.json();
 
             expect(response.status).toBe(200);
@@ -258,7 +254,7 @@ describe("Employees API Routes", () => {
         });
 
         it("should return 404 for non-existent employee ID", async () => {
-            const response = await fetch(`${SERVER_URL}/api/employees/999`); 
+            const response = await fetch(`${SERVER_URL}/api/employees/999`);
             const body = await response.json();
 
             expect(response.status).toBe(404);
@@ -266,7 +262,7 @@ describe("Employees API Routes", () => {
         });
 
          it("should return 422 for invalid ID format", async () => {
-            const response = await fetch(`${SERVER_URL}/api/employees/invalid-id`); 
+            const response = await fetch(`${SERVER_URL}/api/employees/invalid-id`);
             // Don't assume JSON body for validation errors if parsing fails
             expect(response.status).toBe(422);
             // const body = await response.json(); // Skip body check for now
@@ -298,7 +294,7 @@ describe("Employees API Routes", () => {
             expect(body.is_keyholder).toBe(true);
 
             // Verify via API GET
-            const verifyResponse = await fetch(`${SERVER_URL}/api/employees/${employeeId}`); 
+            const verifyResponse = await fetch(`${SERVER_URL}/api/employees/${employeeId}`);
             const verifyBody = await verifyResponse.json();
             expect(verifyResponse.status).toBe(200);
             expect(verifyBody.first_name).toBe("Robert");
@@ -337,7 +333,7 @@ describe("Employees API Routes", () => {
     describe("DELETE /api/employees/:id", () => {
         it("should delete an existing employee and return 204", async () => {
             const employeeId = 3; // Charlie
-            
+
             const deleteResponse = await fetch(`${SERVER_URL}/api/employees/${employeeId}`, {
                 method: "DELETE"
             });
@@ -345,7 +341,7 @@ describe("Employees API Routes", () => {
             expect(deleteResponse.status).toBe(204);
 
             // Verify deletion via API GET
-            const verifyResponse = await fetch(`${SERVER_URL}/api/employees/${employeeId}`); 
+            const verifyResponse = await fetch(`${SERVER_URL}/api/employees/${employeeId}`);
             expect(verifyResponse.status).toBe(404);
         });
 
@@ -370,4 +366,31 @@ describe("Employees API Routes", () => {
             // expect(body).toHaveProperty('error'); // Remove this check
         });
     });
-}); 
+});
+
+// Function to apply schema - NOW ASYNC
+const applySchema = async (db: Database) => {
+    const schemaPath = join(__dirname, '../db/init-schema.sql');
+    try {
+        const schemaSql = await Bun.file(schemaPath).text(); // USE Bun.file
+        db.exec(schemaSql);
+    } catch (error) {
+        console.error(`[applySchema - employeesRoutes Test] Error applying schema:`, error);
+        throw error;
+    }
+};
+
+// Function to seed data for employee tests
+const seedEmployeeData = (db: Database) => {
+    try {
+        const insert = db.prepare(
+            "INSERT INTO employees (id, employee_id, first_name, last_name, employee_group, contracted_hours, is_keyholder, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))"
+        );
+        insert.run(1, 'E001', 'Test', 'Emp1', EmployeeGroup.VZ, 40, 1, 1);
+        insert.run(2, 'E002', 'Test', 'Emp2', EmployeeGroup.TZ, 20, 0, 1);
+    } catch (error) {
+        console.error("[seedEmployeeData - employeesRoutes Test] Error seeding data:", error);
+        throw error;
+    }
+     console.log('[seedEmployeeData - employeesRoutes Test] Employee table seeded.');
+};

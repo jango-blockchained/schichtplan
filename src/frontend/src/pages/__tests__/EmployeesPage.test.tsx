@@ -64,7 +64,7 @@ Object.assign(globalThis, {
 });
 
 describe("EmployeesPage", () => {
-  test("renders employee list", async () => {
+  it("renders employee list", async () => {
     mockGetEmployees.mockImplementation(() => Promise.resolve([mockEmployee]));
 
     render(<EmployeesPage />);
@@ -74,7 +74,7 @@ describe("EmployeesPage", () => {
     expect(employeeName).toBeDefined();
   });
 
-  test("can create new employee", async () => {
+  it("can create new employee", async () => {
     render(<EmployeesPage />);
 
     // Click the "Add Employee" button
@@ -99,7 +99,7 @@ describe("EmployeesPage", () => {
     expect(mockCreateEmployee).toHaveBeenCalled();
   });
 
-  test("can delete employee", async () => {
+  it("can delete employee", async () => {
     mockGetEmployees.mockImplementation(() => Promise.resolve([mockEmployee]));
 
     render(<EmployeesPage />);
