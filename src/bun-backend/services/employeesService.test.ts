@@ -1,7 +1,6 @@
 import { test, expect, describe, beforeEach, afterEach, it } from "bun:test";
 import { Database } from "bun:sqlite";
 import { randomUUID } from 'crypto'; // For unique IDs if needed again, though not currently used
-import { readFileSync } from 'fs';
 import { join } from 'path';
 import {
     getAllEmployees,
@@ -19,11 +18,11 @@ import { Employee, EmployeeGroup } from "../db/schema"; // Adjust path as needed
 // let testDb: Database;
 
 // Function to apply schema (Synchronous read)
-const applySchema = (db: Database) => {
+const applySchema = async (db: Database) => {
     const schemaPath = join(__dirname, '../db/init-schema.sql'); // Use __dirname
     try {
         console.log(`[applySchema] Applying schema from: ${schemaPath}`);
-        const schemaSql = readFileSync(schemaPath, 'utf-8');
+        const schemaSql = await Bun.file(schemaPath).text();
         db.exec(schemaSql);
         console.log('[applySchema] Schema applied successfully.');
     } catch (error) {
@@ -85,12 +84,12 @@ describe("Employees Service", () => {
     let currentTestDb: Database; // Variable to hold the DB for the current test
 
     // Setup and seed before each test
-    beforeEach(() => {
+    beforeEach(async () => {
         const dbIdentifier = ':memory:'; // Use anonymous in-memory DB
         console.log(`[employeesService.test] Initializing ANONYMOUS test database for EACH test: ${dbIdentifier}`);
         currentTestDb = new Database(dbIdentifier); // Assign to currentTestDb
         console.log(`[employeesService.test] Applying schema to ANONYMOUS DB...`);
-        applySchema(currentTestDb); // Apply schema
+        await applySchema(currentTestDb); // Apply schema (await the async function)
         console.log(`[employeesService.test] Schema applied to ANONYMOUS DB.`);
         
         console.log('[employeesService.test] Seeding employee data for test...');

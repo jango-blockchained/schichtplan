@@ -1,0 +1,14 @@
+# Ignore artifacts:
+node_modules
+dist
+build
+coverage
+playwright-report
+test-results
+
+# Ignore logs:
+logs
+*.log
+
+# Ignore bun internal files
+.bun
