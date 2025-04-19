@@ -4,6 +4,13 @@
 ![Coverage - Lines](https://img.shields.io/badge/Coverage%20(Lines)-51.95%25-yellow)
 ![Status](https://img.shields.io/badge/Status-Under%20Heavy%20Development-red)
 ![PRs](https://img.shields.io/badge/PRs-Welcome-brightgreen)
+![License](https://img.shields.io/badge/License-MIT-blue)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript)
+![Bun](https://img.shields.io/badge/Bun-1.0+-blueviolet?logo=bun)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)
+![Elysia](https://img.shields.io/badge/Elysia-1.0-purple)
+![Tailwind](https://img.shields.io/badge/Tailwind-3.0-38B2AC?logo=tailwind-css&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-3-003B57?logo=sqlite&logoColor=white)
 
 > ⚠️ **Note:** This project is under heavy development. Features and APIs may change frequently. Use with caution in production environments.
 
@@ -134,7 +141,7 @@ bun run --watch --hot --bun dev
 
 The application uses SQLite as its database, with the following setup:
 
-- Database file location: `src/bun-backend/data/schichtplan.db`
+- Database file location: `src/instance/bun.db`
 - Database schema defined in `src/bun-backend/db/init-schema.sql`
 - Database files are not tracked in version control
 
@@ -278,7 +285,7 @@ This helps prevent confusion between similarly named components and makes the co
 ### Database
 
 - SQLite
-- Folder: `./src/bun-backend/data/schichtplan.db`
+- Folder: `./src/instance/bun.db`
 
 ### Logs
 
@@ -345,7 +352,7 @@ The scheduling system now includes several improvements to make shift management
   - Verify Bun is installed correctly (run `bun --version`)
 
 - **Database Errors**:
-  - Ensure SQLite database exists at `src/bun-backend/data/schichtplan.db`
+  - Ensure SQLite database exists at `src/instance/bun.db`
   - Run database initialization: `bun run db:init`
   - Check database permissions
 
