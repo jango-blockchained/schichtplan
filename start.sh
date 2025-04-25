@@ -1,198 +1,410 @@
 #!/bin/bash
 
+# Set strict error handling
+set -euo pipefail
+
+# Configuration
+BACKEND_PORT_MIN=5000
+BACKEND_PORT_MAX=5020
+FRONTEND_PORT=5173
+TMUX_SESSION="schichtplan"
+VENV_PATH="src/backend/.venv"
+LOG_DIR="src/logs"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Logging function
+log() {
+    local level=$1
+    shift
+    local message=$*
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    case $level in
+        "INFO")
+            echo -e "${GREEN}[INFO]${NC} $timestamp - $message"
+            ;;
+        "WARN")
+            echo -e "${YELLOW}[WARN]${NC} $timestamp - $message"
+            ;;
+        "ERROR")
+            echo -e "${RED}[ERROR]${NC} $timestamp - $message"
+            ;;
+        "DEBUG")
+            echo -e "${YELLOW}[DEBUG]${NC} $timestamp - $message"
+            ;;
+        "SUCCESS")
+            echo -e "${GREEN}[SUCCESS]${NC} $timestamp - $message"
+            ;;
+    esac
+}
+
 # Function to check if a port is in use
 check_port() {
-    nc -z localhost $1 >/dev/null 2>&1
+    nc -z localhost "$1" >/dev/null 2>&1
 }
 
 # Function to kill process using a port
 kill_port() {
-    pid=$(lsof -t -i:$1)
-    if [ ! -z "$pid" ]; then
-        echo "Killing process on port $1 (PID: $pid)"
-        kill -9 $pid
+    local port=$1
+    local pids
+    
+    # Get all PIDs using the port, handling multiple PIDs correctly
+    pids=$(lsof -t -i:"$port" 2>/dev/null)
+    
+    if [ -n "$pids" ]; then
+        log "INFO" "Found process(es) on port $port (PIDs: $pids)"
+        for pid in $pids; do
+            # Try SIGTERM first, then SIGKILL if needed
+            if kill -15 "$pid" 2>/dev/null; then
+                log "INFO" "Sent SIGTERM to PID $pid"
+                sleep 1
+                # Check if process is still running
+                if kill -0 "$pid" 2>/dev/null; then
+                    log "WARN" "Process $pid did not respond to SIGTERM, using SIGKILL"
+                    kill -9 "$pid" 2>/dev/null
+                fi
+            else
+                log "WARN" "Failed to terminate PID $pid gracefully, using SIGKILL"
+                kill -9 "$pid" 2>/dev/null
+            fi
+        done
+        
+        # Verify port is actually free
+        sleep 1
+        if check_port "$port"; then
+            log "ERROR" "Port $port is still in use after killing processes"
+            return 1
+        else
+            log "INFO" "Successfully freed port $port"
+        fi
+    else
+        log "INFO" "No processes found using port $port"
     fi
 }
 
-# Function to cleanup and validate service shutdown
-cleanup() {
-    echo -e "\nGracefully shutting down services..."
+# Check for required dependencies
+check_dependencies() {
+    log "INFO" "Checking dependencies..."
+    local missing_deps=()
     
-    # Kill backend (port 5000)
-    if check_port 5000; then
-        kill_port 5000
-        sleep 1
-        if ! check_port 5000; then
-            echo "✓ Backend successfully stopped"
-        else
-            echo "! Warning: Backend may still be running"
+    # Required commands
+    local deps=("python3" "bun" "tmux" "nc" "curl")
+    for cmd in "${deps[@]}"; do
+        if ! command -v "$cmd" &> /dev/null; then
+            missing_deps+=("$cmd")
         fi
-    else
-        echo "✓ Backend is not running"
+    done
+    
+    if [ ${#missing_deps[@]} -ne 0 ]; then
+        log "ERROR" "Missing required dependencies: ${missing_deps[*]}"
+        log "ERROR" "Please install the missing dependencies and try again"
+        exit 1
     fi
     
-    # Kill frontend (port 5173)
-    if check_port 5173; then
-        kill_port 5173
-        sleep 1
-        if ! check_port 5173; then
-            echo "✓ Frontend successfully stopped"
-        else
-            echo "! Warning: Frontend may still be running"
-        fi
+    # Check Python version
+    if ! python3 -c "import sys; assert sys.version_info >= (3, 8), 'Python 3.8+ required'" 2>/dev/null; then
+        log "ERROR" "Python 3.8 or higher is required"
+        exit 1
+    fi
+    
+    log "INFO" "All dependencies are satisfied"
+}
+
+# Create and setup virtual environment
+setup_venv() {
+    local venv_exists=false
+    if [ -d "$VENV_PATH" ]; then
+        log "INFO" "Virtual environment found at $VENV_PATH"
+        venv_exists=true
     else
-        echo "✓ Frontend is not running"
+        log "INFO" "Creating virtual environment at $VENV_PATH..."
+        python3 -m venv "$VENV_PATH" || {
+            log "ERROR" "Failed to create virtual environment"
+            exit 1
+        }
+    fi
+    
+    # Activate virtual environment
+    log "INFO" "Activating virtual environment..."
+    source "$VENV_PATH/bin/activate" || {
+        log "ERROR" "Failed to activate virtual environment"
+        exit 1
+    }
+    
+    # Install requirements ONLY if venv was just created
+    if [ "$venv_exists" = false ]; then
+        log "INFO" "Installing Python dependencies..."
+        pip install -r requirements.txt || {
+            log "ERROR" "Failed to install Python dependencies"
+            exit 1
+        }
+        log "INFO" "Python dependencies installed."
+    else
+        log "INFO" "Skipping dependency installation (venv already exists)."
+    fi
+}
+
+# Create required directories
+create_directories() {
+    log "INFO" "Setting up directory structure..."
+    local dirs=("$LOG_DIR" "src/instance" "src/scripts")
+    for dir in "${dirs[@]}"; do
+        if [ ! -d "$dir" ]; then
+            mkdir -p "$dir" || {
+                log "ERROR" "Failed to create directory: $dir"
+                exit 1
+            }
+        fi
+    done
+}
+
+# Check and set script permissions
+check_permissions() {
+    log "INFO" "Checking script permissions..."
+    local scripts=("src/scripts/menu.sh" "src/scripts/ngrok_manager.sh")
+    for script in "${scripts[@]}"; do
+        if [ -f "$script" ]; then
+            chmod +x "$script" || {
+                log "WARN" "Failed to set permissions for $script"
+            }
+        else
+            log "WARN" "$script not found"
+        fi
+    done
+}
+
+# Check backend health
+check_backend_health() {
+    local port=$1
+    local max_retries=5
+    local retry=0
+    
+    while [ $retry -lt $max_retries ]; do
+        if curl -s "http://localhost:$port/api/health" 2>&1 | grep -q "ok"; then
+            return 0
+        fi
+        sleep 2
+        retry=$((retry + 1))
+    done
+    return 1
+}
+
+# Setup tmux session
+setup_tmux_session() {
+    log "INFO" "Setting up tmux session..."
+    
+    # Create new tmux session
+    tmux new-session -d -s "$TMUX_SESSION" || {
+        log "ERROR" "Failed to create tmux session"
+        exit 1
+    }
+    
+    # Configure backend pane
+    tmux send-keys -t "$TMUX_SESSION" "cd src/backend" C-m
+    tmux send-keys -t "$TMUX_SESSION" "source $VENV_PATH/bin/activate" C-m
+    tmux send-keys -t "$TMUX_SESSION" "export FLASK_APP=run.py" C-m
+    tmux send-keys -t "$TMUX_SESSION" "export FLASK_ENV=development" C-m
+    tmux send-keys -t "$TMUX_SESSION" "export DEBUG_MODE=1" C-m
+    tmux send-keys -t "$TMUX_SESSION" "echo 'Starting Backend...'" C-m
+    tmux send-keys -t "$TMUX_SESSION" "python3 run.py --auto-port --kill" C-m
+    
+    # Split window for frontend
+    tmux split-window -h
+    
+    # Configure frontend pane
+    if [ -f "src/frontend/package.json" ]; then
+        tmux send-keys -t "$TMUX_SESSION" "cd src/frontend" C-m
+        tmux send-keys -t "$TMUX_SESSION" "echo 'Installing frontend dependencies...'" C-m
+        tmux send-keys -t "$TMUX_SESSION" "bun install" C-m
+        tmux send-keys -t "$TMUX_SESSION" "echo 'Starting Frontend...'" C-m
+        tmux send-keys -t "$TMUX_SESSION" "bun run dev" C-m
+    else
+        log "ERROR" "Frontend package.json not found"
+        cleanup
+        exit 1
+    fi
+    
+    # Split horizontally for menu
+    tmux split-window -v -l 10
+    
+    # Configure menu pane
+    tmux send-keys -t "$TMUX_SESSION" "cd $(pwd)" C-m
+    tmux send-keys -t "$TMUX_SESSION" "src/scripts/menu.sh" C-m
+    
+    # Set window title
+    tmux rename-window -t "$TMUX_SESSION" "Schichtplan Dev"
+}
+
+# Wait for services to start
+wait_for_services() {
+    log "INFO" "Waiting for services to start..."
+    local max_attempts=30
+    local attempt=0
+    local backend_ready=false
+    local backend_port=""
+    
+    # Add a small delay before starting checks
+    log "INFO" "Allowing 1 seconds for backend to initialize..."
+    sleep 1 
+    
+    # Wait for backend
+    while [ $attempt -lt $max_attempts ] && [ "$backend_ready" = false ]; do
+        for port in $(seq $BACKEND_PORT_MIN $BACKEND_PORT_MAX); do
+            # Check if port is listening first (quicker check)
+            if check_port "$port"; then
+                # Try to connect to health endpoint and check HTTP status
+                http_status=$(curl -o /dev/null -s -w "%{http_code}" "http://localhost:$port/api/health")
+                if [ "$http_status" -eq 200 ]; then
+                    backend_ready=true
+                    backend_port=$port
+                    log "INFO" "Backend health check successful on port $port"
+                    break
+                else
+                    log "DEBUG" "Port $port is listening but health check failed (HTTP status: $http_status)"
+                fi
+            fi
+        done
+        
+        if [ "$backend_ready" = false ]; then
+            log "INFO" "Waiting for backend... (attempt $((attempt + 1))/$max_attempts)"
+            sleep 2
+            attempt=$((attempt + 1))
+        fi
+    done
+    
+    if [ "$backend_ready" = false ]; then
+        log "ERROR" "Backend did not start successfully within the timeout period."
+        log "ERROR" "Check the backend logs at $LOG_DIR/backend.log or in the tmux pane for errors."
+        cleanup
+        exit 1
+    fi
+    
+    log "INFO" "Backend started successfully on port $backend_port"
+    
+    # Wait for frontend (add initial delay too)
+    log "INFO" "Allowing 2 seconds for frontend to initialize..."
+    sleep 2
+    attempt=0
+    local frontend_ready=false
+    
+    while [ $attempt -lt $max_attempts ] && [ "$frontend_ready" = false ]; do
+        # Check if frontend is responding (simple check is usually fine for dev servers)
+        if curl -s --fail "http://localhost:$FRONTEND_PORT" >/dev/null 2>&1; then
+            frontend_ready=true
+        else
+            log "INFO" "Waiting for frontend... (attempt $((attempt + 1))/$max_attempts)"
+            sleep 2
+            attempt=$((attempt + 1))
+        fi
+    done
+    
+    if [ "$frontend_ready" = false ]; then
+        log "ERROR" "Frontend did not start successfully within the timeout period."
+        log "ERROR" "Check the frontend logs in the tmux pane for errors."
+        cleanup
+        exit 1
+    fi
+    
+    log "INFO" "Frontend started successfully on port $FRONTEND_PORT"
+    
+    # Final status message
+    log "SUCCESS" "All services started successfully!"
+    echo -e "\nAccess URLs:"
+    echo "Backend: http://localhost:$backend_port"
+    echo "Frontend: http://localhost:$FRONTEND_PORT"
+    echo "Logs location: $LOG_DIR/backend.log"
+    echo -e "\nTmux session '$TMUX_SESSION' created:"
+    echo "- Left pane: Backend"
+    echo "- Right pane: Frontend"
+    echo "- Bottom pane: Service Control Menu"
+    echo -e "\nTo attach to tmux session: tmux attach-session -t $TMUX_SESSION"
+    echo "To detach from tmux: press Ctrl+B, then D"
+    echo "To exit completely: press Ctrl+C in this terminal"
+    echo -e "\nFor public access via ngrok, use option 8 in the Service Control Menu"
+    echo ""
+}
+
+# Function to stop existing services without exiting
+stop_existing_services() {
+    log "INFO" "Stopping any pre-existing services..."
+    
+    # Kill processes on all potential backend ports
+    for port in $(seq $BACKEND_PORT_MIN $BACKEND_PORT_MAX); do
+        if check_port "$port"; then
+            kill_port "$port"
+        fi
+    done
+    
+    # Kill frontend
+    if check_port $FRONTEND_PORT; then
+        kill_port $FRONTEND_PORT
     fi
     
     # Kill ngrok if running
     if pgrep -f "ngrok" > /dev/null; then
-        echo "Stopping ngrok tunnels..."
+        log "INFO" "Stopping existing ngrok tunnels..."
         pkill -f "ngrok"
-        echo "✓ Ngrok tunnels stopped"
+        sleep 1
+        if pgrep -f "ngrok" > /dev/null; then
+            log "WARN" "Existing ngrok processes still running, forcing kill..."
+            pkill -9 -f "ngrok"
+        fi
     fi
     
-    # Kill tmux session
-    tmux kill-session -t schichtplan 2>/dev/null
-    
-    echo "Shutdown complete!"
-    exit 0
+    # Kill tmux session if it exists
+    if tmux has-session -t "$TMUX_SESSION" 2>/dev/null; then
+        log "INFO" "Killing existing tmux session $TMUX_SESSION"
+        tmux kill-session -t "$TMUX_SESSION"
+    fi
+    log "INFO" "Pre-existing services stopped."
 }
 
-# Clean up any existing log files in wrong locations
-echo "Cleaning up any misplaced log files..."
-find . -name "backend.log" ! -path "./src/logs/*" -delete
-
-# Create required directories with proper structure
-echo "Setting up directory structure..."
-mkdir -p src/logs
-mkdir -p src/instance
-mkdir -p src/scripts
-
-# Ensure menu and ngrok scripts are executable
-chmod +x src/scripts/menu.sh
-if [ -f src/scripts/ngrok_manager.sh ]; then
-    chmod +x src/scripts/ngrok_manager.sh
-fi
-
-# Kill any existing processes
-kill_port 5000  # Backend port
-kill_port 5173  # Frontend port
-
-# Kill existing ngrok processes
-if pgrep -f "ngrok" > /dev/null; then
-    echo "Stopping existing ngrok processes..."
-    pkill -f "ngrok"
-fi
-
-# Kill existing tmux session if it exists
-tmux kill-session -t schichtplan 2>/dev/null
-
-echo "Starting application in tmux..."
-
-# Create new tmux session
-tmux new-session -d -s schichtplan
-
-# Configure first pane (Backend)
-tmux send-keys -t schichtplan "cd src/backend" C-m
-tmux send-keys -t schichtplan "export FLASK_APP=run.py" C-m
-tmux send-keys -t schichtplan "export FLASK_ENV=development" C-m
-tmux send-keys -t schichtplan "export DEBUG_MODE=1" C-m
-tmux send-keys -t schichtplan "echo 'Starting Backend...'" C-m
-# Use --auto-port and --kill options to handle port conflicts automatically
-tmux send-keys -t schichtplan "python3 run.py --auto-port --kill" C-m
-
-# Split window vertically for frontend
-tmux split-window -h
-
-# Configure second pane (Frontend)
-tmux send-keys -t schichtplan "cd src/frontend" C-m
-tmux send-keys -t schichtplan "echo 'Starting Frontend...'" C-m
-tmux send-keys -t schichtplan "bun run --watch --hot --bun dev" C-m
-
-# Split horizontally for menu pane with specific size
-tmux split-window -v -l 10
-
-# Configure third pane (Menu)
-tmux send-keys -t schichtplan "cd $(pwd)" C-m
-tmux send-keys -t schichtplan "src/scripts/menu.sh" C-m
-
-# Set window title
-tmux rename-window -t schichtplan "Schichtplan Dev"
-
-# Wait for the backend to be ready (on any port)
-echo "Waiting for services to start..."
-max_attempts=30
-attempt=0
-backend_ready=false
-
-while [ $attempt -lt $max_attempts ] && [ "$backend_ready" = false ]; do
-    # Check if backend is running
-    if curl -s http://localhost:5000/api/health >/dev/null 2>&1; then
-        backend_ready=true
-        backend_port=5000
-    else
-        # Check other potential ports if 5000 isn't available
-        for port in {5001..5020}; do
-            if curl -s http://localhost:$port/api/health >/dev/null 2>&1; then
-                backend_ready=true
-                backend_port=$port
-                break
-            fi
-        done
+# Function to cleanup and validate service shutdown (called by trap)
+cleanup() {
+    log "INFO" "Gracefully shutting down services (cleanup trap)..."
+    
+    # Deactivate virtual environment if active
+    if [ -n "${VIRTUAL_ENV:-}" ]; then
+        deactivate || log "WARN" "Failed to deactivate virtual environment"
     fi
     
-    if [ "$backend_ready" = false ]; then
-        echo "Waiting for backend..."
-        sleep 1
-        attempt=$((attempt + 1))
-    fi
-done
+    # Stop services using the dedicated function
+    stop_existing_services
+    
+    log "INFO" "Cleanup complete. Exiting."
+    exit 0 # Exit only when called by trap
+}
 
-if [ "$backend_ready" = false ]; then
-    echo "Backend did not start within the timeout period."
-    echo "Check the backend logs for errors."
-else
-    echo "Backend started on port $backend_port"
-fi
+# Main function
+main() {
+    # Clean up any existing log files in wrong locations
+    find . -name "backend.log" ! -path "./src/logs/*" -delete
+    
+    check_dependencies
+    create_directories
+    check_permissions
+    setup_venv
+    
+    # Clean up ONLY existing processes before starting new ones
+    stop_existing_services
+    
+    # Start services
+    setup_tmux_session
+    
+    # Wait for services
+    wait_for_services
+    
+    # Attach to tmux session
+    tmux attach-session -t "$TMUX_SESSION"
+}
 
-# Wait for frontend to be ready
-attempt=0
-frontend_ready=false
+# Improve trap handling
+trap 'cleanup' INT TERM
+trap 'log "ERROR" "An error occurred. Exiting." >&2; cleanup' ERR
 
-while [ $attempt -lt $max_attempts ] && [ "$frontend_ready" = false ]; do
-    if check_port 5173; then
-        frontend_ready=true
-    else
-        echo "Waiting for frontend..."
-        sleep 1
-        attempt=$((attempt + 1))
-    fi
-done
-
-if [ "$frontend_ready" = false ]; then
-    echo "Frontend did not start within the timeout period."
-    echo "Check the frontend logs for errors."
-else
-    echo "Frontend started on port 5173"
-fi
-
-echo -e "\nApplication started successfully!"
-echo "Backend: http://localhost:${backend_port:-5000}"
-echo "Frontend: http://localhost:5173"
-echo "Logs location: src/logs/backend.log"
-echo -e "\nTmux session 'schichtplan' created:"
-echo "- Left pane: Backend"
-echo "- Right pane: Frontend"
-echo "- Bottom pane: Service Control Menu"
-echo -e "\nTo attach to tmux session: tmux attach-session -t schichtplan"
-echo "To detach from tmux: press Ctrl+B, then D"
-echo "To exit completely: press Ctrl+C in this terminal"
-echo -e "\nFor public access via ngrok, use option 8 in the Service Control Menu"
-echo ""
-
-# Attach to tmux session
-tmux attach-session -t schichtplan
-
-# Wait for Ctrl+C
-trap cleanup INT
-wait 
+# Run main function
+main 
