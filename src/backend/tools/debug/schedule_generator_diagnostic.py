@@ -16,6 +16,9 @@ from pathlib import Path
 import logging
 from logging.handlers import RotatingFileHandler
 
+# Import the db instance at the top level
+from src.backend.models import db
+
 # Path to the diagnostic logs folder
 DIAGNOSTIC_DIR = (
     Path(__file__).resolve().parent.parent.parent.parent / "logs" / "diagnostics"
@@ -243,38 +246,31 @@ class ScheduleGeneratorDiagnostic:
                 # Now import models INSIDE the app context
                 self._log_substep("Importing models within app context")
                 try:
-                    # Import core models first
-                    import src.backend.models as models
-
-                    self._log_info("Successfully imported models package")
+                    # Import the shared db instance - MOVED TO TOP LEVEL
+                    # from src.backend.models import db
 
                     # Now import specific models
                     from src.backend.models import (
                         Employee,
                         ShiftTemplate,
-                        Schedule,
                         Coverage,
                         Settings,
+                        Schedule,
                         EmployeeAvailability,
-                        db,
+                        Absence,
                     )
-
                     self._log_info("Successfully imported model classes")
 
                     # Import scheduler services
-                    from src.backend.services.scheduler import ScheduleGenerator
-
+                    from src.backend.services.scheduler.generator import (
+                        ScheduleGenerator,
+                    )
                     self._log_info("Successfully imported ScheduleGenerator")
-
-                    # Import logger
-                    from src.backend.utils.logger import logger
 
                     self._log_success("Models imported successfully")
                 except ImportError as e:
-                    self._log_error("Failed to import models", e)
-                    self._log_recommendation(
-                        "Check your model imports and make sure the database is properly set up"
-                    )
+                    self._log_error(f"Failed to import models or generator: {e}")
+                    self._log_recommendation("Check Python path and model imports")
                     raise
 
                 # Set up dates for the schedule
@@ -318,9 +314,10 @@ class ScheduleGeneratorDiagnostic:
 
                 # Check employees
                 try:
-                    employee_count = Employee.query.count()
-                    active_employees = Employee.query.filter_by(is_active=True).count()
-                    keyholders = Employee.query.filter_by(is_keyholder=True).count()
+                    # Use db.session.execute instead of Model.query
+                    employee_count = db.session.execute(db.select(db.func.count(Employee.id))).scalar_one()
+                    active_employees = db.session.execute(db.select(db.func.count(Employee.id)).filter_by(is_active=True)).scalar_one()
+                    keyholders = db.session.execute(db.select(db.func.count(Employee.id)).filter_by(is_keyholder=True)).scalar_one()
 
                     self.stats["employees"] = employee_count
                     self.stats["available_employees"] = active_employees
@@ -341,7 +338,8 @@ class ScheduleGeneratorDiagnostic:
                         )
 
                     # Check shift templates
-                    shift_count = ShiftTemplate.query.count()
+                    # Use db.session.execute instead of Model.query
+                    shift_count = db.session.execute(db.select(db.func.count(ShiftTemplate.id))).scalar_one()
                     self.stats["shifts"] = shift_count
                     self._log_info(f"Shift templates: {shift_count}")
 
@@ -352,7 +350,8 @@ class ScheduleGeneratorDiagnostic:
                         )
 
                     # Check coverage requirements
-                    coverage_count = Coverage.query.count()
+                    # Use db.session.execute instead of Model.query
+                    coverage_count = db.session.execute(db.select(db.func.count(Coverage.id))).scalar_one()
                     self.stats["coverage_blocks"] = coverage_count
                     self._log_info(f"Coverage requirements: {coverage_count}")
 
@@ -363,7 +362,8 @@ class ScheduleGeneratorDiagnostic:
                         )
 
                     # Check settings
-                    settings = Settings.query.first()
+                    # Use db.session.execute instead of Model.query
+                    settings = db.session.execute(db.select(Settings)).scalar_one_or_none()
                     if not settings:
                         self._log_warning(
                             "No settings found in database, using defaults"
@@ -383,9 +383,12 @@ class ScheduleGeneratorDiagnostic:
                 # Check existing schedule entries
                 self._log_step("Checking existing schedule entries")
                 try:
-                    existing_entries = Schedule.query.filter(
-                        Schedule.date >= start_date, Schedule.date <= end_date
-                    ).count()
+                    # Use db.session.execute instead of Model.query
+                    existing_entries = db.session.execute(
+                        db.select(db.func.count(Schedule.id)).filter(
+                            Schedule.date >= start_date, Schedule.date <= end_date
+                        )
+                    ).scalar_one()
 
                     self._log_info(
                         f"Existing schedule entries for date range: {existing_entries}"

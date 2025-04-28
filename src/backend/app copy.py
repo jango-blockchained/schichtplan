@@ -92,7 +92,7 @@ def create_app(config_class=Config):
     migrations_dir = os.path.join(
         os.path.dirname(os.path.dirname(__file__)), "instance", "migrations"
     )
-    Migrate(app, db, directory=migrations_dir)
+    migrate = Migrate(app, db, directory=migrations_dir)
 
     # Ensure the instance folder exists
     try:

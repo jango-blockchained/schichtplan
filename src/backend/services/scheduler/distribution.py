@@ -112,7 +112,8 @@ class DistributionManager:
     def _initialize_assignments(self):
         """Initialize assignments dictionary for all employees"""
         try:
-            employees = self.resources.get_employees()
+            # Access the employees list directly from the resources object
+            employees = self.resources.employees
             for employee in employees:
                 employee_id = (
                     employee.id if hasattr(employee, "id") else employee.get("id")

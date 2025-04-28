@@ -113,6 +113,14 @@ class ScheduleResources:
             self.settings = self._load_settings()
             self.logger.debug(f"Loaded settings: {self.settings}")
 
+            # Load absences
+            self.absences = self._load_absences()
+            self.logger.debug(f"Loaded {len(self.absences)} absences")
+
+            # Load availabilities
+            self.availabilities = self._load_availabilities()
+            self.logger.debug(f"Loaded {len(self.availabilities)} availabilities")
+
             # Mark as loaded
             self._loaded = True
             self.logger.info("Resource loading complete")

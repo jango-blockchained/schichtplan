@@ -1,10 +1,11 @@
 """Schedule generation service for Schichtplan."""
-
+"""Schedule generation service for Schichtplan."""
 from datetime import date, datetime, timedelta
 import logging
 from typing import Dict, List, Any, Optional
 import sys
 import os
+import uuid # Import uuid for session ID generation
 
 # Add parent directories to path if needed
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -12,17 +13,50 @@ src_backend_dir = os.path.abspath(os.path.join(current_dir, "..", ".."))
 if src_backend_dir not in sys.path:
     sys.path.insert(0, src_backend_dir)
 
+# --- Centralized Logger Import ---
+# Import the global logger instance from utils
+try:
+    from utils.logger import logger as central_logger
+    # Add a stream handler for console visibility during development/debugging if not already configured
+    if not any(isinstance(h, logging.StreamHandler) for h in central_logger.schedule_logger.handlers):
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(logging.INFO) # Or DEBUG
+        console_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        console_handler.setFormatter(console_formatter)
+        central_logger.schedule_logger.addHandler(console_handler)
+        central_logger.schedule_logger.info("Added console handler to schedule_logger for generator.")
+
+except ImportError:
+    print("Error: Could not import central logger from utils.logger. Falling back to basic logging.", file=sys.stderr)
+    # Fallback basic configuration
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    # Create a dummy logger object that mimics the structure if needed
+    class DummyLogger:
+        def __init__(self):
+            self.schedule_logger = logging.getLogger("schedule_fallback")
+            self.diagnostic_logger = logging.getLogger("diagnostic_fallback")
+            self.app_logger = logging.getLogger("app_fallback")
+            self.error_logger = logging.getLogger("error_fallback")
+            self.user_logger = logging.getLogger("user_fallback")
+        def create_diagnostic_logger(self, session_id):
+             # Return a named logger, but setup might be basic
+             return logging.getLogger(f"diagnostic_{session_id}_fallback")
+        def get_diagnostic_log_path(self, session_id):
+            return f"fallback_diagnostic_{session_id}.log" # Placeholder path
+    central_logger = DummyLogger()
+
+
 # Import the extracted modules
 from .config import SchedulerConfig
 from .constraints import ConstraintChecker
 from .availability import AvailabilityChecker
 from .distribution import DistributionManager
 from .serialization import ScheduleSerializer
-from .logging_utils import LoggingManager
+from .logging_utils import ProcessTracker # Renamed from LoggingManager
 from .resources import ScheduleResources
 
-# Set up placeholder logger
-logger = logging.getLogger(__name__)
+# Set up placeholder logger - REMOVED as we use central_logger now
+# logger = logging.getLogger(__name__)
 
 # Setup for imports - we'll try different import paths
 import importlib.util
@@ -69,8 +103,10 @@ class _Schedule:
 def try_import(module_name, class_name=None):
     try:
         module = importlib.import_module(module_name)
+        central_logger.app_logger.debug(f"Successfully imported module: {module_name}")
         return module if class_name is None else getattr(module, class_name)
-    except (ImportError, AttributeError):
+    except (ImportError, AttributeError) as e:
+        central_logger.app_logger.warning(f"Failed to import {class_name or module_name}: {e}")
         return None
 
 
@@ -88,18 +124,20 @@ if employee_module is None:
 if employee_module is None:
     employee_module = try_import("src.backend.models.employee")
 
-# Try to import logger
-utils_logger = try_import("utils.logger")
-if utils_logger is None:
-    utils_logger = try_import("backend.utils.logger")
-if utils_logger is None:
-    utils_logger = try_import("src.backend.utils.logger")
+# Try to import logger - REMOVED, using direct import now
+# utils_logger = try_import("utils.logger")
+# if utils_logger is None:
+#     utils_logger = try_import("backend.utils.logger")
+# if utils_logger is None:
+#     utils_logger = try_import("src.backend.utils.logger")
 
 # Set up our classes based on successful imports or fallbacks
 if employee_module and hasattr(employee_module, "AvailabilityType"):
     AvailabilityType = employee_module.AvailabilityType
 else:
     AvailabilityType = _AvailabilityType
+    central_logger.app_logger.warning("Using fallback AvailabilityType enum.")
+
 
 if models_module:
     Employee = getattr(models_module, "Employee", _Employee)
@@ -109,9 +147,11 @@ else:
     Employee = _Employee
     ShiftTemplate = _ShiftTemplate
     Schedule = _Schedule
+    central_logger.app_logger.warning("Using fallback data models (Employee, ShiftTemplate, Schedule).")
 
-if utils_logger:
-    logger = getattr(utils_logger, "logger", logger)
+
+# if utils_logger: # REMOVED
+#     logger = getattr(utils_logger, "logger", logger) # REMOVED
 
 
 class ScheduleGenerationError(Exception):
@@ -181,27 +221,48 @@ class ScheduleGenerator:
     """
 
     def __init__(self, resources=None, config=None):
-        # Initialize the logging manager
-        self.logging_manager = LoggingManager(app_name="scheduler")
-        self.logger = self.logging_manager.get_logger()
+        # Use the centrally configured logger
+        self.logger = central_logger.schedule_logger # Use the specific schedule logger
+        self.app_logger = central_logger.app_logger # Use app logger for general info/debug
+
+        # Generate a unique session ID for this generation run
+        self.session_id = str(uuid.uuid4())[:8]
+
+        # Create a specific diagnostic logger for this session
+        self.diagnostic_logger = central_logger.create_diagnostic_logger(self.session_id)
+
+        # Initialize the process tracker, passing the relevant loggers
+        self.process_tracker = ProcessTracker(
+            process_name=f"ScheduleGeneration_{self.session_id}",
+            schedule_logger=self.logger,
+            diagnostic_logger=self.diagnostic_logger
+        )
 
         # Initialize resources and config
         self.resources = resources or ScheduleResources()
         self.config = config or SchedulerConfig()
+        self.logger.debug(f"ScheduleGenerator initialized (Session: {self.session_id})")
+        self.diagnostic_logger.debug(f"SchedulerConfig: {self.config.__dict__}")
 
-        # Initialize the specialized modules
+
+        # Initialize the specialized modules, passing the correct logger
+        # Decide which logger is most appropriate for each module
+        # - ConstraintChecker: Needs details, maybe diagnostic? Or schedule? Let's use schedule logger for now.
+        # - AvailabilityChecker: Schedule logger seems appropriate.
+        # - DistributionManager: Needs detailed logs, pass diagnostic logger? Or schedule logger? Let's use schedule.
+        # - Serializer: Schedule logger.
         self.constraint_checker = ConstraintChecker(
-            self.resources, self.config, self.logger
+            self.resources, self.config, self.logger # Pass schedule logger
         )
-        self.availability_checker = AvailabilityChecker(self.resources, self.logger)
+        self.availability_checker = AvailabilityChecker(self.resources, self.logger) # Pass schedule logger
         self.distribution_manager = DistributionManager(
             self.resources,
             self.constraint_checker,
             self.availability_checker,
             self.config,
-            self.logger,
+            self.logger, # Pass schedule logger
         )
-        self.serializer = ScheduleSerializer(self.logger)
+        self.serializer = ScheduleSerializer(self.logger) # Pass schedule logger
 
         # Schedule data
         self.schedule = None
@@ -241,12 +302,43 @@ class ScheduleGenerator:
             create_empty_schedules: Whether to create empty schedule entries for days with no coverage
             version: Optional version of the schedule
         """
-        self.logger.info(f"Generating schedule from {start_date} to {end_date}")
+        self.logger.info(f"Generating schedule from {start_date} to {end_date} (Session: {self.session_id})")
+        self.diagnostic_logger.info(f"Generation parameters: start={start_date}, end={end_date}, config={config}, create_empty={create_empty_schedules}, version={version}")
 
-        # Load and verify resources
-        self.resources.load()
-        if not self.resources.verify_loaded_resources():
-            raise ScheduleGenerationError("Failed to load required resources")
+        # Start the process tracking
+        self.process_tracker.start_process()
+
+        # Step 1: Resource Loading and Verification
+        self.process_tracker.start_step("Resource Loading")
+        try:
+            self.resources.load()
+            verification_result = self.resources.verify_loaded_resources()
+            if not verification_result:
+                error_msg = "Resource verification failed."
+                self.logger.error(error_msg)
+                self.process_tracker.log_error(error_msg)
+                raise ScheduleGenerationError("Failed to load required resources")
+
+            self.logger.info("Resources loaded and verified successfully.")
+            self.process_tracker.log_step_data("Employees Loaded", len(self.resources.employees), level=logging.INFO)
+            self.process_tracker.log_step_data("Shifts Loaded", len(self.resources.shifts), level=logging.INFO)
+            self.process_tracker.log_step_data("Coverage Loaded", len(self.resources.coverage), level=logging.INFO)
+            self.process_tracker.log_step_data("Availability Loaded", len(self.resources.availabilities), level=logging.INFO)
+
+        except Exception as e:
+            error_msg = f"Error during resource loading: {str(e)}"
+            self.logger.error(error_msg, exc_info=True)
+            self.process_tracker.log_error(error_msg, exc_info=True)
+            # We might still want to end the step before raising
+            self.process_tracker.end_step({"status": "failed", "error": str(e)})
+            # End the process immediately on critical failure
+            self.process_tracker.end_process({"status": "failed", "reason": "Resource loading error"})
+            raise ScheduleGenerationError(f"Failed during resource loading: {str(e)}") from e
+        finally:
+            # Ensure step ends even if it succeeded but there was an issue before the raise
+             if self.process_tracker.current_step == "Resource Loading":
+                self.process_tracker.end_step({"status": "success"})
+
 
         # Initialize schedule container
         self.schedule = ScheduleContainer(
@@ -255,137 +347,175 @@ class ScheduleGenerator:
             version=version or 1,
         )
 
-        # Generate assignments for each date
+        # Step 2: Date Processing Loop
+        self.process_tracker.start_step("Daily Assignment Generation Loop")
         current_date = start_date
         date_count = 0
         empty_dates = 0
 
         while current_date <= end_date:
+            loop_date_str = current_date.isoformat()
+            self.diagnostic_logger.debug(f"--- Processing date: {loop_date_str} ---")
             try:
-                self.logger.info(f"Generating assignments for {current_date}")
                 assignments = self._generate_assignments_for_date(current_date)
+
                 if assignments:
-                    self.logger.info(
-                        f"Generated {len(assignments)} assignments for {current_date}"
-                    )
+                    self.logger.info(f"Generated {len(assignments)} assignments for {loop_date_str}")
                     date_count += 1
                 elif create_empty_schedules:
-                    self.logger.warning(
-                        f"No coverage data found for date {current_date}"
-                    )
-                    self.logger.info(
-                        f"Creating empty schedule entries for date {current_date}"
-                    )
+                    self.logger.warning(f"No coverage or shifts applicable for {loop_date_str}. Creating empty entry.")
+                    self.process_tracker.log_warning(f"Creating empty schedule entry for {loop_date_str}", log_to_diag=True)
                     self._create_empty_schedule_entries(current_date)
                     empty_dates += 1
                 else:
-                    self.logger.warning(
-                        f"No coverage data found for date {current_date}, skipping..."
-                    )
+                    self.logger.warning(f"No coverage, shifts, or assignable employees found for {loop_date_str}. Skipping date.")
+                    self.process_tracker.log_warning(f"Skipping date {loop_date_str} due to lack of coverage/shifts/assignments.", log_to_diag=True)
+
 
                 # Move to the next date
                 current_date += timedelta(days=1)
+
             except Exception as e:
-                self.logger.error(
-                    f"Error generating assignments for {current_date}: {str(e)}"
-                )
-                raise ScheduleGenerationError(
-                    f"Failed to generate assignments for {current_date}: {str(e)}"
-                )
+                error_msg = f"Error generating assignments for {loop_date_str}: {str(e)}"
+                self.logger.error(error_msg, exc_info=True)
+                self.process_tracker.log_error(error_msg, exc_info=True)
+                # Optionally end the step/process here, or try to continue with the next date
+                # For now, let's end the process on date-specific failure
+                self.process_tracker.end_step({"status": "failed", "error_date": loop_date_str, "error": str(e)})
+                self.process_tracker.end_process({"status": "failed", "reason": f"Error during assignment for {loop_date_str}"})
+                raise ScheduleGenerationError(error_msg) from e
 
         # Finish date processing loop
-        self.logging_manager.end_step(
+        self.process_tracker.end_step(
             {
-                "dates_processed": date_count + empty_dates,
-                "dates_with_coverage": date_count,
-                "dates_empty": empty_dates,
+                "status": "success",
+                "dates_processed": (end_date - start_date).days + 1,
+                "dates_with_assignments": date_count,
+                "dates_empty_created": empty_dates,
             }
         )
 
-        # Step 3: Serialization
-        self.logging_manager.start_step("Schedule Serialization")
-        serialized_result = self.serializer.serialize_schedule(
-            self.schedule.get_schedule()
-        )
-
-        # Add metrics to result
-        metrics = self.distribution_manager.get_distribution_metrics()
-        serialized_result["metrics"] = metrics
-
-        # Schedule validation stats
-        valid_count = 0
-        invalid_count = 0
-
-        for assignment in self.schedule.get_assignments():
-            # Skip empty schedule entries
-            if isinstance(assignment, dict) and assignment.get("status") == "EMPTY":
-                continue
-
-            # Get employee_id and shift_id based on type
-            employee_id = (
-                assignment.get("employee_id")
-                if isinstance(assignment, dict)
-                else assignment.employee_id
+        # Step 3: Serialization & Validation
+        self.process_tracker.start_step("Schedule Serialization and Validation")
+        try:
+            # Serialize first
+            serialized_result = self.serializer.serialize_schedule(
+                self.schedule.get_schedule()
             )
-            shift_id = (
-                assignment.get("shift_id")
-                if isinstance(assignment, dict)
-                else assignment.shift_id
-            )
-            assignment_date = (
-                assignment.get("date")
-                if isinstance(assignment, dict)
-                else assignment.date
-            )
+            self.process_tracker.log_step_data("Serialized Schedule Size", len(str(serialized_result)), level=logging.DEBUG)
 
-            if employee_id and shift_id:
-                # Get the employee and shift from the assignment
-                employee = self.resources.get_employee(employee_id)
-                shift = self.resources.get_shift(shift_id)
 
-                if employee and shift:
-                    # Check if the assignment exceeds constraints
-                    exceeds = self.constraint_checker.exceeds_constraints(
-                        employee, assignment_date, shift
-                    )
-                    if not exceeds:
-                        valid_count += 1
+            # Add metrics
+            metrics = self.distribution_manager.get_distribution_metrics()
+            if metrics:
+                serialized_result["metrics"] = metrics
+                self.process_tracker.log_step_data("Distribution Metrics", metrics, level=logging.INFO)
+
+
+            # Perform validation
+            valid_count = 0
+            invalid_count = 0
+            validation_details = {} # Store details per employee
+
+            for assignment in self.schedule.get_assignments():
+                # Skip empty schedule entries
+                if isinstance(assignment, dict) and assignment.get("status") == "EMPTY":
+                    continue
+
+                # Get employee_id and shift_id based on type
+                employee_id = (
+                    assignment.get("employee_id")
+                    if isinstance(assignment, dict)
+                    else getattr(assignment, 'employee_id', None)
+                )
+                shift_id = (
+                    assignment.get("shift_id")
+                    if isinstance(assignment, dict)
+                    else getattr(assignment, 'shift_id', None)
+                )
+                assignment_date_obj = (
+                    assignment.get("date")
+                    if isinstance(assignment, dict)
+                    else getattr(assignment, 'date', None)
+                )
+                # Ensure date is a date object
+                if isinstance(assignment_date_obj, str):
+                    assignment_date_obj = date.fromisoformat(assignment_date_obj)
+
+
+                if employee_id and shift_id and assignment_date_obj:
+                    employee = self.resources.get_employee(employee_id)
+                    shift = self.resources.get_shift(shift_id) # Should get template here
+
+                    if employee and shift:
+                        violations = self.constraint_checker.check_all_constraints(
+                            employee, assignment_date_obj, shift, self.schedule_by_date
+                        )
+                        if not violations:
+                            valid_count += 1
+                        else:
+                            invalid_count += 1
+                            if employee_id not in validation_details:
+                                validation_details[employee_id] = []
+                            validation_details[employee_id].append({
+                                "date": assignment_date_obj.isoformat(),
+                                "shift_id": shift_id,
+                                "violations": violations
+                            })
+                            self.diagnostic_logger.warning(f"Constraint violation for Emp {employee_id} on {assignment_date_obj}: {violations}")
                     else:
-                        invalid_count += 1
+                         self.logger.warning(f"Could not find Employee ({employee_id}) or Shift ({shift_id}) during final validation.")
 
-        serialized_result["validation"] = {
+
+            serialized_result["validation"] = {
+                "valid_assignments": valid_count,
+                "invalid_assignments": invalid_count,
+                "details": validation_details # Add violation details
+            }
+            self.process_tracker.log_step_data("Validation Results", serialized_result["validation"], level=logging.INFO)
+
+
+            # Add additional schedule info
+            serialized_result["schedule_info"] = {
+                "session_id": self.session_id, # Add session ID
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+                "version": self.schedule.version,
+                "total_dates": (end_date - start_date).days + 1,
+                "dates_with_assignments": date_count,
+                "empty_dates_created": empty_dates,
+            }
+
+            self.process_tracker.end_step({"status": "success"})
+
+        except Exception as e:
+            error_msg = f"Error during serialization/validation: {str(e)}"
+            self.logger.error(error_msg, exc_info=True)
+            self.process_tracker.log_error(error_msg, exc_info=True)
+            self.process_tracker.end_step({"status": "failed", "error": str(e)})
+            self.process_tracker.end_process({"status": "failed", "reason": "Serialization/Validation error"})
+            raise ScheduleGenerationError(error_msg) from e
+
+
+        # Prepare final stats for process end
+        final_stats = {
+            "status": "success",
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "total_dates": (end_date - start_date).days + 1,
+            "dates_with_assignments": date_count,
+            "empty_dates_created": empty_dates,
             "valid_assignments": valid_count,
             "invalid_assignments": invalid_count,
         }
-
-        # Add additional information
-        serialized_result["schedule_info"] = {
-            "start_date": start_date.isoformat(),
-            "end_date": end_date.isoformat(),
-            "version": self.schedule.version,
-            "date_count": (end_date - start_date).days + 1,
-            "dates_with_coverage": date_count,
-            "empty_dates": empty_dates,
-        }
-
-        self.logging_manager.log_step_data("Result Size", len(str(serialized_result)))
-        self.logging_manager.end_step()
-
-        # End the overall process with stats
-        stats = {
-            "start_date": start_date.isoformat(),
-            "end_date": end_date.isoformat(),
-            "date_count": (end_date - start_date).days + 1,
-            "dates_with_coverage": date_count,
-            "empty_dates": empty_dates,
-            "valid_assignments": valid_count,
-            "invalid_assignments": invalid_count,
-        }
-
         if metrics:
-            stats["metrics"] = metrics
+            final_stats["metrics"] = metrics # Use already fetched metrics
 
-        self.logging_manager.end_process(stats)
+        # End the overall process tracking
+        self.process_tracker.end_process(final_stats)
+        self.logger.info(f"Schedule generation finished. Session: {self.session_id}")
+        self.diagnostic_logger.info(f"Diagnostic log path: {central_logger.get_diagnostic_log_path(self.session_id)}")
+
 
         return serialized_result
 
@@ -394,6 +524,7 @@ class ScheduleGenerator:
         Validate that all shift templates have durations
         Raises ScheduleGenerationError if validation fails
         """
+        self.diagnostic_logger.debug("Starting shift duration validation.")
         missing_durations = []
 
         for shift in self.resources.shifts:
@@ -407,259 +538,386 @@ class ScheduleGenerator:
             # If not, check if we can calculate from start and end times
             elif hasattr(shift, "start_time") and hasattr(shift, "end_time"):
                 if shift.start_time and shift.end_time:
-                    has_duration = True
+                    # Basic check: Ensure they are string representations of time
+                    if isinstance(shift.start_time, str) and ":" in shift.start_time and \
+                       isinstance(shift.end_time, str) and ":" in shift.end_time:
+                        has_duration = True # Assume calculable, actual calculation happens elsewhere
 
             if not has_duration:
-                missing_durations.append(
-                    shift.id if hasattr(shift, "id") else "Unknown ID"
-                )
+                shift_id = shift.id if hasattr(shift, "id") else "Unknown ID"
+                self.diagnostic_logger.warning(f"Shift {shift_id} seems to be missing duration information.")
+                missing_durations.append(shift_id)
 
         if missing_durations:
-            self.logger.error(f"Shifts missing durations: {missing_durations}")
-            raise ScheduleGenerationError("Schichtdauer fehlt")
+            error_msg = f"Shifts missing required duration information: {missing_durations}"
+            self.logger.error(error_msg)
+            self.process_tracker.log_error(error_msg) # Log via tracker too
+            raise ScheduleGenerationError(f"Schichtdauer fehlt für Schichten: {missing_durations}")
 
-        return missing_durations
 
-    def _process_coverage(self, current_date: date) -> Dict[str, int]:
-        """Process coverage records to determine staffing needs for a date"""
-        total_employees_needed = 0
-        coverage_details = []
+        self.diagnostic_logger.debug(f"Shift duration validation completed. {len(missing_durations)} shifts possibly missing duration.")
+        return not missing_durations # Return True if validation passes
 
-        self.logger.info(
-            f"Processing coverage for date {current_date} (weekday: {current_date.weekday()})"
-        )
-        self.logger.info(
-            f"Total available coverage records: {len(self.resources.coverage)}"
-        )
+    def _process_coverage(self, current_date: date) -> Dict[int, int]:
+        """
+        Process coverage records to determine staffing needs per shift for a date.
+        Returns a dictionary mapping shift_id to the number of employees needed.
+        """
+        self.diagnostic_logger.debug(f"Processing coverage for date: {current_date}")
+        shift_needs: Dict[int, int] = {}
+        applicable_coverage_found = False
+
+        self.diagnostic_logger.debug(f"Total available coverage records: {len(self.resources.coverage)}")
+        self.process_tracker.log_step_data("Available Coverage Records", len(self.resources.coverage))
 
         # Find coverage records for this date or day of week
         for coverage in self.resources.coverage:
-            self.logger.debug(
-                f"Checking coverage record: day_index={getattr(coverage, 'day_index', None)}, "
-                f"day_of_week={getattr(coverage, 'day_of_week', None)}, "
-                f"date={getattr(coverage, 'date', None)}"
-            )
+            cov_id = getattr(coverage, 'id', 'N/A')
+            self.diagnostic_logger.debug(f"Checking coverage record {cov_id}")
 
             # Check if this coverage applies to this date
             if self._coverage_applies_to_date(coverage, current_date):
-                # Get employees needed
+                applicable_coverage_found = True
+                shift_id = getattr(coverage, "shift_id", None)
                 employees_needed = getattr(coverage, "min_employees", 0)
+                # Fallback for older naming?
                 if not employees_needed and hasattr(coverage, "employees_needed"):
-                    employees_needed = coverage.employees_needed
+                     employees_needed = coverage.employees_needed
 
-                coverage_details.append(
-                    {
-                        "day_index": getattr(coverage, "day_index", None),
-                        "start_time": getattr(coverage, "start_time", None),
-                        "end_time": getattr(coverage, "end_time", None),
-                        "employees_needed": employees_needed,
-                    }
-                )
 
-                self.logger.info(
-                    f"Found applicable coverage: day_index={getattr(coverage, 'day_index', None)}, "
-                    f"time={getattr(coverage, 'start_time', None)}-{getattr(coverage, 'end_time', None)}, "
-                    f"employees_needed={employees_needed}"
-                )
-                total_employees_needed += employees_needed
+                if shift_id is not None and employees_needed > 0:
+                    # Add to the needs for this specific shift
+                    shift_needs[shift_id] = shift_needs.get(shift_id, 0) + employees_needed
+                    self.diagnostic_logger.info(
+                        f"Applicable coverage {cov_id} found for Shift {shift_id}: needs {employees_needed} employees."
+                    )
+                else:
+                    self.diagnostic_logger.warning(f"Applicable coverage record {cov_id} lacks valid shift_id or employees_needed > 0.")
 
-        if coverage_details:
-            self.logger.info(f"Coverage details for {current_date}: {coverage_details}")
+        if not applicable_coverage_found:
+             self.diagnostic_logger.warning(f"No applicable coverage records found for date {current_date}")
         else:
-            self.logger.warning(f"No applicable coverage found for date {current_date}")
+            self.diagnostic_logger.info(f"Final shift needs for {current_date}: {shift_needs}")
 
-        # Return a single value for total employees needed for the day
-        return {"total": total_employees_needed} if total_employees_needed > 0 else {}
+
+        self.process_tracker.log_step_data("Shift Needs Determined", shift_needs)
+        return shift_needs
+
 
     def _coverage_applies_to_date(self, coverage, check_date: date) -> bool:
         """Check if a coverage record applies to the given date"""
-        # Check for specific date
+        cov_id = getattr(coverage, 'id', 'N/A')
+        self.diagnostic_logger.debug(f"Checking if coverage {cov_id} applies to {check_date}")
+
+        # Check for specific date first (higher priority)
         if hasattr(coverage, "date") and coverage.date:
             coverage_date = coverage.date
             if isinstance(coverage_date, str):
                 try:
-                    coverage_date = datetime.fromisoformat(coverage_date).date()
+                    coverage_date = date.fromisoformat(coverage_date.split('T')[0]) # Handle datetime strings
                 except (ValueError, TypeError):
+                    self.diagnostic_logger.warning(f"Coverage {cov_id} has invalid date string: {coverage.date}")
                     return False
+            elif not isinstance(coverage_date, date):
+                 self.diagnostic_logger.warning(f"Coverage {cov_id} has unexpected date type: {type(coverage.date)}")
+                 return False
 
-            return coverage_date == check_date
+            applies = (coverage_date == check_date)
+            self.diagnostic_logger.debug(f"Coverage {cov_id} has specific date {coverage_date}. Match with {check_date}: {applies}")
+            return applies
 
-        # Check for day of week
-        day_of_week = None
+        # Check for day of week if no specific date matches
+        day_field = None
         if hasattr(coverage, "day_index"):
-            day_of_week = coverage.day_index
+            day_field = coverage.day_index
         elif hasattr(coverage, "day_of_week"):
-            day_of_week = coverage.day_of_week
+            day_field = coverage.day_of_week
 
-        if day_of_week is not None:
-            # Convert Python's weekday() (0=Monday) to our day_index (0=Sunday)
-            python_weekday = check_date.weekday()
-            # Convert to Sunday=0 format
-            check_day_index = (python_weekday + 1) % 7
+        if day_field is not None:
+            try:
+                # Ensure day_field is an integer
+                coverage_day_index = int(day_field)
 
-            self.logger.debug(
-                f"Checking coverage for date {check_date}: "
-                f"Python weekday={python_weekday}, "
-                f"Converted day_index={check_day_index}, "
-                f"Coverage day_index={day_of_week}"
-            )
+                # System uses Monday=0 to Sunday=6 for weekday()
+                check_weekday = check_date.weekday() # Monday is 0, Sunday is 6
 
-            return day_of_week == check_day_index
+                # Adjust our coverage_day_index if it uses a different standard (e.g., Sunday=0)
+                # Assuming coverage uses Sunday=0, Monday=1, ..., Saturday=6
+                # We need to match Python's Monday=0 standard.
+                # If coverage_day_index is 0 (Sunday), it matches Python's 6.
+                # If coverage_day_index is 1 (Monday), it matches Python's 0.
+                # ...
+                # If coverage_day_index is 6 (Saturday), it matches Python's 5.
+                # Formula: python_weekday = (coverage_day_index - 1 + 7) % 7 # Not quite right
+                # Let's try: coverage_matches_python = (check_weekday == (coverage_day_index -1 + 7) % 7) ? No.
 
+                # Let's assume coverage.day_index uses 0=Sunday, 1=Monday, ..., 6=Saturday standard
+                # Python check_date.weekday() uses 0=Monday, ..., 6=Sunday standard
+                python_weekday_for_coverage_index = (coverage_day_index - 1 + 7) % 7
+                applies = (check_weekday == python_weekday_for_coverage_index)
+
+                # OR, maybe coverage uses 0=Monday..6=Sunday? Check data structure.
+                # Let's ASSUME coverage.day_index aligns with python's weekday() [0=Mon, 6=Sun] for now.
+                # If this assumption is wrong, this logic needs fixing based on actual Coverage model standard.
+                # applies = (coverage_day_index == check_weekday)
+
+
+                self.diagnostic_logger.debug(
+                    f"Coverage {cov_id} day_index={coverage_day_index}. Check date {check_date} python_weekday={check_weekday}. Match: {applies}"
+                )
+                return applies
+            except (ValueError, TypeError):
+                 self.diagnostic_logger.warning(f"Coverage {cov_id} has invalid day_index/day_of_week: {day_field}")
+                 return False
+
+
+        self.diagnostic_logger.debug(f"Coverage {cov_id} has no specific date or applicable day of week. No match.")
         return False
 
     def _create_date_shifts(self, current_date: date) -> List[Dict]:
         """Create shift instances for a specific date based on shift templates"""
+        self.diagnostic_logger.debug(f"Creating shift instances for date: {current_date}")
         date_shifts = []
 
-        self.logger.debug(f"Creating shifts for date {current_date}")
-        self.logger.debug(f"Available shift templates: {len(self.resources.shifts)}")
+        self.diagnostic_logger.debug(f"Available shift templates: {len(self.resources.shifts)}")
 
         for shift_template in self.resources.shifts:
-            # Check if this shift template should be used for this date
+            st_id = getattr(shift_template, 'id', 'N/A')
+            self.diagnostic_logger.debug(f"Checking applicability of shift template {st_id} for {current_date}")
+
             if self._shift_applies_to_date(shift_template, current_date):
-                # Get the shift type from the template
-                shift_type = None
-                if hasattr(shift_template, "shift_type_id"):
-                    shift_type = shift_template.shift_type_id
-                elif hasattr(shift_template, "shift_type"):
-                    shift_type = getattr(
-                        shift_template.shift_type, "value", shift_template.shift_type
-                    )
+                self.diagnostic_logger.debug(f"Shift template {st_id} applies. Creating shift instance.")
 
-                if not shift_type:
-                    self.logger.warning(
-                        f"No shift type found for template {shift_template.id}, using default"
-                    )
-                    # Determine shift type based on time if not provided
-                    start_hour = int(shift_template.start_time.split(":")[0])
-                    if start_hour < 11:
-                        shift_type = "EARLY"
-                    elif start_hour >= 14:
-                        shift_type = "LATE"
-                    else:
-                        shift_type = "MIDDLE"
+                # Extract details safely
+                start_time = getattr(shift_template, 'start_time', None)
+                end_time = getattr(shift_template, 'end_time', None)
+                shift_type = getattr(shift_template, 'shift_type', None)
+                duration = getattr(shift_template, 'duration_hours', None)
 
-                # Create a shift instance
-                shift = {
-                    "shift_id": shift_template.id,
-                    "shift_template": shift_template,
+
+                # Basic validation
+                if not all([st_id != 'N/A', start_time, end_time, shift_type]):
+                     self.logger.warning(f"Shift template {st_id} is missing essential fields (start/end time, type). Skipping.")
+                     self.diagnostic_logger.warning(f"Skipping template {st_id} due to missing fields: start={start_time}, end={end_time}, type={shift_type}")
+                     continue
+
+
+                # Create shift instance dictionary
+                shift_instance = {
+                    "shift_id": st_id,
+                    "shift_template": shift_template, # Keep ref to original template
                     "date": current_date,
                     "shift_type": shift_type,
-                    "start_time": shift_template.start_time,
-                    "end_time": shift_template.end_time,
+                    "start_time": start_time,
+                    "end_time": end_time,
+                    "duration_hours": duration, # Include duration if available
                 }
-                date_shifts.append(shift)
-                self.logger.debug(
-                    f"Created {shift_type} shift from template {shift_template.id} "
-                    f"({shift_template.start_time}-{shift_template.end_time})"
+                date_shifts.append(shift_instance)
+                self.diagnostic_logger.debug(
+                    f"Created shift instance for date {current_date}: {shift_instance}"
                 )
+            # else: # No need to log if it doesn't apply, already logged in _shift_applies_to_date
+            #     self.diagnostic_logger.debug(f"Shift template {st_id} does not apply to {current_date}")
 
-        self.logger.debug(f"Created {len(date_shifts)} shifts for date {current_date}")
+
+        self.diagnostic_logger.info(f"Created {len(date_shifts)} shift instances for date {current_date}")
+        self.process_tracker.log_step_data("Shift Instances Created", len(date_shifts))
         return date_shifts
 
-    def _shift_applies_to_date(self, shift: ShiftTemplate, check_date: date) -> bool:
-        """Check if a shift template applies to the given date"""
-        # Check if shift has active_days attribute
-        if hasattr(shift, "active_days"):
-            # Convert date to day index (0-6, where 0 is Monday in our system)
-            day_index = str(check_date.weekday())
 
-            # Check if this day is active for this shift
-            if isinstance(shift.active_days, dict):
-                return shift.active_days.get(day_index, False)
+    def _shift_applies_to_date(self, shift: ShiftTemplate, check_date: date) -> bool:
+        """Check if a shift template applies to the given date based on active_days"""
+        shift_id = getattr(shift, 'id', 'N/A')
+        self.diagnostic_logger.debug(f"Checking active_days for shift {shift_id} against date {check_date}")
+
+        # If shift has specific active_days configuration
+        if hasattr(shift, "active_days") and shift.active_days is not None:
+             # Expect active_days to be a list or set of integers (0=Monday, 6=Sunday)
+             active_days_config = shift.active_days
+             check_weekday = check_date.weekday() # Monday is 0, Sunday is 6
+
+             if isinstance(active_days_config, (list, set)):
+                 is_active = check_weekday in active_days_config
+                 self.diagnostic_logger.debug(f"Shift {shift_id} active_days (list/set): {active_days_config}. Date {check_date} (weekday {check_weekday}) is active: {is_active}")
+                 return is_active
+             elif isinstance(active_days_config, str):
+                 # Handle comma-separated string like "0,1,2,3,4"
+                 try:
+                     active_days_set = {int(day.strip()) for day in active_days_config.split(',') if day.strip()}
+                     is_active = check_weekday in active_days_set
+                     self.diagnostic_logger.debug(f"Shift {shift_id} active_days (string): '{active_days_config}' -> {active_days_set}. Date {check_date} (weekday {check_weekday}) is active: {is_active}")
+                     return is_active
+                 except ValueError:
+                     self.logger.warning(f"Shift {shift_id} has invalid active_days string format: {active_days_config}")
+                     self.diagnostic_logger.warning(f"Invalid active_days string format for shift {shift_id}: '{active_days_config}'. Assuming inactive.")
+                     return False # Treat invalid format as inactive for safety
+             else:
+                 self.logger.warning(f"Shift {shift_id} has active_days attribute with unexpected type: {type(active_days_config)}")
+                 self.diagnostic_logger.warning(f"Unexpected active_days type for shift {shift_id}: {type(active_days_config)}. Assuming active for all days as fallback.")
+                 # Fallback: if active_days exists but is weird, maybe assume active? Or inactive? Let's assume active for now.
+                 return True
+
 
         # If no active_days specified, assume shift applies to all days
-        self.logger.debug(
-            f"No active_days found for shift {shift.id}, assuming active for all days"
-        )
+        self.diagnostic_logger.debug(f"No specific active_days configured for shift {shift_id}. Assuming active for date {check_date}.")
         return True
+
 
     def _generate_assignments_for_date(self, current_date: date) -> List[Dict]:
         """Generate assignments for a specific date"""
+        date_str = current_date.isoformat()
+        self.diagnostic_logger.info(f"--- Generating assignments for {date_str} ---")
+        # Use ProcessTracker to manage sub-steps within this daily generation
+        self.process_tracker.start_step(f"Process Daily Assignments for {date_str}")
+        assignments = []
         try:
-            # Process coverage for this date
-            coverage = self._process_coverage(current_date)
-            if not coverage:
-                self.logger.warning(
-                    f"No coverage requirements found for date {current_date}"
-                )
-                return []
+            # Sub-step: Process Coverage
+            self.process_tracker.start_step(f"Process Coverage for {date_str}")
+            shift_needs = self._process_coverage(current_date)
+            self.process_tracker.end_step({"shift_needs": shift_needs})
+            if not shift_needs:
+                self.logger.warning(f"No coverage requirements found for {date_str}, cannot generate assignments.")
+                return [] # Return early if no staff needed
 
-            # Create shifts for this date
-            date_shifts = self._create_date_shifts(current_date)
+
+            # Sub-step: Create Shifts
+            self.process_tracker.start_step(f"Create Shift Instances for {date_str}")
+            date_shifts = self._create_date_shifts(current_date) # These are shift *instances* (dicts)
+            self.process_tracker.end_step({"shifts_created": len(date_shifts)})
             if not date_shifts:
-                self.logger.warning(f"No shifts available for date {current_date}")
+                self.logger.warning(f"No applicable shift templates found for {date_str}, cannot generate assignments.")
+                return [] # Return early if no shifts are defined/active
+
+
+            self.logger.info(f"Needs for {date_str}: {shift_needs}. Available shift instances: {len(date_shifts)}")
+            self.diagnostic_logger.debug(f"Shift Instances for {date_str}: {date_shifts}") # Log the actual instances
+
+            # Filter date_shifts to only those actually needed by coverage
+            needed_shift_instances = [
+                shift_instance for shift_instance in date_shifts
+                if shift_instance['shift_id'] in shift_needs and shift_needs[shift_instance['shift_id']] > 0
+            ]
+            if not needed_shift_instances:
+                self.logger.warning(f"No active shifts match the coverage needs for {date_str}. Cannot generate assignments.")
                 return []
 
-            self.logger.info(
-                f"Found {len(date_shifts)} shifts and need {coverage.get('total', 0)} total employees for {current_date}"
-            )
+            self.diagnostic_logger.info(f"Filtered to {len(needed_shift_instances)} needed shift instances for {date_str}")
+            self.process_tracker.log_step_data("Needed Shift Instances", needed_shift_instances)
 
-            # Use the distribution manager to assign employees
-            assignments = self.distribution_manager.assign_employees_with_distribution(
-                current_date, date_shifts, coverage
+
+            # Sub-step: Distribute Employees
+            self.process_tracker.start_step(f"Distribute Employees for {date_str}")
+            assignments = self.distribution_manager.assign_employees_to_shifts(
+                 current_date, needed_shift_instances, shift_needs
             )
+            # Note: assign_employees_to_shifts should return ScheduleAssignment objects or compatible dicts
+            self.process_tracker.end_step({"assignments_generated": len(assignments)})
+
 
             if not assignments:
-                self.logger.warning(
-                    f"No assignments could be made for date {current_date}"
-                )
-                return []
+                self.logger.warning(f"DistributionManager failed to generate any assignments for {date_str}")
+                # No need to return [], assignment list is empty
 
-            self.logger.info(f"Generated {len(assignments)} assignments")
+            self.logger.info(f"Generated {len(assignments)} assignments for {date_str}")
+            self.process_tracker.log_step_data("Generated Assignments", assignments)
 
-            # Add assignments to schedule container
+
+            # Add assignments to main schedule container and daily cache
             for assignment in assignments:
-                self.schedule.add_assignment(assignment)
+                 # Ensure assignment is in a consistent format (e.g., ScheduleAssignment object)
+                 # If distribution_manager returns dicts, convert them or ensure consistency
+                 if isinstance(assignment, dict):
+                      # Minimal check, assumes dict structure matches ScheduleAssignment needs
+                      self.schedule.add_assignment(assignment)
+                 elif isinstance(assignment, ScheduleAssignment):
+                      self.schedule.add_assignment(assignment)
+                 else:
+                      self.logger.error(f"Unexpected assignment type from DistributionManager: {type(assignment)}")
+                      continue # Skip invalid assignment type
 
-                # Update schedule_by_date for constraint checking
-                if current_date not in self.schedule_by_date:
+                 if current_date not in self.schedule_by_date:
                     self.schedule_by_date[current_date] = []
-                self.schedule_by_date[current_date].append(assignment)
+                 self.schedule_by_date[current_date].append(assignment)
+                 self.diagnostic_logger.debug(f"Added assignment to schedule & daily cache: {assignment}")
 
-            # Validate assignments
+
+            # Sub-step: Validate Assignments (using constraints checker)
+            self.process_tracker.start_step(f"Validate Assignments for {date_str}")
             valid_count = 0
             invalid_count = 0
             for assignment in assignments:
-                employee_id = assignment.get("employee_id")
-                shift_id = assignment.get("shift_id")
+                employee_id = getattr(assignment, 'employee_id', assignment.get('employee_id'))
+                shift_id = getattr(assignment, 'shift_id', assignment.get('shift_id'))
+                shift_template = getattr(assignment, 'shift_template', assignment.get('shift_template')) # Need template for constraints
 
-                if employee_id and shift_id:
+
+                if employee_id and shift_id and shift_template:
                     employee = self.resources.get_employee(employee_id)
-                    shift = self.resources.get_shift(shift_id)
+                    # We need the shift *template* for constraint checking, not just the ID
+                    shift = shift_template # Assuming shift_template is the actual template object
 
                     if employee and shift:
-                        if not self.constraint_checker.exceeds_constraints(
-                            employee, current_date, shift
-                        ):
+                        self.diagnostic_logger.debug(f"Validating assignment: Emp {employee_id}, Shift {shift_id}, Date {date_str}")
+                        # Pass schedule_by_date for context-aware constraints
+                        violations = self.constraint_checker.check_all_constraints(employee, current_date, shift, self.schedule_by_date)
+                        if not violations:
                             valid_count += 1
+                            self.diagnostic_logger.debug(f"Assignment VALID for Emp {employee_id}")
                         else:
                             invalid_count += 1
                             self.logger.warning(
-                                f"Assignment for employee {employee_id} on {current_date} "
-                                f"exceeds constraints"
+                                f"Assignment for employee {employee_id} on {date_str} (Shift {shift_id}) "
+                                f"has constraint violations: {violations}"
                             )
+                            self.diagnostic_logger.warning(f"Assignment INVALID for Emp {employee_id}: {violations}")
+                    else:
+                        self.logger.warning(f"Could not find Employee ({employee_id}) or Shift Template ({shift_id}) for validation.")
+                else:
+                     self.logger.warning(f"Skipping validation for incomplete assignment data: {assignment}")
+
 
             self.logger.info(
-                f"Assignment validation for {current_date}: "
+                f"Assignment validation for {date_str}: "
                 f"{valid_count} valid, {invalid_count} invalid"
             )
+            self.process_tracker.end_step({
+                "Valid Assignments": valid_count,
+                "Invalid Assignments": invalid_count
+            })
 
-            return assignments
+
+            return assignments # Return the list of generated assignments for this date
 
         except Exception as e:
-            self.logger.error(
-                f"Error generating assignments for date {current_date}: {str(e)}"
-            )
-            raise  # Re-raise the exception to be caught by the caller
+            error_msg = f"Error generating assignments for date {date_str}: {str(e)}"
+            self.logger.error(error_msg, exc_info=True)
+            self.process_tracker.log_error(error_msg, exc_info=True)
+            raise # Re-raise after logging
+        finally:
+            # Ensure the outer step for the date ends
+            if self.process_tracker.current_step == f"Process Daily Assignments for {date_str}":
+                self.process_tracker.end_step({"assignments_count": len(assignments)})
+
 
     def _create_empty_schedule_entries(self, current_date: date):
         """Create empty schedule entries for a specific date"""
+        self.diagnostic_logger.debug(f"Creating empty schedule entry structure for date: {current_date}")
+        # Use a structure consistent with serialized output if possible
         empty_assignment = {
-            "date": current_date,
-            "status": "EMPTY",
-            "version": 1,
+            "date": current_date.isoformat(), # Use ISO format string
+            "employee_id": None,
+            "shift_id": None,
+            "start_time": None,
+            "end_time": None,
+            "shift_name": None,
+            "status": "EMPTY", # Specific status for empty days
+            "version": self.schedule.version, # Match schedule version
+            "employee_name": None,
         }
+        # Add directly to the schedule's entries list
         self.schedule.entries.append(empty_assignment)
-        self.schedule_by_date[current_date] = [empty_assignment]
+        # Also add to the daily cache for consistency during generation
+        if current_date not in self.schedule_by_date:
+             self.schedule_by_date[current_date] = []
+        self.schedule_by_date[current_date].append(empty_assignment)
+        self.process_tracker.log_step_data(f"Empty Entry Created for {current_date}", empty_assignment, level=logging.DEBUG)

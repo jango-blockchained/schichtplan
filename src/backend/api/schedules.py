@@ -196,6 +196,21 @@ def generate_schedule():
         with current_app.app_context():
             # Generate new schedules
             generator = ScheduleGenerator()
+            # Setup logging to DEBUG level for diagnostic output
+            # This will create the console, main file, app, and diagnostic handlers
+            try:
+                log_dir = current_app.config.get("SCHEDULER_LOG_DIR", None) # Optional: Get custom log dir from config
+                app_log_dir = current_app.config.get("APP_LOG_DIR", None) # Optional: Get custom app log dir from config
+                generator.logging_manager.setup_logging(\
+                    log_level=logging.DEBUG, \
+                    log_to_file=True, \
+                    log_dir=log_dir, \
+                    app_log_dir=app_log_dir\
+                )
+            except Exception as log_setup_err:
+                # Log error during setup but don't necessarily stop generation
+                logger.error(f"Failed to setup scheduler logging: {log_setup_err}", exc_info=True)
+
             result = generator.generate_schedule(start_date, end_date)
 
             # Check if there was an error
