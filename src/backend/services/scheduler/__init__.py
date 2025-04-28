@@ -9,7 +9,7 @@ from .constraints import ConstraintChecker
 from .availability import AvailabilityChecker
 from .distribution import DistributionManager
 from .serialization import ScheduleSerializer
-from .logging_utils import LoggingManager
+from .logging_utils import ProcessTracker
 from .resources import ScheduleResources, ScheduleResourceError
 from .validator import ScheduleValidator, ValidationError, ScheduleConfig
 from .utility import (
@@ -31,7 +31,7 @@ __all__ = [
     "AvailabilityChecker",
     "DistributionManager",
     "ScheduleSerializer",
-    "LoggingManager",
+    "ProcessTracker",
     "ScheduleResources",
     "ScheduleResourceError",
     "ScheduleValidator",

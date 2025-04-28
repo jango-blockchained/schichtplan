@@ -2,6 +2,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import json
 from pathlib import Path
+import os
 
 # Get the root directory (two levels up from this file)
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
@@ -18,21 +19,36 @@ class CustomFormatter(logging.Formatter):
             setattr(record, "action", "unknown")
 
         # Escape any special characters in the message
-        record.message = (
+        message = (
             record.getMessage()
             .replace('"', '\\"')
-            .replace("\n", " ")
-            .replace("\r", " ")
+            .replace("\\n", " ")
+            .replace("\\r", " ")
         )
+        # Handle potential embedded JSON or complex structures safely
+        try:
+            # Attempt to parse if it looks like JSON, otherwise keep as string
+            if message.startswith("{") and message.endswith("}"):
+                parsed_message = json.loads(message)
+                # Re-serialize to ensure valid JSON representation within the log message string
+                record.message = json.dumps(parsed_message)
+            else:
+                # If not JSON-like, use the escaped string
+                record.message = message
+        except json.JSONDecodeError:
+            # If parsing fails, use the already escaped message string
+            record.message = message
 
         # Convert any extra attributes to a string
-        extra_data = getattr(record, "extra_data", "{}")
+        extra_data = getattr(record, "extra_data", {})
         if not isinstance(extra_data, str):
             try:
-                extra_data = json.dumps(extra_data)
+                # Ensure valid JSON structure for the 'extra' field
+                extra_data_str = json.dumps(extra_data)
             except Exception:
-                extra_data = "{}"
-        setattr(record, "extra_data", extra_data)
+                extra_data_str = "{}"
+        else:
+            extra_data_str = extra_data
 
         # Create the log entry as a dictionary first
         log_entry = {
@@ -45,22 +61,33 @@ class CustomFormatter(logging.Formatter):
             "user": getattr(record, "user", "anonymous"),
             "page": getattr(record, "page", "unknown"),
             "action": getattr(record, "action", "unknown"),
-            "extra": extra_data,
+            "extra": json.loads(extra_data_str),
         }
 
-        # Convert to JSON string
+        # Convert to JSON string for the final log output
         return json.dumps(log_entry)
+
+
+# Simple formatter for diagnostic logs
+diagnostic_formatter = logging.Formatter(
+    "%(asctime)s.%(msecs)03d - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s",
+    "%Y-%m-%d %H:%M:%S",
+)
 
 
 class Logger:
     def __init__(self):
         # Create logs directory in the project root if it doesn't exist
-        self.logs_dir = ROOT_DIR / "logs"
+        self.logs_dir = ROOT_DIR / "src" / "logs"
         self.logs_dir.mkdir(exist_ok=True)
 
         # Create a sessions directory for session-specific logs
         self.sessions_dir = self.logs_dir / "sessions"
         self.sessions_dir.mkdir(exist_ok=True)
+
+        # Create diagnostics directory
+        self.diagnostics_dir = self.logs_dir / "diagnostics"
+        self.diagnostics_dir.mkdir(exist_ok=True)
 
         # Set up formatters
         formatter = CustomFormatter()
@@ -68,7 +95,7 @@ class Logger:
         # User actions logger
         self.user_logger = logging.getLogger("user_actions")
         self.user_logger.setLevel(logging.INFO)
-        self.user_logger.propagate = False  # Prevent propagation to root logger
+        self.user_logger.propagate = False
         user_handler = RotatingFileHandler(
             self.logs_dir / "user_actions.log",
             maxBytes=1048576,  # 1MB
@@ -76,8 +103,9 @@ class Logger:
             encoding="utf-8",
         )
         user_handler.setFormatter(formatter)
-        # Remove existing handlers if any
-        self.user_logger.handlers = []
+        # Remove existing handlers if any to prevent duplication on re-init
+        if self.user_logger.hasHandlers():
+            self.user_logger.handlers.clear()
         self.user_logger.addHandler(user_handler)
 
         # Error logger
@@ -92,7 +120,8 @@ class Logger:
         )
         error_handler.setFormatter(formatter)
         # Remove existing handlers if any
-        self.error_logger.handlers = []
+        if self.error_logger.hasHandlers():
+            self.error_logger.handlers.clear()
         self.error_logger.addHandler(error_handler)
 
         # Schedule logger
@@ -107,7 +136,8 @@ class Logger:
         )
         schedule_handler.setFormatter(formatter)
         # Remove existing handlers if any
-        self.schedule_logger.handlers = []
+        if self.schedule_logger.hasHandlers():
+            self.schedule_logger.handlers.clear()
         self.schedule_logger.addHandler(schedule_handler)
 
         # App logger for general application logs
@@ -122,29 +152,82 @@ class Logger:
         )
         app_handler.setFormatter(formatter)
         # Remove existing handlers if any
-        self.app_logger.handlers = []
+        if self.app_logger.hasHandlers():
+            self.app_logger.handlers.clear()
         self.app_logger.addHandler(app_handler)
+
+        # --- Add Console Handler for General Debugging ---
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        console_handler.setFormatter(console_formatter)
+
+        # Add console handler to relevant loggers if needed (optional)
+        # self.app_logger.addHandler(console_handler)
+        # self.schedule_logger.addHandler(console_handler)
+        # self.error_logger.addHandler(console_handler)
 
     def create_session_logger(self, session_id: str) -> logging.Logger:
         """Create a new logger for a specific session"""
-        session_logger = logging.getLogger(f"session_{session_id}")
+        logger_name = f"session_{session_id}"
+        session_logger = logging.getLogger(logger_name)
         session_logger.setLevel(logging.DEBUG)
         session_logger.propagate = False
 
-        # Create a file handler for this session
-        session_file = self.sessions_dir / f"{session_id}.log"
-        handler = RotatingFileHandler(
-            session_file,
-            maxBytes=1048576,  # 1MB
-            backupCount=2,
-            encoding="utf-8",
-        )
-        handler.setFormatter(CustomFormatter())
-        # Remove existing handlers if any
-        session_logger.handlers = []
-        session_logger.addHandler(handler)
+        # Avoid adding handlers multiple times if called again for the same session_id
+        if not session_logger.hasHandlers():
+            # Create a file handler for this session
+            session_file = self.sessions_dir / f"{session_id}.log"
+            handler = RotatingFileHandler(
+                session_file,
+                maxBytes=1048576,  # 1MB
+                backupCount=2,
+                encoding="utf-8",
+            )
+            handler.setFormatter(CustomFormatter())
+            session_logger.addHandler(handler)
 
         return session_logger
+
+    def create_diagnostic_logger(self, session_id: str, log_level=logging.DEBUG) -> logging.Logger:
+        """Create a new logger for diagnostic details of a specific session"""
+        logger_name = f"diagnostic_{session_id}"
+        diag_logger = logging.getLogger(logger_name)
+        diag_logger.setLevel(log_level)
+        diag_logger.propagate = False
+
+        # Avoid adding handlers multiple times
+        if not diag_logger.hasHandlers():
+            # Ensure directory exists (though done in __init__, good practice here too)
+            self.diagnostics_dir.mkdir(exist_ok=True)
+
+            # Create a file handler for this diagnostic session
+            diag_filename = f"schedule_diagnostic_{session_id}.log"
+            diag_file_path = self.diagnostics_dir / diag_filename
+
+            # Use FileHandler, not Rotating, for diagnostics unless rotation is desired
+            handler = logging.FileHandler(diag_file_path, encoding="utf-8")
+            handler.setLevel(log_level)
+            handler.setFormatter(diagnostic_formatter)
+            diag_logger.addHandler(handler)
+
+            # Add console output for diagnostics too? Optional.
+            # console_handler = logging.StreamHandler()
+            # console_handler.setLevel(log_level)
+            # console_handler.setFormatter(diagnostic_formatter)
+            # diag_logger.addHandler(console_handler)
+
+            # Log initialization message
+            diag_logger.info(f"===== Diagnostic logging initialized (Session: {session_id}) =====")
+            diag_logger.debug(f"Log file created at: {diag_file_path}")
+            diag_logger.debug(f"Session ID: {session_id}")
+
+        return diag_logger
+
+    def get_diagnostic_log_path(self, session_id: str) -> str:
+        """Get the path for a specific diagnostic log file"""
+        diag_filename = f"schedule_diagnostic_{session_id}.log"
+        return str(self.diagnostics_dir / diag_filename)
 
 
 # Create a global logger instance
