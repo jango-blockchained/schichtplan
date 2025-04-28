@@ -379,11 +379,29 @@ cleanup() {
     exit 0 # Exit only when called by trap
 }
 
+# Function to remove __pycache__ folders
+remove_pycache_folders() {
+    log "INFO" "Searching for and removing __pycache__ folders (max depth 6)..."
+    local found_count=$(find . -maxdepth 6 -type d -name "__pycache__" -print | wc -l)
+    
+    if [ "$found_count" -gt 0 ]; then
+        log "INFO" "Found $found_count __pycache__ folder(s). Removing..."
+        # Use -execdir to be slightly safer, operating within the parent directory
+        find . -maxdepth 6 -type d -name "__pycache__" -exec rm -rf {} + || {
+            log "WARN" "Some __pycache__ folders might not have been removed."
+            return 1
+        }
+        log "INFO" "__pycache__ folders removed."
+    else
+        log "INFO" "No __pycache__ folders found within the specified depth."
+    fi
+}
+
 # Main function
 main() {
-    # Clean up any existing log files in wrong locations
-    find . -name "backend.log" ! -path "./src/logs/*" -delete
+
     
+    remove_pycache_folders
     check_dependencies
     create_directories
     check_permissions
