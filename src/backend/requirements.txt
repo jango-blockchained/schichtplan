@@ -11,7 +11,7 @@ python-dateutil==2.8.2
 SQLAlchemy==2.0.25
 gunicorn==21.2.0
 alembic==1.13.1
-ruff==0.9.7
+ruff==0.11.2
 black==24.1.1
 # flake8==7.0.0
 # mypy==1.8.0
