@@ -3,11 +3,18 @@
 Diagnostic script to check shift templates and identify any issues.
 """
 
-from src.backend.app import create_app
-from models import ShiftTemplate, db
-from services.scheduler.resources import ScheduleResources
+import sys
+import os
 import traceback
 
+# Add the parent directories to the path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../..')))
+
+# Now do the imports
+from backend.app import create_app
+from backend.models import ShiftTemplate, db
+from backend.services.scheduler.resources import ScheduleResources
 
 def diagnose_shifts():
     """Diagnose shift template issues in the database"""
@@ -35,6 +42,7 @@ def diagnose_shifts():
             print(f"  End time: {shift.end_time}")
             print(f"  Duration: {shift.duration_hours}")
             print(f"  Requires break: {shift.requires_break}")
+            print(f"  Active days: {shift.active_days}")
 
             # Check for missing required fields
             issues = []
@@ -48,6 +56,8 @@ def diagnose_shifts():
                 issues.append("Missing duration")
             elif shift.duration_hours <= 0:
                 issues.append(f"Invalid duration: {shift.duration_hours}")
+            if not shift.active_days:
+                issues.append("No active days defined - shift will never be used")
 
             if issues:
                 print("  ISSUES FOUND:")
@@ -121,6 +131,13 @@ def diagnose_shifts():
                         updated = True
                     except Exception as e:
                         print(f"  ERROR fixing duration for shift {shift.id}: {str(e)}")
+                
+                # Fix missing active_days
+                if not shift.active_days:
+                    # Set to all weekdays by default (0-6, Monday through Sunday)
+                    shift.active_days = [0, 1, 2, 3, 4, 5, 6]
+                    print(f"  Fixed active_days for shift {shift.id}: set to all days of the week")
+                    updated = True
 
                 if updated:
                     fixed += 1

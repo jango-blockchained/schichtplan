@@ -566,18 +566,24 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
         let currentDate = dateRange.from;
 
         while (currentDate <= dateRange.to) {
-            const dayIndex = currentDate.getDay().toString();
-            const isSunday = dayIndex === '0';
-            const isWeekday = dayIndex !== '0';  // Monday-Saturday
-            const isOpeningDay = settings.general.opening_days[dayIndex];
+            // Determine if the day should be displayed based on settings
+            const jsDayIndex = currentDate.getDay(); // 0=Sun, 6=Sat
+            const backendDayIndex = (jsDayIndex + 6) % 7; // Convert to Mon=0, Sun=6
+
+            const isSunday = jsDayIndex === 0;
+            // const isWeekday = dayIndex !== '0'; // Monday-Saturday -- This comment/logic seems redundant now
+            const isOpeningDay = settings.general.opening_days[backendDayIndex.toString()];
+
+            // Decide whether to render the column based on settings
+            const showSundaySetting = settings.display.show_sunday;
 
             // Include the day if:
             // 1. It's marked as an opening day, OR
             // 2. It's Sunday and show_sunday is true, OR
             // 3. It's a weekday and show_weekdays is true
             if (isOpeningDay ||
-                (isSunday && settings.display.show_sunday) ||
-                (isWeekday && settings.display.show_weekdays)) {
+                (isSunday && showSundaySetting) ||
+                (!isSunday && settings.display.show_weekdays)) {
                 days.push(currentDate);
             }
             currentDate = addDays(currentDate, 1);

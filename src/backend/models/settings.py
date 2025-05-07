@@ -40,13 +40,13 @@ class Settings(db.Model):
         JSON,
         nullable=False,
         default=lambda: {
-            "0": False,  # Sunday
-            "1": True,  # Monday
-            "2": True,  # Tuesday
-            "3": True,  # Wednesday
-            "4": True,  # Thursday
-            "5": True,  # Friday
-            "6": True,  # Saturday
+            "0": True,   # Monday
+            "1": True,   # Tuesday
+            "2": True,   # Wednesday
+            "3": True,   # Thursday
+            "4": True,   # Friday
+            "5": True,   # Saturday
+            "6": False,  # Sunday
         },
     )
 
@@ -339,7 +339,7 @@ class Settings(db.Model):
             return not self.special_hours[date_str].get("is_closed", False)
 
         # Check regular opening days
-        weekday = str(date.weekday())
+        weekday = str(date.weekday())  # 0 = Monday, 6 = Sunday
         return self.opening_days.get(weekday, False)
 
     def get_store_hours(self, date: datetime) -> tuple[str, str]:
@@ -531,7 +531,7 @@ class Settings(db.Model):
         settings.dark_theme_text_color = "#FFFFFF"  # White
         settings.show_sunday = False
         settings.show_weekdays = False
-        settings.start_of_week = 1
+        settings.start_of_week = 1 # Monday
 
         # Notification Settings
         settings.email_notifications = True

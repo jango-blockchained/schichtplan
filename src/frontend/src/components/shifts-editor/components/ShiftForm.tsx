@@ -24,27 +24,55 @@ interface ShiftFormProps {
     onDelete?: () => void;
 }
 
-const ALL_DAYS = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+const ALL_DAYS = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag']; // Mon=0, Sun=6
 
-// Helper function to convert active_days from array to object if needed
+// Helper function to convert active_days from various formats to object {[key: string]: boolean} with Mon=0 index
 const normalizeActiveDays = (activeDays: any): { [key: string]: boolean } => {
-    if (Array.isArray(activeDays)) {
-        // Convert from number[] to {[key: string]: boolean}
-        const result: { [key: string]: boolean } = {};
-        for (let i = 0; i < 7; i++) {
-            result[i.toString()] = activeDays.includes(i);
-        }
-        return result;
+    const result: { [key: string]: boolean } = {};
+    // Initialize all days to false (Mon=0 to Sun=6)
+    for (let i = 0; i < 7; i++) {
+        result[i.toString()] = false;
     }
-    return activeDays || {};
+
+    if (Array.isArray(activeDays)) {
+        // Assume array contains numbers representing days (check for both conventions? Risky.)
+        // Safest bet: Assume incoming array uses the *intended* backend convention (Mon=0)
+        activeDays.forEach((dayNum) => {
+            if (typeof dayNum === 'number' && dayNum >= 0 && dayNum < 7) {
+                result[dayNum.toString()] = true;
+            }
+        });
+    } else if (typeof activeDays === 'object' && activeDays !== null) {
+        // Check if keys are potentially Sun=0 based ("0"=Sun, "1"=Mon etc.)
+        const keys = Object.keys(activeDays);
+        const isPotentiallySunZero = keys.includes('0') && keys.includes('6') && !keys.includes('7'); // Crude check
+        
+        for (const key in activeDays) {
+            const dayIndex = parseInt(key, 10);
+            if (!isNaN(dayIndex) && dayIndex >= 0 && dayIndex < 7) {
+                // If input *looks* like Sun=0, convert to Mon=0 for internal use
+                const internalIndex = isPotentiallySunZero ? (dayIndex + 6) % 7 : dayIndex;
+                if (internalIndex >= 0 && internalIndex < 7) {
+                   result[internalIndex.toString()] = !!activeDays[key];
+                }
+            }
+        }
+    }
+    return result;
 };
 
 export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, shift, onSave, onDelete }) => {
+    // Default opening days using Mon=0 convention
+    const defaultOpeningDaysMonZero = {
+         "0": true, "1": true, "2": true, "3": true, "4": true, "5": true, "6": false // Mon-Sat open, Sun closed
+    };
+
     const defaultSettings = settings || {
         general: {
             store_opening: '08:00',
             store_closing: '20:00',
-            opening_days: { '1': true, '2': true, '3': true, '4': true, '5': true, '0': false, '6': false }
+            // Use normalized Mon=0 opening days from settings if available, otherwise use default
+            opening_days: normalizeActiveDays(settings?.general.opening_days) || defaultOpeningDaysMonZero
         },
         shift_types: [
             { id: 'EARLY', name: 'Frühschicht', color: '#4CAF50', type: 'shift' },
@@ -57,7 +85,8 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, shift, onSave, o
         start_time: shift?.start_time || defaultSettings.general.store_opening,
         end_time: shift?.end_time || defaultSettings.general.store_closing,
         requires_break: shift?.requires_break ?? true,
-        active_days: normalizeActiveDays(shift?.active_days) || normalizeActiveDays(defaultSettings.general.opening_days),
+        // Initialize active_days: Use normalized shift.active_days, or normalized settings.opening_days, or default Mon=0
+        active_days: normalizeActiveDays(shift?.active_days) || defaultSettings.general.opening_days, // opening_days is already normalized in defaultSettings
         shift_type_id: shift?.shift_type_id || 'EARLY',
     });
 
@@ -186,22 +215,23 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, shift, onSave, o
                             <TableHeader>
                                 <TableRow>
                                     {ALL_DAYS.map((day) => (
-                                        <TableHead key={day} className="text-center">{day}</TableHead>
+                                        <TableHead key={day} className="text-center">{day.substring(0, 2)}</TableHead> // Use Mon=0 ALL_DAYS
                                     ))}
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 <TableRow>
-                                    {ALL_DAYS.map((_, index) => (
-                                        <TableCell key={index} className="text-center">
+                                    {ALL_DAYS.map((_, index) => ( // index is Mon=0 
+                                        <TableCell key={index} className="text-center p-1">
                                             <Switch
-                                                checked={!!formData.active_days[index.toString()]}
+                                                className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-muted-foreground"
+                                                checked={!!formData.active_days[index.toString()]} // Access using Mon=0 index
                                                 onCheckedChange={(checked) =>
                                                     setFormData({
                                                         ...formData,
                                                         active_days: {
                                                             ...formData.active_days,
-                                                            [index.toString()]: checked,
+                                                            [index.toString()]: checked, // Set using Mon=0 index
                                                         },
                                                     })
                                                 }

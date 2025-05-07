@@ -77,7 +77,7 @@ export default function CoveragePage() {
 
         // Calculate weekly coverage data
         const weeklyData = fullCoverage.map(day => {
-            const dayName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day.dayIndex];
+            const dayName = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][day.dayIndex];
             if (!Array.isArray(day.timeSlots) || day.timeSlots.length === 0) {
                 return { day: dayName, coverage: 0 };
             }
@@ -96,7 +96,7 @@ export default function CoveragePage() {
                 coverage: Math.round(coverage)
             };
         }).sort((a, b) => {
-            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
             return days.indexOf(a.day) - days.indexOf(b.day);
         });
 

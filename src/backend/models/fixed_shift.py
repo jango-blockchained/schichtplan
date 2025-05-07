@@ -51,13 +51,13 @@ class ShiftTemplate(db.Model):
         db.JSON,
         nullable=False,
         default=lambda: {
-            "0": False,  # Sunday
-            "1": True,  # Monday
-            "2": True,  # Tuesday
-            "3": True,  # Wednesday
-            "4": True,  # Thursday
-            "5": True,  # Friday
-            "6": True,  # Saturday
+            "0": True,  # Monday
+            "1": True,  # Tuesday
+            "2": True,  # Wednesday
+            "3": True,  # Thursday
+            "4": True,  # Friday
+            "5": True,  # Saturday
+            "6": False, # Sunday
         },
     )
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -78,13 +78,13 @@ class ShiftTemplate(db.Model):
         self.end_time = end_time
         self.requires_break = requires_break
         self.active_days = active_days or {
-            "0": False,  # Sunday
-            "1": True,  # Monday
-            "2": True,  # Tuesday
-            "3": True,  # Wednesday
-            "4": True,  # Thursday
-            "5": True,  # Friday
-            "6": True,  # Saturday
+            "0": True,  # Monday
+            "1": True,  # Tuesday
+            "2": True,  # Wednesday
+            "3": True,  # Thursday
+            "4": True,  # Friday
+            "5": True,  # Saturday
+            "6": False, # Sunday
         }
         self.shift_type_id = shift_type_id
 
