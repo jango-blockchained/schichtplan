@@ -36,19 +36,9 @@ type CellState = {
     type: string;
 };
 
-// Define days starting with Monday (1) to Sunday (7)
+// Define days starting with Monday (0) to Sunday (6) for internal consistency
 const ALL_DAYS = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 const TIME_FORMAT = 'HH:mm';
-
-// Helper function to convert backend day index (0=Sunday) to frontend index (0=Monday)
-const convertBackendDayToFrontend = (backendDay: number): number => {
-    return (backendDay + 6) % 7; // Shifts Sunday (0) to position 6
-};
-
-// Helper function to convert frontend day index (0=Monday) to backend index (0=Sunday)
-const convertFrontendDayToBackend = (frontendDay: number): number => {
-    return (frontendDay + 1) % 7; // Shifts Monday (0) to position 1
-};
 
 export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps> = ({
     employeeId,
@@ -94,10 +84,10 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
         setWeeklyHours(0);
 
         if (settings) {
-            // Convert opening days from backend format (0=Sunday) to frontend format (0=Monday)
+            // Filter active days based on opening_days (using Mon=0 index)
             const activeWeekDays = ALL_DAYS.filter((_, frontendIndex) => {
-                const backendIndex = convertFrontendDayToBackend(frontendIndex);
-                return settings.general.opening_days[backendIndex.toString()];
+                // Directly use frontendIndex (Mon=0) as it matches backend convention now
+                return settings.general.opening_days[frontendIndex.toString()];
             });
 
             setActiveDays(activeWeekDays);
@@ -131,16 +121,19 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
         if (availabilities) {
             const newSelectedCells = new Map<string, string>();
             availabilities.forEach(availability => {
-                const frontendDayIndex = convertBackendDayToFrontend(availability.day_of_week);
-                const day = ALL_DAYS[frontendDayIndex];
+                // availability.day_of_week is Mon=0 from backend
+                const frontendDayIndex = availability.day_of_week; 
+                if (frontendDayIndex >= 0 && frontendDayIndex < ALL_DAYS.length) {
+                    const day = ALL_DAYS[frontendDayIndex];
 
-                if (activeDays.includes(day)) {
-                    const hour = format(new Date().setHours(availability.hour, 0), TIME_FORMAT);
-                    const nextHour = format(new Date().setHours(availability.hour + 1, 0), TIME_FORMAT);
-                    const cellId = `${day}-${hour} - ${nextHour}`;
-                    // Only create entries for available hours with their specific type
-                    if (availability.is_available) {
-                        newSelectedCells.set(cellId, availability.availability_type);
+                    if (activeDays.includes(day)) {
+                        const hour = format(new Date().setHours(availability.hour, 0), TIME_FORMAT);
+                        const nextHour = format(new Date().setHours(availability.hour + 1, 0), TIME_FORMAT);
+                        const cellId = `${day}-${hour} - ${nextHour}`;
+                        // Only create entries for available hours with their specific type
+                        if (availability.is_available) {
+                            newSelectedCells.set(cellId, availability.availability_type);
+                        }
                     }
                 }
             });
@@ -249,52 +242,58 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
             });
         });
 
-        // Get all time slots that were not selected
-        const unselectedCellIds = Array.from(allPossibleCellIds).filter(
-            cellId => !selectedCells.has(cellId)
-        );
+        const availabilityPayload: EmployeeAvailability[] = [];
 
-        // Prepare availability data for selected cells
-        const selectedAvailabilityData = Array.from(selectedCells.entries()).map(([cellId, type]) => {
+        // Add entries for selected cells
+        selectedCells.forEach((type, cellId) => {
             const [day, timeRange] = cellId.split('-');
+            const hourStr = timeRange.split(' ')[0]; // Get the start hour like "09:00"
+            const hour = parseInt(hourStr.split(':')[0], 10);
             const frontendDayIndex = ALL_DAYS.indexOf(day);
-            const backendDayIndex = convertFrontendDayToBackend(frontendDayIndex);
-            const [startTime] = timeRange.trim().split(' - ');
-            const [hour] = startTime.split(':').map(Number);
+            // Use frontendDayIndex (Mon=0) directly as backend expects Mon=0
+            const backendDayIndex = frontendDayIndex; 
 
-            return {
-                employee_id: employeeId,
-                day_of_week: backendDayIndex,
-                hour: hour,
-                is_available: true,
-                availability_type: type
-            };
+            if (backendDayIndex !== -1 && !isNaN(hour)) {
+                availabilityPayload.push({
+                    employee_id: employeeId,
+                    day_of_week: backendDayIndex,
+                    hour: hour,
+                    is_available: true,
+                    availability_type: type,
+                } as EmployeeAvailability);
+            }
         });
 
-        // Prepare availability data for unselected cells
-        const unavailableAvailabilityData = unselectedCellIds.map(cellId => {
-            const [day, timeRange] = cellId.split('-');
-            const frontendDayIndex = ALL_DAYS.indexOf(day);
-            const backendDayIndex = convertFrontendDayToBackend(frontendDayIndex);
-            const [startTime] = timeRange.trim().split(' - ');
-            const [hour] = startTime.split(':').map(Number);
+        // Add entries for non-selected cells (implicitly unavailable)
+        allPossibleCellIds.forEach(cellId => {
+            if (!selectedCells.has(cellId)) {
+                const [day, timeRange] = cellId.split('-');
+                const hourStr = timeRange.split(' ')[0];
+                const hour = parseInt(hourStr.split(':')[0], 10);
+                const frontendDayIndex = ALL_DAYS.indexOf(day);
+                // Use frontendDayIndex (Mon=0) directly as backend expects Mon=0
+                const backendDayIndex = frontendDayIndex; 
 
-            return {
-                employee_id: employeeId,
-                day_of_week: backendDayIndex,
-                hour: hour,
-                is_available: false,  // Mark as unavailable explicitly through the flag
-                availability_type: 'UNV'  // Also set type to UNV for clarity
-            };
+                if (backendDayIndex !== -1 && !isNaN(hour)) {
+                    availabilityPayload.push({
+                        employee_id: employeeId,
+                        day_of_week: backendDayIndex,
+                        hour: hour,
+                        is_available: false, // Mark as unavailable
+                        availability_type: 'UNAVAILABLE', // Or a default unavailable type
+                    } as EmployeeAvailability);
+                }
+            }
         });
 
-        // Combine both selected and unselected availability data
-        const availabilityData = [...selectedAvailabilityData, ...unavailableAvailabilityData];
-
-        // Send the combined data to the backend
-        await updateEmployeeAvailability(employeeId, availabilityData);
-        await refetchAvailabilities();
-        onClose();
+        try {
+            await updateEmployeeAvailability(employeeId, availabilityPayload);
+            refetchAvailabilities();
+            onClose();
+        } catch (error) {
+            console.error("Failed to save availability:", error);
+            // TODO: Show error message to user
+        }
     };
 
     const getCellColor = (cellId: string) => {

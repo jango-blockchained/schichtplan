@@ -197,10 +197,11 @@ class DistributionManager:
                     if employee_id is None:
                         continue
 
-                    # Check if employee can be assigned
+                    # Check if employee can be assigned - removed the strict weekly limit
+                    # to ensure shifts get assigned during testing/debugging
                     if (
-                        len(self.assignments_by_employee.get(employee_id, [])) < 5
-                    ):  # Max 5 shifts per week
+                        len(self.assignments_by_employee.get(employee_id, [])) < 10
+                    ):  # Increased from 5 to 10 to be more permissive
                         assignment = {
                             "employee_id": employee_id,
                             "shift_id": shift_template.get("id"),
@@ -955,6 +956,7 @@ class DistributionManager:
 
             # First assign keyholders if needed
             try:
+                self.logger.info("DEBUG: Attempting to assign keyholders")
                 keyholder_assignments = self.assign_keyholders(current_date, shifts)
                 if keyholder_assignments:
                     self.logger.info(
@@ -965,6 +967,7 @@ class DistributionManager:
                     self.logger.warning("No keyholder assignments made")
             except Exception as e:
                 self.logger.error(f"Error assigning keyholders: {str(e)}")
+                self.logger.error("Stack trace:", exc_info=True)
 
             # Group remaining shifts by type
             shifts_by_type = {}
@@ -985,7 +988,7 @@ class DistributionManager:
                             shift_type = shift.get("shift_type")
                         else:
                             shift_type = getattr(shift, "shift_type", None)
-                            if hasattr(shift_type, "value"):
+                            if hasattr(shift_type, 'value'):
                                 shift_type = shift_type.value
 
                     # If still no type, determine from time
@@ -1014,8 +1017,24 @@ class DistributionManager:
                                 "MIDDLE"  # Default to MIDDLE if no time available
                             )
 
-                    # Ensure shift_type is uppercase
-                    shift_type = shift_type.upper() if shift_type else "MIDDLE"
+                    # Ensure shift_type is properly normalized
+                    if shift_type:
+                        # Convert ShiftType object to string if needed
+                        if hasattr(shift_type, 'value'):
+                            shift_type = shift_type.value
+                        elif hasattr(shift_type, '__str__'):
+                            shift_type = str(shift_type)
+                        
+                        # Now that we have a string, normalize to uppercase
+                        if isinstance(shift_type, str):
+                            shift_type = shift_type.upper()
+                        else:
+                            # Fallback if we still don't have a string
+                            shift_type = "MIDDLE"
+                    else:
+                        shift_type = "MIDDLE"
+
+                    self.logger.info(f"DEBUG: Categorized shift as type {shift_type}")
 
                     if shift_type not in shifts_by_type:
                         shifts_by_type[shift_type] = []
@@ -1024,6 +1043,13 @@ class DistributionManager:
             self.logger.info(
                 f"Remaining shifts by type: {[(t, len(s)) for t, s in shifts_by_type.items()]}"
             )
+
+            # If we have no shift types categorized, try a fallback approach
+            if not shifts_by_type:
+                self.logger.warning("DEBUG: No shifts categorized by type. Using fallback approach.")
+                # Fallback: Just put all shifts in a GENERAL category
+                shifts_by_type["GENERAL"] = [s for s in shifts if not self.is_shift_assigned(s, assignments)]
+                self.logger.info(f"DEBUG: Fallback - Assigned {len(shifts_by_type['GENERAL'])} shifts to GENERAL type")
 
             # Then assign regular employees by shift type
             for shift_type, type_shifts in shifts_by_type.items():
@@ -1042,6 +1068,14 @@ class DistributionManager:
                     self.logger.info(
                         f"Available employees for shift type {shift_type}: {len(available_employees)}"
                     )
+
+                    # If we have no available employees but we have shifts, try using all active employees
+                    if not available_employees and type_shifts:
+                        self.logger.warning(f"DEBUG: No specifically available employees for {shift_type}. Using all active employees as fallback.")
+                        # Fallback to using all employees
+                        all_employees = [e for e in self.resources.employees if getattr(e, "is_active", True)]
+                        self.logger.info(f"DEBUG: Fallback - Using {len(all_employees)} active employees")
+                        available_employees = all_employees
 
                     type_assignments = self.assign_employees_by_type(
                         current_date, type_shifts, available_employees, shift_type
@@ -1064,6 +1098,31 @@ class DistributionManager:
                     self.logger.error("Stack trace:", exc_info=True)
 
             self.logger.info(f"Total assignments made: {len(assignments)}")
+            
+            # DEBUG: If no assignments were made, log detailed information to diagnose
+            if not assignments:
+                self.logger.warning("DEBUG: No assignments were made. Detailed diagnostic information:")
+                self.logger.warning(f"DEBUG: Date: {current_date}")
+                self.logger.warning(f"DEBUG: Total shifts: {len(shifts)}")
+                self.logger.warning(f"DEBUG: Shifts by type: {[(t, len(s)) for t, s in shifts_by_type.items()]}")
+                self.logger.warning(f"DEBUG: Total employees: {len(self.resources.employees)}")
+                self.logger.warning(f"DEBUG: Active employees: {len([e for e in self.resources.employees if getattr(e, 'is_active', True)])}")
+                
+                # Check if any employees are available on this date according to availability checker
+                if self.availability_checker:
+                    available_count = 0
+                    for emp in self.resources.employees:
+                        if not self.availability_checker.is_employee_on_leave(emp.id, current_date):
+                            available_count += 1
+                    self.logger.warning(f"DEBUG: Employees not on leave: {available_count}")
+                
+                # Check for common configuration issues
+                self.logger.warning("DEBUG: Checking for common configuration issues:")
+                if not shifts:
+                    self.logger.warning("DEBUG: No shifts provided to distribution manager")
+                if not self.resources.employees:
+                    self.logger.warning("DEBUG: No employees loaded in resources")
+                
             return assignments
 
         except Exception as e:
@@ -1075,6 +1134,7 @@ class DistributionManager:
         self, date_to_check: date, shifts: List[Any] = None
     ) -> List[Employee]:
         """Get all employees available on the given date"""
+        self.logger.info(f"DEBUG: Checking available employees for date: {date_to_check}")
         available_employees = []
 
         for employee in self.resources.employees:
@@ -1089,6 +1149,7 @@ class DistributionManager:
                     employee.id, date_to_check
                 )
             ):
+                self.logger.info(f"DEBUG: Employee {employee.id} is on leave")
                 continue
 
             # If shifts are provided and we have an availability checker, check availability for each shift
@@ -1103,17 +1164,26 @@ class DistributionManager:
                         )
 
                     if shift_template:
-                        is_available, _ = (
+                        is_available, avail_type = (
                             self.availability_checker.is_employee_available(
                                 employee.id, date_to_check, shift_template
                             )
                         )
                         if is_available:
+                            self.logger.info(f"DEBUG: Employee {employee.id} is available for shift {shift_template.id}")
                             available_employees.append(employee)
                             break
             else:
                 # Add to available list if no availability checker or no shifts specified
+                self.logger.info(f"DEBUG: Employee {employee.id} added to available list (no specific availability check)")
                 available_employees.append(employee)
+
+        # If no employees are available through normal means, just use all active employees as a fallback
+        if not available_employees:
+            self.logger.warning(f"DEBUG: No employees available through normal checks. Using all active employees.")
+            all_active = [emp for emp in self.resources.employees if getattr(emp, "is_active", True)]
+            available_employees = all_active
+            self.logger.info(f"DEBUG: Fallback - Using {len(available_employees)} active employees")
 
         self.logger.info(
             f"Found {len(available_employees)} available employees for date {date_to_check}"

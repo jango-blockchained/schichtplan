@@ -578,27 +578,34 @@ class ScheduleGenerator:
             # Check if this coverage applies to this date
             if self._coverage_applies_to_date(coverage, current_date):
                 applicable_coverage_found = True
-                shift_id = getattr(coverage, "shift_id", None)
                 employees_needed = getattr(coverage, "min_employees", 0)
                 # Fallback for older naming?
                 if not employees_needed and hasattr(coverage, "employees_needed"):
                      employees_needed = coverage.employees_needed
 
+                # Get the coverage start and end times for reference
+                coverage_start = getattr(coverage, "start_time", None)
+                coverage_end = getattr(coverage, "end_time", None)
 
-                if shift_id is not None and employees_needed > 0:
-                    # Add to the needs for this specific shift
-                    shift_needs[shift_id] = shift_needs.get(shift_id, 0) + employees_needed
+                # Check if this is a valid coverage record with needed information
+                if employees_needed > 0 and coverage_start and coverage_end:
+                    # Instead of using shift_id, we'll use a generic key
+                    # We'll create a "virtual" shift need using the coverage ID
+                    # This allows us to track staffing needs without requiring shift_id in coverage
+                    shift_needs[cov_id] = employees_needed
                     self.diagnostic_logger.info(
-                        f"Applicable coverage {cov_id} found for Shift {shift_id}: needs {employees_needed} employees."
+                        f"Applicable coverage {cov_id} from {coverage_start} to {coverage_end}: needs {employees_needed} employees."
                     )
                 else:
-                    self.diagnostic_logger.warning(f"Applicable coverage record {cov_id} lacks valid shift_id or employees_needed > 0.")
+                    self.diagnostic_logger.warning(
+                        f"Applicable coverage record {cov_id} has invalid configuration: "
+                        f"min_employees={employees_needed}, start={coverage_start}, end={coverage_end}"
+                    )
 
         if not applicable_coverage_found:
              self.diagnostic_logger.warning(f"No applicable coverage records found for date {current_date}")
         else:
             self.diagnostic_logger.info(f"Final shift needs for {current_date}: {shift_needs}")
-
 
         self.process_tracker.log_step_data("Shift Needs Determined", shift_needs)
         return shift_needs
@@ -775,6 +782,9 @@ class ScheduleGenerator:
             self.process_tracker.start_step(f"Process Coverage for {date_str}")
             shift_needs = self._process_coverage(current_date)
             self.process_tracker.end_step({"shift_needs": shift_needs})
+            
+            self.diagnostic_logger.info(f"DEBUG: Coverage needs result: {shift_needs}")
+            
             if not shift_needs:
                 self.logger.warning(f"No coverage requirements found for {date_str}, cannot generate assignments.")
                 return [] # Return early if no staff needed
@@ -784,6 +794,11 @@ class ScheduleGenerator:
             self.process_tracker.start_step(f"Create Shift Instances for {date_str}")
             date_shifts = self._create_date_shifts(current_date) # These are shift *instances* (dicts)
             self.process_tracker.end_step({"shifts_created": len(date_shifts)})
+            
+            self.diagnostic_logger.info(f"DEBUG: Created shift instances: {len(date_shifts)}")
+            if date_shifts:
+                self.diagnostic_logger.info(f"DEBUG: First shift instance: {date_shifts[0]}")
+            
             if not date_shifts:
                 self.logger.warning(f"No applicable shift templates found for {date_str}, cannot generate assignments.")
                 return [] # Return early if no shifts are defined/active
@@ -792,25 +807,34 @@ class ScheduleGenerator:
             self.logger.info(f"Needs for {date_str}: {shift_needs}. Available shift instances: {len(date_shifts)}")
             self.diagnostic_logger.debug(f"Shift Instances for {date_str}: {date_shifts}") # Log the actual instances
 
-            # Filter date_shifts to only those actually needed by coverage
-            needed_shift_instances = [
-                shift_instance for shift_instance in date_shifts
-                if shift_instance['shift_id'] in shift_needs and shift_needs[shift_instance['shift_id']] > 0
-            ]
+            # REMOVED CONSTRAINT: No longer filtering shifts to only those with exact ID matches in coverage
+            # Instead, use all active shifts for the day
+            needed_shift_instances = date_shifts
+            
+            # If we have no shifts, return early
             if not needed_shift_instances:
-                self.logger.warning(f"No active shifts match the coverage needs for {date_str}. Cannot generate assignments.")
+                self.logger.warning(f"No active shifts for {date_str}. Cannot generate assignments.")
                 return []
 
-            self.diagnostic_logger.info(f"Filtered to {len(needed_shift_instances)} needed shift instances for {date_str}")
-            self.process_tracker.log_step_data("Needed Shift Instances", needed_shift_instances)
+            self.diagnostic_logger.info(f"Using {len(needed_shift_instances)} shift instances for {date_str}")
+            self.process_tracker.log_step_data("Shift Instances Used", needed_shift_instances)
 
 
             # Sub-step: Distribute Employees
             self.process_tracker.start_step(f"Distribute Employees for {date_str}")
-            assignments = self.distribution_manager.assign_employees_to_shifts(
+            
+            self.diagnostic_logger.info(f"DEBUG: Before distribution call, parameters:")
+            self.diagnostic_logger.info(f"DEBUG: current_date: {current_date}")
+            self.diagnostic_logger.info(f"DEBUG: needed_shift_instances count: {len(needed_shift_instances)}")
+            self.diagnostic_logger.info(f"DEBUG: shift_needs: {shift_needs}")
+            
+            self.diagnostic_logger.info(f"DEBUG: Calling distribution_manager.assign_employees_with_distribution")
+            assignments = self.distribution_manager.assign_employees_with_distribution(
                  current_date, needed_shift_instances, shift_needs
             )
-            # Note: assign_employees_to_shifts should return ScheduleAssignment objects or compatible dicts
+            self.diagnostic_logger.info(f"DEBUG: Distribution call returned {len(assignments)} assignments")
+            
+            # Note: assign_employees_with_distribution should return ScheduleAssignment objects or compatible dicts
             self.process_tracker.end_step({"assignments_generated": len(assignments)})
 
 

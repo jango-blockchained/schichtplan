@@ -8,7 +8,7 @@ class Coverage(db.Model):
     __tablename__ = "coverage"
 
     id = Column(Integer, primary_key=True)
-    day_index = Column(Integer, nullable=False)  # 0-6 (Sunday-Saturday)
+    day_index = Column(Integer, nullable=False)  # 0-6 (Monday-Sunday)
     start_time = Column(String(5), nullable=False)  # Format: "HH:MM"
     end_time = Column(String(5), nullable=False)  # Format: "HH:MM"
     min_employees = Column(Integer, nullable=False, default=1)
