@@ -1867,3 +1867,55 @@ class DistributionManager:
         # If no ID found, log warning and return None
         self.logger.warning(f"Could not extract ID from object: {obj}")
         return None
+
+    def _coverage_applies_to_date(self, coverage, check_date: date) -> bool:
+        """Check if a coverage record applies to the given date"""
+        cov_id = getattr(coverage, 'id', 'N/A')
+        self.logger.debug(f"Checking if coverage {cov_id} applies to {check_date}")
+
+        # Check for specific date first (higher priority)
+        if hasattr(coverage, "date") and coverage.date:
+            coverage_date = coverage.date
+            if isinstance(coverage_date, str):
+                try:
+                    coverage_date = date.fromisoformat(coverage_date.split('T')[0]) # Handle datetime strings
+                except (ValueError, TypeError):
+                    self.logger.warning(f"Coverage {cov_id} has invalid date string: {coverage.date}")
+                    return False
+            elif not isinstance(coverage_date, date):
+                 self.logger.warning(f"Coverage {cov_id} has unexpected date type: {type(coverage.date)}")
+                 return False
+
+            applies = (coverage_date == check_date)
+            self.logger.debug(f"Coverage {cov_id} has specific date {coverage_date}. Match with {check_date}: {applies}")
+            return applies
+
+        # Check for day of week if no specific date matches
+        day_field = None
+        if hasattr(coverage, "day_index"):
+            day_field = coverage.day_index
+        elif hasattr(coverage, "day_of_week"):
+            day_field = coverage.day_of_week
+
+        if day_field is not None:
+            try:
+                # Ensure day_field is an integer
+                coverage_day_index = int(day_field)
+
+                # System uses Monday=0 to Sunday=6 for weekday()
+                check_weekday = check_date.weekday() # Monday is 0, Sunday is 6
+
+                # FIXED: Both coverage model and Python's weekday() use the same convention
+                # (0=Monday, 6=Sunday) so no conversion is needed
+                applies = (check_weekday == coverage_day_index)
+
+                self.logger.debug(
+                    f"Coverage {cov_id} day_index={coverage_day_index}. Check date {check_date} python_weekday={check_weekday}. Match: {applies}"
+                )
+                return applies
+            except (ValueError, TypeError):
+                 self.logger.warning(f"Coverage {cov_id} has invalid day_index/day_of_week: {day_field}")
+                 return False
+
+        self.logger.debug(f"Coverage {cov_id} has no specific date or applicable day of week. No match.")
+        return False
