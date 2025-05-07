@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, date
 import logging
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 
 # Create relative imports for both package and direct execution
 try:
@@ -28,6 +28,38 @@ except ImportError:
         # Log error if imports fail
         logger = logging.getLogger(__name__)
         logger.error("Failed to import required modules in validator.py")
+        
+        # Add placeholder classes for testing
+        class EmployeeGroup:
+            """Placeholder for EmployeeGroup enum"""
+            TZ = "TZ"
+            GFB = "GFB"
+            VZ = "VZ"
+            TL = "TL"
+
+        class ScheduleResources:
+            """Placeholder for ScheduleResources class"""
+            def __init__(self):
+                self.employees = []
+                self.shifts = []
+                self.coverage = []
+                
+            def get_employee(self, employee_id):
+                return None
+                
+            def get_shift(self, shift_id):
+                return None
+                
+        class Schedule:
+            """Placeholder for Schedule class"""
+            def __init__(self):
+                self.id = None
+                self.employee_id = None
+                self.shift_id = None
+                self.date = None
+                self.shift = None
+                self.break_start = None
+                self.break_end = None
 
 logger = logging.getLogger(__name__)
 
@@ -1124,12 +1156,6 @@ class ScheduleValidator:
                     except Exception as e:
                         # Log error but continue validation
                         logger.error(f"Error validating break rules: {str(e)}")
-
-    def _validate_qualifications(self, schedule: List[Schedule]) -> None:
-        """Validate employee qualifications for shifts"""
-        # This would require a qualifications model, which isn't implemented yet
-        # Placeholder for future implementation
-        pass
 
     def _validate_qualifications(self, schedule: List[Schedule]) -> None:
         """Validate employee qualifications for shifts"""

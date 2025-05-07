@@ -681,93 +681,88 @@ class ScheduleGenerator:
         self.diagnostic_logger.debug(f"Coverage {cov_id} has no specific date or applicable day of week. No match.")
         return False
 
-    def _create_date_shifts(self, current_date: date) -> List[Dict]:
+    def _create_date_shifts(self, date_to_create: date) -> List[Dict]:
         """Create shift instances for a specific date based on shift templates"""
-        self.diagnostic_logger.debug(f"Creating shift instances for date: {current_date}")
         date_shifts = []
-
-        self.diagnostic_logger.debug(f"Available shift templates: {len(self.resources.shifts)}")
-
+        weekday = date_to_create.weekday() # 0 = Monday, 6 = Sunday
+        
+        self.logger.info(f"Creating shifts for date {date_to_create} (weekday {weekday})")
+        
+        # Find all shift templates active on this day
         for shift_template in self.resources.shifts:
-            st_id = getattr(shift_template, 'id', 'N/A')
-            self.diagnostic_logger.debug(f"Checking applicability of shift template {st_id} for {current_date}")
-
-            if self._shift_applies_to_date(shift_template, current_date):
-                self.diagnostic_logger.debug(f"Shift template {st_id} applies. Creating shift instance.")
-
-                # Extract details safely
-                start_time = getattr(shift_template, 'start_time', None)
-                end_time = getattr(shift_template, 'end_time', None)
-                shift_type = getattr(shift_template, 'shift_type', None)
-                duration = getattr(shift_template, 'duration_hours', None)
-
-
-                # Basic validation
-                if not all([st_id != 'N/A', start_time, end_time, shift_type]):
-                     self.logger.warning(f"Shift template {st_id} is missing essential fields (start/end time, type). Skipping.")
-                     self.diagnostic_logger.warning(f"Skipping template {st_id} due to missing fields: start={start_time}, end={end_time}, type={shift_type}")
-                     continue
-
-
-                # Create shift instance dictionary
-                shift_instance = {
-                    "shift_id": st_id,
-                    "shift_template": shift_template, # Keep ref to original template
-                    "date": current_date,
-                    "shift_type": shift_type,
-                    "start_time": start_time,
-                    "end_time": end_time,
-                    "duration_hours": duration, # Include duration if available
-                }
-                date_shifts.append(shift_instance)
-                self.diagnostic_logger.debug(
-                    f"Created shift instance for date {current_date}: {shift_instance}"
-                )
-            # else: # No need to log if it doesn't apply, already logged in _shift_applies_to_date
-            #     self.diagnostic_logger.debug(f"Shift template {st_id} does not apply to {current_date}")
-
-
-        self.diagnostic_logger.info(f"Created {len(date_shifts)} shift instances for date {current_date}")
-        self.process_tracker.log_step_data("Shift Instances Created", len(date_shifts))
+            shift_active_days = []
+            
+            # Handle both object and dictionary representations
+            if hasattr(shift_template, 'active_days') and shift_template.active_days:
+                if isinstance(shift_template.active_days, list):
+                    shift_active_days = shift_template.active_days
+                elif isinstance(shift_template.active_days, str):
+                    # Parse JSON or comma-separated string
+                    try:
+                        import json
+                        shift_active_days = json.loads(shift_template.active_days)
+                    except (json.JSONDecodeError, ValueError):
+                        # Try comma-separated format
+                        try:
+                            shift_active_days = [int(d.strip()) for d in shift_template.active_days.split(',') if d.strip()]
+                        except ValueError:
+                            self.logger.warning(f"Could not parse active_days for shift {shift_template.id}: {shift_template.active_days}")
+                            continue
+            
+            # Skip if shift is not active on this day
+            if not shift_active_days or weekday not in shift_active_days:
+                continue
+                
+            # Extract shift details
+            shift_id = getattr(shift_template, 'id', None)
+            if not shift_id:
+                self.logger.warning(f"Shift template has no ID, skipping: {shift_template}")
+                continue
+                
+            # Get shift type - try multiple attributes
+            shift_type = None
+            if hasattr(shift_template, 'shift_type_id'):
+                shift_type = shift_template.shift_type_id
+            elif hasattr(shift_template, 'shift_type'):
+                # Handle both string and enum values
+                if hasattr(shift_template.shift_type, 'value'):
+                    shift_type = shift_template.shift_type.value
+                else:
+                    shift_type = shift_template.shift_type
+                    
+            # Default to a shift type based on start time if none specified
+            if not shift_type:
+                start_time = getattr(shift_template, 'start_time', '09:00')
+                try:
+                    start_hour = int(start_time.split(':')[0])
+                    if start_hour < 11:
+                        shift_type = "EARLY"
+                    elif start_hour >= 14:
+                        shift_type = "LATE"
+                    else:
+                        shift_type = "MIDDLE"
+                except (ValueError, IndexError):
+                    shift_type = "MIDDLE"  # Default
+            
+            # Create shift instance
+            shift_instance = {
+                'id': shift_id,                        # Original shift template ID
+                'shift_id': shift_id,                  # Duplicate for compatibility
+                'date': date_to_create,
+                'start_time': getattr(shift_template, 'start_time', '09:00'),
+                'end_time': getattr(shift_template, 'end_time', '17:00'),
+                'duration_hours': getattr(shift_template, 'duration_hours', 8.0),
+                'shift_type': shift_type,
+                'shift_type_id': getattr(shift_template, 'shift_type_id', shift_type),
+                'requires_keyholder': getattr(shift_template, 'requires_keyholder', False),
+                'active_days': shift_active_days
+            }
+            
+            self.logger.info(f"Created shift instance: ID={shift_id}, type={shift_type}, time={shift_instance['start_time']}-{shift_instance['end_time']}")
+            date_shifts.append(shift_instance)
+        
+        self.logger.info(f"Created {len(date_shifts)} shift instances for {date_to_create}")
         return date_shifts
-
-
-    def _shift_applies_to_date(self, shift: ShiftTemplate, check_date: date) -> bool:
-        """Check if a shift template applies to the given date based on active_days"""
-        shift_id = getattr(shift, 'id', 'N/A')
-        self.diagnostic_logger.debug(f"Checking active_days for shift {shift_id} against date {check_date}")
-
-        # If shift has specific active_days configuration
-        if hasattr(shift, "active_days") and shift.active_days is not None:
-             # Expect active_days to be a list or set of integers (0=Monday, 6=Sunday)
-             active_days_config = shift.active_days
-             check_weekday = check_date.weekday() # Monday is 0, Sunday is 6
-
-             if isinstance(active_days_config, (list, set)):
-                 is_active = check_weekday in active_days_config
-                 self.diagnostic_logger.debug(f"Shift {shift_id} active_days (list/set): {active_days_config}. Date {check_date} (weekday {check_weekday}) is active: {is_active}")
-                 return is_active
-             elif isinstance(active_days_config, str):
-                 # Handle comma-separated string like "0,1,2,3,4"
-                 try:
-                     active_days_set = {int(day.strip()) for day in active_days_config.split(',') if day.strip()}
-                     is_active = check_weekday in active_days_set
-                     self.diagnostic_logger.debug(f"Shift {shift_id} active_days (string): '{active_days_config}' -> {active_days_set}. Date {check_date} (weekday {check_weekday}) is active: {is_active}")
-                     return is_active
-                 except ValueError:
-                     self.logger.warning(f"Shift {shift_id} has invalid active_days string format: {active_days_config}")
-                     self.diagnostic_logger.warning(f"Invalid active_days string format for shift {shift_id}: '{active_days_config}'. Assuming inactive.")
-                     return False # Treat invalid format as inactive for safety
-             else:
-                 self.logger.warning(f"Shift {shift_id} has active_days attribute with unexpected type: {type(active_days_config)}")
-                 self.diagnostic_logger.warning(f"Unexpected active_days type for shift {shift_id}: {type(active_days_config)}. Assuming active for all days as fallback.")
-                 # Fallback: if active_days exists but is weird, maybe assume active? Or inactive? Let's assume active for now.
-                 return True
-
-
-        # If no active_days specified, assume shift applies to all days
-        self.diagnostic_logger.debug(f"No specific active_days configured for shift {shift_id}. Assuming active for date {check_date}.")
-        return True
 
 
     def _generate_assignments_for_date(self, current_date: date) -> List[Dict]:
@@ -945,3 +940,128 @@ class ScheduleGenerator:
              self.schedule_by_date[current_date] = []
         self.schedule_by_date[current_date].append(empty_assignment)
         self.process_tracker.log_step_data(f"Empty Entry Created for {current_date}", empty_assignment, level=logging.DEBUG)
+
+    def _save_to_database(self):
+        """
+        Save the generated schedules to the database
+        This method is called by the API endpoint after generation.
+        """
+        try:
+            self.logger.info(f"Saving generated schedules to database (session {self.session_id})")
+            self.diagnostic_logger.info("Starting database save operation")
+            
+            if not self.schedule or not hasattr(self.schedule, "entries") or not self.schedule.entries:
+                self.logger.error("No schedule entries to save")
+                return False
+                
+            # Import database model
+            from sqlalchemy.exc import SQLAlchemyError
+            from models import db, Schedule as DbSchedule
+            
+            # Record stats for logging
+            new_entries = 0
+            updated_entries = 0
+            errors = 0
+            
+            # Use a single transaction for efficiency
+            try:
+                for entry in self.schedule.entries:
+                    try:
+                        # Skip empty schedule entries
+                        if isinstance(entry, dict) and entry.get("status") == "EMPTY":
+                            continue
+                            
+                        # Extract data based on entry type (dict or object)
+                        if isinstance(entry, dict):
+                            employee_id = entry.get("employee_id")
+                            shift_id = entry.get("shift_id")
+                            entry_date = entry.get("date")
+                            version = entry.get("version", self.schedule.version)
+                            break_start = entry.get("break_start")
+                            break_end = entry.get("break_end")
+                            notes = entry.get("notes")
+                            availability_type = entry.get("availability_type")
+                        else:
+                            # Assuming ScheduleAssignment object
+                            employee_id = getattr(entry, "employee_id", None)
+                            shift_id = getattr(entry, "shift_id", None)
+                            entry_date = getattr(entry, "date", None)
+                            version = getattr(entry, "version", self.schedule.version)
+                            break_start = getattr(entry, "break_start", None)
+                            break_end = getattr(entry, "break_end", None)
+                            notes = getattr(entry, "notes", None)
+                            availability_type = getattr(entry, "availability_type", None)
+                        
+                        # Ensure date is in the correct format
+                        if isinstance(entry_date, str):
+                            from datetime import datetime
+                            entry_date = datetime.fromisoformat(entry_date.split('T')[0]).date()
+                        
+                        if not employee_id or not entry_date:
+                            self.logger.warning(f"Skipping entry with missing data: employee_id={employee_id}, date={entry_date}")
+                            continue
+                            
+                        # Check if this schedule entry already exists
+                        existing = DbSchedule.query.filter_by(
+                            employee_id=employee_id,
+                            date=entry_date,
+                            version=version
+                        ).first()
+                        
+                        if existing:
+                            # Update existing entry
+                            existing.shift_id = shift_id
+                            if break_start:
+                                existing.break_start = break_start
+                            if break_end:
+                                existing.break_end = break_end
+                            if notes:
+                                existing.notes = notes
+                            if availability_type:
+                                existing.availability_type = availability_type
+                            updated_entries += 1
+                            self.diagnostic_logger.debug(
+                                f"Updated existing schedule: emp={employee_id}, date={entry_date}, shift={shift_id}"
+                            )
+                        else:
+                            # Create new entry
+                            new_entry = DbSchedule(
+                                employee_id=employee_id,
+                                shift_id=shift_id,
+                                date=entry_date,
+                                version=version,
+                                break_start=break_start,
+                                break_end=break_end,
+                                notes=notes,
+                                availability_type=availability_type
+                            )
+                            db.session.add(new_entry)
+                            new_entries += 1
+                            self.diagnostic_logger.debug(
+                                f"Created new schedule: emp={employee_id}, date={entry_date}, shift={shift_id}"
+                            )
+                    except Exception as e:
+                        self.logger.error(f"Error processing schedule entry {entry}: {str(e)}")
+                        errors += 1
+                        continue  # Continue with next entry
+                
+                # Commit all changes
+                db.session.commit()
+                self.logger.info(
+                    f"Successfully saved schedules to database: {new_entries} new, {updated_entries} updated, {errors} errors"
+                )
+                self.process_tracker.log_step_data(
+                    "Database Save Results", 
+                    {"new": new_entries, "updated": updated_entries, "errors": errors},
+                    level=logging.INFO
+                )
+                return True
+                
+            except SQLAlchemyError as e:
+                db.session.rollback()
+                self.logger.error(f"Database error while saving schedules: {str(e)}")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Failed to save schedules to database: {str(e)}", exc_info=True)
+            return False
