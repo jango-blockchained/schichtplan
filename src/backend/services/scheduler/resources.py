@@ -54,7 +54,50 @@ except ImportError:
             from src.backend.models.employee import AvailabilityType, EmployeeGroup
         except ImportError:
             # Create placeholder classes for standalone testing
-            pass
+            class Settings:
+                """Placeholder Settings class for standalone testing"""
+                pass
+            
+            class AvailabilityType:
+                UNAVAILABLE = "UNAVAILABLE"
+            
+            class EmployeeGroup:
+                pass
+            
+            class Coverage:
+                """Placeholder Coverage class for standalone testing"""
+                pass
+                
+            class Employee:
+                """Placeholder Employee class for standalone testing"""
+                pass
+                
+            class ShiftTemplate:
+                """Placeholder ShiftTemplate class for standalone testing"""
+                pass
+                
+            class Absence:
+                """Placeholder Absence class for standalone testing"""
+                pass
+                
+            class EmployeeAvailability:
+                """Placeholder EmployeeAvailability class for standalone testing"""
+                pass
+                
+            class Schedule:
+                """Placeholder Schedule class for standalone testing"""
+                pass
+                
+            class db:
+                """Placeholder db class for standalone testing"""
+                class session:
+                    @staticmethod
+                    def add(item):
+                        pass
+                    
+                    @staticmethod
+                    def commit():
+                        pass
 
 # Create a standard logger
 logger = logging.getLogger(__name__)
@@ -131,13 +174,17 @@ class ScheduleResources:
 
     def _load_settings(self) -> Settings:
         """Load settings with error handling"""
-        settings = Settings.query.first()
-        if not settings:
-            logger.warning("No settings found, creating default settings")
-            settings = Settings()
-            db.session.add(settings)
-            db.session.commit()
-        return settings
+        try:
+            settings = Settings.query.first()
+            if not settings:
+                logger.warning("No settings found, creating default settings")
+                settings = Settings()
+                db.session.add(settings)
+                db.session.commit()
+            return settings
+        except Exception as e:
+            self.logger.error(f"Error loading settings: {str(e)}")
+            return None
 
     def _load_coverage(self) -> List[Coverage]:
         """Load coverage with error handling"""

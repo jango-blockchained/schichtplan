@@ -421,7 +421,7 @@ def test_scheduler_components(db_path: str, test_date: date) -> None:
         
         # Import scheduler components
         print("\nInitializing scheduler components...")
-        from backend.services.scheduler.generator import ScheduleGenerator
+        from src.backend.services.scheduler.generator import ScheduleGenerator
         
         # Create resources
         resources = CustomScheduleResources(employees, shifts, coverage)
