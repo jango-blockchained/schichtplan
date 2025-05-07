@@ -461,7 +461,7 @@ export function SettingsPage() {
                     <div className="space-y-4">
                       <Label>Opening Days</Label>
                       <div className="grid grid-cols-7 gap-2">
-                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => (
+                        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, index) => (
                           <div key={day} className="flex flex-col items-center space-y-2">
                             <Label className="text-sm">{day}</Label>
                             <Switch

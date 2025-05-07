@@ -648,26 +648,9 @@ class ScheduleGenerator:
                 # System uses Monday=0 to Sunday=6 for weekday()
                 check_weekday = check_date.weekday() # Monday is 0, Sunday is 6
 
-                # Adjust our coverage_day_index if it uses a different standard (e.g., Sunday=0)
-                # Assuming coverage uses Sunday=0, Monday=1, ..., Saturday=6
-                # We need to match Python's Monday=0 standard.
-                # If coverage_day_index is 0 (Sunday), it matches Python's 6.
-                # If coverage_day_index is 1 (Monday), it matches Python's 0.
-                # ...
-                # If coverage_day_index is 6 (Saturday), it matches Python's 5.
-                # Formula: python_weekday = (coverage_day_index - 1 + 7) % 7 # Not quite right
-                # Let's try: coverage_matches_python = (check_weekday == (coverage_day_index -1 + 7) % 7) ? No.
-
-                # Let's assume coverage.day_index uses 0=Sunday, 1=Monday, ..., 6=Saturday standard
-                # Python check_date.weekday() uses 0=Monday, ..., 6=Sunday standard
-                python_weekday_for_coverage_index = (coverage_day_index - 1 + 7) % 7
-                applies = (check_weekday == python_weekday_for_coverage_index)
-
-                # OR, maybe coverage uses 0=Monday..6=Sunday? Check data structure.
-                # Let's ASSUME coverage.day_index aligns with python's weekday() [0=Mon, 6=Sun] for now.
-                # If this assumption is wrong, this logic needs fixing based on actual Coverage model standard.
-                # applies = (coverage_day_index == check_weekday)
-
+                # FIXED: Both coverage model and Python's weekday() use the same convention
+                # (0=Monday, 6=Sunday) so no conversion is needed
+                applies = (check_weekday == coverage_day_index)
 
                 self.diagnostic_logger.debug(
                     f"Coverage {cov_id} day_index={coverage_day_index}. Check date {check_date} python_weekday={check_weekday}. Match: {applies}"

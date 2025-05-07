@@ -20,13 +20,13 @@ const normalizeStoreConfig = (config: any): StoreConfigProps => {
             store_opening: "09:00",
             store_closing: "20:00",
             opening_days: {
-                "0": false,  // Sunday
-                "1": true,   // Monday
-                "2": true,   // Tuesday
-                "3": true,   // Wednesday
-                "4": true,   // Thursday
-                "5": true,   // Friday
-                "6": true    // Saturday
+                "0": true,   // Monday (now using Monday=0 convention)
+                "1": true,   // Tuesday
+                "2": true,   // Wednesday
+                "3": true,   // Thursday
+                "4": true,   // Friday
+                "5": true,   // Saturday
+                "6": false   // Sunday
             },
             min_employees_per_shift: 1,
             max_employees_per_shift: 3,
@@ -42,7 +42,7 @@ const normalizeStoreConfig = (config: any): StoreConfigProps => {
             store_opening: config.general.store_opening || "09:00",
             store_closing: config.general.store_closing || "20:00",
             opening_days: config.general.opening_days || {
-                "0": false, "1": true, "2": true, "3": true, "4": true, "5": true, "6": true
+                "0": true, "1": true, "2": true, "3": true, "4": true, "5": true, "6": false
             },
             min_employees_per_shift: config.scheduling?.min_employees_per_shift ?? 1,
             max_employees_per_shift: config.scheduling?.max_employees_per_shift ?? 3,
@@ -57,7 +57,7 @@ const normalizeStoreConfig = (config: any): StoreConfigProps => {
         store_opening: config.store_opening || "09:00",
         store_closing: config.store_closing || "20:00",
         opening_days: config.opening_days || {
-            "0": false, "1": true, "2": true, "3": true, "4": true, "5": true, "6": true
+            "0": true, "1": true, "2": true, "3": true, "4": true, "5": true, "6": false
         },
         min_employees_per_shift: config.min_employees_per_shift ?? 1,
         max_employees_per_shift: config.max_employees_per_shift ?? 3,
@@ -287,7 +287,7 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({ initialCoverage,
         // Add morning and afternoon shifts for each day
         const newCoverage = [...coverage];
         openingDays.forEach((dayIdx) => {
-            if (dayIdx !== 0) { // Skip Sunday (index 0)
+            if (dayIdx !== 6) { // Skip Sunday (now index 6)
                 // Clear existing slots first to avoid conflicts
                 newCoverage[dayIdx].timeSlots = [];
                 // Add the new shifts
