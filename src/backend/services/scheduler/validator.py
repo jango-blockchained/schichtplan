@@ -207,6 +207,10 @@ class ScheduleValidator:
         self.errors: List[ValidationError] = []
         self.warnings: List[ValidationError] = []
         self.info: List[ValidationError] = []
+        self.total_intervals_checked = 0
+        self.intervals_met_min_employees = 0
+        self.intervals_needed_keyholder = 0
+        self.intervals_met_keyholder = 0
         self.config = ScheduleConfig()
 
     def validate(
@@ -334,6 +338,7 @@ class ScheduleValidator:
                         interval_start_time=interval_start_dt_time,
                         resources=self.resources,
                     )
+                    self.total_intervals_checked += 1 # Increment counter
                 except Exception as e:
                     logger.error(f"Error calling get_required_staffing_for_interval for {current_validation_date} {interval_start_dt_time}: {e}")
                     # Add an error and skip this interval if the needs function fails
@@ -392,7 +397,10 @@ class ScheduleValidator:
                                 logger.warning(f"Could not find employee with ID {assignment.employee_id} for assignment {assignment.id}")
                 
                 # Compare actual vs. required
-                if actual_assigned_employees < required_min_employees:
+                min_employees_met = actual_assigned_employees >= required_min_employees
+                if min_employees_met:
+                    self.intervals_met_min_employees += 1
+                else:
                     self.errors.append(
                         ValidationError(
                             error_type="Understaffing",
@@ -412,24 +420,30 @@ class ScheduleValidator:
                         )
                     )
                 
-                if requires_keyholder_needed and actual_keyholders_present == 0:
-                    self.errors.append(
-                        ValidationError(
-                            error_type="MissingKeyholder",
-                            message=(
-                                f"Missing keyholder for interval starting {interval_start_dt_time} on {current_validation_date}."
-                            ),
-                            severity="critical",
-                            details={
-                                "date": str(current_validation_date),
-                                "interval_start": str(interval_start_dt_time),
-                                "required_keyholder": True,
-                                "actual_keyholders_present": actual_keyholders_present,
-                                "interval_needs": interval_needs,
-                                "assigned_employees_in_interval": assigned_employee_details_for_interval
-                            },
+                keyholder_met = True # Assume met unless proven otherwise
+                if requires_keyholder_needed:
+                    self.intervals_needed_keyholder += 1
+                    if actual_keyholders_present > 0:
+                        self.intervals_met_keyholder += 1
+                    else:
+                        keyholder_met = False
+                        self.errors.append(
+                            ValidationError(
+                                error_type="MissingKeyholder",
+                                message=(
+                                    f"Missing keyholder for interval starting {interval_start_dt_time} on {current_validation_date}."
+                                ),
+                                severity="critical",
+                                details={
+                                    "date": str(current_validation_date),
+                                    "interval_start": str(interval_start_dt_time),
+                                    "required_keyholder": True,
+                                    "actual_keyholders_present": actual_keyholders_present,
+                                    "interval_needs": interval_needs,
+                                    "assigned_employees_in_interval": assigned_employee_details_for_interval
+                                },
+                            )
                         )
-                    )
 
                 # Validate employee types (if any are required)
                 # This assumes required_employee_types is a list of strings (e.g., group names/IDs)
@@ -1328,3 +1342,23 @@ class ScheduleValidator:
         # This would require a qualifications model, which isn't implemented yet
         # Placeholder for future implementation
         pass
+
+    def get_coverage_summary(self) -> Dict[str, Any]:
+        """Returns a summary of the interval coverage validation statistics."""
+        min_employee_coverage_percent = (
+            (self.intervals_met_min_employees / self.total_intervals_checked * 100)
+            if self.total_intervals_checked > 0 else 0
+        )
+        keyholder_coverage_percent = (
+            (self.intervals_met_keyholder / self.intervals_needed_keyholder * 100)
+            if self.intervals_needed_keyholder > 0 else 100 # If none needed, it's 100% met
+        )
+        
+        return {
+            "total_intervals_checked": self.total_intervals_checked,
+            "intervals_met_min_employees": self.intervals_met_min_employees,
+            "intervals_needed_keyholder": self.intervals_needed_keyholder,
+            "intervals_met_keyholder": self.intervals_met_keyholder,
+            "min_employee_coverage_percent": round(min_employee_coverage_percent, 1),
+            "keyholder_coverage_percent": round(keyholder_coverage_percent, 1)
+        }

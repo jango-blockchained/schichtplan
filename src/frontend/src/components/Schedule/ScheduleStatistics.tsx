@@ -193,7 +193,7 @@ export function ScheduleStatistics({ schedules, employees: propEmployees, startD
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-3 gap-4 mb-4">
                         <div className="flex flex-col items-center">
                             <span className="text-2xl font-bold">{totalShifts}</span>
                             <span className="text-xs text-muted-foreground">Schichten</span>
@@ -207,16 +207,49 @@ export function ScheduleStatistics({ schedules, employees: propEmployees, startD
                             <span className="text-xs text-muted-foreground">Mitarbeiter</span>
                         </div>
                     </div>
-                </CardContent>
-            </Card>
 
-            <div className="grid md:grid-cols-2 gap-4">
-                {/* Shift Distribution */}
-                <Card className="shadow-sm">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">Schichtverteilung</CardTitle>
-                    </CardHeader>
-                    <CardContent>
+                    {/* NEW: Interval Coverage Stats */}
+                    <div className="mt-4 pt-4 border-t">
+                        <h4 className="text-sm font-medium mb-2 flex items-center">
+                            <AlertCircle className="h-4 w-4 mr-1.5 text-orange-500" /> Intervall-Abdeckung (Platzhalter)
+                        </h4>
+                        <div className="grid grid-cols-2 gap-4">
+                            {/* Placeholder Value - Needs real data */}
+                            {/* MIN EMPLOYEE COVERAGE */}
+                            <div> 
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger className='text-left w-full'>
+                                            <span className="text-lg font-bold">-- %</span> 
+                                            <div className="text-xs text-muted-foreground">Min. Besetzung</div>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>Prozent der Zeitintervalle, die die Mindestbesetzung erfüllen.</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            </div>
+                             {/* KEYHOLDER COVERAGE */}
+                            <div>
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger className='text-left w-full'>
+                                            <span className="text-lg font-bold">-- %</span> 
+                                            <div className="text-xs text-muted-foreground">Schlüsselträger</div>
+                                        </TooltipTrigger>
+                                         <TooltipContent>
+                                            <p>Prozent der Zeitintervalle, die einen benötigten Schlüsselträger haben.</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            </div>
+                            {/* TODO: Add more metrics like Understaffed Intervals, Missing Employee Type Intervals */}
+                        </div>
+                    </div>
+
+                    {/* Existing: Shift Distribution */}
+                    <div className="mt-4 pt-4 border-t">
+                        <h4 className="text-sm font-medium mb-2">Schichtverteilung</h4>
                         <div className="space-y-3">
                             <div>
                                 <div className="flex justify-between text-xs mb-1">
@@ -240,18 +273,14 @@ export function ScheduleStatistics({ schedules, employees: propEmployees, startD
                                 <Progress value={latePercentage} className="h-2" />
                             </div>
                         </div>
-                    </CardContent>
-                </Card>
+                    </div>
 
-                {/* Hours Utilization */}
-                <Card className="shadow-sm">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">Stundenabdeckung</CardTitle>
+                    {/* Hours Utilization */}
+                    <div className="mt-4 pt-4 border-t">
+                        <h4 className="text-sm font-medium mb-2">Stundenabdeckung</h4>
                         <CardDescription>
                             {totalHours.toFixed(0)} / {contractedHoursForPeriod.toFixed(0)} Stunden
                         </CardDescription>
-                    </CardHeader>
-                    <CardContent>
                         <Progress
                             value={hoursUtilization > 100 ? 100 : hoursUtilization}
                             className={`h-2 ${hoursUtilization > 100 ? 'bg-amber-200' : ''}`}
@@ -289,9 +318,9 @@ export function ScheduleStatistics({ schedules, employees: propEmployees, startD
                                 )
                             ))}
                         </div>
-                    </CardContent>
-                </Card>
-            </div>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     );
 } 
