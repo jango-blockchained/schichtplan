@@ -81,6 +81,11 @@ export interface ScheduleResponse {
     filled_shifts_count?: number;
     total_schedules?: number;
     versions?: number[];
+    version_statuses?: Record<number, string>;
+    current_version?: number;
+    version_meta?: any;
+    logs?: string[];
+    diagnostic_logs?: string[];
 }
 
 export interface ScheduleUpdate {
@@ -194,6 +199,7 @@ export interface Settings {
         min_rest_between_shifts: number;
         scheduling_period_weeks: number;
         auto_schedule_preferences: boolean;
+        enable_diagnostics?: boolean;
         min_employees_per_shift?: number;
         max_employees_per_shift?: number;
         generation_requirements: {

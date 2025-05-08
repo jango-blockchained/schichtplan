@@ -29,7 +29,7 @@ import { useScheduleData } from '@/hooks/useScheduleData';
 import { addDays, startOfWeek, endOfWeek, addWeeks, format, getWeek, isBefore } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, getSettings, updateSettings, createSchedule, getEmployees, getAbsences } from '@/services/api';
+import { exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, getSettings, updateSettings, createSchedule, getEmployees, getAbsences, fixScheduleDisplay } from '@/services/api';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, AlertCircle, X, Calendar, CheckCircle, XCircle, RefreshCw, Plus } from 'lucide-react';
@@ -41,7 +41,7 @@ import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { ScheduleTable } from '@/components/ScheduleTable';
 import { ScheduleOverview } from '@/components/Schedule/ScheduleOverview';
-import { Schedule, ScheduleError, ScheduleUpdate } from '@/types';
+import { Schedule, ScheduleError, ScheduleUpdate, ShiftType } from '@/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PageHeader } from '@/components/PageHeader';
 import { getAvailableCalendarWeeks, getDateRangeFromWeekAndCount } from '@/utils/dateUtils';
@@ -83,18 +83,41 @@ import {
 
 export function SchedulePage() {
   const today = new Date();
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
-  const [createEmptySchedules, setCreateEmptySchedules] = useState<boolean>(true);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: startOfWeek(today),
+    to: endOfWeek(today),
+  });
+  const [weekAmount, setWeekAmount] = useState<number>(1);
+  const [selectedVersion, setSelectedVersion] = useState<number | undefined>(undefined);
   const [includeEmpty, setIncludeEmpty] = useState<boolean>(true);
-  const [isGenerating, setIsGenerating] = useState(false);
-  // Add state for schedule duration (in weeks)
-  const [scheduleDuration, setScheduleDuration] = useState<number>(1);
+  const [createEmptySchedules, setCreateEmptySchedules] = useState(true);
+  const [isNewVersionModalOpen, setIsNewVersionModalOpen] = useState(false);
+  const [isGenerationSettingsOpen, setIsGenerationSettingsOpen] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<number | null>(null);
+  const [activeView, setActiveView] = useState<'table' | 'grid'>('table');
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isAddScheduleDialogOpen, setIsAddScheduleDialogOpen] = useState(false);
   const [employeeAbsences, setEmployeeAbsences] = useState<Record<number, any[]>>({});
-  // Add a state for tracking the active view
-  const [activeView, setActiveView] = useState<'table' | 'grid'>('table');
+  const [enableDiagnostics, setEnableDiagnostics] = useState<boolean>(false);
+
+  // Add settings query back inside the component
+  const settingsQuery = useQuery<Settings, Error>({
+    queryKey: ['settings'] as const,
+    queryFn: async () => {
+      const response = await getSettings();
+      return response;
+    },
+    retry: 3,
+    staleTime: 5 * 60 * 1000 // 5 minutes
+  });
+
+  // Add a useEffect to update enableDiagnostics when settings change
+  useEffect(() => {
+    if (settingsQuery.data?.scheduling?.enable_diagnostics !== undefined) {
+      setEnableDiagnostics(settingsQuery.data.scheduling.enable_diagnostics);
+    }
+  }, [settingsQuery.data]);
 
   // Initialize date range with current week
   useEffect(() => {
@@ -102,18 +125,18 @@ export function SchedulePage() {
       const today = new Date();
       const from = startOfWeek(today, { weekStartsOn: 1 });
       from.setHours(0, 0, 0, 0);
-      const to = addDays(from, 6 * scheduleDuration); // Use scheduleDuration to set the end date
+      const to = addDays(from, 6 * weekAmount); // Use weekAmount to set the end date
       to.setHours(23, 59, 59, 999);
       setDateRange({ from, to });
     }
-  }, [scheduleDuration]); // Add scheduleDuration as a dependency
+  }, [weekAmount]); // Add weekAmount as a dependency
 
   // Function to update date range when selecting a different week
   const handleWeekChange = (weekOffset: number) => {
     if (dateRange?.from) {
       const from = addWeeks(startOfWeek(dateRange.from, { weekStartsOn: 1 }), weekOffset);
       from.setHours(0, 0, 0, 0);
-      const to = addDays(from, 6 * scheduleDuration);
+      const to = addDays(from, 6 * weekAmount);
       to.setHours(23, 59, 59, 999);
       setDateRange({ from, to });
     }
@@ -121,7 +144,7 @@ export function SchedulePage() {
 
   // Function to handle schedule duration change
   const handleDurationChange = (duration: number) => {
-    setScheduleDuration(duration);
+    setWeekAmount(duration);
 
     // Update end date based on new duration
     if (dateRange?.from) {
@@ -134,7 +157,7 @@ export function SchedulePage() {
 
   // Use our version control hook
   const {
-    selectedVersion,
+    selectedVersion: versionControlSelectedVersion,
     handleVersionChange,
     handleCreateNewVersion,
     handlePublishVersion,
@@ -165,8 +188,9 @@ export function SchedulePage() {
     clearGenerationLogs
   } = useScheduleGeneration({
     dateRange,
-    selectedVersion,
+    selectedVersion: versionControlSelectedVersion,
     createEmptySchedules,
+    enableDiagnostics,
     onSuccess: () => {
       // After generation completes successfully, refresh the data
       refetchScheduleData();
@@ -190,7 +214,7 @@ export function SchedulePage() {
     isError,
     error,
   } = useQuery<ScheduleResponse, Error>({
-    queryKey: ['schedules', dateRange?.from, dateRange?.to, selectedVersion, includeEmpty],
+    queryKey: ['schedules', dateRange?.from, dateRange?.to, versionControlSelectedVersion, includeEmpty],
     queryFn: async () => {
       if (!dateRange?.from || !dateRange?.to) {
         return {
@@ -209,12 +233,12 @@ export function SchedulePage() {
         const fromStr = format(dateRange.from, 'yyyy-MM-dd');
         const toStr = format(dateRange.to, 'yyyy-MM-dd');
 
-        console.log('🔄 Fetching schedules:', { fromStr, toStr, selectedVersion, includeEmpty });
+        console.log('🔄 Fetching schedules:', { fromStr, toStr, versionControlSelectedVersion, includeEmpty });
 
         const response = await getSchedules(
           fromStr,
           toStr,
-          selectedVersion,
+          versionControlSelectedVersion,
           includeEmpty
         );
 
@@ -225,7 +249,7 @@ export function SchedulePage() {
           firstSchedule: response.schedules?.[0] || 'No schedules found',
           dateRange: { fromStr, toStr },
           includeEmpty,
-          selectedVersion
+          versionControlSelectedVersion
         });
 
         return response;
@@ -243,7 +267,7 @@ export function SchedulePage() {
   const { scheduleData, errors: scheduleErrors, loading: isLoadingSchedule, error: scheduleError } = useScheduleData(
     dateRange?.from ?? new Date(),
     dateRange?.to ?? new Date(),
-    selectedVersion,
+    versionControlSelectedVersion,
     includeEmpty
   );
 
@@ -390,10 +414,10 @@ export function SchedulePage() {
         employee_id: newEmployeeId,
         date: format(newDate, 'yyyy-MM-dd'),
         shift_id: newShiftId,
-        version: selectedVersion
+        version: versionControlSelectedVersion
       });
 
-      console.log(`Updated schedule ${scheduleId} with version ${selectedVersion}`);
+      console.log(`Updated schedule ${scheduleId} with version ${versionControlSelectedVersion}`);
 
       // Force invalidate any cached queries
       await queryClient.invalidateQueries({ queryKey: ['schedules'] });
@@ -420,7 +444,7 @@ export function SchedulePage() {
       // Add the current version to the updates
       const updatesWithVersion = {
         ...updates,
-        version: selectedVersion
+        version: versionControlSelectedVersion
       };
 
       console.log('Updating schedule with:', { scheduleId, updates: updatesWithVersion });
@@ -441,17 +465,6 @@ export function SchedulePage() {
   const handleBreakNotesUpdate = async (employeeId: number, day: number, notes: string) => {
     await updateBreakNotesMutation.mutateAsync({ employeeId, day, notes });
   };
-
-  // Add settings query
-  const settingsQuery = useQuery<Settings, Error>({
-    queryKey: ['settings'] as const,
-    queryFn: async () => {
-      const response = await getSettings();
-      return response;
-    },
-    retry: 3,
-    staleTime: 5 * 60 * 1000 // 5 minutes
-  });
 
   // Add settings update handler
   const handleSettingsUpdate = async (updates: Partial<Settings['scheduling']['generation_requirements']>) => {
@@ -543,9 +556,15 @@ export function SchedulePage() {
   // Convert API Schedule to frontend Schedule
   const convertSchedule = (apiSchedule: APISchedule): Schedule => {
     // Log for debugging shift_type
-    if (apiSchedule.shift_id && !apiSchedule.shift_type) {
-      console.log('Schedule without shift_type:', apiSchedule);
+    if (apiSchedule.shift_id && !apiSchedule.shift_type_id) {
+      console.log('Schedule without shift_type_id:', apiSchedule);
     }
+
+    // Check if shift_type_id is a valid ShiftType
+    const validShiftTypes: ShiftType[] = ['EARLY', 'MIDDLE', 'LATE', 'NO_WORK'];
+    const shift_type_id = apiSchedule.shift_type_id && validShiftTypes.includes(apiSchedule.shift_type_id as any) 
+      ? apiSchedule.shift_type_id as ShiftType 
+      : undefined;
 
     return {
       id: apiSchedule.id,
@@ -561,7 +580,7 @@ export function SchedulePage() {
       break_end: apiSchedule.break_end ?? null,
       notes: apiSchedule.notes ?? null,
       employee_name: undefined,
-      shift_type: apiSchedule.shift_type ?? undefined
+      shift_type_id
     };
   };
 
@@ -698,7 +717,7 @@ export function SchedulePage() {
       }
 
       // Validate version selection
-      if (!selectedVersion) {
+      if (!versionControlSelectedVersion) {
         toast({
           title: "Version erforderlich",
           description: "Bitte wählen Sie eine Version aus bevor Sie den Dienstplan generieren.",
@@ -723,7 +742,7 @@ export function SchedulePage() {
           from: dateRange.from.toISOString(),
           to: dateRange.to.toISOString()
         },
-        selectedVersion,
+        versionControlSelectedVersion,
         versionMetas,
         createEmptySchedules
       });
@@ -733,7 +752,7 @@ export function SchedulePage() {
       const formattedToDate = format(dateRange.to, 'yyyy-MM-dd');
 
       addGenerationLog('info', 'Starting schedule generation',
-        `Version: ${selectedVersion}, Date range: ${formattedFromDate} - ${formattedToDate}`);
+        `Version: ${versionControlSelectedVersion}, Date range: ${formattedFromDate} - ${formattedToDate}`);
 
       // Call the generate function from the hook
       generate();
@@ -752,7 +771,7 @@ export function SchedulePage() {
 
   // Handler for adding a new empty schedule
   const handleAddSchedule = () => {
-    if (!selectedVersion) {
+    if (!versionControlSelectedVersion) {
       toast({
         title: "Keine Version ausgewählt",
         description: "Bitte wählen Sie zuerst eine Version aus.",
@@ -794,7 +813,7 @@ export function SchedulePage() {
 
   // Handler for deleting the current schedule
   const handleDeleteSchedule = () => {
-    if (!selectedVersion) {
+    if (!versionControlSelectedVersion) {
       toast({
         title: "Keine Version ausgewählt",
         description: "Bitte wählen Sie zuerst eine Version aus.",
@@ -815,7 +834,7 @@ export function SchedulePage() {
     // Create confirmation dialog with detailed information
     setConfirmDeleteMessage({
       title: "Schichtplan endgültig löschen?",
-      message: `Sie sind dabei, alle ${convertedSchedules.length} Schichtpläne der Version ${selectedVersion} zu löschen. Diese Aktion betrifft:`,
+      message: `Sie sind dabei, alle ${convertedSchedules.length} Schichtpläne der Version ${versionControlSelectedVersion} zu löschen. Diese Aktion betrifft:`,
       details: [
         `• ${new Set(convertedSchedules.map(s => s.employee_id)).size} Mitarbeiter`,
         `• Zeitraum: ${format(dateRange?.from || new Date(), 'dd.MM.yyyy')} - ${format(dateRange?.to || new Date(), 'dd.MM.yyyy')}`,
@@ -824,7 +843,7 @@ export function SchedulePage() {
       onConfirm: async () => {
         try {
           const deletePromises = convertedSchedules.map(schedule =>
-            updateSchedule(schedule.id, { shift_id: null, version: selectedVersion })
+            updateSchedule(schedule.id, { shift_id: null, version: versionControlSelectedVersion })
           );
           await Promise.all(deletePromises);
           await refetchScheduleData();
@@ -878,7 +897,7 @@ export function SchedulePage() {
     // First update the UI state
     if (options.dateRange.from && options.dateRange.to) {
       setDateRange(options.dateRange);
-      setScheduleDuration(options.weekAmount);
+      setWeekAmount(options.weekAmount);
 
       // Then use the version control hook's function directly
       versionControlCreateWithOptions(options);
@@ -890,8 +909,62 @@ export function SchedulePage() {
     setActiveView(newView);
   };
 
-  // State for generation settings dialog
-  const [isGenerationSettingsOpen, setIsGenerationSettingsOpen] = useState(false);
+  // Handler for fixing the schedule display
+  const handleFixDisplay = async () => {
+    if (!versionControlSelectedVersion) {
+      toast({
+        title: "No version selected",
+        description: "Please select a version to fix the display",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!dateRange?.from || !dateRange?.to) {
+      toast({
+        title: "No date range selected",
+        description: "Please select a date range to fix the display",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    addGenerationLog('info', 'Starting display fix', 
+      `Version: ${versionControlSelectedVersion}, Date range: ${format(dateRange.from, 'yyyy-MM-dd')} - ${format(dateRange.to, 'yyyy-MM-dd')}`);
+
+    try {
+      const result = await fixScheduleDisplay(
+        format(dateRange.from, 'yyyy-MM-dd'),
+        format(dateRange.to, 'yyyy-MM-dd'),
+        versionControlSelectedVersion
+      );
+
+      addGenerationLog('info', 'Display fix complete', 
+        `Fixed ${result.empty_schedules_count} schedules. Days fixed: ${result.days_fixed.join(', ') || 'none'}`);
+
+      // Refetch to show updated data
+      await refetchScheduleData();
+
+      toast({
+        title: "Display Fix Complete",
+        description: `Fixed ${result.empty_schedules_count} schedules.`,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
+      addGenerationLog('error', 'Display fix failed', errorMessage);
+      
+      toast({
+        title: "Display Fix Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Add a handler for enableDiagnostics change
+  const handleEnableDiagnosticsChange = (checked: boolean) => {
+    setEnableDiagnostics(checked);
+  };
 
   return (
     <div className="container mx-auto py-4 space-y-4">
@@ -905,7 +978,7 @@ export function SchedulePage() {
       {/* Enhanced Date Range Selector with version confirmation */}
       <EnhancedDateRangeSelector
         dateRange={dateRange}
-        scheduleDuration={scheduleDuration}
+        scheduleDuration={weekAmount}
         onWeekChange={handleWeekChange}
         onDurationChange={handleDurationChange}
         hasVersions={versions.length > 0}
@@ -920,7 +993,7 @@ export function SchedulePage() {
           employees={employees || []}
           startDate={format(dateRange.from, 'yyyy-MM-dd')}
           endDate={format(dateRange.to, 'yyyy-MM-dd')}
-          version={selectedVersion}
+          version={versionControlSelectedVersion}
         />
       )}
 
@@ -928,7 +1001,7 @@ export function SchedulePage() {
       {versionMetas && versionMetas.length > 0 && (
         <VersionTable
           versions={versionMetas}
-          selectedVersion={selectedVersion}
+          selectedVersion={versionControlSelectedVersion}
           onSelectVersion={handleVersionChange}
           onPublishVersion={handlePublishVersion}
           onArchiveVersion={handleArchiveVersion}
@@ -945,11 +1018,13 @@ export function SchedulePage() {
           onDeleteSchedule={handleDeleteSchedule}
           onGenerateSchedule={handleGenerateSchedule}
           onOpenGenerationSettings={() => setIsGenerationSettingsOpen(true)}
+          onFixDisplay={handleFixDisplay}
           isLoading={isLoadingSchedule || isLoadingVersions}
           isGenerating={isGenerationPending}
-          canAdd={!!selectedVersion}
-          canDelete={!!selectedVersion && convertedSchedules.length > 0}
-          canGenerate={!!selectedVersion && !isGenerationPending}
+          canAdd={!!versionControlSelectedVersion}
+          canDelete={!!versionControlSelectedVersion && convertedSchedules.length > 0}
+          canGenerate={!!versionControlSelectedVersion && !isGenerationPending}
+          canFix={!!versionControlSelectedVersion}
           activeView={activeView}
           onViewChange={handleViewChange}
         />
@@ -1005,7 +1080,7 @@ export function SchedulePage() {
                   ) : (
                     <Button
                       onClick={handleGenerateSchedule}
-                      disabled={isGenerationPending || !selectedVersion}
+                      disabled={isGenerationPending || !versionControlSelectedVersion}
                       className="flex items-center gap-2"
                     >
                       {isGenerationPending ? (
@@ -1016,7 +1091,7 @@ export function SchedulePage() {
                       Schichtplan generieren
                     </Button>
                   )}
-                  {!selectedVersion && versions.length > 0 && (
+                  {!versionControlSelectedVersion && versions.length > 0 && (
                     <p className="text-sm text-muted-foreground mt-2">
                       Bitte wählen Sie eine Version aus, um den Dienstplan zu generieren.
                     </p>
@@ -1039,7 +1114,7 @@ export function SchedulePage() {
                   employeeAbsences={employeeAbsences}
                   absenceTypes={settingsData?.employee_groups?.absence_types || []}
                   activeView={activeView}
-                  currentVersion={selectedVersion}
+                  currentVersion={versionControlSelectedVersion}
                 />
               </div>
             )}
@@ -1077,8 +1152,10 @@ export function SchedulePage() {
               onUpdate={handleSettingsUpdate}
               createEmptySchedules={createEmptySchedules}
               includeEmpty={includeEmpty}
+              enableDiagnostics={enableDiagnostics}
               onCreateEmptyChange={handleCreateEmptyChange}
               onIncludeEmptyChange={handleIncludeEmptyChange}
+              onEnableDiagnosticsChange={handleEnableDiagnosticsChange}
               onGenerateSchedule={() => {
                 setIsGenerationSettingsOpen(false);
                 handleGenerateSchedule();
@@ -1095,12 +1172,12 @@ export function SchedulePage() {
       )}
 
       {/* Add Schedule Dialog */}
-      {isAddScheduleDialogOpen && selectedVersion && (
+      {isAddScheduleDialogOpen && versionControlSelectedVersion && (
         <AddScheduleDialog
           isOpen={isAddScheduleDialogOpen}
           onClose={() => setIsAddScheduleDialogOpen(false)}
           onAddSchedule={handleCreateSchedule}
-          version={selectedVersion}
+          version={versionControlSelectedVersion}
           defaultDate={dateRange?.from}
         />
       )}

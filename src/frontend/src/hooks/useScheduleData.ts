@@ -35,7 +35,7 @@ export function useScheduleData(
     startDate: Date,
     endDate: Date,
     version?: number,
-    includeEmpty: boolean = false
+    includeEmpty: boolean = true
 ): UseScheduleDataResult {
     const { data, isLoading, error, refetch } = useQuery<ScheduleResponse>({
         queryKey: ['schedules', startDate.toISOString(), endDate.toISOString(), version, includeEmpty] as const,

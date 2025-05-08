@@ -32,6 +32,19 @@ export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditM
         queryFn: getShifts,
     });
 
+    console.log('ShiftEditModal editing schedule:', {
+        schedule_id: schedule.id,
+        shift_id: schedule.shift_id,
+        employee_id: schedule.employee_id,
+        date: schedule.date,
+        has_shift_start: !!schedule.shift_start,
+        shift_start: schedule.shift_start,
+        shift_end: schedule.shift_end
+    });
+
+    const initialShiftStart = schedule.shift_start || "00:00";
+    const initialShiftEnd = schedule.shift_end || "00:00";
+
     useEffect(() => {
         if (schedule.shift_id) {
             setSelectedShiftId(schedule.shift_id.toString());
@@ -57,6 +70,24 @@ export function ShiftEditModal({ isOpen, onClose, schedule, onSave }: ShiftEditM
                 updates,
                 availability_type: schedule.availability_type
             });
+
+            if (updates.shift_id && !updates.shift_start) {
+                try {
+                    const selectedShift = shifts?.find(s => s.id === updates.shift_id);
+                    if (selectedShift) {
+                        updates.shift_start = selectedShift.start_time;
+                        updates.shift_end = selectedShift.end_time;
+                        console.log('Added missing shift times from template:', {
+                            shift_id: updates.shift_id,
+                            shift_start: updates.shift_start,
+                            shift_end: updates.shift_end
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error adding missing shift times:', error);
+                }
+            }
+
             await onSave(schedule.id, updates);
             console.log('🟢 onSave completed successfully');
 

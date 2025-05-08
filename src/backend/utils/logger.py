@@ -82,7 +82,7 @@ class Logger:
         print("!!! Logger __init__ started !!!", file=sys.stderr) # DEBUG PRINT
         try:
             # Create logs directory in the project root if it doesn't exist
-            self.logs_dir = ROOT_DIR / "src" / "logs"
+            self.logs_dir = ROOT_DIR / "logs"
             self.logs_dir.mkdir(exist_ok=True)
             print(f"!!! Logger attempting to use logs dir: {self.logs_dir}", file=sys.stderr) # DEBUG PRINT
 

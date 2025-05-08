@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { CalendarPlus, Trash2, AlertCircle, Table2, LayoutGrid, Play, Settings, Plus, Separator } from 'lucide-react';
+import { CalendarPlus, Trash2, AlertCircle, Table2, LayoutGrid, Play, Settings, Plus, Separator, Wrench } from 'lucide-react';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -20,11 +20,13 @@ interface ScheduleActionsProps {
     onDeleteSchedule: () => void;
     onGenerateSchedule?: () => void;
     onOpenGenerationSettings?: () => void;
+    onFixDisplay?: () => void;
     isLoading?: boolean;
     isGenerating?: boolean;
     canAdd?: boolean;
     canDelete?: boolean;
     canGenerate?: boolean;
+    canFix?: boolean;
     activeView?: 'table' | 'grid';
     onViewChange?: (view: 'table' | 'grid') => void;
 }
@@ -34,103 +36,96 @@ export function ScheduleActions({
     onDeleteSchedule,
     onGenerateSchedule,
     onOpenGenerationSettings,
+    onFixDisplay,
     isLoading = false,
     isGenerating = false,
     canAdd = true,
     canDelete = true,
     canGenerate = true,
+    canFix = true,
     activeView = 'table',
     onViewChange
 }: ScheduleActionsProps) {
     return (
-        <div className="flex items-center justify-between w-full">
-            <div className="flex items-center gap-2">
-                {/* Generation Buttons */}
-                {canGenerate && onGenerateSchedule && (
+        <div className="flex items-center gap-2 flex-wrap">
+            {/* Add Schedule Button */}
+            <Button
+                onClick={onAddSchedule}
+                variant="outline"
+                className="flex items-center gap-2"
+                disabled={!canAdd || isLoading}
+            >
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Hinzufügen</span>
+            </Button>
+
+            {/* Delete Schedule Button */}
+            <AlertDialog>
+                <AlertDialogTrigger asChild>
                     <Button
                         variant="outline"
-                        size="sm"
-                        onClick={onGenerateSchedule}
-                        disabled={isLoading || isGenerating}
-                        title="Dienstplan generieren"
-                        className="bg-primary text-primary-foreground hover:bg-primary/90"
+                        className="flex items-center gap-2"
+                        disabled={!canDelete || isLoading}
                     >
-                        <Play className="h-4 w-4 mr-2" />
-                        Generieren
+                        <Trash2 className="h-4 w-4" />
+                        <span className="hidden sm:inline">Löschen</span>
                     </Button>
-                )}
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Dienstplan löschen?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Möchten Sie wirklich alle Dienstpläne für diesen Zeitraum löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                        <AlertDialogAction onClick={onDeleteSchedule}>Löschen</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
-                {onOpenGenerationSettings && (
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={onOpenGenerationSettings}
-                        disabled={isLoading}
-                        title="Generierungseinstellungen anpassen"
-                    >
-                        <Settings className="h-4 w-4 mr-2" />
-                        Einstellungen
-                    </Button>
-                )}
+            <UISeparator orientation="vertical" className="h-8" />
 
-                {/* Divider */}
-                {(canGenerate || onOpenGenerationSettings) && (
-                    <UISeparator orientation="vertical" className="h-8" />
-                )}
+            {/* Fix Display Button */}
+            {onFixDisplay && (
+                <Button
+                    onClick={onFixDisplay}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                    disabled={!canFix || isLoading}
+                >
+                    <Wrench className="h-4 w-4" />
+                    <span className="hidden sm:inline">Fix Display</span>
+                </Button>
+            )}
 
-                {canAdd && (
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={onAddSchedule}
-                        disabled={isLoading}
-                        title="Neuen Schichtplan hinzufügen"
-                    >
-                        <CalendarPlus className="h-4 w-4 mr-2" />
-                        Eintrag hinzufügen
-                    </Button>
-                )}
+            {/* Generate Schedule Button */}
+            {onGenerateSchedule && (
+                <Button
+                    onClick={onGenerateSchedule}
+                    variant="default"
+                    className="flex items-center gap-2"
+                    disabled={!canGenerate || isGenerating || isLoading}
+                >
+                    <Play className="h-4 w-4" />
+                    <span>{isGenerating ? "Generieren..." : "Generieren"}</span>
+                </Button>
+            )}
 
-                {canDelete && (
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={isLoading}
-                                className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                                title="Aktuellen Schichtplan löschen"
-                            >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Alle löschen
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Schichtplan löschen?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    Diese Aktion löscht den aktuellen Schichtplan und alle darin enthaltenen Schichten.
-                                    <br /><br />
-                                    <span className="font-semibold text-destructive">
-                                        Diese Aktion kann nicht rückgängig gemacht werden!
-                                    </span>
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                                <AlertDialogAction
-                                    onClick={onDeleteSchedule}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                >
-                                    Endgültig löschen
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                )}
-            </div>
+            {/* Generation Settings Button */}
+            {onOpenGenerationSettings && (
+                <Button
+                    onClick={onOpenGenerationSettings}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                    disabled={isLoading}
+                >
+                    <Settings className="h-4 w-4" />
+                    <span className="hidden sm:inline">Einstellungen</span>
+                </Button>
+            )}
 
-            {/* View Selector */}
             {onViewChange && (
                 <Tabs value={activeView} onValueChange={onViewChange as any} className="w-auto">
                     <TabsList className="grid w-[200px] grid-cols-2">

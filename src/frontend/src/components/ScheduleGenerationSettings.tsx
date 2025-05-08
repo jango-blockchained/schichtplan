@@ -48,10 +48,14 @@ interface ScheduleGenerationSettingsProps {
     createEmptySchedules?: boolean;
     /** Whether to include empty schedules in the view */
     includeEmpty?: boolean;
+    /** Whether to enable diagnostic results */
+    enableDiagnostics?: boolean;
     /** Handler for changing createEmptySchedules */
     onCreateEmptyChange?: (checked: boolean) => void;
     /** Handler for changing includeEmpty */
     onIncludeEmptyChange?: (checked: boolean) => void;
+    /** Handler for changing enableDiagnostics */
+    onEnableDiagnosticsChange?: (checked: boolean) => void;
     /** Handler for generating schedule */
     onGenerateSchedule?: () => void;
     /** Whether schedule generation is in progress */
@@ -67,8 +71,10 @@ export function ScheduleGenerationSettings({
     onUpdate,
     createEmptySchedules,
     includeEmpty,
+    enableDiagnostics,
     onCreateEmptyChange,
     onIncludeEmptyChange,
+    onEnableDiagnosticsChange,
     onGenerateSchedule,
     isGenerating
 }: ScheduleGenerationSettingsProps): React.ReactElement {
@@ -107,17 +113,34 @@ export function ScheduleGenerationSettings({
     }, [settings]);
 
     const handleToggle = (key: RequirementKey, checked: boolean) => {
-        setLocalRequirements(prev => ({
-            ...prev,
+        // Update local state
+        const updatedRequirements = {
+            ...localRequirements,
             [key]: checked
-        }));
+        };
+        
+        setLocalRequirements(updatedRequirements);
+        
+        // Save changes immediately
+        onUpdate(updatedRequirements);
+        
+        // Show a small toast to confirm the change
+        const requirement = SCHEDULE_REQUIREMENTS.find(r => r.key === key);
+        if (requirement) {
+            toast({
+                title: checked ? "Constraint Enabled" : "Constraint Disabled",
+                description: `${requirement.label} is now ${checked ? 'enabled' : 'disabled'}.`,
+                duration: 3000,
+            });
+        }
     };
 
-    const handleSave = async () => {
+    const handleSave = () => {
         try {
-            // Call onUpdate to save to backend
-            await onUpdate(localRequirements);
+            // Call onUpdate directly to save to backend
+            onUpdate(localRequirements);
 
+            // Only show success message when explicitly saving
             toast({
                 title: "Einstellungen gespeichert",
                 description: "Die Anforderungen für die Dienstplangenerierung wurden aktualisiert.",
@@ -169,6 +192,20 @@ export function ScheduleGenerationSettings({
                                 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                             >
                                 Leere Dienstpläne anzeigen
+                            </Label>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                            <Checkbox
+                                id="enableDiagnostics"
+                                checked={enableDiagnostics}
+                                onCheckedChange={onEnableDiagnosticsChange}
+                            />
+                            <Label
+                                htmlFor="enableDiagnostics"
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                            >
+                                Diagnose-Ergebnisse anzeigen
                             </Label>
                         </div>
                     </div>

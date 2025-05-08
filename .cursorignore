@@ -21,7 +21,6 @@ __pycache__/
 .env
 .env.local
 .env.*.local
-instance/
 
 # IDE and editor
 .vscode/
@@ -51,5 +50,4 @@ src/frontend/coverage/
 
 # Backend specific
 src/backend/venv/
-src/backend/instance/
 src/backend/__pycache__/
