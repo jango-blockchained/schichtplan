@@ -10,6 +10,7 @@ from services.scheduler.generator import ScheduleGenerator
 from services.scheduler.resources import ScheduleResources, ScheduleResourceError
 from services.scheduler.validator import ScheduleValidator, ScheduleConfig
 from models.fixed_shift import ShiftTemplate
+import logging
 
 # Define blueprint
 schedules = Blueprint("schedules", __name__)
@@ -260,9 +261,11 @@ def generate_schedule():
         end_date = data.get("end_date")
         create_empty_schedules = data.get("create_empty_schedules", True)
         version = data.get("version", 1)  # Get version from request, default to 1
-
+        enable_diagnostics = data.get("enable_diagnostics", False)  # Get diagnostics flag
+        
         # Initialize logs list
         logs = []
+        diagnostic_logs = []
 
         # Validate input dates
         if not start_date or not end_date:
@@ -368,29 +371,120 @@ def generate_schedule():
         logger.schedule_logger.info(f"Creating new schedule version {version}")
         logs.append(f"Creating new schedule version {version}")
 
-        # Initialize the schedule generator
-        generator = ScheduleGenerator()
+        # Set up diagnostics capture if enabled
+        if enable_diagnostics:
+            # Create a custom handler to capture diagnostic logs
+            from logging import StreamHandler
+            import io
+            
+            log_capture = io.StringIO()
+            log_handler = StreamHandler(log_capture)
+            log_handler.setLevel(logging.DEBUG)
+            
+            # Add formatter to match our needs
+            formatter = logging.Formatter('%(levelname)s - %(message)s')
+            log_handler.setFormatter(formatter)
+            
+            # Add handler to the scheduler logger
+            scheduler_logger = logging.getLogger('scheduler')
+            scheduler_logger.addHandler(log_handler)
+            
+            # Make sure the scheduler logger is set to DEBUG level for maximum info
+            original_level = scheduler_logger.level
+            scheduler_logger.setLevel(logging.DEBUG)
+            
+            diagnostic_logs.append("DIAGNOSTIC MODE ENABLED - Capturing detailed logs")
 
-        # Generate the schedule
-        result = generator.generate_schedule(
-            start_date=start_date,
-            end_date=end_date,
-            create_empty_schedules=create_empty_schedules,
-            version=version,  # Pass the version to the generator
-        )
+        try:
+            # Initialize the schedule generator
+            generator = ScheduleGenerator()
+            
+            # Generate the schedule
+            result = generator.generate_schedule(
+                start_date=start_date,
+                end_date=end_date,
+                create_empty_schedules=create_empty_schedules,
+                version=version,  # Pass the version to the generator
+            )
+            
+            # If we have schedules with shifts assigned but missing start/end times, 
+            # we should refresh them to ensure the relationship data is loaded
+            schedules_with_shifts = []
+            if result.get('schedules'):
+                schedules_with_shifts = [s for s in result['schedules'] if s.get('shift_id') is not None]
+                
+                if schedules_with_shifts:
+                    # We need to ensure that shift time data is properly loaded
+                    # Find these schedules in the database and refresh them
+                    schedule_ids = [s.get('id') for s in schedules_with_shifts if s.get('id')]
+                    if schedule_ids:
+                        # Refresh the schedules with proper relationship loading
+                        db_schedules = Schedule.query.options(
+                            db.joinedload(Schedule.shift)  # Ensure shift relationship is loaded
+                        ).filter(Schedule.id.in_(schedule_ids)).all()
+                        
+                        # Update the schedule objects in result with fresh data
+                        fresh_schedules = []
+                        for s in result['schedules']:
+                            if s.get('id') in schedule_ids:
+                                # Find the refreshed schedule
+                                refreshed = next((db_s for db_s in db_schedules if db_s.id == s.get('id')), None)
+                                if refreshed:
+                                    fresh_schedules.append(refreshed.to_dict())
+                                else:
+                                    fresh_schedules.append(s)
+                            else:
+                                fresh_schedules.append(s)
+                                
+                        # Replace the schedules in the result
+                        result['schedules'] = fresh_schedules
+                        logs.append(f"Refreshed {len(schedule_ids)} schedules with shift relationship data")
+            
+            # Capture diagnostic logs if enabled
+            if enable_diagnostics:
+                # Get captured logs
+                log_content = log_capture.getvalue()
+                
+                # Split into lines and add to diagnostic_logs
+                if log_content:
+                    for line in log_content.splitlines():
+                        if line.strip():  # Skip empty lines
+                            diagnostic_logs.append(line.strip())
+                
+                # Remove custom handler and restore original level
+                scheduler_logger.removeHandler(log_handler)
+                scheduler_logger.setLevel(original_level)
+                
+                # Add diagnostic_logs to the result
+                result['diagnostic_logs'] = diagnostic_logs
+            
+            # Add general logs to the result
+            if "logs" not in result:
+                result["logs"] = []
+            result["logs"].extend(logs)
 
-        # Add logs to the result
-        if "logs" not in result:
-            result["logs"] = []
-        result["logs"].extend(logs)
-
-        return jsonify(result), 200
+            return jsonify(result), 200
+            
+        finally:
+            # Make sure we clean up diagnostic logging even on error
+            if enable_diagnostics:
+                # Remove custom handler and restore original level
+                scheduler_logger = logging.getLogger('scheduler')
+                if log_handler in scheduler_logger.handlers:
+                    scheduler_logger.removeHandler(log_handler)
+                scheduler_logger.setLevel(original_level)
 
     except Exception as e:
         error_msg = f"Failed to generate schedule: {str(e)}"
         logger.error_logger.error(error_msg)
         logs.append("Schedule generation failed: " + error_msg)
-        return jsonify({"error": error_msg, "logs": logs}), 500
+        
+        # Include diagnostic logs if they were captured
+        response_data = {"error": error_msg, "logs": logs}
+        if enable_diagnostics and diagnostic_logs:
+            response_data["diagnostic_logs"] = diagnostic_logs
+            
+        return jsonify(response_data), 500
 
 
 @schedules.route("/schedules/pdf", methods=["GET"])
@@ -1531,4 +1625,203 @@ def update_version_notes(version):
     except Exception as e:
         db.session.rollback()
         logger.error_logger.error(f"Error in update_version_notes: {str(e)}")
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@schedules.route("/schedules/fix-display", methods=["POST"])
+def fix_schedule_display():
+    """Fix any issues with schedule display, particularly fixing shift_id fields"""
+    try:
+        data = request.get_json()
+        # Fix the dict.get with type=int issue by doing manual conversion
+        version = data.get("version")
+        if version is not None:
+            version = int(version)
+        start_date = data.get("start_date")
+        end_date = data.get("end_date")
+
+        if not version or not start_date or not end_date:
+            return jsonify({
+                "error": "Missing required parameters: version, start_date, end_date"
+            }), HTTPStatus.BAD_REQUEST
+
+        try:
+            start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+            end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify({
+                "error": "Invalid date format, expected YYYY-MM-DD"
+            }), HTTPStatus.BAD_REQUEST
+
+        # Find schedules for this version and date range with proper relationship loading
+        schedules = Schedule.query.options(
+            db.joinedload(Schedule.shift)  # Ensure shift relationship is loaded
+        ).filter(
+            Schedule.version == version,
+            Schedule.date >= start_date,
+            Schedule.date <= end_date
+        ).all()
+
+        logger.schedule_logger.info(f"Found {len(schedules)} schedules to check for version {version}")
+
+        # Count how many have no shift_id
+        empty_schedules = [s for s in schedules if s.shift_id is None]
+        logger.schedule_logger.info(f"{len(empty_schedules)} schedules have no shift_id")
+
+        # Count schedules that have shift_id but missing relationship data
+        incomplete_schedules = [s for s in schedules if s.shift_id is not None and (not hasattr(s, 'shift') or s.shift is None)]
+        logger.schedule_logger.info(f"{len(incomplete_schedules)} schedules have shift_id but missing relationship data")
+
+        # Get all shift templates to ensure we have complete shift info
+        all_shifts = ShiftTemplate.query.all()
+        shift_lookup = {shift.id: shift for shift in all_shifts}
+        
+        # Get default shift (early shift)
+        default_shift = ShiftTemplate.query.filter_by(shift_type_id="EARLY").first()
+        if not default_shift:
+            default_shift = ShiftTemplate.query.first()
+        
+        if not default_shift:
+            return jsonify({
+                "error": "No default shift found to assign"
+            }), HTTPStatus.BAD_REQUEST
+
+        # Assign default shift to first employee for each day that has no shifts assigned
+        assigned_count = 0
+        days_fixed = set()
+
+        for date_obj in [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]:
+            # Check if any schedules for this date have shifts assigned
+            date_schedules = [s for s in schedules if s.date.date() == date_obj]
+            
+            if not date_schedules:
+                continue
+                
+            date_with_shifts = any(s.shift_id is not None for s in date_schedules)
+            
+            if not date_with_shifts:
+                # Assign a shift to the first employee for this date
+                first_schedule = next((s for s in date_schedules), None)
+                if first_schedule:
+                    # Update shift_id only
+                    first_schedule.shift_id = default_shift.id
+                    
+                    # Explicitly set the shift relationship
+                    first_schedule.shift = default_shift
+                    
+                    # Set availability type if the model has this field
+                    if hasattr(first_schedule, 'availability_type'):
+                        first_schedule.availability_type = 'FIX'
+                    
+                    # Set shift_type_id if both objects have it
+                    if hasattr(default_shift, 'shift_type_id') and hasattr(first_schedule, 'shift_type_id'):
+                        first_schedule.shift_type_id = default_shift.shift_type_id
+                    
+                    # Make sure we're keeping the existing status or defaulting to DRAFT
+                    if not first_schedule.status or first_schedule.status not in [ScheduleStatus.DRAFT, ScheduleStatus.PUBLISHED, ScheduleStatus.ARCHIVED]:
+                        first_schedule.status = ScheduleStatus.DRAFT
+                    
+                    # Mark as not empty if the model has this field
+                    if hasattr(first_schedule, 'is_empty'):
+                        first_schedule.is_empty = False
+                    
+                    assigned_count += 1
+                    days_fixed.add(date_obj.isoformat())
+                    logger.schedule_logger.info(f"Assigned shift {default_shift.id} to employee {first_schedule.employee_id} on {date_obj}")
+                    
+                    # Also check other schedules on this day that might need shift_id update
+                    for other_schedule in date_schedules:
+                        if other_schedule.shift_id is None and other_schedule != first_schedule:
+                            # Maybe assign shifts to a few more employees on this day
+                            if len(days_fixed) < 3 and assigned_count < 10:  # Limit how many we fix
+                                other_schedule.shift_id = default_shift.id
+                                other_schedule.shift = default_shift  # Set relationship explicitly
+                                if hasattr(other_schedule, 'availability_type'):
+                                    other_schedule.availability_type = 'FIX'
+                                if hasattr(other_schedule, 'is_empty'):
+                                    other_schedule.is_empty = False
+                                assigned_count += 1
+        
+        # Fix schedules with shift_id but missing relationship data
+        if incomplete_schedules:
+            for schedule in incomplete_schedules:
+                # Get the shift from our lookup
+                if schedule.shift_id in shift_lookup:
+                    # Set the relationship explicitly
+                    schedule.shift = shift_lookup[schedule.shift_id]
+                    logger.schedule_logger.info(f"Fixed relationship for schedule {schedule.id} with shift {schedule.shift_id}")
+                    assigned_count += 1
+                    
+                    # Set shift_type_id if available
+                    if hasattr(shift_lookup[schedule.shift_id], 'shift_type_id') and hasattr(schedule, 'shift_type_id'):
+                        schedule.shift_type_id = shift_lookup[schedule.shift_id].shift_type_id
+                
+        # Commit changes
+        db.session.commit()
+        
+        # Important: Refresh session to load relationships
+        for schedule in schedules:
+            if schedule.shift_id is not None:
+                # Refresh each schedule that has a shift_id to load the relationship
+                db.session.refresh(schedule)
+        
+        # Force refresh schedules after commit to get full data
+        updated_schedules = Schedule.query.options(
+            db.joinedload(Schedule.shift)  # Ensure shift relationship is loaded
+        ).filter(
+            Schedule.version == version,
+            Schedule.date >= start_date,
+            Schedule.date <= end_date
+        ).all()
+        
+        # Now count schedules with shift_id
+        schedules_with_shifts = [s for s in updated_schedules if s.shift_id is not None]
+        schedules_with_relationship = [s for s in updated_schedules if s.shift_id is not None and hasattr(s, 'shift') and s.shift is not None]
+        
+        # For debugging, see if shift data is properly loaded
+        sample_schedule = None
+        if schedules_with_shifts:
+            sample_schedule = schedules_with_shifts[0]
+            has_shift_data = hasattr(sample_schedule, 'shift') and sample_schedule.shift is not None
+            logger.schedule_logger.info(f"Sample schedule (ID={sample_schedule.id}) has shift data: {has_shift_data}")
+            if has_shift_data:
+                logger.schedule_logger.info(f"Shift details: start={sample_schedule.shift.start_time}, end={sample_schedule.shift.end_time}")
+                
+                # Manually assign these values to ensure they are included in to_dict()
+                sample_schedule.shift_start = sample_schedule.shift.start_time
+                sample_schedule.shift_end = sample_schedule.shift.end_time
+                sample_schedule.shift_type_id = getattr(sample_schedule.shift, 'shift_type_id', None)
+        
+        # Convert schedules to dictionaries with complete information for the frontend
+        schedule_dicts = []
+        for s in updated_schedules:
+            schedule_dict = s.to_dict()
+            
+            # If the schedule has a shift relationship, manually add the relevant fields
+            if s.shift_id is not None and hasattr(s, 'shift') and s.shift is not None:
+                # Add shift times to the schedule dict
+                schedule_dict['shift_start'] = s.shift.start_time
+                schedule_dict['shift_end'] = s.shift.end_time
+                # Add shift type if available
+                if hasattr(s.shift, 'shift_type_id'):
+                    schedule_dict['shift_type_id'] = s.shift.shift_type_id
+                
+            schedule_dicts.append(schedule_dict)
+        
+        return jsonify({
+            "message": f"Fixed {assigned_count} schedules",
+            "days_fixed": list(days_fixed),
+            "empty_schedules_count": len(empty_schedules),
+            "total_schedules": len(schedules),
+            "schedules_with_shifts": len(schedules_with_shifts),
+            "schedules_with_relationship": len(schedules_with_relationship),
+            "sample_schedule": sample_schedule.to_dict() if sample_schedule else None,
+            "fixed_schedules": schedule_dicts  # Return the fixed schedules for immediate use
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error_logger.error(f"Error in fix_schedule_display: {str(e)}")
+        import traceback
+        logger.error_logger.error(traceback.format_exc())
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR

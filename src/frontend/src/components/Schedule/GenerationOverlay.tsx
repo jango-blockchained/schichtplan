@@ -114,10 +114,13 @@ export const GenerationOverlay: React.FC<GenerationOverlayProps> = ({
     if (!showGenerationOverlay) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-md w-full mx-4">
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="relative bg-card text-card-foreground rounded-lg p-6 max-w-md w-full mx-4 
+                        before:content-[''] before:absolute before:-inset-1 before:rounded-lg before:bg-gradient-to-tr before:from-purple-600 before:via-pink-500 before:to-indigo-600 before:opacity-40 before:blur-xl before:animate-pulse before:-z-10 
+                        after:content-[''] after:absolute after:-inset-1.5 after:rounded-lg after:bg-gradient-to-bl after:from-violet-500 after:via-fuchsia-500 after:to-blue-600 after:opacity-30 after:blur-2xl after:animate-pulse after:[animation-delay:'-0.5s'] after:-z-20">
+              <div className="relative z-10">
                 <div className="text-center mb-4">
-                    <h2 className="text-xl font-semibold dark:text-white">
+                    <h2 className="text-xl font-semibold">
                         {hasErrors ? (
                             <span className="text-red-500 flex items-center justify-center">
                                 <AlertCircle className="h-5 w-5 mr-2" />
@@ -131,7 +134,7 @@ export const GenerationOverlay: React.FC<GenerationOverlayProps> = ({
 
                 <div className="py-4">
                     {!hasErrors ? (
-                        <div className="text-center mb-4 dark:text-gray-200">
+                        <div className="text-center mb-4">
                             Bitte warten Sie, während der Schichtplan generiert wird...
                         </div>
                     ) : (
@@ -147,17 +150,17 @@ export const GenerationOverlay: React.FC<GenerationOverlayProps> = ({
                                     {step.status === "completed" ? (
                                         <CheckCircle className="h-6 w-6 text-green-500" />
                                     ) : step.status === "in-progress" ? (
-                                        <Circle className="h-6 w-6 text-blue-500 animate-pulse" />
+                                        <Circle className="h-6 w-6 text-primary animate-pulse" />
                                     ) : step.status === "error" ? (
                                         <XCircle className="h-6 w-6 text-red-500" />
                                     ) : (
-                                        <Circle className="h-6 w-6 text-gray-300 dark:text-gray-500" />
+                                        <Circle className="h-6 w-6 text-muted-foreground" />
                                     )}
                                 </div>
                                 <div className="flex-grow">
-                                    <div className="font-medium dark:text-white">{step.title}</div>
+                                    <div className="font-medium">{step.title}</div>
                                     {step.message && (
-                                        <div className={`text-sm ${step.status === 'error' ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'}`}>
+                                        <div className={`text-sm ${step.status === 'error' ? 'text-red-500' : 'text-muted-foreground'}`}>
                                             {step.message}
                                         </div>
                                     )}
@@ -168,9 +171,9 @@ export const GenerationOverlay: React.FC<GenerationOverlayProps> = ({
 
                     {/* Show error details if there are any */}
                     {hasErrors && errorLogs.length > 0 && (
-                        <div className="mt-6 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-                            <h4 className="font-medium text-red-700 dark:text-red-400 mb-2">Fehlerdetails:</h4>
-                            <ul className="space-y-2 text-sm text-red-700 dark:text-red-400">
+                        <div className="mt-6 p-3 border rounded-md">
+                            <h4 className="font-medium text-destructive mb-2">Fehlerdetails:</h4>
+                            <ul className="space-y-2 text-sm text-destructive-foreground">
                                 {errorLogs.map((log, index) => (
                                     <li key={index}>
                                         <div className="font-medium">{log.message}</div>
@@ -181,7 +184,7 @@ export const GenerationOverlay: React.FC<GenerationOverlayProps> = ({
 
                             {/* Show specific help for known errors */}
                             {hasDurationError && (
-                                <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md text-blue-700 dark:text-blue-400 text-sm">
+                                <div className="mt-3 p-2 border rounded-md text-sm">
                                     <strong>Tipp:</strong> Es scheint ein Problem mit der Schichtdauer zu geben. Dies kann auftreten, wenn Schichten keine gültige Dauer haben.
 
                                     <p className="mt-1">
@@ -192,7 +195,7 @@ export const GenerationOverlay: React.FC<GenerationOverlayProps> = ({
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        className="w-full mt-2 bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-800/50 border-blue-300 dark:border-blue-700 flex items-center justify-center"
+                                        className="w-full mt-2 flex items-center justify-center"
                                         onClick={handleFixShiftDurations}
                                     >
                                         <RefreshCw className="h-4 w-4 mr-2" />
@@ -211,7 +214,7 @@ export const GenerationOverlay: React.FC<GenerationOverlayProps> = ({
                                 generationSteps.length) *
                             100
                         }
-                        className={`mt-6 ${hasErrors ? 'bg-red-100' : ''}`}
+                        className="mt-6"
                     />
 
                     {/* Force cancel button - only show if we've been processing for a while or there's an error */}
@@ -227,6 +230,7 @@ export const GenerationOverlay: React.FC<GenerationOverlayProps> = ({
                         </div>
                     )}
                 </div>
+              </div>
             </div>
         </div>
     );

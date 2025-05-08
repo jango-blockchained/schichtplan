@@ -39,6 +39,7 @@ export interface ScheduleResponse {
     total_schedules?: number;
     filtered_schedules?: number;
     logs?: string[];
+    diagnostic_logs?: string[];
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -50,7 +51,7 @@ const api = axios.create({
         'Accept': 'application/json'
     },
     withCredentials: true,
-    timeout: 10000,
+    timeout: 30000,
     validateStatus: status => status >= 200 && status < 300
 });
 
@@ -321,7 +322,8 @@ export const generateSchedule = async (
     startDate: string,
     endDate: string,
     createEmptySchedules: boolean = false,
-    version: number
+    version: number,
+    enableDiagnostics: boolean = false
 ): Promise<ScheduleResponse> => {
     try {
         if (!version) {
@@ -333,6 +335,7 @@ export const generateSchedule = async (
             endDate,
             createEmptySchedules,
             version,
+            enableDiagnostics,
             timestamp: new Date().toISOString()
         });
 
@@ -436,6 +439,7 @@ export const generateSchedule = async (
             end_date: endDate,
             create_empty_schedules: createEmptySchedules,
             version: version,
+            enable_diagnostics: enableDiagnostics
         });
 
         const response = await api.post<ScheduleResponse>('/schedules/generate', {
@@ -443,6 +447,7 @@ export const generateSchedule = async (
             end_date: endDate,
             create_empty_schedules: createEmptySchedules,
             version: version,
+            enable_diagnostics: enableDiagnostics
         });
 
         // Log generation success details
@@ -452,7 +457,8 @@ export const generateSchedule = async (
             'Empty schedules': response.data.schedules?.filter(s => s.shift_id === null).length || 0,
             'With shift_type': response.data.schedules?.filter(s => s.availability_type).length || 0,
             'Unique employee count': new Set(response.data.schedules?.map(s => s.employee_id)).size,
-            'Error count': response.data.errors?.length || 0
+            'Error count': response.data.errors?.length || 0,
+            'Diagnostic logs': response.data.diagnostic_logs?.length || 0
         });
 
         if (response.data.errors && response.data.errors.length > 0) {
@@ -594,33 +600,24 @@ export const updateEmployeeAvailability = async (employeeId: number, availabilit
     return response.data;
 };
 
-export const updateSchedule = async (scheduleId: number, update: ScheduleUpdate): Promise<Schedule> => {
+export const updateSchedule = async (
+    scheduleId: number,
+    updates: ScheduleUpdate
+): Promise<Schedule> => {
     try {
-        console.log('🟩 updateSchedule API call:', {
-            scheduleId,
-            update,
-            shift_id_type: update.shift_id === null ? 'null' : (update.shift_id === undefined ? 'undefined' : typeof update.shift_id)
-        });
-
-        // Use the new /schedules/update/ endpoint with POST method
-        const url = `/schedules/update/${scheduleId}`;
-        console.log('🔴 Making API request to:', API_BASE_URL + url);
-
-        const response = await api.post<Schedule>(url, update);
-        console.log('🔴 updateSchedule API response:', response.data);
-
+        // Log the update operation for debugging
+        console.log('🔄 Updating schedule:', { scheduleId, updates });
+        
+        // If we have a shift_id but no shift times, the backend will handle getting
+        // these from the shift template relationship
+        const response = await api.put(`/schedules/${scheduleId}`, updates);
+        
+        console.log('🔄 Schedule updated:', response.data);
+        
+        // The response data should contain the complete schedule with shift data
         return response.data;
     } catch (error) {
-        console.error('🔴 updateSchedule API error:', error);
-        // Log more details about the error
-        if (error && typeof error === 'object' && 'response' in error) {
-            console.error('🔴 API error details:', {
-                status: (error as any).response?.status,
-                statusText: (error as any).response?.statusText,
-                data: (error as any).response?.data
-            });
-        }
-
+        console.error('Error updating schedule:', error);
         if (error instanceof Error) {
             throw new Error(`Failed to update schedule: ${error.message}`);
         }
@@ -840,7 +837,7 @@ export const restoreDatabase = async (file: File): Promise<void> => {
 
 export const clearLogs = async (): Promise<void> => {
     try {
-        await api.post('/api/logs/clear');
+        await api.post('/logs/clear');
     } catch (error) {
         if (error instanceof Error) {
             throw new Error(`Failed to clear logs: ${error.message}`);
@@ -878,7 +875,7 @@ export interface LogContent {
 
 export const getLogs = async (): Promise<LogFile[]> => {
     try {
-        const response = await api.get<{ logs: LogFile[] }>('/api/logs/', {
+        const response = await api.get<{ logs: LogFile[] }>('/logs/', {
             params: {
                 type: 'all',
                 days: 7
@@ -895,7 +892,7 @@ export const getLogs = async (): Promise<LogFile[]> => {
 
 export const getLogContent = async (filename: string): Promise<LogContent> => {
     try {
-        const response = await api.get<LogContent>(`/api/logs/${filename}`);
+        const response = await api.get<LogContent>(`/logs/${filename}`);
         return response.data;
     } catch (error) {
         if (error instanceof Error) {
@@ -907,7 +904,7 @@ export const getLogContent = async (filename: string): Promise<LogContent> => {
 
 export const deleteLog = async (filename: string): Promise<void> => {
     try {
-        await api.delete(`/api/logs/${filename}`);
+        await api.delete(`/logs/${filename}`);
     } catch (error) {
         if (error instanceof Error) {
             throw new Error(`Failed to delete log: ${error.message}`);
@@ -1190,16 +1187,46 @@ export interface CreateScheduleRequest {
     availability_type?: 'AVL' | 'FIX' | 'PRF' | 'UNV';
 }
 
-export const createSchedule = async (data: CreateScheduleRequest): Promise<Schedule> => {
+export const createSchedule = async (data: {
+    employee_id: number;
+    date: string;
+    shift_id: number | null;
+    version: number;
+}): Promise<Schedule> => {
     try {
-        console.log('Creating new schedule with data:', data);
-        const response = await api.post<Schedule>('/schedules/', data);
-        console.log('Schedule created successfully:', response.data);
+        console.log('Creating schedule:', data);
+        const response = await api.post('/schedules', data);
+        console.log('Schedule created:', response.data);
         return response.data;
     } catch (error) {
-        console.error('Failed to create schedule:', error);
+        console.error('Error creating schedule:', error);
         if (error instanceof Error) {
             throw new Error(`Failed to create schedule: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export const fixScheduleDisplay = async (
+    startDate: string,
+    endDate: string,
+    version: number
+): Promise<{ message: string; days_fixed: string[]; empty_schedules_count: number; total_schedules: number }> => {
+    try {
+        console.log('🛠️ Fixing schedule display for:', { startDate, endDate, version });
+        
+        const response = await api.post('/schedules/fix-display', {
+            start_date: startDate,
+            end_date: endDate,
+            version,
+        });
+        
+        console.log('🛠️ Fixed schedule display:', response.data);
+        return response.data;
+    } catch (error) {
+        console.error('🛠️ Error fixing schedule display:', error);
+        if (error instanceof Error) {
+            throw new Error(`Failed to fix schedule display: ${error.message}`);
         }
         throw error;
     }

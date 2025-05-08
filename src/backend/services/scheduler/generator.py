@@ -558,112 +558,6 @@ class ScheduleGenerator:
         self.diagnostic_logger.debug(f"Shift duration validation completed. {len(missing_durations)} shifts possibly missing duration.")
         return not missing_durations # Return True if validation passes
 
-    def _process_coverage(self, current_date: date) -> Dict[int, int]:
-        """
-        Process coverage records to determine staffing needs per shift for a date.
-        Returns a dictionary mapping shift_id to the number of employees needed.
-        """
-        self.diagnostic_logger.debug(f"Processing coverage for date: {current_date}")
-        shift_needs: Dict[int, int] = {}
-        applicable_coverage_found = False
-
-        self.diagnostic_logger.debug(f"Total available coverage records: {len(self.resources.coverage)}")
-        self.process_tracker.log_step_data("Available Coverage Records", len(self.resources.coverage))
-
-        # Find coverage records for this date or day of week
-        for coverage in self.resources.coverage:
-            cov_id = getattr(coverage, 'id', 'N/A')
-            self.diagnostic_logger.debug(f"Checking coverage record {cov_id}")
-
-            # Check if this coverage applies to this date
-            if self._coverage_applies_to_date(coverage, current_date):
-                applicable_coverage_found = True
-                employees_needed = getattr(coverage, "min_employees", 0)
-                # Fallback for older naming?
-                if not employees_needed and hasattr(coverage, "employees_needed"):
-                     employees_needed = coverage.employees_needed
-
-                # Get the coverage start and end times for reference
-                coverage_start = getattr(coverage, "start_time", None)
-                coverage_end = getattr(coverage, "end_time", None)
-
-                # Check if this is a valid coverage record with needed information
-                if employees_needed > 0 and coverage_start and coverage_end:
-                    # Instead of using shift_id, we'll use a generic key
-                    # We'll create a "virtual" shift need using the coverage ID
-                    # This allows us to track staffing needs without requiring shift_id in coverage
-                    shift_needs[cov_id] = employees_needed
-                    self.diagnostic_logger.info(
-                        f"Applicable coverage {cov_id} from {coverage_start} to {coverage_end}: needs {employees_needed} employees."
-                    )
-                else:
-                    self.diagnostic_logger.warning(
-                        f"Applicable coverage record {cov_id} has invalid configuration: "
-                        f"min_employees={employees_needed}, start={coverage_start}, end={coverage_end}"
-                    )
-
-        if not applicable_coverage_found:
-             self.diagnostic_logger.warning(f"No applicable coverage records found for date {current_date}")
-        else:
-            self.diagnostic_logger.info(f"Final shift needs for {current_date}: {shift_needs}")
-
-        self.process_tracker.log_step_data("Shift Needs Determined", shift_needs)
-        return shift_needs
-
-
-    def _coverage_applies_to_date(self, coverage, check_date: date) -> bool:
-        """Check if a coverage record applies to the given date"""
-        cov_id = getattr(coverage, 'id', 'N/A')
-        self.diagnostic_logger.debug(f"Checking if coverage {cov_id} applies to {check_date}")
-
-        # Check for specific date first (higher priority)
-        if hasattr(coverage, "date") and coverage.date:
-            coverage_date = coverage.date
-            if isinstance(coverage_date, str):
-                try:
-                    coverage_date = date.fromisoformat(coverage_date.split('T')[0]) # Handle datetime strings
-                except (ValueError, TypeError):
-                    self.diagnostic_logger.warning(f"Coverage {cov_id} has invalid date string: {coverage.date}")
-                    return False
-            elif not isinstance(coverage_date, date):
-                 self.diagnostic_logger.warning(f"Coverage {cov_id} has unexpected date type: {type(coverage.date)}")
-                 return False
-
-            applies = (coverage_date == check_date)
-            self.diagnostic_logger.debug(f"Coverage {cov_id} has specific date {coverage_date}. Match with {check_date}: {applies}")
-            return applies
-
-        # Check for day of week if no specific date matches
-        day_field = None
-        if hasattr(coverage, "day_index"):
-            day_field = coverage.day_index
-        elif hasattr(coverage, "day_of_week"):
-            day_field = coverage.day_of_week
-
-        if day_field is not None:
-            try:
-                # Ensure day_field is an integer
-                coverage_day_index = int(day_field)
-
-                # System uses Monday=0 to Sunday=6 for weekday()
-                check_weekday = check_date.weekday() # Monday is 0, Sunday is 6
-
-                # FIXED: Both coverage model and Python's weekday() use the same convention
-                # (0=Monday, 6=Sunday) so no conversion is needed
-                applies = (check_weekday == coverage_day_index)
-
-                self.diagnostic_logger.debug(
-                    f"Coverage {cov_id} day_index={coverage_day_index}. Check date {check_date} python_weekday={check_weekday}. Match: {applies}"
-                )
-                return applies
-            except (ValueError, TypeError):
-                 self.diagnostic_logger.warning(f"Coverage {cov_id} has invalid day_index/day_of_week: {day_field}")
-                 return False
-
-
-        self.diagnostic_logger.debug(f"Coverage {cov_id} has no specific date or applicable day of week. No match.")
-        return False
-
     def _create_date_shifts(self, date_to_create: date) -> List[Dict]:
         """Create shift instances for a specific date based on shift templates"""
         date_shifts = []
@@ -749,146 +643,68 @@ class ScheduleGenerator:
 
 
     def _generate_assignments_for_date(self, current_date: date) -> List[Dict]:
-        """Generate assignments for a specific date"""
+        """
+        Generates shift assignments for a single date.
+        This method will now:
+        1. Create potential shift instances for the day.
+        2. Delegate to DistributionManager to assign employees to these shifts
+           based on interval-based coverage needs (to be implemented in DistributionManager).
+        """
         date_str = current_date.isoformat()
-        self.diagnostic_logger.info(f"--- Generating assignments for {date_str} ---")
-        # Use ProcessTracker to manage sub-steps within this daily generation
-        self.process_tracker.start_step(f"Process Daily Assignments for {date_str}")
-        assignments = []
+        self.diagnostic_logger.debug(f"--- Generating assignments for date: {date_str} ---")
+        self.process_tracker.log_event(f"Starting assignment generation for {date_str}")
+
+        assignments_for_date: List[Dict] = []
+
         try:
-            # Sub-step: Process Coverage
-            self.process_tracker.start_step(f"Process Coverage for {date_str}")
-            shift_needs = self._process_coverage(current_date)
-            self.process_tracker.end_step({"shift_needs": shift_needs})
-            
-            self.diagnostic_logger.info(f"DEBUG: Coverage needs result: {shift_needs}")
-            
-            if not shift_needs:
-                self.logger.warning(f"No coverage requirements found for {date_str}, cannot generate assignments.")
-                return [] # Return early if no staff needed
-
-
-            # Sub-step: Create Shifts
+            # Sub-step: Create Shift Instances
             self.process_tracker.start_step(f"Create Shift Instances for {date_str}")
-            date_shifts = self._create_date_shifts(current_date) # These are shift *instances* (dicts)
-            self.process_tracker.end_step({"shifts_created": len(date_shifts)})
+            # These are shift *instances* (dicts), potential shifts for the day
+            potential_daily_shifts = self._create_date_shifts(current_date)
+            self.process_tracker.end_step({"shifts_created": len(potential_daily_shifts)})
             
-            self.diagnostic_logger.info(f"DEBUG: Created shift instances: {len(date_shifts)}")
-            if date_shifts:
-                self.diagnostic_logger.info(f"DEBUG: First shift instance: {date_shifts[0]}")
+            self.diagnostic_logger.info(f"DEBUG: Created {len(potential_daily_shifts)} potential shift instances for {date_str}")
+            if potential_daily_shifts:
+                self.diagnostic_logger.info(f"DEBUG: First potential shift instance: {potential_daily_shifts[0]}")
             
-            if not date_shifts:
+            if not potential_daily_shifts:
                 self.logger.warning(f"No applicable shift templates found for {date_str}, cannot generate assignments.")
-                return [] # Return early if no shifts are defined/active
-
-
-            self.logger.info(f"Needs for {date_str}: {shift_needs}. Available shift instances: {len(date_shifts)}")
-            self.diagnostic_logger.debug(f"Shift Instances for {date_str}: {date_shifts}") # Log the actual instances
-
-            # REMOVED CONSTRAINT: No longer filtering shifts to only those with exact ID matches in coverage
-            # Instead, use all active shifts for the day
-            needed_shift_instances = date_shifts
-            
-            # If we have no shifts, return early
-            if not needed_shift_instances:
-                self.logger.warning(f"No active shifts for {date_str}. Cannot generate assignments.")
+                self.process_tracker.log_warning(f"No shift templates for {date_str}", log_to_diag=True)
+                # Ensure the daily processing step is properly closed if returning early
+                self.process_tracker.end_step({"status": "no_shift_templates"})
                 return []
 
-            self.diagnostic_logger.info(f"Using {len(needed_shift_instances)} shift instances for {date_str}")
-            self.process_tracker.log_step_data("Shift Instances Used", needed_shift_instances)
-
-
-            # Sub-step: Distribute Employees
+            self.logger.info(f"Proceeding with {len(potential_daily_shifts)} potential shifts for {date_str} to DistributionManager.")
+            self.process_tracker.log_step_data("Potential Daily Shifts for Distribution", len(potential_daily_shifts))
+            
+            # Sub-step: Distribute Employees (call to DistributionManager)
             self.process_tracker.start_step(f"Distribute Employees for {date_str}")
+            # Log the input to this step
+            self.process_tracker.log_step_data("Shift Instances for Distribution", potential_daily_shifts)
             
             self.diagnostic_logger.info(f"DEBUG: Before distribution call, parameters:")
-            self.diagnostic_logger.info(f"DEBUG: current_date: {current_date}")
-            self.diagnostic_logger.info(f"DEBUG: needed_shift_instances count: {len(needed_shift_instances)}")
-            self.diagnostic_logger.info(f"DEBUG: shift_needs: {shift_needs}")
-            
-            self.diagnostic_logger.info(f"DEBUG: Calling distribution_manager.assign_employees_with_distribution")
-            assignments = self.distribution_manager.assign_employees_with_distribution(
-                 current_date, needed_shift_instances, shift_needs
+            self.diagnostic_logger.info(f"  current_date: {current_date}")
+            self.diagnostic_logger.info(f"  date_shifts (potential_daily_shifts): {len(potential_daily_shifts)}")
+            self.diagnostic_logger.info(f"  constraint_checker: {self.constraint_checker is not None}")
+            self.diagnostic_logger.info(f"  availability_checker: {self.availability_checker is not None}")
+            self.diagnostic_logger.info(f"  resources: {self.resources is not None}")
+
+            # Call to DistributionManager - this will be the new core logic
+            assignments_for_date = self.distribution_manager.generate_assignments_for_day(
+                current_date=current_date,
+                potential_shifts=potential_daily_shifts,
+                resources=self.resources, # For get_required_staffing_for_interval
+                constraint_checker=self.constraint_checker,
+                availability_checker=self.availability_checker
             )
-            self.diagnostic_logger.info(f"DEBUG: Distribution call returned {len(assignments)} assignments")
+
+            if assignments_for_date:
+                self.logger.info(f"DistributionManager returned {len(assignments_for_date)} assignments for {date_str}")
+                self.diagnostic_logger.debug(f"Assignments from DM for {date_str}: {assignments_for_date}")
+            else:
+                self.logger.warning(f"DistributionManager returned no assignments for {date_str}")
             
-            # Note: assign_employees_with_distribution should return ScheduleAssignment objects or compatible dicts
-            self.process_tracker.end_step({"assignments_generated": len(assignments)})
-
-
-            if not assignments:
-                self.logger.warning(f"DistributionManager failed to generate any assignments for {date_str}")
-                # No need to return [], assignment list is empty
-
-            self.logger.info(f"Generated {len(assignments)} assignments for {date_str}")
-            self.process_tracker.log_step_data("Generated Assignments", assignments)
-
-
-            # Add assignments to main schedule container and daily cache
-            for assignment in assignments:
-                 # Ensure assignment is in a consistent format (e.g., ScheduleAssignment object)
-                 # If distribution_manager returns dicts, convert them or ensure consistency
-                 if isinstance(assignment, dict):
-                      # Minimal check, assumes dict structure matches ScheduleAssignment needs
-                      self.schedule.add_assignment(assignment)
-                 elif isinstance(assignment, ScheduleAssignment):
-                      self.schedule.add_assignment(assignment)
-                 else:
-                      self.logger.error(f"Unexpected assignment type from DistributionManager: {type(assignment)}")
-                      continue # Skip invalid assignment type
-
-                 if current_date not in self.schedule_by_date:
-                    self.schedule_by_date[current_date] = []
-                 self.schedule_by_date[current_date].append(assignment)
-                 self.diagnostic_logger.debug(f"Added assignment to schedule & daily cache: {assignment}")
-
-
-            # Sub-step: Validate Assignments (using constraints checker)
-            self.process_tracker.start_step(f"Validate Assignments for {date_str}")
-            valid_count = 0
-            invalid_count = 0
-            for assignment in assignments:
-                employee_id = getattr(assignment, 'employee_id', assignment.get('employee_id'))
-                shift_id = getattr(assignment, 'shift_id', assignment.get('shift_id'))
-                shift_template = getattr(assignment, 'shift_template', assignment.get('shift_template')) # Need template for constraints
-
-
-                if employee_id and shift_id and shift_template:
-                    employee = self.resources.get_employee(employee_id)
-                    # We need the shift *template* for constraint checking, not just the ID
-                    shift = shift_template # Assuming shift_template is the actual template object
-
-                    if employee and shift:
-                        self.diagnostic_logger.debug(f"Validating assignment: Emp {employee_id}, Shift {shift_id}, Date {date_str}")
-                        # Pass schedule_by_date for context-aware constraints
-                        violations = self.constraint_checker.check_all_constraints(employee, current_date, shift, self.schedule_by_date)
-                        if not violations:
-                            valid_count += 1
-                            self.diagnostic_logger.debug(f"Assignment VALID for Emp {employee_id}")
-                        else:
-                            invalid_count += 1
-                            self.logger.warning(
-                                f"Assignment for employee {employee_id} on {date_str} (Shift {shift_id}) "
-                                f"has constraint violations: {violations}"
-                            )
-                            self.diagnostic_logger.warning(f"Assignment INVALID for Emp {employee_id}: {violations}")
-                    else:
-                        self.logger.warning(f"Could not find Employee ({employee_id}) or Shift Template ({shift_id}) for validation.")
-                else:
-                     self.logger.warning(f"Skipping validation for incomplete assignment data: {assignment}")
-
-
-            self.logger.info(
-                f"Assignment validation for {date_str}: "
-                f"{valid_count} valid, {invalid_count} invalid"
-            )
-            self.process_tracker.end_step({
-                "Valid Assignments": valid_count,
-                "Invalid Assignments": invalid_count
-            })
-
-
-            return assignments # Return the list of generated assignments for this date
+            self.process_tracker.end_step({"assignments_created": len(assignments_for_date)})
 
         except Exception as e:
             error_msg = f"Error generating assignments for date {date_str}: {str(e)}"
@@ -898,7 +714,7 @@ class ScheduleGenerator:
         finally:
             # Ensure the outer step for the date ends
             if self.process_tracker.current_step == f"Process Daily Assignments for {date_str}":
-                self.process_tracker.end_step({"assignments_count": len(assignments)})
+                self.process_tracker.end_step({"assignments_count": len(assignments_for_date)})
 
 
     def _create_empty_schedule_entries(self, current_date: date):

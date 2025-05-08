@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
 import { useQuery } from '@tanstack/react-query';
-import { getSettings, getEmployees } from '@/services/api';
+import { getSettings, getEmployees, createSchedule, getShifts, Shift } from '@/services/api';
 import { Edit2, Trash2, Plus, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ShiftEditModal } from './ShiftEditModal';
@@ -23,6 +23,9 @@ import {
 } from '@/components/ui/table';
 import { EmployeeStatistics } from './Schedule/EmployeeStatistics';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface ScheduleTableProps {
     schedules: Schedule[];
@@ -61,20 +64,62 @@ interface TimeSlot {
     end: string;
 }
 
+// Helper function to determine if a schedule is empty (no shift assigned)
 const isEmptySchedule = (schedule: Schedule | undefined) => {
-    return !schedule || !schedule.shift_id;
+    return !schedule || schedule.shift_id === null;
 };
 
 // Add this component above the ScheduleCell component
 interface TimeSlotDisplayProps {
-    startTime: string;
-    endTime: string;
+    startTime?: string | null;
+    endTime?: string | null;
     shiftType?: string;
     settings?: any;
     schedule?: Schedule;
 }
 
 const TimeSlotDisplay = ({ startTime, endTime, shiftType, settings, schedule }: TimeSlotDisplayProps) => {
+    // Handle missing time data
+    const displayStartTime = startTime || '00:00';
+    const displayEndTime = endTime || '00:00';
+    
+    // Use this useEffect hook to debug shifts with ID but no time data
+    useEffect(() => {
+        if (schedule?.shift_id && (displayStartTime === '00:00' && displayEndTime === '00:00')) {
+            console.log('TimeSlotDisplay: Found shift with ID but no time data:', {
+                scheduleId: schedule.id,
+                shiftId: schedule.shift_id,
+                date: schedule.date
+            });
+        }
+    }, [schedule, displayStartTime, displayEndTime]);
+    
+    // Display placeholder but with more detail if ID is available
+    if ((displayStartTime === '00:00' && displayEndTime === '00:00') && schedule?.shift_id) {
+        // Try to get shift type name from the schedule object
+        const shiftTypeName = schedule.shift_type_name || (
+            schedule.shift_type_id ? 
+                shiftType === 'EARLY' ? 'Früh' : 
+                shiftType === 'MIDDLE' ? 'Mitte' : 
+                shiftType === 'LATE' ? 'Spät' : 
+                'Schicht' 
+            : 'Schicht'
+        );
+        
+        return (
+            <div className="flex flex-col items-center">
+                <div className="px-4 py-1 rounded-full text-sm font-medium text-white bg-slate-500 w-fit">
+                    {shiftTypeName} #{schedule.shift_id}
+                </div>
+                {shiftType && (
+                    <div className="text-xs mt-1 font-medium text-slate-500">
+                        {shiftTypeName}
+                    </div>
+                )}
+            </div>
+        );
+    }
+    
     // This function determines the background color of the time slot pill
     // Based on shift type (EARLY, MIDDLE, LATE)
     const getBackgroundColor = () => {
@@ -93,7 +138,7 @@ const TimeSlotDisplay = ({ startTime, endTime, shiftType, settings, schedule }: 
         }
 
         // Fallback to using the time slot to determine the shift type
-        const timeSlot = `${startTime}-${endTime}`;
+        const timeSlot = `${displayStartTime}-${displayEndTime}`;
         if (timeSlot === '09:00-14:00') return '#3b82f6'; // Early shift (blue)
         if (timeSlot === '15:00-20:00') return '#f59e0b'; // Late shift (amber)
         if (timeSlot === '12:00-16:00') return '#22c55e'; // Mid shift (green)
@@ -132,7 +177,7 @@ const TimeSlotDisplay = ({ startTime, endTime, shiftType, settings, schedule }: 
                 className="px-4 py-1 rounded-full text-sm font-medium text-white w-fit"
                 style={{ backgroundColor: bgColor }}
             >
-                {startTime} - {endTime}
+                {displayStartTime} - {displayEndTime}
             </div>
             {shiftTypeDisplay && (
                 <div className="text-xs mt-1 font-medium" style={{ color: bgColor }}>
@@ -143,6 +188,7 @@ const TimeSlotDisplay = ({ startTime, endTime, shiftType, settings, schedule }: 
     );
 };
 
+// ScheduleCell component with improved shift data handling
 const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence, employeeId, date, currentVersion }: {
     schedule: Schedule | undefined;
     onDrop: (scheduleId: number, newEmployeeId: number, newDate: Date, newShiftId: number) => Promise<void>;
@@ -156,280 +202,111 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence, employeeId, date
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [showActions, setShowActions] = useState(false);
 
-    // Add debug logging to help understand when cells are empty
+    // Log debug info for problematic schedules
     useEffect(() => {
-        if (schedule && schedule.shift_id !== null && schedule.shift_start) {
-            console.log(`ScheduleCell: Valid shift found for date ${schedule.date} - ${schedule.shift_start} to ${schedule.shift_end}`);
+        if (schedule?.shift_id && (!schedule.shift_start || !schedule.shift_end)) {
+            console.log('ScheduleCell has schedule with shift_id but no times:', {
+                id: schedule.id,
+                shift_id: schedule.shift_id, 
+                employee_id: schedule.employee_id,
+                date: schedule.date,
+                shift_start: schedule.shift_start,
+                shift_end: schedule.shift_end
+            });
         }
     }, [schedule]);
 
-    const [{ isDragging }, drag] = useDrag({
-        type: 'SCHEDULE',
-        item: schedule ? {
-            type: 'SCHEDULE',
-            scheduleId: schedule.id,
-            employeeId: schedule.employee_id,
-            shiftId: schedule.shift_id || null,
-            date: schedule.date,
-            shift_type_id: schedule.shift_type_id
-        } : undefined,
-        canDrag: !!schedule && !hasAbsence,
-        collect: (monitor) => ({
-            isDragging: monitor.isDragging()
-        })
-    });
-
-    const [{ isOver }, drop] = useDrop({
-        accept: 'SCHEDULE',
-        drop: (item: DragItem) => {
-            if (!schedule) return;
-            onDrop(
-                item.scheduleId,
-                schedule.employee_id,
-                new Date(schedule.date),
-                item.shiftId || 0
-            );
-        },
-        collect: (monitor) => ({
-            isOver: monitor.isOver()
-        }),
-        canDrop: () => !!schedule && !hasAbsence
-    });
-
-    // Fetch settings to get availability type colors
-    const { data: settings } = useQuery({
-        queryKey: ['settings'],
-        queryFn: getSettings,
-    });
-
-    const handleDelete = async () => {
-        if (!schedule) return;
-        try {
-            console.log('🗑️ Deleting shift for schedule:', schedule.id);
-            // Set shift_id to null explicitly instead of undefined
-            await onUpdate(schedule.id, { shift_id: null });
-            console.log('🗑️ Delete operation completed successfully');
-        } catch (error) {
-            console.error('🗑️ Error deleting shift:', error);
-        }
-    };
-
-    const handleAdd = () => {
-        if (hasAbsence) return; // Prevent adding if there's an absence
-        setIsEditModalOpen(true);
-    };
-
-    const handleAddNewSchedule = async (scheduleData: any) => {
-        try {
-            // The onUpdate function expects a scheduleId and updates
-            // For new schedules, we'll use 0 as the ID and let the backend create a new record
-            const scheduleId = 0; // This signals to the backend that this is a new schedule
-            await onUpdate(scheduleId, {
-                employee_id: scheduleData.employee_id,
-                date: scheduleData.date,
-                shift_id: scheduleData.shift_id,
-                version: scheduleData.version
-            });
-        } catch (error) {
-            console.error('Error adding new schedule:', error);
-            throw error;
-        }
-    };
-
-    if (!schedule || isEmptySchedule(schedule)) {
+    // Check if this is an empty schedule (no shift assigned)
+    if (isEmptySchedule(schedule)) {
+        // Render empty cell with + button on hover
         return (
-            <>
-                <div
-                    ref={(node) => drag(drop(node))}
-                    style={{ width: '100%', height: '100%' }}
-                    className={cn(
-                        'p-2 rounded-md border border-dashed border-gray-300 transition-all duration-200',
-                        'flex flex-col items-center justify-center relative group',
-                        isDragging && 'opacity-50 bg-primary/10',
-                        isOver && 'ring-2 ring-primary/50',
-                        'hover:bg-primary/5 hover:border-primary/30',
-                        hasAbsence && 'opacity-0' // Hide completely if absence
-                    )}
-                    onMouseEnter={() => setShowActions(true)}
-                    onMouseLeave={() => setShowActions(false)}
-                >
-                    <div className="text-sm text-muted-foreground">
-                        {hasAbsence ? 'Absence' : 'No shift assigned'}
-                    </div>
-                    
-                    {/* Add Button - only show on hover and when no absence */}
-                    {!hasAbsence && (
+            <div
+                className="relative h-full min-h-[80px] border border-gray-200 p-2"
+                onMouseEnter={() => setShowActions(true)}
+                onMouseLeave={() => setShowActions(false)}
+            >
+                {showActions && (
+                    <div className="absolute inset-0 flex items-center justify-center">
                         <Button
-                            size="icon"
+                            size="sm"
                             variant="ghost"
-                            className="absolute inset-0 m-auto h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity bg-primary/10 hover:bg-primary/20"
                             onClick={() => setIsAddModalOpen(true)}
-                            title="Neuen Eintrag hinzufügen"
+                            aria-label="Add schedule"
                         >
-                            <Plus className="h-4 w-4" />
+                            <Plus className="h-5 w-5" />
                         </Button>
-                    )}
-                </div>
+                    </div>
+                )}
 
-                {/* Add Schedule Dialog for empty cells */}
-                {isAddModalOpen && !hasAbsence && (
+                {isAddModalOpen && (
                     <AddScheduleDialog
                         isOpen={isAddModalOpen}
                         onClose={() => setIsAddModalOpen(false)}
-                        onAddSchedule={handleAddNewSchedule}
+                        onAddSchedule={async (scheduleData) => {
+                            try {
+                                // If we have an existing schedule, update it
+                                if (schedule?.id) {
+                                    await onUpdate(schedule.id, { shift_id: scheduleData.shift_id });
+                                } else {
+                                    // Otherwise, we need to create a new one
+                                    console.log("Creating new schedule");
+                                    await createSchedule({
+                                        employee_id: scheduleData.employee_id,
+                                        date: scheduleData.date,
+                                        shift_id: scheduleData.shift_id,
+                                        version: scheduleData.version,
+                                    });
+                                }
+                            } catch (error) {
+                                console.error("Failed to create/update schedule", error);
+                            }
+                            setIsAddModalOpen(false);
+                        }}
                         version={currentVersion || 1}
                         defaultDate={date}
                         defaultEmployeeId={employeeId}
                     />
                 )}
-            </>
+            </div>
         );
     }
 
-    // Cast the schedule to ExtendedSchedule to access the additional properties
-    const extendedSchedule = schedule as ExtendedSchedule;
-    const shiftType = determineShiftType(schedule);
-    const shiftTypeColor = getShiftTypeColor(shiftType, settings?.shift_types);
-
-    // Get availability type color from settings
-    const getAvailabilityTypeColor = (availabilityType: string) => {
-        if (!settings?.availability_types?.types) return '#22c55e'; // Default green
-
-        const typeInfo = settings.availability_types.types.find(
-            (type: any) => type.id === availabilityType
-        );
-
-        return typeInfo?.color || '#22c55e'; // Default to green if not found
-    };
-
-    // Get the availability type from the schedule
-    // If not provided, use a default based on the shift type
-    const getDefaultAvailabilityType = (schedule: Schedule, shiftType: string): string => {
-        // First check if the schedule has an explicit availability_type
-        if (schedule.availability_type) {
-            return schedule.availability_type;
-        }
-
-        // If the shift_type_id is explicitly set, use that to determine availability_type
-        if (schedule.shift_type_id) {
-            return schedule.shift_type_id;
-        }
-
-        // Check notes for keywords that might indicate fixed shifts
-        if (schedule.notes) {
-            const notes = schedule.notes.toLowerCase();
-            if (notes.includes('fix') || notes.includes('fest')) {
-                return 'FIX';
-            }
-            if (notes.includes('wunsch') || notes.includes('promised') || notes.includes('pref')) {
-                return 'PRF';
-            }
-        }
-
-        // Check for specific time patterns that might indicate fixed shifts
-        // This is a temporary solution until the backend properly provides availability_type
-        if (schedule.shift_start && schedule.shift_end) {
-            // Example: Consider specific shift patterns as fixed
-            if (schedule.shift_start === '12:00' && schedule.shift_end === '16:00') {
-                return 'FIX'; // Consider afternoon shifts as fixed
-            }
-        }
-
-        // Default based on shift type as a last resort
-        return shiftType;
-    };
-
-    const availabilityType = getDefaultAvailabilityType(schedule, shiftType);
-    const availabilityColor = getAvailabilityTypeColor(availabilityType);
-
+    // For cells with shifts, render the shift details
     return (
-        <>
-            <div
-                ref={(node) => drag(drop(node))}
-                style={{ width: '100%', height: '100%' }}
-                className={cn(
-                    'p-2 rounded-md border transition-all duration-200 group relative',
-                    'flex flex-col gap-2 items-center justify-center',
-                    isDragging && 'opacity-50 bg-primary/10',
-                    isOver && 'ring-2 ring-primary/50',
-                    'hover:bg-primary/5',
-                    hasAbsence && 'opacity-0' // Hide completely if absence
-                )}
-                onMouseEnter={() => setShowActions(true)}
-                onMouseLeave={() => setShowActions(false)}
-            >
-                {/* Top colored line - using availability type color */}
-                <div
-                    className="absolute top-0 left-0 right-0 h-2 rounded-t"
-                    style={{
-                        backgroundColor: availabilityColor // Uses the availability type color
-                    }}
-                    title={`Availability type: ${availabilityType}`}
+        <div
+            className={`relative h-full min-h-[80px] border border-gray-200 p-2 ${
+                hasAbsence ? "bg-red-50" : ""
+            }`}
+            onMouseEnter={() => setShowActions(true)}
+            onMouseLeave={() => setShowActions(false)}
+        >
+            {/* Render time slot display - Pass the full schedule object for context */}
+            <div className="flex h-full flex-col items-center justify-center">
+                <TimeSlotDisplay 
+                    startTime={schedule?.shift_start} 
+                    endTime={schedule?.shift_end} 
+                    shiftType={schedule?.shift_type_id} 
+                    schedule={schedule}
                 />
-
-                <div className="flex flex-col w-full space-y-2 items-center mt-2">
-                    {/* Time display - uses shift type color */}
-                    <TimeSlotDisplay
-                        startTime={schedule.shift_start || '00:00'}
-                        endTime={schedule.shift_end || '00:00'}
-                        shiftType={shiftType} // Pass the shift type for color
-                        settings={settings}
-                        schedule={schedule}
-                    />
-
-                    {/* Add additional time slots if needed */}
-                    {(extendedSchedule.additional_slots || []).map((slot: TimeSlot, index: number) => (
-                        <TimeSlotDisplay
-                            key={index}
-                            startTime={slot.start}
-                            endTime={slot.end}
-                            shiftType={shiftType}
-                            settings={settings}
-                            schedule={schedule}
-                        />
-                    ))}
-
-                    {extendedSchedule.break_duration && extendedSchedule.break_duration > 0 && (
-                        <div className="text-xs text-muted-foreground">
-                            Pause: {extendedSchedule.break_duration} min
-                        </div>
-                    )}
-                    {extendedSchedule.notes && (
-                        <div className="text-xs text-muted-foreground italic text-center max-w-full truncate">
-                            {extendedSchedule.notes}
-                        </div>
-                    )}
-                </div>
-
-                {showActions && !hasAbsence && (
-                    <div className="absolute top-1 right-1 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setIsEditModalOpen(true);
-                            }}
-                            className="h-6 w-6"
-                        >
-                            <Edit2 className="h-3 w-3" />
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleDelete();
-                            }}
-                            className="h-6 w-6 hover:text-destructive"
-                        >
-                            <Trash2 className="h-3 w-3" />
-                        </Button>
-                    </div>
-                )}
-                <div className="absolute inset-0 cursor-move pointer-events-none" />
             </div>
-            {isEditModalOpen && !hasAbsence && (
+
+            {/* Show edit button on hover */}
+            {showActions && (
+                <div className="absolute right-1 top-1">
+                    <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={() => setIsEditModalOpen(true)}
+                        aria-label="Edit schedule"
+                    >
+                        <Edit2 className="h-4 w-4" />
+                    </Button>
+                </div>
+            )}
+
+            {/* Edit modal */}
+            {isEditModalOpen && schedule && (
                 <ShiftEditModal
                     isOpen={isEditModalOpen}
                     onClose={() => setIsEditModalOpen(false)}
@@ -437,7 +314,7 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence, employeeId, date
                     onSave={onUpdate}
                 />
             )}
-        </>
+        </div>
     );
 };
 
@@ -465,8 +342,18 @@ const getShiftTypeDisplay = (shiftType: ShiftType): string => {
     }
 };
 
+// Define a local interface for settings if it's not in types
+interface Settings {
+  shift_types?: Array<{
+    id: string;
+    color: string;
+  }>;
+  // Add other properties as needed
+}
+
+// Fix the getShiftTypeColor function
 const getShiftTypeColor = (shiftType: ShiftType, settings?: Settings): string => {
-    const shiftTypeInfo = settings?.shift_types?.find(type => type.id === shiftType);
+    const shiftTypeInfo = settings?.shift_types?.find((type: { id: string; color: string }) => type.id === shiftType);
     if (shiftTypeInfo?.color) return shiftTypeInfo.color;
 
     switch (shiftType) {
@@ -553,6 +440,77 @@ const checkForAbsence = (
 
     return null;
 };
+
+// Define ShiftAddModal component to replace the incorrect one
+function ShiftAddModal({ 
+    isOpen, 
+    onClose, 
+    employeeId, 
+    date, 
+    version, 
+    onSave 
+}: { 
+    isOpen: boolean; 
+    onClose: () => void; 
+    employeeId: number; 
+    date: Date; 
+    version: number;
+    onSave: (shiftId: number) => Promise<void>;
+}) {
+    const { data: shifts } = useQuery({
+        queryKey: ['shifts'],
+        queryFn: getShifts
+    });
+    
+    const [selectedShiftId, setSelectedShiftId] = useState<string>("");
+    
+    const handleSave = async () => {
+        if (!selectedShiftId) return;
+        try {
+            await onSave(parseInt(selectedShiftId));
+        } catch (error) {
+            console.error('Error saving shift:', error);
+        }
+    };
+    
+    return (
+        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Neue Schicht hinzufügen</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="shift">Schicht</Label>
+                        <Select
+                            value={selectedShiftId}
+                            onValueChange={setSelectedShiftId}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Schicht auswählen" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {shifts?.map((shift: Shift) => (
+                                    <SelectItem key={shift.id} value={shift.id.toString()}>
+                                        {shift.start_time} - {shift.end_time}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+                <div className="flex justify-end space-x-2">
+                    <Button variant="outline" onClick={onClose}>
+                        Abbrechen
+                    </Button>
+                    <Button onClick={handleSave} disabled={!selectedShiftId}>
+                        Speichern
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoading, employeeAbsences, absenceTypes, currentVersion }: ScheduleTableProps) {
     const [expandedEmployees, setExpandedEmployees] = useState<number[]>([]);
@@ -667,6 +625,18 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
     // SIMPLIFIED APPROACH: Create a direct lookup map from employee_id and date to schedule
     const scheduleMap = useMemo(() => {
         const map: Record<number, Record<string, Schedule>> = {};
+        
+        // Debug info - what are we working with?
+        const shiftsWithId = schedules.filter(s => s.shift_id !== null);
+        const shiftsWithStartTime = schedules.filter(s => s.shift_start !== null && s.shift_start !== undefined);
+        
+        console.log('🔍 ScheduleTable creating map with:', {
+            totalSchedules: schedules.length,
+            schedulesWithShiftId: shiftsWithId.length,
+            schedulesWithStartTime: shiftsWithStartTime.length,
+            firstShiftWithId: shiftsWithId.length > 0 ? shiftsWithId[0] : 'None',
+            firstShiftWithStartTime: shiftsWithStartTime.length > 0 ? shiftsWithStartTime[0] : 'None'
+        });
 
         // Process all schedules into the map for quick lookup
         schedules.forEach(schedule => {
@@ -680,16 +650,30 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
                 map[employeeId] = {};
             }
 
-            // Store the schedule by date
-            map[employeeId][dateStr] = schedule;
+            // Store the schedule by date - important: if an entry exists, replace it only if the new one has a shift_id and the old one doesn't
+            const existingSchedule = map[employeeId][dateStr];
+            if (!existingSchedule || 
+                (schedule.shift_id !== null && existingSchedule.shift_id === null) ||
+                (schedule.shift_start && !existingSchedule.shift_start)) {
+                map[employeeId][dateStr] = schedule;
+            }
         });
 
-        // Log some debugging info about our map
+        // Count of schedules with shift_id and shift_start
+        const schedulesWithShifts = Object.values(map)
+            .flatMap(empSchedules => Object.values(empSchedules))
+            .filter(s => s.shift_id !== null);
+            
+        const schedulesWithStartTime = schedulesWithShifts
+            .filter(s => s.shift_start !== null && s.shift_start !== undefined);
+            
         console.log('🗺️ Schedule map created with:', {
             totalEmployees: Object.keys(map).length,
             sampleEmployee: Object.keys(map)[0] ? Object.keys(map)[0] : 'None',
             totalSchedules: schedules.length,
-            schedulesWithShifts: schedules.filter(s => s.shift_id !== null).length
+            schedulesWithShifts: schedulesWithShifts.length,
+            schedulesWithStartTime: schedulesWithStartTime.length,
+            sampleShift: schedulesWithShifts.length > 0 ? schedulesWithShifts[0] : 'None'
         });
 
         return map;

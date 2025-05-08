@@ -24,6 +24,7 @@ interface UseScheduleGenerationProps {
     dateRange: DateRange | undefined;
     selectedVersion?: number;
     createEmptySchedules: boolean;
+    enableDiagnostics?: boolean;
     onSuccess?: () => void;
 }
 
@@ -31,6 +32,7 @@ export function useScheduleGeneration({
     dateRange,
     selectedVersion,
     createEmptySchedules,
+    enableDiagnostics = false,
     onSuccess
 }: UseScheduleGenerationProps) {
     const { toast } = useToast();
@@ -86,7 +88,8 @@ export function useScheduleGeneration({
                         to: dateRange.to.toISOString()
                     },
                     selectedVersion,
-                    createEmptySchedules
+                    createEmptySchedules,
+                    enableDiagnostics
                 });
 
                 // Set up steps
@@ -136,6 +139,7 @@ export function useScheduleGeneration({
                             toStr,
                             createEmptySchedules,
                             selectedVersion,
+                            enableDiagnostics,
                             'Request will include shift_type values': true
                         });
 
@@ -149,7 +153,8 @@ export function useScheduleGeneration({
                             fromStr,
                             toStr,
                             createEmptySchedules,
-                            selectedVersion  // Use the selected version without fallback
+                            selectedVersion,  // Use the selected version without fallback
+                            enableDiagnostics // Pass the enableDiagnostics flag
                         );
 
                         // Log the response to help with debugging
@@ -160,8 +165,20 @@ export function useScheduleGeneration({
                             'Has errors': result.errors && result.errors.length > 0,
                             'Error count': result.errors?.length || 0,
                             'First error': result.errors?.[0] || 'No errors',
-                            'First schedule': result.schedules?.[0] || 'No schedules'
+                            'First schedule': result.schedules?.[0] || 'No schedules',
+                            'Diagnostic logs': result.diagnostic_logs || []
                         });
+
+                        // If we have diagnostic logs and enableDiagnostics is true, add them to our logs
+                        if (enableDiagnostics && result.diagnostic_logs && result.diagnostic_logs.length > 0) {
+                            result.diagnostic_logs.forEach(log => {
+                                // Try to parse log entries in a useful way
+                                const logType = log.includes('ERROR') ? 'error' :
+                                    log.includes('WARNING') ? 'warning' : 'info';
+                                
+                                addGenerationLog(logType, log);
+                            });
+                        }
 
                         updateGenerationStep("process", "completed");
 
@@ -174,6 +191,19 @@ export function useScheduleGeneration({
                         // Finalize
                         updateGenerationStep("finalize", "in-progress");
                         addGenerationLog("info", "Finalisiere Schichtplan");
+                        
+                        // Auto fix schedule display issues after generation
+                        if (result.schedules?.some(s => s.shift_id !== null && (!s.shift_start || !s.shift_end))) {
+                            addGenerationLog("info", "Korrigiere Anzeige-Probleme");
+                            try {
+                                await fixShiftDurations();
+                                addGenerationLog("info", "Anzeige-Probleme korrigiert");
+                            } catch (fixError) {
+                                addGenerationLog("warning", "Problem beim Korrigieren der Anzeige", 
+                                    String(fixError instanceof Error ? fixError.message : fixError));
+                            }
+                        }
+                        
                         await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate processing
                         updateGenerationStep("finalize", "completed");
 

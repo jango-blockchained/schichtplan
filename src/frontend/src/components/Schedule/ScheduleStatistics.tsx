@@ -111,7 +111,13 @@ export function ScheduleStatistics({ schedules, employees: propEmployees, startD
         filteredCount: filteredSchedules.length,
         originalCount: schedules.length,
         version,
+        schedulesWithShifts: schedules.filter(s => s.shift_id !== null).length,
+        filteredWithShifts: filteredSchedules.filter(s => s.shift_id !== null).length,
         versionCounts: schedules.reduce((acc, s) => {
+            acc[s.version] = (acc[s.version] || 0) + 1;
+            return acc;
+        }, {} as Record<number, number>),
+        shiftVersionCounts: schedules.filter(s => s.shift_id !== null).reduce((acc, s) => {
             acc[s.version] = (acc[s.version] || 0) + 1;
             return acc;
         }, {} as Record<number, number>)

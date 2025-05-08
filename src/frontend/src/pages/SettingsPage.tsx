@@ -25,7 +25,7 @@ import {
 import { ColorPicker } from "@/components/ui/color-picker";
 import { PDFLayoutEditor } from "@/components/PDFLayoutEditor";
 import EmployeeSettingsEditor, { EmployeeType, AbsenceType } from "@/components/EmployeeSettingsEditor";
-import { Loader2, Save, Trash2, Plus, Download, Upload } from "lucide-react";
+import { Loader2, Save, Trash2, Plus, Download, Upload, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -48,6 +48,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { api } from "@/lib/axios";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { DEFAULT_SETTINGS } from "@/hooks/useSettings";
 
 export interface BaseGroup {
   id: string;
@@ -77,7 +79,7 @@ export function SettingsPage() {
   const [selectedTables, setSelectedTables] = useState<string[]>([]);
   const [availableTables, setAvailableTables] = useState<string[]>([]);
 
-  const { data: settings, isLoading, error } = useQuery({
+  const { data: settings, isLoading, error, refetch } = useQuery({
     queryKey: ["settings"],
     queryFn: getSettings,
     retry: 3,
@@ -98,10 +100,7 @@ export function SettingsPage() {
     onSuccess: (updatedSettings) => {
       queryClient.setQueryData(["settings"], updatedSettings);
       setLocalSettings(updatedSettings);
-      toast({
-        title: "Settings updated",
-        description: "Your settings have been successfully updated.",
-      });
+      // Don't show toast by default - will be manually shown for explicit saves
     },
     onError: (error) => {
       const cachedSettings = queryClient.getQueryData<Settings>(["settings"]);
@@ -120,7 +119,7 @@ export function SettingsPage() {
     (updatedSettings: Settings) => {
       updateMutation.mutate(updatedSettings);
     },
-    1000 // 1 second delay
+    2000 // Increase to 2 seconds to reduce frequency
   );
 
   const handleSave = (
@@ -165,7 +164,14 @@ export function SettingsPage() {
     if (localSettings) {
       debouncedUpdate.cancel();
 
-      updateMutation.mutate(localSettings);
+      updateMutation.mutate(localSettings, {
+        onSuccess: () => {
+          toast({
+            title: "Settings updated",
+            description: "Your settings have been successfully updated.",
+          });
+        }
+      });
     }
   };
 
@@ -301,6 +307,34 @@ export function SettingsPage() {
         variant: "destructive",
       });
     }
+  };
+
+  // Add the missing handler for scheduling diagnostics settings
+  const handleDiagnosticsChange = (checked: boolean) => {
+    if (!localSettings) return;
+    
+    const updatedSettings = {
+      ...localSettings,
+      scheduling: {
+        ...localSettings.scheduling,
+        enable_diagnostics: checked
+      }
+    };
+    
+    setLocalSettings(updatedSettings);
+    // Use immediate update and reload settings to ensure the UI displays the current state
+    updateMutation.mutate(updatedSettings, {
+      onSuccess: () => {
+        // Fetch fresh settings to ensure UI shows current server state
+        refetch();
+        toast({
+          title: "Diagnostic Mode " + (checked ? "Enabled" : "Disabled"),
+          description: checked 
+            ? "Detailed diagnostic logging will be enabled during schedule generation."
+            : "Diagnostic logging has been disabled.",
+        });
+      }
+    });
   };
 
   if (isLoading) {
@@ -480,7 +514,7 @@ export function SettingsPage() {
                                   }
                                 };
                                 setLocalSettings(updatedSettings);
-                                updateMutation.mutate(updatedSettings);
+                                debouncedUpdate(updatedSettings);
                               }}
                             />
                           </div>
@@ -492,12 +526,7 @@ export function SettingsPage() {
                 <CardFooter className="flex justify-end space-x-2">
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      if (localSettings) {
-                        debouncedUpdate.cancel();
-                        updateMutation.mutate(localSettings);
-                      }
-                    }}
+                    onClick={handleImmediateUpdate}
                   >
                     <Save className="w-4 h-4 mr-2" />
                     Save Changes
@@ -819,6 +848,30 @@ export function SettingsPage() {
                             Auto-schedule based on preferences
                           </Label>
                         </div>
+                        
+                        <div className="flex items-center space-x-2 pt-2">
+                          <Switch
+                            id="enable-diagnostics"
+                            checked={localSettings?.scheduling.enable_diagnostics ?? false}
+                            onCheckedChange={handleDiagnosticsChange}
+                          />
+                          <Label htmlFor="enable-diagnostics">
+                            Enable diagnostic mode for scheduling
+                          </Label>
+                          <HoverCard>
+                            <HoverCardTrigger asChild>
+                              <Info className="h-4 w-4 text-muted-foreground cursor-help ml-1" />
+                            </HoverCardTrigger>
+                            <HoverCardContent className="w-80">
+                              <div className="space-y-2">
+                                <h4 className="text-sm font-semibold">Diagnostic Mode</h4>
+                                <p className="text-sm text-muted-foreground">
+                                  Enables detailed logging during schedule generation. Useful for troubleshooting when schedules aren't generating as expected.
+                                </p>
+                              </div>
+                            </HoverCardContent>
+                          </HoverCard>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -834,125 +887,7 @@ export function SettingsPage() {
                 </Card>
 
                 <ScheduleGenerationSettings
-                  settings={localSettings ?? {
-                    id: 0,
-                    store_name: '',
-                    store_address: null,
-                    store_contact: null,
-                    timezone: 'Europe/Berlin',
-                    language: 'de',
-                    date_format: 'DD.MM.YYYY',
-                    time_format: '24h',
-                    store_opening: '09:00',
-                    store_closing: '20:00',
-                    keyholder_before_minutes: 30,
-                    keyholder_after_minutes: 30,
-                    opening_days: {},
-                    special_hours: {},
-                    availability_types: { types: [] },
-                    general: {
-                      store_name: '',
-                      store_address: '',
-                      store_contact: '',
-                      timezone: 'Europe/Berlin',
-                      language: 'de',
-                      date_format: 'DD.MM.YYYY',
-                      time_format: '24h',
-                      store_opening: '09:00',
-                      store_closing: '20:00',
-                      keyholder_before_minutes: 30,
-                      keyholder_after_minutes: 30,
-                      opening_days: {},
-                      special_hours: {}
-                    },
-                    scheduling: {
-                      scheduling_resource_type: 'shifts',
-                      default_shift_duration: 8,
-                      min_break_duration: 30,
-                      max_daily_hours: 10,
-                      max_weekly_hours: 40,
-                      min_rest_between_shifts: 11,
-                      scheduling_period_weeks: 1,
-                      auto_schedule_preferences: true,
-                      generation_requirements: {
-                        enforce_minimum_coverage: true,
-                        enforce_contracted_hours: true,
-                        enforce_keyholder_coverage: true,
-                        enforce_rest_periods: true,
-                        enforce_early_late_rules: true,
-                        enforce_employee_group_rules: true,
-                        enforce_break_rules: true,
-                        enforce_max_hours: true,
-                        enforce_consecutive_days: true,
-                        enforce_weekend_distribution: true,
-                        enforce_shift_distribution: true,
-                        enforce_availability: true,
-                        enforce_qualifications: true,
-                        enforce_opening_hours: true
-                      }
-                    },
-                    display: {
-                      theme: 'light',
-                      primary_color: '#000000',
-                      secondary_color: '#000000',
-                      accent_color: '#000000',
-                      background_color: '#ffffff',
-                      surface_color: '#ffffff',
-                      text_color: '#000000',
-                      dark_theme: {
-                        primary_color: '#ffffff',
-                        secondary_color: '#ffffff',
-                        accent_color: '#ffffff',
-                        background_color: '#000000',
-                        surface_color: '#000000',
-                        text_color: '#ffffff'
-                      },
-                      show_sunday: false,
-                      show_weekdays: true,
-                      start_of_week: 1,
-                      email_notifications: false,
-                      schedule_published: false,
-                      shift_changes: false,
-                      time_off_requests: false
-                    },
-                    pdf_layout: {
-                      page_size: 'A4',
-                      orientation: 'portrait',
-                      margins: {
-                        top: 20,
-                        right: 20,
-                        bottom: 20,
-                        left: 20
-                      },
-                      table_style: {
-                        header_bg_color: '#f5f5f5',
-                        border_color: '#e0e0e0',
-                        text_color: '#000000',
-                        header_text_color: '#000000'
-                      },
-                      fonts: {
-                        family: 'Arial',
-                        size: 12,
-                        header_size: 14
-                      },
-                      content: {
-                        show_employee_id: true,
-                        show_position: true,
-                        show_breaks: true,
-                        show_total_hours: true
-                      }
-                    },
-                    employee_groups: {
-                      employee_types: [],
-                      absence_types: []
-                    },
-                    actions: {
-                      demo_data: {
-                        selected_module: '',
-                        last_execution: null
-                      }
-                    }
-                  }}
+                  settings={localSettings ?? DEFAULT_SETTINGS}
                   onUpdate={(updates) => {
                     if (!localSettings?.scheduling) return;
 
@@ -968,8 +903,13 @@ export function SettingsPage() {
                     };
 
                     setLocalSettings(updatedSettings);
-                    debouncedUpdate.cancel();
-                    updateMutation.mutate(updatedSettings);
+                    // Use immediate update to ensure settings are saved
+                    updateMutation.mutate(updatedSettings, {
+                      onSuccess: () => {
+                        // Fetch fresh settings to ensure UI shows the current server state
+                        refetch();
+                      }
+                    });
                   }}
                 />
               </div>
@@ -995,9 +935,8 @@ export function SettingsPage() {
                               display: Object.assign({}, localSettings.display, { theme })
                             }) as Settings;
                             setLocalSettings(updatedSettings);
-                            updateMutation.mutate(updatedSettings);
                             setTheme(theme);
-                            debouncedUpdate.cancel();
+                            debouncedUpdate(updatedSettings);
                           }}
                         >
                           <SelectTrigger id="theme" className="w-full">

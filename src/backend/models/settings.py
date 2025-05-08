@@ -107,6 +107,27 @@ class Settings(db.Model):
     min_rest_between_shifts = Column(Float, nullable=False, default=11.0)
     scheduling_period_weeks = Column(Integer, nullable=False, default=4)
     auto_schedule_preferences = Column(Boolean, nullable=False, default=True)
+    enable_diagnostics = Column(Boolean, nullable=False, default=False)
+    generation_requirements = Column(
+        JSON,
+        nullable=True,
+        default=lambda: {
+            "enforce_minimum_coverage": True,
+            "enforce_contracted_hours": True,
+            "enforce_keyholder_coverage": True,
+            "enforce_rest_periods": True,
+            "enforce_early_late_rules": True,
+            "enforce_employee_group_rules": True,
+            "enforce_break_rules": True,
+            "enforce_max_hours": True,
+            "enforce_consecutive_days": True,
+            "enforce_weekend_distribution": True,
+            "enforce_shift_distribution": True,
+            "enforce_availability": True,
+            "enforce_qualifications": True,
+            "enforce_opening_hours": True
+        }
+    )
 
     # Display and Notification Settings
     theme = Column(String(20), nullable=False, default="light")
@@ -412,6 +433,8 @@ class Settings(db.Model):
                 "min_rest_between_shifts": self.min_rest_between_shifts,
                 "scheduling_period_weeks": self.scheduling_period_weeks,
                 "auto_schedule_preferences": self.auto_schedule_preferences,
+                "enable_diagnostics": self.enable_diagnostics,
+                "generation_requirements": self.generation_requirements
             },
             "display": {
                 "theme": self.theme,
@@ -658,7 +681,12 @@ class Settings(db.Model):
                         setattr(self, key, value)
             elif category == "scheduling":
                 for key, value in values.items():
-                    if hasattr(self, key):
+                    if key == "generation_requirements" and isinstance(value, dict):
+                        # For generation_requirements, update the existing JSON rather than replacing it
+                        if self.generation_requirements is None:
+                            self.generation_requirements = {}
+                        self.generation_requirements.update(value)
+                    elif hasattr(self, key):
                         setattr(self, key, value)
             elif category == "display":
                 for key, value in values.items():
