@@ -128,7 +128,8 @@ class DistributionManager:
         # Initialize assignments dictionary for all employees
         self.assignments_by_employee = defaultdict(list)
         self.schedule_by_date = {}
-        self.employee_history = defaultdict(lambda: defaultdict(int))
+        # MODIFIED: Use defaultdict(dict) to allow mixed types (int for counts, float for hours)
+        self.employee_history = defaultdict(dict)
         self.shift_scores = {}
         self.employee_preferences = {}
         self.rotation_state = defaultdict(int)
@@ -142,13 +143,14 @@ class DistributionManager:
         """Initialize assignments dictionary for all employees"""
         try:
             # Access the employees list directly from the resources object
-            employees = self.resources.employees
-            for employee in employees:
-                employee_id = (
-                    employee.id if hasattr(employee, "id") else employee.get("id")
-                )
-                if employee_id:
-                    self.assignments_by_employee[employee_id] = []
+            if self.resources and hasattr(self.resources, 'employees'):
+                employees = self.resources.employees
+                for employee in employees:
+                    employee_id = (
+                        employee.id if hasattr(employee, "id") else employee.get("id")
+                    )
+                    if employee_id:
+                        self.assignments_by_employee[employee_id] = []
             self.logger.info(f"Initialized assignments for {len(employees)} employees")
         except Exception as e:
             self.logger.error(f"Error initializing assignments: {str(e)}")
@@ -180,7 +182,8 @@ class DistributionManager:
                 for assignment in employee_assignments:
                     if isinstance(assignment, dict) and assignment.get("date") == current_date:
                         shifts_assigned_today[employee_id] += 1
-                    elif hasattr(assignment, "date") and assignment.date == current_date:
+                    # Corrected: Use .get("date") for dictionaries
+                    elif isinstance(assignment, dict) and assignment.get("date") == current_date:
                         shifts_assigned_today[employee_id] += 1
             
             # Maximum shifts per employee per day
@@ -194,7 +197,12 @@ class DistributionManager:
             if not available_employees:
                 self.logger.warning(f"No employees available for shift type {shift_type}")
                 # Use all active employees as fallback
-                available_employees = [e for e in self.resources.employees if getattr(e, "is_active", True)]
+                # ADDED CHECK for self.resources
+                if self.resources and hasattr(self.resources, 'employees'): 
+                    available_employees = [e for e in self.resources.employees if getattr(e, "is_active", True)]
+                else:
+                    available_employees = [] # Cannot get fallback if resources missing
+                
                 if not available_employees:
                     self.logger.error("No active employees found. Cannot assign shifts.")
                     return []
@@ -214,12 +222,15 @@ class DistributionManager:
 
                 if self.assignments_by_employee.get(employee_id):
                     last_shift_date = max(
-                        assignment.get("date")
-                        if isinstance(assignment, dict)
-                        else getattr(assignment, "date")
-                        for assignment in self.assignments_by_employee[employee_id]
+                        d for assignment in self.assignments_by_employee[employee_id] 
+                        if (d := (assignment.get("date") if isinstance(assignment, dict) else getattr(assignment, "date", None))) is not None
                     )
-                    days_since_last = (current_date - last_shift_date).days
+                    # Check if max returned a valid date before calculating timedelta
+                    if isinstance(last_shift_date, date):
+                        days_since_last = (current_date - last_shift_date).days
+                    else: # Handle case where no valid dates were found
+                         self.logger.warning(f"Could not determine last shift date for employee {employee_id}")
+                         # days_since_last remains default 7
 
                 # Add big penalty for employees already assigned today
                 daily_shifts_penalty = shifts_assigned_today.get(employee_id, 0) * 100
@@ -282,7 +293,8 @@ class DistributionManager:
                     ):  # Weekly max of 10 shifts
                         # Get the version from the resources or self.version attribute
                         version = getattr(self, 'version', None)
-                        if version is None and hasattr(self.resources, 'version'):
+                        # ADDED CHECK for self.resources
+                        if version is None and self.resources and hasattr(self.resources, 'version'):
                             version = self.resources.version
                         
                         # If still None, try scheduler_version from config
@@ -629,7 +641,6 @@ class DistributionManager:
 
         return type_count / total_shifts
 
-    @functools.lru_cache(maxsize=256)
     def calculate_assignment_score(
         self,
         employee_id: int,
@@ -644,7 +655,8 @@ class DistributionManager:
         The score considers availability, interval-specific needs, employee history, preferences, workload, and overstaffing.
         """
         score = 0.0
-        employee = self.resources.get_employee_by_id(employee_id)
+        # ADDED CHECK for self.resources
+        employee = self.resources.get_employee_by_id(employee_id) if self.resources else None
         if not employee:
             self.logger.warning(f"calculate_assignment_score: Employee {employee_id} not found in resources.")
             return -float('inf') # Should not happen if called correctly
@@ -739,7 +751,8 @@ class DistributionManager:
                 # Get the needs for this specific covered interval
                 # Note: target_interval_needs is for the interval we are *trying to fill*, 
                 # here we need needs for *each interval this shift covers*.
-                needs_for_covered_interval = self.resources.get_interval_needs_for_time(shift_date, covered_interval_time)
+                # ADDED CHECK for self.resources
+                needs_for_covered_interval = self.resources.get_interval_needs_for_time(shift_date, covered_interval_time) if self.resources else None
                 if not needs_for_covered_interval:
                     self.logger.warning(f"Overstaffing check: Needs not found for interval {covered_interval_time}. Skipping penalty for this interval.")
                     continue
@@ -784,7 +797,8 @@ class DistributionManager:
         Returns positive for a needed/balancing shift, negative for an over-represented one.
         """
         adjustment = 0.0
-        employee = self.resources.get_employee_by_id(employee_id)
+        # ADDED CHECK for self.resources
+        employee = self.resources.get_employee_by_id(employee_id) if self.resources else None
         if not employee or employee_id not in self.employee_history:
             return 0.0
 
@@ -836,7 +850,8 @@ class DistributionManager:
         this adds bonuses for general preferences.
         """
         adjustment = 0.0
-        employee = self.resources.get_employee_by_id(employee_id)
+        # ADDED CHECK for self.resources
+        employee = self.resources.get_employee_by_id(employee_id) if self.resources else None
         if not employee or employee_id not in self.employee_preferences:
             return 0.0
 
@@ -900,7 +915,8 @@ class DistributionManager:
                 "start_time": shift_details.get('start_time') if isinstance(shift_details, dict) else "00:00",
                 "end_time": shift_details.get('end_time') if isinstance(shift_details, dict) else "00:00",
                 "status": "ERROR_INCOMPLETE_DATA",
-                "version": self.resources.version_id if hasattr(self.resources, 'version_id') else 1,
+                # ADDED CHECK for self.resources
+                "version": self.resources.version_id if self.resources and hasattr(self.resources, 'version_id') else 1,
             }
         else:
             assignment_to_record = new_assignment_dict
@@ -922,22 +938,26 @@ class DistributionManager:
 
         # Update self.employee_history (counts for shift types, hours, etc.)
         if employee_id not in self.employee_history:
-            # Initialize with defaultdict(int) for counts and float for hours
-            self.employee_history[employee_id] = defaultdict(int, {"hours": 0.0})
-        elif "hours" not in self.employee_history[employee_id]: # Ensure hours key exists and is float
+            # Initialize with specific keys and types
+            self.employee_history[employee_id] = {
+                "hours": 0.0,
+                "total": 0,
+                "weekend": 0,
+                # Add other categories as needed, default to 0
+                "EARLY": 0,
+                "MIDDLE": 0,
+                "LATE": 0
+            }
+        # Ensure 'hours' exists and is float - slightly redundant now with explicit init, but safe
+        elif "hours" not in self.employee_history[employee_id] or not isinstance(self.employee_history[employee_id]["hours"], float):
              self.employee_history[employee_id]["hours"] = 0.0
-        elif not isinstance(self.employee_history[employee_id]["hours"], float):
-            try:
-                self.employee_history[employee_id]["hours"] = float(self.employee_history[employee_id]["hours"])
-            except ValueError:
-                self.logger.error(f"Corrupted hours in history for emp {employee_id} before update. Resetting to 0.0")
-                self.employee_history[employee_id]["hours"] = 0.0
 
         history = self.employee_history[employee_id]
         
         shift_start_time_for_cat = assignment_to_record.get('start_time')
         shift_template_id_for_cat = assignment_to_record.get('shift_template_id')
-        original_shift_template = self.resources.get_shift_template_by_id(shift_template_id_for_cat) if shift_template_id_for_cat else None
+        # ADDED CHECK for self.resources
+        original_shift_template = self.resources.get_shift_template_by_id(shift_template_id_for_cat) if self.resources and shift_template_id_for_cat else None
         
         if original_shift_template: # Prefer using the full template for categorization
             category = self._categorize_shift(original_shift_template)
@@ -953,7 +973,8 @@ class DistributionManager:
             self.logger.warning(f"Could not determine shift category for history: missing start_time and template_id in assignment {assignment_to_record}")
 
         if category:
-            history[category] = history.get(category, 0) + 1 # Use .get for safety if defaultdict isn't fully trusted for all keys
+            # Use .get for safety, ensure category is added if new
+            history[category] = history.get(category, 0) + 1
         history["total"] = history.get("total", 0) + 1
 
         if shift_date.weekday() >= 5:  # Saturday (5) or Sunday (6)
@@ -970,7 +991,7 @@ class DistributionManager:
                 duration_hours = 0.0
                 self.logger.warning(f"Could not calculate duration for history update: missing start/end time in {assignment_to_record}")
         
-        history["hours"] += float(duration_hours) # Ensure it's added as float
+        history["hours"] = history.get("hours", 0.0) + float(duration_hours) # Ensure operates on float
         self.logger.debug(
             f"Emp {employee_id} history updated: Total {history.get('total')}, E {history.get('EARLY')}, M {history.get('MIDDLE')}, L {history.get('LATE')}, W {history.get('weekend')}, Hrs {history.get('hours'):.2f}. "
             f"Total assignments in list: {len(self.assignments_by_employee[employee_id])}"
@@ -1427,14 +1448,18 @@ class DistributionManager:
         # Update overall assignment tracking (used by historical/fairness calcs)
         for assignment in final_assignments_for_day:
             emp_id = assignment.get('employee_id')
+            # self.assignments_by_employee has already been updated by update_with_assignment
+            # called within the _perform_interval_based_assignments -> _try_find_and_make_assignment chain.
+            # We just need to update self.schedule_by_date here.
+            # Ensure emp_id is valid before proceeding
             if emp_id:
-                if emp_id not in self.assignments_by_employee:
-                   self.assignments_by_employee[emp_id] = []
-                self.assignments_by_employee[emp_id].append(assignment)
-                # Update self.schedule_by_date for subsequent constraint checks within the same day if needed
                 if current_date not in self.schedule_by_date:
                     self.schedule_by_date[current_date] = []
-                self.schedule_by_date[current_date].append(assignment)
+                
+                # Ensure we don't add duplicate assignment objects to schedule_by_date if it's somehow already there.
+                # This check is for object identity.
+                if not any(existing_assignment is assignment for existing_assignment in self.schedule_by_date[current_date]):
+                    self.schedule_by_date[current_date].append(assignment)
 
         self.logger.info(f"--- Distribution for {current_date} finished. Generated {len(final_assignments_for_day)} assignments. ---")
         return final_assignments_for_day
@@ -1529,7 +1554,8 @@ class DistributionManager:
                     current_staffing_per_interval=current_staffing_per_interval,
                     final_assignments_so_far=final_assignments, # Pass current assignments
                     assigned_shift_ids_in_this_run=assigned_shift_ids_in_this_run,
-                    interval_duration_minutes=interval_minutes # Pass interval_minutes
+                    daily_interval_needs=daily_interval_needs, # ADDED: Pass daily_interval_needs
+                    interval_duration_minutes=interval_minutes
                 )
 
                 if assignment_made:
@@ -1539,7 +1565,8 @@ class DistributionManager:
                     
                     # --- CRITICAL UPDATE: Update current_staffing_per_interval for all intervals covered by this new assignment ---
                     assigned_shift_details = shift_details_map.get(assignment_made.get('shift_id'))
-                    employee_obj = resources.get_employee_by_id(assignment_made.get('employee_id'))
+                    # ADDED CHECK for self.resources
+                    employee_obj = resources.get_employee_by_id(assignment_made.get('employee_id')) if self.resources else None
 
                     if assigned_shift_details and employee_obj:
                         intervals_covered_by_newly_assigned_shift = assigned_shift_details.get('_covered_intervals', [])
@@ -1589,7 +1616,8 @@ class DistributionManager:
         current_staffing_per_interval: Dict[datetime.time, Dict], # Full day's staffing snapshot
         final_assignments_so_far: List[Dict], 
         assigned_shift_ids_in_this_run: set,
-        interval_duration_minutes: int # Added parameter
+        daily_interval_needs: Dict[datetime.time, Dict], # ADDED: Pass daily_interval_needs
+        interval_duration_minutes: int 
     ) -> Optional[Dict]:
         """
         Attempts to find the best single employee-shift assignment for an understaffed interval.
@@ -1614,6 +1642,7 @@ class DistributionManager:
             current_staffing_per_interval: Snapshot of staffing levels for all intervals.
             final_assignments_so_far: List of assignments already made.
             assigned_shift_ids_in_this_run: Set of shift IDs already assigned in the current run.
+            daily_interval_needs: Dictionary mapping interval start times to their needs.
             interval_duration_minutes: Duration of the interval in minutes.
 
         Returns:
@@ -1623,7 +1652,8 @@ class DistributionManager:
         highest_score = -float('inf')
         
         # Get the specific needs for the target interval
-        target_interval_needs = self.current_daily_interval_needs.get(interval_time, {})
+        # MODIFIED: Use passed daily_interval_needs
+        target_interval_needs = daily_interval_needs.get(interval_time, {})
         if not target_interval_needs:
             self.logger.warning(f"No needs defined for interval {interval_time} on {current_date}, cannot assign.")
             return None
@@ -2075,7 +2105,8 @@ class DistributionManager:
                 # Check: shift_start <= interval_start < shift_end
                 if assigned_shift_start_dt <= interval_start_dt < assigned_shift_end_dt_for_comparison:
                     if employee_id not in employee_ids_working:
-                        employee = self.resources.get_employee_by_id(employee_id)
+                        # ADDED CHECK for self.resources
+                        employee = self.resources.get_employee_by_id(employee_id) if self.resources else None
                         if employee:
                             working_employees.append(employee)
                             employee_ids_working.add(employee_id)

@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import type { Settings, Employee, ScheduleError, ScheduleUpdate, DailyCoverage, CoverageTimeSlot } from '@/types/index';
+import type { Settings, Employee, ScheduleError, ScheduleUpdate, DailyCoverage, CoverageTimeSlot, EmployeeAvailabilityStatus, ApplicableShift, AvailabilityTypeStrings } from '@/types/index';
 import { CreateEmployeeRequest, UpdateEmployeeRequest } from '../types';
 
 interface APIErrorResponse {
@@ -21,7 +21,7 @@ export interface Schedule {
     is_empty?: boolean;
     shift_start?: string | null;
     shift_end?: string | null;
-    availability_type?: 'AVL' | 'FIX' | 'PRF' | 'UNV';
+    availability_type?: AvailabilityTypeStrings;
     shift_type_id?: string; // EARLY, MIDDLE, LATE
     shift_type_name?: string; // early, middle, late
 }
@@ -199,6 +199,36 @@ export const deleteEmployee = async (id: number): Promise<void> => {
     }
 };
 
+// New function for Employee Availability Status by Date
+export const getEmployeeAvailabilityByDate = async (date: string): Promise<EmployeeAvailabilityStatus[]> => {
+    try {
+        const response = await api.get<EmployeeAvailabilityStatus[]>('/availability/by_date', {
+            params: { date },
+        });
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to fetch employee availability status for date ${date}: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+// New function for Applicable Shifts for Employee
+export const getApplicableShiftsForEmployee = async (date: string, employeeId: number): Promise<ApplicableShift[]> => {
+    try {
+        const response = await api.get<ApplicableShift[]>('/availability/shifts_for_employee', {
+            params: { date, employee_id: employeeId }, // Ensure param name matches backend (employee_id)
+        });
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to fetch applicable shifts for employee ${employeeId} on ${date}: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
 // Shifts
 export interface Shift {
     id: number;
@@ -238,7 +268,7 @@ export const createShift = async (data: Omit<Shift, 'id' | 'duration_hours' | 'c
 
 export const updateShift = async ({ id, ...data }: Partial<Shift> & { id: number }): Promise<Shift> => {
     try {
-        const response = await api.put<Shift>(`/shifts/${id}/`, data);
+        const response = await api.put<Shift>(`/shifts/${id}`, data);
         return response.data;
     } catch (error) {
         if (error instanceof Error) {
@@ -248,9 +278,9 @@ export const updateShift = async ({ id, ...data }: Partial<Shift> & { id: number
     }
 };
 
-export const deleteShift = async (id: number): Promise<void> => {
+export const deleteShift = async (shiftId: number): Promise<void> => {
     try {
-        await api.delete(`/shifts/${id}`);
+        await api.delete(`/shifts/${shiftId}`);
     } catch (error) {
         if (error instanceof Error) {
             throw new Error(`Failed to delete shift: ${error.message}`);

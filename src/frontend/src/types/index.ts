@@ -61,7 +61,7 @@ export interface Schedule {
     break_end?: string | null;
     notes?: string | null;
     employee_name?: string;
-    availability_type?: 'AVL' | 'FIX' | 'PRF' | 'UNV';
+    availability_type?: AvailabilityTypeStrings;
     shift_type_id?: ShiftType;
     shift_type_name?: string;
 }
@@ -95,7 +95,7 @@ export interface ScheduleUpdate {
     break_duration?: number | null;
     notes?: string | null;
     version?: number | null;
-    availability_type?: 'AVL' | 'FIX' | 'PRF' | 'UNV' | null;
+    availability_type?: AvailabilityTypeStrings | null;
 }
 
 export interface DateRange {
@@ -413,4 +413,23 @@ export interface WeeklySchedule {
     position: string;
     contracted_hours: number;
     shifts: WeeklyShift[];
+}
+
+// New Types
+export interface EmployeeAvailabilityStatus {
+  employee_id: number;
+  employee_name: string;
+  status: string; // e.g., "Available", "Absence: Vacation", "Shift: Early (07:00-15:00)"
+  details?: any; // Could be Absence object or Schedule object for more info
+}
+
+// String literals for AvailabilityType, matching backend Enum values
+export type AvailabilityTypeStrings = 'AVAILABLE' | 'FIXED' | 'PREFERRED' | 'UNAVAILABLE';
+
+export interface ApplicableShift {
+  shift_id: number;
+  name: string;
+  start_time: string; // "HH:MM"
+  end_time: string;   // "HH:MM"
+  availability_type: AvailabilityTypeStrings;
 } 

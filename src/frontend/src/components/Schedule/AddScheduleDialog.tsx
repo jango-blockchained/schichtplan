@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { Calendar as CalendarIcon } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+// Removed unused useQuery, useMutation, useQueryClient for now, can be added back if other parts need them
 import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
 import {
@@ -24,10 +24,11 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
-import { getEmployees, getShifts, type Shift } from '@/services/api';
+import { getEmployeeAvailabilityByDate, getApplicableShiftsForEmployee } from '@/services/api';
 import { cn } from '@/lib/utils';
-import { Employee, Schedule } from '@/types';
+import { EmployeeAvailabilityStatus, ApplicableShift, AvailabilityTypeStrings } from '@/types';
 import { Label } from '@/components/ui/label';
+import { useToast } from '@/components/ui/use-toast';
 
 interface AddScheduleDialogProps {
     isOpen: boolean;
@@ -37,6 +38,7 @@ interface AddScheduleDialogProps {
         date: string;
         shift_id: number;
         version: number;
+        availability_type: AvailabilityTypeStrings | null;
     }) => Promise<void>;
     version: number;
     defaultDate?: Date;
@@ -48,48 +50,126 @@ export function AddScheduleDialog({
     onClose,
     onAddSchedule,
     version,
-    defaultDate = new Date(),
-    defaultEmployeeId,
+    defaultDate: initialDefaultDate, // Renamed to avoid conflict in useEffect
+    defaultEmployeeId: initialDefaultEmployeeId, // Renamed
 }: AddScheduleDialogProps) {
-    const [selectedEmployee, setSelectedEmployee] = useState<number | null>(defaultEmployeeId || null);
-    const [selectedDate, setSelectedDate] = useState<Date | undefined>(defaultDate);
+    const { toast } = useToast();
+
+    const [selectedEmployee, setSelectedEmployee] = useState<number | null>(null);
+    const [selectedDate, setSelectedDate] = useState<Date | undefined>(initialDefaultDate || new Date());
     const [selectedShift, setSelectedShift] = useState<number | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Update selected employee when defaultEmployeeId changes
+    const [employeeStatusList, setEmployeeStatusList] = useState<EmployeeAvailabilityStatus[]>([]);
+    const [isLoadingEmployeeStatus, setIsLoadingEmployeeStatus] = useState(false);
+    
+    const [applicableShiftsList, setApplicableShiftsList] = useState<ApplicableShift[]>([]);
+    const [isLoadingApplicableShifts, setIsLoadingApplicableShifts] = useState(false);
+    
+    const [selectedAvailabilityType, setSelectedAvailabilityType] = useState<AvailabilityTypeStrings | null>(null);
+
+    // Effect to reset and initialize state when dialog opens or default props change
     useEffect(() => {
-        if (defaultEmployeeId) {
-            setSelectedEmployee(defaultEmployeeId);
+        if (isOpen) {
+            setSelectedDate(initialDefaultDate || new Date());
+            // initialDefaultEmployeeId will be handled by the selectedDate change effect triggering employee load
+            //setSelectedEmployee(initialDefaultEmployeeId || null); 
+            setSelectedShift(null);
+            setApplicableShiftsList([]);
+            setSelectedAvailabilityType(null);
+            // Employee list will be cleared and re-fetched by the selectedDate change effect
+        } else {
+            // Clear everything when closed to ensure fresh state on next open
+            setSelectedDate(new Date());
+            setSelectedEmployee(null);
+            setSelectedShift(null);
+            setEmployeeStatusList([]);
+            setApplicableShiftsList([]);
+            setSelectedAvailabilityType(null);
+            setIsLoadingEmployeeStatus(false);
+            setIsLoadingApplicableShifts(false);
+            setIsSubmitting(false);
         }
-    }, [defaultEmployeeId]);
+    }, [isOpen, initialDefaultDate, initialDefaultEmployeeId]);
 
-    // Update selected date when defaultDate changes
+    // Fetch employee availability status when selectedDate changes (and dialog is open)
     useEffect(() => {
-        if (defaultDate) {
-            setSelectedDate(defaultDate);
+        if (selectedDate && isOpen) {
+            setIsLoadingEmployeeStatus(true);
+            setSelectedEmployee(null); // Reset employee when date changes
+            setEmployeeStatusList([]);
+            setSelectedShift(null); // Reset shift when date changes
+            setApplicableShiftsList([]);
+            setSelectedAvailabilityType(null);
+
+            getEmployeeAvailabilityByDate(format(selectedDate, 'yyyy-MM-dd'))
+                .then(data => {
+                    setEmployeeStatusList(data);
+                    // If there was a defaultEmployeeId and the date matches the initialDefaultDate,
+                    // try to pre-select the employee if they are in the new list and available.
+                    if (initialDefaultEmployeeId && initialDefaultDate && format(selectedDate, 'yyyy-MM-dd') === format(initialDefaultDate, 'yyyy-MM-dd')) {
+                        const defaultEmp = data.find(emp => emp.employee_id === initialDefaultEmployeeId && emp.status === 'Available');
+                        if (defaultEmp) {
+                            setSelectedEmployee(initialDefaultEmployeeId);
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error("Error fetching employee availability status:", error);
+                    toast({
+                        title: "Fehler",
+                        description: `Mitarbeiterverfügbarkeit konnte nicht geladen werden: ${(error as Error).message}`,
+                        variant: "destructive",
+                    });
+                    setEmployeeStatusList([]);
+                })
+                .finally(() => {
+                    setIsLoadingEmployeeStatus(false);
+                });
+        } else if (!isOpen) {
+            setEmployeeStatusList([]); // Clear list if dialog is closed
+            setSelectedEmployee(null);
         }
-    }, [defaultDate]);
+    }, [selectedDate, isOpen, toast, initialDefaultDate, initialDefaultEmployeeId]);
 
-    // Query for employees
-    const employeesQuery = useQuery<Employee[], Error>({
-        queryKey: ['employees'],
-        queryFn: async () => {
-            const employees = await getEmployees();
-            return employees;
-        },
-    });
+    // Fetch applicable shifts when selectedDate or selectedEmployee changes (and dialog is open)
+    useEffect(() => {
+        if (selectedDate && selectedEmployee && isOpen) {
+            setIsLoadingApplicableShifts(true);
+            setSelectedShift(null); // Reset shift when employee/date changes
+            setApplicableShiftsList([]);
+            setSelectedAvailabilityType(null);
 
-    // Query for shifts
-    const shiftsQuery = useQuery<Shift[], Error>({
-        queryKey: ['shifts'],
-        queryFn: async () => {
-            const shifts = await getShifts();
-            return shifts;
-        },
-    });
+            getApplicableShiftsForEmployee(format(selectedDate, 'yyyy-MM-dd'), selectedEmployee)
+                .then(data => {
+                    setApplicableShiftsList(data);
+                })
+                .catch(error => {
+                    console.error("Error fetching applicable shifts:", error);
+                    toast({
+                        title: "Fehler",
+                        description: `Verfügbare Schichten konnten nicht geladen werden: ${(error as Error).message}`,
+                        variant: "destructive",
+                    });
+                    setApplicableShiftsList([]);
+                })
+                .finally(() => {
+                    setIsLoadingApplicableShifts(false);
+                });
+        } else {
+            setApplicableShiftsList([]);
+            setSelectedShift(null);
+            setSelectedAvailabilityType(null);
+        }
+    }, [selectedDate, selectedEmployee, isOpen, toast]);
 
     const handleSubmit = async () => {
-        if (!selectedEmployee || !selectedDate || !selectedShift) {
+        if (!selectedEmployee || !selectedDate || !selectedShift || !selectedAvailabilityType) {
+            toast({
+                title: "Fehlende Eingabe",
+                description: "Bitte wählen Sie Datum, Mitarbeiter und Schicht aus. Der Verfügbarkeitstyp wird automatisch ermittelt.",
+                variant: "warning", // Changed from default to warning
+            });
             return;
         }
 
@@ -100,12 +180,35 @@ export function AddScheduleDialog({
                 date: format(selectedDate, 'yyyy-MM-dd'),
                 shift_id: selectedShift,
                 version,
+                availability_type: selectedAvailabilityType,
             });
-            onClose();
+            onClose(); // Close dialog on success
         } catch (error) {
             console.error('Error adding schedule:', error);
+            toast({
+                title: "Fehler beim Speichern",
+                description: (error instanceof Error) ? error.message : "Ein unbekannter Fehler ist aufgetreten.",
+                variant: "destructive",
+            });
         } finally {
             setIsSubmitting(false);
+        }
+    };
+    
+    const handleEmployeeChange = (value: string) => {
+        const employeeId = value ? Number(value) : null;
+        setSelectedEmployee(employeeId);
+        // Shift selection will be reset by the useEffect watching selectedEmployee
+    };
+
+    const handleShiftChange = (value: string) => {
+        const shiftId = value ? Number(value) : null;
+        setSelectedShift(shiftId);
+        if (shiftId) {
+            const chosenShift = applicableShiftsList.find(s => s.shift_id === shiftId);
+            setSelectedAvailabilityType(chosenShift ? chosenShift.availability_type : null);
+        } else {
+            setSelectedAvailabilityType(null);
         }
     };
 
@@ -119,40 +222,21 @@ export function AddScheduleDialog({
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
+                    {/* Date Input */}
                     <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="employee" className="text-right">
-                            Mitarbeiter
-                        </Label>
-                        <Select
-                            value={selectedEmployee?.toString() || ''}
-                            onValueChange={(value) => setSelectedEmployee(Number(value))}
-                        >
-                            <SelectTrigger className="col-span-3" id="employee">
-                                <SelectValue placeholder="Mitarbeiter auswählen" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {employeesQuery.isLoading && <SelectItem value="loading">Lädt...</SelectItem>}
-                                {employeesQuery.data?.map((employee) => (
-                                    <SelectItem key={employee.id} value={employee.id.toString()}>
-                                        {employee.first_name} {employee.last_name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="date" className="text-right">
+                        <Label htmlFor="date-picker" className="text-right">
                             Datum
                         </Label>
                         <Popover>
                             <PopoverTrigger asChild>
                                 <Button
-                                    id="date"
+                                    id="date-picker" // Ensure unique id if Label's htmlFor is used
                                     variant="outline"
                                     className={cn(
                                         "col-span-3 justify-start text-left font-normal",
                                         !selectedDate && "text-muted-foreground"
                                     )}
+                                    disabled={isSubmitting}
                                 >
                                     <CalendarIcon className="mr-2 h-4 w-4" />
                                     {selectedDate ? format(selectedDate, 'dd.MM.yyyy') : <span>Datum auswählen</span>}
@@ -168,22 +252,62 @@ export function AddScheduleDialog({
                             </PopoverContent>
                         </Popover>
                     </div>
+                    {/* Employee Input */}
                     <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="shift" className="text-right">
+                        <Label htmlFor="employee-select" className="text-right">
+                            Mitarbeiter
+                        </Label>
+                        <Select
+                            value={selectedEmployee?.toString() || ''}
+                            onValueChange={handleEmployeeChange}
+                            disabled={isLoadingEmployeeStatus || !selectedDate || isSubmitting}
+                        >
+                            <SelectTrigger className="col-span-3" id="employee-select">
+                                <SelectValue placeholder={isLoadingEmployeeStatus ? "Lädt Mitarbeiter..." : ( !selectedDate ? "Bitte Datum wählen" : "Mitarbeiter auswählen")} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {isLoadingEmployeeStatus && <div className="p-2 text-sm text-muted-foreground text-center">Lädt Mitarbeiter...</div>}
+                                {!isLoadingEmployeeStatus && selectedDate && employeeStatusList.length === 0 && 
+                                    <div className="p-2 text-sm text-muted-foreground text-center">Keine Mitarbeiter für dieses Datum.</div>}
+                                {employeeStatusList.map((empStatus) => (
+                                    <SelectItem 
+                                        key={empStatus.employee_id} 
+                                        value={empStatus.employee_id.toString()}
+                                        disabled={empStatus.status !== 'Available'} 
+                                    >
+                                        {empStatus.employee_name} 
+                                        <span className={cn(
+                                            "text-xs opacity-80 ml-2",
+                                            empStatus.status !== 'Available' && "text-red-500"
+                                        )}>
+                                            ({empStatus.status})
+                                        </span>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    {/* Shift Input */}
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="shift-select" className="text-right">
                             Schicht
                         </Label>
                         <Select
                             value={selectedShift?.toString() || ''}
-                            onValueChange={(value) => setSelectedShift(Number(value))}
+                            onValueChange={handleShiftChange}
+                            disabled={isLoadingApplicableShifts || !selectedEmployee || isSubmitting}
                         >
-                            <SelectTrigger className="col-span-3" id="shift">
-                                <SelectValue placeholder="Schicht auswählen" />
+                            <SelectTrigger className="col-span-3" id="shift-select">
+                                <SelectValue placeholder={isLoadingApplicableShifts ? "Lädt Schichten..." : (!selectedEmployee ? "Bitte Mitarbeiter wählen" : "Schicht auswählen")} />
                             </SelectTrigger>
                             <SelectContent>
-                                {shiftsQuery.isLoading && <SelectItem value="loading">Lädt...</SelectItem>}
-                                {shiftsQuery.data?.map((shift) => (
-                                    <SelectItem key={shift.id} value={shift.id.toString()}>
-                                        {shift.start_time} - {shift.end_time} ({shift.duration_hours}h)
+                                {isLoadingApplicableShifts && <div className="p-2 text-sm text-muted-foreground text-center">Lädt Schichten...</div>}
+                                {!isLoadingApplicableShifts && selectedEmployee && applicableShiftsList.length === 0 && 
+                                    <div className="p-2 text-sm text-muted-foreground text-center">Keine Schichten für diesen Mitarbeiter an diesem Tag.</div>}
+                                {applicableShiftsList.map((shift) => (
+                                    <SelectItem key={shift.shift_id} value={shift.shift_id.toString()}>
+                                        {shift.name} ({shift.start_time} - {shift.end_time}) 
+                                        <span className="text-xs opacity-80 ml-2">({shift.availability_type})</span>
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -191,12 +315,12 @@ export function AddScheduleDialog({
                     </div>
                 </div>
                 <DialogFooter>
-                    <Button variant="outline" onClick={onClose}>
+                    <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
                         Abbrechen
                     </Button>
                     <Button
                         onClick={handleSubmit}
-                        disabled={!selectedEmployee || !selectedDate || !selectedShift || isSubmitting}
+                        disabled={!selectedEmployee || !selectedDate || !selectedShift || !selectedAvailabilityType || isSubmitting || isLoadingEmployeeStatus || isLoadingApplicableShifts}
                     >
                         {isSubmitting ? 'Speichert...' : 'Speichern'}
                     </Button>

@@ -204,13 +204,13 @@ setup_tmux_session() {
     }
     
     # Configure backend pane
-    tmux send-keys -t "$TMUX_SESSION" "cd src/backend" C-m
     tmux send-keys -t "$TMUX_SESSION" "source $VENV_PATH/bin/activate" C-m
-    tmux send-keys -t "$TMUX_SESSION" "export FLASK_APP=run.py" C-m
+    tmux send-keys -t "$TMUX_SESSION" "export FLASK_APP=src.backend.run" C-m
     tmux send-keys -t "$TMUX_SESSION" "export FLASK_ENV=development" C-m
     tmux send-keys -t "$TMUX_SESSION" "export DEBUG_MODE=1" C-m
     tmux send-keys -t "$TMUX_SESSION" "echo 'Starting Backend...'" C-m
-    tmux send-keys -t "$TMUX_SESSION" "python3 run.py --auto-port --kill" C-m
+    tmux send-keys -t "$TMUX_SESSION" "python3 -m src.backend.run --auto-port --kill" C-m
+    tmux split-window -h
     
     # Split window for frontend
     tmux split-window -h

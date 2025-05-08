@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional
 from datetime import date
 
 # Import the Flask app for context management
-from app import create_app
+from src.backend.app import create_app
 from .generator import ScheduleGenerator
 
 
