@@ -890,6 +890,9 @@ export function SchedulePage() {
     setActiveView(newView);
   };
 
+  // State for generation settings dialog
+  const [isGenerationSettingsOpen, setIsGenerationSettingsOpen] = useState(false);
+
   return (
     <div className="container mx-auto py-4 space-y-4">
       <PageHeader title="Dienstplan" className="mb-4">
@@ -917,43 +920,9 @@ export function SchedulePage() {
           employees={employees || []}
           startDate={format(dateRange.from, 'yyyy-MM-dd')}
           endDate={format(dateRange.to, 'yyyy-MM-dd')}
+          version={selectedVersion}
         />
       )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        {/* Generation Settings */}
-        {settingsQuery.data && (
-          <ScheduleGenerationSettings
-            settings={settingsQuery.data}
-            onUpdate={handleSettingsUpdate}
-            createEmptySchedules={createEmptySchedules}
-            includeEmpty={includeEmpty}
-            onCreateEmptyChange={handleCreateEmptyChange}
-            onIncludeEmptyChange={handleIncludeEmptyChange}
-            onGenerateSchedule={handleGenerateSchedule}
-            isGenerating={isGenerationPending}
-          />
-        )}
-
-        {/* Version Control */}
-        <VersionControl
-          versions={versions}
-          versionStatuses={data?.version_statuses ?? {}}
-          currentVersion={data?.current_version}
-          versionMeta={data?.version_meta}
-          dateRange={dateRange}
-          onVersionChange={handleVersionChange}
-          onCreateNewVersion={handleCreateNewVersion}
-          onPublishVersion={handlePublishVersion}
-          onArchiveVersion={handleArchiveVersion}
-          onDeleteVersion={handleDeleteVersion}
-          onDuplicateVersion={handleDuplicateVersion}
-          isLoading={isLoadingVersions || isLoadingSchedule}
-          hasError={isError && !!error && !data}
-          schedules={convertedSchedules}
-          onRetry={handleRetryFetch}
-        />
-      </div>
 
       {/* Version Table */}
       {versionMetas && versionMetas.length > 0 && (
@@ -965,6 +934,7 @@ export function SchedulePage() {
           onArchiveVersion={handleArchiveVersion}
           onDeleteVersion={handleDeleteVersion}
           onDuplicateVersion={handleDuplicateVersion}
+          onCreateNewVersion={handleCreateNewVersion}
         />
       )}
 
@@ -973,9 +943,13 @@ export function SchedulePage() {
         <ScheduleActions
           onAddSchedule={handleAddSchedule}
           onDeleteSchedule={handleDeleteSchedule}
-          isLoading={isLoadingSchedule || isLoadingVersions || isGenerationPending}
+          onGenerateSchedule={handleGenerateSchedule}
+          onOpenGenerationSettings={() => setIsGenerationSettingsOpen(true)}
+          isLoading={isLoadingSchedule || isLoadingVersions}
+          isGenerating={isGenerationPending}
           canAdd={!!selectedVersion}
           canDelete={!!selectedVersion && convertedSchedules.length > 0}
+          canGenerate={!!selectedVersion && !isGenerationPending}
           activeView={activeView}
           onViewChange={handleViewChange}
         />
@@ -1086,6 +1060,38 @@ export function SchedulePage() {
         logs={generationLogs}
         clearLogs={clearGenerationLogs}
       />
+
+      {/* Generation Settings Dialog */}
+      {settingsQuery.data && (
+        <Dialog open={isGenerationSettingsOpen} onOpenChange={setIsGenerationSettingsOpen}>
+          <DialogContent className="sm:max-w-[800px]">
+            <DialogHeader>
+              <DialogTitle>Generierungseinstellungen</DialogTitle>
+              <DialogDescription>
+                Passen Sie die Einstellungen für die Dienstplangenerierung an
+              </DialogDescription>
+            </DialogHeader>
+            <ScheduleGenerationSettings
+              settings={settingsQuery.data}
+              onUpdate={handleSettingsUpdate}
+              createEmptySchedules={createEmptySchedules}
+              includeEmpty={includeEmpty}
+              onCreateEmptyChange={handleCreateEmptyChange}
+              onIncludeEmptyChange={handleIncludeEmptyChange}
+              onGenerateSchedule={() => {
+                setIsGenerationSettingsOpen(false);
+                handleGenerateSchedule();
+              }}
+              isGenerating={isGenerationPending}
+            />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsGenerationSettingsOpen(false)}>
+                Schließen
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Add Schedule Dialog */}
       {isAddScheduleDialogOpen && selectedVersion && (

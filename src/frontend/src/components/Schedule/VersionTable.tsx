@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { differenceInDays } from 'date-fns';
-import { Check, Archive, Pencil, Calendar, Trash, Copy } from 'lucide-react';
+import { Check, Archive, Pencil, Calendar, Trash, Copy, Plus } from 'lucide-react';
 import { VersionMeta } from '@/services/api';
 
 interface VersionTableProps {
@@ -16,6 +16,7 @@ interface VersionTableProps {
     onArchiveVersion: (version: number) => void;
     onDeleteVersion: (version: number) => void;
     onDuplicateVersion?: (version: number) => void;
+    onCreateNewVersion?: () => void;
 }
 
 export function VersionTable({
@@ -25,13 +26,25 @@ export function VersionTable({
     onPublishVersion,
     onArchiveVersion,
     onDeleteVersion,
-    onDuplicateVersion
+    onDuplicateVersion,
+    onCreateNewVersion
 }: VersionTableProps) {
     if (!versions || versions.length === 0) {
         return (
             <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between">
                     <CardTitle>Versionen</CardTitle>
+                    {onCreateNewVersion && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={onCreateNewVersion}
+                            className="ml-auto"
+                        >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Neue Version
+                        </Button>
+                    )}
                 </CardHeader>
                 <CardContent>
                     <div className="text-center text-muted-foreground py-4">
@@ -68,11 +81,21 @@ export function VersionTable({
 
     return (
         <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
                     <Calendar className="h-5 w-5" />
                     Versions-Tabelle
                 </CardTitle>
+                {onCreateNewVersion && (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={onCreateNewVersion}
+                    >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Neue Version
+                    </Button>
+                )}
             </CardHeader>
             <CardContent>
                 <Table>

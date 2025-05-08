@@ -194,7 +194,9 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, shift, onSave, o
                                 <SelectValue placeholder="Schichttyp auswählen" />
                             </SelectTrigger>
                             <SelectContent>
-                                {shiftTypes.map((type) => (
+                                {shiftTypes
+                                    .filter(type => !type.autoAssignOnly) // Filter out autoAssignOnly shift types
+                                    .map((type) => (
                                     <SelectItem key={type.id} value={type.id}>
                                         <div className="flex items-center">
                                             <div

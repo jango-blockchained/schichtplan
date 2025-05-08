@@ -902,27 +902,75 @@ class ScheduleGenerator:
 
 
     def _create_empty_schedule_entries(self, current_date: date):
-        """Create empty schedule entries for a specific date"""
-        self.diagnostic_logger.debug(f"Creating empty schedule entry structure for date: {current_date}")
-        # Use a structure consistent with serialized output if possible
-        empty_assignment = {
-            "date": current_date.isoformat(), # Use ISO format string
-            "employee_id": None,
-            "shift_id": None,
-            "start_time": None,
-            "end_time": None,
-            "shift_name": None,
-            "status": "EMPTY", # Specific status for empty days
-            "version": self.schedule.version, # Match schedule version
-            "employee_name": None,
-        }
-        # Add directly to the schedule's entries list
-        self.schedule.entries.append(empty_assignment)
-        # Also add to the daily cache for consistency during generation
-        if current_date not in self.schedule_by_date:
-             self.schedule_by_date[current_date] = []
-        self.schedule_by_date[current_date].append(empty_assignment)
-        self.process_tracker.log_step_data(f"Empty Entry Created for {current_date}", empty_assignment, level=logging.DEBUG)
+        """Create NO_WORK shift entries for all employees who don't have assignments on a specific date"""
+        self.diagnostic_logger.debug(f"Creating NO_WORK shift entries for date: {current_date}")
+        
+        # Get all active employees
+        active_employees = [e for e in self.resources.employees if getattr(e, "is_active", True)]
+        self.diagnostic_logger.info(f"Found {len(active_employees)} active employees for NO_WORK assignments")
+        
+        # Get employees who already have assignments for this date
+        assigned_employee_ids = set()
+        if current_date in self.schedule_by_date:
+            for assignment in self.schedule_by_date[current_date]:
+                if isinstance(assignment, dict):
+                    employee_id = assignment.get("employee_id")
+                    if employee_id:
+                        assigned_employee_ids.add(employee_id)
+                else:
+                    employee_id = getattr(assignment, "employee_id", None)
+                    if employee_id:
+                        assigned_employee_ids.add(employee_id)
+        
+        # Create a NO_WORK assignment for each unassigned employee
+        for employee in active_employees:
+            employee_id = getattr(employee, "id", None)
+            if not employee_id:
+                self.logger.warning(f"Employee has no ID, skipping: {employee}")
+                continue
+                
+            # Skip employees who already have assignments for this date
+            if employee_id in assigned_employee_ids:
+                self.diagnostic_logger.debug(f"Employee {employee_id} already has assignment for {current_date}, skipping NO_WORK")
+                continue
+                
+            # Create employee name for display
+            employee_name = None
+            if hasattr(employee, "first_name") and hasattr(employee, "last_name"):
+                employee_name = f"{employee.first_name} {employee.last_name}"
+            
+            # Create a NO_WORK assignment
+            no_work_assignment = {
+                "date": current_date.isoformat(),
+                "employee_id": employee_id,
+                "employee_name": employee_name,
+                "shift_id": None,  # No actual shift ID since it's a virtual shift
+                "start_time": "00:00",
+                "end_time": "00:00",
+                "duration_hours": 0,
+                "shift_type": "NO_WORK",
+                "shift_type_id": "NO_WORK",
+                "shift_name": "Kein Dienst",
+                "status": "AUTO_ASSIGNED",  # Special status for auto-assigned NO_WORK
+                "version": self.schedule.version,
+            }
+            
+            # Add to schedule entries
+            self.schedule.entries.append(no_work_assignment)
+            
+            # Add to daily cache
+            if current_date not in self.schedule_by_date:
+                self.schedule_by_date[current_date] = []
+            self.schedule_by_date[current_date].append(no_work_assignment)
+            
+            self.diagnostic_logger.debug(f"Created NO_WORK assignment for employee {employee_id} on {current_date}")
+            
+        self.logger.info(f"Created NO_WORK assignments for {len(active_employees) - len(assigned_employee_ids)} employees on {current_date}")
+        self.process_tracker.log_step_data(
+            f"NO_WORK Assignments for {current_date}", 
+            {"total": len(active_employees) - len(assigned_employee_ids)},
+            level=logging.INFO
+        )
 
     def _save_to_database(self):
         """

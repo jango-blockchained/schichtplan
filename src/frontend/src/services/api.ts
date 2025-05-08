@@ -324,6 +324,10 @@ export const generateSchedule = async (
     version: number
 ): Promise<ScheduleResponse> => {
     try {
+        if (!version) {
+            throw new Error("Version is required for schedule generation");
+        }
+        
         console.log('📆 Generating schedule with parameters:', {
             startDate,
             endDate,

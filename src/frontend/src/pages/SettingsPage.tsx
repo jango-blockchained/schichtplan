@@ -35,6 +35,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { format } from 'date-fns';
 import { ScheduleGenerationSettings } from "@/components/ScheduleGenerationSettings";
+import { ApolloExample } from "@/components/ApolloExample";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -693,6 +694,18 @@ export function SettingsPage() {
                         </AlertDialogContent>
                       </AlertDialog>
                     </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Apollo Client DevTools</CardTitle>
+                    <CardDescription>
+                      Example implementation of Apollo Client for GraphQL data fetching
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ApolloExample />
                   </CardContent>
                 </Card>
               </div>

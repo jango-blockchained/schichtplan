@@ -5,7 +5,7 @@ export enum EmployeeGroup {
     TL = "TL"
 }
 
-export type ShiftType = 'EARLY' | 'MIDDLE' | 'LATE';
+export type ShiftType = 'EARLY' | 'MIDDLE' | 'LATE' | 'NO_WORK';
 
 export interface TimeSlot {
     day: 'MO' | 'DI' | 'MI' | 'DO' | 'FR' | 'SA';
