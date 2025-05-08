@@ -5,6 +5,49 @@ from .employee import EmployeeGroup
 
 
 class Coverage(db.Model):
+    """Represents a coverage requirement definition.
+
+    This model defines blocks of time on specific days of the week where
+    a certain number of employees, potentially with specific types or roles
+    (like keyholder), are required.
+
+    IMPORTANT Backend Interpretation:
+    While the frontend editor uses `start_time`, `end_time`, and `min_employees`
+    to define a visual block, the backend scheduler and validator interpret
+    this differently. A single Coverage record signifies that `min_employees`
+    are required for *each granular time interval* (e.g., every 15 or 60 minutes)
+    that falls within the `start_time` (inclusive) and `end_time` (exclusive)
+    for the specified `day_index`.
+
+    Overlap Handling:
+    If multiple Coverage records created via the editor overlap for the same
+    time interval, the backend utility (`get_required_staffing_for_interval`)
+    resolves this by taking the maximum `min_employees` across all overlapping
+    records for that interval. Other requirements like `employee_types` are
+    combined (e.g., union), and `requires_keyholder` is set to True if *any*
+    overlapping record requires it.
+
+    Decoupling:
+    These records define the overall staffing *need*. They are no longer directly
+    linked one-to-one with specific shifts that fulfill them. The scheduler aims
+    to assign shifts whose times cover the intervals where needs exist.
+
+    Attributes:
+        id (int): Primary key.
+        day_index (int): Day of the week (0=Monday, 6=Sunday).
+        start_time (str): Start time of the coverage block (HH:MM).
+        end_time (str): End time of the coverage block (HH:MM).
+        min_employees (int): Minimum employees required per interval within this block.
+        max_employees (int): Maximum employees (informational, less used by interval logic).
+        employee_types (JSON): List of specific employee type IDs/names required.
+                                (Interpretation depends on scheduler logic, e.g., any of these types needed).
+        allowed_employee_groups (JSON): List of employee groups allowed for this coverage.
+        requires_keyholder (bool): If a keyholder is mandatory during intervals in this block.
+        keyholder_before_minutes (int): Informational - how early keyholder needed before block start.
+        keyholder_after_minutes (int): Informational - how late keyholder needed after block end.
+        created_at (DateTime): Timestamp of creation.
+        updated_at (DateTime): Timestamp of last update.
+    """
     __tablename__ = "coverage"
 
     id = Column(Integer, primary_key=True)

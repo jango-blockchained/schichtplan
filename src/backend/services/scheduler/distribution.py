@@ -1351,8 +1351,25 @@ class DistributionManager:
         availability_checker: AvailabilityChecker 
     ) -> List[Dict]:
         """
-        Assigns employees to potential shifts for a given date to meet
-        interval-based coverage requirements.
+        Generates employee assignments for a specific date based on interval needs.
+
+        This is the main entry point for daily assignment generation. It determines
+        the staffing needs for each time interval throughout the day using
+        `get_required_staffing_for_interval` and then attempts to assign employees
+        to the `potential_shifts` to meet these needs, considering constraints,
+        availability, and fairness.
+
+        Args:
+            current_date: The date for which to generate assignments.
+            potential_shifts: A list of shift dictionaries representing potential
+                              work opportunities for the day, derived from ShiftTemplates.
+            resources: ScheduleResources instance containing employees, coverage, etc.
+            constraint_checker: Instance to validate constraints.
+            availability_checker: Instance to check employee availability.
+
+        Returns:
+            A list of assignment dictionaries representing the generated schedule
+            for the day.
         """
         self.logger.info(f"--- Starting Distribution for {current_date} with {len(potential_shifts)} potential shifts ---")
 
@@ -1377,9 +1394,9 @@ class DistributionManager:
             daily_interval_needs[current_time_for_interval] = interval_needs
             # Initialize current staffing for this interval
             current_staffing_per_interval[current_time_for_interval] = {
-                'assigned_employees_count': 0,
+                'current_employees': 0,                         # Changed key
                 'assigned_employee_ids': set(),
-                'assigned_employee_types': set(),
+                'current_employee_types_count': defaultdict(int), # Changed key and type
                 'keyholder_present': False
             }
             self.logger.debug(f"Interval {current_date} {current_time_for_interval}: Needs={interval_needs}")
@@ -1434,8 +1451,27 @@ class DistributionManager:
         interval_minutes: int
     ) -> List[Dict]:
         """
-        Core logic for assigning employees to shifts to meet interval-based needs.
-        Implements a greedy, interval-driven approach.
+        Performs the core interval-driven assignment logic for a single day.
+
+        Iterates through each time interval of the day, checks for staffing deficits
+        based on `daily_interval_needs` and `current_staffing_per_interval`,
+        and calls `_try_find_and_make_assignment` to fill those deficits.
+        Updates the `current_staffing_per_interval` map after successful assignments
+        to reflect the impact on all intervals covered by the assigned shift.
+
+        Args:
+            current_date: The date being processed.
+            potential_shifts: List of potential shift dictionaries for the day.
+            daily_interval_needs: Dictionary mapping interval start times to their needs.
+            current_staffing_per_interval: Dictionary tracking the current staffing state
+                                           for each interval (mutable).
+            resources: ScheduleResources instance.
+            constraint_checker: ConstraintChecker instance.
+            availability_checker: AvailabilityChecker instance.
+            interval_minutes: Duration of intervals in minutes.
+
+        Returns:
+            A list of assignment dictionaries made for the day.
         """
         self.logger.info(f"Starting interval-based assignment for {current_date} with {len(potential_shifts)} potential shifts.")
         final_assignments: List[Dict] = []
@@ -1556,8 +1592,16 @@ class DistributionManager:
         interval_duration_minutes: int # Added parameter
     ) -> Optional[Dict]:
         """
-        Tries to find the best employee for a candidate shift that covers the understaffed interval
-        and makes an assignment if a suitable candidate is found.
+        Attempts to find the best single employee-shift assignment for an understaffed interval.
+
+        Evaluates `candidate_shift_ids` that cover the target `interval_time`.
+        For each candidate shift, it iterates through available and compliant employees,
+        calculating an assignment score using `calculate_assignment_score`.
+        If a suitable candidate is found (highest score > -inf), it creates and returns
+        the assignment dictionary and updates the employee's history via
+        `update_with_assignment`. It does *not* directly modify the
+        `current_staffing_per_interval` map; that is the responsibility of the caller
+        (`_perform_interval_based_assignments`).
 
         Args:
             current_date: The date for which assignments are being made.

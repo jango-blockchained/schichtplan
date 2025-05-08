@@ -5,15 +5,15 @@ from collections import defaultdict
 
 # Assuming models and DistributionManager are accessible
 # Adjust imports based on your project structure
-from backend.models.employee import AvailabilityType, Employee as ActualEmployee
-from backend.models.shift_template import ShiftTemplate as ActualShiftTemplate
+from models.employee import AvailabilityType, Employee as ActualEmployee
+from models.shift_template import ShiftTemplate as ActualShiftTemplate
 # If you have dummy/type hint versions for testing in DistributionManager, import them too
 # from backend.services.scheduler.distribution import Employee as DummyEmployee, ShiftTemplate as DummyShiftTemplate
 
-from backend.services.scheduler.distribution import DistributionManager
-from backend.services.scheduler.resources import ScheduleResources
-from backend.services.scheduler.constraints import ConstraintChecker
-from backend.services.scheduler.availability import AvailabilityChecker
+from services.scheduler.distribution import DistributionManager
+from services.scheduler.resources import ScheduleResources
+from services.scheduler.constraints import ConstraintChecker
+from services.scheduler.availability import AvailabilityChecker
 
 # Helper to create a mock employee with specific attributes
 def create_mock_employee(id, is_keyholder=False, employee_group=None, contracted_hours=40.0, is_active=True):
@@ -226,7 +226,7 @@ class TestDistributionManagerInterval(unittest.TestCase):
             "interval_duration_minutes": 60 # Assuming 1hr intervals for simplicity here
         }
         # Mock that resources.get_interval_needs_for_time returns the correct needs for each interval
-        self.mock_resources.get_interval_needs_for_time.side_effect = lambda dt, t: context_no_overstaff[\"full_day_staffing_snapshot\"][t]
+        self.mock_resources.get_interval_needs_for_time.side_effect = lambda dt, t: context_no_overstaff["full_day_staffing_snapshot"][t]
         
         score_no_overstaff = self.dist_manager.calculate_assignment_score(
             self.employee2.id, self.shift_template_early, self.current_date, context_no_overstaff, AvailabilityType.AVAILABLE)
@@ -243,7 +243,7 @@ class TestDistributionManagerInterval(unittest.TestCase):
             },
             "interval_duration_minutes": 60
         }
-        self.mock_resources.get_interval_needs_for_time.side_effect = lambda dt, t: context_causes_overstaff[\"full_day_staffing_snapshot\"][t]
+        self.mock_resources.get_interval_needs_for_time.side_effect = lambda dt, t: context_causes_overstaff["full_day_staffing_snapshot"][t]
 
         score_causes_overstaff = self.dist_manager.calculate_assignment_score(
             self.employee2.id, self.shift_template_early, self.current_date, context_causes_overstaff, AvailabilityType.AVAILABLE)

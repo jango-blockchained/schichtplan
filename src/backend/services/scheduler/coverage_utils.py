@@ -8,8 +8,8 @@ from typing import Dict, List, Set, Optional
 # and Coverage model is two levels up in models directory
 # Adjust paths if necessary based on actual project structure
 from .resources import ScheduleResources
-from ...models.coverage import Coverage
-from ...models.employee import EmployeeGroup # For default employee_types
+from models.coverage import Coverage
+from models.employee import EmployeeGroup # For default employee_types
 
 
 def _time_str_to_datetime_time(time_str: str) -> Optional[datetime.time]:
@@ -31,6 +31,18 @@ def get_required_staffing_for_interval(
 ) -> Dict:
     """
     Calculates the specific staffing needs for a given time interval on a target date.
+
+    This function iterates through all coverage rules defined in `resources.coverage`
+    and determines which ones apply to the specified `interval_start_time` on the
+    `target_date` based on the rule's `day_index` and `start_time`/`end_time`.
+
+    Overlap Handling:
+    If multiple `Coverage` rules overlap and apply to the same interval:
+        - `min_employees`: The maximum value from all applicable rules is taken.
+        - `employee_types`: A set union of all specified types is created.
+        - `allowed_employee_groups`: A set union of all specified groups is created.
+        - `requires_keyholder`: Set to True if *any* applicable rule requires it.
+        - `keyholder_before/after_minutes`: The maximum value specified is taken.
 
     Args:
         target_date: The date for which to calculate staffing needs.
