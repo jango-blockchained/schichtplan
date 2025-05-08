@@ -8,12 +8,12 @@ including error handling, parameter validation, and response structure.
 import json
 import pytest
 from datetime import datetime, timedelta
-from app import create_app
-from models import db
-from models.employee import Employee, EmployeeGroup
-from models.fixed_shift import ShiftTemplate
-from models.settings import Settings
-from models.version import VersionMeta
+from src.backend.app import create_app
+from src.backend.models import db
+from src.backend.models.employee import Employee, EmployeeGroup
+from src.backend.models.fixed_shift import ShiftTemplate
+from src.backend.models.settings import Settings
+from src.backend.models.version import VersionMeta
 
 
 @pytest.fixture

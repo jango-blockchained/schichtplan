@@ -8,8 +8,8 @@ from typing import Dict, List, Set, Optional
 # and Coverage model is two levels up in models directory
 # Adjust paths if necessary based on actual project structure
 from .resources import ScheduleResources
-from models.coverage import Coverage
-from models.employee import EmployeeGroup # For default employee_types
+from src.backend.models.coverage import Coverage
+from src.backend.models.employee import EmployeeGroup # For default employee_types
 
 
 def _time_str_to_datetime_time(time_str: str) -> Optional[datetime.time]:

@@ -556,6 +556,7 @@ def update_schedule(schedule_id):
                 date=datetime.strptime(data["date"], "%Y-%m-%d").date(),
                 version=version,  # Use the provided version or default to 1
                 notes=data.get("notes"),
+                availability_type=data.get("availability_type")
             )
 
             # Handle break_duration by converting it to break_start and break_end
@@ -618,6 +619,11 @@ def update_schedule(schedule_id):
                 schedule.version = data["version"]
                 logger.schedule_logger.info(
                     f"Updated schedule version to {schedule.version}"
+                )
+            if "availability_type" in data:
+                schedule.availability_type = data["availability_type"]
+                logger.schedule_logger.info(
+                    f"Updated schedule availability_type to {schedule.availability_type}"
                 )
             if "shift_type" in data:
                 schedule.shift_type = (

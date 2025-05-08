@@ -9,13 +9,13 @@ import sys
 import logging
 from datetime import datetime, timedelta
 
-from app import create_app
-from models.fixed_shift import ShiftTemplate
-from models.employee import Employee
-from models.settings import Settings
-from models.availability import Availability
-from services.scheduler.generator import ScheduleGenerator
-from models import db
+from src.backend.app import create_app
+from src.backend.models.fixed_shift import ShiftTemplate
+from src.backend.models.employee import Employee
+from src.backend.models.settings import Settings
+from src.backend.models.availability import Availability
+from src.backend.services.scheduler.generator import ScheduleGenerator
+from src.backend.models import db
 
 # Set up logging
 logging.basicConfig(

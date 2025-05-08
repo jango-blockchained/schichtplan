@@ -169,7 +169,7 @@ class ScheduleAssignment:
         shift_id: int,
         date: date,
         shift_template: Any = None,
-        availability_type: str = None,
+        availability_type: Optional[str] = None,
         status: str = "PENDING",
         version: int = 1,
     ):
@@ -652,7 +652,7 @@ class ScheduleGenerator:
         """
         date_str = current_date.isoformat()
         self.diagnostic_logger.debug(f"--- Generating assignments for date: {date_str} ---")
-        self.process_tracker.log_event(f"Starting assignment generation for {date_str}")
+        self.process_tracker.log_info(f"Starting assignment generation for {date_str}")
 
         assignments_for_date: List[Dict] = []
 
@@ -716,6 +716,8 @@ class ScheduleGenerator:
             if self.process_tracker.current_step == f"Process Daily Assignments for {date_str}":
                 self.process_tracker.end_step({"assignments_count": len(assignments_for_date)})
 
+        return assignments_for_date
+
 
     def _create_empty_schedule_entries(self, current_date: date):
         """Create NO_WORK shift entries for all employees who don't have assignments on a specific date"""
@@ -768,11 +770,12 @@ class ScheduleGenerator:
                 "shift_type_id": "NO_WORK",
                 "shift_name": "Kein Dienst",
                 "status": "AUTO_ASSIGNED",  # Special status for auto-assigned NO_WORK
-                "version": self.schedule.version,
+                "version": self.schedule.version if self.schedule else 1,
             }
             
             # Add to schedule entries
-            self.schedule.entries.append(no_work_assignment)
+            if self.schedule:
+                self.schedule.entries.append(no_work_assignment)
             
             # Add to daily cache
             if current_date not in self.schedule_by_date:
