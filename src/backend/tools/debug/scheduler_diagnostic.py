@@ -29,30 +29,23 @@ logging.basicConfig(
 )
 logger = logging.getLogger("scheduler_diagnostic")
 
-# Import Flask and create app - try different import paths
-app = None
+# Import Flask app directly from app.py
 try:
-    from flask import Flask
-    from backend.api import create_app
-    print("Creating Flask app from backend.api...")
+    from app import create_app
+    print("Creating Flask app from app module...")
     app = create_app()
 except ImportError as e:
-    logger.warning(f"First import attempt failed: {e}")
+    logger.warning(f"Could not import from app: {e}")
     try:
-        from src.backend.api import create_app
-        print("Creating Flask app from src.backend.api...")
+        # Try with the full package path
+        from src.backend.app import create_app
+        print("Creating Flask app from src.backend.app...")
         app = create_app()
     except ImportError as e:
-        logger.warning(f"Second import attempt failed: {e}")
-        try:
-            from api import create_app
-            print("Creating Flask app from api...")
-            app = create_app()
-        except ImportError as e:
-            logger.error(f"Could not import create_app: {e}")
-            logger.error("This script requires the Flask application to access the database.")
-            logger.error("Please run this script from the project root directory.")
-            sys.exit(1)
+        logger.error(f"Could not import create_app: {e}")
+        logger.error("This script requires the Flask application to access the database.")
+        logger.error("Please run this script from the project root directory.")
+        sys.exit(1)
 
 if not app:
     logger.error("Failed to create Flask application")
