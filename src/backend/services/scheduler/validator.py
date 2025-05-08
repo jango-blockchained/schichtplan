@@ -17,6 +17,8 @@ try:
         calculate_rest_hours,
         time_to_minutes,
     )
+    # Import the new utility for interval-based coverage needs
+    from backend.services.scheduler.coverage_utils import get_required_staffing_for_interval, _time_str_to_datetime_time
 except ImportError:
     # When running directly or as part of a different path structure
     try:
@@ -24,6 +26,8 @@ except ImportError:
         from models.employee import EmployeeGroup
         from .resources import ScheduleResources
         from .utility import requires_keyholder, calculate_rest_hours, time_to_minutes
+        # Import the new utility for interval-based coverage needs
+        from .coverage_utils import get_required_staffing_for_interval, _time_str_to_datetime_time
     except ImportError:
         # Log error if imports fail
         logger = logging.getLogger(__name__)
@@ -196,6 +200,8 @@ class ScheduleConfig:
 class ScheduleValidator:
     """Handles validation of scheduling constraints"""
 
+    INTERVAL_MINUTES = 60 # Define interval duration, should match DistributionManager
+
     def __init__(self, resources: ScheduleResources):
         self.resources = resources
         self.errors: List[ValidationError] = []
@@ -253,61 +259,209 @@ class ScheduleValidator:
         return self.errors + self.warnings + self.info
 
     def _validate_coverage(self, schedule: List[Schedule]) -> None:
-        """Validate minimum coverage requirements"""
-        # Group coverage by date and time
-        coverage_by_date_time = {}
-        for cov in self.resources.coverage:
-            date_key = (
-                cov.date.isoformat()
-                if hasattr(cov, "date")
-                else f"weekday_{cov.day_index}"
+        """
+        Validates if the schedule meets interval-based coverage requirements.
+        Compares assigned employees against needs defined by get_required_staffing_for_interval.
+        """
+        if not schedule:
+            self.info.append(
+                ValidationError(
+                    error_type="CoverageValidationSkip",
+                    message="Schedule is empty, skipping coverage validation.",
+                    severity="info",
+                    details={},
+                )
             )
-            time_key = f"{cov.start_time}_{cov.end_time}"
-            key = f"{date_key}_{time_key}"
-            coverage_by_date_time[key] = cov
+            return
 
-        # Count assigned employees for each coverage
-        coverage_counts = {}
+        # Determine the date range of the schedule
+        if not schedule:
+            logger.info("No schedule entries to validate coverage for.")
+            return
+
+        # Ensure schedule entries have date objects
+        # And handle potential string dates if they occur
+        valid_schedule_entries = []
         for entry in schedule:
-            # Skip entries without shifts
-            if not hasattr(entry, "shift") or not entry.shift:
-                continue
+            if isinstance(entry.date, str):
+                try:
+                    entry.date = datetime.strptime(entry.date, '%Y-%m-%d').date()
+                    valid_schedule_entries.append(entry)
+                except ValueError:
+                    logger.warning(f"Invalid date format in schedule entry: {entry}. Skipping.")
+            elif isinstance(entry.date, date):
+                valid_schedule_entries.append(entry)
+            else:
+                logger.warning(f"Invalid date type in schedule entry: {entry}. Skipping.")
+        
+        if not valid_schedule_entries:
+            logger.info("No valid schedule entries with parseable dates to validate coverage for.")
+            return
+            
+        min_date = min(entry.date for entry in valid_schedule_entries)
+        max_date = max(entry.date for entry in valid_schedule_entries)
+        
+        current_validation_date = min_date
+        while current_validation_date <= max_date:
+            # Iterate through intervals for the current_validation_date
+            current_time_of_day = datetime.min.time() # Start at 00:00
+            day_end_time = datetime.strptime("23:59:59", "%H:%M:%S").time()
 
-            date_key = entry.date.isoformat()
-            weekday_key = f"weekday_{entry.date.weekday()}"
-            time_key = f"{entry.shift.start_time}_{entry.shift.end_time}"
-
-            # Try specific date first, then fall back to weekday pattern
-            key = f"{date_key}_{time_key}"
-            weekday_key = f"{weekday_key}_{time_key}"
-
-            if key in coverage_by_date_time:
-                coverage_counts[key] = coverage_counts.get(key, 0) + 1
-            elif weekday_key in coverage_by_date_time:
-                coverage_counts[weekday_key] = coverage_counts.get(weekday_key, 0) + 1
-
-        # Check if each coverage requirement is met
-        for key, cov in coverage_by_date_time.items():
-            count = coverage_counts.get(key, 0)
-            if count < cov.min_employees:
-                date_str = (
-                    cov.date.strftime("%Y-%m-%d")
-                    if hasattr(cov, "date")
-                    else f"Weekday {cov.day_index}"
-                )
-                self.errors.append(
-                    ValidationError(
-                        error_type="coverage",
-                        message=f"Insufficient staff for {date_str} {cov.start_time}-{cov.end_time}",
-                        severity="critical",
-                        details={
-                            "date": date_str,
-                            "time": f"{cov.start_time}-{cov.end_time}",
-                            "required": cov.min_employees,
-                            "assigned": count,
-                        },
+            while current_time_of_day <= day_end_time:
+                interval_start_dt_time = current_time_of_day
+                
+                # Get required staffing for this interval
+                try:
+                    # Assuming get_required_staffing_for_interval uses ScheduleResources
+                    # and can handle the interval duration correctly.
+                    # The interval_duration_minutes parameter might be part of resources or config
+                    # For now, assuming it's handled internally or via resources.config
+                    # interval_duration_minutes=self.INTERVAL_MINUTES 
+                    interval_needs = get_required_staffing_for_interval(
+                        date=current_validation_date,
+                        interval_start_time=interval_start_dt_time,
+                        resources=self.resources,
                     )
-                )
+                except Exception as e:
+                    logger.error(f"Error calling get_required_staffing_for_interval for {current_validation_date} {interval_start_dt_time}: {e}")
+                    # Add an error and skip this interval if the needs function fails
+                    self.errors.append(ValidationError(
+                        error_type="CoverageNeedsError",
+                        message=f"Failed to retrieve coverage needs for interval {interval_start_dt_time} on {current_validation_date}.",
+                        severity="critical",
+                        details={"date": str(current_validation_date), "interval_start": str(interval_start_dt_time), "error": str(e)}
+                    ))
+                    # Advance to next interval
+                    current_time_of_day = (datetime.combine(date.min, current_time_of_day) + timedelta(minutes=self.INTERVAL_MINUTES)).time()
+                    if current_time_of_day == datetime.min.time() and self.INTERVAL_MINUTES > 0 : # Wrapped around midnight
+                        break 
+                    continue
+
+                required_min_employees = interval_needs.get("min_employees", 0)
+                required_employee_types = interval_needs.get("employee_types", []) # List of type IDs/names
+                requires_keyholder_needed = interval_needs.get("requires_keyholder", False)
+
+                # Count actual staffing for this interval from the schedule
+                actual_assigned_employees = 0
+                actual_keyholders_present = 0
+                actual_employee_types_present = defaultdict(int) # Counts of each employee type present
+                
+                assigned_employee_details_for_interval = []
+
+
+                for assignment in valid_schedule_entries:
+                    if assignment.date == current_validation_date:
+                        try:
+                            assignment_start_time = _time_str_to_datetime_time(assignment.start_time)
+                            assignment_end_time = _time_str_to_datetime_time(assignment.end_time)
+                        except ValueError:
+                             logger.warning(f"Invalid time format in assignment: {assignment}. Skipping for interval check.")
+                             continue
+
+
+                        # Check if the assignment covers the current interval_start_dt_time
+                        # An assignment covers the interval if:
+                        # assignment_start_time <= interval_start_dt_time < assignment_end_time
+                        if assignment_start_time <= interval_start_dt_time and interval_start_dt_time < assignment_end_time:
+                            actual_assigned_employees += 1
+                            employee = self.resources.get_employee(assignment.employee_id)
+                            if employee:
+                                assigned_employee_details_for_interval.append({
+                                    "employee_id": employee.id,
+                                    "is_keyholder": getattr(employee, 'is_keyholder', False),
+                                    "employee_group": getattr(employee, 'employee_group', 'UNKNOWN_GROUP') # Assuming Employee model has 'employee_group'
+                                })
+                                if getattr(employee, 'is_keyholder', False):
+                                    actual_keyholders_present += 1
+                                employee_group = getattr(employee, 'employee_group', None)
+                                if employee_group: # Could be an Enum or string
+                                    actual_employee_types_present[str(employee_group)] += 1 # Ensure key is string
+                            else:
+                                logger.warning(f"Could not find employee with ID {assignment.employee_id} for assignment {assignment.id}")
+                
+                # Compare actual vs. required
+                if actual_assigned_employees < required_min_employees:
+                    self.errors.append(
+                        ValidationError(
+                            error_type="Understaffing",
+                            message=(
+                                f"Understaffed for interval starting {interval_start_dt_time} on {current_validation_date}. "
+                                f"Required: {required_min_employees}, Actual: {actual_assigned_employees}."
+                            ),
+                            severity="critical",
+                            details={
+                                "date": str(current_validation_date),
+                                "interval_start": str(interval_start_dt_time),
+                                "required_min_employees": required_min_employees,
+                                "actual_assigned_employees": actual_assigned_employees,
+                                "interval_needs": interval_needs,
+                                "assigned_employees_in_interval": assigned_employee_details_for_interval
+                            },
+                        )
+                    )
+                
+                if requires_keyholder_needed and actual_keyholders_present == 0:
+                    self.errors.append(
+                        ValidationError(
+                            error_type="MissingKeyholder",
+                            message=(
+                                f"Missing keyholder for interval starting {interval_start_dt_time} on {current_validation_date}."
+                            ),
+                            severity="critical",
+                            details={
+                                "date": str(current_validation_date),
+                                "interval_start": str(interval_start_dt_time),
+                                "required_keyholder": True,
+                                "actual_keyholders_present": actual_keyholders_present,
+                                "interval_needs": interval_needs,
+                                "assigned_employees_in_interval": assigned_employee_details_for_interval
+                            },
+                        )
+                    )
+
+                # Validate employee types (if any are required)
+                # This assumes required_employee_types is a list of strings (e.g., group names/IDs)
+                # and actual_employee_types_present is a dict like {'TZ': 1, 'VZ': 0}
+                if required_employee_types:
+                    unmet_type_needs = []
+                    # This part needs refinement based on how employee_types are specified in interval_needs.
+                    # Example: if interval_needs specifies {'min_per_type': {'TZ': 1, 'GFB': 1}}
+                    # For now, let's assume required_employee_types is a list of types that *must* be present.
+                    for req_type in required_employee_types:
+                        if actual_employee_types_present.get(str(req_type), 0) == 0:
+                             unmet_type_needs.append(str(req_type))
+                    
+                    if unmet_type_needs:
+                        self.errors.append(
+                            ValidationError(
+                                error_type="MissingEmployeeType",
+                                message=(
+                                    f"Missing required employee type(s) {', '.join(unmet_type_needs)} for interval "
+                                    f"starting {interval_start_dt_time} on {current_validation_date}."
+                                ),
+                                severity="warning", # Or critical, depending on business rule
+                                details={
+                                    "date": str(current_validation_date),
+                                    "interval_start": str(interval_start_dt_time),
+                                    "required_types": required_employee_types,
+                                    "actual_types_present_counts": dict(actual_employee_types_present),
+                                    "unmet_types": unmet_type_needs,
+                                    "interval_needs": interval_needs,
+                                    "assigned_employees_in_interval": assigned_employee_details_for_interval
+                                },
+                            )
+                        )
+                
+                # Advance to the next interval
+                # Ensure we handle the loop termination correctly if current_time_of_day wraps around
+                if self.INTERVAL_MINUTES <= 0: # Safety break for invalid interval duration
+                    logger.error("INTERVAL_MINUTES is zero or negative, breaking validation loop.")
+                    break 
+                current_time_of_day = (datetime.combine(date.min, current_time_of_day) + timedelta(minutes=self.INTERVAL_MINUTES)).time()
+                if current_time_of_day == datetime.min.time(): # Wrapped around midnight
+                    break 
+            
+            current_validation_date += timedelta(days=1)
 
     def _validate_contracted_hours(self, schedule: List[Schedule]) -> None:
         """Validate contracted hours for employees"""
