@@ -3,10 +3,10 @@ import os
 import sys
 
 # Add the parent directory to the Python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from app import create_app
-from models import db as _db
+from src.backend.app import create_app
+from src.backend.models import db as _db
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 

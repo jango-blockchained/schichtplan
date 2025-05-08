@@ -3,7 +3,7 @@
 Comprehensive test script to verify all our scheduler fixes are working properly.
 """
 
-from src.backend.app import create_app
+from app import create_app
 from services.scheduler import ScheduleGenerator
 from datetime import date, timedelta
 import traceback

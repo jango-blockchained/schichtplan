@@ -8,7 +8,7 @@ from collections import defaultdict
 from models.employee import AvailabilityType, Employee as ActualEmployee
 from models.shift_template import ShiftTemplate as ActualShiftTemplate
 # If you have dummy/type hint versions for testing in DistributionManager, import them too
-# from backend.services.scheduler.distribution import Employee as DummyEmployee, ShiftTemplate as DummyShiftTemplate
+# from services.scheduler.distribution import Employee as DummyEmployee, ShiftTemplate as DummyShiftTemplate
 
 from services.scheduler.distribution import DistributionManager
 from services.scheduler.resources import ScheduleResources
@@ -355,7 +355,7 @@ class TestDistributionManagerInterval(unittest.TestCase):
 
     # --- Tests for _perform_interval_based_assignments --- #
 
-    @patch('backend.services.scheduler.distribution.get_required_staffing_for_interval')
+    @patch('services.scheduler.distribution.get_required_staffing_for_interval')
     def test_perform_interval_based_assignments_simple_case(self, mock_get_needs):
         # Setup interval needs for the day
         daily_interval_needs_setup = {
@@ -430,7 +430,7 @@ class TestDistributionManagerInterval(unittest.TestCase):
         self.assertEqual(current_staffing_setup[time(9,0)]['current_employee_types_count'][str(self.employee2.employee_group)], 1)
         self.assertFalse(current_staffing_setup[time(9,0)]['keyholder_present'])
 
-    @patch('backend.services.scheduler.distribution.get_required_staffing_for_interval')
+    @patch('services.scheduler.distribution.get_required_staffing_for_interval')
     def test_perform_interval_based_assignments_no_assignments_possible(self, mock_get_needs):
         daily_interval_needs_setup = {time(9,0): {"min_employees": 1}}
         current_staffing_setup = {time(9,0): {"current_employees": 0, "assigned_employee_ids": set(), "keyholder_present": False, "current_employee_types_count": defaultdict(int)}}

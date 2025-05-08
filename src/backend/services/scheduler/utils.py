@@ -5,8 +5,8 @@ from typing import Dict, Any, Optional
 from datetime import date
 
 # Import the Flask app for context management
-from src.backend.app import create_app
-from src.backend.services.scheduler.generator import ScheduleGenerator
+from app import create_app
+from .generator import ScheduleGenerator
 
 
 def setup_scheduler_with_context(
@@ -39,9 +39,9 @@ def setup_scheduler_with_context(
     generator = ScheduleGenerator(config=config)
 
     # Set up logging with the specified level and path
-    generator.logging_manager.setup_logging(
-        log_level=log_level, log_to_file=True, log_dir=diagnostic_path
-    )
+    # generator.logging_manager.setup_logging(
+    #     log_level=log_level, log_to_file=True, log_dir=diagnostic_path
+    # ) # Commented out: Logging setup is now internal to ScheduleGenerator init
 
     # Log the initialization
     generator.logger.info("Scheduler initialized with application context")
