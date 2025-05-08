@@ -1,6 +1,6 @@
 """Distribution module for fair employee assignment across shifts."""
 
-from typing import Dict, List, Any, Optional, Union, Tuple
+from typing import Dict, List, Any, Optional, Union, Tuple, TYPE_CHECKING
 from datetime import date, datetime, timedelta
 from collections import defaultdict
 import functools
@@ -89,6 +89,14 @@ def import_models():
 
 # Import model classes
 AvailabilityType, Employee, ShiftTemplate, Schedule, logger = import_models()
+
+# --- Explicit Imports for Type Checking ---
+if TYPE_CHECKING:
+    from src.backend.models.employee import AvailabilityType as ActualAvailabilityType
+    from src.backend.models.employee import Employee as ActualEmployee
+    # Assuming ShiftTemplate is in fixed_shift based on previous errors
+    from src.backend.models.fixed_shift import ShiftTemplate as ActualShiftTemplate
+    from src.backend.models.schedule import Schedule as ActualSchedule
 
 class ShiftScore:
     """Scores for different shift characteristics"""
@@ -453,7 +461,7 @@ class DistributionManager:
             f"{len(self.assignments_by_employee)} employees"
         )
 
-    def _initialize_employee_data(self, employees: List[Employee]):
+    def _initialize_employee_data(self, employees: List['ActualEmployee']):
         """Initialize employee data structures"""
         for employee in employees:
             self.employee_history[employee.id] = {
@@ -478,7 +486,7 @@ class DistributionManager:
             if hasattr(employee, "preferences") and employee.preferences:
                 self._load_employee_preferences(employee)
 
-    def _load_employee_preferences(self, employee: Employee):
+    def _load_employee_preferences(self, employee: 'ActualEmployee'):
         """Load employee preferences from the employee model"""
         if not hasattr(employee, "preferences") or not employee.preferences:
             return
@@ -502,7 +510,7 @@ class DistributionManager:
         if hasattr(prefs, "avoid_shifts"):
             self.employee_preferences[employee.id]["avoid_shifts"] = prefs.avoid_shifts
 
-    def _load_historical_data(self, schedule_entries: List[Schedule]):
+    def _load_historical_data(self, schedule_entries: List['ActualSchedule']):
         """Load historical schedule data to build distribution metrics"""
         for entry in schedule_entries:
             employee_id = entry.employee_id
@@ -644,10 +652,10 @@ class DistributionManager:
     def calculate_assignment_score(
         self,
         employee_id: int,
-        shift_template: ShiftTemplate,
+        shift_template: 'ActualShiftTemplate',
         shift_date: date,
-        context: Dict[str, Any], # Must contain 'target_interval_needs', 'shift_covered_intervals', 'full_day_staffing_snapshot', 'interval_duration_minutes'
-        availability_type_override: AvailabilityType # Specific availability for this context
+        context: Dict[str, Any],
+        availability_type_override: 'ActualAvailabilityType'
     ) -> float:
         """Calculate a score for assigning this employee to this shift_template on shift_date.
 
@@ -781,7 +789,7 @@ class DistributionManager:
         )
         return score
 
-    def _calculate_base_score(self, shift: ShiftTemplate, shift_date: date) -> float:
+    def _calculate_base_score(self, shift: 'ActualShiftTemplate', shift_date: date) -> float:
         """Calculate the base desirability score for a shift"""
         # This method's logic is largely integrated into self.shift_scores population
         # and direct scoring in calculate_assignment_score. 
@@ -790,7 +798,7 @@ class DistributionManager:
         return 0.0 # Neutral for now
 
     def _calculate_history_adjustment_v2(
-        self, employee_id: int, shift_template: ShiftTemplate, shift_date: date
+        self, employee_id: int, shift_template: 'ActualShiftTemplate', shift_date: date
     ) -> float:
         """Calculate adjustment based on employee's shift history. Higher score is better.
         Aims to balance shift types (EARLY, MIDDLE, LATE) and weekend/holiday work.
@@ -842,7 +850,7 @@ class DistributionManager:
             return adjustment
 
     def _calculate_preference_adjustment_v2(
-        self, employee_id: int, shift_template: ShiftTemplate, shift_date: date, availability_type: Optional[AvailabilityType] = None
+        self, employee_id: int, shift_template: 'ActualShiftTemplate', shift_date: date, availability_type: Optional['ActualAvailabilityType'] = None
     ) -> float:
         """Calculate adjustment based on employee preferences. Higher score is better.
         Considers general day/shift preferences.
@@ -883,11 +891,11 @@ class DistributionManager:
         return adjustment
 
     # Keep old versions for reference during transition if needed, or remove if confident
-    def _calculate_history_adjustment(self, employee_id: int, shift: ShiftTemplate, shift_date: date ) -> float:
+    def _calculate_history_adjustment(self, employee_id: int, shift: 'ActualShiftTemplate', shift_date: date ) -> float:
         self.logger.warning("_calculate_history_adjustment (old) called. Should use _v2 version.")
         return 0.0 # Deprecated, return neutral
 
-    def _calculate_preference_adjustment(self, employee_id: int, shift: ShiftTemplate, shift_date: date ) -> float: 
+    def _calculate_preference_adjustment(self, employee_id: int, shift: 'ActualShiftTemplate', shift_date: date ) -> float: 
         self.logger.warning("_calculate_preference_adjustment (old) called. Should use _v2 version.")
         return 0.0 # Deprecated, return neutral
 
@@ -2043,7 +2051,7 @@ class DistributionManager:
         self,
         interval_start_time: datetime.time,
         all_final_assignments: List[Dict[str, Any]]
-    ) -> List[Employee]:
+    ) -> List['ActualEmployee']:
         """
         Retrieves a list of Employee objects who are working during the specified time interval.
 
@@ -2054,7 +2062,7 @@ class DistributionManager:
         Returns:
             A list of Employee objects working during that interval.
         """
-        working_employees: List[Employee] = []
+        working_employees: List['ActualEmployee'] = []
         employee_ids_working: set[int] = set() # To avoid duplicate Employee objects if somehow assigned multiple overlapping shifts
 
         # Convert interval_start_time to a full datetime object for easier comparison with shift times

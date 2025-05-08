@@ -54,6 +54,7 @@ from .distribution import DistributionManager
 from .serialization import ScheduleSerializer
 from .logging_utils import ProcessTracker # Renamed from LoggingManager
 from .resources import ScheduleResources
+from .validator import ScheduleValidator # ADDED IMPORT
 
 # Set up placeholder logger - REMOVED as we use central_logger now
 # logger = logging.getLogger(__name__)
@@ -412,65 +413,24 @@ class ScheduleGenerator:
                 self.process_tracker.log_step_data("Distribution Metrics", metrics, level=logging.INFO)
 
 
-            # Perform validation
-            valid_count = 0
-            invalid_count = 0
-            validation_details = {} # Store details per employee
-
-            for assignment in self.schedule.get_assignments():
-                # Skip empty schedule entries
-                if isinstance(assignment, dict) and assignment.get("status") == "EMPTY":
-                    continue
-
-                # Get employee_id and shift_id based on type
-                employee_id = (
-                    assignment.get("employee_id")
-                    if isinstance(assignment, dict)
-                    else getattr(assignment, 'employee_id', None)
-                )
-                shift_id = (
-                    assignment.get("shift_id")
-                    if isinstance(assignment, dict)
-                    else getattr(assignment, 'shift_id', None)
-                )
-                assignment_date_obj = (
-                    assignment.get("date")
-                    if isinstance(assignment, dict)
-                    else getattr(assignment, 'date', None)
-                )
-                # Ensure date is a date object
-                if isinstance(assignment_date_obj, str):
-                    assignment_date_obj = date.fromisoformat(assignment_date_obj)
-
-
-                if employee_id and shift_id and assignment_date_obj:
-                    employee = self.resources.get_employee(employee_id)
-                    shift = self.resources.get_shift(shift_id) # Should get template here
-
-                    if employee and shift:
-                        violations = self.constraint_checker.check_all_constraints(
-                            employee, assignment_date_obj, shift, self.schedule_by_date
-                        )
-                        if not violations:
-                            valid_count += 1
-                        else:
-                            invalid_count += 1
-                            if employee_id not in validation_details:
-                                validation_details[employee_id] = []
-                            validation_details[employee_id].append({
-                                "date": assignment_date_obj.isoformat(),
-                                "shift_id": shift_id,
-                                "violations": violations
-                            })
-                            self.diagnostic_logger.warning(f"Constraint violation for Emp {employee_id} on {assignment_date_obj}: {violations}")
-                    else:
-                         self.logger.warning(f"Could not find Employee ({employee_id}) or Shift ({shift_id}) during final validation.")
-
+            # Perform validation (both constraints and coverage)
+            self.process_tracker.start_step("Schedule Validation")
+            validator = ScheduleValidator(self.resources)
+            validation_errors = validator.validate(self.schedule.get_assignments(), config=self.config)
+            coverage_summary = validator.get_coverage_summary()
+            self.process_tracker.end_step({
+                "constraint_errors": len(validation_errors), 
+                "coverage_total_intervals": coverage_summary.get("total_intervals_checked", 0)
+            })
+            
+            # Add constraint violation details (as before)
+            constraint_violation_details = validator.get_error_report()["details"] # Assuming get_error_report exists and provides details
 
             serialized_result["validation"] = {
-                "valid_assignments": valid_count,
-                "invalid_assignments": invalid_count,
-                "details": validation_details # Add violation details
+                "constraint_errors_count": len(validation_errors),
+                "constraint_details": constraint_violation_details,
+                # ADDED: Coverage summary
+                "coverage_summary": coverage_summary
             }
             self.process_tracker.log_step_data("Validation Results", serialized_result["validation"], level=logging.INFO)
 
@@ -505,11 +465,13 @@ class ScheduleGenerator:
             "total_dates": (end_date - start_date).days + 1,
             "dates_with_assignments": date_count,
             "empty_dates_created": empty_dates,
-            "valid_assignments": valid_count,
-            "invalid_assignments": invalid_count,
+            "invalid_assignments": len(validation_errors), # Use count from validation_errors
         }
         if metrics:
             final_stats["metrics"] = metrics # Use already fetched metrics
+        # ADDED: Include coverage summary in final stats if available
+        if coverage_summary:
+            final_stats["coverage_summary"] = coverage_summary
 
         # End the overall process tracking
         self.process_tracker.end_process(final_stats)
