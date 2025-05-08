@@ -1441,16 +1441,19 @@ class DistributionManager:
         final_assignments: List[Dict] = []
         assigned_shift_ids_in_this_run = set() 
 
+        # Pre-calculate covered intervals for all potential shifts
         shift_details_map = {}
-        for shift in potential_shifts:
-            shift_id = shift.get('id')
+        for shift_dict in potential_shifts: # Ensure this is a list of dicts
+            shift_id = shift_dict.get('id')
             if not shift_id:
+                self.logger.warning(f"Skipping potential shift without ID: {shift_dict}")
                 continue
-            shift_start_str = shift.get('start_time')
-            shift_end_str = shift.get('end_time')
+            shift_start_str = shift_dict.get('start_time')
+            shift_end_str = shift_dict.get('end_time')
+            # Ensure _get_intervals_covered_by_shift handles None start/end times if they can occur
             covered_intervals = self._get_intervals_covered_by_shift(shift_start_str, shift_end_str, interval_minutes)
-            shift['_covered_intervals'] = covered_intervals
-            shift_details_map[shift_id] = shift 
+            shift_dict['_covered_intervals'] = covered_intervals # Add to the dict
+            shift_details_map[shift_id] = shift_dict 
             self.logger.debug(f"Shift {shift_id} ({shift_start_str}-{shift_end_str}) covers {len(covered_intervals)} intervals: {covered_intervals}")
 
         sorted_interval_times = sorted(daily_interval_needs.keys())
@@ -1497,7 +1500,37 @@ class DistributionManager:
                     self.logger.info(f"Assignment successful for interval {interval_time}: Emp {assignment_made.get('employee_id')} to Shift {assignment_made.get('shift_id')}")
                     final_assignments.append(assignment_made)
                     assigned_shift_ids_in_this_run.add(assignment_made.get('shift_id')) # Track assigned shift ID
-                    # Update deficit based on updated current_staffing
+                    
+                    # --- CRITICAL UPDATE: Update current_staffing_per_interval for all intervals covered by this new assignment ---
+                    assigned_shift_details = shift_details_map.get(assignment_made.get('shift_id'))
+                    employee_obj = resources.get_employee_by_id(assignment_made.get('employee_id'))
+
+                    if assigned_shift_details and employee_obj:
+                        intervals_covered_by_newly_assigned_shift = assigned_shift_details.get('_covered_intervals', [])
+                        for covered_interval_t in intervals_covered_by_newly_assigned_shift:
+                            if covered_interval_t in current_staffing_per_interval:
+                                current_staffing_per_interval[covered_interval_t]['current_employees'] = current_staffing_per_interval[covered_interval_t].get('current_employees', 0) + 1
+                                current_staffing_per_interval[covered_interval_t]['assigned_employee_ids'].add(employee_obj.id)
+                                
+                                if getattr(employee_obj, 'is_keyholder', False):
+                                    current_staffing_per_interval[covered_interval_t]['keyholder_present'] = True # Or increment a count if needed
+                                
+                                employee_group_str = str(getattr(employee_obj, 'employee_group', 'UNKNOWN'))
+                                type_counts = current_staffing_per_interval[covered_interval_t].get('current_employee_types_count', defaultdict(int))
+                                if not isinstance(type_counts, defaultdict):
+                                    # If it was, e.g. just a set of types, re-initialize as defaultdict for counting
+                                    self.logger.warning(f"Re-initializing type_counts for interval {covered_interval_t} as defaultdict(int)")
+                                    type_counts = defaultdict(int)
+                                type_counts[employee_group_str] += 1
+                                current_staffing_per_interval[covered_interval_t]['current_employee_types_count'] = type_counts
+                                self.logger.debug(f"Updated staffing for interval {covered_interval_t} due to new assignment: {current_staffing_per_interval[covered_interval_t]}")
+                            else:
+                                self.logger.warning(f"Interval {covered_interval_t} (covered by new shift {assignment_made.get('shift_id')}) not found in current_staffing_per_interval. Staffing may be inaccurate.")
+                    else:
+                        self.logger.error(f"Could not retrieve assigned_shift_details or employee_obj for new assignment {assignment_made.get('assignment_id')} - staffing update for covered intervals incomplete.")
+                    # --- End CRITICAL UPDATE ---
+
+                    # Update deficit based on updated current_staffing for the *target* interval_time
                     current_employee_count_for_interval = current_staffing_per_interval[interval_time].get('current_employees', 0)
                     staffing_deficit = required_employees - current_employee_count_for_interval
                     self.logger.debug(f"Interval {interval_time} deficit updated to: {staffing_deficit}")
@@ -1523,157 +1556,212 @@ class DistributionManager:
         interval_duration_minutes: int # Added parameter
     ) -> Optional[Dict]:
         """
-        Tries to find the best employee for one of the candidate shifts to cover an understaffed interval.
-        If a suitable assignment is found, it's made, and staffing states are updated.
-        """
-        best_candidate = None
-        best_score = -float('inf')
+        Tries to find the best employee for a candidate shift that covers the understaffed interval
+        and makes an assignment if a suitable candidate is found.
 
-        # Get needs for the *target* interval we are primarily trying to fill
-        target_interval_needs = resources.get_interval_needs_for_time(current_date, interval_time)
+        Args:
+            current_date: The date for which assignments are being made.
+            interval_time: The specific interval that is understaffed.
+            candidate_shift_ids: List of shift IDs that cover this interval.
+            potential_shifts_map: Map of all potential shifts for the day.
+            resources: ScheduleResources instance.
+            constraint_checker: ConstraintChecker instance.
+            availability_checker: AvailabilityChecker instance.
+            current_staffing_per_interval: Snapshot of staffing levels for all intervals.
+            final_assignments_so_far: List of assignments already made.
+            assigned_shift_ids_in_this_run: Set of shift IDs already assigned in the current run.
+            interval_duration_minutes: Duration of the interval in minutes.
+
+        Returns:
+            The new assignment dictionary if successful, otherwise None.
+        """
+        best_candidate_for_assignment = None
+        highest_score = -float('inf')
+        
+        # Get the specific needs for the target interval
+        target_interval_needs = self.current_daily_interval_needs.get(interval_time, {})
         if not target_interval_needs:
-            self.logger.warning(f"No specific needs defined for target interval {interval_time} on {current_date}. Cannot make targeted assignment.")
+            self.logger.warning(f"No needs defined for interval {interval_time} on {current_date}, cannot assign.")
             return None
 
-        all_employees_map = {emp.id: emp for emp in resources.employees if getattr(emp, 'is_active', True)}
+        self.logger.debug(f"Attempting to fill interval {interval_time} on {current_date}. Needs: {target_interval_needs}")
+        self.logger.debug(f"Candidate shift IDs for interval {interval_time}: {candidate_shift_ids}")
 
         for shift_id in candidate_shift_ids:
-            # This check is now also in the list comprehension in _perform_interval_based_assignments
-            # but kept here as a safeguard or if called from elsewhere.
             if shift_id in assigned_shift_ids_in_this_run:
+                self.logger.debug(f"Shift ID {shift_id} already assigned in this run, skipping.")
                 continue
 
-            candidate_shift = potential_shifts_map.get(shift_id)
-            if not candidate_shift:
+            shift_template_dict = potential_shifts_map.get(shift_id)
+            if not shift_template_dict:
                 self.logger.warning(f"Shift ID {shift_id} not found in potential_shifts_map.")
                 continue
             
-            shift_covered_intervals = candidate_shift.get('_covered_intervals', [])
-            if not shift_covered_intervals:
-                self.logger.warning(f"Shift {shift_id} has no pre-calculated covered intervals. Skipping.")
-                continue
+            self.logger.debug(f"Evaluating shift_template_dict: {shift_template_dict} for interval {interval_time}")
 
-            score_context = {
-                "current_date": current_date,
-                "target_interval_time": interval_time, 
-                "target_interval_needs": target_interval_needs, 
-                "shift_covered_intervals": shift_covered_intervals,
-                "full_day_staffing_snapshot": current_staffing_per_interval, 
-                "interval_duration_minutes": interval_duration_minutes 
-            }
 
-            for employee_id, employee in all_employees_map.items():
-                already_assigned_today = any(
-                    assignment["employee_id"] == employee_id
-                    for assignment in final_assignments_so_far
-                )
-                if already_assigned_today:
+            # Convert shift_template_dict to a ShiftTemplate-like object if necessary for scoring
+            # This depends on how calculate_assignment_score expects its shift_template argument
+            # For now, assuming it can handle a dictionary or we adapt it.
+            
+            # Identify employees who *could* work this shift_template
+            # This requires access to all employees and their general suitability for the shift_template (e.g., skills, groups)
+            # For simplicity, let's iterate through all active employees from resources
+            # In a more optimized version, this list would be pre-filtered.
+            
+            active_employees = [e for e in resources.employees if getattr(e, 'is_active', True)]
+
+            for employee in active_employees:
+                employee_id = self.get_id(employee)
+                if not employee_id:
+                    self.logger.warning(f"Skipping employee without ID: {employee}")
                     continue
 
-                availability_info = availability_checker.check_employee_availability(
-                    employee_id, current_date, candidate_shift["start_time"], candidate_shift["end_time"]
+                # 1. Check if employee is already assigned to ANY shift today
+                # This prevents an employee from being assigned to more than one shift per day.
+                is_employee_assigned_today = any(
+                    asn.get('employee_id') == employee_id
+                    for asn in final_assignments_so_far
                 )
-                if not availability_info["is_available"]:
+                if is_employee_assigned_today:
+                    self.logger.debug(f"Employee {employee_id} already assigned a shift today. Skipping for shift {shift_id}.")
                     continue
 
-                shift_template_for_check = resources.get_shift_template_by_id(candidate_shift.get("shift_template_id") or candidate_shift.get("id"))
-                if not shift_template_for_check:
-                    self.logger.warning(f"Could not find full shift template for candidate_shift id {candidate_shift.get('id')} for constraint check.")
+                # 2. Check availability for this specific shift on this date
+                # The availability_checker needs shift start and end times.
+                shift_start_time_obj = _time_str_to_datetime_time(shift_template_dict['start_time'])
+                shift_end_time_obj = _time_str_to_datetime_time(shift_template_dict['end_time'])
+
+                availability_status, _ = availability_checker.check_employee_availability(
+                    employee_id=employee_id,
+                    check_date=current_date,
+                    shift_start_time=shift_start_time_obj,
+                    shift_end_time=shift_end_time_obj,
+                    shift_id=shift_id # Pass shift_id for context if needed by checker
+                )
+                if availability_status == AvailabilityType.UNAVAILABLE: # Using the imported AvailabilityType
+                    self.logger.debug(f"Employee {employee_id} UNAVAILABLE for shift {shift_id} on {current_date}. Status: {availability_status}")
                     continue
                 
-                is_compliant, constraint_violations = constraint_checker.check_all_constraints(
-                    employee_id,
-                    shift_template_for_check, # Use the fetched ShiftTemplate object
-                    current_date,
-                    assignments_by_employee=self.assignments_by_employee # Pass current state of assignments
+                self.logger.debug(f"Employee {employee_id} AVAILABLE for shift {shift_id} on {current_date} with status {availability_status}")
+
+                # 3. Check constraints
+                # Create a hypothetical assignment to check constraints
+                hypothetical_assignment = {
+                    "employee_id": employee_id,
+                    "shift_id": shift_id, 
+                    "shift_template_id": shift_template_dict.get("shift_template_id", shift_id), # Use shift_template_id if available
+                    "date": current_date,
+                    "start_time": shift_template_dict['start_time'],
+                    "end_time": shift_template_dict['end_time'],
+                    "shift_type": shift_template_dict.get('shift_type', 'Unknown'), # Add shift_type
+                     # Add other relevant details from shift_template_dict
+                }
+                
+                # Get shift intervals for context in constraint checking and scoring
+                shift_covered_intervals = self._get_intervals_covered_by_shift(
+                    shift_template_dict['start_time'], 
+                    shift_template_dict['end_time'], 
+                    interval_duration_minutes
                 )
-                if not is_compliant:
-                    self.logger.debug(f"Employee {employee_id} failed constraints for shift {shift_id} on {current_date}: {constraint_violations}")
+
+                # Check constraints with all_current_assignments + this hypothetical one
+                # Pass existing assignments for comprehensive check
+                constraint_violations = constraint_checker.check_all_constraints(
+                    employee_id=employee_id,
+                    new_shift_start=datetime.combine(current_date, shift_start_time_obj),
+                    new_shift_end=datetime.combine(current_date, shift_end_time_obj),
+                    existing_assignments=final_assignments_so_far # Use assignments made so far in this run
+                )
+                if constraint_violations:
+                    self.logger.debug(f"Employee {employee_id} violates constraints for shift {shift_id} on {current_date}. Violations: {constraint_violations}")
                     continue
                 
-                current_score = self.calculate_assignment_score(
-                    employee_id,
-                    shift_template_for_check, # Pass the ShiftTemplate object
-                    current_date,
-                    context=score_context, # Pass the context object
-                    availability_type_override=availability_info["availability_type"] # Pass the specific availability for this shift
+                self.logger.debug(f"Employee {employee_id} passed constraint checks for shift {shift_id} on {current_date}.")
+
+                # 4. Score this potential assignment
+                # Ensure context for scoring has all required keys
+                scoring_context = {
+                    'target_interval_needs': target_interval_needs,
+                    'shift_covered_intervals': shift_covered_intervals,
+                    'full_day_staffing_snapshot': current_staffing_per_interval, # The full day's picture
+                    'interval_duration_minutes': interval_duration_minutes,
+                    'employee_object': employee # Pass the employee object for seniority, etc.
+                }
+                
+                # Ensure shift_template_dict is compatible with ShiftTemplate or adapt
+                # For now, assuming calculate_assignment_score can handle dict or a Pydantic-like model
+                # If ShiftTemplate is a SQLAlchemy model, direct instantiation might be complex here.
+                # A simpler DTO or ensuring shift_template_dict has all fields is better.
+
+                # Use the availability_status from the earlier check
+                score = self.calculate_assignment_score(
+                    employee_id, 
+                    shift_template_dict, # Pass the dict
+                    current_date, 
+                    context=scoring_context,
+                    availability_type_override=availability_status 
                 )
                 
-                if current_score > best_score:
-                    best_score = current_score
-                    best_candidate = {
-                        "employee": employee,
-                        "shift": candidate_shift, # This is the dict from potential_shifts_map
-                        "availability_info": availability_info,
-                        "score": current_score
+                self.logger.debug(f"Score for employee {employee_id}, shift {shift_id} on {current_date}: {score}")
+
+                if score > highest_score:
+                    highest_score = score
+                    best_candidate_for_assignment = {
+                        "employee_id": employee_id,
+                        "employee_instance": employee, # Keep the employee object for later use if needed
+                        "shift_id": shift_id,
+                        "shift_template_data": shift_template_dict, # Keep the shift data
+                        "score": score,
                     }
+                    self.logger.debug(f"New best candidate: E{employee_id} for S{shift_id}, score {score}")
 
-        if best_candidate:
-            employee_obj = best_candidate["employee"]
-            shift_dict = best_candidate["shift"] # This is already a dictionary
+        if best_candidate_for_assignment:
+            employee_id = best_candidate_for_assignment["employee_id"]
+            assigned_shift_id = best_candidate_for_assignment["shift_id"]
+            assigned_shift_data = best_candidate_for_assignment["shift_template_data"]
             
-            employee_id = getattr(employee_obj, 'id', None)
-            shift_id_for_assignment = shift_dict.get("id") # Use the ID from the potential_shifts_map entry
-
-            if employee_id is None or shift_id_for_assignment is None:
-                self.logger.error(f"Critical error: Missing employee_id or shift_id in best_candidate. Emp: {employee_obj}, Shift: {shift_dict}")
-                return None
-
             self.logger.info(
-                f"Best candidate found for interval {interval_time}: Employee {employee_id} for Shift {shift_id_for_assignment} "
-                f"(Score: {best_candidate['score']}). Needs: {target_interval_needs}"
+                f"Selected for assignment: Employee {employee_id} to Shift {assigned_shift_id} "
+                f"({assigned_shift_data['start_time']}-{assigned_shift_data['end_time']}) "
+                f"for interval {interval_time} on {current_date} with score {best_candidate_for_assignment['score']}."
             )
-            
-            # Create the assignment
+
             new_assignment = {
+                "assignment_id": f"asgn_{current_date.strftime('%Y%m%d')}_{employee_id}_{assigned_shift_id}", # Example ID
                 "employee_id": employee_id,
-                "shift_id": shift_id_for_assignment, # This should be the ID of the concrete shift instance from potential_shifts
+                "shift_id": assigned_shift_id,
+                "shift_template_id": assigned_shift_data.get("shift_template_id", assigned_shift_id),
                 "date": current_date,
-                "start_time": shift_dict["start_time"],
-                "end_time": shift_dict["end_time"],
-                "shift_template_id": shift_dict.get("shift_template_id", shift_id_for_assignment), # Store original template if available
-                "status": "PENDING_CONFIRMATION", # Or some other appropriate status
-                "version": resources.version_id, # Assuming version_id is available in resources
-                "score": best_candidate['score'],
-                "availability_type": best_candidate["availability_info"]["availability_type"].value # Store the enum value
+                "start_time": assigned_shift_data["start_time"],
+                "end_time": assigned_shift_data["end_time"],
+                "duration_hours": self.calculate_duration(assigned_shift_data["start_time"], assigned_shift_data["end_time"]),
+                "status": "PENDING", # Or "CONFIRMED" if direct
+                "version": self.resources.version_id, # Assuming version_id is available in resources
+                "shift_type": assigned_shift_data.get("shift_type", "Unknown"),
+                "employee_group": getattr(best_candidate_for_assignment["employee_instance"], "employee_group", "Unknown"),
+                "score": best_candidate_for_assignment["score"]
             }
             
-            # Update employee history and overall assignment tracking
-            # The `update_with_assignment` method needs to be compatible with dict assignments
-            # or we create a Schedule-like object if it expects one.
-            # For now, let's assume we can update history with employee_id, shift_dict, current_date.
-            # This will also update self.assignments_by_employee
-            self.update_with_assignment(employee_id, shift_dict, current_date, new_assignment_dict=new_assignment)
-
-            # Update current_staffing_per_interval based on the new_assignment
-            # This is crucial for the next interval's decision making
-            shift_start_dt_time = _time_str_to_datetime_time(new_assignment["start_time"])
-            shift_end_dt_time = _time_str_to_datetime_time(new_assignment["end_time"])
-            
-            intervals_covered_by_new_shift = self._get_intervals_covered_by_shift(
-                new_assignment["start_time"], 
-                new_assignment["end_time"], 
-                interval_duration_minutes 
+            # Update employee history and other relevant structures
+            self.update_with_assignment(
+                employee_id=employee_id,
+                shift_details=assigned_shift_data, # Pass the shift dict
+                shift_date=current_date,
+                new_assignment_dict=new_assignment # Pass the newly created assignment
             )
             
-            for interval_t in intervals_covered_by_new_shift:
-                if interval_t in current_staffing_per_interval:
-                    current_staffing_per_interval[interval_t]["current_employees"] += 1
-                    # Update keyholder count if applicable
-                    if getattr(employee_obj, 'is_keyholder', False):
-                         current_staffing_per_interval[interval_t]["current_keyholders"] = \
-                             current_staffing_per_interval[interval_t].get("current_keyholders", 0) + 1
-                    # Update employee type counts if applicable
-                    employee_group = getattr(employee_obj, 'employee_group', 'Untyped')
-                    type_counts = current_staffing_per_interval[interval_t].get("current_employee_types_count", defaultdict(int))
-                    type_counts[employee_group] += 1
-                    current_staffing_per_interval[interval_t]["current_employee_types_count"] = type_counts
-                else:
-                    self.logger.warning(f"Interval {interval_t} from assigned shift not found in current_staffing_per_interval. This should not happen.")
+            # Add to final_assignments_so_far and assigned_shift_ids_in_this_run
+            # These are updated by the calling function _perform_interval_based_assignments
+            # This function should just return the new assignment.
 
+            self.logger.info(f"Successfully created assignment: {new_assignment}")
             return new_assignment
         else:
-            self.logger.info(f"No suitable candidate found to make an assignment for interval {interval_time} with needs {target_interval_needs} from shifts {candidate_shift_ids}")
+            self.logger.info(
+                f"No suitable candidate found to make an assignment for interval {interval_time} on {current_date} "
+                f"from candidate shifts: {candidate_shift_ids}."
+            )
             return None
 
     def get_shift_duration(self, shift):
@@ -1808,3 +1896,149 @@ class DistributionManager:
 
         self.logger.debug(f"Coverage {cov_id} has no specific date or applicable day of week. No match.")
         return False
+
+    def is_interval_covered(
+        self, 
+        interval_start_time: datetime.time, 
+        interval_needs: Dict[str, Any], 
+        current_staffing_for_interval_entry: Dict[str, Any],
+        log_details: bool = False
+    ) -> bool:
+        """
+        Checks if a specific interval's staffing needs are met by the current staffing.
+
+        Args:
+            interval_start_time: The start time of the interval.
+            interval_needs: A dictionary detailing the staffing requirements for the interval 
+                            (e.g., {'min_employees': 2, 'requires_keyholder': True, 'employee_types': ['Cashier']}).
+            current_staffing_for_interval_entry: A dictionary detailing the current staffing for the interval
+                                                 (e.g., {'current_employees': 1, 'current_keyholders': 0, 
+                                                         'current_employee_types_count': {'Cashier': 1}}).\n            log_details: If True, logs detailed reasons for coverage failure.
+
+        Returns:
+            True if all needs are met, False otherwise.
+        """
+        if not interval_needs: # No needs defined, so technically covered (or an issue upstream)
+            if log_details:
+                self.logger.debug(f"is_interval_covered [{interval_start_time}]: No specific needs defined, assuming covered.")
+            return True
+
+        # 1. Check min_employees
+        required_min_employees = interval_needs.get('min_employees', 0)
+        actual_employees = current_staffing_for_interval_entry.get('current_employees', 0)
+        if actual_employees < required_min_employees:
+            if log_details:
+                self.logger.info(f"is_interval_covered [{interval_start_time}]: FAILED - Min employees not met. Need: {required_min_employees}, Have: {actual_employees}")
+            return False
+
+        # 2. Check requires_keyholder
+        if interval_needs.get('requires_keyholder', False):
+            actual_keyholders = current_staffing_for_interval_entry.get('current_keyholders', 0)
+            if actual_keyholders == 0:
+                if log_details:
+                    self.logger.info(f"is_interval_covered [{interval_start_time}]: FAILED - Keyholder required but none present. Actual keyholders: {actual_keyholders}")
+                return False
+        
+        # 3. Check employee_types (if any are specified as required)
+        #    This checks if *at least one* employee of each *required* type is present.
+        #    Or, if needs specify min counts per type, that should be checked.
+        #    Current `get_required_staffing_for_interval` seems to return a list of allowed types,
+        #    not necessarily counts per type. Assuming for now it implies at least one if type is listed.
+        #    If `interval_needs` provides something like `min_per_type: {'Cashier': 1, 'Barista': 1}` then logic would adapt.
+        required_employee_types = interval_needs.get('employee_types', [])
+        if required_employee_types: # Only check if specific types are listed as required
+            actual_type_counts = current_staffing_for_interval_entry.get('current_employee_types_count', {})
+            # Ensure actual_type_counts is a dict, defaulting to empty if not or None
+            if not isinstance(actual_type_counts, dict): actual_type_counts = {}
+
+            all_types_met = True
+            for req_type in required_employee_types:
+                if actual_type_counts.get(req_type, 0) == 0:
+                    all_types_met = False
+                    if log_details:
+                        self.logger.info(f"is_interval_covered [{interval_start_time}]: FAILED - Required employee type '{req_type}' not present or count is zero. Actual counts: {actual_type_counts}")
+                    break # No need to check further types if one is missing
+            if not all_types_met:
+                return False
+        
+        if log_details: # If all checks passed
+            self.logger.debug(f"is_interval_covered [{interval_start_time}]: PASSED. Needs: {interval_needs}, Has: {current_staffing_for_interval_entry}")
+        return True
+
+    def get_employees_working_during_interval(
+        self,
+        interval_start_time: datetime.time,
+        all_final_assignments: List[Dict[str, Any]]
+    ) -> List[Employee]:
+        """
+        Retrieves a list of Employee objects who are working during the specified time interval.
+
+        Args:
+            interval_start_time: The start time of the interval to check.
+            all_final_assignments: A list of assignment dictionaries for the day.
+
+        Returns:
+            A list of Employee objects working during that interval.
+        """
+        working_employees: List[Employee] = []
+        employee_ids_working: set[int] = set() # To avoid duplicate Employee objects if somehow assigned multiple overlapping shifts
+
+        # Convert interval_start_time to a full datetime object for easier comparison with shift times
+        # Assuming a generic date for this conversion, as we only care about the time part relative to shift times.
+        base_date = datetime.min.date() # Could be any date, e.g., current_date if available and relevant
+        interval_start_dt = datetime.combine(base_date, interval_start_time)
+
+        for assignment in all_final_assignments:
+            shift_start_str = assignment.get('start_time')
+            shift_end_str = assignment.get('end_time')
+            employee_id = assignment.get('employee_id')
+
+            if not shift_start_str or not shift_end_str or employee_id is None:
+                self.logger.warning(f"get_employees_working_during_interval: Assignment missing start/end time or employee_id: {assignment}")
+                continue
+
+            try:
+                assigned_shift_start_time = _time_str_to_datetime_time(shift_start_str)
+                assigned_shift_end_time = _time_str_to_datetime_time(shift_end_str)
+
+                if not assigned_shift_start_time or not assigned_shift_end_time:
+                    self.logger.warning(f"get_employees_working_during_interval: Could not parse shift times for assignment {assignment.get('id', 'N/A')}")
+                    continue
+                
+                assigned_shift_start_dt = datetime.combine(base_date, assigned_shift_start_time)
+                assigned_shift_end_dt = datetime.combine(base_date, assigned_shift_end_time)
+
+                # Handle overnight shifts for comparison (where end time is on the next day, e.g. 22:00-02:00)
+                if assigned_shift_end_dt <= assigned_shift_start_dt: # Covers 00:00 end or overnight
+                    # If interval is within the first part of an overnight shift (e.g. shift 22-02, interval 23:00)
+                    # OR if interval is within the second part (e.g. shift 22-02, interval 01:00)
+                    # This check: (interval_start >= shift_start) OR (interval_start < shift_end)
+                    # To be more precise for overnight: shift_end_dt is effectively on day + 1
+                    # A simple check: Is interval_start_time within [shift_start_time, 23:59:59] OR [00:00:00, shift_end_time)?
+                    # Current logic: A shift covers an interval if interval_start_time falls within [shift_start, shift_end)
+                    # For an overnight shift like 22:00 to 02:00:
+                    # - Interval 23:00: 22:00 <= 23:00 AND 23:00 < 02:00 (false without adjustment for day change)
+                    # If shift ends on next day, add 24 hours to its end time for comparison range.
+                    if assigned_shift_end_time < assigned_shift_start_time: # True overnight shift that crosses midnight
+                         assigned_shift_end_dt_for_comparison = assigned_shift_end_dt + timedelta(days=1)
+                    elif assigned_shift_end_time == datetime.min.time() and assigned_shift_start_time != datetime.min.time(): # Shift ends exactly at midnight e.g. 16:00 - 00:00
+                         assigned_shift_end_dt_for_comparison = datetime.combine(base_date + timedelta(days=1), datetime.min.time())
+                    else: # Standard shift or shift that ends at 00:00 and starts at 00:00 (unlikely full 24h)
+                         assigned_shift_end_dt_for_comparison = assigned_shift_end_dt
+                else: # Standard same-day shift
+                    assigned_shift_end_dt_for_comparison = assigned_shift_end_dt
+
+                # Check: shift_start <= interval_start < shift_end
+                if assigned_shift_start_dt <= interval_start_dt < assigned_shift_end_dt_for_comparison:
+                    if employee_id not in employee_ids_working:
+                        employee = self.resources.get_employee_by_id(employee_id)
+                        if employee:
+                            working_employees.append(employee)
+                            employee_ids_working.add(employee_id)
+                        else:
+                            self.logger.warning(f"get_employees_working_during_interval: Employee ID {employee_id} not found in resources.")
+            except ValueError as e:
+                self.logger.error(f"get_employees_working_during_interval: Error parsing time for assignment {assignment.get('id', 'N/A')}: {e}")
+                continue
+        
+        return working_employees
