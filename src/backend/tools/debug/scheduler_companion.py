@@ -408,8 +408,21 @@ def test_scheduler_components(db_path: str, test_date: date) -> None:
                 return False
             
             def is_employee_available(self, employee_id, date_to_check, shift):
-                """Mock implementation - all employees are available"""
-                return True, "AVL"
+                """Mock implementation - all employees are available for testing"""
+                return True, "AVL"  # Available with standard availability
+
+            def get_employee_availability(self, employee_id: int, day_of_week: int) -> List[Any]:
+                """Mock implementation: Get availability for a specific day of the week."""
+                # self.availabilities is a list of objects/dicts, each should have
+                # employee_id, day_of_week, and other relevant fields like hour, availability_type
+                # For this mock, if self.availabilities is empty, it will correctly return []
+                # The actual EmployeeAvailability model has 'employee_id' and 'day_of_week'
+                return [
+                    avail
+                    for avail in self.availabilities
+                    if getattr(avail, 'employee_id', None) == employee_id and \
+                       getattr(avail, 'day_of_week', None) == day_of_week
+                ]
             
             def get_employee_preferred_shifts(self, employee_id):
                 """Mock implementation - no preferred shifts"""
