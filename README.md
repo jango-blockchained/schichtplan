@@ -191,7 +191,7 @@ python init_db.py  # Initialize with default data
 The application has two resource types for schedule generation:
 
 - **ShiftTemplate**: Fixed shift plan with more conditions (previously called "Shifts")
-- **Coverage**: More generic scheduling with fewer conditions (only employee amount)
+- **Coverage**: Defines staffing requirements. While the UI allows users to define broad coverage blocks (e.g., 09:00-17:00, 2 employees), the backend scheduler interprets these to establish granular, per-interval (e.g., every 15 or 60 minutes) staffing needs. If multiple coverage blocks overlap for a given interval, the system takes the *maximum* `min_employees` required and combines other criteria (like `employee_types` or `requires_keyholder`).
 
 ## Recent Changes
 
@@ -248,18 +248,15 @@ This helps prevent confusion between similarly named components and makes the co
 The scheduling system has been refactored from a monolithic design into a modular package structure:
 
 - **Module Structure**: The original `schedule_generator.py` file has been split into separate components:
-  - `generator.py`: Core scheduling algorithm
-  - `resources.py`: Data management
-  - `validator.py`: Schedule validation
-  - `utility.py`: Common utility functions
+    - `generator.py`: Orchestrates the overall schedule generation process.
+    - `distribution.py`: Manages the assignment of employees to shifts, now driven by fulfilling granular interval-based staffing needs rather than directly assigning to coverage blocks. It iterates through time intervals, identifies deficits, and attempts to assign the best available shift and employee.
+    - `resources.py`: Handles loading of all necessary data (employees, shift templates, coverage rules, etc.) from the database.
+    - `availability.py`: Checks employee availability considering fixed assignments, absences, and preferences.
+    - `constraints.py`: Validates various work rules (rest times, max hours, etc.).
+    - `coverage_utils.py`: A utility module responsible for interpreting `Coverage` rules and calculating the specific staffing requirements (min_employees, keyholder, employee_types) for each discrete time interval by resolving any overlaps.
+    - `validator.py`: Validates the generated schedule against all configured rules, including interval-based coverage fulfillment.
 
-- **Benefits**:
-  - Improved maintainability
-  - Better separation of concerns
-  - Enhanced testability
-  - Clearer component interfaces
-
-For more details, see the [Scheduler Package Documentation](/src/backend/services/scheduler/README.md).
+- **Shift Generation Logic**:
 
 ## Schedule Generation Tests
 

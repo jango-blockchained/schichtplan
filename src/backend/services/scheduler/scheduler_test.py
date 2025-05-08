@@ -17,7 +17,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
 sys.path.append(parent_dir)
 
-from src.backend.services.scheduler.utils import (
+from services.scheduler.utils import (
     setup_scheduler_with_context,
     run_scheduler_test,
 )

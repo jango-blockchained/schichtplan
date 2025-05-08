@@ -260,8 +260,20 @@ class ScheduleValidator:
 
     def _validate_coverage(self, schedule: List[Schedule]) -> None:
         """
-        Validates if the schedule meets interval-based coverage requirements.
-        Compares assigned employees against needs defined by get_required_staffing_for_interval.
+        Validates if the generated schedule meets interval-based coverage requirements.
+
+        Iterates through each date in the schedule range and each time interval
+        (defined by `self.INTERVAL_MINUTES`). For each interval, it calls the
+        `get_required_staffing_for_interval` utility to determine the required
+        staffing (min employees, keyholder, types) based on potentially overlapping
+        Coverage rules.
+
+        It then compares these requirements against the actual employees assigned
+        to shifts that cover the interval, generating errors for understaffing,
+        missing keyholders, or missing required employee types.
+
+        Args:
+            schedule: The list of generated Schedule assignment entries.
         """
         if not schedule:
             self.info.append(
