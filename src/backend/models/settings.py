@@ -248,6 +248,19 @@ class Settings(db.Model):
                         "maxDuration": 6.0,
                     },
                 },
+                {
+                    "id": "NO_WORK",
+                    "name": "Kein Dienst",
+                    "color": "#9E9E9E",
+                    "type": "shift",
+                    "autoAssignOnly": True,  # Flag indicating it can only be assigned automatically
+                    "hourConditions": {
+                        "startTime": "00:00",
+                        "endTime": "00:00",
+                        "minDuration": 0.0,
+                        "maxDuration": 0.0,
+                    },
+                },
             ]
         except Exception:
             return [
@@ -285,6 +298,19 @@ class Settings(db.Model):
                         "endTime": "20:00",
                         "minDuration": 5.0,
                         "maxDuration": 6.0,
+                    },
+                },
+                {
+                    "id": "NO_WORK",
+                    "name": "Kein Dienst",
+                    "color": "#9E9E9E",
+                    "type": "shift",
+                    "autoAssignOnly": True,  # Flag indicating it can only be assigned automatically
+                    "hourConditions": {
+                        "startTime": "00:00",
+                        "endTime": "00:00",
+                        "minDuration": 0.0,
+                        "maxDuration": 0.0,
                     },
                 },
             ]

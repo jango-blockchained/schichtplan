@@ -276,6 +276,21 @@ class DistributionManager:
                     if (
                         len(self.assignments_by_employee.get(employee_id, [])) < 10
                     ):  # Weekly max of 10 shifts
+                        # Get the version from the resources or self.version attribute
+                        version = getattr(self, 'version', None)
+                        if version is None and hasattr(self.resources, 'version'):
+                            version = self.resources.version
+                        
+                        # If still None, try scheduler_version from config
+                        if version is None and self.config:
+                            version = self.config.get('scheduler_version', 1)
+                            
+                        # Last fallback
+                        if version is None:
+                            version = 1
+                            
+                        self.logger.info(f"Using version {version} for assignment")
+                        
                         assignment = {
                             "employee_id": employee_id,
                             "shift_id": shift_id,
@@ -284,7 +299,7 @@ class DistributionManager:
                             "end_time": shift_template.get("end_time"),
                             "shift_type": shift_type,
                             "status": "PENDING",
-                            "version": 1
+                            "version": version  # Use dynamic version instead of hardcoded 1
                         }
 
                         assignments.append(assignment)

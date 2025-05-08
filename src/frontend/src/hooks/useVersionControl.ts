@@ -46,13 +46,15 @@ export function useVersionControl({ dateRange, onVersionSelected }: UseVersionCo
             const sortedVersions = [...versionsQuery.data.versions].sort((a, b) => b.version - a.version);
             const latestVersion = sortedVersions[0].version;
 
-            // Only update if not already selected
-            if (!selectedVersion || selectedVersion !== latestVersion) {
-                console.log(`🔄 Auto-selecting latest version (${latestVersion})`);
+            // Only auto-select if no version is currently selected
+            if (selectedVersion === undefined) {
+                console.log(`🔄 Auto-selecting latest version (${latestVersion}) because no version was selected`);
                 setSelectedVersion(latestVersion);
                 if (onVersionSelected) {
                     onVersionSelected(latestVersion);
                 }
+            } else {
+                console.log(`🔄 Not auto-selecting version because version ${selectedVersion} is already selected`);
             }
         } else {
             // If no versions are available, make sure we don't have a selected version
@@ -64,7 +66,7 @@ export function useVersionControl({ dateRange, onVersionSelected }: UseVersionCo
                 }
             }
         }
-    }, [versionsQuery.data, onVersionSelected]);
+    }, [versionsQuery.data, onVersionSelected, selectedVersion, dateRange]);
 
     // Create version mutation
     const createVersionMutation = useMutation({

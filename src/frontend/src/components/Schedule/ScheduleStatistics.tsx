@@ -25,6 +25,7 @@ interface ScheduleStatisticsProps {
     employees?: Employee[];  // Make this optional
     startDate: string;
     endDate: string;
+    version?: number;  // Add version parameter
 }
 
 // Define type for employee groups
@@ -79,7 +80,16 @@ const calculateShiftDuration = (schedule: Schedule): number => {
     }
 };
 
-export function ScheduleStatistics({ schedules, employees: propEmployees, startDate, endDate }: ScheduleStatisticsProps) {
+export function ScheduleStatistics({ schedules, employees: propEmployees, startDate, endDate, version }: ScheduleStatisticsProps) {
+    // Debugging info
+    console.log('ScheduleStatistics - raw props:', {
+        totalSchedules: schedules.length,
+        version,
+        startDate,
+        endDate,
+        firstFewSchedules: schedules.slice(0, 3).map(s => ({ id: s.id, version: s.version, shift_id: s.shift_id }))
+    });
+
     // Fetch employees if not passed in props
     const { data: fetchedEmployees, isLoading } = useQuery({
         queryKey: ['employees'],
@@ -91,8 +101,24 @@ export function ScheduleStatistics({ schedules, employees: propEmployees, startD
     // Use prop employees if available, otherwise use fetched employees
     const employees = propEmployees && propEmployees.length > 0 ? propEmployees : (fetchedEmployees || []);
 
+    // IMPORTANT: Filter schedules by version if specified - ensure filtering is applied correctly
+    const filteredSchedules = version !== undefined
+        ? schedules.filter(s => s.version === version)
+        : schedules;
+
+    // Log version filtering results for debugging
+    console.log('ScheduleStatistics - version filtering:', {
+        filteredCount: filteredSchedules.length,
+        originalCount: schedules.length,
+        version,
+        versionCounts: schedules.reduce((acc, s) => {
+            acc[s.version] = (acc[s.version] || 0) + 1;
+            return acc;
+        }, {} as Record<number, number>)
+    });
+
     // Filter out schedules with no shift assigned
-    const validSchedules = schedules.filter(s => s.shift_id !== null);
+    const validSchedules = filteredSchedules.filter(s => s.shift_id !== null);
 
     // Basic statistics
     const totalShifts = validSchedules.length;

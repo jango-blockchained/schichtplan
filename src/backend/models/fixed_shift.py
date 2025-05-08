@@ -12,6 +12,7 @@ class ShiftType(Enum):
     EARLY = "EARLY"
     MIDDLE = "MIDDLE"
     LATE = "LATE"
+    NO_WORK = "NO_WORK"  # Represents when an employee is not scheduled to work
 
     def __str__(self):
         return self.value

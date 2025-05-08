@@ -139,6 +139,12 @@ export function useScheduleGeneration({
                             'Request will include shift_type values': true
                         });
 
+                        // Make sure we have a valid version number
+                        if (!selectedVersion) {
+                            addGenerationLog("error", "Fehlende Version. Bitte eine Version auswählen oder erstellen.");
+                            throw new Error("Missing version parameter. Please select or create a version.");
+                        }
+
                         const result = await generateSchedule(
                             fromStr,
                             toStr,

@@ -3,8 +3,10 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ErrorBoundary } from 'react-error-boundary'
+import { ApolloProvider } from '@apollo/client'
 import './index.css'
 import App from './App'
+import apolloClient from './lib/apollo-client'
 
 function ErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
   return (
@@ -32,7 +34,9 @@ root.render(
         window.location.reload()
       }}
     >
-      <App />
+      <ApolloProvider client={apolloClient}>
+        <App />
+      </ApolloProvider>
     </ErrorBoundary>
   </StrictMode>,
 )
