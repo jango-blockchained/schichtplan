@@ -40,6 +40,7 @@ interface AddScheduleDialogProps {
     }) => Promise<void>;
     version: number;
     defaultDate?: Date;
+    defaultEmployeeId?: number;
 }
 
 export function AddScheduleDialog({
@@ -48,11 +49,26 @@ export function AddScheduleDialog({
     onAddSchedule,
     version,
     defaultDate = new Date(),
+    defaultEmployeeId,
 }: AddScheduleDialogProps) {
-    const [selectedEmployee, setSelectedEmployee] = useState<number | null>(null);
+    const [selectedEmployee, setSelectedEmployee] = useState<number | null>(defaultEmployeeId || null);
     const [selectedDate, setSelectedDate] = useState<Date | undefined>(defaultDate);
     const [selectedShift, setSelectedShift] = useState<number | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Update selected employee when defaultEmployeeId changes
+    useEffect(() => {
+        if (defaultEmployeeId) {
+            setSelectedEmployee(defaultEmployeeId);
+        }
+    }, [defaultEmployeeId]);
+
+    // Update selected date when defaultDate changes
+    useEffect(() => {
+        if (defaultDate) {
+            setSelectedDate(defaultDate);
+        }
+    }, [defaultDate]);
 
     // Query for employees
     const employeesQuery = useQuery<Employee[], Error>({

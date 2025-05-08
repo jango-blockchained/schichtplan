@@ -19,6 +19,7 @@ interface ScheduleManagerProps {
         type: 'absence';
     }>;
     activeView: 'table' | 'grid';
+    currentVersion?: number;
 }
 
 export function ScheduleManager({
@@ -29,7 +30,8 @@ export function ScheduleManager({
     isLoading,
     employeeAbsences,
     absenceTypes,
-    activeView
+    activeView,
+    currentVersion
 }: ScheduleManagerProps) {
     // Enhanced drop handler that can handle both table and grid view drops
     const handleDrop = async (
@@ -71,6 +73,7 @@ export function ScheduleManager({
                         isLoading={isLoading}
                         employeeAbsences={employeeAbsences}
                         absenceTypes={absenceTypes}
+                        currentVersion={currentVersion}
                     />
                 ) : (
                     <TimeGridScheduleTable
@@ -81,6 +84,7 @@ export function ScheduleManager({
                         isLoading={isLoading}
                         employeeAbsences={employeeAbsences}
                         absenceTypes={absenceTypes}
+                        currentVersion={currentVersion}
                     />
                 )}
             </CardContent>
