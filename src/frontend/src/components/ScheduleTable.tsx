@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, Fragment } from 'react';
 import { format, addDays, parseISO, startOfWeek } from 'date-fns';
 import { useDrag, useDrop } from 'react-dnd';
-import { Schedule, Employee, ScheduleUpdate } from '@/types';
+import { Schedule, Employee, ScheduleUpdate, ShiftType } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,7 @@ import { getSettings, getEmployees } from '@/services/api';
 import { Edit2, Trash2, Plus, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ShiftEditModal } from './ShiftEditModal';
+import { AddScheduleDialog } from './Schedule/AddScheduleDialog';
 import {
     Table,
     TableBody,
@@ -36,6 +37,7 @@ interface ScheduleTableProps {
         color: string;
         type: 'absence';
     }>;
+    currentVersion?: number;
 }
 
 interface DragItem {
@@ -141,13 +143,17 @@ const TimeSlotDisplay = ({ startTime, endTime, shiftType, settings, schedule }: 
     );
 };
 
-const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence }: {
+const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence, employeeId, date, currentVersion }: {
     schedule: Schedule | undefined;
     onDrop: (scheduleId: number, newEmployeeId: number, newDate: Date, newShiftId: number) => Promise<void>;
     onUpdate: (scheduleId: number, updates: ScheduleUpdate) => Promise<void>;
     hasAbsence?: boolean;
+    employeeId: number;
+    date: Date;
+    currentVersion?: number;
 }) => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [showActions, setShowActions] = useState(false);
 
     // Add debug logging to help understand when cells are empty
@@ -213,24 +219,70 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence }: {
         setIsEditModalOpen(true);
     };
 
+    const handleAddNewSchedule = async (scheduleData: any) => {
+        try {
+            // The onUpdate function expects a scheduleId and updates
+            // For new schedules, we'll use 0 as the ID and let the backend create a new record
+            const scheduleId = 0; // This signals to the backend that this is a new schedule
+            await onUpdate(scheduleId, {
+                employee_id: scheduleData.employee_id,
+                date: scheduleData.date,
+                shift_id: scheduleData.shift_id,
+                version: scheduleData.version
+            });
+        } catch (error) {
+            console.error('Error adding new schedule:', error);
+            throw error;
+        }
+    };
+
     if (!schedule || isEmptySchedule(schedule)) {
         return (
-            <div
-                ref={(node) => drag(drop(node))}
-                style={{ width: '100%', height: '100%' }}
-                className={cn(
-                    'p-2 rounded-md border border-dashed border-gray-300 transition-all duration-200',
-                    'flex flex-col items-center justify-center',
-                    isDragging && 'opacity-50 bg-primary/10',
-                    isOver && 'ring-2 ring-primary/50',
-                    'hover:bg-primary/5',
-                    hasAbsence && 'opacity-0' // Hide completely if absence
-                )}
-            >
-                <div className="text-sm text-muted-foreground">
-                    {hasAbsence ? 'Absence' : 'No shift assigned'}
+            <>
+                <div
+                    ref={(node) => drag(drop(node))}
+                    style={{ width: '100%', height: '100%' }}
+                    className={cn(
+                        'p-2 rounded-md border border-dashed border-gray-300 transition-all duration-200',
+                        'flex flex-col items-center justify-center relative group',
+                        isDragging && 'opacity-50 bg-primary/10',
+                        isOver && 'ring-2 ring-primary/50',
+                        'hover:bg-primary/5 hover:border-primary/30',
+                        hasAbsence && 'opacity-0' // Hide completely if absence
+                    )}
+                    onMouseEnter={() => setShowActions(true)}
+                    onMouseLeave={() => setShowActions(false)}
+                >
+                    <div className="text-sm text-muted-foreground">
+                        {hasAbsence ? 'Absence' : 'No shift assigned'}
+                    </div>
+                    
+                    {/* Add Button - only show on hover and when no absence */}
+                    {!hasAbsence && (
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            className="absolute inset-0 m-auto h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity bg-primary/10 hover:bg-primary/20"
+                            onClick={() => setIsAddModalOpen(true)}
+                            title="Neuen Eintrag hinzufügen"
+                        >
+                            <Plus className="h-4 w-4" />
+                        </Button>
+                    )}
                 </div>
-            </div>
+
+                {/* Add Schedule Dialog for empty cells */}
+                {isAddModalOpen && !hasAbsence && (
+                    <AddScheduleDialog
+                        isOpen={isAddModalOpen}
+                        onClose={() => setIsAddModalOpen(false)}
+                        onAddSchedule={handleAddNewSchedule}
+                        version={currentVersion || 1}
+                        defaultDate={date}
+                        defaultEmployeeId={employeeId}
+                    />
+                )}
+            </>
         );
     }
 
@@ -502,7 +554,7 @@ const checkForAbsence = (
     return null;
 };
 
-export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoading, employeeAbsences, absenceTypes }: ScheduleTableProps) {
+export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoading, employeeAbsences, absenceTypes, currentVersion }: ScheduleTableProps) {
     const [expandedEmployees, setExpandedEmployees] = useState<number[]>([]);
 
     const toggleEmployeeExpand = (employeeId: number) => {
@@ -898,6 +950,9 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
                                                             onDrop={onDrop}
                                                             onUpdate={onUpdate}
                                                             hasAbsence={!!absenceInfo}
+                                                            employeeId={employeeId}
+                                                            date={day}
+                                                            currentVersion={currentVersion}
                                                         />
                                                     </td>
                                                 );

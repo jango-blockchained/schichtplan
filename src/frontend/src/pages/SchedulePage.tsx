@@ -1039,6 +1039,7 @@ export function SchedulePage() {
                   employeeAbsences={employeeAbsences}
                   absenceTypes={settingsData?.employee_groups?.absence_types || []}
                   activeView={activeView}
+                  currentVersion={selectedVersion}
                 />
               </div>
             )}
