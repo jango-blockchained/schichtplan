@@ -1,4 +1,4 @@
-from src.backend.app import create_app
+from app import create_app
 from src.backend.services.scheduler import ScheduleGenerator
 
 

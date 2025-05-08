@@ -43,9 +43,10 @@ def test_scheduler_basic():
         )
 
         print("Schedule generation complete")
-        print(f"Log path: {scheduler.logging_manager.get_log_path()}")
-        print(f"Diagnostic log: {scheduler.logging_manager.get_diagnostic_log_path()}")
-        print(f"App log: {scheduler.logging_manager.get_app_log_path()}")
+        # Commenting out lines referring to the old logging_manager
+        # print(f"Log path: {scheduler.logging_manager.get_log_path()}")
+        # print(f"Diagnostic log: {scheduler.logging_manager.get_diagnostic_log_path()}")
+        # print(f"App log: {scheduler.logging_manager.get_app_log_path()}")
 
         # Output summary of result
         print("\nSchedule generation summary:")

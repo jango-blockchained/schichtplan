@@ -5,7 +5,7 @@ This version directly implements the data generation functions in the script
 to avoid conflicts with the demo_data blueprint in the app.
 """
 
-from src.backend.app import create_app
+from app import create_app
 from datetime import date, timedelta
 import sys
 import logging

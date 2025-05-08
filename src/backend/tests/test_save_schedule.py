@@ -3,7 +3,7 @@
 Script to test schedule generation and saving to the database.
 """
 
-from src.backend.app import create_app
+from app import create_app
 from datetime import date, timedelta
 import sys
 
