@@ -1157,6 +1157,7 @@ class DistributionManager:
         
         return diagnostic
 
+
     def assign_employees_with_distribution(
         self, current_date: date, shifts: List[Any], coverage: Dict[str, int]
     ) -> List[Dict]:
@@ -1206,53 +1207,108 @@ class DistributionManager:
                 shifts_by_type["GENERAL"] = [s for s in shifts if not self.is_shift_assigned(s, assignments)]
                 self.logger.info(f"Fallback - Assigned {len(shifts_by_type['GENERAL'])} shifts to GENERAL type")
 
-            # Then assign regular employees by shift type
-            for shift_type, type_shifts in shifts_by_type.items():
-                try:
-                    self.logger.info(
-                        f"Processing assignments for shift type: {shift_type}"
-                    )
-                    self.logger.info(
-                        f"Available shifts of this type: {len(type_shifts)}"
-                    )
-
-                    # Get available employees for this shift type
-                    available_employees = self.get_available_employees(
-                        current_date, type_shifts
-                    )
-                    self.logger.info(
-                        f"Available employees for shift type {shift_type}: {len(available_employees)}"
-                    )
-
-                    # If we have no available employees but we have shifts, try using all active employees
-                    if not available_employees and type_shifts:
-                        self.logger.warning(f"No specifically available employees for {shift_type}. Using all active employees as fallback.")
-                        # Fallback to using all employees
-                        all_employees = [e for e in self.resources.employees if getattr(e, "is_active", True)]
-                        self.logger.info(f"Fallback - Using {len(all_employees)} active employees")
-                        available_employees = all_employees
-
-                    type_assignments = self.assign_employees_by_type(
-                        current_date, type_shifts, available_employees, shift_type
-                    )
-
-                    if type_assignments:
-                        self.logger.info(
-                            f"Made {len(type_assignments)} assignments for shift type {shift_type}"
-                        )
-                        assignments.extend(type_assignments)
+            # === IMPROVED ASSIGNMENT APPROACH ===
+            # Instead of processing all shifts of one type before moving to the next,
+            # we'll interleave them to ensure a balanced mix of shift types
+            
+            # Create a prioritized list of shift types
+            # Put MIDDLE shifts first since we need more of these
+            prioritized_types = []
+            
+            # Add MIDDLE first if available
+            if "MIDDLE" in shifts_by_type:
+                prioritized_types.append("MIDDLE")
+            
+            # Add LATE next if available
+            if "LATE" in shifts_by_type:
+                prioritized_types.append("LATE")
+                
+            # Add EARLY last if available (since we tend to over-assign these)
+            if "EARLY" in shifts_by_type:
+                prioritized_types.append("EARLY")
+                
+            # Add any other types
+            for shift_type in shifts_by_type:
+                if shift_type not in prioritized_types:
+                    prioritized_types.append(shift_type)
+                    
+            self.logger.info(f"Prioritized shift types: {prioritized_types}")
+            
+            # Get all available employees
+            all_available_employees = self.get_available_employees(current_date, shifts)
+            self.logger.info(f"Total available employees: {len(all_available_employees)}")
+            if not all_available_employees:
+                self.logger.warning("No available employees!")
+                return assignments
+                
+            # Initialize counters for each shift type
+            assigned_by_type = {shift_type: 0 for shift_type in shifts_by_type}
+            
+            # Process shifts in a round-robin fashion by type
+            max_iterations = sum(len(type_shifts) for type_shifts in shifts_by_type.values())
+            iteration = 0
+            
+            while iteration < max_iterations:
+                # Process one shift of each type before moving to the next
+                for shift_type in prioritized_types:
+                    if shift_type not in shifts_by_type or not shifts_by_type[shift_type]:
+                        continue
+                        
+                    # Get the next shift of this type
+                    current_shift = shifts_by_type[shift_type].pop(0)
+                    
+                    # Try to assign this shift
+                    self.logger.info(f"Processing shift of type {shift_type}")
+                    
+                    # Get available employees for this specific shift
+                    shift_template = None
+                    shift_id = self.get_id(current_shift, ["id", "shift_id"])
+                    
+                    if isinstance(current_shift, dict):
+                        shift_template = self.resources.get_shift(current_shift.get("shift_id", current_shift.get("id")))
                     else:
-                        self.logger.warning(
-                            f"No assignments made for shift type {shift_type}"
-                        )
-
-                except Exception as e:
-                    self.logger.error(
-                        f"Error assigning employees for shift type {shift_type}: {str(e)}"
+                        shift_template = self.resources.get_shift(shift_id)
+                        
+                    # Get employees specifically available for this shift
+                    available_employees = []
+                    if shift_template and self.availability_checker:
+                        for employee in all_available_employees:
+                            employee_id = self.get_id(employee, ["id", "employee_id"])
+                            is_available, _ = self.availability_checker.is_employee_available(
+                                employee_id, current_date, shift_template
+                            )
+                            if is_available:
+                                available_employees.append(employee)
+                    else:
+                        # Fallback to all available employees
+                        available_employees = all_available_employees
+                    
+                    self.logger.info(
+                        f"Available employees for this {shift_type} shift: {len(available_employees)}"
                     )
-                    self.logger.error("Stack trace:", exc_info=True)
-
+                    
+                    # Assign this shift
+                    shift_assignments = self.assign_employees_by_type(
+                        current_date, [current_shift], available_employees, shift_type
+                    )
+                    
+                    # Track assignments
+                    if shift_assignments:
+                        self.logger.info(f"Assigned shift of type {shift_type}")
+                        assignments.extend(shift_assignments)
+                        assigned_by_type[shift_type] += 1
+                    else:
+                        self.logger.warning(f"No assignment made for this {shift_type} shift")
+                        
+                # Move to the next iteration
+                iteration += 1
+                
+                # Check if we've assigned all shifts
+                if all(len(shifts) == 0 for shifts in shifts_by_type.values()):
+                    break
+            
             self.logger.info(f"Total assignments made: {len(assignments)}")
+            self.logger.info(f"Assignments by type: {assigned_by_type}")
             
             # Generate diagnostic information
             diagnostics = self.generate_diagnostic_report(current_date, shifts, assignments)
@@ -1277,7 +1333,7 @@ class DistributionManager:
             self.logger.error(f"Error in assign_employees_with_distribution: {str(e)}")
             self.logger.error("Stack trace:", exc_info=True)
             raise
-            
+                
     def extract_shift_type(self, shift: Any) -> str:
         """Extract shift type from a shift object or dictionary with consistent fallbacks
         
