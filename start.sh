@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Determine script's absolute directory and cd into it
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
+cd "$SCRIPT_DIR" || { echo "ERROR: Failed to cd to script directory '$SCRIPT_DIR'"; exit 1; }
+
 # Set strict error handling
 set -euo pipefail
 
@@ -387,7 +391,8 @@ remove_pycache_folders() {
     if [ "$found_count" -gt 0 ]; then
         log "INFO" "Found $found_count __pycache__ folder(s). Removing..."
         # Use -execdir to be slightly safer, operating within the parent directory
-        find . -maxdepth 6 -type d -name "__pycache__" -exec rm -rf {} + || {
+        # Exclude .launchpadlib to prevent permission errors
+        find . -maxdepth 6 -path './.launchpadlib' -prune -o -type d -name "__pycache__" -exec rm -rf {} + || {
             log "WARN" "Some __pycache__ folders might not have been removed."
             return 1
         }

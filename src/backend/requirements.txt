@@ -13,5 +13,5 @@ gunicorn==21.2.0
 alembic==1.13.1
 ruff==0.11.2
 black==24.1.1
-# flake8==7.0.0
-# mypy==1.8.0
+flake8==7.0.0
+mypy==1.8.0

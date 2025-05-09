@@ -2,10 +2,11 @@
 """Schedule generation service for Schichtplan."""
 from datetime import date, datetime, timedelta
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, TYPE_CHECKING, Union
 import sys
 import os
 import uuid # Import uuid for session ID generation
+from collections import defaultdict # ADDED defaultdict
 
 # Add parent directories to path if needed
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -47,14 +48,22 @@ except ImportError:
 
 
 # Import the extracted modules
-from .config import SchedulerConfig
+from .config import SchedulerConfig # Generator's own runtime config
 from .constraints import ConstraintChecker
 from .availability import AvailabilityChecker
 from .distribution import DistributionManager
 from .serialization import ScheduleSerializer
 from .logging_utils import ProcessTracker # Renamed from LoggingManager
-from .resources import ScheduleResources
-from .validator import ScheduleValidator # ADDED IMPORT
+from .resources import ScheduleResources as RuntimeScheduleResources # Runtime alias
+from .validator import ScheduleValidator
+from .validator import ScheduleConfig as ValidatorRuntimeScheduleConfig # Runtime alias for validator's config
+
+# --- Explicit Imports for Type Checking ---
+if TYPE_CHECKING:
+    from .resources import ScheduleResources as ActualScheduleResources
+    from .config import SchedulerConfig as ActualSchedulerConfig # Generator's own config class for type hints
+    from .validator import ScheduleConfig as ActualValidatorScheduleConfig # Validator's config class for type hints
+    from backend.models.schedule import Schedule as ActualScheduleModel # The DB model for assignments/schedule entries
 
 # Set up placeholder logger - REMOVED as we use central_logger now
 # logger = logging.getLogger(__name__)
@@ -168,7 +177,7 @@ class ScheduleAssignment:
         self,
         employee_id: int,
         shift_id: int,
-        date: date,
+        date_val: date,
         shift_template: Any = None,
         availability_type: Optional[str] = None,
         status: str = "PENDING",
@@ -176,43 +185,47 @@ class ScheduleAssignment:
     ):
         self.employee_id = employee_id
         self.shift_id = shift_id
-        self.date = date
+        self.date = date_val
         self.shift_template = shift_template
-        self.availability_type = availability_type or AvailabilityType.AVAILABLE.value
+        self.availability_type = availability_type or (AvailabilityType.AVAILABLE.value if hasattr(AvailabilityType, 'AVAILABLE') else "AVL")
         self.status = status
         self.version = version
+        self.start_time: Optional[str] = None
+        self.end_time: Optional[str] = None
+        if shift_template and hasattr(shift_template, 'start_time'):
+            self.start_time = shift_template.start_time
+        if shift_template and hasattr(shift_template, 'end_time'):
+            self.end_time = shift_template.end_time
 
 
 class ScheduleContainer:
     """Container class for schedule metadata"""
 
-    def __init__(self, start_date, end_date, status="DRAFT", version=1):
+    def __init__(self, start_date: date, end_date: date, status="DRAFT", version=1):
         self.start_date = start_date
         self.end_date = end_date
         self.status = status
         self.version = version
-        self.entries = []
+        self.assignments: List[ScheduleAssignment] = []
+        self.schedule_entries_by_date: Dict[date, List[ScheduleAssignment]] = defaultdict(list)
         self.id = None  # Add an ID field
 
-    def get_schedule(self):
+    def get_schedule(self) -> List[ScheduleAssignment]:
         """Return self as this is the schedule container"""
-        return self
+        return self.assignments
 
-    def get_assignments(self):
+    def get_assignments(self) -> List[ScheduleAssignment]:
         """Return the schedule entries"""
-        return self.entries
+        return self.assignments
 
-    def add_assignment(self, assignment):
+    def add_assignment(self, assignment: ScheduleAssignment):
         """Add an assignment to the schedule"""
-        self.entries.append(assignment)
+        self.assignments.append(assignment)
+        self.schedule_entries_by_date[assignment.date].append(assignment)
 
-    def get_assignments_for_date(self, date):
+    def get_assignments_for_date(self, target_date: date) -> List[ScheduleAssignment]:
         """Get all assignments for a specific date"""
-        return [
-            a
-            for a in self.entries
-            if getattr(a, "date", None) == date or a.get("date") == date
-        ]
+        return self.schedule_entries_by_date.get(target_date, [])
 
 
 class ScheduleGenerator:
@@ -221,7 +234,7 @@ class ScheduleGenerator:
     Coordinates the scheduling process using the specialized modules.
     """
 
-    def __init__(self, resources=None, config=None):
+    def __init__(self, resources: Optional[RuntimeScheduleResources] = None, passed_config: Optional[SchedulerConfig] = None):
         # Use the centrally configured logger
         self.logger = central_logger.schedule_logger # Use the specific schedule logger
         self.app_logger = central_logger.app_logger # Use app logger for general info/debug
@@ -240,33 +253,44 @@ class ScheduleGenerator:
         )
 
         # Initialize resources and config
-        self.resources = resources or ScheduleResources()
-        self.config = config or SchedulerConfig()
+        if TYPE_CHECKING:
+            self.resources: ActualScheduleResources = resources if resources is not None else ActualScheduleResources()
+            self.config: ActualSchedulerConfig = passed_config if passed_config is not None else ActualSchedulerConfig()
+        else:
+            self.resources = resources if resources is not None else RuntimeScheduleResources()
+            self.config = passed_config if passed_config is not None else SchedulerConfig() # This is generator's .config.SchedulerConfig
+        
         self.logger.debug(f"ScheduleGenerator initialized (Session: {self.session_id})")
-        self.diagnostic_logger.debug(f"SchedulerConfig: {self.config.__dict__}")
+        self.diagnostic_logger.debug(f"SchedulerConfig (Generator): {self.config.__dict__ if self.config and hasattr(self.config, '__dict__') else 'None'}")
 
+        # Create a ValidatorScheduleConfig instance for ConstraintChecker
+        # ValidatorRuntimeScheduleConfig is an alias for validator.ScheduleConfig
+        # The from_settings method in validator.ScheduleConfig is used.
+        # We attempt to pass the generator's config as a dictionary, or an empty dict if not suitable.
+        validator_specific_config_settings = self.config.__dict__ if self.config and hasattr(self.config, '__dict__') else {}
+        if not validator_specific_config_settings and self.config: # If config is not dict-like, maybe it *is* the settings
+             validator_specific_config_settings = self.config 
 
-        # Initialize the specialized modules, passing the correct logger
-        # Decide which logger is most appropriate for each module
-        # - ConstraintChecker: Needs details, maybe diagnostic? Or schedule? Let's use schedule logger for now.
-        # - AvailabilityChecker: Schedule logger seems appropriate.
-        # - DistributionManager: Needs detailed logs, pass diagnostic logger? Or schedule logger? Let's use schedule.
-        # - Serializer: Schedule logger.
-        self.constraint_checker = ConstraintChecker(
-            self.resources, self.config, self.logger # Pass schedule logger
-        )
-        self.availability_checker = AvailabilityChecker(self.resources, self.logger) # Pass schedule logger
+        validator_specific_config = ValidatorRuntimeScheduleConfig.from_settings(validator_specific_config_settings)
+        self.diagnostic_logger.debug(f"SchedulerConfig (Validator for ConstraintChecker): {validator_specific_config.__dict__ if validator_specific_config else 'None'}")
+
+        # Initialize the specialized modules, passing the correct logger and configs
+        self.constraint_checker = ConstraintChecker(self.resources, validator_specific_config, self.logger)
+        self.availability_checker = AvailabilityChecker(self.resources, self.logger)
         self.distribution_manager = DistributionManager(
             self.resources,
-            self.constraint_checker,
+            self.constraint_checker, # Gets the correctly typed config via ConstraintChecker
             self.availability_checker,
-            self.config,
-            self.logger, # Pass schedule logger
+            self.config,  # DistributionManager itself receives the generator's config
+            self.logger,
         )
-        self.serializer = ScheduleSerializer(self.logger) # Pass schedule logger
+        self.serializer = ScheduleSerializer(self.logger)
 
         # Schedule data
-        self.schedule = None
+        if TYPE_CHECKING:
+            self.schedule: Optional[ScheduleContainer] = None
+        else:
+            self.schedule = None
         self.assignments = []
         self.schedule_by_date = {}
 
@@ -289,7 +313,7 @@ class ScheduleGenerator:
         self,
         start_date: date,
         end_date: date,
-        config: Optional[Dict] = None,
+        external_config_dict: Optional[Dict] = None,
         create_empty_schedules: bool = False,
         version: Optional[int] = None,
     ) -> Dict[str, Any]:
@@ -304,7 +328,7 @@ class ScheduleGenerator:
             version: Optional version of the schedule
         """
         self.logger.info(f"Generating schedule from {start_date} to {end_date} (Session: {self.session_id})")
-        self.diagnostic_logger.info(f"Generation parameters: start={start_date}, end={end_date}, config={config}, create_empty={create_empty_schedules}, version={version}")
+        self.diagnostic_logger.info(f"Generation parameters: start={start_date}, end={end_date}, config={external_config_dict}, create_empty={create_empty_schedules}, version={version}")
 
         # Start the process tracking
         self.process_tracker.start_process()
@@ -341,7 +365,6 @@ class ScheduleGenerator:
                 self.process_tracker.end_step({"status": "success"})
 
 
-        # Initialize schedule container
         self.schedule = ScheduleContainer(
             start_date=start_date,
             end_date=end_date,
@@ -399,24 +422,73 @@ class ScheduleGenerator:
         # Step 3: Serialization & Validation
         self.process_tracker.start_step("Schedule Serialization and Validation")
         try:
-            # Serialize first
-            serialized_result = self.serializer.serialize_schedule(
-                self.schedule.get_schedule()
-            )
-            self.process_tracker.log_step_data("Serialized Schedule Size", len(str(serialized_result)), level=logging.DEBUG)
+            schedule_assignments_to_process: List[ScheduleAssignment] = []
+            if self.schedule:
+                schedule_assignments_to_process = self.schedule.get_assignments()
+            
+            # CONVERSION STEP: ScheduleAssignment to dict or ActualScheduleModel for serializer/validator
+            # This is a placeholder; actual mapping fields would be needed.
+            processed_for_downstream: List[Dict] = []
+            if TYPE_CHECKING:
+                 # For type hinting, this would be List[ActualScheduleModel]
+                 # but the conversion logic to ActualScheduleModel instances is complex here.
+                 # Using List[Dict] as a common intermediate form.
+                 pass 
+            
+            for sa in schedule_assignments_to_process:
+                processed_for_downstream.append({
+                    "id": getattr(sa, 'id', None), # ScheduleAssignment might not have an ID yet
+                    "employee_id": sa.employee_id,
+                    "shift_id": sa.shift_id,
+                    "date": sa.date.isoformat() if sa.date else None,
+                    "start_time": sa.start_time,
+                    "end_time": sa.end_time,
+                    "status": sa.status,
+                    "version": sa.version,
+                    # Potentially other fields needed by ActualScheduleModel or serializer
+                })
 
-
-            # Add metrics
+            serialized_result = self.serializer.serialize_schedule(processed_for_downstream) 
             metrics = self.distribution_manager.get_distribution_metrics()
             if metrics:
                 serialized_result["metrics"] = metrics
                 self.process_tracker.log_step_data("Distribution Metrics", metrics, level=logging.INFO)
 
 
-            # Perform validation (both constraints and coverage)
+            # Perform validation
             self.process_tracker.start_step("Schedule Validation")
+            
+            validator_config_arg: Optional[Union[ActualValidatorScheduleConfig, ValidatorRuntimeScheduleConfig]] = None
+            if external_config_dict:
+                if TYPE_CHECKING:
+                    # validator_config_arg = ActualValidatorScheduleConfig.from_settings(external_config_dict) # Ideal
+                    pass # Placeholder until from_settings is confirmed for ActualValidatorScheduleConfig
+                else:
+                    validator_config_arg = ValidatorRuntimeScheduleConfig.from_settings(external_config_dict)
+            else: # Use self.config (generator's config)
+                if TYPE_CHECKING:
+                    # This assumes ActualSchedulerConfig is compatible with or convertible to ActualValidatorScheduleConfig
+                    # If not, conversion logic or a more specific type is needed.
+                    # validator_config_arg = convert_generator_config_to_validator_config(self.config)
+                    pass # Placeholder
+                else:
+                    # At runtime, if ValidatorRuntimeScheduleConfig can take SchedulerConfig or has from_settings for it.
+                    # validator_config_arg = ValidatorRuntimeScheduleConfig.from_generator_config(self.config)
+                    pass # Placeholder; direct pass might cause issues if types differ
+            
+            # If no external_config_dict and no conversion, pass self.config (hoping for compatibility)
+            if validator_config_arg is None: # Fallback if above blocks don't assign due to placeholders
+                 # This was: validator_config_arg = self.config (which is the wrong type)
+                 # Create ValidatorRuntimeScheduleConfig from self.config (generator's config) or default.
+                 settings_for_validator = self.config.__dict__ if self.config and hasattr(self.config, '__dict__') else {}
+                 if not settings_for_validator and self.config: # if self.config is not dict-like, maybe it *is* the settings obj
+                     settings_for_validator = self.config
+                 validator_config_arg = ValidatorRuntimeScheduleConfig.from_settings(settings_for_validator)
+
             validator = ScheduleValidator(self.resources)
-            validation_errors = validator.validate(self.schedule.get_assignments(), config=self.config)
+            # validator.validate expects List[ActualScheduleModel] or List[Dict] that maps to it.
+            validation_errors = validator.validate(processed_for_downstream, config=validator_config_arg)
+            
             coverage_summary = validator.get_coverage_summary()
             self.process_tracker.end_step({
                 "constraint_errors": len(validation_errors), 
@@ -424,7 +496,7 @@ class ScheduleGenerator:
             })
             
             # Add constraint violation details (as before)
-            constraint_violation_details = validator.get_error_report()["details"] # Assuming get_error_report exists and provides details
+            constraint_violation_details = validator.get_error_report()["errors"]
 
             serialized_result["validation"] = {
                 "constraint_errors_count": len(validation_errors),
@@ -682,198 +754,100 @@ class ScheduleGenerator:
 
 
     def _create_empty_schedule_entries(self, current_date: date):
-        """Create NO_WORK shift entries for all employees who don't have assignments on a specific date"""
-        self.diagnostic_logger.debug(f"Creating NO_WORK shift entries for date: {current_date}")
-        
-        # Get all active employees
-        active_employees = [e for e in self.resources.employees if getattr(e, "is_active", True)]
-        self.diagnostic_logger.info(f"Found {len(active_employees)} active employees for NO_WORK assignments")
-        
-        # Get employees who already have assignments for this date
-        assigned_employee_ids = set()
-        if current_date in self.schedule_by_date:
-            for assignment in self.schedule_by_date[current_date]:
-                if isinstance(assignment, dict):
-                    employee_id = assignment.get("employee_id")
-                    if employee_id:
-                        assigned_employee_ids.add(employee_id)
-                else:
-                    employee_id = getattr(assignment, "employee_id", None)
-                    if employee_id:
-                        assigned_employee_ids.add(employee_id)
-        
-        # Create a NO_WORK assignment for each unassigned employee
-        for employee in active_employees:
-            employee_id = getattr(employee, "id", None)
-            if not employee_id:
-                self.logger.warning(f"Employee has no ID, skipping: {employee}")
-                continue
-                
-            # Skip employees who already have assignments for this date
-            if employee_id in assigned_employee_ids:
-                self.diagnostic_logger.debug(f"Employee {employee_id} already has assignment for {current_date}, skipping NO_WORK")
-                continue
-                
-            # Create employee name for display
-            employee_name = None
-            if hasattr(employee, "first_name") and hasattr(employee, "last_name"):
-                employee_name = f"{employee.first_name} {employee.last_name}"
-            
-            # Create a NO_WORK assignment
-            no_work_assignment = {
-                "date": current_date.isoformat(),
-                "employee_id": employee_id,
-                "employee_name": employee_name,
-                "shift_id": None,  # No actual shift ID since it's a virtual shift
-                "start_time": "00:00",
-                "end_time": "00:00",
-                "duration_hours": 0,
-                "shift_type": "NO_WORK",
-                "shift_type_id": "NO_WORK",
-                "shift_name": "Kein Dienst",
-                "status": "AUTO_ASSIGNED",  # Special status for auto-assigned NO_WORK
-                "version": self.schedule.version if self.schedule else 1,
-            }
-            
-            # Add to schedule entries
-            if self.schedule:
-                self.schedule.entries.append(no_work_assignment)
-            
-            # Add to daily cache
-            if current_date not in self.schedule_by_date:
-                self.schedule_by_date[current_date] = []
-            self.schedule_by_date[current_date].append(no_work_assignment)
-            
-            self.diagnostic_logger.debug(f"Created NO_WORK assignment for employee {employee_id} on {current_date}")
-            
-        self.logger.info(f"Created NO_WORK assignments for {len(active_employees) - len(assigned_employee_ids)} employees on {current_date}")
-        self.process_tracker.log_step_data(
-            f"NO_WORK Assignments for {current_date}", 
-            {"total": len(active_employees) - len(assigned_employee_ids)},
-            level=logging.INFO
+        """
+        Creates empty schedule entries for a given date if no coverage or shifts are applicable.
+        This ensures that every day in the range has some form of record.
+        """
+        self.logger.info(f"Creating empty schedule entry for {current_date} (Session: {self.session_id})")
+        # Create a placeholder assignment indicating no work
+        # Ensure employee_id and shift_id are placeholders that make sense, e.g., 0 or -1
+        # Or use a specific 'NO_SHIFT' or 'NO_EMPLOYEE' marker if defined.
+        no_work_assignment = ScheduleAssignment(
+            employee_id=0,  # Placeholder for 'no employee'
+            shift_id=0,  # Placeholder for 'no shift'
+            date_val=current_date,
+            status="EMPTY",  # Custom status to indicate this is a placeholder
+            version=self.schedule.version if self.schedule else 1,
         )
+        if self.schedule:
+            self.schedule.add_assignment(no_work_assignment) # Use the add_assignment method
+            # The line below was self.schedule.entries.append(no_work_assignment)
+            # It's replaced by add_assignment which handles both self.assignments and self.schedule_entries_by_date
+
+        self.process_tracker.log_info(f"Empty schedule entry created for {current_date}")
 
     def _save_to_database(self):
         """
-        Save the generated schedules to the database
-        This method is called by the API endpoint after generation.
+        Placeholder for saving the generated schedule to the database.
+        Actual implementation will involve creating/updating Schedule and Assignment records.
         """
+        self.process_tracker.start_step("Database Save")
+        self.logger.info(f"Attempting to save schedule to database (Session: {self.session_id})")
+
+        if not self.schedule or not hasattr(self.schedule, "assignments") or not self.schedule.assignments:
+            self.logger.warning(
+                f"No schedule data or no assignments in schedule to save. (Session: {self.session_id})"
+            )
+            self.process_tracker.log_warning("No schedule data to save.", log_to_diag=True)
+            self.process_tracker.end_step({"status": "skipped", "reason": "No data"})
+            return
+
         try:
-            self.logger.info(f"Saving generated schedules to database (session {self.session_id})")
-            self.diagnostic_logger.info("Starting database save operation")
-            
-            if not self.schedule or not hasattr(self.schedule, "entries") or not self.schedule.entries:
-                self.logger.error("No schedule entries to save")
-                return False
-                
-            # Import database model
-            from sqlalchemy.exc import SQLAlchemyError
-            from models import db, Schedule as DbSchedule
-            
-            # Record stats for logging
-            new_entries = 0
-            updated_entries = 0
-            errors = 0
-            
-            # Use a single transaction for efficiency
-            try:
-                for entry in self.schedule.entries:
-                    try:
-                        # Skip empty schedule entries
-                        if isinstance(entry, dict) and entry.get("status") == "EMPTY":
-                            continue
-                            
-                        # Extract data based on entry type (dict or object)
-                        if isinstance(entry, dict):
-                            employee_id = entry.get("employee_id")
-                            shift_id = entry.get("shift_id")
-                            entry_date = entry.get("date")
-                            version = entry.get("version", self.schedule.version)
-                            break_start = entry.get("break_start")
-                            break_end = entry.get("break_end")
-                            notes = entry.get("notes")
-                            availability_type = entry.get("availability_type")
-                        else:
-                            # Assuming ScheduleAssignment object
-                            employee_id = getattr(entry, "employee_id", None)
-                            shift_id = getattr(entry, "shift_id", None)
-                            entry_date = getattr(entry, "date", None)
-                            version = getattr(entry, "version", self.schedule.version)
-                            break_start = getattr(entry, "break_start", None)
-                            break_end = getattr(entry, "break_end", None)
-                            notes = getattr(entry, "notes", None)
-                            availability_type = getattr(entry, "availability_type", None)
-                        
-                        # Ensure date is in the correct format
-                        if isinstance(entry_date, str):
-                            from datetime import datetime
-                            entry_date = datetime.fromisoformat(entry_date.split('T')[0]).date()
-                        
-                        if not employee_id or not entry_date:
-                            self.logger.warning(f"Skipping entry with missing data: employee_id={employee_id}, date={entry_date}")
-                            continue
-                            
-                        # Check if this schedule entry already exists
-                        existing = DbSchedule.query.filter_by(
-                            employee_id=employee_id,
-                            date=entry_date,
-                            version=version
-                        ).first()
-                        
-                        if existing:
-                            # Update existing entry
-                            existing.shift_id = shift_id
-                            if break_start:
-                                existing.break_start = break_start
-                            if break_end:
-                                existing.break_end = break_end
-                            if notes:
-                                existing.notes = notes
-                            if availability_type:
-                                existing.availability_type = availability_type
-                            updated_entries += 1
-                            self.diagnostic_logger.debug(
-                                f"Updated existing schedule: emp={employee_id}, date={entry_date}, shift={shift_id}"
-                            )
-                        else:
-                            # Create new entry
-                            new_entry = DbSchedule(
-                                employee_id=employee_id,
-                                shift_id=shift_id,
-                                date=entry_date,
-                                version=version,
-                                break_start=break_start,
-                                break_end=break_end,
-                                notes=notes,
-                                availability_type=availability_type
-                            )
-                            db.session.add(new_entry)
-                            new_entries += 1
-                            self.diagnostic_logger.debug(
-                                f"Created new schedule: emp={employee_id}, date={entry_date}, shift={shift_id}"
-                            )
-                    except Exception as e:
-                        self.logger.error(f"Error processing schedule entry {entry}: {str(e)}")
-                        errors += 1
-                        continue  # Continue with next entry
-                
-                # Commit all changes
+            # Example: Iterate through self.schedule.assignments and save them
+            # This would involve mapping ScheduleAssignment to the SQLAlchemy Schedule model
+            # and then adding them to the session and committing.
+            saved_count = 0
+            failed_count = 0
+            from backend.models import db 
+            from backend.models.schedule import Schedule as DbSchedule, ScheduleStatus
+
+            for entry in self.schedule.assignments:
+                try:
+                    # Map ScheduleAssignment (entry) to DbSchedule model instance
+                    current_status_str = entry.status
+                    target_status_enum = ScheduleStatus.DRAFT # Default
+                    if current_status_str == "CONFIRMED":
+                        target_status_enum = ScheduleStatus.PUBLISHED
+                    elif current_status_str == "ARCHIVED":
+                        target_status_enum = ScheduleStatus.ARCHIVED
+                    # Add other mappings if necessary, e.g., for PENDING, EMPTY
+                    # For now, unmapped statuses from ScheduleAssignment default to DRAFT in DbSchedule
+
+                    db_entry = DbSchedule(
+                        employee_id=entry.employee_id,
+                        shift_id=entry.shift_id,
+                        date=entry.date,
+                        status=target_status_enum,
+                        version=entry.version,
+                        break_start=getattr(entry, 'break_start', None),
+                        break_end=getattr(entry, 'break_end', None),
+                        notes=getattr(entry, 'notes', None),
+                        availability_type=getattr(entry, 'availability_type', None),
+                        shift_type=getattr(entry, 'shift_type', None)
+                    )
+                    db.session.add(db_entry)
+                    saved_count += 1
+                except Exception as e_item:
+                    failed_count += 1
+                    self.logger.error(f"Failed to prepare or add schedule entry {entry} for DB: {e_item}", exc_info=True)
+                    self.process_tracker.log_error(f"DB Save Error for item: {e_item}") # Removed log_to_diag=True
+
+            if saved_count > 0:
                 db.session.commit()
-                self.logger.info(
-                    f"Successfully saved schedules to database: {new_entries} new, {updated_entries} updated, {errors} errors"
-                )
-                self.process_tracker.log_step_data(
-                    "Database Save Results", 
-                    {"new": new_entries, "updated": updated_entries, "errors": errors},
-                    level=logging.INFO
-                )
-                return True
-                
-            except SQLAlchemyError as e:
-                db.session.rollback()
-                self.logger.error(f"Database error while saving schedules: {str(e)}")
-                return False
-                
+                self.logger.info(f"Successfully saved {saved_count} schedule entries to the database.")
+                self.process_tracker.log_step_data("Entries Saved", saved_count)
+            if failed_count > 0:
+                self.logger.error(f"Failed to save {failed_count} schedule entries.")
+                self.process_tracker.log_step_data("Entries Failed to Save", failed_count)
+
+            if saved_count == 0 and failed_count == 0:
+                 self.logger.info("No new entries were processed for saving.")
+
+            self.process_tracker.end_step({"status": "success" if failed_count == 0 else "partial_success"})
+
         except Exception as e:
-            self.logger.error(f"Failed to save schedules to database: {str(e)}", exc_info=True)
-            return False
+            self.logger.error(f"Error saving schedule to database: {e}", exc_info=True)
+            self.process_tracker.log_error(f"Database Save Error: {e}", exc_info=True)
+            self.process_tracker.end_step({"status": "failed", "error": str(e)})
+            # Depending on policy, might raise an error or just log
+            # raise ScheduleGenerationError(f"Failed to save schedule: {str(e)}") from e
