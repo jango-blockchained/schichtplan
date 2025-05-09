@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { ScheduleTable } from './ScheduleTable';
-import { TimeGridScheduleTable } from './TimeGridScheduleTable';
 import { Schedule, ScheduleUpdate } from '@/types';
 import { DateRange } from 'react-day-picker';
 import { Card, CardContent } from '@/components/ui/card';
@@ -64,7 +63,7 @@ export function ScheduleManager({
     return (
         <Card>
             <CardContent className="p-0">
-                {activeView === 'table' ? (
+                
                     <ScheduleTable
                         schedules={schedules}
                         dateRange={dateRange}
@@ -75,18 +74,6 @@ export function ScheduleManager({
                         absenceTypes={absenceTypes}
                         currentVersion={currentVersion}
                     />
-                ) : (
-                    <TimeGridScheduleTable
-                        schedules={schedules}
-                        dateRange={dateRange}
-                        onDrop={onDrop}
-                        onUpdate={onUpdate}
-                        isLoading={isLoading}
-                        employeeAbsences={employeeAbsences}
-                        absenceTypes={absenceTypes}
-                        currentVersion={currentVersion}
-                    />
-                )}
             </CardContent>
         </Card>
     );

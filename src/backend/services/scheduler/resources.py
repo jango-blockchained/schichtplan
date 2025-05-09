@@ -14,8 +14,12 @@ if src_backend_dir not in sys.path:
     sys.path.insert(0, src_backend_dir)
 
 # Try to handle imports in different environments
+ModelImportError_Primary = None # To store potential error for logging if all attempts fail
+ModelImportError_Fallback1 = None
+ModelImportError_Fallback2 = None
 try:
-    from models import (
+    # Attempt 1: Standard package layout
+    from backend.models import (
         Employee,
         ShiftTemplate,
         Settings,
@@ -25,10 +29,12 @@ try:
         EmployeeAvailability,
         Schedule,
     )
-    from models.employee import AvailabilityType, EmployeeGroup
-except ImportError:
+    from backend.models.employee import AvailabilityType, EmployeeGroup
+except ImportError as e1:
+    ModelImportError_Primary = e1
     try:
-        from backend.models import (
+        # Attempt 2: Direct execution where 'models' is in path
+        from models import (
             Employee,
             ShiftTemplate,
             Settings,
@@ -38,9 +44,11 @@ except ImportError:
             EmployeeAvailability,
             Schedule,
         )
-        from backend.models.employee import AvailabilityType, EmployeeGroup
-    except ImportError:
+        from models.employee import AvailabilityType, EmployeeGroup
+    except ImportError as e2:
+        ModelImportError_Fallback1 = e2
         try:
+            # Attempt 3: Common alternative structure (e.g., src/backend/...)
             from src.backend.models import (
                 Employee,
                 ShiftTemplate,
@@ -52,52 +60,14 @@ except ImportError:
                 Schedule,
             )
             from src.backend.models.employee import AvailabilityType, EmployeeGroup
-        except ImportError:
-            # Create placeholder classes for standalone testing
-            class Settings:
-                """Placeholder Settings class for standalone testing"""
-                pass
-            
-            class AvailabilityType:
-                UNAVAILABLE = "UNAVAILABLE"
-            
-            class EmployeeGroup:
-                pass
-            
-            class Coverage:
-                """Placeholder Coverage class for standalone testing"""
-                pass
-                
-            class Employee:
-                """Placeholder Employee class for standalone testing"""
-                pass
-                
-            class ShiftTemplate:
-                """Placeholder ShiftTemplate class for standalone testing"""
-                pass
-                
-            class Absence:
-                """Placeholder Absence class for standalone testing"""
-                pass
-                
-            class EmployeeAvailability:
-                """Placeholder EmployeeAvailability class for standalone testing"""
-                pass
-                
-            class Schedule:
-                """Placeholder Schedule class for standalone testing"""
-                pass
-                
-            class db:
-                """Placeholder db class for standalone testing"""
-                class session:
-                    @staticmethod
-                    def add(item):
-                        pass
-                    
-                    @staticmethod
-                    def commit():
-                        pass
+        except ImportError as e3:
+            ModelImportError_Fallback2 = e3
+            # All imports failed. Log critical error.
+            logging.getLogger(__name__).critical(
+                f"All model imports failed. Primary: {ModelImportError_Primary}, Fallback1: {ModelImportError_Fallback1}, Fallback2: {ModelImportError_Fallback2}. Resources module will likely fail."
+            )
+            # Placeholder classes REMOVED. Runtime errors will occur if models are unavailable.
+            # If running tests, mocks should be used.
 
 # Create a standard logger
 logger = logging.getLogger(__name__)
@@ -329,11 +299,11 @@ class ScheduleResources:
 
     def get_keyholders(self) -> List[Employee]:
         """Return a list of keyholder employees"""
-        return [emp for emp in self.employees if emp.is_keyholder]
+        return [emp for emp in self.employees if getattr(emp, 'is_keyholder', False) is True]
 
     def get_employees_by_group(self, group: EmployeeGroup) -> List[Employee]:
         """Return employees filtered by employee group"""
-        return [emp for emp in self.employees if emp.employee_group == group]
+        return [emp for emp in self.employees if getattr(emp, 'employee_group', None) == group]
 
     @functools.lru_cache(maxsize=128)
     def get_daily_coverage(self, day: date) -> List[Coverage]:
@@ -344,22 +314,27 @@ class ScheduleResources:
             self._date_caches_cleared = True
 
         weekday = day.weekday()
-        return [cov for cov in self.coverage if cov.day_index == weekday]
+        return [cov for cov in self.coverage if getattr(cov, 'day_index', None) == weekday]
 
     def get_employee_absences(
         self, employee_id: int, start_date: date, end_date: date
     ) -> List[Absence]:
         """Get absences for an employee in a date range"""
         # Check if employee exists to avoid unnecessary processing
-        if employee_id not in self._employee_cache:
+        if self.get_employee(employee_id) is None:
             return []
 
-        return [
-            absence
-            for absence in self.absences
-            if absence.employee_id == employee_id
-            and not (absence.end_date < start_date or absence.start_date > end_date)
-        ]
+        absences_found = []
+        for absence in self.absences:
+            # Use getattr for safety
+            if getattr(absence, 'employee_id', None) == employee_id:
+                absence_end = getattr(absence, 'end_date', None)
+                absence_start = getattr(absence, 'start_date', None)
+                # Ensure dates are valid before comparing
+                if isinstance(absence_end, date) and isinstance(absence_start, date):
+                    if not (absence_end < start_date or absence_start > end_date):
+                        absences_found.append(absence)
+        return absences_found
 
     def get_employee_availability(
         self, employee_id: int, day_of_week: int
@@ -381,25 +356,19 @@ class ScheduleResources:
     ) -> bool:
         """Check if an employee is available for a time slot"""
         # Check for absences first
-        for absence in self.absences:
-            if (
-                absence.employee_id == employee_id
-                and absence.start_date <= day <= absence.end_date
-            ):
-                logger.info(f"Employee {employee_id} is absent on {day}")
-                return False
+        if self.is_employee_on_leave(employee_id, day):
+            logger.info(f"Employee {employee_id} is absent on {day}")
+            return False
 
-        # Check if employee exists in the system - skip this check in test environments
-        # where we may not have loaded employees but still need to test availability
-        if self._employee_cache and employee_id not in self._employee_cache:
-            logger.info(f"Employee {employee_id} not found in cache")
+        # Check if employee exists
+        if self.get_employee(employee_id) is None:
+            logger.info(f"Employee {employee_id} not found")
             return False
 
         # Check availability
         day_of_week = day.weekday()
         availabilities = self.get_employee_availability(employee_id, day_of_week)
 
-        # If no availabilities are set, employee is unavailable
         if not availabilities:
             logger.info(
                 f"Employee {employee_id} has no availability records for day {day_of_week}"
@@ -410,14 +379,14 @@ class ScheduleResources:
         for hour in range(start_hour, end_hour):
             hour_available = False
             for avail in availabilities:
-                if avail.hour == hour:
-                    # MODIFIED: Employee is available if EITHER:
-                    # 1. is_available flag is true OR
-                    # 2. availability_type is not UNAVAILABLE
-                    if avail.is_available or (
-                        avail.availability_type
-                        and avail.availability_type != AvailabilityType.UNAVAILABLE
-                    ):
+                if getattr(avail, 'hour', None) == hour:
+                    # Explicit boolean check for is_available
+                    is_avail_flag = getattr(avail, 'is_available', False) is True 
+                    avail_type = getattr(avail, 'availability_type', None)
+                    # Check type comparison
+                    is_not_unavailable = avail_type is not None and avail_type != AvailabilityType.UNAVAILABLE
+                    
+                    if is_avail_flag or is_not_unavailable:
                         hour_available = True
                         break
                     else:
@@ -464,7 +433,13 @@ class ScheduleResources:
 
     def get_employee(self, employee_id: int) -> Optional[Employee]:
         """Get an employee by ID (cached)"""
-        return self._employee_cache.get(employee_id)
+        if employee_id in self._employee_cache:
+            return self._employee_cache[employee_id]
+        for emp in self.employees:
+            if hasattr(emp, 'id') and emp.id == employee_id:
+                self._employee_cache[employee_id] = emp
+                return emp
+        return None
 
     def get_employee_availabilities(
         self, employee_id: int, day: date
