@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
 import { DateRange } from 'react-day-picker';
-import { format, getWeek } from 'date-fns';
+import { format, getWeek, getMonth, getYear } from 'date-fns';
 import {
     getAllVersions,
     createNewVersion,
@@ -10,7 +10,8 @@ import {
     duplicateVersion,
     type VersionResponse,
     type VersionMeta,
-    deleteVersion
+    deleteVersion,
+    updateVersionNotes,
 } from '@/services/api';
 
 interface UseVersionControlProps {
@@ -112,6 +113,28 @@ export function useVersionControl({ dateRange, onVersionSelected }: UseVersionCo
             // Refresh the versions list
             versionsQuery.refetch();
 
+            // --- Start: Generate and set the structured note ---
+            if (data.version && data.start_date) {
+                try {
+                    const startDate = new Date(data.start_date + 'T00:00:00'); // Ensure correct date parsing
+                    const calendarWeek = getWeek(startDate, { weekStartsOn: 1 });
+                    const month = getMonth(startDate) + 1; // getMonth is 0-indexed
+                    const year = getYear(startDate) % 100; // Get last two digits of year
+
+                    const generatedNote = `SCH-${String(calendarWeek).padStart(2, '0')}-${String(month).padStart(2, '0')}-${String(year).padStart(2, '0')}-${data.version}`;
+                    
+                    updateVersionDetailsMutation.mutate({ versionId: data.version, details: { notes: generatedNote } });
+                } catch (e) {
+                    console.error("Error generating or setting structured note:", e);
+                    toast({
+                        title: "Hinweis",
+                        description: "Version erstellt, aber der automatische Notizname konnte nicht gesetzt werden.",
+                        variant: "default" // Or warning
+                    });
+                }
+            }
+            // --- End: Generate and set the structured note ---
+
             // Invalidate schedule queries
             queryClient.invalidateQueries({ queryKey: ['schedules'] });
         },
@@ -209,6 +232,33 @@ export function useVersionControl({ dateRange, onVersionSelected }: UseVersionCo
             });
         }
     });
+
+    // --- Start: New mutation for updating version details (like notes) ---
+    const updateVersionDetailsMutation = useMutation({
+        mutationFn: async (params: { versionId: number; details: { notes?: string } }) => {
+            // Call the real API function
+            if (params.details.notes === undefined) { // Should not happen with current logic
+                throw new Error("Notes cannot be undefined when updating.");
+            }
+            return await updateVersionNotes(params.versionId, params.details.notes);
+        },
+        onSuccess: (updatedVersionData) => {
+            toast({
+                title: "Version aktualisiert",
+                description: `Notiz für Version ${updatedVersionData.version} erfolgreich gesetzt auf: ${updatedVersionData.notes}`,
+            });
+            // Refresh versions query to show updated notes
+            queryClient.invalidateQueries({ queryKey: ['versions'] });
+        },
+        onError: (error, variables) => {
+            toast({
+                title: "Fehler bei Notizaktualisierung",
+                description: `Notiz für Version ${variables.versionId} konnte nicht aktualisiert werden: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`,
+                variant: "destructive",
+            });
+        }
+    });
+    // --- End: New mutation for updating version details ---
 
     const handleVersionChange = (version: number) => {
         console.log(`🔢 Changing selected version to: ${version}`);

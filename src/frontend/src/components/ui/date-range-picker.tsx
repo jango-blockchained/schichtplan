@@ -116,9 +116,6 @@ export function DateRangePicker({
                                 } else {
                                     onChange(range);
                                 }
-                                if (range?.from && range?.to) {
-                                    setIsOpen(false);
-                                }
                             }}
                             numberOfMonths={2}
                             disabled={(date) => isBefore(date, fromDate)}

@@ -26,7 +26,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShiftTable } from '@/components/ShiftTable';
 import { useScheduleData } from '@/hooks/useScheduleData';
-import { addDays, startOfWeek, endOfWeek, addWeeks, format, getWeek, isBefore } from 'date-fns';
+import { addDays, startOfWeek, endOfWeek, addWeeks, format, getWeek, isBefore, differenceInCalendarWeeks } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, getSettings, updateSettings, createSchedule, getEmployees, getAbsences, fixScheduleDisplay } from '@/services/api';
@@ -890,17 +890,38 @@ export function SchedulePage() {
     addGenerationLog('info', `Will ${checked ? 'create' : 'not create'} empty schedules for all employees during generation`);
   };
 
-  // Function to handle creating a new version with custom options
-  const handleCreateNewVersionWithOptions = (options: { dateRange: DateRange; weekAmount: number }) => {
-    console.log('Creating new version with custom options:', options);
+  // Renamed and updated function to handle new version creation from specific dates
+  const handleCreateNewVersionFromDialog = (options: { dateRange: DateRange }) => {
+    console.log('Creating new version from dialog with specific dateRange:', options.dateRange);
 
-    // First update the UI state
     if (options.dateRange.from && options.dateRange.to) {
+      // Set the page's main dateRange to exactly what was selected in the dialog
       setDateRange(options.dateRange);
-      setWeekAmount(options.weekAmount);
 
-      // Then use the version control hook's function directly
-      versionControlCreateWithOptions(options);
+      // Calculate the weekAmount that corresponds to this new specific dateRange
+      let newCalculatedWeekAmount = 1;
+      if (options.dateRange.to >= options.dateRange.from) { // Ensure 'to' is not before 'from'
+        newCalculatedWeekAmount = differenceInCalendarWeeks(
+          options.dateRange.to,
+          options.dateRange.from,
+          { weekStartsOn: 1 }
+        ) + 1;
+      }
+      // Update the page's weekAmount state. This will also make the "Anzahl Wochen" dropdown consistent.
+      setWeekAmount(newCalculatedWeekAmount);
+
+      // Call the version control hook's function to create the version in the backend.
+      // The hook itself doesn't use weekAmount for the API call but it's part of its current signature.
+      versionControlCreateWithOptions({
+        dateRange: options.dateRange,
+        weekAmount: newCalculatedWeekAmount 
+      });
+    } else {
+      toast({
+        title: "Fehler",
+        description: "Ungültiger Zeitraum für neue Version ausgewählt.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -983,7 +1004,7 @@ export function SchedulePage() {
         onDurationChange={handleDurationChange}
         hasVersions={versions.length > 0}
         onCreateNewVersion={handleCreateNewVersion}
-        onCreateNewVersionWithOptions={handleCreateNewVersionWithOptions}
+        onCreateNewVersionWithSpecificDateRange={handleCreateNewVersionFromDialog}
       />
 
       {/* Add Schedule Statistics if we have data */}
