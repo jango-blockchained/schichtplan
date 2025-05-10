@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DateRange } from 'react-day-picker';
-import { format, getWeek, getYear, addWeeks, startOfWeek, addDays } from 'date-fns';
+import { format, getWeek, getYear, addWeeks, startOfWeek, addDays, differenceInCalendarWeeks } from 'date-fns';
 import { ChevronLeft, ChevronRight, Calendar, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
 
 interface EnhancedDateRangeSelectorProps {
     dateRange: DateRange | undefined;
@@ -26,7 +25,7 @@ interface EnhancedDateRangeSelectorProps {
     onDurationChange: (duration: number) => void;
     hasVersions: boolean;
     onCreateNewVersion: () => void;
-    onCreateNewVersionWithOptions: (options: { dateRange: DateRange; weekAmount: number }) => void;
+    onCreateNewVersionWithSpecificDateRange: (options: { dateRange: DateRange }) => void;
 }
 
 export function EnhancedDateRangeSelector({
@@ -36,30 +35,12 @@ export function EnhancedDateRangeSelector({
     onDurationChange,
     hasVersions,
     onCreateNewVersion,
-    onCreateNewVersionWithOptions
+    onCreateNewVersionWithSpecificDateRange
 }: EnhancedDateRangeSelectorProps) {
     const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
-    const [pendingAction, setPendingAction] = useState<{ type: 'week' | 'duration', value: number } | null>(null);
 
-    // State for the new version options
-    const [newVersionDateRange, setNewVersionDateRange] = useState<DateRange | undefined>(dateRange);
-    const [newVersionWeekAmount, setNewVersionWeekAmount] = useState<number>(scheduleDuration);
-
-    // Update new version options when dateRange or scheduleDuration changes
-    useEffect(() => {
-        setNewVersionDateRange(dateRange);
-        setNewVersionWeekAmount(scheduleDuration);
-    }, [dateRange, scheduleDuration]);
-
-    // Sync the end date when start date or week amount changes
-    useEffect(() => {
-        if (newVersionDateRange?.from) {
-            const from = newVersionDateRange.from;
-            const to = addDays(startOfWeek(from, { weekStartsOn: 1 }), 6 * newVersionWeekAmount);
-            to.setHours(23, 59, 59, 999);
-            setNewVersionDateRange({ from, to });
-        }
-    }, [newVersionDateRange?.from, newVersionWeekAmount]);
+    // State for the date range selected within the dialog
+    const [dialogSelectedDateRange, setDialogSelectedDateRange] = useState<DateRange | undefined>();
 
     // If no date range is set, show placeholder
     if (!dateRange?.from || !dateRange?.to) {
@@ -90,54 +71,49 @@ export function EnhancedDateRangeSelector({
         return `${format(dateRange.from!, 'dd.MM.yyyy')} - ${format(dateRange.to!, 'dd.MM.yyyy')}`;
     };
 
+    const openConfirmationDialog = (initialDialogRange: DateRange) => {
+        setDialogSelectedDateRange(initialDialogRange);
+        setIsConfirmDialogOpen(true);
+    };
+
     // Handle week change with confirmation if versions exist
     const handleWeekChange = (weekOffset: number) => {
         if (hasVersions) {
-            setPendingAction({ type: 'week', value: weekOffset });
-            setIsConfirmDialogOpen(true);
+            if (dateRange?.from) {
+                const from = addWeeks(startOfWeek(dateRange.from, { weekStartsOn: 1 }), weekOffset);
+                from.setHours(0, 0, 0, 0);
+                const to = addDays(from, 6 * scheduleDuration); // Use current scheduleDuration for initial dialog display
+                to.setHours(23, 59, 59, 999);
+                openConfirmationDialog({ from, to });
+            }
         } else {
             onWeekChange(weekOffset);
         }
     };
 
     // Handle duration change with confirmation if versions exist
-    const handleDurationChange = (duration: number) => {
+    const handleDurationChange = (newDuration: number) => {
         if (hasVersions) {
-            setPendingAction({ type: 'duration', value: duration });
-            setIsConfirmDialogOpen(true);
+            if (dateRange?.from) {
+                const from = dateRange.from;
+                const to = addDays(startOfWeek(from, { weekStartsOn: 1 }), 6 * newDuration);
+                to.setHours(23, 59, 59, 999);
+                openConfirmationDialog({ from, to });
+            }
         } else {
-            onDurationChange(duration);
+            onDurationChange(newDuration);
         }
     };
 
     // Execute the pending action and create a new version
     const handleConfirmChange = () => {
-        // Create a new version with the options from the dialog
-        if (newVersionDateRange?.from && newVersionDateRange?.to) {
-            onCreateNewVersionWithOptions({
-                dateRange: newVersionDateRange,
-                weekAmount: newVersionWeekAmount
+        if (dialogSelectedDateRange?.from && dialogSelectedDateRange?.to) {
+            // Call back with only the dateRange selected in the dialog
+            onCreateNewVersionWithSpecificDateRange({
+                dateRange: dialogSelectedDateRange
             });
         }
-
-        // Reset pending action
-        setPendingAction(null);
         setIsConfirmDialogOpen(false);
-    };
-
-    // Handle date range change in the dialog
-    const handleDialogDateRangeChange = (range: DateRange | undefined) => {
-        if (range?.from) {
-            // When only the start date is selected, set the end date based on week amount
-            if (!range.to) {
-                const from = range.from;
-                const to = addDays(startOfWeek(from, { weekStartsOn: 1 }), 6 * newVersionWeekAmount);
-                to.setHours(23, 59, 59, 999);
-                setNewVersionDateRange({ from, to });
-            } else {
-                setNewVersionDateRange(range);
-            }
-        }
     };
 
     return (
@@ -204,50 +180,31 @@ export function EnhancedDateRangeSelector({
                             Neue Version erstellen
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                            Bitte wählen Sie den Zeitraum und die Anzahl der Wochen für die neue Version.
+                            Wählen Sie den genauen Zeitraum für die neue Version.
+                            Die Plandaten der aktuellen Version bleiben erhalten.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
 
                     <div className="space-y-4 py-3">
                         <div className="space-y-2">
-                            <Label htmlFor="dateRange">Zeitraum</Label>
+                            <Label htmlFor="dialogDateRangePicker">Zeitraum für neue Version</Label>
                             <DateRangePicker
-                                dateRange={newVersionDateRange}
-                                onChange={handleDialogDateRangeChange}
+                                id="dialogDateRangePicker"
+                                dateRange={dialogSelectedDateRange}
+                                onChange={setDialogSelectedDateRange}
                                 className="w-full"
                             />
                         </div>
-
-                        <Separator className="my-3" />
-
-                        <div className="space-y-2">
-                            <Label htmlFor="weekAmount">Anzahl Wochen</Label>
-                            <Select
-                                value={newVersionWeekAmount.toString()}
-                                onValueChange={(value) => setNewVersionWeekAmount(parseInt(value))}
-                            >
-                                <SelectTrigger className="w-full">
-                                    <SelectValue placeholder="Wochen" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="1">1 Woche</SelectItem>
-                                    <SelectItem value="2">2 Wochen</SelectItem>
-                                    <SelectItem value="3">3 Wochen</SelectItem>
-                                    <SelectItem value="4">4 Wochen</SelectItem>
-                                </SelectContent>
-                            </Select>
-
-                            {newVersionDateRange?.from && newVersionDateRange?.to && (
-                                <p className="text-sm text-muted-foreground mt-2">
-                                    Zeitraum: {format(newVersionDateRange.from, 'dd.MM.yyyy')} - {format(newVersionDateRange.to, 'dd.MM.yyyy')}
-                                </p>
-                            )}
-                        </div>
+                        {dialogSelectedDateRange?.from && dialogSelectedDateRange?.to && (
+                             <p className="text-sm text-muted-foreground mt-1">
+                                Ausgewählt: {format(dialogSelectedDateRange.from, 'dd.MM.yyyy')} - {format(dialogSelectedDateRange.to, 'dd.MM.yyyy')}
+                            </p>
+                        )}
                     </div>
 
                     <AlertDialogFooter>
                         <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleConfirmChange}>
+                        <AlertDialogAction onClick={handleConfirmChange} disabled={!dialogSelectedDateRange?.from || !dialogSelectedDateRange?.to}>
                             Neue Version erstellen
                         </AlertDialogAction>
                     </AlertDialogFooter>
