@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { AddScheduleDialog } from '../Schedule/AddScheduleDialog'; // Adjust path as necessary
 import { useToast } from '../ui/use-toast'; // Mock this
@@ -34,11 +34,10 @@ describe('AddScheduleDialog', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    // Default Mock API responses for most tests
     mockAvailabilityService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue([availableEmployee]);
-    mockAvailabilityService.fetchApplicableShiftsForEmployee.mockResolvedValue([availableShift, preferredShift]);
+    mockAvailabilityService.fetchApplicableShiftsForEmployee.mockResolvedValue([availableShift, preferredShift]); 
     mockScheduleService.updateSchedule.mockResolvedValue({
-      id: 'gen-1', // Simulate a generated ID for a new entry
+      id: 'gen-1',
       employee_id: availableEmployee.employee_id,
       shift_id: preferredShift.shift_id,
       date: testDefaultDateString,
@@ -70,11 +69,8 @@ describe('AddScheduleDialog', () => {
   });
 
   test('fetches, populates, and correctly enables/disables employee options', async () => {
-    const mockEmployees: EmployeeWithAvailability[] = [
-      availableEmployee,
-      { employee_id: 'E2', first_name: 'Jane', last_name: 'Smith', status: 'Absence: Vacation', is_active: true },
-    ];
-    mockAvailabilityService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue(mockEmployees);
+    const anotherEmployee: EmployeeWithAvailability = { employee_id: 'E2', first_name: 'Jane', last_name: 'Smith', status: 'Absence: Vacation', is_active: true };
+    mockAvailabilityService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue([availableEmployee, anotherEmployee]);
 
     render(
       <AddScheduleDialog
@@ -146,7 +142,7 @@ describe('AddScheduleDialog', () => {
         isOpen={true}
         onOpenChange={mockOnOpenChange}
         onScheduleAdded={mockOnScheduleAdded}
-        scheduleId={null} // For creating a new entry
+        scheduleId={null}
         defaultDate={testDefaultDate}
         defaultEmployeeId={null}
         defaultShiftId={null}
@@ -154,50 +150,271 @@ describe('AddScheduleDialog', () => {
       />
     );
 
-    // Select employee
     const employeeDropdown = screen.getByRole('combobox', { name: /Employee/i });
     fireEvent.click(employeeDropdown);
     await waitFor(() => screen.getByRole('option', { name: /John Doe \(Available\)/i }));
     fireEvent.click(screen.getByRole('option', { name: /John Doe \(Available\)/i }));
 
-    // Select shift (the one with PREFERRED availability)
     const shiftDropdown = screen.getByRole('combobox', { name: /Shift/i });
     fireEvent.click(shiftDropdown);
     await waitFor(() => screen.getByRole('option', { name: /Late Shift .* PREFERRED/i }));
     fireEvent.click(screen.getByRole('option', { name: /Late Shift .* PREFERRED/i }));
 
-    // Click save
     const saveButton = screen.getByRole('button', { name: /Save Schedule/i });
     fireEvent.click(saveButton);
 
-    // Verify updateSchedule call
     await waitFor(() => {
       expect(mockScheduleService.updateSchedule).toHaveBeenCalledTimes(1);
       expect(mockScheduleService.updateSchedule).toHaveBeenCalledWith(
-        null, // scheduleId is null for creation
+        null,
         {
           employee_id: availableEmployee.employee_id,
-          shift_id: preferredShift.shift_id, // Selected S2
+          shift_id: preferredShift.shift_id,
           date: testDefaultDateString,
           version: testVersion,
-          availability_type: preferredShift.availability_type, // Should be PREFERRED
-          notes: '' // Assuming notes are empty if not entered
+          availability_type: preferredShift.availability_type,
+          notes: ''
         }
       );
     });
 
-    // Verify callbacks and toast
     expect(mockOnScheduleAdded).toHaveBeenCalledTimes(1);
-    expect(mockOnOpenChange).toHaveBeenCalledWith(false); // Dialog should close
+    expect(mockOnOpenChange).toHaveBeenCalledWith(false);
     expect(mockToast).toHaveBeenCalledWith({
       title: "Success",
       description: "Schedule entry saved successfully.",
     });
   });
 
-  // TODO: Add more tests based on REFACTOR_NEW_SHIFT_MODAL.md
-  // - Verify correct input reordering (Date, Employee, Shift). (Partially covered by render test)
-  // - Test handling of pre-selected values.
-  // - Test loading and error states.
+  test('handles pre-selected employee and shift values correctly', async () => {
+    mockAvailabilityService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue([availableEmployee]);
+    mockAvailabilityService.fetchApplicableShiftsForEmployee.mockResolvedValue([availableShift, preferredShift]);
+
+    render(
+      <AddScheduleDialog
+        isOpen={true}
+        onOpenChange={mockOnOpenChange}
+        onScheduleAdded={mockOnScheduleAdded}
+        scheduleId={null}
+        defaultDate={testDefaultDate}
+        defaultEmployeeId={availableEmployee.employee_id}
+        defaultShiftId={preferredShift.shift_id}
+        version={testVersion}
+      />
+    );
+
+    await waitFor(() => {
+      expect(mockAvailabilityService.fetchEmployeesWithAvailabilityByDate).toHaveBeenCalledWith(testDefaultDateString);
+    });
+    
+    await waitFor(() => {
+      expect(mockAvailabilityService.fetchApplicableShiftsForEmployee)
+        .toHaveBeenCalledWith(testDefaultDateString, availableEmployee.employee_id);
+    });
+
+    const employeeDropdown = screen.getByRole('combobox', { name: /Employee/i });
+    expect(employeeDropdown).toHaveTextContent(`${availableEmployee.first_name} ${availableEmployee.last_name}`);
+
+    const shiftDropdown = screen.getByRole('combobox', { name: /Shift/i });
+    expect(shiftDropdown).toHaveTextContent(new RegExp(`${preferredShift.name} - ${preferredShift.availability_type}`, 'i'));
+    
+    const saveButton = screen.getByRole('button', { name: /Save Schedule/i });
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(mockScheduleService.updateSchedule).toHaveBeenCalledWith(
+        null,
+        {
+          employee_id: availableEmployee.employee_id,
+          shift_id: preferredShift.shift_id,
+          date: testDefaultDateString,
+          version: testVersion,
+          availability_type: preferredShift.availability_type,
+          notes: ''
+        }
+      );
+    });
+    expect(mockOnScheduleAdded).toHaveBeenCalledTimes(1);
+  });
+
+  test('shows loading state for employee dropdown', async () => {
+    let resolveEmployees: any;
+    mockAvailabilityService.fetchEmployeesWithAvailabilityByDate.mockImplementationOnce(() => 
+      new Promise(resolve => {
+        resolveEmployees = resolve;
+      })
+    );
+
+    render(
+      <AddScheduleDialog
+        isOpen={true}
+        onOpenChange={mockOnOpenChange}
+        onScheduleAdded={mockOnScheduleAdded}
+        scheduleId={null}
+        defaultDate={testDefaultDate} 
+        defaultEmployeeId={null}
+        defaultShiftId={null}
+        version={testVersion}
+      />
+    );
+    
+    expect(screen.getByRole('combobox', { name: /Employee/i })).toHaveTextContent(/Loading employees.../i);
+
+    await act(async () => {
+      resolveEmployees!([availableEmployee]);
+    });
+    await waitFor(() => {
+       expect(screen.getByRole('combobox', { name: /Employee/i })).not.toHaveTextContent(/Loading employees.../i);
+    });
+  });
+
+  test('shows loading state for shift dropdown', async () => {
+    mockAvailabilityService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue([availableEmployee]);
+    
+    let resolveShifts: any;
+    mockAvailabilityService.fetchApplicableShiftsForEmployee.mockImplementationOnce(() => 
+      new Promise(resolve => {
+        resolveShifts = resolve;
+      })
+    );
+
+    render(
+      <AddScheduleDialog
+        isOpen={true}
+        onOpenChange={mockOnOpenChange}
+        onScheduleAdded={mockOnScheduleAdded}
+        scheduleId={null}
+        defaultDate={testDefaultDate}
+        defaultEmployeeId={null}
+        defaultShiftId={null}
+        version={testVersion}
+      />
+    );
+
+    const employeeDropdown = screen.getByRole('combobox', { name: /Employee/i });
+    fireEvent.click(employeeDropdown);
+    await waitFor(() => screen.getByRole('option', { name: /John Doe \(Available\)/i }));
+    fireEvent.click(screen.getByRole('option', { name: /John Doe \(Available\)/i }));
+
+    expect(screen.getByRole('combobox', { name: /Shift/i })).toHaveTextContent(/Loading shifts.../i);
+
+    await act(async () => {
+      resolveShifts!([availableShift]);
+    });
+    await waitFor(() => {
+       expect(screen.getByRole('combobox', { name: /Shift/i })).not.toHaveTextContent(/Loading shifts.../i);
+    });
+  });
+
+  test('shows error state for employee dropdown', async () => {
+    const errorMessage = "Failed to fetch employees";
+    mockAvailabilityService.fetchEmployeesWithAvailabilityByDate.mockRejectedValueOnce(new Error(errorMessage));
+
+    render(
+      <AddScheduleDialog
+        isOpen={true}
+        onOpenChange={mockOnOpenChange}
+        onScheduleAdded={mockOnScheduleAdded}
+        scheduleId={null}
+        defaultDate={testDefaultDate}
+        defaultEmployeeId={null}
+        defaultShiftId={null}
+        version={testVersion}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: /Employee/i })).toHaveTextContent(/Error loading employees/i);
+      expect(mockToast).toHaveBeenCalledWith({
+        variant: "destructive",
+        title: "Error",
+        description: `Could not load employees: ${errorMessage}`,
+      });
+    });
+
+    const shiftDropdown = screen.getByRole('combobox', { name: /Shift/i });
+    expect(shiftDropdown).toBeDisabled(); 
+  });
+
+  test('shows error state for shift dropdown', async () => {
+    mockAvailabilityService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue([availableEmployee]);
+    
+    const errorMessage = "Failed to fetch shifts";
+    mockAvailabilityService.fetchApplicableShiftsForEmployee.mockRejectedValueOnce(new Error(errorMessage));
+
+    render(
+      <AddScheduleDialog
+        isOpen={true}
+        onOpenChange={mockOnOpenChange}
+        onScheduleAdded={mockOnScheduleAdded}
+        scheduleId={null}
+        defaultDate={testDefaultDate}
+        defaultEmployeeId={null}
+        defaultShiftId={null}
+        version={testVersion}
+      />
+    );
+
+    const employeeDropdown = screen.getByRole('combobox', { name: /Employee/i });
+    fireEvent.click(employeeDropdown);
+    await waitFor(() => screen.getByRole('option', { name: /John Doe \(Available\)/i }));
+    fireEvent.click(screen.getByRole('option', { name: /John Doe \(Available\)/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: /Shift/i })).toHaveTextContent(/Error loading shifts/i);
+      expect(mockToast).toHaveBeenCalledWith({
+        variant: "destructive",
+        title: "Error",
+        description: `Could not load shifts for ${availableEmployee.first_name} ${availableEmployee.last_name}: ${errorMessage}`,
+      });
+    });
+  });
+
+  test('handles error during form submission', async () => {
+    const submissionErrorMessage = "Network Error";
+    // Override updateSchedule for this test to make it fail
+    mockScheduleService.updateSchedule.mockRejectedValueOnce(new Error(submissionErrorMessage));
+
+    render(
+      <AddScheduleDialog
+        isOpen={true}
+        onOpenChange={mockOnOpenChange}
+        onScheduleAdded={mockOnScheduleAdded}
+        scheduleId={null} 
+        defaultDate={testDefaultDate}
+        defaultEmployeeId={null} 
+        defaultShiftId={null}
+        version={testVersion}
+      />
+    );
+
+    // Simulate selecting employee and shift
+    const employeeDropdown = screen.getByRole('combobox', { name: /Employee/i });
+    fireEvent.click(employeeDropdown);
+    await waitFor(() => screen.getByRole('option', { name: /John Doe \(Available\)/i }));
+    fireEvent.click(screen.getByRole('option', { name: /John Doe \(Available\)/i }));
+
+    const shiftDropdown = screen.getByRole('combobox', { name: /Shift/i });
+    fireEvent.click(shiftDropdown);
+    await waitFor(() => screen.getByRole('option', { name: /Early Shift .* AVAILABLE/i }));
+    fireEvent.click(screen.getByRole('option', { name: /Early Shift .* AVAILABLE/i }));
+
+    // Click save
+    const saveButton = screen.getByRole('button', { name: /Save Schedule/i });
+    fireEvent.click(saveButton);
+
+    // Wait for error handling
+    await waitFor(() => {
+      expect(mockToast).toHaveBeenCalledWith({
+        variant: "destructive",
+        title: "Error Saving Schedule",
+        description: `Could not save schedule entry: ${submissionErrorMessage}`,
+      });
+    });
+
+    // Ensure dialog does not close and onScheduleAdded is not called
+    expect(mockOnOpenChange).not.toHaveBeenCalledWith(false);
+    expect(mockOnScheduleAdded).not.toHaveBeenCalled();
+  });
 
 }); 
