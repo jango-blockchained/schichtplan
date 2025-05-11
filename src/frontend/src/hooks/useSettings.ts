@@ -139,6 +139,10 @@ export const DEFAULT_SETTINGS: Settings = {
             selected_module: '',
             last_execution: null
         }
+    },
+    ai_scheduling: {
+        enabled: false,
+        api_key: ""
     }
 };
 

@@ -1,5 +1,12 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    DropdownMenuSeparator
+} from '@/components/ui/dropdown-menu';
 import { CalendarPlus, Trash2, AlertCircle, Table2, LayoutGrid, Play, Settings, Plus, Separator, Wrench } from 'lucide-react';
 import {
     AlertDialog,
@@ -18,14 +25,15 @@ import { Separator as UISeparator } from '@/components/ui/separator';
 interface ScheduleActionsProps {
     onAddSchedule: () => void;
     onDeleteSchedule: () => void;
-    onGenerateSchedule?: () => void;
+    onGenerateStandardSchedule?: () => void; // Renamed
+    onGenerateAiSchedule?: () => void;     // Added
     onOpenGenerationSettings?: () => void;
     onFixDisplay?: () => void;
     isLoading?: boolean;
-    isGenerating?: boolean;
+    isGenerating?: boolean; // Can be used for both, or add isAiGenerating if needed
     canAdd?: boolean;
     canDelete?: boolean;
-    canGenerate?: boolean;
+    canGenerate?: boolean; // This can gate the whole dropdown
     canFix?: boolean;
     activeView?: 'table' | 'grid';
     onViewChange?: (view: 'table' | 'grid') => void;
@@ -34,7 +42,8 @@ interface ScheduleActionsProps {
 export function ScheduleActions({
     onAddSchedule,
     onDeleteSchedule,
-    onGenerateSchedule,
+    onGenerateStandardSchedule, // Renamed
+    onGenerateAiSchedule,     // Added
     onOpenGenerationSettings,
     onFixDisplay,
     isLoading = false,
@@ -100,17 +109,39 @@ export function ScheduleActions({
                 </Button>
             )}
 
-            {/* Generate Schedule Button */}
-            {onGenerateSchedule && (
-                <Button
-                    onClick={onGenerateSchedule}
-                    variant="default"
-                    className="flex items-center gap-2"
-                    disabled={!canGenerate || isGenerating || isLoading}
-                >
-                    <Play className="h-4 w-4" />
-                    <span>{isGenerating ? "Generieren..." : "Generieren"}</span>
-                </Button>
+            {/* Generate Schedule Dropdown Button */}
+            {(onGenerateStandardSchedule || onGenerateAiSchedule) && (
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button
+                            variant="default"
+                            className="flex items-center gap-2"
+                            disabled={!canGenerate || isGenerating || isLoading}
+                        >
+                            <Play className="h-4 w-4" />
+                            <span>{isGenerating ? "Generieren..." : "Generieren"}</span>
+                            {/* Add a chevron down icon or similar indicator for dropdown */}
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end"> {/* align="end" to make it open to the left if button is on the right */}
+                        {onGenerateStandardSchedule && (
+                            <DropdownMenuItem
+                                onClick={onGenerateStandardSchedule}
+                                disabled={!canGenerate || isGenerating || isLoading}
+                            >
+                                Standard Generierung
+                            </DropdownMenuItem>
+                        )}
+                        {onGenerateAiSchedule && (
+                            <DropdownMenuItem
+                                onClick={onGenerateAiSchedule}
+                                disabled={!canGenerate || isGenerating || isLoading} // Potentially add specific !canGenerateAI prop
+                            >
+                                AI Generierung
+                            </DropdownMenuItem>
+                        )}
+                    </DropdownMenuContent>
+                </DropdownMenu>
             )}
 
             {/* Generation Settings Button */}

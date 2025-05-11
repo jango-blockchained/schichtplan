@@ -24,6 +24,7 @@ from routes.schedules import schedules
 from routes.employees import employees
 from routes.availability import availability
 from routes.absences import bp as absences_bp
+from routes.ai_schedule_routes import ai_schedule_bp
 from api.coverage import bp as coverage_bp
 from api.schedules import bp as api_schedules_bp
 from api.settings import bp as api_settings_bp
@@ -115,6 +116,7 @@ def create_app(config_class=Config):
     app.register_blueprint(employees, url_prefix="/api")
     app.register_blueprint(availability)
     app.register_blueprint(absences_bp, url_prefix="/api")
+    app.register_blueprint(ai_schedule_bp, url_prefix="/api")
     app.register_blueprint(coverage_bp)
     app.register_blueprint(
         api_settings_bp, name="api_settings"

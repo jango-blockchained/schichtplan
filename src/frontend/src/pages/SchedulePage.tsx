@@ -29,7 +29,8 @@ import { useScheduleData } from '@/hooks/useScheduleData';
 import { addDays, startOfWeek, endOfWeek, addWeeks, format, getWeek, isBefore, differenceInCalendarWeeks } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, getSettings, updateSettings, createSchedule, getEmployees, getAbsences, fixScheduleDisplay } from '@/services/api';
+// MODIFIED: Added generateAiSchedule
+import { exportSchedule, updateShiftDay, updateBreakNotes, updateSchedule, getSchedules, getSettings, updateSettings, createSchedule, getEmployees, getAbsences, fixScheduleDisplay, generateAiSchedule } from '@/services/api';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, AlertCircle, X, Calendar, CheckCircle, XCircle, RefreshCw, Plus } from 'lucide-react';
@@ -100,6 +101,7 @@ export function SchedulePage() {
   const [isAddScheduleDialogOpen, setIsAddScheduleDialogOpen] = useState(false);
   const [employeeAbsences, setEmployeeAbsences] = useState<Record<number, any[]>>({});
   const [enableDiagnostics, setEnableDiagnostics] = useState<boolean>(false);
+  const [isAiGenerating, setIsAiGenerating] = useState<boolean>(false); // MODIFIED: Added for AI generation loading state
 
   // Add settings query back inside the component
   const settingsQuery = useQuery<Settings, Error>({
@@ -176,13 +178,13 @@ export function SchedulePage() {
     }
   });
 
-  // Use our schedule generation hook
+  // Use our schedule generation hook (for standard generation)
   const {
     generationSteps,
     generationLogs,
     showGenerationOverlay,
-    isPending: isGenerationPending,
-    generate,
+    isPending: isStandardGenerationPending, // MODIFIED: Renamed for clarity
+    generate: standardGenerate, // MODIFIED: Renamed for clarity
     resetGenerationState,
     addGenerationLog,
     clearGenerationLogs
@@ -201,7 +203,7 @@ export function SchedulePage() {
       // Show a success message
       toast({
         title: "Generation Complete",
-        description: "The schedule has been generated successfully."
+        description: "The standard schedule has been generated successfully."
       });
     }
   });
@@ -701,10 +703,10 @@ export function SchedulePage() {
   };
 
   // Show loading overlay for subsequent data fetches
-  const isUpdating = isLoading || updateShiftMutation.isPending || isGenerationPending || exportMutation.isPending;
+  const isUpdating = isLoading || updateShiftMutation.isPending || isStandardGenerationPending || exportMutation.isPending || isAiGenerating; // MODIFIED: Added isAiGenerating
 
-  // Function to handle the generate action with better error handling
-  const handleGenerateSchedule = () => {
+  // Function to handle the STANDARD generate action
+  const handleGenerateStandardSchedule = () => { // MODIFIED: Renamed from handleGenerateSchedule
     try {
       // Validate date range
       if (!dateRange?.from || !dateRange?.to) {
@@ -736,8 +738,7 @@ export function SchedulePage() {
         return;
       }
 
-      // Make sure the date range and version match
-      console.log("📋 Generating schedule with:", {
+      console.log("📋 Generating STANDARD schedule with:", {
         dateRange: {
           from: dateRange.from.toISOString(),
           to: dateRange.to.toISOString()
@@ -747,25 +748,94 @@ export function SchedulePage() {
         createEmptySchedules
       });
 
-      // Log detailed information about the generation request
       const formattedFromDate = format(dateRange.from, 'yyyy-MM-dd');
       const formattedToDate = format(dateRange.to, 'yyyy-MM-dd');
 
-      addGenerationLog('info', 'Starting schedule generation',
+      addGenerationLog('info', 'Starting STANDARD schedule generation',
         `Version: ${versionControlSelectedVersion}, Date range: ${formattedFromDate} - ${formattedToDate}`);
 
-      // Call the generate function from the hook
-      generate();
+      standardGenerate(); // MODIFIED: Call renamed function from hook
     } catch (error) {
-      console.error("Generation error:", error);
-      addGenerationLog('error', 'Fehler bei der Generierung',
+      console.error("Standard Generation error:", error);
+      addGenerationLog('error', 'Fehler bei der Standard-Generierung',
         error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten");
 
       toast({
-        title: "Fehler bei der Generierung",
+        title: "Fehler bei der Standard-Generierung",
         description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
         variant: "destructive"
       });
+    }
+  };
+
+  // MODIFIED: Added handler for AI Schedule Generation
+  const handleGenerateAiSchedule = async () => {
+    if (!dateRange?.from || !dateRange?.to) {
+      toast({
+        title: "Zeitraum erforderlich (AI)",
+        description: "Bitte wählen Sie einen Zeitraum für die AI-Generierung aus.",
+        variant: "destructive"
+      });
+      return;
+    }
+    if (!versionControlSelectedVersion) {
+      toast({
+        title: "Version erforderlich (AI)",
+        description: "Bitte wählen Sie eine Version für die AI-Generierung aus.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsAiGenerating(true);
+    // Use addGenerationLog if you want AI logs in the same overlay, or handle logging separately.
+    addGenerationLog('info', 'Starting AI schedule generation',
+      `Version: ${versionControlSelectedVersion}, Date range: ${format(dateRange.from, 'yyyy-MM-dd')} - ${format(dateRange.to, 'yyyy-MM-dd')}`);
+    
+    // Show overlay for AI generation if desired
+    // setShowGenerationOverlay(true); // You might want a different overlay or adapt the existing one
+
+    try {
+      const fromStr = format(dateRange.from, 'yyyy-MM-dd');
+      const toStr = format(dateRange.to, 'yyyy-MM-dd');
+      
+      const result = await generateAiSchedule(fromStr, toStr, versionControlSelectedVersion);
+      
+      addGenerationLog('info', 'AI schedule generation API call successful');
+      console.log("AI Generation Result:", result);
+
+      await refetchScheduleData();
+      queryClient.invalidateQueries({ queryKey: ['versions'] });
+      
+      toast({
+        title: "AI Generation Complete",
+        description: "The AI schedule has been generated successfully.",
+      });
+
+      // if (result.logs) { // Assuming ScheduleResponse has logs for AI too
+      //   result.logs.forEach(log => addGenerationLog('info', 'AI Log:', log));
+      // }
+      // if (result.errors && result.errors.length > 0) {
+      //   result.errors.forEach(err => addGenerationLog('error', 'AI Error:', err.message));
+      //   toast({
+      //     title: "AI Generation Warnings",
+      //     description: `AI generation completed with ${result.errors.length} issues.`,
+      //     variant: "destructive"
+      //   });
+      // }
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Ein unerwarteter Fehler bei der AI-Generierung ist aufgetreten";
+      addGenerationLog('error', 'Fehler bei der AI-Generierung', errorMessage);
+      console.error("AI Generation error:", err);
+      toast({
+        title: "Fehler bei der AI-Generierung",
+        description: errorMessage,
+        variant: "destructive"
+      });
+    } finally {
+      setIsAiGenerating(false);
+      // resetGenerationState(); // Or a specific reset for AI if the overlay was used
     }
   };
 
@@ -1037,14 +1107,15 @@ export function SchedulePage() {
         <ScheduleActions
           onAddSchedule={handleAddSchedule}
           onDeleteSchedule={handleDeleteSchedule}
-          onGenerateSchedule={handleGenerateSchedule}
+          onGenerateStandardSchedule={handleGenerateStandardSchedule} // MODIFIED
+          onGenerateAiSchedule={handleGenerateAiSchedule}         // MODIFIED
           onOpenGenerationSettings={() => setIsGenerationSettingsOpen(true)}
           onFixDisplay={handleFixDisplay}
           isLoading={isLoadingSchedule || isLoadingVersions}
-          isGenerating={isGenerationPending}
+          isGenerating={isStandardGenerationPending || isAiGenerating} // MODIFIED
           canAdd={!!versionControlSelectedVersion}
           canDelete={!!versionControlSelectedVersion && convertedSchedules.length > 0}
-          canGenerate={!!versionControlSelectedVersion && !isGenerationPending}
+          canGenerate={!!versionControlSelectedVersion && !(isStandardGenerationPending || isAiGenerating)} // MODIFIED
           canFix={!!versionControlSelectedVersion}
           activeView={activeView}
           onViewChange={handleViewChange}
@@ -1099,12 +1170,13 @@ export function SchedulePage() {
                       Erste Version erstellen
                     </Button>
                   ) : (
-                    <Button
-                      onClick={handleGenerateSchedule}
-                      disabled={isGenerationPending || !versionControlSelectedVersion}
+                    // This button might need to become a DropdownMenu as well, or ScheduleActions used here.
+                    <Button 
+                      onClick={handleGenerateStandardSchedule} // Default to standard, or show dropdown
+                      disabled={(isStandardGenerationPending || isAiGenerating) || !versionControlSelectedVersion}
                       className="flex items-center gap-2"
                     >
-                      {isGenerationPending ? (
+                      {(isStandardGenerationPending || isAiGenerating) ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <Plus className="h-4 w-4" />
@@ -1148,7 +1220,7 @@ export function SchedulePage() {
         generationSteps={generationSteps}
         generationLogs={generationLogs}
         showGenerationOverlay={showGenerationOverlay}
-        isPending={isGenerationPending}
+        isPending={isStandardGenerationPending} // Only show standard gen overlay for now
         resetGenerationState={resetGenerationState}
         addGenerationLog={addGenerationLog}
       />
@@ -1179,9 +1251,9 @@ export function SchedulePage() {
               onEnableDiagnosticsChange={handleEnableDiagnosticsChange}
               onGenerateSchedule={() => {
                 setIsGenerationSettingsOpen(false);
-                handleGenerateSchedule();
+                handleGenerateStandardSchedule(); // MODIFIED: Calls standard now
               }}
-              isGenerating={isGenerationPending}
+              isGenerating={isStandardGenerationPending || isAiGenerating} // MODIFIED
             />
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsGenerationSettingsOpen(false)}>
@@ -1243,4 +1315,4 @@ export function SchedulePage() {
       )}
     </div>
   );
-} 
+}

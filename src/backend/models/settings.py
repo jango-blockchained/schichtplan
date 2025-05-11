@@ -358,6 +358,16 @@ class Settings(db.Model):
     # Advanced scheduling settings
     scheduling_advanced = Column(JSON, nullable=True, default=dict)
 
+    # AI Scheduling Settings
+    ai_scheduling = Column(
+        JSON,
+        nullable=True,
+        default=lambda: {
+            "enabled": False,
+            "api_key": ""
+        }
+    )
+
     def get_actions_demo_data(self):
         """Get the actions demo data with fallback to default value"""
         try:
@@ -533,10 +543,11 @@ class Settings(db.Model):
                 }
             ),
             "actions": {"demo_data": self.actions_demo_data},
+            "ai_scheduling": self.ai_scheduling,
         }
 
         # Include scheduling_advanced data in the scheduling section if it exists
-        if self.scheduling_advanced and isinstance(self.scheduling_advanced, dict):
+        if self.scheduling_advanced is not None and isinstance(self.scheduling_advanced, dict):
             # Merge with the scheduling section
             result["scheduling"].update(self.scheduling_advanced)
 
@@ -767,6 +778,10 @@ class Settings(db.Model):
                 for key, value in values.items():
                     if hasattr(self, key):
                         setattr(self, key, value)
+            elif category == "ai_scheduling":
+                # ai_scheduling is a direct JSON field on the model
+                if hasattr(self, category) and isinstance(values, dict):
+                    setattr(self, category, values)
 
     def __repr__(self):
         return f"<Settings {self.store_name}>"

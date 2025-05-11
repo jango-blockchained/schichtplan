@@ -316,6 +316,10 @@ export interface Settings {
             last_execution: string | null;
         };
     };
+    ai_scheduling?: {
+        enabled: boolean;
+        api_key: string;
+    };
 }
 
 export interface CoverageTimeSlot {
@@ -432,4 +436,8 @@ export interface ApplicableShift {
   start_time: string; // "HH:MM"
   end_time: string;   // "HH:MM"
   availability_type: AvailabilityTypeStrings;
+}
+
+export interface BaseCoverage {
+    // ... existing code ...
 } 
