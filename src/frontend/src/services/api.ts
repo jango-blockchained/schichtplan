@@ -348,6 +348,46 @@ export const getSchedules = async (
     }
 };
 
+export const generateAiSchedule = async (
+    startDate: string,
+    endDate: string,
+    version: number,
+    // Add any AI-specific parameters here if needed in the future
+): Promise<ScheduleResponse> => {
+    try {
+        console.log('🤖 Generating AI schedule with parameters:', {
+            startDate,
+            endDate,
+            version,
+            timestamp: new Date().toISOString()
+        });
+
+        const response = await api.post<ScheduleResponse>('/ai/schedule/generate', {
+            start_date: startDate,
+            end_date: endDate,
+            version_id: version, // Ensure key matches backend expectation
+        });
+
+        console.log('✅ AI Schedule generation successful:', {
+            'Total schedules': response.data.schedules?.length || 0,
+            'Error count': response.data.errors?.length || 0,
+            'Logs': response.data.logs?.length || 0,
+        });
+
+        if (response.data.errors && response.data.errors.length > 0) {
+            console.warn('⚠️ AI Schedule generation completed with errors:', response.data.errors);
+        }
+
+        return response.data;
+    } catch (error) {
+        console.error('❌ AI Schedule generation error:', error);
+        if (error instanceof Error) {
+            throw new Error(`Failed to generate AI schedule: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
 export const generateSchedule = async (
     startDate: string,
     endDate: string,

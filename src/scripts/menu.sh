@@ -17,12 +17,10 @@ kill_port() {
 # Function to restart backend
 restart_backend() {
     echo "Restarting backend..."
-    kill_port 5000
-    sleep 1
     tmux send-keys -t schichtplan:0.0 C-c
     sleep 1
-    tmux send-keys -t schichtplan:0.0 "python3 run.py" C-m
-    echo "Backend restarted!"
+    tmux send-keys -t schichtplan:0.0 "python3 -m src.backend.run --auto-port --kill" C-m
+    echo "Backend restart initiated!"
 }
 
 # Function to restart frontend
@@ -32,8 +30,8 @@ restart_frontend() {
     sleep 1
     tmux send-keys -t schichtplan:0.1 C-c
     sleep 1
-    tmux send-keys -t schichtplan:0.1 "bun run --watch --hot --bun dev" C-m
-    echo "Frontend restarted!"
+    tmux send-keys -t schichtplan:0.1 "npx vite" C-m
+    echo "Frontend restart initiated!"
 }
 
 # Function to restart both services
@@ -45,9 +43,8 @@ restart_all() {
 # Function to stop backend
 stop_backend() {
     echo "Stopping backend..."
-    kill_port 5000
     tmux send-keys -t schichtplan:0.0 C-c
-    echo "Backend stopped!"
+    echo "Backend stop signal sent via C-c."
 }
 
 # Function to stop frontend

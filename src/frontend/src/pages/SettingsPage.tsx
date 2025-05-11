@@ -75,6 +75,9 @@ export function SettingsPage() {
   const queryClient = useQueryClient();
   const [currentTab, setCurrentTab] = React.useState("general");
   const [localSettings, setLocalSettings] = useState<Settings | null>(null);
+  // Add state for new AI settings - these will be initialized from localSettings later
+  const [aiScheduleGenerationEnabled, setAiScheduleGenerationEnabled] = useState(false);
+  const [aiScheduleGenerationApiKey, setAiScheduleGenerationApiKey] = useState("");
   const [selectedDemoModule, setSelectedDemoModule] = useState<string>("");
   const [selectedTables, setSelectedTables] = useState<string[]>([]);
   const [availableTables, setAvailableTables] = useState<string[]>([]);
@@ -92,6 +95,15 @@ export function SettingsPage() {
     if (settings) {
       setLocalSettings(settings);
       setSelectedDemoModule(settings.actions.demo_data.selected_module || "");
+      // Initialize AI settings from loaded settings
+      if (settings.ai_scheduling) {
+        setAiScheduleGenerationEnabled(settings.ai_scheduling.enabled || false);
+        setAiScheduleGenerationApiKey(settings.ai_scheduling.api_key || "");
+      } else {
+        // Initialize with defaults if not present
+        setAiScheduleGenerationEnabled(DEFAULT_SETTINGS.ai_scheduling?.enabled || false);
+        setAiScheduleGenerationApiKey(DEFAULT_SETTINGS.ai_scheduling?.api_key || "");
+      }
     }
   }, [settings]);
 
@@ -123,12 +135,12 @@ export function SettingsPage() {
   );
 
   const handleSave = (
-    category: keyof Omit<Settings, "id" | "store_name" | "store_address" | "store_contact" | "timezone" | "language" | "date_format" | "time_format" | "store_opening" | "store_closing" | "keyholder_before_minutes" | "keyholder_after_minutes" | "opening_days" | "special_hours" | "availability_types">,
-    updates: Partial<Settings[typeof category]>
+    category: keyof Omit<Settings, "id" | "store_name" | "store_address" | "store_contact" | "timezone" | "language" | "date_format" | "time_format" | "store_opening" | "store_closing" | "keyholder_before_minutes" | "keyholder_after_minutes" | "opening_days" | "special_hours" | "availability_types"> | "ai_scheduling", // Add ai_scheduling here
+    updates: Partial<Settings[typeof category] | Settings['ai_scheduling']> // Adjust type for updates
   ) => {
     if (!localSettings) return;
 
-    // Initialize generation_requirements if it doesn't exist
+    // Initialize generation_requirements if it doesn\'t exist
     if (category === 'scheduling' && !localSettings.scheduling.generation_requirements) {
       localSettings.scheduling.generation_requirements = {
         enforce_minimum_coverage: true,
@@ -148,13 +160,29 @@ export function SettingsPage() {
       };
     }
 
-    const updatedSettings = {
+    // Ensure ai_scheduling object exists before trying to spread its properties
+    const currentAiScheduling = localSettings.ai_scheduling || { enabled: false, api_key: `` };
+
+    const updatedSettings: Settings = {
       ...localSettings,
-      [category]: {
-        ...localSettings[category],
-        ...updates
-      }
+      [category]: category === 'ai_scheduling' 
+        ? { ...currentAiScheduling, ...(updates as Partial<Settings['ai_scheduling']>) }
+        : {
+            ...(localSettings[category as keyof Settings] || {}), // Ensure category exists
+            ...updates
+          },
     };
+    
+    // If updating ai_scheduling specifically, also update the local component state
+    if (category === 'ai_scheduling') {
+      const aiUpdates = updates as Partial<Settings['ai_scheduling']>;
+      if (typeof aiUpdates.enabled === 'boolean') {
+        setAiScheduleGenerationEnabled(aiUpdates.enabled);
+      }
+      if (typeof aiUpdates.api_key === 'string') {
+        setAiScheduleGenerationApiKey(aiUpdates.api_key);
+      }
+    }
 
     setLocalSettings(updatedSettings);
     debouncedUpdate(updatedSettings);
@@ -896,7 +924,7 @@ export function SettingsPage() {
                       scheduling: {
                         ...localSettings.scheduling,
                         generation_requirements: {
-                          ...localSettings.scheduling.generation_requirements,
+                          ...(localSettings.scheduling.generation_requirements || {}), // Ensure generation_requirements exists
                           ...updates
                         }
                       }
@@ -912,6 +940,64 @@ export function SettingsPage() {
                     });
                   }}
                 />
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>AI Schedule Generation (Experimental)</CardTitle>
+                    <CardDescription>
+                      Configure AI-powered schedule creation.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="ai-scheduling-enabled" className="text-base">
+                          Enable AI Scheduling
+                        </Label>
+                        <p className="text-sm text-muted-foreground">
+                          Use a generative AI model to create schedule drafts. Requires an API key.
+                        </p>
+                      </div>
+                      <Switch
+                        id="ai-scheduling-enabled"
+                        checked={aiScheduleGenerationEnabled}
+                        onCheckedChange={(checked) => {
+                          setAiScheduleGenerationEnabled(checked);
+                          handleSave("ai_scheduling", { enabled: checked });
+                        }}
+                      />
+                    </div>
+                    {aiScheduleGenerationEnabled && (
+                      <div className="space-y-2 rounded-lg border p-4">
+                        <Label htmlFor="ai-api-key">Gemini API Key</Label>
+                        <Input
+                          id="ai-api-key"
+                          type="password"
+                          placeholder="Enter your Gemini API Key"
+                          value={aiScheduleGenerationApiKey}
+                          onChange={(e) => {
+                            const newApiKey = e.target.value;
+                            setAiScheduleGenerationApiKey(newApiKey);
+                            // Debounce this save if preferred, or make it part of a main save button for this card
+                            handleSave("ai_scheduling", { api_key: newApiKey });
+                          }}
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          API key for Gemini model (e.g., gemini-2.5-pro-exp-03-25).
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                  <CardFooter className="flex justify-end space-x-2">
+                    <Button
+                      variant="outline"
+                      onClick={handleImmediateUpdate} // This will save all localSettings
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      Save AI Settings
+                    </Button>
+                  </CardFooter>
+                </Card>
               </div>
             </TabsContent>
 
