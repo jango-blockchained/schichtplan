@@ -24,6 +24,13 @@ interface ShiftFormProps {
     onDelete?: () => void;
 }
 
+// IMPORTANT: This application uses the Python convention for days of the week:
+// - Monday = 0
+// - Tuesday = 1
+// - ...
+// - Sunday = 6
+// This is different from JavaScript's Date where Sunday = 0
+// The backend model (ShiftTemplate) also uses this convention
 const ALL_DAYS = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag']; // Mon=0, Sun=6
 
 // Helper function to convert active_days from various formats to object {[key: string]: boolean} with Mon=0 index
@@ -35,26 +42,18 @@ const normalizeActiveDays = (activeDays: any): { [key: string]: boolean } => {
     }
 
     if (Array.isArray(activeDays)) {
-        // Assume array contains numbers representing days (check for both conventions? Risky.)
-        // Safest bet: Assume incoming array uses the *intended* backend convention (Mon=0)
+        // Assume array contains numbers representing days (Mon=0 convention)
         activeDays.forEach((dayNum) => {
             if (typeof dayNum === 'number' && dayNum >= 0 && dayNum < 7) {
                 result[dayNum.toString()] = true;
             }
         });
     } else if (typeof activeDays === 'object' && activeDays !== null) {
-        // Check if keys are potentially Sun=0 based ("0"=Sun, "1"=Mon etc.)
-        const keys = Object.keys(activeDays);
-        const isPotentiallySunZero = keys.includes('0') && keys.includes('6') && !keys.includes('7'); // Crude check
-        
+        // We always use the Python/Backend convention (Mon=0) internally
         for (const key in activeDays) {
             const dayIndex = parseInt(key, 10);
             if (!isNaN(dayIndex) && dayIndex >= 0 && dayIndex < 7) {
-                // If input *looks* like Sun=0, convert to Mon=0 for internal use
-                const internalIndex = isPotentiallySunZero ? (dayIndex + 6) % 7 : dayIndex;
-                if (internalIndex >= 0 && internalIndex < 7) {
-                   result[internalIndex.toString()] = !!activeDays[key];
-                }
+                result[dayIndex.toString()] = !!activeDays[key];
             }
         }
     }

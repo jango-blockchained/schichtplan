@@ -123,5 +123,83 @@ class TestEmployeeAPI(unittest.TestCase):
             print(f"✗ POST /api/employees endpoint test failed: {str(e)}")
             raise
 
+    def test_create_employee_invalid_input(self):
+        """Test POST /api/employees with invalid input"""
+        try:
+            # Test data with missing required field (last_name)
+            invalid_employee_data = {
+                'first_name': 'Invalid',
+                'employee_group': 'TZ',
+                'contracted_hours': 30.0,
+                'is_keyholder': False
+            }
+            
+            # Make request
+            response = self.client.post(
+                '/api/employees',
+                data=json.dumps(invalid_employee_data),
+                content_type='application/json'
+            )
+            
+            # Check response status code
+            self.assertEqual(response.status_code, 400)
+            
+            # Check response body for validation error details
+            data = json.loads(response.data)
+            self.assertEqual(data['status'], 'error')
+            self.assertEqual(data['message'], 'Invalid input.')
+            self.assertIn('details', data)
+            self.assertIsInstance(data['details'], list)
+            self.assertTrue(len(data['details']) > 0)
+            
+            # Check for specific error detail (optional, but good practice)
+            found_error = any(err.get('loc') == ('last_name', ) for err in data['details'])
+            self.assertTrue(found_error, "Did not find validation error for missing last_name")
+            
+            print("✓ POST /api/employees endpoint handles invalid input")
+        except Exception as e:
+            print(f"✗ POST /api/employees endpoint invalid input test failed: {str(e)}")
+            raise
+
+    def test_update_employee_invalid_input(self):
+        """Test PUT /api/employees/<id> with invalid input"""
+        try:
+            # Get an existing employee ID
+            employee = Employee.query.filter_by(first_name="Test").first()
+            self.assertIsNotNone(employee, "Test employee not found")
+            employee_id = employee.id
+
+            # Test data with invalid field type (contracted_hours should be float)
+            invalid_update_data = {
+                'contracted_hours': 'forty'
+            }
+            
+            # Make request
+            response = self.client.put(
+                f'/api/employees/{employee_id}',
+                data=json.dumps(invalid_update_data),
+                content_type='application/json'
+            )
+            
+            # Check response status code
+            self.assertEqual(response.status_code, 400)
+            
+            # Check response body for validation error details
+            data = json.loads(response.data)
+            self.assertEqual(data['status'], 'error')
+            self.assertEqual(data['message'], 'Invalid input.')
+            self.assertIn('details', data)
+            self.assertIsInstance(data['details'], list)
+            self.assertTrue(len(data['details']) > 0)
+            
+            # Check for specific error detail (optional, but good practice)
+            found_error = any(err.get('loc') == ('contracted_hours', ) for err in data['details'])
+            self.assertTrue(found_error, "Did not find validation error for invalid contracted_hours")
+            
+            print("✓ PUT /api/employees/<id> endpoint handles invalid input")
+        except Exception as e:
+            print(f"✗ PUT /api/employees/<id> endpoint invalid input test failed: {str(e)}")
+            raise
+
 if __name__ == '__main__':
     unittest.main() 

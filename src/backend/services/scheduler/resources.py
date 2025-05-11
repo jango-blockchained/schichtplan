@@ -1,7 +1,7 @@
 """Resource management for the scheduler"""
 
-from datetime import date
-from typing import List, Optional, Dict, Tuple
+from datetime import date, datetime, time, timedelta
+from typing import Dict, List, Optional, Set, Tuple, Union
 import logging
 import functools
 import sys
@@ -69,13 +69,9 @@ except ImportError as e1:
             # Placeholder classes REMOVED. Runtime errors will occur if models are unavailable.
             # If running tests, mocks should be used.
 
-# Create a standard logger
-logger = logging.getLogger(__name__)
-handler = logging.StreamHandler()
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-logger.setLevel(logging.INFO)
+# Configure logger
+# logger = logging.getLogger(__name__) # Original logger
+logger = logging.getLogger("schedule") # Explicitly use the 'schedule' logger
 
 
 class ScheduleResourceError(Exception):
@@ -176,69 +172,44 @@ class ScheduleResources:
                     self.logger.info(
                         f"Successfully generated {len(coverage_slots)} demo coverage slots"
                     )
-                    coverage = Coverage.query.all()
+                    coverage = Coverage.query.all() # Re-query after generating
+                    if not coverage: # Check again if demo data actually populated
+                        self.logger.error("Failed to load any coverage even after attempting to generate demo data.")
+                        return [] 
                 except Exception as e:
                     self.logger.error(
                         f"Failed to generate demo coverage data: {str(e)}"
                     )
-                    return []
+                    return [] # Important: if demo data gen fails, and initial was empty, return empty.
+            
+            self.logger.info(f"Loaded {len(coverage)} coverage records. Details:")
+            for cov_idx, cov_item in enumerate(coverage):
+                self.logger.info(
+                    f"  Coverage[{cov_idx}]: id={getattr(cov_item, 'id', 'N/A')}, "
+                    f"day={getattr(cov_item, 'day_index', 'N/A')}, "
+                    f"start={getattr(cov_item, 'start_time', 'N/A')}-end={getattr(cov_item, 'end_time', 'N/A')}, "
+                    f"min_emp={getattr(cov_item, 'min_employees', 'N/A')}, "
+                    f"req_keyholder={getattr(cov_item, 'requires_keyholder', 'N/A')}"
+                )
 
             # Log coverage requirements by day
             by_day = {}
-            for cov in coverage:
-                day_index = getattr(cov, "day_index", None)
-                if day_index is None and hasattr(cov, "day_of_week"):
-                    day_index = cov.day_of_week
-
-                if day_index not in by_day:
-                    by_day[day_index] = []
-                by_day[day_index].append(cov)
-
-                # Log individual coverage record details
-                self.logger.debug(
-                    f"Loaded coverage record: day_index={day_index}, "
-                    f"start_time={getattr(cov, 'start_time', None)}, "
-                    f"end_time={getattr(cov, 'end_time', None)}, "
-                    f"min_employees={getattr(cov, 'min_employees', None)}, "
-                    f"max_employees={getattr(cov, 'max_employees', None)}"
-                )
-
-            days = [
-                "Monday",
-                "Tuesday",
-                "Wednesday",
-                "Thursday",
-                "Friday",
-                "Saturday",
-                "Sunday",
-            ]
-
-            for day_idx, day_coverage in by_day.items():
-                if day_idx is not None and 0 <= day_idx < len(days):
-                    total_min_employees = sum(c.min_employees for c in day_coverage)
-                    total_max_employees = sum(c.max_employees for c in day_coverage)
-                    coverage_blocks = [
-                        {
-                            "start": getattr(c, "start_time", None),
-                            "end": getattr(c, "end_time", None),
-                            "min": getattr(c, "min_employees", 0),
-                            "max": getattr(c, "max_employees", 0),
-                        }
-                        for c in day_coverage
-                    ]
-                    self.logger.info(
-                        f"Coverage for {days[day_idx]}: "
-                        f"{len(day_coverage)} blocks, "
-                        f"min employees: {total_min_employees}, "
-                        f"max employees: {total_max_employees}, "
-                        f"blocks: {coverage_blocks}"
-                    )
+            for day_idx in range(7):
+                day_name = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][day_idx]
+                # Filter coverage for the current day
+                day_specific_coverage = [c for c in coverage if getattr(c, 'day_index', -1) == day_idx]
+                if day_specific_coverage:
+                    self.logger.info(f"  {day_name} ({day_idx}): {len(day_specific_coverage)} coverage blocks")
+                    # for c_idx, c_item in enumerate(day_specific_coverage):
+                    #    self.logger.debug(f"    {c_idx}: Start: {c_item.start_time}, End: {c_item.end_time}, MinEmp: {c_item.min_employees}, KeyH: {c_item.requires_keyholder}")
+                else:
+                    self.logger.info(f"  {day_name} ({day_idx}): No coverage blocks")
 
             self.logger.info(f"Successfully loaded {len(coverage)} coverage records")
             return coverage
 
         except Exception as e:
-            self.logger.error(f"Error loading coverage: {str(e)}")
+            self.logger.error(f"Error loading coverage: {str(e)}", exc_info=True) # Added exc_info
             return []
 
     def _load_shifts(self) -> List[ShiftTemplate]:
@@ -246,19 +217,35 @@ class ScheduleResources:
         try:
             shifts = ShiftTemplate.query.all()
             if not shifts:
-                logger.error("No shift templates found in database")
-                raise ScheduleResourceError("No shift templates found")
+                self.logger.error("No shift templates found in database")
+                return []
 
-            # Log shift details
+            self.logger.info(f"Successfully loaded {len(shifts)} shift templates. Verifying times...")
             for shift in shifts:
-                logger.info(
-                    f"Loaded shift template: ID={shift.id}, "
-                    f"start={shift.start_time}, end={shift.end_time}, "
-                    f"type={shift.shift_type_id}"
+                start_time_val = getattr(shift, 'start_time', 'MISSING_ATTRIBUTE')
+                end_time_val = getattr(shift, 'end_time', 'MISSING_ATTRIBUTE')
+                active_days_val = getattr(shift, 'active_days', 'MISSING_ATTRIBUTE')
+                shift_name = getattr(shift, 'name', 'N/A')
+                
+                self.logger.info(
+                    f"Loaded ShiftTemplate: id={shift.id}, name='{shift_name}', "
+                    f"raw_start_time='{start_time_val}' (type: {type(start_time_val)}), "
+                    f"raw_end_time='{end_time_val}' (type: {type(end_time_val)}), "
+                    f"active_days={active_days_val}"
                 )
+                
+                # Basic validation check for format (doesn't guarantee parseability by int)
+                is_start_time_valid_format = isinstance(start_time_val, str) and len(start_time_val) == 5 and ':' in start_time_val
+                is_end_time_valid_format = isinstance(end_time_val, str) and len(end_time_val) == 5 and ':' in end_time_val
+                
+                if not is_start_time_valid_format and start_time_val != 'MISSING_ATTRIBUTE':
+                    self.logger.warning(f"ShiftTemplate id={shift.id} name='{shift_name}' has an invalid start_time format or type: '{start_time_val}'")
+                if not is_end_time_valid_format and end_time_val != 'MISSING_ATTRIBUTE':
+                    self.logger.warning(f"ShiftTemplate id={shift.id} name='{shift_name}' has an invalid end_time format or type: '{end_time_val}'")
+
             return shifts
         except Exception as e:
-            self.logger.error(f"Error loading shifts: {str(e)}")
+            self.logger.error(f"Error loading shifts: {str(e)}", exc_info=True)
             return []
 
     def _load_employees(self) -> List[Employee]:
@@ -393,7 +380,7 @@ class ScheduleResources:
                         logger.info(
                             f"Employee {employee_id} is unavailable at hour {hour}. "
                             f"is_available={avail.is_available}, "
-                            f"type={avail.availability_type.value if avail.availability_type else 'None'}"
+                            f"type={avail_type.value if avail_type is not None else 'None'}"
                         )
             if not hour_available:
                 logger.info(

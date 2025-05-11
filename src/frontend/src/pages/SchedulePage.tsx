@@ -85,8 +85,8 @@ import {
 export function SchedulePage() {
   const today = new Date();
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: startOfWeek(today),
-    to: endOfWeek(today),
+    from: startOfWeek(new Date(2025, 4, 11)), // May 11, 2025
+    to: endOfWeek(new Date(2025, 4, 11)),
   });
   const [weekAmount, setWeekAmount] = useState<number>(1);
   const [selectedVersion, setSelectedVersion] = useState<number | undefined>(undefined);
@@ -95,7 +95,6 @@ export function SchedulePage() {
   const [isNewVersionModalOpen, setIsNewVersionModalOpen] = useState(false);
   const [isGenerationSettingsOpen, setIsGenerationSettingsOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<number | null>(null);
-  const [activeView, setActiveView] = useState<'table' | 'grid'>('table');
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isAddScheduleDialogOpen, setIsAddScheduleDialogOpen] = useState(false);
@@ -124,8 +123,9 @@ export function SchedulePage() {
   // Initialize date range with current week
   useEffect(() => {
     if (!dateRange || !dateRange.from || !dateRange.to) {
-      const today = new Date();
-      const from = startOfWeek(today, { weekStartsOn: 1 });
+      // Create a date for May 2025 instead of using the current date
+      const targetDate = new Date(2025, 4, 11); // May 11, 2025
+      const from = startOfWeek(targetDate, { weekStartsOn: 1 });
       from.setHours(0, 0, 0, 0);
       const to = addDays(from, 6 * weekAmount); // Use weekAmount to set the end date
       to.setHours(23, 59, 59, 999);
@@ -172,6 +172,7 @@ export function SchedulePage() {
     isLoading: isLoadingVersions
   } = useVersionControl({
     dateRange,
+    initialVersion: 4, // Set initial version to 4
     onVersionSelected: (version) => {
       // When a version is selected via the version control, we need to refetch data
       refetchScheduleData();
@@ -559,7 +560,19 @@ export function SchedulePage() {
   const convertSchedule = (apiSchedule: APISchedule): Schedule => {
     // Log for debugging shift_type
     if (apiSchedule.shift_id && !apiSchedule.shift_type_id) {
-      console.log('Schedule without shift_type_id:', apiSchedule);
+      console.log('🔴 WARNING: Schedule with shift_id but no shift_type_id:', apiSchedule);
+    }
+
+    // Log schedules that have shift_id but missing start/end times
+    if (apiSchedule.shift_id && (!apiSchedule.shift_start || !apiSchedule.shift_end)) {
+      console.log('🔴 WARNING: Schedule with shift_id but missing times:', {
+        id: apiSchedule.id,
+        shift_id: apiSchedule.shift_id,
+        date: apiSchedule.date,
+        employee_id: apiSchedule.employee_id,
+        shift_start: apiSchedule.shift_start,
+        shift_end: apiSchedule.shift_end
+      });
     }
 
     // Check if shift_type_id is a valid ShiftType
@@ -568,6 +581,20 @@ export function SchedulePage() {
       ? apiSchedule.shift_type_id as ShiftType 
       : undefined;
 
+    // Try to determine shift type name from the shift_id if possible
+    // This will help display something meaningful even if shift_type_id is missing
+    let shift_type_name = apiSchedule.shift_type_name;
+    
+    if (!shift_type_name && shift_type_id) {
+      // Map the shift type ID to a display name
+      shift_type_name = 
+        shift_type_id === 'EARLY' ? 'Früh' :
+        shift_type_id === 'MIDDLE' ? 'Mitte' :
+        shift_type_id === 'LATE' ? 'Spät' :
+        shift_type_id === 'NO_WORK' ? 'Frei' : undefined;
+    }
+
+    // Build the schedule object with all available information
     return {
       id: apiSchedule.id,
       employee_id: apiSchedule.employee_id,
@@ -582,12 +609,30 @@ export function SchedulePage() {
       break_end: apiSchedule.break_end ?? null,
       notes: apiSchedule.notes ?? null,
       employee_name: undefined,
-      shift_type_id
+      shift_type_id,
+      shift_type_name
     };
   };
 
-  // Convert schedules for the ScheduleTable
+  // Convert schedules for the ScheduleTable and log conversion results
   const convertedSchedules = (data?.schedules ?? []).map((apiSchedule) => convertSchedule(apiSchedule));
+  
+  // Log counts of converted schedules 
+  useEffect(() => {
+    if (convertedSchedules.length > 0) {
+      const schedulesWithShiftId = convertedSchedules.filter(s => s.shift_id !== null);
+      const schedulesWithTimes = schedulesWithShiftId.filter(s => s.shift_start && s.shift_end);
+      const problemSchedules = schedulesWithShiftId.filter(s => !s.shift_start || !s.shift_end);
+      
+      console.log('🔵 SchedulePage converted schedules analysis:', {
+        total: convertedSchedules.length,
+        withShiftId: schedulesWithShiftId.length,
+        withTimes: schedulesWithTimes.length,
+        problemSchedules: problemSchedules.length,
+        version: versionControlSelectedVersion
+      });
+    }
+  }, [convertedSchedules, versionControlSelectedVersion]);
 
   // Fetch employee data for statistics
   const { data: employees } = useQuery({
@@ -995,11 +1040,6 @@ export function SchedulePage() {
     }
   };
 
-  // Add a handler for view changes
-  const handleViewChange = (newView: 'table' | 'grid') => {
-    setActiveView(newView);
-  };
-
   // Handler for fixing the schedule display
   const handleFixDisplay = async () => {
     if (!versionControlSelectedVersion) {
@@ -1057,8 +1097,98 @@ export function SchedulePage() {
     setEnableDiagnostics(checked);
   };
 
+  // Check and fix missing time data in schedules
+  const checkAndFixMissingTimeData = async () => {
+    if (!versionControlSelectedVersion || !dateRange?.from || !dateRange?.to) {
+      console.log('Cannot fix missing time data: missing version or date range');
+      toast({
+        title: "Operation nicht möglich",
+        description: "Version oder Datumsbereich fehlt",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Show a loading toast to indicate that the operation has started
+    const loadingToastId = toast({
+      title: "Repariere Schichtzeiten...",
+      description: "Die Schichtdaten werden geprüft und repariert...",
+      variant: "default",
+      duration: 5000 // Long-lived toast
+    });
+    
+    const schedulesWithShiftId = convertedSchedules.filter(s => s.shift_id !== null);
+    const problemSchedules = schedulesWithShiftId.filter(s => !s.shift_start || !s.shift_end);
+    
+    if (problemSchedules.length > 0) {
+      console.log(`🔧 Found ${problemSchedules.length} schedules with missing time data. Attempting to fix...`);
+      
+      try {
+        const result = await fixScheduleDisplay(
+          format(dateRange.from, 'yyyy-MM-dd'),
+          format(dateRange.to, 'yyyy-MM-dd'),
+          versionControlSelectedVersion
+        );
+        
+        console.log('🔧 Schedule display fix completed:', result);
+        
+        // Dismiss the loading toast
+        toast.dismiss(loadingToastId);
+        
+        // Show a more detailed success toast
+        toast({
+          title: "Schichtdaten repariert",
+          description: `${result.schedules_with_shifts || 0} Schichten geprüft, 
+            ${problemSchedules.length} Probleme gefunden, 
+            ${result.empty_schedules_count || 0} Einträge aktualisiert.`,
+          variant: "success",
+        });
+        
+        // Refetch the data to show the fixed schedules
+        await refetchScheduleData();
+      } catch (error) {
+        console.error('Failed to fix schedule time data:', error);
+        
+        // Dismiss the loading toast
+        toast.dismiss(loadingToastId);
+        
+        toast({
+          title: "Fehler bei der Korrektur",
+          description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
+          variant: "destructive"
+        });
+      }
+    } else {
+      // Dismiss the loading toast
+      toast.dismiss(loadingToastId);
+      
+      // Let the user know there were no issues
+      toast({
+        title: "Keine Probleme gefunden",
+        description: "Alle Schichtdaten sind vollständig.",
+        variant: "success"
+      });
+    }
+  };
+  
+  // Run fix check when data is loaded and we detect problems
+  useEffect(() => {
+    if (convertedSchedules.length > 0) {
+      const schedulesWithShiftId = convertedSchedules.filter(s => s.shift_id !== null);
+      const problemSchedules = schedulesWithShiftId.filter(s => !s.shift_start || !s.shift_end);
+      
+      if (problemSchedules.length > 0 && !isLoading && !isStandardGenerationPending && !isAiGenerating) {
+        console.log(`🚨 Auto-fixing: Found ${problemSchedules.length} schedules with missing time data`);
+        checkAndFixMissingTimeData();
+      }
+    }
+  }, [convertedSchedules, versionControlSelectedVersion, dateRange, isLoading, isStandardGenerationPending, isAiGenerating]);
+
   return (
     <div className="container mx-auto py-4 space-y-4">
+      <div className="bg-red-200 p-4 text-xl font-bold text-center mb-4">
+        DEBUG: SchedulePage is rendering with {convertedSchedules.length} schedules
+      </div>
       <PageHeader title="Dienstplan" className="mb-4">
         <ScheduleControls
           onRefresh={handleRetryFetch}
@@ -1088,6 +1218,25 @@ export function SchedulePage() {
         />
       )}
 
+      {/* Schedule Actions - Moved to the top */}
+      <div className="flex justify-start mb-4">
+        <ScheduleActions
+          onAddSchedule={handleAddSchedule}
+          onDeleteSchedule={handleDeleteSchedule}
+          onGenerateStandardSchedule={handleGenerateStandardSchedule}
+          onGenerateAiSchedule={handleGenerateAiSchedule}
+          onOpenGenerationSettings={() => setIsGenerationSettingsOpen(true)}
+          onFixDisplay={handleFixDisplay}
+          onFixTimeData={checkAndFixMissingTimeData}
+          isLoading={isLoadingSchedule || isLoadingVersions}
+          isGenerating={isStandardGenerationPending || isAiGenerating}
+          canAdd={!!versionControlSelectedVersion}
+          canDelete={!!versionControlSelectedVersion && convertedSchedules.length > 0}
+          canGenerate={!!versionControlSelectedVersion && !(isStandardGenerationPending || isAiGenerating)}
+          canFix={!!versionControlSelectedVersion}
+        />
+      </div>
+      
       {/* Version Table */}
       {versionMetas && versionMetas.length > 0 && (
         <VersionTable
@@ -1101,26 +1250,6 @@ export function SchedulePage() {
           onCreateNewVersion={handleCreateNewVersion}
         />
       )}
-
-      {/* Schedule Actions */}
-      <div className="flex justify-end mb-4">
-        <ScheduleActions
-          onAddSchedule={handleAddSchedule}
-          onDeleteSchedule={handleDeleteSchedule}
-          onGenerateStandardSchedule={handleGenerateStandardSchedule} // MODIFIED
-          onGenerateAiSchedule={handleGenerateAiSchedule}         // MODIFIED
-          onOpenGenerationSettings={() => setIsGenerationSettingsOpen(true)}
-          onFixDisplay={handleFixDisplay}
-          isLoading={isLoadingSchedule || isLoadingVersions}
-          isGenerating={isStandardGenerationPending || isAiGenerating} // MODIFIED
-          canAdd={!!versionControlSelectedVersion}
-          canDelete={!!versionControlSelectedVersion && convertedSchedules.length > 0}
-          canGenerate={!!versionControlSelectedVersion && !(isStandardGenerationPending || isAiGenerating)} // MODIFIED
-          canFix={!!versionControlSelectedVersion}
-          activeView={activeView}
-          onViewChange={handleViewChange}
-        />
-      </div>
 
       {/* Schedule Content */}
       <DndProvider backend={HTML5Backend}>
@@ -1170,9 +1299,8 @@ export function SchedulePage() {
                       Erste Version erstellen
                     </Button>
                   ) : (
-                    // This button might need to become a DropdownMenu as well, or ScheduleActions used here.
                     <Button 
-                      onClick={handleGenerateStandardSchedule} // Default to standard, or show dropdown
+                      onClick={handleGenerateStandardSchedule}
                       disabled={(isStandardGenerationPending || isAiGenerating) || !versionControlSelectedVersion}
                       className="flex items-center gap-2"
                     >
@@ -1206,7 +1334,6 @@ export function SchedulePage() {
                   isLoading={isLoadingSchedule}
                   employeeAbsences={employeeAbsences}
                   absenceTypes={settingsData?.employee_groups?.absence_types || []}
-                  activeView={activeView}
                   currentVersion={versionControlSelectedVersion}
                 />
               </div>

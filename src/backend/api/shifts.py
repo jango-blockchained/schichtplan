@@ -33,13 +33,13 @@ def create_shift():
             active_days=data.get(
                 "active_days",
                 {
-                    "0": False,  # Sunday
-                    "1": True,  # Monday
-                    "2": True,  # Tuesday
-                    "3": True,  # Wednesday
-                    "4": True,  # Thursday
-                    "5": True,  # Friday
-                    "6": True,  # Saturday
+                    "0": True,  # Monday
+                    "1": True,  # Tuesday
+                    "2": True,  # Wednesday
+                    "3": True,  # Thursday
+                    "4": True,  # Friday
+                    "5": True,  # Saturday
+                    "6": False, # Sunday
                 },
             ),
         )

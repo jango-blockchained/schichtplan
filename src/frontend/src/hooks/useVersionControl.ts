@@ -17,12 +17,13 @@ import {
 interface UseVersionControlProps {
     dateRange: DateRange | undefined;
     onVersionSelected?: (version: number) => void;
+    initialVersion?: number;
 }
 
-export function useVersionControl({ dateRange, onVersionSelected }: UseVersionControlProps) {
+export function useVersionControl({ dateRange, onVersionSelected, initialVersion }: UseVersionControlProps) {
     const { toast } = useToast();
     const queryClient = useQueryClient();
-    const [selectedVersion, setSelectedVersion] = useState<number | undefined>();
+    const [selectedVersion, setSelectedVersion] = useState<number | undefined>(initialVersion);
 
     // Query for versions
     const versionsQuery = useQuery<VersionResponse, Error>({
@@ -54,8 +55,12 @@ export function useVersionControl({ dateRange, onVersionSelected }: UseVersionCo
                 if (onVersionSelected) {
                     onVersionSelected(latestVersion);
                 }
-            } else {
-                console.log(`🔄 Not auto-selecting version because version ${selectedVersion} is already selected`);
+            } else if (!versionsQuery.data.versions.some(v => v.version === selectedVersion)) {
+                console.log(`🔄 Selected version ${selectedVersion} is no longer available, switching to ${latestVersion}`);
+                setSelectedVersion(latestVersion);
+                if (onVersionSelected) {
+                    onVersionSelected(latestVersion);
+                }
             }
         } else {
             // If no versions are available, make sure we don't have a selected version
