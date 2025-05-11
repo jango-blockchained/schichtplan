@@ -1,4 +1,22 @@
 {
+  "name": "schichtplan-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "format:backend": "black .",
+    "lint:backend:style": "black --check .",
+    "lint:backend:flake8": "flake8 src/backend",
+    "lint:backend:mypy": "mypy src/backend",
+    "lint:backend": "npm run lint:backend:style && npm run lint:backend:flake8 && npm run lint:backend:mypy",
+    "format:frontend": "cd src/frontend && bun run format",
+    "lint:frontend": "cd src/frontend && bun run lint",
+    "format": "npm run format:backend && npm run format:frontend",
+    "lint": "npm run lint:backend && npm run lint:frontend",
+    "check:all": "npm run lint && cd src/frontend && bun run typecheck",
+    "test:backend": "pytest -v -s src/backend/tests/",
+    "test:frontend": "cd src/frontend && bun test",
+    "test": "npm run test:backend && npm run test:frontend"
+  },
   "dependencies": {
     "zod": "^3.24.2"
   }

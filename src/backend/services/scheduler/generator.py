@@ -601,24 +601,40 @@ class ScheduleGenerator:
         
         # Find all shift templates active on this day
         for shift_template in self.resources.shifts:
-            shift_active_days = []
+            shift_active_days = [] # Default to empty list
             
             # Handle both object and dictionary representations
-            if hasattr(shift_template, 'active_days') and shift_template.active_days:
-                if isinstance(shift_template.active_days, list):
+            if hasattr(shift_template, 'active_days') and shift_template.active_days: # Check if attribute exists and is not None/empty
+                if isinstance(shift_template.active_days, list): # Case 1: active_days is already a list
                     shift_active_days = shift_template.active_days
-                elif isinstance(shift_template.active_days, str):
+                elif isinstance(shift_template.active_days, dict): # Case 2: active_days is a dictionary (from model)
+                    # Convert {"0": True, "1": False} to [0]
+                    try:
+                        shift_active_days = [int(day_str) for day_str, is_active in shift_template.active_days.items() if is_active]
+                    except ValueError:
+                        self.logger.warning(f"Could not parse active_days dictionary keys for shift {shift_template.id}: {shift_template.active_days}")
+                        continue # Skip this shift template if parsing fails
+                elif isinstance(shift_template.active_days, str): # Case 3: active_days is a string (JSON or comma-separated)
                     # Parse JSON or comma-separated string
                     try:
                         import json
-                        shift_active_days = json.loads(shift_template.active_days)
+                        # Attempt to parse as JSON list: e.g., "[0, 1, 2]"
+                        loaded_days = json.loads(shift_template.active_days)
+                        if isinstance(loaded_days, list): # Ensure it's a list after loading
+                            shift_active_days = loaded_days
+                        elif isinstance(loaded_days, dict): # Handle if JSON string was a dict {"0": true}
+                            shift_active_days = [int(day_str) for day_str, is_active in loaded_days.items() if is_active]
+                        else:
+                            self.logger.warning(f"Parsed active_days from JSON string is not a list or dict for shift {shift_template.id}: {shift_template.active_days}")
+                            continue
                     except (json.JSONDecodeError, ValueError):
-                        # Try comma-separated format
+                        # Try comma-separated format: e.g., "0,1,2"
                         try:
+                            # This will produce a list of integers
                             shift_active_days = [int(d.strip()) for d in shift_template.active_days.split(',') if d.strip()]
                         except ValueError:
                             self.logger.warning(f"Could not parse active_days for shift {shift_template.id}: {shift_template.active_days}")
-                            continue
+                            continue # Skip this shift template if parsing fails
             
             # Skip if shift is not active on this day
             if not shift_active_days or weekday not in shift_active_days:

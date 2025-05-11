@@ -13,7 +13,7 @@ from src.backend.app import create_app
 from src.backend.models.fixed_shift import ShiftTemplate
 from src.backend.models.employee import Employee
 from src.backend.models.settings import Settings
-from src.backend.models.availability import Availability
+from src.backend.models.employee import EmployeeAvailability as Availability
 from src.backend.services.scheduler.generator import ScheduleGenerator
 from src.backend.models import db
 

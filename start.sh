@@ -430,16 +430,4 @@ trap 'log "ERROR" "An error occurred. Exiting." >&2; cleanup' ERR
 # Run main function
 main 
 
-# Trap for cleanup on exit (INT, TERM)
-# trap cleanup INT TERM # Already defined with more signals
-
-# Note: The following lines are problematic and redundant, main function already starts services in tmux.
-# Removing them.
-# # Start backend (Flask app)
-# echo "Starting backend..."
-# # Change directory to src/backend and then execute run.py
-# (cd src/backend && nohup python3 run.py &> ../../backend.log &)
-# 
-# # Start frontend (Vite dev server)
-
 # End of script

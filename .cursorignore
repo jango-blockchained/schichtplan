@@ -2,7 +2,7 @@
 dist/
 build/
 coverage/
-
+.pytest_cache/
 # Dependencies
 node_modules/
 venv/

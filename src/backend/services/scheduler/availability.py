@@ -136,13 +136,18 @@ class AvailabilityChecker:
 
                 availability_types.add(avail_type)
 
-            # If we have both AVAILABLE and PREFERRED hours, prioritize PREFERRED
-            if AvailabilityType.PREFERRED.value in availability_types:
+            # Priority: UNAVAILABLE (already handled by returning early) > FIXED > PREFERRED > AVAILABLE
+            if AvailabilityType.FIXED.value in availability_types:
+                self.log_debug(
+                    f"Employee {employee_id} has FIXED availability for shift on {date_to_check}"
+                )
+                return True, AvailabilityType.FIXED.value
+            elif AvailabilityType.PREFERRED.value in availability_types:
                 self.log_debug(
                     f"Employee {employee_id} has PREFERRED availability for shift on {date_to_check}"
                 )
                 return True, AvailabilityType.PREFERRED.value
-            else:
+            else:  # Assumes only AVAILABLE is left if no FIXED or PREFERRED
                 self.log_debug(
                     f"Employee {employee_id} is available for shift on {date_to_check}"
                 )
@@ -178,6 +183,8 @@ class AvailabilityChecker:
             if start_hour <= hour < end_hour:
                 if avail_type == AvailabilityType.UNAVAILABLE.value:
                     return False, AvailabilityType.UNAVAILABLE.value
+                elif avail_type == AvailabilityType.FIXED.value:
+                    return True, AvailabilityType.FIXED.value
                 elif avail_type == AvailabilityType.PREFERRED.value:
                     return True, AvailabilityType.PREFERRED.value
                 else:

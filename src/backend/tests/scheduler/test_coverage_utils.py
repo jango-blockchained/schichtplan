@@ -1,11 +1,14 @@
 import unittest
 from unittest.mock import MagicMock, PropertyMock
 from datetime import date, time
+import pytest
 
 # Assuming the utility function is in src.backend.services.scheduler.coverage_utils
 # Adjust the import path if necessary based on your project structure and how you run tests.
-from backend.services.scheduler.coverage_utils import get_required_staffing_for_interval, _time_str_to_datetime_time
-from backend.services.scheduler.resources import ScheduleResources # For mocking
+from src.backend.services.scheduler.coverage_utils import get_required_staffing_for_interval, _time_str_to_datetime_time
+from src.backend.services.scheduler.resources import ScheduleResources # For mocking
+from src.backend.models import ShiftTemplate # Changed this line
+from src.backend.models import Coverage # Assuming Coverage is also directly available from models
 
 # Mocking a basic Coverage object structure
 class MockCoverage:

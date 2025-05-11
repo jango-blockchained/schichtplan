@@ -5,15 +5,15 @@ from collections import defaultdict
 
 # Assuming models and DistributionManager are accessible
 # Adjust imports based on your project structure
-from models.employee import AvailabilityType, Employee as ActualEmployee
-from models.shift_template import ShiftTemplate as ActualShiftTemplate
+from src.backend.models.employee import AvailabilityType, Employee as ActualEmployee
+from src.backend.models import ShiftTemplate as ActualShiftTemplate
 # If you have dummy/type hint versions for testing in DistributionManager, import them too
-# from services.scheduler.distribution import Employee as DummyEmployee, ShiftTemplate as DummyShiftTemplate
+# from src.backend.services.scheduler.distribution import Employee as DummyEmployee, ShiftTemplate as DummyShiftTemplate
 
-from services.scheduler.distribution import DistributionManager
-from services.scheduler.resources import ScheduleResources
-from services.scheduler.constraints import ConstraintChecker
-from services.scheduler.availability import AvailabilityChecker
+from src.backend.services.scheduler.distribution import DistributionManager
+from src.backend.services.scheduler.resources import ScheduleResources
+from src.backend.services.scheduler.constraints import ConstraintChecker
+from src.backend.services.scheduler.availability import AvailabilityChecker
 
 # Helper to create a mock employee with specific attributes
 def create_mock_employee(id, is_keyholder=False, employee_group=None, contracted_hours=40.0, is_active=True):
@@ -429,6 +429,116 @@ class TestDistributionManagerInterval(unittest.TestCase):
         self.assertIn(self.employee2.id, current_staffing_setup[time(9,0)]['assigned_employee_ids'])
         self.assertEqual(current_staffing_setup[time(9,0)]['current_employee_types_count'][str(self.employee2.employee_group)], 1)
         self.assertFalse(current_staffing_setup[time(9,0)]['keyholder_present'])
+
+    @patch('services.scheduler.distribution.get_required_staffing_for_interval')
+    def test_perform_interval_based_assignments_no_assignments_possible(self, mock_get_needs):
+        daily_interval_needs_setup = {time(9,0): {"min_employees": 1}}
+        current_staffing_setup = {time(9,0): {"current_employees": 0, "assigned_employee_ids": set(), "keyholder_present": False, "current_employee_types_count": defaultdict(int)}}
+        mock_get_needs.return_value = {"min_employees": 1}
+
+        # Make all employees unavailable or non-compliant
+        self.mock_availability_checker.check_employee_availability.return_value = (AvailabilityType.UNAVAILABLE, "Not available")
+        # OR self.mock_constraint_checker.check_all_constraints.return_value = [{"error": "violation"}]
+        # OR mock_calculate_score to return very low scores / -inf
+        self.dist_manager.calculate_assignment_score = MagicMock(return_value=-float('inf'))
+        self.dist_manager.current_daily_interval_needs = daily_interval_needs_setup
+
+        potential_shifts_for_day = [dict(self.shift_template_early.__dict__)]
+        potential_shifts_for_day[0]['id'] = self.shift_template_early.id
+
+        with patch.object(self.dist_manager, 'update_with_assignment') as mock_update_assignment_spy:
+            final_assignments = self.dist_manager._perform_interval_based_assignments(
+                current_date=self.current_date,
+                potential_shifts=potential_shifts_for_day, 
+                daily_interval_needs=daily_interval_needs_setup,
+                current_staffing_per_interval=current_staffing_setup,
+                resources=self.mock_resources,
+                constraint_checker=self.mock_constraint_checker,
+                availability_checker=self.mock_availability_checker,
+                interval_minutes=60
+            )
+        self.assertEqual(len(final_assignments), 0)
+        mock_update_assignment_spy.assert_not_called()
+
+    @patch('services.scheduler.distribution.get_required_staffing_for_interval')
+    def test_perform_interval_based_assignments_multiple_staff_needed_for_interval(self, mock_get_needs):
+        # Scenario: Interval 09:00 needs 2 employees. Two shifts and three employees available.
+        shift_A = create_mock_shift_template(id=201, start_time_str="09:00", end_time_str="12:00", shift_type="MORNING_A")
+        shift_B = create_mock_shift_template(id=202, start_time_str="09:00", end_time_str="11:00", shift_type="MORNING_B")
+        # Add new shifts to the mock_resources so they can be found
+        # Ensure this doesn't duplicate if setUp already adds them or if this test runs multiple times within a session
+        # A safer way would be to set self.mock_resources.shift_templates anew or ensure IDs are unique
+        current_shift_ids = {st.id for st in self.mock_resources.shift_templates}
+        if shift_A.id not in current_shift_ids:
+            self.mock_resources.shift_templates.append(shift_A)
+        if shift_B.id not in current_shift_ids:
+            self.mock_resources.shift_templates.append(shift_B)
+        self.mock_resources.get_shift_template_by_id.side_effect = lambda sid: next((st for st in self.mock_resources.shift_templates if st.id == sid), None)
+        self.mock_resources.get_shift = self.mock_resources.get_shift_template_by_id # Re-alias if necessary
+
+        daily_interval_needs_setup = {
+            time(9,0): {"min_employees": 2, "requires_keyholder": False, "employee_types": []}
+        }
+        current_staffing_setup = {
+            time(9,0): {"current_employees": 0, "assigned_employee_ids": set(), "keyholder_present": False, "current_employee_types_count": defaultdict(int)}
+        }
+        # Lambda on a single line
+        mock_get_needs.side_effect = lambda date, interval_start_time, resources, interval_duration_minutes: daily_interval_needs_setup.get(interval_start_time, {"min_employees": 0})
+
+        self.mock_availability_checker.check_employee_availability.return_value = (AvailabilityType.AVAILABLE, "Is available")
+        self.mock_constraint_checker.check_all_constraints.return_value = [] # No violations
+
+        def mock_calculate_score(employee_id, shift_template_dict, shift_date, context, availability_type_override):
+            if employee_id == self.employee1.id and shift_template_dict['id'] == shift_A.id:
+                return 100
+            if employee_id == self.employee2.id and shift_template_dict['id'] == shift_B.id:
+                return 90
+            # Ensure employee3 can also be picked for either shift if others are not available
+            if employee_id == self.employee3.id and (shift_template_dict['id'] == shift_A.id or shift_template_dict['id'] == shift_B.id):
+                return 80
+            return 10 # Default low score for other combinations
+        
+        self.dist_manager.calculate_assignment_score = MagicMock(side_effect=mock_calculate_score)
+        self.mock_resources.get_employee_by_id.side_effect = lambda eid: next((e for e in self.mock_resources.employees if e.id == eid), None)
+        self.dist_manager.current_daily_interval_needs = daily_interval_needs_setup
+        
+        potential_shifts_for_day = [
+            dict(shift_A.__dict__), 
+            dict(shift_B.__dict__), 
+            dict(self.shift_template_early.__dict__) # Include an existing shift as well
+        ]
+        # Ensure IDs are correctly set in the dicts
+        potential_shifts_for_day[0]['id'] = shift_A.id 
+        potential_shifts_for_day[1]['id'] = shift_B.id
+        potential_shifts_for_day[2]['id'] = self.shift_template_early.id
+
+        with patch.object(self.dist_manager, 'update_with_assignment', wraps=self.dist_manager.update_with_assignment) as mock_update_assignment_spy:
+            final_assignments = self.dist_manager._perform_interval_based_assignments(
+                current_date=self.current_date,
+                potential_shifts=potential_shifts_for_day,
+                daily_interval_needs=daily_interval_needs_setup, # Argument present
+                current_staffing_per_interval=current_staffing_setup, 
+                resources=self.mock_resources,
+                constraint_checker=self.mock_constraint_checker,
+                availability_checker=self.mock_availability_checker,
+                interval_minutes=60
+            )
+        
+        self.assertEqual(len(final_assignments), 2, "Two assignments should be made to meet min_employees of 2")
+        self.assertEqual(mock_update_assignment_spy.call_count, 2)
+        
+        assigned_emp_ids = {a['employee_id'] for a in final_assignments}
+        assigned_shift_ids = {a['shift_id'] for a in final_assignments}
+
+        # Check that the higher-scoring employees for the specific shifts were chosen
+        self.assertIn(self.employee1.id, assigned_emp_ids)
+        self.assertIn(self.employee2.id, assigned_emp_ids) 
+        self.assertIn(shift_A.id, assigned_shift_ids)
+        self.assertIn(shift_B.id, assigned_shift_ids)
+
+        self.assertEqual(current_staffing_setup[time(9,0)]['current_employees'], 2)
+        self.assertIn(self.employee1.id, current_staffing_setup[time(9,0)]['assigned_employee_ids'])
+        self.assertIn(self.employee2.id, current_staffing_setup[time(9,0)]['assigned_employee_ids'])
 
     @patch('services.scheduler.distribution.get_required_staffing_for_interval')
     def test_perform_interval_based_assignments_no_assignments_possible(self, mock_get_needs):

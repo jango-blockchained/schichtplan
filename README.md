@@ -33,67 +33,90 @@ A modern web application for automated shift scheduling in retail stores. The ap
 ## Setup
 
 ### Prerequisites
-- Python 3.8 or higher
-- PostgreSQL
-- Node.js 16+ (for frontend)
-- npm or yarn (for frontend)
 
-### Backend Setup
+*   **Python:** Version 3.12 or higher.
+*   **Bun:** Latest version recommended. (See [Bun installation guide](https://bun.sh/docs/installation)).
+*   **pip:** Usually comes with Python.
+*   Git for version control.
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/shiftwise.git
-   cd shiftwise
-   ```
+### Backend Setup (Python/Flask)
 
-2. Create and activate a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+1.  **Clone the repository:**
+    ```bash
+    git clone <your-repo-url>
+    cd schichtplan # Or your project's root directory
+    ```
 
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+2.  **Navigate to the backend directory:**
+    ```bash
+    cd src/backend
+    ```
 
-4. Create environment file:
-   ```bash
-   cp .env.example .env
-   ```
-   Edit `.env` with your configuration.
+3.  **Create and activate a virtual environment:**
+    *   It's recommended to create it in the project root:
+        ```bash
+        cd ../.. # Go back to project root from src/backend
+        python -m venv .venv
+        source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+        ```
 
-5. Create the database:
-   ```bash
-   createdb shiftwise
-   ```
+4.  **Install dependencies:**
+    *   Ensure your virtual environment is active and you are in the project root.
+        ```bash
+        pip install -r requirements.txt
+        ```
 
-6. Initialize the database:
-   ```bash
-   flask db upgrade
-   ```
+5.  **Create environment file (`.env`):**
+    *   In the project root directory (`/home/jango/Git/maike2/schichtplan/`), create a file named `.env` with the following content:
+        ```env
+        FLASK_APP=src.backend.app:create_app()
+        FLASK_DEBUG=True
+        # Points to the SQLite database file within the src/backend/instance/ directory
+        DATABASE_URL=sqlite:///src/backend/instance/app.db
+        
+        # Optional: Secret key for Flask sessions, JWT, etc. Generate a strong random key.
+        # SECRET_KEY=your_strong_random_secret_key
+        ```
+    *   *Note: The `src/backend/instance/` directory and `app.db` file will be created automatically by Flask/SQLAlchemy when the application first runs and needs the database if they don't exist.*
 
-7. Run the development server:
-   ```bash
-   flask run
-   ```
+6.  **Initialize the database:**
+    *   Ensure your virtual environment is active and you are in the project root.
+    *   Run Alembic migrations to set up the database schema:
+        ```bash
+        flask db upgrade
+        ```
 
-### Frontend Setup (Coming Soon)
+7.  **Run the development server:**
+    *   Ensure your virtual environment is active and you are in the project root.
+    *   The backend server typically runs on port 5000.
+        ```bash
+        python src/backend/run.py
+        ```
+    *   If port 5000 is busy, the script attempts to find an alternative or you can specify one:
+        ```bash
+        python src/backend/run.py --port 5001
+        ```
 
-1. Navigate to the frontend directory:
-   ```bash
-   cd frontend
-   ```
+### Frontend Setup (TypeScript/React/Bun)
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+1.  **Navigate to the frontend directory:**
+    *   From the project root:
+        ```bash
+        cd src/frontend
+        ```
 
-3. Start the development server:
-   ```bash
-   npm run dev
-   ```
+2.  **Install dependencies:**
+    *   Use Bun to install frontend packages:
+        ```bash
+        bun install
+        ```
+
+3.  **Start the development server:**
+    *   This usually starts the frontend on port 5173 and proxies API requests to the backend (running on port 5000).
+        ```bash
+        bun run dev
+        ```
+    *   Open your browser and navigate to `http://localhost:5173`.
 
 ## Development
 
@@ -107,27 +130,88 @@ flask db upgrade
 
 ### Running Tests
 
-```bash
-pytest
-```
+Unified test scripts are provided in the root `package.json` to execute backend and frontend tests.
 
-### Code Style
+**Backend (Pytest):**
+*   To run all backend tests (from `src/backend/tests/`):
+    ```bash
+    npm run test:backend 
+    ```
+    (This runs `pytest -v -s src/backend/tests/`)
+*   To run specific backend test files or tests:
+    ```bash
+    pytest path/to/your_test_module.py
+    # or
+    pytest path/to/test_file.py::TestClass::test_method
+    ```
+    *Ensure your virtual environment is active and you are in the project root.*
 
-The project uses:
-- Black for Python code formatting
-- Flake8 for Python linting
-- MyPy for type checking
+**Frontend (Bun Test / Jest compatible):**
+*   To run all frontend tests (from `src/frontend/`):
+    ```bash
+    npm run test:frontend
+    ```
+    (This runs `bun test` within the `src/frontend` directory).
+*   To run specific frontend test files:
+    ```bash
+    cd src/frontend
+    bun test path/to/your_test_file.spec.tsx
+    ```
+*   The frontend also has scripts for watch mode and coverage in its `src/frontend/package.json`:
+    ```bash
+    cd src/frontend
+    bun run test:watch
+    bun run test:coverage
+    ```
 
-To format code:
-```bash
-black src/
-```
+**Combined Command (from project root):**
+*   Run all backend and frontend tests:
+    ```bash
+    npm run test
+    ```
 
-To run linting:
-```bash
-flake8 src/
-mypy src/
-```
+### Code Style & Linting
+
+This project uses a combination of tools to maintain code quality and consistency across the backend (Python) and frontend (TypeScript). Scripts are provided in the root `package.json` for easy execution.
+
+**Backend (Python):**
+*   **Formatter:** [Black](https://github.com/psf/black)
+    *   Configuration: `pyproject.toml` in the project root.
+    *   To format: `npm run format:backend` (from project root)
+*   **Linter (Style Check):** Black in check mode.
+    *   To check style: `npm run lint:backend:style` (from project root)
+*   **Linter (Code Analysis):** [Flake8](https://flake8.pycqa.org/en/latest/)
+    *   Configuration: Uses default Flake8 settings. Can be configured in `.flake8` or `pyproject.toml` [tool.flake8] if needed.
+    *   To lint: `npm run lint:backend:flake8` (from project root)
+*   **Type Checker:** [MyPy](http://mypy-lang.org/)
+    *   Configuration: Can be configured in `mypy.ini` or `pyproject.toml` [tool.mypy] if needed.
+    *   To type check: `npm run lint:backend:mypy` (from project root)
+*   **Run all backend checks:**
+    ```bash
+    npm run lint:backend 
+    ```
+
+**Frontend (TypeScript/React):**
+*   **Formatter:** [Prettier](https://prettier.io/)
+    *   Configuration: Implicitly via `src/frontend/package.json` scripts or editor integrations (e.g. `.prettierrc.js` could be added in `src/frontend/` if specific rules are needed).
+    *   To format: `npm run format:frontend` (from project root, executes `bun run format` in `src/frontend/`)
+*   **Linter:** [ESLint](https://eslint.org/) with TypeScript support.
+    *   Configuration: Implicitly via `src/frontend/package.json` scripts (e.g. `.eslintrc.js` could be added in `src/frontend/` for detailed rules).
+    *   To lint: `npm run lint:frontend` (from project root, executes `bun run lint` in `src/frontend/`)
+
+**Combined Commands (from project root):**
+*   Format both backend and frontend:
+    ```bash
+    npm run format
+    ```
+*   Lint both backend and frontend:
+    ```bash
+    npm run lint
+    ```
+*   Run all checks (linting and frontend type checking):
+    ```bash
+    npm run check:all
+    ```
 
 ## API Documentation
 
