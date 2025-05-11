@@ -95,4 +95,4 @@ venv/*
 # Documentation
 docs/
      
-.cursor/
+!.cursor/

@@ -306,11 +306,7 @@ class DistributionManager:
                         if version is None and self.resources and hasattr(self.resources, 'version'):
                             version = self.resources.version
                         
-                        # If still None, try scheduler_version from config
-                        if version is None and self.config:
-                            version = self.config.get('scheduler_version', 1)
-                            
-                        # Last fallback
+                        # Fallback to 1 if not found from self.version or self.resources.version
                         if version is None:
                             version = 1
                             
@@ -752,7 +748,7 @@ class DistributionManager:
         # 6. Overstaffing Penalty (New Logic)
         shift_covered_intervals = context.get("shift_covered_intervals", [])
         full_day_staffing_snapshot = context.get("full_day_staffing_snapshot")
-        # interval_duration_minutes = context.get("interval_duration_minutes") # Available if needed for other logic
+        interval_duration_minutes = context.get("interval_duration_minutes") # Get interval_duration_minutes from context
 
         if shift_covered_intervals and full_day_staffing_snapshot:
             for covered_interval_time in shift_covered_intervals:
@@ -763,10 +759,22 @@ class DistributionManager:
                     continue
                 
                 # Get the needs for this specific covered interval
-                # Note: target_interval_needs is for the interval we are *trying to fill*, 
+                # Note: target_interval_needs is for the interval we are *trying to fill*,
                 # here we need needs for *each interval this shift covers*.
-                # ADDED CHECK for self.resources
-                needs_for_covered_interval = self.resources.get_interval_needs_for_time(shift_date, covered_interval_time) if self.resources else None
+                if self.resources and interval_duration_minutes is not None: # Ensure resources and interval_duration_minutes are available
+                    needs_for_covered_interval = get_required_staffing_for_interval(
+                        target_date=shift_date, 
+                        interval_start_time=covered_interval_time, 
+                        resources=self.resources, 
+                        interval_duration_minutes=interval_duration_minutes
+                    )
+                else:
+                    needs_for_covered_interval = None
+                    if not self.resources:
+                        self.logger.warning("Overstaffing check: self.resources not available.")
+                    if interval_duration_minutes is None:
+                        self.logger.warning("Overstaffing check: interval_duration_minutes not in context.")
+
                 if not needs_for_covered_interval:
                     self.logger.warning(f"Overstaffing check: Needs not found for interval {covered_interval_time}. Skipping penalty for this interval.")
                     continue
@@ -931,8 +939,8 @@ class DistributionManager:
                 "start_time": shift_details.get('start_time') if isinstance(shift_details, dict) else "00:00",
                 "end_time": shift_details.get('end_time') if isinstance(shift_details, dict) else "00:00",
                 "status": "ERROR_INCOMPLETE_DATA",
-                # ADDED CHECK for self.resources
-                "version": self.resources.version_id if self.resources and hasattr(self.resources, 'version_id') else 1,
+                # Use self.config to get version_id, fallback to 1
+                "version": getattr(self, 'version', None) or (self.resources.version if self.resources and hasattr(self.resources, 'version') else 1)
             }
         else:
             assignment_to_record = new_assignment_dict
@@ -973,7 +981,7 @@ class DistributionManager:
         shift_start_time_for_cat = assignment_to_record.get('start_time')
         shift_template_id_for_cat = assignment_to_record.get('shift_template_id')
         # ADDED CHECK for self.resources
-        original_shift_template = self.resources.get_shift_template_by_id(shift_template_id_for_cat) if self.resources and shift_template_id_for_cat else None
+        original_shift_template = self.resources.get_shift(shift_template_id_for_cat) if self.resources and shift_template_id_for_cat else None
         
         if original_shift_template: # Prefer using the full template for categorization
             category = self._categorize_shift(original_shift_template)
@@ -1833,7 +1841,8 @@ class DistributionManager:
                 "end_time": assigned_shift_data["end_time"],
                 "duration_hours": self.calculate_duration(assigned_shift_data["start_time"], assigned_shift_data["end_time"]),
                 "status": "PENDING", # Or "CONFIRMED" if direct
-                "version": self.resources.version_id, # Assuming version_id is available in resources
+                # Use self.config to get version_id, fallback to 1
+                "version": getattr(self, 'version', None) or (self.resources.version if self.resources and hasattr(self.resources, 'version') else 1),
                 "shift_type": assigned_shift_data.get("shift_type", "Unknown"),
                 "employee_group": getattr(best_candidate_for_assignment["employee_instance"], "employee_group", "Unknown"),
                 "score": best_candidate_for_assignment["score"]

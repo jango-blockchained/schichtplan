@@ -113,7 +113,7 @@ def create_app(config_class=Config):
     app.register_blueprint(settings, url_prefix="/api")
     app.register_blueprint(schedules, url_prefix="/api")
     app.register_blueprint(employees, url_prefix="/api")
-    app.register_blueprint(availability, url_prefix="/api")
+    app.register_blueprint(availability)
     app.register_blueprint(absences_bp, url_prefix="/api")
     app.register_blueprint(coverage_bp)
     app.register_blueprint(
