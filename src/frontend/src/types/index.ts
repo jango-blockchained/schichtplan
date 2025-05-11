@@ -436,6 +436,10 @@ export interface ApplicableShift {
   start_time: string; // "HH:MM"
   end_time: string;   // "HH:MM"
   availability_type: AvailabilityTypeStrings;
+  is_available: boolean; // Whether the employee is fully available for this shift
+  availability_hours?: Array<{ hour: number; availability_type: string }>; // Details about each hour's availability
+  is_currently_assigned?: boolean; // Whether this shift is already assigned to this employee
+  is_assigned_to_other?: boolean; // Whether this shift is assigned to another employee
 }
 
 export interface BaseCoverage {

@@ -9,6 +9,7 @@ class ScheduleStatus(str, Enum):
     DRAFT = "DRAFT"  # Initial state, can be modified
     PUBLISHED = "PUBLISHED"  # Published to employees, can't be modified
     ARCHIVED = "ARCHIVED"  # Old schedule, kept for records
+    PENDING = "PENDING"  # Added to fix version 1 database records
 
 
 class Schedule(db.Model):
@@ -66,6 +67,8 @@ class Schedule(db.Model):
 
     def to_dict(self):
         """Convert schedule to dictionary for API response"""
+        from .fixed_shift import ShiftTemplate  # Import here to avoid circular imports
+        
         data = {
             "id": self.id,
             "employee_id": self.employee_id,
@@ -82,8 +85,8 @@ class Schedule(db.Model):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
-        # Add shift details if available
-        if self.shift:
+        # Add shift details if available through relationship
+        if hasattr(self, 'shift') and self.shift:
             data.update(
                 {
                     "shift_start": self.shift.start_time,
@@ -97,12 +100,36 @@ class Schedule(db.Model):
                     else None,
                 }
             )
+        # If no relationship but we have a shift_id, fetch the shift data
+        elif self.shift_id is not None:
+            try:
+                # Try to get the shift directly from the database
+                shift = ShiftTemplate.query.get(self.shift_id)
+                if shift:
+                    data.update(
+                        {
+                            "shift_start": shift.start_time,
+                            "shift_end": shift.end_time,
+                            "duration_hours": shift.duration_hours
+                            if hasattr(shift, "duration_hours")
+                            else 0.0,
+                            "shift_type_id": shift.shift_type_id,
+                            "shift_type_name": shift.shift_type.value
+                            if shift.shift_type
+                            else None,
+                        }
+                    )
+            except Exception as e:
+                # Log the error but don't fail the whole response
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Error fetching shift data for schedule {self.id}: {e}")
 
-            # Add employee name if available (for convenience)
-            if hasattr(self, "employee") and self.employee:
-                data["employee_name"] = (
-                    f"{self.employee.first_name} {self.employee.last_name}"
-                )
+        # Add employee name if available (for convenience)
+        if hasattr(self, "employee") and self.employee:
+            data["employee_name"] = (
+                f"{self.employee.first_name} {self.employee.last_name}"
+            )
 
         return data
 

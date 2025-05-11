@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -7,7 +7,7 @@ import {
     DropdownMenuTrigger,
     DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu';
-import { CalendarPlus, Trash2, AlertCircle, Table2, LayoutGrid, Play, Settings, Plus, Separator, Wrench } from 'lucide-react';
+import { CalendarPlus, Trash2, AlertCircle, Play, Settings, Plus, Wrench, Clock, Loader2, Sparkles } from 'lucide-react';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -19,158 +19,178 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Separator as UISeparator } from '@/components/ui/separator';
+
 
 interface ScheduleActionsProps {
     onAddSchedule: () => void;
     onDeleteSchedule: () => void;
-    onGenerateStandardSchedule?: () => void; // Renamed
-    onGenerateAiSchedule?: () => void;     // Added
-    onOpenGenerationSettings?: () => void;
-    onFixDisplay?: () => void;
-    isLoading?: boolean;
-    isGenerating?: boolean; // Can be used for both, or add isAiGenerating if needed
-    canAdd?: boolean;
-    canDelete?: boolean;
-    canGenerate?: boolean; // This can gate the whole dropdown
-    canFix?: boolean;
-    activeView?: 'table' | 'grid';
-    onViewChange?: (view: 'table' | 'grid') => void;
+    onGenerateStandardSchedule: () => void;
+    onGenerateAiSchedule: () => void;
+    onOpenGenerationSettings: () => void;
+    onFixDisplay: () => void;
+    onFixTimeData: () => void;
+    isLoading: boolean;
+    isGenerating: boolean;
+    canAdd: boolean;
+    canDelete: boolean;
+    canGenerate: boolean;
+    canFix: boolean;
+
 }
 
 export function ScheduleActions({
     onAddSchedule,
     onDeleteSchedule,
-    onGenerateStandardSchedule, // Renamed
-    onGenerateAiSchedule,     // Added
+    onGenerateStandardSchedule,
+    onGenerateAiSchedule,
     onOpenGenerationSettings,
     onFixDisplay,
-    isLoading = false,
-    isGenerating = false,
-    canAdd = true,
-    canDelete = true,
-    canGenerate = true,
-    canFix = true,
-    activeView = 'table',
-    onViewChange
+    onFixTimeData,
+    isLoading,
+    isGenerating,
+    canAdd,
+    canDelete,
+    canGenerate,
+    canFix
 }: ScheduleActionsProps) {
-    return (
-        <div className="flex items-center gap-2 flex-wrap">
-            {/* Add Schedule Button */}
-            <Button
-                onClick={onAddSchedule}
-                variant="outline"
-                className="flex items-center gap-2"
-                disabled={!canAdd || isLoading}
-            >
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">Hinzufügen</span>
-            </Button>
+    const [isFixingDisplay, setIsFixingDisplay] = useState(false);
+    const [isFixingTimeData, setIsFixingTimeData] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    
+    // Handle fixing display with loading state
+    const handleFixDisplay = async () => {
+        setIsFixingDisplay(true);
+        try {
+            await onFixDisplay();
+        } finally {
+            // Set timeout to show the loading state for at least a bit
+            setTimeout(() => setIsFixingDisplay(false), 500);
+        }
+    };
+    
+    // Handle fixing time data with loading state
+    const handleFixTimeData = async () => {
+        setIsFixingTimeData(true);
+        try {
+            await onFixTimeData();
+        } finally {
+            // Set timeout to show the loading state for at least a bit
+            setTimeout(() => setIsFixingTimeData(false), 500);
+        }
+    };
+    
+    // Handle delete with loading state
+    const handleDelete = async () => {
+        setIsDeleting(true);
+        try {
+            await onDeleteSchedule();
+        } finally {
+            setIsDeleting(false);
+        }
+    };
 
-            {/* Delete Schedule Button */}
+    return (
+        <div className="flex space-x-2">
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="flex items-center gap-1" disabled={isLoading || !canAdd}>
+                        <Plus className="h-4 w-4" />
+                        <span>Hinzufügen</span>
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem onClick={onAddSchedule}>
+                        <CalendarPlus className="h-4 w-4 mr-2" />
+                        <span>Neue Schicht</span>
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="flex items-center gap-1" disabled={isLoading || !canGenerate || isGenerating}>
+                        <Play className="h-4 w-4" />
+                        <span>Generieren</span>
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem onClick={onGenerateStandardSchedule} disabled={isGenerating}>
+                        {isGenerating ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                            <Play className="h-4 w-4 mr-2" />
+                        )}
+                        <span>Standard-Generierung</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={onGenerateAiSchedule} disabled={isGenerating}>
+                        {isGenerating ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                            <Sparkles className="h-4 w-4 mr-2" />
+                        )}
+                        <span>KI-Generierung</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={onOpenGenerationSettings}>
+                        <Settings className="h-4 w-4 mr-2" />
+                        <span>Generierungseinstellungen</span>
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="flex items-center gap-1" disabled={isLoading || !canFix}>
+                        <Wrench className="h-4 w-4" />
+                        <span>Reparieren</span>
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem onClick={handleFixDisplay} disabled={isFixingDisplay || isLoading}>
+                        {isFixingDisplay ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                            <AlertCircle className="h-4 w-4 mr-2" />
+                        )}
+                        <span>Display Probleme beheben</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleFixTimeData} disabled={isFixingTimeData || isLoading}>
+                        {isFixingTimeData ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                            <Clock className="h-4 w-4 mr-2" />
+                        )}
+                        <span>Schichtzeiten reparieren</span>
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+
             <AlertDialog>
                 <AlertDialogTrigger asChild>
-                    <Button
-                        variant="outline"
-                        className="flex items-center gap-2"
-                        disabled={!canDelete || isLoading}
-                    >
-                        <Trash2 className="h-4 w-4" />
-                        <span className="hidden sm:inline">Löschen</span>
+                    <Button variant="outline" className="flex items-center gap-1" disabled={isLoading || !canDelete || isDeleting}>
+                        {isDeleting ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                            <Trash2 className="h-4 w-4" />
+                        )}
+                        <span>Löschen</span>
                     </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Dienstplan löschen?</AlertDialogTitle>
+                        <AlertDialogTitle>Schichtplan löschen</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Möchten Sie wirklich alle Dienstpläne für diesen Zeitraum löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+                            Möchten Sie wirklich alle Schichtpläne der aktuellen Version löschen? Diese Aktion kann nicht rückgängig gemacht werden.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                        <AlertDialogAction onClick={onDeleteSchedule}>Löschen</AlertDialogAction>
+                        <AlertDialogAction onClick={handleDelete}>Löschen</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
 
-            <UISeparator orientation="vertical" className="h-8" />
 
-            {/* Fix Display Button */}
-            {onFixDisplay && (
-                <Button
-                    onClick={onFixDisplay}
-                    variant="outline"
-                    className="flex items-center gap-2"
-                    disabled={!canFix || isLoading}
-                >
-                    <Wrench className="h-4 w-4" />
-                    <span className="hidden sm:inline">Fix Display</span>
-                </Button>
-            )}
-
-            {/* Generate Schedule Dropdown Button */}
-            {(onGenerateStandardSchedule || onGenerateAiSchedule) && (
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button
-                            variant="default"
-                            className="flex items-center gap-2"
-                            disabled={!canGenerate || isGenerating || isLoading}
-                        >
-                            <Play className="h-4 w-4" />
-                            <span>{isGenerating ? "Generieren..." : "Generieren"}</span>
-                            {/* Add a chevron down icon or similar indicator for dropdown */}
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end"> {/* align="end" to make it open to the left if button is on the right */}
-                        {onGenerateStandardSchedule && (
-                            <DropdownMenuItem
-                                onClick={onGenerateStandardSchedule}
-                                disabled={!canGenerate || isGenerating || isLoading}
-                            >
-                                Standard Generierung
-                            </DropdownMenuItem>
-                        )}
-                        {onGenerateAiSchedule && (
-                            <DropdownMenuItem
-                                onClick={onGenerateAiSchedule}
-                                disabled={!canGenerate || isGenerating || isLoading} // Potentially add specific !canGenerateAI prop
-                            >
-                                AI Generierung
-                            </DropdownMenuItem>
-                        )}
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            )}
-
-            {/* Generation Settings Button */}
-            {onOpenGenerationSettings && (
-                <Button
-                    onClick={onOpenGenerationSettings}
-                    variant="outline"
-                    className="flex items-center gap-2"
-                    disabled={isLoading}
-                >
-                    <Settings className="h-4 w-4" />
-                    <span className="hidden sm:inline">Einstellungen</span>
-                </Button>
-            )}
-
-            {onViewChange && (
-                <Tabs value={activeView} onValueChange={onViewChange as any} className="w-auto">
-                    <TabsList className="grid w-[200px] grid-cols-2">
-                        <TabsTrigger value="table" className="flex items-center gap-2">
-                            <Table2 className="h-4 w-4" />
-                            <span>Tabelle</span>
-                        </TabsTrigger>
-                        <TabsTrigger value="grid" className="flex items-center gap-2">
-                            <LayoutGrid className="h-4 w-4" />
-                            <span>Zeitraster</span>
-                        </TabsTrigger>
-                    </TabsList>
-                </Tabs>
-            )}
         </div>
     );
 } 

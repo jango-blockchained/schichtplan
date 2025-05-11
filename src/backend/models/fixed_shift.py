@@ -51,15 +51,7 @@ class ShiftTemplate(db.Model):
     active_days = db.Column(
         db.JSON,
         nullable=False,
-        default=lambda: {
-            "0": True,  # Monday
-            "1": True,  # Tuesday
-            "2": True,  # Wednesday
-            "3": True,  # Thursday
-            "4": True,  # Friday
-            "5": True,  # Saturday
-            "6": False, # Sunday
-        },
+        default=lambda: [0, 1, 2, 3, 4, 5],  # Monday to Saturday active by default
     )
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(
@@ -78,15 +70,14 @@ class ShiftTemplate(db.Model):
         self.start_time = start_time
         self.end_time = end_time
         self.requires_break = requires_break
-        self.active_days = active_days or {
-            "0": True,  # Monday
-            "1": True,  # Tuesday
-            "2": True,  # Wednesday
-            "3": True,  # Thursday
-            "4": True,  # Friday
-            "5": True,  # Saturday
-            "6": False, # Sunday
-        }
+        self.active_days = active_days or [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+        ]  # Default to Monday-Saturday if not provided
         self.shift_type_id = shift_type_id
 
         # Determine shift type based on time if not provided

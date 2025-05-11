@@ -1,12 +1,16 @@
 from flask import Blueprint, request, jsonify
 from models import db, EmployeeAvailability, Employee
 from models.employee import AvailabilityType
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from http import HTTPStatus
 from models import Absence, Schedule, ShiftTemplate
 from models.schedule import ScheduleStatus, ScheduleVersionMeta
-from sqlalchemy import desc
+from sqlalchemy import desc, or_, and_
 from flask import current_app
+from models import Settings
+from typing import List, Dict, Any, Tuple, Optional
+from pydantic import ValidationError
+from src.backend.schemas.availability import AvailabilityCreateRequest, AvailabilityUpdateRequest, AvailabilityCheckRequest
 
 availability = Blueprint('availability', __name__, url_prefix='/api/availability')
 
@@ -19,14 +23,20 @@ def get_availabilities():
 @availability.route('/', methods=['POST'])
 def create_availability():
     """Create a new availability"""
-    data = request.get_json()
     
     try:
+        data = request.get_json()
+        # Validate data using Pydantic schema
+        request_data = AvailabilityCreateRequest(**data)
+
+        # Create availability using validated data
         availability = EmployeeAvailability(
-            employee_id=data['employee_id'],
-            day_of_week=data['day_of_week'],
-            hour=data['hour'],
-            is_available=data.get('is_available', True)
+            employee_id=request_data.employee_id,
+            day_of_week=request_data.day_of_week,
+            hour=request_data.hour,
+            # Explicitly ensure is_available is a boolean
+            is_available=bool(request_data.is_available), 
+            availability_type=AvailabilityType(request_data.availability_type) # Ensure AvailabilityType enum is used
         )
         
         db.session.add(availability)
@@ -34,13 +44,11 @@ def create_availability():
         
         return jsonify(availability.to_dict()), HTTPStatus.CREATED
         
-    except KeyError as e:
-        return jsonify({'error': f'Missing required field: {str(e)}'}), HTTPStatus.BAD_REQUEST
-    except ValueError as e:
-        return jsonify({'error': str(e)}), HTTPStatus.BAD_REQUEST
-    except Exception as e:
+    except ValidationError as e: # Catch Pydantic validation errors
+        return jsonify({'status': 'error', 'message': 'Invalid input.', 'details': e.errors()}), HTTPStatus.BAD_REQUEST # Return validation details
+    except Exception as e: # Catch any other exceptions
         db.session.rollback()
-        return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+        return jsonify({'status': 'error', 'message': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 @availability.route('/<int:availability_id>', methods=['GET'])
 def get_availability(availability_id):
@@ -52,26 +60,34 @@ def get_availability(availability_id):
 def update_availability(availability_id):
     """Update an availability"""
     availability = EmployeeAvailability.query.get_or_404(availability_id)
-    data = request.get_json()
     
     try:
-        if 'employee_id' in data:
-            availability.employee_id = data['employee_id']
-        if 'day_of_week' in data:
-            availability.day_of_week = data['day_of_week']
-        if 'hour' in data:
-            availability.hour = data['hour']
-        if 'is_available' in data:
-            availability.is_available = data['is_available']
+        data = request.get_json()
+        # Validate data using Pydantic schema
+        request_data = AvailabilityUpdateRequest(**data)
+
+        # Update availability attributes from validated data if provided
+        if request_data.employee_id is not None:
+            availability.employee_id = request_data.employee_id
+        if request_data.day_of_week is not None:
+            availability.day_of_week = request_data.day_of_week
+        if request_data.hour is not None:
+            availability.hour = request_data.hour
+        if request_data.is_available is not None:
+            # Explicitly ensure is_available is a boolean if provided
+            availability.is_available = bool(request_data.is_available)
+        if request_data.availability_type is not None:
+             # Ensure AvailabilityType enum is used
+            availability.availability_type = AvailabilityType(request_data.availability_type)
         
         db.session.commit()
         return jsonify(availability.to_dict())
         
-    except ValueError as e:
-        return jsonify({'error': str(e)}), HTTPStatus.BAD_REQUEST
-    except Exception as e:
+    except ValidationError as e: # Catch Pydantic validation errors
+        return jsonify({'status': 'error', 'message': 'Invalid input.', 'details': e.errors()}), HTTPStatus.BAD_REQUEST # Return validation details
+    except Exception as e: # Catch any other exceptions
         db.session.rollback()
-        return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+        return jsonify({'status': 'error', 'message': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 @availability.route('/<int:availability_id>', methods=['DELETE'])
 def delete_availability(availability_id):
@@ -90,11 +106,16 @@ def delete_availability(availability_id):
 @availability.route('/check', methods=['POST'])
 def check_availability():
     """Check employee availability for a specific date and time range"""
-    data = request.get_json()
     
     try:
-        employee_id = data['employee_id']
-        check_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+        data = request.get_json()
+        # Validate data using Pydantic schema
+        request_data = AvailabilityCheckRequest(**data)
+
+        # Access validated data from the model
+        employee_id = request_data.employee_id
+        check_date = request_data.date # Pydantic returns date object
+        hour = request_data.hour
         
         # Get employee
         employee = Employee.query.get_or_404(employee_id)
@@ -106,9 +127,7 @@ def check_availability():
         ).all()
         
         # Check time range if provided
-        hour = None
-        if 'hour' in data:
-            hour = data['hour']
+        if hour is not None:
             availabilities = [a for a in availabilities if a.hour == hour]
         
         # If no availability records exist for this time, employee is considered available
@@ -123,6 +142,8 @@ def check_availability():
             'reason': None if is_available else 'Marked as unavailable for this time'
         })
         
+    except ValidationError as e:
+        return jsonify({'status': 'error', 'message': 'Invalid input.', 'details': e.errors()}), HTTPStatus.BAD_REQUEST # Return validation details
     except KeyError as e:
         return jsonify({'error': f'Missing required field: {str(e)}'}), HTTPStatus.BAD_REQUEST
     except ValueError as e:
@@ -190,6 +211,8 @@ def get_employee_status_by_date():
         # Determine the version_id to check against for schedules
         # Prioritize Published, then latest Draft, then latest overall.
         version_to_check = ScheduleVersionMeta.query.filter(
+            ScheduleVersionMeta.date_range_start.isnot(None), # Explicitly check not None
+            ScheduleVersionMeta.date_range_end.isnot(None), # Explicitly check not None
             ScheduleVersionMeta.date_range_start <= target_date,
             ScheduleVersionMeta.date_range_end >= target_date,
             ScheduleVersionMeta.status == ScheduleStatus.PUBLISHED
@@ -197,6 +220,8 @@ def get_employee_status_by_date():
 
         if not version_to_check:
             version_to_check = ScheduleVersionMeta.query.filter(
+                ScheduleVersionMeta.date_range_start.isnot(None), # Explicitly check not None
+                ScheduleVersionMeta.date_range_end.isnot(None), # Explicitly check not None
                 ScheduleVersionMeta.date_range_start <= target_date,
                 ScheduleVersionMeta.date_range_end >= target_date,
                 ScheduleVersionMeta.status == ScheduleStatus.DRAFT
@@ -204,6 +229,7 @@ def get_employee_status_by_date():
         
         if not version_to_check:
             # Fallback to the absolute latest version if no specific one covers the date well
+            # This fallback doesn't need date range checks as it's the *latest* regardless of range
             version_to_check = ScheduleVersionMeta.query.order_by(desc(ScheduleVersionMeta.version)).first()
 
         version_id_to_check = version_to_check.version if version_to_check else None
@@ -240,8 +266,20 @@ def get_employee_status_by_date():
 
             if emp.id in absences_on_date:
                 absence = absences_on_date[emp.id]
-                status = f"Absence: {absence.absence_type}" # Assuming absence_type field exists
-                details = absence.to_dict() if hasattr(absence, 'to_dict') else {'reason': absence.reason or status}
+                
+                # Get settings for absence type lookup
+                settings = Settings.query.first()
+                absence_type_name = absence.absence_type_id  # Default fallback to the ID
+                
+                # Try to find the human-readable name from settings.absence_types
+                if settings and settings.absence_types:
+                    for absence_type in settings.absence_types:
+                        if absence_type.get('id') == absence.absence_type_id:
+                            absence_type_name = absence_type.get('name', absence.absence_type_id)
+                            break
+                
+                status = f"Absence: {absence_type_name}"
+                details = absence.to_dict() if hasattr(absence, 'to_dict') else {'reason': absence.note or status}
             elif emp.id in schedules_on_date:
                 schedule, shift_template = schedules_on_date[emp.id]
                 status = f"Shift: {shift_template.name if hasattr(shift_template, 'name') else shift_template.shift_type_id} ({shift_template.start_time.strftime('%H:%M')} - {shift_template.end_time.strftime('%H:%M')})"
@@ -263,7 +301,7 @@ def get_employee_status_by_date():
 
 @availability.route('/shifts_for_employee', methods=['GET'])
 def get_shifts_for_employee_on_date():
-    """Get applicable shifts for an employee on a given date, considering their availability."""
+    """Get all shift templates active on a given day for an employee, including availability information."""
     date_str = request.args.get('date')
     employee_id_str = request.args.get('employee_id')
 
@@ -277,21 +315,42 @@ def get_shifts_for_employee_on_date():
         return jsonify({'error': 'Invalid date format or employee_id'}), HTTPStatus.BAD_REQUEST
 
     try:
-        _ = Employee.query.get_or_404(employee_id) # Ensure employee exists
+        # Ensure employee exists
+        _ = Employee.query.get_or_404(employee_id)
         day_of_week_str = str(target_date.weekday()) # Monday is 0, Sunday is 6. Key for active_days JSON.
 
-        # 1. Fetch shift templates that are active on this day_of_week
-        # ShiftTemplate.active_days is a JSON like: {"0": true, "1": false, ...}
-        # We need to query where the key for the current day_of_week_str is true.
-        # This requires a JSON-specific query if the DB supports it well, or fetching more and filtering.
-        # For simplicity and broad compatibility, fetch all and filter in Python first.
-        # TODO: Optimize this query if performance becomes an issue for many shift templates.
-        
+        # 1. Get all shift templates active on this day_of_week
         potential_shift_templates = ShiftTemplate.query.all()
-        active_shift_templates = [
-            st for st in potential_shift_templates 
-            if st.active_days and isinstance(st.active_days, dict) and st.active_days.get(day_of_week_str, False)
-        ]
+        active_shift_templates = []
+        
+        for st in potential_shift_templates:
+            try:
+                # Log the shift template and its active_days for debugging
+                current_app.logger.debug(f"Checking shift template ID {st.id}, active_days: {st.active_days}, type: {type(st.active_days)}")
+                
+                if st.active_days is None:
+                    current_app.logger.warning(f"Shift template ID {st.id} has no active_days field")
+                    continue
+                    
+                # Handle dict format (older format)
+                if isinstance(st.active_days, dict):
+                    if st.active_days.get(day_of_week_str, False):
+                        active_shift_templates.append(st)
+                        current_app.logger.debug(f"Added shift template ID {st.id} (dict format)")
+                
+                # Handle list format (newer format)
+                elif isinstance(st.active_days, list):
+                    day_of_week_int = int(day_of_week_str)
+                    if day_of_week_int in st.active_days:
+                        active_shift_templates.append(st)
+                        current_app.logger.debug(f"Added shift template ID {st.id} (list format)")
+                        
+                else:
+                    current_app.logger.warning(f"Shift template ID {st.id} has unknown active_days format: {type(st.active_days)}")
+            except Exception as e:
+                current_app.logger.error(f"Error processing shift template ID {st.id}: {str(e)}")
+                
+        current_app.logger.info(f"Found {len(active_shift_templates)} active shift templates out of {len(potential_shift_templates)} total templates for day {day_of_week_str}")
         
         # 2. Fetch employee's availability for that day_of_week
         employee_availabilities_for_day = EmployeeAvailability.query.filter_by(
@@ -300,12 +359,27 @@ def get_shifts_for_employee_on_date():
         ).all()
 
         availability_map = {avail.hour: avail for avail in employee_availabilities_for_day}
-        applicable_shifts = []
+        shifts_with_availability = []
+
+        # Check existing assignments for this employee on this date
+        existing_assignment = Schedule.query.filter(
+            Schedule.employee_id == employee_id,
+            Schedule.date == target_date,
+            Schedule.shift_id.isnot(None),
+            Schedule.status.in_([ScheduleStatus.DRAFT, ScheduleStatus.PUBLISHED])  # Only consider DRAFT or PUBLISHED statuses
+        ).first()
+
+        # Fetch all existing schedules for this date to check conflicts
+        existing_schedules = Schedule.query.filter(
+            Schedule.date == target_date,
+            Schedule.shift_id.isnot(None),
+            Schedule.status.in_([ScheduleStatus.DRAFT, ScheduleStatus.PUBLISHED])  # Only consider DRAFT or PUBLISHED statuses
+        ).all()
+        assigned_shift_ids = {schedule.shift_id for schedule in existing_schedules if schedule.employee_id != employee_id}
 
         for shift_template in active_shift_templates:
             try:
                 # Ensure start_time and end_time are time objects for .hour access
-                # ShiftTemplate stores them as strings "HH:MM"
                 st_start_time_obj = datetime.strptime(shift_template.start_time, '%H:%M').time()
                 st_end_time_obj = datetime.strptime(shift_template.end_time, '%H:%M').time()
             except ValueError:
@@ -315,49 +389,62 @@ def get_shifts_for_employee_on_date():
             shift_start_hour = st_start_time_obj.hour
             shift_end_hour = st_end_time_obj.hour
             
-            # Handle overnight shifts or shifts ending exactly at midnight (represented as hour 0 but day+1)
-            # If end_hour is 00:00, it usually means the end of the day, so range up to 24.
-            # If end_hour < shift_start_hour, it's an overnight shift. This simple model doesn't fully cover overnight for availability check.
-            # For now, if end_hour is 0 (midnight), treat it as 24 for range purposes for single-day availability.
+            # Handle overnight shifts or shifts ending exactly at midnight
             current_day_shift_end_hour = shift_end_hour
             if shift_end_hour == 0 and st_end_time_obj.minute == 0: # Ends exactly at midnight
-                 current_day_shift_end_hour = 24
-            elif shift_end_hour < shift_start_hour: # Overnight shift, only consider hours for the current target_date
-                 current_day_shift_end_hour = 24
+                current_day_shift_end_hour = 24
+            elif shift_end_hour < shift_start_hour: # Overnight shift
+                current_day_shift_end_hour = 24
 
-
+            # Check availability for each hour of the shift
             is_fully_available = True
-            shift_hours_availability_types = []
-
+            availability_hours = []
             for hour_of_day in range(shift_start_hour, current_day_shift_end_hour):
                 hourly_availability = availability_map.get(hour_of_day)
                 if not hourly_availability or not hourly_availability.is_available:
                     is_fully_available = False
-                    break
-                shift_hours_availability_types.append(hourly_availability.availability_type)
+                else:
+                    availability_hours.append({
+                        'hour': hour_of_day,
+                        'availability_type': hourly_availability.availability_type.value if hourly_availability.availability_type else 'AVL'
+                    })
             
-            if is_fully_available and shift_hours_availability_types:
-                effective_availability_type = AvailabilityType.AVAILABLE # Default
-                # Enum comparison: AvailabilityType.FIXED should be compared with enum members
-                if AvailabilityType.FIXED in shift_hours_availability_types:
+            # Determine the most restrictive availability type from available hours
+            effective_availability_type = AvailabilityType.AVAILABLE  # Default
+            for hour in availability_hours:
+                hour_type = hour['availability_type']
+                if hour_type == AvailabilityType.FIXED.value:
                     effective_availability_type = AvailabilityType.FIXED
-                elif AvailabilityType.PREFERRED in shift_hours_availability_types:
+                    break
+                elif hour_type == AvailabilityType.PREFERRED.value and effective_availability_type != AvailabilityType.FIXED:
                     effective_availability_type = AvailabilityType.PREFERRED
-                
-                shift_name = shift_template.shift_type_id or shift_template.shift_type.value
+            
+            # Get shift name
+            shift_name = shift_template.name if hasattr(shift_template, 'name') else (
+                shift_template.shift_type_id or (
+                    shift_template.shift_type.value if hasattr(shift_template, 'shift_type') else 'Unknown'
+                )
+            )
+            
+            # Add shift to result with availability information
+            shift_info = {
+                'shift_id': shift_template.id,
+                'name': shift_name,
+                'start_time': st_start_time_obj.strftime('%H:%M'),
+                'end_time': st_end_time_obj.strftime('%H:%M'),
+                'is_available': is_fully_available,
+                'availability_type': effective_availability_type.value if is_fully_available else 'UNAVAILABLE',
+                'availability_hours': availability_hours,
+                'is_currently_assigned': existing_assignment and existing_assignment.shift_id == shift_template.id,
+                'is_assigned_to_other': shift_template.id in assigned_shift_ids
+            }
+            
+            shifts_with_availability.append(shift_info)
 
-                applicable_shifts.append({
-                    'shift_id': shift_template.id,
-                    'name': shift_name,
-                    'start_time': st_start_time_obj.strftime('%H:%M'),
-                    'end_time': st_end_time_obj.strftime('%H:%M'),
-                    'availability_type': effective_availability_type.value
-                })
-
-        return jsonify(applicable_shifts), HTTPStatus.OK
+        return jsonify(shifts_with_availability), HTTPStatus.OK
 
     except Exception as e:
-        current_app.logger.error(f"Error in /api/availability/shifts_for_employee: {str(e)} - {type(e)}") # Corrected logging
-        import traceback # For more detailed logs during dev
-        current_app.logger.error(traceback.format_exc()) # For more detailed logs during dev
+        current_app.logger.error(f"Error in /api/availability/shifts_for_employee: {str(e)} - {type(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
         return jsonify({'error': f'An unexpected error occurred: {str(e)}'}), HTTPStatus.INTERNAL_SERVER_ERROR 

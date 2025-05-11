@@ -1,6 +1,8 @@
 from flask import Blueprint, jsonify, request
 from models import db, Absence, Employee
 from datetime import datetime
+from pydantic import ValidationError
+from src.backend.schemas.absences import AbsenceCreateRequest, AbsenceUpdateRequest
 
 bp = Blueprint('absences', __name__)
 
@@ -13,27 +15,29 @@ def get_employee_absences(employee_id):
 @bp.route('/employees/<int:employee_id>/absences', methods=['POST'])
 def create_absence(employee_id):
     employee = Employee.query.get_or_404(employee_id)
-    data = request.get_json()
     
-    # Validate dates
     try:
-        start_date = datetime.strptime(data['start_date'], '%Y-%m-%d').date()
-        end_date = datetime.strptime(data['end_date'], '%Y-%m-%d').date()
-        if end_date < start_date:
-            return jsonify({'error': 'End date must be after start date'}), 400
-    except (ValueError, KeyError):
-        return jsonify({'error': 'Invalid date format'}), 400
+        data = request.get_json()
+        # Validate data using Pydantic schema
+        request_data = AbsenceCreateRequest(**data)
 
-    # Create new absence
-    absence = Absence.from_dict(data)
-    db.session.add(absence)
+        # Keep check if end date is after start date (logical validation)
+        if request_data.end_date < request_data.start_date:
+            return jsonify({'error': 'End date must be after start date'}), 400
+
+        # Create new absence using validated data
+        absence = Absence.from_dict(request_data.model_dump())
+        absence.employee_id = employee_id # Set employee_id from URL
+        db.session.add(absence)
     
-    try:
         db.session.commit()
         return jsonify(absence.to_dict()), 201
-    except Exception as e:
+    
+    except ValidationError as e: # Catch Pydantic validation errors
+        return jsonify({"status": "error", "message": "Invalid input.", "details": e.errors()}), 400 # Return validation details
+    except Exception as e: # Catch any other exceptions
         db.session.rollback()
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'status': 'error', 'message': str(e)}), 400
 
 @bp.route('/employees/<int:employee_id>/absences/<int:absence_id>', methods=['DELETE'])
 def delete_absence(employee_id, absence_id):
@@ -50,28 +54,31 @@ def delete_absence(employee_id, absence_id):
 @bp.route('/employees/<int:employee_id>/absences/<int:absence_id>', methods=['PUT'])
 def update_absence(employee_id, absence_id):
     absence = Absence.query.filter_by(id=absence_id, employee_id=employee_id).first_or_404()
-    data = request.get_json()
     
-    # Validate dates
     try:
-        if 'start_date' in data and 'end_date' in data:
-            start_date = datetime.strptime(data['start_date'], '%Y-%m-%d').date()
-            end_date = datetime.strptime(data['end_date'], '%Y-%m-%d').date()
-            if end_date < start_date:
-                return jsonify({'error': 'End date must be after start date'}), 400
-    except ValueError:
-        return jsonify({'error': 'Invalid date format'}), 400
+        data = request.get_json()
+        # Validate data using Pydantic schema
+        request_data = AbsenceUpdateRequest(**data)
 
-    # Update fields
-    for key, value in data.items():
-        if key in ['start_date', 'end_date']:
-            setattr(absence, key, datetime.strptime(value, '%Y-%m-%d').date())
-        elif key in ['absence_type_id', 'note']:
-            setattr(absence, key, value)
-    
-    try:
+        # Validate dates (logical validation after Pydantic format check)
+        if request_data.start_date and request_data.end_date and request_data.end_date < request_data.start_date:
+             return jsonify({'error': 'End date must be after start date'}), 400
+
+        # Update fields from validated data if provided
+        if request_data.start_date is not None:
+            absence.start_date = request_data.start_date
+        if request_data.end_date is not None:
+            absence.end_date = request_data.end_date
+        if request_data.absence_type_id is not None:
+            absence.absence_type_id = request_data.absence_type_id
+        if request_data.note is not None:
+            absence.note = request_data.note
+
         db.session.commit()
         return jsonify(absence.to_dict())
-    except Exception as e:
+
+    except ValidationError as e: # Catch Pydantic validation errors
+        return jsonify({"status": "error", "message": "Invalid input.", "details": e.errors()}), 400 # Return validation details
+    except Exception as e: # Catch any other exceptions
         db.session.rollback()
-        return jsonify({'error': str(e)}), 400 
+        return jsonify({'status': 'error', 'message': str(e)}), 400 

@@ -1,21 +1,37 @@
 # For backend
-flask==3.0.0
+flask==3.1.0
 flask-sqlalchemy==3.1.1
-flask-migrate==4.0.5
-flask-cors==4.0.0
-python-dotenv==1.0.0
-pyjwt==2.8.0
-pillow==10.2.0
-reportlab==4.0.9
-pytest==8.0.0
-black==24.1.1
-flake8==7.0.0
-mypy==1.8.0
-python-dateutil==2.8.2
-SQLAlchemy==2.0.25
-gunicorn==21.2.0 
-ruff==0.11.2
+flask-migrate==4.1.0
+flask-cors==5.0.1
+python-dotenv==1.1.0
+pyjwt==2.10.1
+pillow==11.2.1
+reportlab==4.4.0
+pytest==8.3.5
+black==25.1.0
+flake8==7.2.0
+mypy==1.15.0
+python-dateutil==2.9.0.post0
+SQLAlchemy==2.0.40
+gunicorn==23.0.0
+ruff==0.11.9
 cloc==0.2.5
 
 # For SQL
-harlequin
+harlequin==2.1.2
+
+# Implicitly updated via other packages (checked from pip list --outdated):
+# charset-normalizer (was 3.4.1, latest 3.4.2) - often a sub-dependency
+# click (was 8.1.8, latest 8.2.0) - often a sub-dependency
+# google-ai-generativelanguage (was 0.6.6, latest 0.6.18) - likely updated if google-generativeai is updated
+# google-generativeai (was 0.7.2, latest 0.8.5) - if directly used, update; otherwise handled by parent
+# greenlet (was 3.2.1, latest 3.2.2) - often a sub-dependency
+# platformdirs (was 4.3.7, latest 4.3.8) - often a sub-dependency
+# pycodestyle (was 2.11.1, latest 2.13.0) - often a sub-dependency of linters like flake8
+# pydantic_core (was 2.33.2, latest 2.34.1) - often a sub-dependency
+# pyflakes (was 3.2.0, latest 3.3.2) - often a sub-dependency of linters like flake8
+
+# Note: Some dependencies like charset-normalizer, click, greenlet, platformdirs, pycodestyle, pydantic_core, pyflakes 
+# were listed as outdated but are not directly in requirements.txt. 
+# They are likely sub-dependencies and will be updated when their parent packages (e.g., flake8, other google libs) are updated.
+# I am only explicitly updating packages that are directly listed in requirements.txt for this step.

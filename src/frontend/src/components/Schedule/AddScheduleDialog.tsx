@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
-import { Calendar as CalendarIcon } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Check, X, AlertTriangle } from 'lucide-react';
 // Removed unused useQuery, useMutation, useQueryClient for now, can be added back if other parts need them
 import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,8 @@ import { cn } from '@/lib/utils';
 import { EmployeeAvailabilityStatus, ApplicableShift, AvailabilityTypeStrings } from '@/types';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Badge } from '@/components/ui/badge';
 
 interface AddScheduleDialogProps {
     isOpen: boolean;
@@ -55,8 +57,9 @@ export function AddScheduleDialog({
 }: AddScheduleDialogProps) {
     const { toast } = useToast();
 
+    // Initialize state with default values from props
     const [selectedEmployee, setSelectedEmployee] = useState<number | null>(null);
-    const [selectedDate, setSelectedDate] = useState<Date | undefined>(initialDefaultDate || new Date());
+    const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
     const [selectedShift, setSelectedShift] = useState<number | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -68,49 +71,58 @@ export function AddScheduleDialog({
     
     const [selectedAvailabilityType, setSelectedAvailabilityType] = useState<AvailabilityTypeStrings | null>(null);
 
-    // Effect to reset and initialize state when dialog opens or default props change
+    // Debug logging for props and state
+    useEffect(() => {
+      console.log('AddScheduleDialog props and state:', {
+        initialDefaultDate,
+        initialDefaultEmployeeId,
+        selectedDate,
+        selectedEmployee,
+        isOpen
+      });
+    }, [initialDefaultDate, initialDefaultEmployeeId, selectedDate, selectedEmployee, isOpen]);
+
+    // Reset state when dialog opens with default values
     useEffect(() => {
         if (isOpen) {
+            // Set default date and employee when dialog opens
             setSelectedDate(initialDefaultDate || new Date());
-            // initialDefaultEmployeeId will be handled by the selectedDate change effect triggering employee load
-            //setSelectedEmployee(initialDefaultEmployeeId || null); 
+            
+            if (initialDefaultEmployeeId) {
+                console.log('Setting initial employee ID:', initialDefaultEmployeeId);
+                setSelectedEmployee(initialDefaultEmployeeId);
+            } else {
+                setSelectedEmployee(null);
+            }
+            
+            // Reset shift selection
             setSelectedShift(null);
-            setApplicableShiftsList([]);
             setSelectedAvailabilityType(null);
-            // Employee list will be cleared and re-fetched by the selectedDate change effect
-        } else {
-            // Clear everything when closed to ensure fresh state on next open
-            setSelectedDate(new Date());
-            setSelectedEmployee(null);
-            setSelectedShift(null);
-            setEmployeeStatusList([]);
-            setApplicableShiftsList([]);
-            setSelectedAvailabilityType(null);
-            setIsLoadingEmployeeStatus(false);
-            setIsLoadingApplicableShifts(false);
-            setIsSubmitting(false);
         }
     }, [isOpen, initialDefaultDate, initialDefaultEmployeeId]);
 
-    // Fetch employee availability status when selectedDate changes (and dialog is open)
+    // Fetch employee availability status when selectedDate changes or dialog opens
     useEffect(() => {
         if (selectedDate && isOpen) {
             setIsLoadingEmployeeStatus(true);
-            setSelectedEmployee(null); // Reset employee when date changes
-            setEmployeeStatusList([]);
-            setSelectedShift(null); // Reset shift when date changes
-            setApplicableShiftsList([]);
-            setSelectedAvailabilityType(null);
-
+            
             getEmployeeAvailabilityByDate(format(selectedDate, 'yyyy-MM-dd'))
                 .then(data => {
                     setEmployeeStatusList(data);
-                    // If there was a defaultEmployeeId and the date matches the initialDefaultDate,
-                    // try to pre-select the employee if they are in the new list and available.
-                    if (initialDefaultEmployeeId && initialDefaultDate && format(selectedDate, 'yyyy-MM-dd') === format(initialDefaultDate, 'yyyy-MM-dd')) {
-                        const defaultEmp = data.find(emp => emp.employee_id === initialDefaultEmployeeId && emp.status === 'Available');
-                        if (defaultEmp) {
+                    console.log('Loaded employee status list:', data);
+                    
+                    // Check if default employee is in the list and still valid
+                    if (initialDefaultEmployeeId) {
+                        const defaultEmployeeInList = data.find(emp => 
+                            emp.employee_id === initialDefaultEmployeeId
+                        );
+                        
+                        if (defaultEmployeeInList) {
                             setSelectedEmployee(initialDefaultEmployeeId);
+                            console.log('Default employee found in list:', defaultEmployeeInList);
+                        } else {
+                            console.log('Default employee not found in list');
+                            // Don't clear selection if it was explicitly set
                         }
                     }
                 })
@@ -126,29 +138,42 @@ export function AddScheduleDialog({
                 .finally(() => {
                     setIsLoadingEmployeeStatus(false);
                 });
-        } else if (!isOpen) {
-            setEmployeeStatusList([]); // Clear list if dialog is closed
-            setSelectedEmployee(null);
         }
-    }, [selectedDate, isOpen, toast, initialDefaultDate, initialDefaultEmployeeId]);
+    }, [selectedDate, isOpen, toast, initialDefaultEmployeeId]);
 
-    // Fetch applicable shifts when selectedDate or selectedEmployee changes (and dialog is open)
+    // Load shifts when employee or date selection changes
     useEffect(() => {
         if (selectedDate && selectedEmployee && isOpen) {
             setIsLoadingApplicableShifts(true);
-            setSelectedShift(null); // Reset shift when employee/date changes
-            setApplicableShiftsList([]);
+            // Reset shift selection when employee/date changes
+            setSelectedShift(null);
             setSelectedAvailabilityType(null);
-
+            
+            console.log('Fetching shifts for employee:', selectedEmployee, 'on date:', format(selectedDate, 'yyyy-MM-dd'));
+            
             getApplicableShiftsForEmployee(format(selectedDate, 'yyyy-MM-dd'), selectedEmployee)
                 .then(data => {
+                    console.log('Loaded shifts with availability:', data);
                     setApplicableShiftsList(data);
+                    
+                    // Auto-select if there's only one available shift
+                    const availableShifts = data.filter(shift => shift.is_available);
+                    if (availableShifts.length === 1) {
+                        setSelectedShift(availableShifts[0].shift_id);
+                        setSelectedAvailabilityType(availableShifts[0].availability_type);
+                    }
+                    // If there's a currently assigned shift, select it
+                    const currentAssignment = data.find(shift => shift.is_currently_assigned);
+                    if (currentAssignment) {
+                        setSelectedShift(currentAssignment.shift_id);
+                        setSelectedAvailabilityType(currentAssignment.availability_type);
+                    }
                 })
                 .catch(error => {
-                    console.error("Error fetching applicable shifts:", error);
+                    console.error("Error fetching shift templates:", error);
                     toast({
                         title: "Fehler",
-                        description: `Verfügbare Schichten konnten nicht geladen werden: ${(error as Error).message}`,
+                        description: `Schichtvorlagen konnten nicht geladen werden: ${(error as Error).message}`,
                         variant: "destructive",
                     });
                     setApplicableShiftsList([]);
@@ -156,10 +181,6 @@ export function AddScheduleDialog({
                 .finally(() => {
                     setIsLoadingApplicableShifts(false);
                 });
-        } else {
-            setApplicableShiftsList([]);
-            setSelectedShift(null);
-            setSelectedAvailabilityType(null);
         }
     }, [selectedDate, selectedEmployee, isOpen, toast]);
 
@@ -167,8 +188,8 @@ export function AddScheduleDialog({
         if (!selectedEmployee || !selectedDate || !selectedShift || !selectedAvailabilityType) {
             toast({
                 title: "Fehlende Eingabe",
-                description: "Bitte wählen Sie Datum, Mitarbeiter und Schicht aus. Der Verfügbarkeitstyp wird automatisch ermittelt.",
-                variant: "warning", // Changed from default to warning
+                description: "Bitte wählen Sie Datum, Mitarbeiter und Schicht aus.",
+                variant: "warning",
             });
             return;
         }
@@ -197,24 +218,93 @@ export function AddScheduleDialog({
     
     const handleEmployeeChange = (value: string) => {
         const employeeId = value ? Number(value) : null;
+        console.log('Employee selection changed to:', employeeId);
         setSelectedEmployee(employeeId);
-        // Shift selection will be reset by the useEffect watching selectedEmployee
     };
 
     const handleShiftChange = (value: string) => {
         const shiftId = value ? Number(value) : null;
+        console.log('Shift selection changed to:', shiftId);
         setSelectedShift(shiftId);
         if (shiftId) {
             const chosenShift = applicableShiftsList.find(s => s.shift_id === shiftId);
-            setSelectedAvailabilityType(chosenShift ? chosenShift.availability_type : null);
+            if (chosenShift) {
+                setSelectedAvailabilityType(chosenShift.availability_type);
+            } else {
+                setSelectedAvailabilityType(null);
+            }
         } else {
             setSelectedAvailabilityType(null);
         }
     };
 
+    // Helper function to render shift info with availability indicators
+    const renderShiftItem = (shift: ApplicableShift) => {
+        const getAvailabilityColor = () => {
+            if (!shift.is_available) return "text-red-500";
+            switch (shift.availability_type) {
+                case 'FIXED': return "text-green-600 font-medium";
+                case 'PREFERRED': return "text-blue-600";
+                case 'AVAILABLE': return "text-gray-600";
+                default: return "text-gray-600";
+            }
+        };
+        
+        const getAvailabilityIcon = () => {
+            if (!shift.is_available) return <X className="h-4 w-4 text-red-500" />;
+            switch (shift.availability_type) {
+                case 'FIXED': return <Check className="h-4 w-4 text-green-600" />;
+                case 'PREFERRED': return <Check className="h-4 w-4 text-blue-600" />;
+                case 'AVAILABLE': return <Check className="h-4 w-4 text-gray-600" />;
+                default: return null;
+            }
+        };
+
+        // Create status badges
+        const badges = [];
+        
+        if (shift.is_currently_assigned) {
+            badges.push(
+                <Badge key="assigned" variant="outline" className="bg-green-100 text-green-800 border-green-300 ml-1">
+                    Zugewiesen
+                </Badge>
+            );
+        }
+        
+        if (shift.is_assigned_to_other) {
+            badges.push(
+                <Badge key="conflict" variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 ml-1">
+                    Belegt
+                </Badge>
+            );
+        }
+        
+        if (!shift.is_available) {
+            badges.push(
+                <Badge key="unavailable" variant="outline" className="bg-red-100 text-red-800 border-red-300 ml-1">
+                    Nicht verfügbar
+                </Badge>
+            );
+        }
+
+        return (
+            <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                    <span className="mr-2">{getAvailabilityIcon()}</span>
+                    <span className={cn(getAvailabilityColor())}>
+                        {shift.name} ({shift.start_time} - {shift.end_time})
+                    </span>
+                </div>
+                <div className="flex gap-1">
+                    {badges}
+                </div>
+            </div>
+        );
+    };
+
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[450px]">
                 <DialogHeader>
                     <DialogTitle>Neuen Schichtplan hinzufügen</DialogTitle>
                     <DialogDescription>
@@ -230,7 +320,7 @@ export function AddScheduleDialog({
                         <Popover>
                             <PopoverTrigger asChild>
                                 <Button
-                                    id="date-picker" // Ensure unique id if Label's htmlFor is used
+                                    id="date-picker"
                                     variant="outline"
                                     className={cn(
                                         "col-span-3 justify-start text-left font-normal",
@@ -252,6 +342,7 @@ export function AddScheduleDialog({
                             </PopoverContent>
                         </Popover>
                     </div>
+
                     {/* Employee Input */}
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="employee-select" className="text-right">
@@ -263,7 +354,7 @@ export function AddScheduleDialog({
                             disabled={isLoadingEmployeeStatus || !selectedDate || isSubmitting}
                         >
                             <SelectTrigger className="col-span-3" id="employee-select">
-                                <SelectValue placeholder={isLoadingEmployeeStatus ? "Lädt Mitarbeiter..." : ( !selectedDate ? "Bitte Datum wählen" : "Mitarbeiter auswählen")} />
+                                <SelectValue placeholder={isLoadingEmployeeStatus ? "Lädt Mitarbeiter..." : (!selectedDate ? "Bitte Datum wählen" : "Mitarbeiter auswählen")} />
                             </SelectTrigger>
                             <SelectContent>
                                 {isLoadingEmployeeStatus && <div className="p-2 text-sm text-muted-foreground text-center">Lädt Mitarbeiter...</div>}
@@ -273,12 +364,13 @@ export function AddScheduleDialog({
                                     <SelectItem 
                                         key={empStatus.employee_id} 
                                         value={empStatus.employee_id.toString()}
-                                        disabled={empStatus.status !== 'Available'} 
                                     >
                                         {empStatus.employee_name} 
                                         <span className={cn(
                                             "text-xs opacity-80 ml-2",
-                                            empStatus.status !== 'Available' && "text-red-500"
+                                            empStatus.status.startsWith("Absence") && "text-red-500",
+                                            empStatus.status.startsWith("Shift") && "text-blue-500",
+                                            empStatus.status === "Available" && "text-green-500"
                                         )}>
                                             ({empStatus.status})
                                         </span>
@@ -287,6 +379,7 @@ export function AddScheduleDialog({
                             </SelectContent>
                         </Select>
                     </div>
+
                     {/* Shift Input */}
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="shift-select" className="text-right">
@@ -301,18 +394,56 @@ export function AddScheduleDialog({
                                 <SelectValue placeholder={isLoadingApplicableShifts ? "Lädt Schichten..." : (!selectedEmployee ? "Bitte Mitarbeiter wählen" : "Schicht auswählen")} />
                             </SelectTrigger>
                             <SelectContent>
-                                {isLoadingApplicableShifts && <div className="p-2 text-sm text-muted-foreground text-center">Lädt Schichten...</div>}
+                                {isLoadingApplicableShifts && 
+                                    <div className="p-2 text-sm text-muted-foreground text-center">
+                                        <Clock className="h-4 w-4 animate-spin inline mr-2" />
+                                        Lädt Schichten...
+                                    </div>
+                                }
                                 {!isLoadingApplicableShifts && selectedEmployee && applicableShiftsList.length === 0 && 
-                                    <div className="p-2 text-sm text-muted-foreground text-center">Keine Schichten für diesen Mitarbeiter an diesem Tag.</div>}
-                                {applicableShiftsList.map((shift) => (
-                                    <SelectItem key={shift.shift_id} value={shift.shift_id.toString()}>
-                                        {shift.name} ({shift.start_time} - {shift.end_time}) 
-                                        <span className="text-xs opacity-80 ml-2">({shift.availability_type})</span>
+                                    <div className="p-2 text-sm text-muted-foreground text-center">
+                                        <AlertTriangle className="h-4 w-4 inline mr-2 text-yellow-500" />
+                                        Keine Schichten für diesen Tag definiert.
+                                    </div>
+                                }
+                                {/* First show available shifts */}
+                                {applicableShiftsList.filter(s => s.is_available).map((shift) => (
+                                    <SelectItem 
+                                        key={`available-${shift.shift_id}`} 
+                                        value={shift.shift_id.toString()}
+                                        className="py-2"
+                                    >
+                                        {renderShiftItem(shift)}
+                                    </SelectItem>
+                                ))}
+                                
+                                {/* Then show unavailable shifts (if any) */}
+                                {applicableShiftsList.filter(s => !s.is_available).length > 0 && (
+                                    <div className="py-1 px-2 text-xs text-muted-foreground border-t">
+                                        Nicht verfügbare Schichten:
+                                    </div>
+                                )}
+                                {applicableShiftsList.filter(s => !s.is_available).map((shift) => (
+                                    <SelectItem 
+                                        key={`unavailable-${shift.shift_id}`} 
+                                        value={shift.shift_id.toString()}
+                                        className="py-2"
+                                    >
+                                        {renderShiftItem(shift)}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                     </div>
+
+                    {/* Show selected availability type if one is selected */}
+                    {selectedShift && selectedAvailabilityType && (
+                        <div className="p-2 bg-slate-50 rounded border mt-2">
+                            <div className="text-sm text-center">
+                                <strong>Verfügbarkeitstyp:</strong> {selectedAvailabilityType}
+                            </div>
+                        </div>
+                    )}
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
@@ -320,7 +451,7 @@ export function AddScheduleDialog({
                     </Button>
                     <Button
                         onClick={handleSubmit}
-                        disabled={!selectedEmployee || !selectedDate || !selectedShift || !selectedAvailabilityType || isSubmitting || isLoadingEmployeeStatus || isLoadingApplicableShifts}
+                        disabled={!selectedEmployee || !selectedDate || !selectedShift || !selectedAvailabilityType || isSubmitting}
                     >
                         {isSubmitting ? 'Speichert...' : 'Speichern'}
                     </Button>

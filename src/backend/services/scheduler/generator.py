@@ -178,24 +178,57 @@ class ScheduleAssignment:
         employee_id: int,
         shift_id: int,
         date_val: date,
-        shift_template: Any = None,
+        shift_template: Any = None,  # This can be ShiftTemplate ORM object or a dict
         availability_type: Optional[str] = None,
         status: str = "PENDING",
         version: int = 1,
+        # Add other potential fields from DistributionManager's assignment dict
+        break_start: Optional[str] = None,
+        break_end: Optional[str] = None,
+        notes: Optional[str] = None,
     ):
         self.employee_id = employee_id
         self.shift_id = shift_id
         self.date = date_val
-        self.shift_template = shift_template
+        self.shift_template_source = shift_template # Store the original for reference
         self.availability_type = availability_type or (AvailabilityType.AVAILABLE.value if hasattr(AvailabilityType, 'AVAILABLE') else "AVL")
         self.status = status
         self.version = version
+
         self.start_time: Optional[str] = None
         self.end_time: Optional[str] = None
-        if shift_template and hasattr(shift_template, 'start_time'):
-            self.start_time = shift_template.start_time
-        if shift_template and hasattr(shift_template, 'end_time'):
-            self.end_time = shift_template.end_time
+        self.shift_type_str: Optional[str] = None # Store shift_type as string
+        self.notes = notes
+        self.break_start = break_start
+        self.break_end = break_end
+        
+        # Extract details from shift_template (which could be an ORM object or a dict)
+        if shift_template:
+            # Get start_time
+            if hasattr(shift_template, 'start_time'):
+                self.start_time = getattr(shift_template, 'start_time')
+            elif isinstance(shift_template, dict) and 'start_time' in shift_template:
+                self.start_time = shift_template['start_time']
+
+            # Get end_time
+            if hasattr(shift_template, 'end_time'):
+                self.end_time = getattr(shift_template, 'end_time')
+            elif isinstance(shift_template, dict) and 'end_time' in shift_template:
+                self.end_time = shift_template['end_time']
+
+            # Get shift_type string
+            # Check for 'shift_type' attribute first (could be an Enum or string)
+            shift_type_val = None
+            if hasattr(shift_template, 'shift_type'):
+                shift_type_val = getattr(shift_template, 'shift_type')
+            elif isinstance(shift_template, dict) and 'shift_type' in shift_template:
+                shift_type_val = shift_template['shift_type']
+            
+            if shift_type_val:
+                if hasattr(shift_type_val, 'value'):  # If it's an Enum object
+                    self.shift_type_str = shift_type_val.value
+                else:  # Assume it's already a string
+                    self.shift_type_str = str(shift_type_val)
 
 
 class ScheduleContainer:
@@ -824,29 +857,47 @@ class ScheduleGenerator:
                     target_status_enum = ScheduleStatus.DRAFT # Default
                     if current_status_str == "CONFIRMED":
                         target_status_enum = ScheduleStatus.PUBLISHED
+                    elif current_status_str == "PUBLISHED":
+                        target_status_enum = ScheduleStatus.PUBLISHED
                     elif current_status_str == "ARCHIVED":
                         target_status_enum = ScheduleStatus.ARCHIVED
-                    # Add other mappings if necessary, e.g., for PENDING, EMPTY
-                    # For now, unmapped statuses from ScheduleAssignment default to DRAFT in DbSchedule
+                    elif current_status_str == "PENDING":
+                        target_status_enum = ScheduleStatus.DRAFT
+                    elif current_status_str == "EMPTY": # Handle "EMPTY" status
+                        # For EMPTY status, some fields might be None or placeholders
+                        # Ensure employee_id and shift_id are nullable or handled
+                        # For now, we'll let them be what they are (e.g., 0)
+                        # and set status, but other fields might need specific handling.
+                         target_status_enum = ScheduleStatus.DRAFT # Or a specific status if added to Enum
+
+                    # Ensure employee_id and shift_id are valid or None if placeholder
+                    # The ScheduleAssignment for "EMPTY" uses 0, which might cause FK issues
+                    # if 0 is not a valid ID. This needs careful handling based on DB schema.
+                    # For now, assuming they can be 0 or are handled by DB allowing nullable/default.
+                    
+                    actual_employee_id = entry.employee_id if entry.employee_id != 0 else None
+                    actual_shift_id = entry.shift_id if entry.shift_id != 0 else None
+
 
                     db_entry = DbSchedule(
-                        employee_id=entry.employee_id,
-                        shift_id=entry.shift_id,
+                        employee_id=actual_employee_id,
+                        shift_id=actual_shift_id,
                         date=entry.date,
                         status=target_status_enum,
                         version=entry.version,
-                        break_start=getattr(entry, 'break_start', None),
-                        break_end=getattr(entry, 'break_end', None),
-                        notes=getattr(entry, 'notes', None),
-                        availability_type=getattr(entry, 'availability_type', None),
-                        shift_type=getattr(entry, 'shift_type', None)
+                        # Use the fields directly from ScheduleAssignment
+                        break_start=entry.break_start,
+                        break_end=entry.break_end,
+                        notes=entry.notes,
+                        availability_type=entry.availability_type,
+                        shift_type=entry.shift_type_str # Use the stored string value
                     )
                     db.session.add(db_entry)
                     saved_count += 1
                 except Exception as e_item:
                     failed_count += 1
                     self.logger.error(f"Failed to prepare or add schedule entry {entry} for DB: {e_item}", exc_info=True)
-                    self.process_tracker.log_error(f"DB Save Error for item: {e_item}") # Removed log_to_diag=True
+                    self.process_tracker.log_error(f"DB Save Error for item: {e_item}", exc_info=True)
 
             if saved_count > 0:
                 db.session.commit()

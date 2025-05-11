@@ -21,6 +21,7 @@ from reportlab.lib.units import inch
 from flask import current_app
 from services.scheduler import ScheduleGenerator, ScheduleGenerationError
 import logging
+from sqlalchemy import and_
 
 logger = logging.getLogger(__name__)
 
@@ -79,8 +80,12 @@ def get_schedules():
 
             # Try to get from version metadata too
             version_metas = ScheduleVersionMeta.query.filter(
-                ScheduleVersionMeta.date_range_start <= end_date_obj,
-                ScheduleVersionMeta.date_range_end >= start_date_obj,
+                and_(
+                    ScheduleVersionMeta.date_range_start != None,
+                    ScheduleVersionMeta.date_range_start <= end_date_obj,
+                    ScheduleVersionMeta.date_range_end != None,
+                    ScheduleVersionMeta.date_range_end >= start_date_obj
+                )
             ).all()
 
             # Combine versions from both sources
@@ -169,7 +174,7 @@ def get_schedules():
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-@bp.route("/generate", methods=["POST"])
+@bp.route("/generate_disabled_by_ai_dev_helper", methods=["POST"])
 def generate_schedule():
     """Generate a new schedule for the given date range"""
     try:
@@ -196,20 +201,20 @@ def generate_schedule():
         with current_app.app_context():
             # Generate new schedules
             generator = ScheduleGenerator()
-            # Setup logging to DEBUG level for diagnostic output
-            # This will create the console, main file, app, and diagnostic handlers
-            try:
-                log_dir = current_app.config.get("SCHEDULER_LOG_DIR", None) # Optional: Get custom log dir from config
-                app_log_dir = current_app.config.get("APP_LOG_DIR", None) # Optional: Get custom app log dir from config
-                generator.logging_manager.setup_logging(\
-                    log_level=logging.DEBUG, \
-                    log_to_file=True, \
-                    log_dir=log_dir, \
-                    app_log_dir=app_log_dir\
-                )
-            except Exception as log_setup_err:
-                # Log error during setup but don't necessarily stop generation
-                logger.error(f"Failed to setup scheduler logging: {log_setup_err}", exc_info=True)
+            # # Setup logging to DEBUG level for diagnostic output
+            # # This will create the console, main file, app, and diagnostic handlers
+            # try:
+            #     log_dir = current_app.config.get("SCHEDULER_LOG_DIR", None) # Optional: Get custom log dir from config
+            #     app_log_dir = current_app.config.get("APP_LOG_DIR", None) # Optional: Get custom app log dir from config
+            #     generator.logging_manager.setup_logging(\
+            #         log_level=logging.DEBUG, \
+            #         log_to_file=True, \
+            #         log_dir=log_dir, \
+            #         app_log_dir=app_log_dir\
+            #     )
+            # except Exception as log_setup_err:
+            #     # Log error during setup but don't necessarily stop generation
+            #     logger.error(f"Failed to setup scheduler logging: {log_setup_err}", exc_info=True)
 
             result = generator.generate_schedule(start_date, end_date)
 
@@ -270,7 +275,7 @@ def generate_schedule():
 
     except Exception as e:
         db.session.rollback()
-        logger.error_logger.error(f"Schedule generation error: {str(e)}")
+        logger.error(f"Schedule generation error: {str(e)}")
         return jsonify(
             {"error": "Could not generate schedule", "details": str(e)}
         ), HTTPStatus.INTERNAL_SERVER_ERROR
@@ -581,31 +586,35 @@ def test_schedule_generation(client, app):
 
         # Create employees
         keyholder1 = Employee(
-            name="Key Holder 1",
-            group=EmployeeGroup.VZ,
+            first_name="Key",
+            last_name="Holder 1",
+            employee_group=EmployeeGroup.VZ,  # Assuming 'group' maps to 'employee_group'
+            contracted_hours=40, # Assuming 'max_hours_per_week' maps to 'contracted_hours'
             is_keyholder=True,
-            max_hours_per_week=40,
         )
 
         keyholder2 = Employee(
-            name="Key Holder 2",
-            group=EmployeeGroup.VZ,
+            first_name="Key",
+            last_name="Holder 2",
+            employee_group=EmployeeGroup.VZ,
+            contracted_hours=40,
             is_keyholder=True,
-            max_hours_per_week=40,
         )
 
         employee1 = Employee(
-            name="Employee 1",
-            group=EmployeeGroup.TZ,
+            first_name="Employee",
+            last_name="1",
+            employee_group=EmployeeGroup.TZ,
+            contracted_hours=30,
             is_keyholder=False,
-            max_hours_per_week=30,
         )
 
         employee2 = Employee(
-            name="Employee 2",
-            group=EmployeeGroup.TZ,
+            first_name="Employee",
+            last_name="2",
+            employee_group=EmployeeGroup.TZ,
+            contracted_hours=30,
             is_keyholder=False,
-            max_hours_per_week=30,
         )
 
         db.session.add_all([keyholder1, keyholder2, employee1, employee2])

@@ -1,6 +1,8 @@
 from flask import Blueprint, request, jsonify
 from src.backend.services.ai_scheduler_service import AISchedulerService # Now this should exist
 from src.backend.utils.logger import logger # Corrected: import the global logger instance
+from pydantic import ValidationError # Import ValidationError
+from src.backend.schemas.ai_schedule import AIScheduleGenerateRequest # Import the Pydantic schema
 
 ai_schedule_bp = Blueprint('ai_schedule_bp', __name__, url_prefix='/ai/schedule')
 
@@ -22,14 +24,19 @@ def generate_ai_schedule():
 
         logger.app_logger.info(f"AI schedule generation request received: {data}") # Use logger.app_logger
 
-        start_date_str = data.get('start_date')
-        end_date_str = data.get('end_date')
-        version_id = data.get('version_id') # Can be None
-        ai_model_params = data.get('ai_model_params', {}) 
+        # Use Pydantic for validation
+        request_data = AIScheduleGenerateRequest(**data)
 
-        if not start_date_str or not end_date_str:
-            logger.app_logger.warning(f"AI schedule generation request missing required dates: {data}") # Use logger.app_logger
-            return jsonify({"error": "start_date and end_date (YYYY-MM-DD) are required"}), 400
+        # Access validated data from the model
+        start_date_str = request_data.start_date.strftime('%Y-%m-%d') # Convert date object back to string if needed by service
+        end_date_str = request_data.end_date.strftime('%Y-%m-%d')     # Convert date object back to string if needed by service
+        version_id = request_data.version_id
+        ai_model_params = request_data.ai_model_params
+
+        # Remove manual date validation, Pydantic handles it
+        # if not start_date_str or not end_date_str:
+        #     logger.app_logger.warning(f"AI schedule generation request missing required dates: {data}") # Use logger.app_logger
+        #     return jsonify({"error": "start_date and end_date (YYYY-MM-DD) are required"}), 400
 
         ai_service = AISchedulerService()
         
@@ -43,6 +50,9 @@ def generate_ai_schedule():
         logger.app_logger.info(f"AI schedule generation service call completed. Result: {result.get('status') if isinstance(result, dict) else 'Raw CSV returned'}") # Use logger.app_logger
         return jsonify(result), 200
 
+    except ValidationError as e: # Catch Pydantic validation errors
+        logger.app_logger.error(f"Validation error in AI schedule generation: {e.errors()}")
+        return jsonify({"error": "Invalid input.", "details": e.errors()}), 400 # Return validation details
     except ValueError as ve:
         logger.app_logger.error(f"Validation error in AI schedule generation: {str(ve)}", exc_info=True) # Use logger.app_logger
         return jsonify({"error": f"Validation error: {str(ve)}"}), 400

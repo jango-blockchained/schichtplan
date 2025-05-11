@@ -656,6 +656,55 @@ def test_update_schedule(client, app):
         assert updated_schedule_db.availability_type == "PREFERRED" # Verify DB save
 
 
+def test_update_schedule_invalid_input(client, app):
+    """Test PUT /api/schedules/<id> with invalid input"""
+    with app.app_context():
+        # Create employee and shift
+        employee = Employee(
+            first_name="InvalidUpdate", last_name="Test",
+            employee_group=EmployeeGroup.VZ, contracted_hours=40, is_keyholder=False
+        )
+        shift = ShiftTemplate(
+            start_time="08:00", end_time="16:00", requires_break=True,
+            active_days={ "0": True }, shift_type_id="MIDDLE"
+        )
+        db.session.add_all([employee, shift])
+        db.session.commit()
+
+        # Create an initial schedule entry
+        schedule = Schedule(
+            employee_id=employee.id,
+            shift_id=shift.id,
+            date=date(2024, 3, 15), # Use a different date
+            version=1,
+            availability_type="AVAILABLE"
+        )
+        db.session.add(schedule)
+        db.session.commit()
+        schedule_id = schedule.id
+
+    # Data for update with invalid type for shift_id (should be int, using string)
+    invalid_update_data = {
+        "shift_id": "invalid_shift_id"
+    }
+
+    # Perform the update via API
+    response = client.put(f"/api/schedules/{schedule_id}", json=invalid_update_data)
+
+    # Assertions for validation error
+    assert response.status_code == 400
+    data = response.json
+    assert data.get('status') == 'error'
+    assert data.get('message') == 'Invalid input.'
+    assert 'details' in data
+    assert isinstance(data['details'], list)
+    assert len(data['details']) > 0
+
+    # Check for specific error detail (optional, but good practice)
+    found_error = any(err.get('loc') == ('shift_id', ) for err in data['details'])
+    assert found_error, "Did not find validation error for invalid shift_id type"
+
+
 # --- Availability API Tests --- #
 
 def test_get_employee_status_by_date_empty(client):

@@ -25,8 +25,11 @@ export const ShiftEditor: React.FC<ShiftEditorProps> = ({
         });
     };
 
+    // IMPORTANT: The application uses the Python convention where Monday=0, Sunday=6
+    // This is different from JavaScript's Date where Sunday=0
     const getDayNames = (activeDays: { [key: string]: boolean }) => {
-        const days = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+        // Days ordered to match the Python/backend convention where Monday=0 through Sunday=6
+        const days = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
         return Object.entries(activeDays)
             .filter(([_, isActive]) => isActive)
             .map(([day]) => days[parseInt(day)])

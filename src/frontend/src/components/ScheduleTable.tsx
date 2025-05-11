@@ -79,43 +79,45 @@ interface TimeSlotDisplayProps {
 }
 
 const TimeSlotDisplay = ({ startTime, endTime, shiftType, settings, schedule }: TimeSlotDisplayProps) => {
-    // Handle missing time data
-    const displayStartTime = startTime || '00:00';
-    const displayEndTime = endTime || '00:00';
+    // Add a more visible diagnostic indicator for missing time data
+    const hasMissingTimeData = (!startTime || !endTime) && schedule?.shift_id;
     
-    // Use this useEffect hook to debug shifts with ID but no time data
+    // Enhanced debug logging for time slot display
     useEffect(() => {
-        if (schedule?.shift_id && (displayStartTime === '00:00' && displayEndTime === '00:00')) {
-            console.log('TimeSlotDisplay: Found shift with ID but no time data:', {
-                scheduleId: schedule.id,
-                shiftId: schedule.shift_id,
-                date: schedule.date
+        if (hasMissingTimeData) {
+            console.log('🚨 TimeSlotDisplay: Missing time data for shift:', {
+                scheduleId: schedule?.id,
+                shiftId: schedule?.shift_id,
+                date: schedule?.date,
+                startTime,
+                endTime,
+                shiftType,
+                shift_type_name: schedule?.shift_type_name
             });
         }
-    }, [schedule, displayStartTime, displayEndTime]);
+    }, [hasMissingTimeData, schedule, startTime, endTime, shiftType]);
     
-    // Display placeholder but with more detail if ID is available
-    if ((displayStartTime === '00:00' && displayEndTime === '00:00') && schedule?.shift_id) {
-        // Try to get shift type name from the schedule object
-        const shiftTypeName = schedule.shift_type_name || (
-            schedule.shift_type_id ? 
-                shiftType === 'EARLY' ? 'Früh' : 
-                shiftType === 'MIDDLE' ? 'Mitte' : 
-                shiftType === 'LATE' ? 'Spät' : 
-                'Schicht' 
-            : 'Schicht'
-        );
+    // Handle missing time data by using default placeholder times
+    const displayStartTime = startTime || '??:??';
+    const displayEndTime = endTime || '??:??';
+    
+    // Handle the case where we have a schedule with ID but no time data
+    if (hasMissingTimeData) {
+        // Try to extract more information from the shift type
+        const shiftTypeName = schedule?.shift_type_name || 
+            (shiftType === 'EARLY' ? 'Früh' : 
+             shiftType === 'MIDDLE' ? 'Mitte' : 
+             shiftType === 'LATE' ? 'Spät' : 
+             `Schicht #${schedule?.shift_id}`);
         
         return (
-            <div className="flex flex-col items-center">
-                <div className="px-4 py-1 rounded-full text-sm font-medium text-white bg-slate-500 w-fit">
-                    {shiftTypeName} #{schedule.shift_id}
+            <div className="flex flex-col items-center gap-1">
+                <div className="px-4 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-800 border border-amber-300 w-fit">
+                    {shiftTypeName}
                 </div>
-                {shiftType && (
-                    <div className="text-xs mt-1 font-medium text-slate-500">
-                        {shiftTypeName}
-                    </div>
-                )}
+                <div className="text-xs text-amber-600 font-medium">
+                    ID: {schedule?.shift_id} (Zeiten fehlen)
+                </div>
             </div>
         );
     }
@@ -184,6 +186,11 @@ const TimeSlotDisplay = ({ startTime, endTime, shiftType, settings, schedule }: 
                     {shiftTypeDisplay}
                 </div>
             )}
+            {schedule?.shift_id && (
+                <div className="text-xs mt-1 text-slate-500">
+                    ID: {schedule.shift_id}
+                </div>
+            )}
         </div>
     );
 };
@@ -202,19 +209,21 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence, employeeId, date
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [showActions, setShowActions] = useState(false);
 
-    // Log debug info for problematic schedules
+    // Log debug info for all schedules to diagnose rendering issues
     useEffect(() => {
-        if (schedule?.shift_id && (!schedule.shift_start || !schedule.shift_end)) {
-            console.log('ScheduleCell has schedule with shift_id but no times:', {
+        if (schedule) {
+            console.log(`📊 ScheduleCell: ${schedule.employee_id} @ ${date.toLocaleDateString()}`, {
                 id: schedule.id,
                 shift_id: schedule.shift_id, 
                 employee_id: schedule.employee_id,
                 date: schedule.date,
                 shift_start: schedule.shift_start,
-                shift_end: schedule.shift_end
+                shift_end: schedule.shift_end,
+                shift_type_id: schedule.shift_type_id,
+                shift_type_name: schedule.shift_type_name
             });
         }
-    }, [schedule]);
+    }, [schedule, date]);
 
     // Check if this is an empty schedule (no shift assigned)
     if (isEmptySchedule(schedule)) {
@@ -248,70 +257,108 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence, employeeId, date
                                 if (schedule?.id) {
                                     await onUpdate(schedule.id, { shift_id: scheduleData.shift_id });
                                 } else {
-                                    // Otherwise, we need to create a new one
-                                    console.log("Creating new schedule");
-                                    await createSchedule({
-                                        employee_id: scheduleData.employee_id,
-                                        date: scheduleData.date,
+                                    // Otherwise, create a new schedule entry
+                                    const newScheduleData = {
+                                        employee_id: employeeId,
+                                        date: format(date, 'yyyy-MM-dd'),
                                         shift_id: scheduleData.shift_id,
-                                        version: scheduleData.version,
-                                    });
+                                        version: currentVersion || 1
+                                    };
+
+                                    // Create schedule via API
+                                    await createSchedule(newScheduleData);
                                 }
+                                // Close the modal after successful operation
+                                setIsAddModalOpen(false);
                             } catch (error) {
-                                console.error("Failed to create/update schedule", error);
+                                console.error("Failed to add/update schedule:", error);
                             }
-                            setIsAddModalOpen(false);
                         }}
-                        version={currentVersion || 1}
-                        defaultDate={date}
                         defaultEmployeeId={employeeId}
+                        defaultDate={date}
+                        version={currentVersion || 1}
                     />
                 )}
             </div>
         );
     }
 
-    // For cells with shifts, render the shift details
+    // Handle the case where we have a schedule with a shift_id but no times
+    const hasShiftIdOnly = schedule && schedule.shift_id !== null && (!schedule.shift_start || !schedule.shift_end);
+    
     return (
         <div
-            className={`relative h-full min-h-[80px] border border-gray-200 p-2 ${
-                hasAbsence ? "bg-red-50" : ""
-            }`}
+            className="relative h-full min-h-[80px] border border-gray-100 p-2"
             onMouseEnter={() => setShowActions(true)}
             onMouseLeave={() => setShowActions(false)}
         >
-            {/* Render time slot display - Pass the full schedule object for context */}
-            <div className="flex h-full flex-col items-center justify-center">
-                <TimeSlotDisplay 
-                    startTime={schedule?.shift_start} 
-                    endTime={schedule?.shift_end} 
-                    shiftType={schedule?.shift_type_id} 
-                    schedule={schedule}
-                />
-            </div>
+            {hasShiftIdOnly ? (
+                // Display a clear indicator when we have a shift ID but no time data
+                <div className="flex flex-col items-center justify-center h-full">
+                    <div className="px-4 py-2 rounded-lg text-sm font-medium bg-slate-200 text-slate-800 w-fit">
+                        Schicht #{schedule.shift_id}
+                    </div>
+                    {schedule.shift_type_name && (
+                        <div className="text-xs mt-2 text-slate-600 font-medium">
+                            {schedule.shift_type_name}
+                        </div>
+                    )}
+                    {!schedule.shift_type_name && schedule.shift_type_id && (
+                        <div className="text-xs mt-2 text-slate-600 font-medium">
+                            {schedule.shift_type_id === 'EARLY' ? 'Früh' :
+                             schedule.shift_type_id === 'MIDDLE' ? 'Mitte' :
+                             schedule.shift_type_id === 'LATE' ? 'Spät' : 'Unbekannt'}
+                        </div>
+                    )}
+                </div>
+            ) : (
+                // Normal display for schedules with time data
+                <div className="flex flex-col items-center justify-center h-full">
+                    <TimeSlotDisplay
+                        startTime={schedule?.shift_start}
+                        endTime={schedule?.shift_end}
+                        shiftType={schedule?.shift_type_id}
+                        schedule={schedule}
+                    />
+                </div>
+            )}
 
-            {/* Show edit button on hover */}
+            {/* Actions buttons on hover */}
             {showActions && (
-                <div className="absolute right-1 top-1">
+                <div className="absolute top-1 right-1 flex space-x-1">
                     <Button
-                        size="icon"
+                        size="sm"
                         variant="ghost"
-                        className="h-7 w-7"
+                        className="h-6 w-6 p-0"
                         onClick={() => setIsEditModalOpen(true)}
-                        aria-label="Edit schedule"
                     >
-                        <Edit2 className="h-4 w-4" />
+                        <Edit2 className="h-3 w-3" />
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                        onClick={async () => {
+                            if (schedule?.id) {
+                                await onUpdate(schedule.id, { shift_id: null });
+                            }
+                        }}
+                    >
+                        <Trash2 className="h-3 w-3" />
                     </Button>
                 </div>
             )}
 
-            {/* Edit modal */}
-            {isEditModalOpen && schedule && (
+            {isEditModalOpen && schedule && currentVersion && (
                 <ShiftEditModal
                     isOpen={isEditModalOpen}
                     onClose={() => setIsEditModalOpen(false)}
                     schedule={schedule}
-                    onSave={onUpdate}
+                    onUpdate={async (updates) => {
+                        await onUpdate(schedule.id, updates);
+                        setIsEditModalOpen(false);
+                    }}
+                    currentVersion={currentVersion}
                 />
             )}
         </div>
@@ -513,6 +560,35 @@ function ShiftAddModal({
 }
 
 export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoading, employeeAbsences, absenceTypes, currentVersion }: ScheduleTableProps) {
+    // Enhanced debugging for schedule data
+    console.log('🔴 DEBUG: RENDERING ScheduleTable with:', {
+        schedulesCount: schedules.length,
+        dateRange,
+        isLoading,
+        employeeAbsencesCount: employeeAbsences ? Object.keys(employeeAbsences).length : 0,
+        absenceTypesCount: absenceTypes ? absenceTypes.length : 0,
+        currentVersion,
+        firstFewSchedules: schedules.slice(0, 5)
+    });
+    
+    // Debug log for detailed table structure with more specific counts
+    const schedulesWithShiftId = schedules.filter(s => s.shift_id !== null);
+    const schedulesWithTimes = schedules.filter(s => s.shift_start !== null && s.shift_end !== null);
+    const problemSchedules = schedulesWithShiftId.filter(s => !s.shift_start || !s.shift_end);
+    
+    console.log('🔴 DEBUG: Schedule Data Analysis:', {
+        totalSchedules: schedules.length,
+        withShiftId: schedulesWithShiftId.length,
+        withTimes: schedulesWithTimes.length,
+        problemSchedules: problemSchedules.length,
+        exampleProblemSchedule: problemSchedules.length > 0 ? problemSchedules[0] : 'None'
+    });
+    
+    // If we have problem schedules, log them all for diagnosis
+    if (problemSchedules.length > 0) {
+        console.log('🔴 Problem Schedules (up to 10):', problemSchedules.slice(0, 10));
+    }
+    
     const [expandedEmployees, setExpandedEmployees] = useState<number[]>([]);
 
     const toggleEmployeeExpand = (employeeId: number) => {
@@ -717,7 +793,14 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
             employeeSchedules.forEach(schedule => {
                 // Normalize date format by removing time component
                 const dateKey = schedule.date.split('T')[0];
-                grouped[employeeId][dateKey] = schedule;
+                
+                // Only add or replace if this is an improvement over the existing entry
+                const existingSchedule = grouped[employeeId][dateKey];
+                if (!existingSchedule || 
+                    (schedule.shift_id !== null && (existingSchedule.shift_id === null || 
+                    (!existingSchedule.shift_start && schedule.shift_start)))) {
+                    grouped[employeeId][dateKey] = schedule;
+                }
 
                 // Log the schedule date for debugging
                 if (schedule.shift_id !== null) {
@@ -771,7 +854,7 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
     }
 
     return (
-        <Card>
+        <Card className="border-4 border-blue-500">
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                     <CardTitle>Schichtplan</CardTitle>
@@ -886,7 +969,15 @@ export function ScheduleTable({ schedules, dateRange, onDrop, onUpdate, isLoadin
                                             </td>
                                             {days.map((day) => {
                                                 const dateString = format(day, 'yyyy-MM-dd');
-                                                const daySchedule = employeeSchedules[dateString];
+                                                // Try to get the schedule from our map - prioritize scheduleMap which has better logic for handling multiple entries
+                                                const scheduleMapEntry = scheduleMap[employeeId]?.[dateString];
+                                                const daySchedule = scheduleMapEntry || employeeSchedules[dateString];
+                                                
+                                                // Debug log shifts with ID to verify proper data is being used
+                                                if (daySchedule?.shift_id !== null && daySchedule?.shift_id !== undefined) {
+                                                    console.log(`Using shift for employee ${employeeId} on ${dateString}: ID=${daySchedule.shift_id}, start=${daySchedule.shift_start}, end=${daySchedule.shift_end}`);
+                                                }
+                                                
                                                 // Check for absence
                                                 const absenceInfo = checkForAbsence(employeeId, dateString, employeeAbsences, absenceTypes);
 

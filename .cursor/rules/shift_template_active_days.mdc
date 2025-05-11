@@ -1,0 +1,36 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Rule: ShiftTemplate active_days Handling
+
+This rule describes the `active_days` attribute of the `ShiftTemplate` model in the Schichtplan project, its expected format, historical issues, and resolution.
+
+**Relevant Files:**
+*   Model Definition: [`src/backend/models/fixed_shift.py`](mdc:src/backend/models/fixed_shift.py)
+*   Parsing Logic: [`src/backend/services/scheduler/generator.py`](mdc:src/backend/services/scheduler/generator.py)
+*   Fixing Script: [`src/backend/tools/debug/fix_active_days_format.py`](mdc:src/backend/tools/debug/fix_active_days_format.py)
+
+**Attribute Details:**
+
+*   **Model Attribute:** `ShiftTemplate.active_days`
+*   **Database Column Type:** `db.JSON` as defined in [`src/backend/models/fixed_shift.py`](mdc:src/backend/models/fixed_shift.py).
+*   **Expected Format (Post-Fix):** A Python list of integers, where each integer represents a day of the week (0 for Monday, 6 for Sunday). Example: `[0, 1, 2, 3, 4]` for Monday to Friday. This list is stored as a JSON array in the database.
+*   **Historical Format (Pre-Fix):** A Python dictionary with string keys for day numbers and boolean values. Example: `{"0": True, "1": True, "5": False}`.
+
+**Parsing and Issues:**
+
+*   The `ScheduleGenerator` in [`src/backend/services/scheduler/generator.py`](mdc:src/backend/services/scheduler/generator.py) contains logic to parse `active_days`. It expects `active_days` to be a Python list (correctly deserialized by SQLAlchemy from a JSON array) or a Python dictionary.
+*   An issue was identified where `active_days` was sometimes loaded as a string literal that looked like a list (e.g., the string `'[1,2,3]'`) rather than being properly deserialized by SQLAlchemy from the `db.JSON` field. This occurred when the data in the database was not a valid JSON array or JSON object representation that SQLAlchemy's `JSON` type could directly convert to a Python list/dict.
+*   This string representation caused parsing errors in the `ScheduleGenerator` because `json.loads()` would fail on such a string, and subsequent comma-splitting logic would also fail (e.g., `int('[1')`).
+
+**Resolution:**
+
+*   The script [`src/backend/tools/debug/fix_active_days_format.py`](mdc:src/backend/tools/debug/fix_active_days_format.py) was developed and used to:
+    1.  Identify `ShiftTemplate` instances where `active_days` was stored in the dictionary format.
+    2.  Convert these dictionary formats to the list format (e.g., `[0, 1, 2]`).
+    3.  Update the database, storing the list as a proper JSON array that SQLAlchemy's `db.JSON` type can correctly deserialize into a Python list upon loading.
+
+**Current Expectation:**
+After running the fix script, `ShiftTemplate.active_days` should be consistently loaded as a Python list of integers, which the parsing logic in `ScheduleGenerator` can handle directly.
