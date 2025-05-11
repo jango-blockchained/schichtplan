@@ -526,3 +526,105 @@ def test_schedule_version_management(client, setup_test_data):
 
 if __name__ == "__main__":
     pytest.main(["-xvs", __file__])
+
+
+# Add tests for AI schedule generation endpoint validation
+def test_ai_generate_schedule_valid(client, setup_test_data):
+    """Test the AI generate schedule endpoint with valid data."""
+    # Get dates for testing
+    today = datetime.now().date()
+    start_date = today - timedelta(days=today.weekday())  # Start from Monday
+    end_date = start_date + timedelta(days=6)  # End on Sunday
+
+    # Make request to generate schedule using AI endpoint
+    response = client.post(
+        "/ai/schedule/generate", # Target the AI endpoint
+        json={
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "create_empty_schedules": True,
+            "version": 1,
+            # Add any other required AI-specific parameters here if known
+        },
+    )
+
+    # Check response - Assuming a successful generation returns 200 and a similar structure
+    assert response.status_code == 200
+    data = json.loads(response.data)
+
+    # Validate response structure (assuming it's similar to the regular generator)
+    assert "schedules" in data
+    assert isinstance(data["schedules"], list)
+    assert "version" in data
+    assert data["version"] == 1
+
+    # Check that schedules were created (assuming some assignments are made)
+    # The AI generator might not create empty schedules by default, depending on logic
+    # For this test, we primarily want to ensure the API call with valid input succeeds
+    # A more detailed test would check the quality/content of the generated schedule
+
+
+def test_ai_generate_schedule_invalid_data(client, setup_test_data):
+    """Test the AI generate schedule endpoint with invalid input data."""
+    # Test with missing start_date
+    today = datetime.now().date()
+    end_date = today + timedelta(days=7)
+
+    response = client.post(
+        "/ai/schedule/generate", # Target the AI endpoint
+        json={
+            "end_date": end_date.isoformat(),
+            "create_empty_schedules": True,
+            "version": 1,
+        },
+    )
+
+    # Check response - Expecting Pydantic validation error
+    assert response.status_code == 400
+    data = json.loads(response.data)
+    # Assert Pydantic validation error structure
+    assert data.get('status') == 'error'
+    assert data.get('message') == 'Invalid input.'
+    assert 'details' in data
+    assert isinstance(data['details'], list)
+    assert len(data['details']) > 0
+    assert any(err.get('loc') == ('start_date', ) for err in data['details'])
+
+    # Test with invalid date format
+    start_date = today - timedelta(days=today.weekday())
+    response = client.post(
+        "/ai/schedule/generate",
+        json={
+            "start_date": "bad-date", # Invalid format
+            "end_date": end_date.isoformat(),
+            "create_empty_schedules": True,
+            "version": 1,
+        },
+    )
+    assert response.status_code == 400
+    data = json.loads(response.data)
+    assert data.get('status') == 'error'
+    assert data.get('message') == 'Invalid input.'
+    assert 'details' in data
+    assert isinstance(data['details'], list)
+    assert len(data['details']) > 0
+    assert any(err.get('loc') == ('start_date', ) for err in data['details'])
+
+    # Test with non-integer version
+    response = client.post(
+        "/ai/schedule/generate",
+        json={
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "create_empty_schedules": True,
+            "version": "not an integer", # Invalid type
+        },
+    )
+    assert response.status_code == 400
+    data = json.loads(response.data)
+    assert data.get('status') == 'error'
+    assert data.get('message') == 'Invalid input.'
+    assert 'details' in data
+    assert isinstance(data['details'], list)
+    assert len(data['details']) > 0
+    assert any(err.get('loc') == ('version', ) for err in data['details'])

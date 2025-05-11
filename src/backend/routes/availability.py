@@ -10,7 +10,7 @@ from flask import current_app
 from models import Settings
 from typing import List, Dict, Any, Tuple, Optional
 from pydantic import ValidationError
-from src.backend.schemas.availability import AvailabilityCreateRequest, AvailabilityUpdateRequest, AvailabilityCheckRequest
+from src.backend.schemas.availability import AvailabilityCreateRequest, AvailabilityUpdateRequest, AvailabilityCheckRequest, EmployeeAvailabilitiesUpdateRequest, EmployeeStatusByDateRequest, EmployeeShiftsForEmployeeRequest
 
 availability = Blueprint('availability', __name__, url_prefix='/api/availability')
 
@@ -154,29 +154,34 @@ def check_availability():
 @availability.route('/employees/<int:employee_id>/availabilities', methods=['PUT'])
 def update_employee_availabilities(employee_id):
     """Update employee availabilities"""
-    data = request.get_json()
     
     try:
+        data = request.get_json()
+        # Validate data using Pydantic schema
+        request_data = EmployeeAvailabilitiesUpdateRequest(**data)
+
         # Delete existing availabilities
         EmployeeAvailability.query.filter_by(employee_id=employee_id).delete()
         
-        # Create new availabilities
-        for availability_data in data:
+        # Create new availabilities from validated data
+        for availability_data in request_data.__root__:
             availability = EmployeeAvailability(
                 employee_id=employee_id,
-                day_of_week=availability_data['day_of_week'],
-                hour=availability_data['hour'],
-                is_available=availability_data['is_available'],
-                availability_type=AvailabilityType(availability_data.get('availability_type', 'AVL'))
+                day_of_week=availability_data.day_of_week,
+                hour=availability_data.hour,
+                is_available=availability_data.is_available,
+                availability_type=availability_data.availability_type
             )
             db.session.add(availability)
             
         db.session.commit()
         return jsonify({'message': 'Availabilities updated successfully'}), HTTPStatus.OK
         
+    except ValidationError as e:
+        return jsonify({'status': 'error', 'message': 'Invalid input.', 'details': e.errors()}), HTTPStatus.BAD_REQUEST # Return validation details
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), HTTPStatus.BAD_REQUEST
+        return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 @availability.route('/employees/<int:employee_id>/availabilities', methods=['GET'])
 def get_employee_availabilities(employee_id):
@@ -196,14 +201,18 @@ def get_employee_availabilities(employee_id):
 @availability.route('/by_date', methods=['GET'])
 def get_employee_status_by_date():
     """Get availability status for all active employees for a given date."""
-    date_str = request.args.get('date')
-    if not date_str:
-        return jsonify({'error': 'Missing date parameter'}), HTTPStatus.BAD_REQUEST
-
+    
     try:
-        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-    except ValueError:
-        return jsonify({'error': 'Invalid date format, expected YYYY-MM-DD'}), HTTPStatus.BAD_REQUEST
+        # Validate query parameters using Pydantic schema
+        request_data = EmployeeStatusByDateRequest(**request.args)
+        target_date = request_data.date
+
+    except ValidationError as e:
+        return jsonify({'status': 'error', 'message': 'Invalid input.', 'details': e.errors()}), HTTPStatus.BAD_REQUEST # Return validation details
+    except Exception as e:
+        # Log the exception e
+        current_app.logger.error(f"Error parsing date in /api/availability/by_date: {str(e)}")
+        return jsonify({'error': f'An unexpected error occurred during date parsing: {str(e)}'}), HTTPStatus.INTERNAL_SERVER_ERROR
 
     results = []
     
@@ -211,8 +220,8 @@ def get_employee_status_by_date():
         # Determine the version_id to check against for schedules
         # Prioritize Published, then latest Draft, then latest overall.
         version_to_check = ScheduleVersionMeta.query.filter(
-            ScheduleVersionMeta.date_range_start.isnot(None), # Explicitly check not None
-            ScheduleVersionMeta.date_range_end.isnot(None), # Explicitly check not None
+            ScheduleVersionMeta.date_range_start.isnot(None),
+            ScheduleVersionMeta.date_range_end.isnot(None),
             ScheduleVersionMeta.date_range_start <= target_date,
             ScheduleVersionMeta.date_range_end >= target_date,
             ScheduleVersionMeta.status == ScheduleStatus.PUBLISHED
@@ -220,8 +229,8 @@ def get_employee_status_by_date():
 
         if not version_to_check:
             version_to_check = ScheduleVersionMeta.query.filter(
-                ScheduleVersionMeta.date_range_start.isnot(None), # Explicitly check not None
-                ScheduleVersionMeta.date_range_end.isnot(None), # Explicitly check not None
+                ScheduleVersionMeta.date_range_start.isnot(None),
+                ScheduleVersionMeta.date_range_end.isnot(None),
                 ScheduleVersionMeta.date_range_start <= target_date,
                 ScheduleVersionMeta.date_range_end >= target_date,
                 ScheduleVersionMeta.status == ScheduleStatus.DRAFT
@@ -302,17 +311,22 @@ def get_employee_status_by_date():
 @availability.route('/shifts_for_employee', methods=['GET'])
 def get_shifts_for_employee_on_date():
     """Get all shift templates active on a given day for an employee, including availability information."""
-    date_str = request.args.get('date')
-    employee_id_str = request.args.get('employee_id')
-
-    if not date_str or not employee_id_str:
-        return jsonify({'error': 'Missing date or employee_id parameter'}), HTTPStatus.BAD_REQUEST
-
+    
     try:
-        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        employee_id = int(employee_id_str)
-    except ValueError:
-        return jsonify({'error': 'Invalid date format or employee_id'}), HTTPStatus.BAD_REQUEST
+        # Validate query parameters using Pydantic schema
+        request_data = EmployeeShiftsForEmployeeRequest(**request.args)
+        target_date = request_data.date
+        employee_id = request_data.employee_id
+
+    except ValidationError as e:
+        return jsonify({'status': 'error', 'message': 'Invalid input.', 'details': e.errors()}), HTTPStatus.BAD_REQUEST # Return validation details
+    except ValueError as e:
+        return jsonify({'error': str(e)}), HTTPStatus.BAD_REQUEST # Keep existing ValueError catch for employee_id conversion if needed elsewhere
+    except Exception as e:
+        current_app.logger.error(f"Error processing request in /api/availability/shifts_for_employee: {str(e)} - {type(e)}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({'error': f'An unexpected error occurred: {str(e)}'}), HTTPStatus.INTERNAL_SERVER_ERROR
 
     try:
         # Ensure employee exists
@@ -366,14 +380,14 @@ def get_shifts_for_employee_on_date():
             Schedule.employee_id == employee_id,
             Schedule.date == target_date,
             Schedule.shift_id.isnot(None),
-            Schedule.status.in_([ScheduleStatus.DRAFT, ScheduleStatus.PUBLISHED])  # Only consider DRAFT or PUBLISHED statuses
+            Schedule.status.in_([ScheduleStatus.DRAFT, ScheduleStatus.PUBLISHED])
         ).first()
 
         # Fetch all existing schedules for this date to check conflicts
         existing_schedules = Schedule.query.filter(
             Schedule.date == target_date,
             Schedule.shift_id.isnot(None),
-            Schedule.status.in_([ScheduleStatus.DRAFT, ScheduleStatus.PUBLISHED])  # Only consider DRAFT or PUBLISHED statuses
+            Schedule.status.in_([ScheduleStatus.DRAFT, ScheduleStatus.PUBLISHED])
         ).all()
         assigned_shift_ids = {schedule.shift_id for schedule in existing_schedules if schedule.employee_id != employee_id}
 
