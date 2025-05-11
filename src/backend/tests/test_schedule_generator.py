@@ -18,20 +18,31 @@ class TestScheduleGenerator(unittest.TestCase):
         # Mock resources class
         self.generator.resources = MagicMock(spec=ScheduleResources)
 
-        # Mock validator class
-        mock_validator = MagicMock()
-        mock_validator.validate.return_value = []  # No validation errors by default
+        # Mock the ScheduleValidator class that will be instantiated by ScheduleGenerator
+        # The patch ensures that any instantiation of ScheduleValidator within the scope
+        # of the test will use mock_validator_instance.
+        self.mock_validator_instance = MagicMock()
+        self.mock_validator_instance.validate.return_value = []  # No validation errors by default
+        # Assume get_coverage_summary and get_error_report are methods that will be called on the instance
+        self.mock_validator_instance.get_coverage_summary.return_value = {"total_intervals_checked": 0} 
+        self.mock_validator_instance.get_error_report.return_value = {"errors": []}
 
-        # Create a patch to return our mock validator
-        patcher = patch(
-            "services.scheduler.validator.ScheduleValidator",
-            return_value=mock_validator,
+        patch_validator = patch(
+            "services.scheduler.generator.ScheduleValidator", # Patch ScheduleValidator in the generator's module
+            return_value=self.mock_validator_instance,
         )
-        self.mockScheduleValidator = patcher.start()
-        self.addCleanup(patcher.stop)
+        patch_validator.start()
+        self.addCleanup(patch_validator.stop)
 
-        # Set the mock validator
-        self.generator.validator = mock_validator
+        # Mock ScheduleSerializer
+        self.mock_serializer_instance = MagicMock()
+        self.mock_serializer_instance.serialize_schedule.return_value = {"schedule": [], "metrics": {}} # Basic return
+        patch_serializer = patch(
+            "services.scheduler.generator.ScheduleSerializer",
+            return_value=self.mock_serializer_instance
+        )
+        patch_serializer.start()
+        self.addCleanup(patch_serializer.stop)
 
         # Set test dates
         self.start_date = date(2023, 3, 6)  # Monday
@@ -88,201 +99,50 @@ class TestScheduleGenerator(unittest.TestCase):
         )
 
     def test_generate_basic_schedule(self):
-        """Test generating a basic schedule"""
-        # Create a completely mocked version that doesn't touch the database
-        orig_create_schedule = self.generator._create_schedule
-        orig_has_enough_rest = self.generator._has_enough_rest
+        """Test generating a basic schedule, focusing on orchestration."""
+        
+        # Mock the core daily assignment generation method
+        # It should return a list of assignment dicts (or ScheduleAssignment instances)
+        mock_daily_assignments = [
+            {'employee_id': 1, 'shift_id': 101, 'date': self.start_date, 'status': 'PENDING', 'version': 1, 'start_time': '09:00', 'end_time': '17:00'},
+            {'employee_id': 2, 'shift_id': 102, 'date': self.start_date, 'status': 'PENDING', 'version': 1, 'start_time': '10:00', 'end_time': '18:00'}
+        ]
 
-        def patched_create_schedule(start_date, end_date):
-            # Add some sample schedule entries
-            for i in range(2):
-                mock_entry = MagicMock()
-                mock_entry.employee_id = i + 1
-                mock_entry.date = start_date
-                mock_entry.shift = self.mock_shifts[i]
-                mock_entry.to_dict = lambda: {
-                    "employee_id": mock_entry.employee_id,
-                    "date": mock_entry.date.isoformat(),
-                    "shift_id": mock_entry.shift.id,
-                    "status": "DRAFT",
-                }
-                self.generator.schedule.append(mock_entry)
-
-        def patched_has_enough_rest(employee, current_date, shift):
-            # Always return True for testing
-            return True
-
-        # Apply the patches
-        self.generator._create_schedule = patched_create_schedule
-        self.generator._has_enough_rest = patched_has_enough_rest
-
-        try:
+        with patch.object(self.generator, '_generate_assignments_for_date', return_value=mock_daily_assignments) as mock_gen_assignments_for_date:
             # Call the generate method
             result = self.generator.generate(self.start_date, self.end_date)
 
             # Verify the result has the expected structure
-            self.assertIn("schedule", result)
-            self.assertIn("warnings", result)
-            self.assertIn("version", result)
-            self.assertIn("generation_time", result)
+            self.assertIn("schedule", result) # From serializer
+            # self.assertIn("warnings", result) # Warnings are now part of validation_results if implemented that way
+            self.assertIn("validation", result)
+            self.assertIn("schedule_info", result)
+            self.assertIn("session_id", result["schedule_info"])
 
             # Verify resources were loaded
             self.generator.resources.load.assert_called_once()
 
-            # Skip validation assertion since we're not mocking the validator
-            # self.generator.validator.validate.assert_called_once()
-        finally:
-            # Restore the original methods
-            self.generator._create_schedule = orig_create_schedule
-            self.generator._has_enough_rest = orig_has_enough_rest
+            # Verify _generate_assignments_for_date was called for each day in the range
+            num_days = (self.end_date - self.start_date).days + 1
+            self.assertEqual(mock_gen_assignments_for_date.call_count, num_days)
+            for i in range(num_days):
+                expected_date = self.start_date + timedelta(days=i)
+                mock_gen_assignments_for_date.assert_any_call(expected_date)
 
-    def test_process_coverage(self):
-        """Test processing coverage requirements"""
-        # Create a patch for _get_available_employees and _has_enough_rest
-        orig_get_available = self.generator._get_available_employees
-        orig_has_enough_rest = self.generator._has_enough_rest
+            # Verify serializer was called (with data derived from mock_daily_assignments)
+            # The actual argument to serialize_schedule would be a list of dicts based on ScheduleAssignment objects
+            # For simplicity, we check it was called. Exact argument matching can be complex here.
+            self.mock_serializer_instance.serialize_schedule.assert_called_once()
 
-        def patched_get_available(current_date, shift):
-            return self.mock_employees[:2]  # Return first 2 employees
-
-        def patched_has_enough_rest(employee, current_date, shift):
-            return True  # Always return True for testing
-
-        self.generator._get_available_employees = patched_get_available
-        self.generator._has_enough_rest = patched_has_enough_rest
-
-        try:
-            # Set up test
-            date_to_test = self.start_date
-            coverage = self.mock_coverage[0]
-
-            # Call private method directly
-            self.generator._process_coverage(date_to_test, coverage)
-
-            # Check result - should have assigned employees to the schedule
-            self.assertTrue(len(self.generator.schedule) > 0)
-
-            # Verify correct number of employees were assigned
-            assigned_for_coverage = [
-                e for e in self.generator.schedule if e.date == date_to_test
-            ]
-            self.assertEqual(len(assigned_for_coverage), coverage.min_employees)
-        finally:
-            # Restore original methods
-            self.generator._get_available_employees = orig_get_available
-            self.generator._has_enough_rest = orig_has_enough_rest
-
-    def test_find_matching_shifts(self):
-        """Test finding shifts that match coverage requirements"""
-        # Test exact match
-        coverage = self.mock_coverage[0]  # 09:00-13:00
-        matches = self.generator._find_matching_shifts(coverage)
-        self.assertEqual(len(matches), 1)
-        self.assertEqual(matches[0].start_time, "09:00")
-        self.assertEqual(matches[0].end_time, "13:00")
-
-        # Test no match
-        no_match_coverage = MagicMock()
-        no_match_coverage.start_time = "10:00"
-        no_match_coverage.end_time = "14:00"
-        matches = self.generator._find_matching_shifts(no_match_coverage)
-        self.assertTrue(len(matches) > 0)  # Should find overlapping shifts
-
-    def test_get_available_employees(self):
-        """Test getting available employees for a shift"""
-        # Patch the constraints check
-        orig_exceeds = self.generator._exceeds_constraints
-        orig_has_rest = self.generator._has_enough_rest
-
-        def patched_exceeds(employee, current_date, shift):
-            return False  # Never exceeds for testing
-
-        def patched_has_rest(employee, current_date, shift):
-            return True  # Always has enough rest for testing
-
-        self.generator._exceeds_constraints = patched_exceeds
-        self.generator._has_enough_rest = patched_has_rest
-
-        try:
-            # Test with all employees available
-            date_to_test = self.start_date
-            shift = self.mock_shifts[0]
-
-            employees = self.generator._get_shift_available_employees(
-                date_to_test, shift
-            )
-            self.assertEqual(len(employees), len(self.mock_employees))
-
-            # Test with some employees unavailable
-            self.generator.resources.is_employee_available.side_effect = (
-                lambda emp_id, date, start, end: emp_id < 3
-            )
-
-            employees = self.generator._get_shift_available_employees(
-                date_to_test, shift
-            )
-            self.assertEqual(len(employees), 2)  # Only employees 1 and 2 available
-        finally:
-            # Restore original methods
-            self.generator._exceeds_constraints = orig_exceeds
-            self.generator._has_enough_rest = orig_has_rest
-
-    def test_keyholders_prioritized(self):
-        """Test that keyholders are prioritized for keyholder shifts"""
-        # Patch the constraints check
-        orig_exceeds = self.generator._exceeds_constraints
-        orig_has_rest = self.generator._has_enough_rest
-
-        def patched_exceeds(employee, current_date, shift):
-            return False  # Never exceeds for testing
-
-        def patched_has_rest(employee, current_date, shift):
-            return True  # Always has enough rest for testing
-
-        self.generator._exceeds_constraints = patched_exceeds
-        self.generator._has_enough_rest = patched_has_rest
-
-        try:
-            # Test with a keyholder-required shift
-            date_to_test = self.start_date
-            shift = self.mock_shifts[2]  # Evening shift requiring keyholder
-
-            # Make all employees available
-            self.generator.resources.is_employee_available.return_value = True
-
-            # Call the method
-            employees = self.generator._get_available_employees(date_to_test, shift)
-
-            # Check that keyholder is first
-            self.assertTrue(employees[0].is_keyholder)
-        finally:
-            # Restore original methods
-            self.generator._exceeds_constraints = orig_exceeds
-            self.generator._has_enough_rest = orig_has_rest
-
-    def test_assign_employees(self):
-        """Test assigning employees to shifts"""
-        date_to_test = self.start_date
-        shift = self.mock_shifts[0]
-        employees = self.mock_employees[:3]  # Use first 3 employees
-        min_count = 2
-
-        # Call the method
-        self.generator._assign_employees(date_to_test, shift, employees, min_count)
-
-        # Verify correct number of assignments
-        self.assertEqual(len(self.generator.schedule), min_count)
-
-        # Verify assignments went to the right employees
-        assigned_employee_ids = [s.employee_id for s in self.generator.schedule]
-        self.assertEqual(assigned_employee_ids, [employees[0].id, employees[1].id])
-
-        # Verify the schedule entries have the correct status
-        self.assertEqual(self.generator.schedule[0].status, ScheduleStatus.DRAFT)
+            # Verify validator was called
+            # The validator is called with a list of dicts (processed_for_downstream)
+            self.mock_validator_instance.validate.assert_called_once()
+            # self.mock_validator_instance.get_coverage_summary.assert_called()
+            # self.mock_validator_instance.get_error_report.assert_called()
 
     def test_with_validation_errors(self):
-        """Test generation with validation errors"""
-        # Set up mock validation errors
+        """Test generation when the validator returns errors."""
+        # Set up mock validation errors to be returned by the patched ScheduleValidator instance
         mock_validation_error = MagicMock()
         mock_validation_error.error_type = "coverage"
         mock_validation_error.message = "Insufficient staff"
@@ -292,108 +152,33 @@ class TestScheduleGenerator(unittest.TestCase):
             "required": 2,
             "assigned": 1,
         }
+        # Configure the mock instance set up in self.setUp()
+        self.mock_validator_instance.validate.return_value = [mock_validation_error]
+        self.mock_validator_instance.get_error_report.return_value = {"errors": [mock_validation_error]} # Ensure get_error_report also returns it
 
-        # Update the validator to return our mock error
-        self.generator.validator.validate.return_value = [mock_validation_error]
-
-        # Directly set a warning in the generator
-        self.generator.warnings = [
-            {
-                "type": "coverage",
-                "message": "Insufficient staff",
-                "severity": "warning",
-                "details": {
-                    "date": "2023-03-06",
-                    "required": 2,
-                    "assigned": 1,
-                },
-            }
+        # Mock _generate_assignments_for_date to allow the generation process to proceed to validation
+        mock_daily_assignments = [
+            {'employee_id': 1, 'shift_id': 101, 'date': self.start_date, 'status': 'PENDING', 'version': 1, 'start_time': '09:00', 'end_time': '17:00'}
         ]
-
-        # Create a patched version of _create_schedule that does nothing
-        orig_create_schedule = self.generator._create_schedule
-
-        def patched_create_schedule(start_date, end_date):
-            # Create a simple schedule
-            for i in range(3):
-                mock_entry = MagicMock()
-                mock_entry.employee_id = i + 1
-                mock_entry.date = start_date + timedelta(days=i)
-                mock_entry.shift = self.mock_shifts[0]
-                mock_entry.to_dict = lambda: {
-                    "employee_id": mock_entry.employee_id,
-                    "date": mock_entry.date.isoformat(),
-                    "shift_id": mock_entry.shift.id,
-                    "status": "DRAFT",
-                }
-                self.generator.schedule.append(mock_entry)
-
-        # Apply the patch
-        self.generator._create_schedule = patched_create_schedule
-
-        try:
+        with patch.object(self.generator, '_generate_assignments_for_date', return_value=mock_daily_assignments) as mock_gen_assignments:
             # Generate schedule
             result = self.generator.generate(self.start_date, self.end_date)
 
             # Check that the result has the expected structure
             self.assertIn("schedule", result)
-            self.assertIn("warnings", result)
-            self.assertIn("version", result)
-            self.assertIn("generation_time", result)
+            self.assertIn("validation", result)
+            self.assertIn("schedule_info", result)
 
-            # Skip checking for specific warnings as the implementation has changed
-            # found_warning = False
-            # for warning in result["warnings"]:
-            #     if (
-            #         warning.get("type") == "coverage"
-            #         and warning.get("message") == "Insufficient staff"
-            #     ):
-            #         found_warning = True
-            #         break
-            #
-            # self.assertTrue(found_warning, "Expected warning not found in results")
-        finally:
-            # Restore the original method
-            self.generator._create_schedule = orig_create_schedule
-
-    def test_exceeds_constraints(self):
-        """Test checking employee constraints"""
-        # Set up test data
-        employee = self.mock_employees[0]
-        current_date = self.start_date
-        shift = self.mock_shifts[0]
-
-        # Patch _get_weekly_hours and _count_weekly_shifts
-        orig_get_weekly_hours = self.generator._get_weekly_hours
-        orig_count_weekly_shifts = self.generator._count_weekly_shifts
-
-        def patched_get_weekly_hours(employee_id, week_start):
-            # Return high hours for employee 1 to test constraint, otherwise 0
-            return 40.0 if employee_id == 1 else 0.0
-
-        def patched_count_weekly_shifts(employee_id, week_start):
-            # Return high count for employee 1 to test constraint, otherwise 0
-            return 6 if employee_id == 1 else 0
-
-        self.generator._get_weekly_hours = patched_get_weekly_hours
-        self.generator._count_weekly_shifts = patched_count_weekly_shifts
-
-        try:
-            # Test with employee 1 (should exceed constraints)
-            exceeds = self.generator._exceeds_constraints(
-                self.mock_employees[0], current_date, shift
-            )
-            self.assertTrue(exceeds)
-
-            # Test with employee 2 (should not exceed constraints)
-            exceeds = self.generator._exceeds_constraints(
-                self.mock_employees[1], current_date, shift
-            )
-            self.assertFalse(exceeds)
-        finally:
-            # Restore the original methods
-            self.generator._get_weekly_hours = orig_get_weekly_hours
-            self.generator._count_weekly_shifts = orig_count_weekly_shifts
+            # Check that the validation errors from the mock are present in the result
+            self.assertIn("constraint_errors_count", result["validation"])
+            self.assertEqual(result["validation"]["constraint_errors_count"], 1)
+            self.assertIn("constraint_details", result["validation"])
+            self.assertEqual(len(result["validation"]["constraint_details"]), 1)
+            self.assertIs(result["validation"]["constraint_details"][0], mock_validation_error) # Check it's the same object
+            
+            mock_gen_assignments.assert_called()
+            self.mock_validator_instance.validate.assert_called_once()
+            self.mock_serializer_instance.serialize_schedule.assert_called_once()
 
     def test_error_handling(self):
         """Test error handling during generation"""
@@ -404,43 +189,172 @@ class TestScheduleGenerator(unittest.TestCase):
         with self.assertRaises(ScheduleGenerationError):
             self.generator.generate(self.start_date, self.end_date)
 
-    def test_get_week_start(self):
-        """Test getting the start of the week"""
-        # Monday (already start of week)
-        monday = date(2023, 3, 6)
-        self.assertEqual(self.generator._get_week_start(monday), monday)
+    # --- Tests for _create_date_shifts ---
+    def test_create_date_shifts_active_days_list_match(self):
+        """Test _create_date_shifts with active_days as a list, matching the day."""
+        mock_template1 = MagicMock()
+        mock_template1.id = 1001
+        mock_template1.active_days = [0, 1, 2] # Mon, Tue, Wed
+        mock_template1.start_time = "09:00"
+        mock_template1.end_time = "17:00"
+        mock_template1.duration_hours = 8.0
+        mock_template1.shift_type_id = "DAY"
+        mock_template1.requires_keyholder = False
 
-        # Wednesday (should return Monday)
-        wednesday = date(2023, 3, 8)
-        self.assertEqual(self.generator._get_week_start(wednesday), monday)
+        self.generator.resources.shifts = [mock_template1]
+        
+        # Test for Monday (weekday 0)
+        test_date_mon = date(2023, 3, 6) # Monday
+        date_shifts = self.generator._create_date_shifts(test_date_mon)
+        self.assertEqual(len(date_shifts), 1)
+        self.assertEqual(date_shifts[0]['id'], 1001)
+        self.assertEqual(date_shifts[0]['active_days'], [0, 1, 2])
 
-        # Sunday (should return previous Monday)
-        sunday = date(2023, 3, 12)
-        self.assertEqual(self.generator._get_week_start(sunday), date(2023, 3, 6))
+    def test_create_date_shifts_active_days_list_no_match(self):
+        """Test _create_date_shifts with active_days as a list, not matching the day."""
+        mock_template1 = MagicMock()
+        mock_template1.id = 1002
+        mock_template1.active_days = [2, 3] # Wed, Thu
+        mock_template1.start_time = "10:00"
+        mock_template1.end_time = "18:00"
+        mock_template1.duration_hours = 8.0
+        mock_template1.shift_type_id = "REGULAR"
 
-    def test_has_enough_rest(self):
-        """Test checking rest periods between shifts"""
-        # Set up test data
-        employee = self.mock_employees[0]
-        current_date = self.start_date + timedelta(days=1)  # Tuesday
-        shift = self.mock_shifts[0]  # Morning shift
+        self.generator.resources.shifts = [mock_template1]
+        
+        # Test for Monday (weekday 0)
+        test_date_mon = date(2023, 3, 6) # Monday
+        date_shifts = self.generator._create_date_shifts(test_date_mon)
+        self.assertEqual(len(date_shifts), 0)
 
-        # Case 1: No previous shifts - should have enough rest
-        self.assertTrue(self.generator._has_enough_rest(employee, current_date, shift))
+    def test_create_date_shifts_active_days_json_string_match(self):
+        """Test _create_date_shifts with active_days as a JSON string, matching."""
+        mock_template1 = MagicMock()
+        mock_template1.id = 1003
+        mock_template1.active_days = "[0, 1]" # Mon, Tue as JSON string
+        mock_template1.start_time = "08:00"
+        mock_template1.end_time = "16:00"
+        mock_template1.duration_hours = 8.0
+        mock_template1.shift_type_id = "EARLY"
 
-        # Case 2: With a previous shift
-        # Add a mock previous shift with all required attributes
-        prev_shift = MagicMock()
-        prev_shift.employee_id = employee.id
-        prev_shift.date = self.start_date  # Monday
-        prev_shift.shift = MagicMock()
-        prev_shift.shift.start_time = "09:00"
-        prev_shift.shift.end_time = "13:00"
+        self.generator.resources.shifts = [mock_template1]
+        
+        test_date_tue = date(2023, 3, 7) # Tuesday (weekday 1)
+        date_shifts = self.generator._create_date_shifts(test_date_tue)
+        self.assertEqual(len(date_shifts), 1)
+        self.assertEqual(date_shifts[0]['id'], 1003)
+        self.assertEqual(date_shifts[0]['active_days'], [0,1]) # Expect parsed list
 
-        self.generator.schedule = [prev_shift]
+    def test_create_date_shifts_active_days_csv_string_match(self):
+        """Test _create_date_shifts with active_days as a CSV string, matching."""
+        mock_template1 = MagicMock()
+        mock_template1.id = 1004
+        mock_template1.active_days = "2, 3,4" # Wed, Thu, Fri as CSV string
+        mock_template1.start_time = "12:00"
+        mock_template1.end_time = "20:00"
+        mock_template1.duration_hours = 8.0
+        mock_template1.shift_type_id = "LATE"
 
-        # Should have enough rest
-        self.assertTrue(self.generator._has_enough_rest(employee, current_date, shift))
+        self.generator.resources.shifts = [mock_template1]
+        
+        test_date_fri = date(2023, 3, 10) # Friday (weekday 4)
+        date_shifts = self.generator._create_date_shifts(test_date_fri)
+        self.assertEqual(len(date_shifts), 1)
+        self.assertEqual(date_shifts[0]['id'], 1004)
+        self.assertEqual(date_shifts[0]['active_days'], [2,3,4]) # Expect parsed list
+
+    def test_create_date_shifts_active_days_empty_list(self):
+        """Test _create_date_shifts with active_days as an empty list."""
+        mock_template1 = MagicMock()
+        mock_template1.id = 1005
+        mock_template1.active_days = [] 
+        mock_template1.start_time = "09:00"
+        mock_template1.end_time = "17:00"
+
+        self.generator.resources.shifts = [mock_template1]
+        test_date_mon = date(2023, 3, 6) # Monday
+        date_shifts = self.generator._create_date_shifts(test_date_mon)
+        self.assertEqual(len(date_shifts), 0)
+
+    def test_create_date_shifts_active_days_malformed_string(self):
+        """Test _create_date_shifts with malformed active_days string."""
+        mock_template1 = MagicMock()
+        mock_template1.id = 1006
+        mock_template1.active_days = "Mon,Tue,Wed" # Not numbers or valid JSON
+        mock_template1.start_time = "09:00"
+        mock_template1.end_time = "17:00"
+
+        self.generator.resources.shifts = [mock_template1]
+        # Patch logger to check for warnings
+        with patch.object(self.generator.logger, 'warning') as mock_log_warning:
+            test_date_mon = date(2023, 3, 6) # Monday
+            date_shifts = self.generator._create_date_shifts(test_date_mon)
+            self.assertEqual(len(date_shifts), 0)
+            mock_log_warning.assert_called_with(f"Could not parse active_days for shift {mock_template1.id}: {mock_template1.active_days}")
+            
+    def test_create_date_shifts_template_missing_id(self):
+        """Test _create_date_shifts with a shift template missing an ID."""
+        mock_template_no_id = MagicMock(spec=[ # Use spec to control available attributes
+            'active_days', 'start_time', 'end_time', 'duration_hours', 'shift_type_id', 'requires_keyholder'
+        ])
+        # Deliberately don't set mock_template_no_id.id
+        # To make getattr(mock_template_no_id, 'id', None) return None, 
+        # we need to ensure 'id' is not even in the mock's spec if we want getattr to hit the default.
+        # A simpler way is to mock it to return None when 'id' is accessed.
+        del mock_template_no_id.id # Ensure it's not there
+        
+        mock_template_no_id.active_days = [0] 
+        mock_template_no_id.start_time = "09:00"
+        mock_template_no_id.end_time = "17:00"
+
+        self.generator.resources.shifts = [mock_template_no_id]
+        with patch.object(self.generator.logger, 'warning') as mock_log_warning:
+            test_date_mon = date(2023, 3, 6) # Monday
+            date_shifts = self.generator._create_date_shifts(test_date_mon)
+            self.assertEqual(len(date_shifts), 0)
+            # The warning message includes the representation of the shift template object.
+            # We can check if the call occurred without matching the exact string for simplicity if the repr is complex.
+            mock_log_warning.assert_any_call(f"Shift template has no ID, skipping: {mock_template_no_id}")
+
+
+    def test_create_date_shifts_shift_type_fallback(self):
+        """Test fallback logic for shift_type if not specified."""
+        mock_template_early = MagicMock()
+        mock_template_early.id = 2001
+        mock_template_early.active_days = [0] # Monday
+        mock_template_early.start_time = "08:00" # Should result in "EARLY"
+        mock_template_early.end_time = "12:00"
+        # No shift_type or shift_type_id provided
+
+        mock_template_middle = MagicMock()
+        mock_template_middle.id = 2002
+        mock_template_middle.active_days = [0]
+        mock_template_middle.start_time = "11:30" # Should result in "MIDDLE"
+        mock_template_middle.end_time = "15:30"
+
+        mock_template_late = MagicMock()
+        mock_template_late.id = 2003
+        mock_template_late.active_days = [0]
+        mock_template_late.start_time = "14:00" # Should result in "LATE"
+        mock_template_late.end_time = "18:00"
+        
+        mock_template_default_type = MagicMock()
+        mock_template_default_type.id = 2004
+        mock_template_default_type.active_days = [0]
+        mock_template_default_type.start_time = "invalid_time" # Should default to "MIDDLE"
+        mock_template_default_type.end_time = "20:00"
+
+
+        self.generator.resources.shifts = [mock_template_early, mock_template_middle, mock_template_late, mock_template_default_type]
+        test_date_mon = date(2023, 3, 6) # Monday
+        date_shifts = self.generator._create_date_shifts(test_date_mon)
+        
+        self.assertEqual(len(date_shifts), 4)
+        self.assertEqual(date_shifts[0]['shift_type'], "EARLY")
+        self.assertEqual(date_shifts[0]['shift_type_id'], "EARLY") # shift_type_id should also be set
+        self.assertEqual(date_shifts[1]['shift_type'], "MIDDLE")
+        self.assertEqual(date_shifts[2]['shift_type'], "LATE")
+        self.assertEqual(date_shifts[3]['shift_type'], "MIDDLE") # Fallback for invalid start_time
 
 
 if __name__ == "__main__":

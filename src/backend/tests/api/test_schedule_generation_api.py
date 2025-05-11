@@ -13,7 +13,7 @@ from src.backend.models import db
 from src.backend.models.employee import Employee, EmployeeGroup
 from src.backend.models.fixed_shift import ShiftTemplate
 from src.backend.models.settings import Settings
-from src.backend.models.version import VersionMeta
+from src.backend.models.schedule import ScheduleVersionMeta as VersionMeta
 
 
 @pytest.fixture

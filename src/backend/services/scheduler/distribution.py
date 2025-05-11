@@ -7,6 +7,7 @@ import functools
 import sys
 import os
 import logging
+from types import SimpleNamespace # Added import
 from .resources import ScheduleResources # Assuming ScheduleResources is in resources.py
 from .constraints import ConstraintChecker # Assuming ConstraintChecker is in constraints.py
 from .availability import AvailabilityChecker # Assuming AvailabilityChecker is in availability.py
@@ -664,12 +665,15 @@ class DistributionManager:
         """
         score = 0.0
         # ADDED CHECK for self.resources
-        employee = self.resources.get_employee_by_id(employee_id) if self.resources else None
+        employee = self.resources.get_employee(employee_id) if self.resources else None
         if not employee:
             self.logger.warning(f"calculate_assignment_score: Employee {employee_id} not found in resources.")
             return -float('inf') # Should not happen if called correctly
 
         # 1. AvailabilityType Scoring (Directly from override)
+        # Ensure AvailabilityType is the actual enum, not DummyAvailabilityType if possible
+        # This might require checking how AvailabilityType is resolved at runtime.
+        # For now, assuming direct comparison works or errors out if DummyAvailabilityType is used.
         if availability_type_override == AvailabilityType.FIXED:
             score += 100.0
         elif availability_type_override == AvailabilityType.PREFERRED:
@@ -682,6 +686,8 @@ class DistributionManager:
 
         # 2. Target Interval Needs Scoring (from context - for the interval being directly filled)
         target_interval_needs = context.get("target_interval_needs")
+        shift_template_id = shift_template.get('id') # Use .get() for dictionary
+
         if target_interval_needs:
             if target_interval_needs.get("requires_keyholder"):
                 if getattr(employee, 'is_keyholder', False):
@@ -703,7 +709,7 @@ class DistributionManager:
                     score -= 100.0 # Penalty for being untyped when types are needed
 
         else:
-            self.logger.warning(f"calculate_assignment_score: target_interval_needs not found in context for Emp {employee_id}, Shift {shift_template.id}, Date {shift_date}")
+            self.logger.warning(f"calculate_assignment_score: target_interval_needs not found in context for Emp {employee_id}, Shift {shift_template_id}, Date {shift_date}")
 
         # 3. Historical/Fairness Adjustments (higher is better convention)
         #    These methods will be adapted to return positive for bonus, negative for penalty.
@@ -712,8 +718,8 @@ class DistributionManager:
         score += self._calculate_preference_adjustment_v2(employee_id, shift_template, shift_date, availability_type_override)
 
         # 4. Shift Desirability Penalty
-        shift_id = shift_template.id
-        cached_shift_info = self.shift_scores.get(shift_id)
+        # shift_id = shift_template.id # Already got shift_template_id
+        cached_shift_info = self.shift_scores.get(shift_template_id)
         if cached_shift_info and isinstance(cached_shift_info, dict):
             base_penalty_factor = 5.0
             score -= cached_shift_info.get('base_score', ShiftScore.STANDARD) * base_penalty_factor
@@ -776,7 +782,7 @@ class DistributionManager:
                     # Example: base penalty 50, plus 20 for each extra person over
                     penalty = 50.0 + (20.0 * (overstaff_amount -1) ) # -1 because first over is caught by 50.0
                     score -= penalty
-                    self.logger.debug(f"Overstaffing penalty for Emp {employee_id}, Shift {shift_template.id} in interval {covered_interval_time}: -{penalty:.2f} (Had {num_employees_in_covered_interval_before_this}, Needs {min_employees_for_covered_interval}, Would be {num_employees_in_covered_interval_before_this + 1})")
+                    self.logger.debug(f"Overstaffing penalty for Emp {employee_id}, Shift {shift_template_id} in interval {covered_interval_time}: -{penalty:.2f} (Had {num_employees_in_covered_interval_before_this}, Needs {min_employees_for_covered_interval}, Would be {num_employees_in_covered_interval_before_this + 1})")
         else:
             if not shift_covered_intervals:
                 self.logger.warning("calculate_assignment_score: shift_covered_intervals not in context.")
@@ -784,7 +790,7 @@ class DistributionManager:
                 self.logger.warning("calculate_assignment_score: full_day_staffing_snapshot not in context.")
 
         self.logger.debug(
-            f"Score for Emp {employee_id}, Shift {shift_template.id} ({getattr(shift_template, 'shift_type', 'N/A')}) on {shift_date}, "
+            f"Score for Emp {employee_id}, Shift {shift_template_id} ({shift_template.get('shift_type', 'N/A')}) on {shift_date}, "
             f"Avail: {availability_type_override.value if hasattr(availability_type_override, 'value') else availability_type_override}: Final Score = {score:.2f}"
         )
         return score
@@ -806,7 +812,7 @@ class DistributionManager:
         """
         adjustment = 0.0
         # ADDED CHECK for self.resources
-        employee = self.resources.get_employee_by_id(employee_id) if self.resources else None
+        employee = self.resources.get_employee(employee_id) if self.resources else None
         if not employee or employee_id not in self.employee_history:
             return 0.0
 
@@ -818,14 +824,14 @@ class DistributionManager:
             # Shift Type Balancing (EARLY, MIDDLE, LATE)
             target_ratio = 0.33 # Simplified target
             current_category_count = history.get(category, 0)
-            current_category_ratio = current_category_count / total_shifts
+            current_category_ratio = current_category_count / total_shifts if total_shifts > 0 else 0 # Avoid division by zero
 
             # Bonus if employee needs more of this type, penalty if has too many
             # Max bonus/penalty around 20-25 points
             if current_category_ratio < target_ratio - 0.15: # Significantly underrepresented
-                adjustment += 25.0 * (target_ratio - current_category_ratio) / target_ratio 
+                adjustment += 25.0 * (target_ratio - current_category_ratio) / target_ratio if target_ratio > 0 else 0
             elif current_category_ratio > target_ratio + 0.15: # Significantly overrepresented
-                adjustment -= 25.0 * (current_category_ratio - target_ratio) / target_ratio
+                adjustment -= 25.0 * (current_category_ratio - target_ratio) / target_ratio if target_ratio > 0 else 0
             
             # Weekend Balancing
             if shift_date.weekday() >= 5: # If current shift is a weekend
@@ -833,7 +839,7 @@ class DistributionManager:
                 # Example: Penalize if already worked >2 weekends in last 4 weeks (approx month)
                 # Or, if weekend shifts are > 35% of total shifts for this employee
                 num_weekend_shifts = history.get("weekend", 0)
-                weekend_ratio = num_weekend_shifts / total_shifts
+                weekend_ratio = num_weekend_shifts / total_shifts if total_shifts > 0 else 0 # Avoid division by zero
                 if weekend_ratio > 0.35: # Employee works >35% weekends
                     adjustment -= 30.0 # Strong penalty for another weekend shift
                 elif num_weekend_shifts > (total_shifts / 2) and num_weekend_shifts > 3: # Works more weekends than weekdays recently
@@ -848,6 +854,8 @@ class DistributionManager:
             # TODO: Holiday Balancing (similar to weekend)
             self.logger.debug(f"HistoryAdjustment for Emp {employee_id}, ShiftType {category}, Date {shift_date}: {adjustment:.2f}")
             return adjustment
+        
+        return adjustment # Ensure float is returned on all paths
 
     def _calculate_preference_adjustment_v2(
         self, employee_id: int, shift_template: 'ActualShiftTemplate', shift_date: date, availability_type: Optional['ActualAvailabilityType'] = None
@@ -859,7 +867,7 @@ class DistributionManager:
         """
         adjustment = 0.0
         # ADDED CHECK for self.resources
-        employee = self.resources.get_employee_by_id(employee_id) if self.resources else None
+        employee = self.resources.get_employee(employee_id) if self.resources else None
         if not employee or employee_id not in self.employee_preferences:
             return 0.0
 
@@ -1574,7 +1582,7 @@ class DistributionManager:
                     # --- CRITICAL UPDATE: Update current_staffing_per_interval for all intervals covered by this new assignment ---
                     assigned_shift_details = shift_details_map.get(assignment_made.get('shift_id'))
                     # ADDED CHECK for self.resources
-                    employee_obj = resources.get_employee_by_id(assignment_made.get('employee_id')) if self.resources else None
+                    employee_obj = resources.get_employee(assignment_made.get('employee_id')) if self.resources else None
 
                     if assigned_shift_details and employee_obj:
                         intervals_covered_by_newly_assigned_shift = assigned_shift_details.get('_covered_intervals', [])
@@ -1714,18 +1722,24 @@ class DistributionManager:
                 shift_start_time_obj = _time_str_to_datetime_time(shift_template_dict['start_time'])
                 shift_end_time_obj = _time_str_to_datetime_time(shift_template_dict['end_time'])
 
-                availability_status, _ = availability_checker.check_employee_availability(
-                    employee_id=employee_id,
-                    check_date=current_date,
-                    shift_start_time=shift_start_time_obj,
-                    shift_end_time=shift_end_time_obj,
-                    shift_id=shift_id # Pass shift_id for context if needed by checker
+                # Prepare shift details for the availability checker
+                shift_details_for_checker = SimpleNamespace(
+                    id=shift_id,
+                    start_time=shift_template_dict['start_time'], # Ensure these keys exist
+                    end_time=shift_template_dict['end_time']   # Ensure these keys exist
                 )
-                if availability_status == AvailabilityType.UNAVAILABLE: # Using the imported AvailabilityType
-                    self.logger.debug(f"Employee {employee_id} UNAVAILABLE for shift {shift_id} on {current_date}. Status: {availability_status}")
+
+                is_available, actual_availability_type = availability_checker.is_employee_available(
+                    employee_id=employee_id,
+                    date_to_check=current_date,
+                    shift=shift_details_for_checker
+                )
+
+                if not is_available:
+                    self.logger.debug(f"Employee {employee_id} UNAVAILABLE for shift {shift_id} on {current_date}. Type: {actual_availability_type}")
                     continue
                 
-                self.logger.debug(f"Employee {employee_id} AVAILABLE for shift {shift_id} on {current_date} with status {availability_status}")
+                self.logger.debug(f"Employee {employee_id} for shift {shift_id} on {current_date} - Available: {is_available}, Type: {actual_availability_type}")
 
                 # 3. Check constraints
                 # Create a hypothetical assignment to check constraints
@@ -1751,8 +1765,8 @@ class DistributionManager:
                 # Pass existing assignments for comprehensive check
                 constraint_violations = constraint_checker.check_all_constraints(
                     employee_id=employee_id,
-                    new_shift_start=datetime.combine(current_date, shift_start_time_obj),
-                    new_shift_end=datetime.combine(current_date, shift_end_time_obj),
+                    new_shift_start_dt=datetime.combine(current_date, shift_start_time_obj),
+                    new_shift_end_dt=datetime.combine(current_date, shift_end_time_obj),
                     existing_assignments=final_assignments_so_far # Use assignments made so far in this run
                 )
                 if constraint_violations:
@@ -1776,13 +1790,13 @@ class DistributionManager:
                 # If ShiftTemplate is a SQLAlchemy model, direct instantiation might be complex here.
                 # A simpler DTO or ensuring shift_template_dict has all fields is better.
 
-                # Use the availability_status from the earlier check
+                # Use the actual_availability_type for scoring
                 score = self.calculate_assignment_score(
                     employee_id, 
                     shift_template_dict, # Pass the dict
                     current_date, 
                     context=scoring_context,
-                    availability_type_override=availability_status 
+                    availability_type_override=actual_availability_type # Use the actual type here
                 )
                 
                 self.logger.debug(f"Score for employee {employee_id}, shift {shift_id} on {current_date}: {score}")
@@ -2114,7 +2128,7 @@ class DistributionManager:
                 if assigned_shift_start_dt <= interval_start_dt < assigned_shift_end_dt_for_comparison:
                     if employee_id not in employee_ids_working:
                         # ADDED CHECK for self.resources
-                        employee = self.resources.get_employee_by_id(employee_id) if self.resources else None
+                        employee = self.resources.get_employee(employee_id) if self.resources else None
                         if employee:
                             working_employees.append(employee)
                             employee_ids_working.add(employee_id)

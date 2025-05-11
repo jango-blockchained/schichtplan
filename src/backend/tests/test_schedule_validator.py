@@ -3,14 +3,14 @@ from unittest.mock import patch, MagicMock
 from datetime import date, timedelta, time, datetime
 from collections import defaultdict
 
-from backend.services.scheduler.validator import (
+from src.backend.services.scheduler.validator import (
     ScheduleValidator,
     ScheduleConfig,
     ValidationError,
 )
-from backend.services.scheduler.resources import ScheduleResources
-from backend.models.employee import Employee as ActualEmployee, EmployeeGroup
-from backend.services.scheduler.coverage_utils import get_required_staffing_for_interval
+from src.backend.services.scheduler.resources import ScheduleResources
+from src.backend.models.employee import Employee as ActualEmployee, EmployeeGroup
+from src.backend.services.scheduler.coverage_utils import get_required_staffing_for_interval
 
 
 class MockScheduleEntry:
@@ -92,8 +92,8 @@ class TestScheduleValidator(unittest.TestCase):
             return None
         self.mock_resources.get_employee = MagicMock(side_effect=get_employee_side_effect)
 
-    @patch('backend.services.scheduler.validator.get_required_staffing_for_interval')
-    @patch('backend.services.scheduler.validator._time_str_to_datetime_time', new_callable=MagicMock)
+    @patch('src.backend.services.scheduler.validator.get_required_staffing_for_interval')
+    @patch('src.backend.services.scheduler.validator._time_str_to_datetime_time', new_callable=MagicMock)
     def test_validate_coverage_interval_perfect_match(self, mock_time_converter, mock_get_needs):
         # Setup: validator.INTERVAL_MINUTES is 60
         test_date = date(2023, 1, 2)
@@ -133,8 +133,8 @@ class TestScheduleValidator(unittest.TestCase):
         self.assertEqual(len(type_errors), 0, f"Type errors: {type_errors}")
         self.assertEqual(len(errors), 0)
 
-    @patch('backend.services.scheduler.validator.get_required_staffing_for_interval')
-    @patch('backend.services.scheduler.validator._time_str_to_datetime_time', new_callable=MagicMock)
+    @patch('src.backend.services.scheduler.validator.get_required_staffing_for_interval')
+    @patch('src.backend.services.scheduler.validator._time_str_to_datetime_time', new_callable=MagicMock)
     def test_validate_coverage_interval_understaffing(self, mock_time_converter, mock_get_needs):
         test_date = date(2023, 1, 2)
         mock_assignments = []
@@ -154,8 +154,8 @@ class TestScheduleValidator(unittest.TestCase):
             self.assertEqual(understaffing_errors[0].details['required_min_employees'], 1)
             self.assertEqual(understaffing_errors[0].details['actual_assigned_employees'], 0)
 
-    @patch('backend.services.scheduler.validator.get_required_staffing_for_interval')
-    @patch('backend.services.scheduler.validator._time_str_to_datetime_time', new_callable=MagicMock)
+    @patch('src.backend.services.scheduler.validator.get_required_staffing_for_interval')
+    @patch('src.backend.services.scheduler.validator._time_str_to_datetime_time', new_callable=MagicMock)
     def test_validate_coverage_interval_missing_keyholder(self, mock_time_converter, mock_get_needs):
         test_date = date(2023, 1, 2)
         mock_assignments = [MockScheduleEntry(employee_id=2, date_obj=test_date, start_time_str="09:00", end_time_str="10:00")]
@@ -176,8 +176,8 @@ class TestScheduleValidator(unittest.TestCase):
             self.assertTrue(keyholder_errors[0].details['required_keyholder'])
             self.assertEqual(keyholder_errors[0].details['actual_keyholders_present'], 0)
 
-    @patch('backend.services.scheduler.validator.get_required_staffing_for_interval')
-    @patch('backend.services.scheduler.validator._time_str_to_datetime_time', new_callable=MagicMock)
+    @patch('src.backend.services.scheduler.validator.get_required_staffing_for_interval')
+    @patch('src.backend.services.scheduler.validator._time_str_to_datetime_time', new_callable=MagicMock)
     def test_validate_coverage_interval_missing_employee_type(self, mock_time_converter, mock_get_needs):
         test_date = date(2023, 1, 2)
         self.mock_employees[0].employee_group = EmployeeGroup.GFB
@@ -198,7 +198,7 @@ class TestScheduleValidator(unittest.TestCase):
             self.assertIn("SUPERVISOR", type_errors[0].details['unmet_types'])
             self.assertEqual(type_errors[0].details['actual_types_present_counts'].get(str(EmployeeGroup.GFB)), 1)
 
-    @patch('backend.services.scheduler.validator.get_required_staffing_for_interval')
+    @patch('src.backend.services.scheduler.validator.get_required_staffing_for_interval')
     def test_validate_coverage_interval_empty_schedule(self, mock_get_needs):
         config = ScheduleConfig(enforce_minimum_coverage=True)
         errors = self.validator.validate([], config)
@@ -207,8 +207,8 @@ class TestScheduleValidator(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         mock_get_needs.assert_not_called()
 
-    @patch('backend.services.scheduler.validator.get_required_staffing_for_interval')
-    @patch('backend.services.scheduler.validator._time_str_to_datetime_time', new_callable=MagicMock)
+    @patch('src.backend.services.scheduler.validator.get_required_staffing_for_interval')
+    @patch('src.backend.services.scheduler.validator._time_str_to_datetime_time', new_callable=MagicMock)
     def test_validate_coverage_interval_get_needs_exception(self, mock_time_converter, mock_get_needs):
         test_date = date(2023, 1, 2)
         mock_assignments = [MockScheduleEntry(employee_id=1, date_obj=test_date, start_time_str="09:00", end_time_str="10:00")]
