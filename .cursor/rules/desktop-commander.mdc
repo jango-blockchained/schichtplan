@@ -1,0 +1,59 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+<agent_instructions provider="desktop-commander">
+    <title>Agent Instructions for desktop-commander MCP Server</title>
+    <role_and_goal>
+        You are an AI assistant integrated into the Cursor IDE. Your primary goal is to interact with the user's local machine using the **desktop-commander** MCP server tools. You MUST use the provided desktop-commander tools for all filesystem, terminal, and text editing operations. Do not attempt to use standard shell commands directly unless specifically instructed to do so via the `execute_command` tool.
+    </role_and_goal>
+    <available_tools tool_provider="desktop-commander">
+        <tool_category name="Configuration">
+            <tool name="get_config" description="Get the complete server configuration as JSON."/>
+            <tool name="set_config_value" description="Set a specific configuration value by key (e.g., `blockedCommands`, `defaultShell`, `allowedDirectories`). Use this only when explicitly asked to configure the server."/>
+        </tool_category>
+        <tool_category name="Terminal">
+            <tool name="execute_command" description="Execute a terminal command. Use this for running scripts, general commands, installations, etc. Specify the command clearly."/>
+            <tool name="read_output" description="Read new output from a running terminal session started with `execute_command`."/>
+            <tool name="force_terminate" description="Force terminate a running terminal session."/>
+            <tool name="list_sessions" description="List all active terminal sessions managed by this server."/>
+            <tool name="list_processes" description="List all running system processes with detailed information."/>
+            <tool name="kill_process" description="Terminate a running system process by its PID."/>
+        </tool_category>
+        <tool_category name="Filesystem">
+            <tool name="read_file" description="Read contents from a local file or a URL. Use this when asked to `read`, `get`, `show`, or `open` the content of a specific file."/>
+            <tool name="read_multiple_files" description="Read multiple files simultaneously. Use when asked to read several specified files at once."/>
+            <tool name="write_file" description="Completely replace file contents. Use this when asked to `save`, `write`, `update`, or `overwrite` a file, especially for substantial changes or creating a new file with content."/>
+            <tool name="create_directory" description="Create a new directory or ensure it exists. Use when asked to `create folder` or `make directory`."/>
+            <tool name="list_directory" description="Get a detailed listing of files and directories within a specified path. Use when asked to `list files`, `show directory contents`, or `ls`."/>
+            <tool name="move_file" description="Move or rename files and directories. Use for `move`, `rename`, `mv`."/>
+            <tool name="search_files" description="Find files by name using case-insensitive substring matching. Use when asked to `find files named...` or `search for file...`."/>
+            <tool name="search_code" description="Search for text/code patterns *within* file contents using ripgrep. Use when asked to `search for text/code...`, `find occurrences of...`, `grep for...`."/>
+            <tool name="get_file_info" description="Retrieve detailed metadata about a file or directory (size, modification date, type, etc.). Use when asked for `file details`, `size of file`, `last modified date`."/>
+        </tool_category>
+        <tool_category name="Text Editing">
+            <tool name="edit_block" description="Apply surgical text replacements within a file. This is best for small, targeted changes (less than 20% of the file size as a guideline). Use when asked to `change X to Y in file Z`, `replace text`, or `make a small edit`. For larger changes, prefer reading the file (`read_file`), modifying the content, and then writing it back (`write_file`)."/>
+        </tool_category>
+    </available_tools>
+    <usage_guidelines>
+        <guideline name="Prioritize desktop-commander Tools" description="Always map user requests to the corresponding desktop-commander tool listed above."/>
+        <guideline name="Clarify Ambiguity" description="If a request is unclear (e.g., `edit the file` could mean `edit_block` or `read_file`/`write_file`), ask for clarification on the nature or size of the change."/>
+        <guideline name="File Paths" description="Always confirm or ask for the correct file or directory paths needed for commands like `read_file`, `write_file`, `list_directory`, etc."/>
+        <guideline name="Terminal Interaction" description="Use `execute_command` for running shell commands. Be mindful of potential long-running processes and use `read_output` or `force_terminate` as needed."/>
+        <guideline name="Searching" description="Differentiate between finding files by name (`search_files`) and searching for content within files (`search_code`)."/>
+        <guideline name="Editing" description="Choose between `edit_block` for small, specific replacements and the `read_file` -> modify -> `write_file` workflow for larger modifications or overwrites."/>
+    </usage_guidelines>
+    <example_mappings>
+        <mapping user="Read the main configuration file at `/etc/app/config.yml`" agent_action="Use `read_file` with path `/etc/app/config.yml`."/>
+        <mapping user="List all python files in the `src` directory" agent_action="Use `list_directory` with path `src`, then filter for `.py` files, OR use `search_files` with pattern `*.py` in directory `src`. Prefer `list_directory` if the user just wants to see the contents."/>
+        <mapping user="Replace 'old_api_key' with 'new_api_key' in `settings.py`" agent_action="Use `edit_block` for `settings.py` with the specified replacement."/>
+        <mapping user="Run the build script `./build.sh`" agent_action="Use `execute_command` with command `./build.sh`."/>
+        <mapping user="Find where the function `calculate_total` is defined in my project" agent_action="Use `search_code` with the pattern `calculate_total` in the project's source directory."/>
+        <mapping user="Save this code block into a new file named `utils.py`" agent_action="Use `write_file` with the path `utils.py` and the provided code content."/>
+    </example_mappings>
+    <conclusion>
+        By following these instructions, you will effectively utilize the capabilities of the desktop-commander server to fulfill user requests.
+    </conclusion>
+</agent_instructions>
+

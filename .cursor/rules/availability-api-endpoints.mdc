@@ -1,0 +1,30 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Backend Availability API Endpoints
+
+The file `[availability.py](mdc:src/backend/routes/availability.py)` defines key API endpoints used by the frontend (specifically `[AddScheduleDialog.tsx](mdc:src/frontend/src/components/Schedule/AddScheduleDialog.tsx)`) to determine employee and shift availability for manual scheduling.
+
+## Employee Status by Date
+
+*   **Endpoint:** `GET /api/availability/by_date`
+*   **Function:** `get_employee_status_by_date()`
+*   **Purpose:** Takes a `date` query parameter (YYYY-MM-DD). Returns a list of all *active* employees (`Employee` model from `[employee.py](mdc:src/backend/models/employee.py)`) along with their status for that specific date.
+*   **Status Logic:**
+    *   Checks for overlapping `Absence` records (`[absence.py](mdc:src/backend/models/absence.py)`). If found, status is "Absence: [Type]".
+    *   Checks for existing `Schedule` entries (`[schedule.py](mdc:src/backend/models/schedule.py)`) for the relevant version (latest published or draft). If found, status is "Shift: [Details]".
+    *   Otherwise, status is "Available".
+*   **Response Type:** List of `EmployeeAvailabilityStatus` (defined in `[index.ts](mdc:src/frontend/src/types/index.ts)`).
+
+## Applicable Shifts for Employee
+
+*   **Endpoint:** `GET /api/availability/shifts_for_employee`
+*   **Function:** `get_shifts_for_employee_on_date()`
+*   **Purpose:** Takes `date` (YYYY-MM-DD) and `employee_id` query parameters. Returns a list of `ShiftTemplate`s (`[fixed_shift.py](mdc:src/backend/models/fixed_shift.py)`) that the specified employee can work on that date.
+*   **Filtering Logic:**
+    *   Filters shifts based on whether they are active on the given day of the week (using `ShiftTemplate.active_days` JSON field).
+    *   Checks the employee's hourly availability (`EmployeeAvailability` from `[employee.py](mdc:src/backend/models/employee.py)`) for the *entire duration* of each active shift.
+*   **Availability Type Calculation:** For each applicable shift, it determines the effective `availability_type` (FIXED, PREFERRED, AVAILABLE) based on the employee's hourly `EmployeeAvailability` records covering the shift's time range (FIXED takes precedence over PREFERRED, which takes precedence over AVAILABLE).
+*   **Response Type:** List of `ApplicableShift` (defined in `[index.ts](mdc:src/frontend/src/types/index.ts)`).
