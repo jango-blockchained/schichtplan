@@ -14,7 +14,7 @@ class ScheduleUpdateRequest(BaseModel):
     """Schema for updating a schedule entry."""
     employee_id: Optional[int] = Field(None, description="ID of the employee assigned to the schedule.")
     shift_id: Optional[int] = Field(None, description="ID of the shift assigned to the schedule.")
-    date: Optional[date] = Field(None, description="Date of the schedule entry in YYYY-MM-DD format.")
+    date: Optional[date] = None
     version: Optional[int] = Field(None, description="Version of the schedule.")
     notes: Optional[str] = Field(None, description="Notes for the schedule entry.")
     availability_type: Optional[str] = Field(None, description="Availability type for the schedule entry (e.g., FIX, PREF, AVL).")

@@ -827,8 +827,7 @@ class ScheduleGenerator:
 
     def _save_to_database(self):
         """
-        Placeholder for saving the generated schedule to the database.
-        Actual implementation will involve creating/updating Schedule and Assignment records.
+        Save the generated schedule to the database using session management utilities.
         """
         self.process_tracker.start_step("Database Save")
         self.logger.info(f"Attempting to save schedule to database (Session: {self.session_id})")
@@ -842,65 +841,60 @@ class ScheduleGenerator:
             return
 
         try:
-            # Example: Iterate through self.schedule.assignments and save them
-            # This would involve mapping ScheduleAssignment to the SQLAlchemy Schedule model
-            # and then adding them to the session and committing.
-            saved_count = 0
-            failed_count = 0
-            from backend.models import db 
+            # Import the session manager for safe database operations
+            from utils.db_utils import session_manager
             from backend.models.schedule import Schedule as DbSchedule, ScheduleStatus
 
-            for entry in self.schedule.assignments:
-                try:
-                    # Map ScheduleAssignment (entry) to DbSchedule model instance
-                    current_status_str = entry.status
-                    target_status_enum = ScheduleStatus.DRAFT # Default
-                    if current_status_str == "CONFIRMED":
-                        target_status_enum = ScheduleStatus.PUBLISHED
-                    elif current_status_str == "PUBLISHED":
-                        target_status_enum = ScheduleStatus.PUBLISHED
-                    elif current_status_str == "ARCHIVED":
-                        target_status_enum = ScheduleStatus.ARCHIVED
-                    elif current_status_str == "PENDING":
-                        target_status_enum = ScheduleStatus.DRAFT
-                    elif current_status_str == "EMPTY": # Handle "EMPTY" status
-                        # For EMPTY status, some fields might be None or placeholders
-                        # Ensure employee_id and shift_id are nullable or handled
-                        # For now, we'll let them be what they are (e.g., 0)
-                        # and set status, but other fields might need specific handling.
-                         target_status_enum = ScheduleStatus.DRAFT # Or a specific status if added to Enum
+            saved_count = 0
+            failed_count = 0
+            
+            # Use the session manager context for safe transaction handling
+            with session_manager() as session:
+                for entry in self.schedule.assignments:
+                    try:
+                        # Map ScheduleAssignment (entry) to DbSchedule model instance
+                        current_status_str = entry.status
+                        target_status_enum = ScheduleStatus.DRAFT # Default
+                        if current_status_str == "CONFIRMED":
+                            target_status_enum = ScheduleStatus.PUBLISHED
+                        elif current_status_str == "PUBLISHED":
+                            target_status_enum = ScheduleStatus.PUBLISHED
+                        elif current_status_str == "ARCHIVED":
+                            target_status_enum = ScheduleStatus.ARCHIVED
+                        elif current_status_str == "PENDING":
+                            target_status_enum = ScheduleStatus.DRAFT
+                        elif current_status_str == "EMPTY": # Handle "EMPTY" status
+                            target_status_enum = ScheduleStatus.DRAFT
+                        
+                        # Handle placeholder IDs to prevent foreign key constraint issues
+                        actual_employee_id = entry.employee_id if entry.employee_id != 0 else None
+                        actual_shift_id = entry.shift_id if entry.shift_id != 0 else None
 
-                    # Ensure employee_id and shift_id are valid or None if placeholder
-                    # The ScheduleAssignment for "EMPTY" uses 0, which might cause FK issues
-                    # if 0 is not a valid ID. This needs careful handling based on DB schema.
-                    # For now, assuming they can be 0 or are handled by DB allowing nullable/default.
-                    
-                    actual_employee_id = entry.employee_id if entry.employee_id != 0 else None
-                    actual_shift_id = entry.shift_id if entry.shift_id != 0 else None
+                        db_entry = DbSchedule(
+                            employee_id=actual_employee_id,
+                            shift_id=actual_shift_id,
+                            date=entry.date,
+                            status=target_status_enum,
+                            version=entry.version,
+                            # Use the fields directly from ScheduleAssignment
+                            break_start=entry.break_start,
+                            break_end=entry.break_end,
+                            notes=entry.notes,
+                            availability_type=entry.availability_type,
+                            shift_type=entry.shift_type_str # Use the stored string value
+                        )
+                        session.add(db_entry)
+                        saved_count += 1
+                    except Exception as e_item:
+                        failed_count += 1
+                        self.logger.error(f"Failed to prepare or add schedule entry {entry} for DB: {e_item}", exc_info=True)
+                        self.process_tracker.log_error(f"DB Save Error for item: {e_item}", exc_info=True)
 
+                # The session.commit() is automatically handled by the session_manager context
+                # If any error occurs, session.rollback() is automatically called
 
-                    db_entry = DbSchedule(
-                        employee_id=actual_employee_id,
-                        shift_id=actual_shift_id,
-                        date=entry.date,
-                        status=target_status_enum,
-                        version=entry.version,
-                        # Use the fields directly from ScheduleAssignment
-                        break_start=entry.break_start,
-                        break_end=entry.break_end,
-                        notes=entry.notes,
-                        availability_type=entry.availability_type,
-                        shift_type=entry.shift_type_str # Use the stored string value
-                    )
-                    db.session.add(db_entry)
-                    saved_count += 1
-                except Exception as e_item:
-                    failed_count += 1
-                    self.logger.error(f"Failed to prepare or add schedule entry {entry} for DB: {e_item}", exc_info=True)
-                    self.process_tracker.log_error(f"DB Save Error for item: {e_item}", exc_info=True)
-
+            # Log results after transaction is complete
             if saved_count > 0:
-                db.session.commit()
                 self.logger.info(f"Successfully saved {saved_count} schedule entries to the database.")
                 self.process_tracker.log_step_data("Entries Saved", saved_count)
             if failed_count > 0:
@@ -908,7 +902,7 @@ class ScheduleGenerator:
                 self.process_tracker.log_step_data("Entries Failed to Save", failed_count)
 
             if saved_count == 0 and failed_count == 0:
-                 self.logger.info("No new entries were processed for saving.")
+                self.logger.info("No new entries were processed for saving.")
 
             self.process_tracker.end_step({"status": "success" if failed_count == 0 else "partial_success"})
 
@@ -916,5 +910,5 @@ class ScheduleGenerator:
             self.logger.error(f"Error saving schedule to database: {e}", exc_info=True)
             self.process_tracker.log_error(f"Database Save Error: {e}", exc_info=True)
             self.process_tracker.end_step({"status": "failed", "error": str(e)})
-            # Depending on policy, might raise an error or just log
-            # raise ScheduleGenerationError(f"Failed to save schedule: {str(e)}") from e
+            # Log but don't raise, as we want to return the generated schedule even if DB save fails
+            # The calling code can decide whether to retry the save

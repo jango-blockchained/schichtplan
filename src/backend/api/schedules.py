@@ -22,6 +22,7 @@ from flask import current_app
 from services.scheduler import ScheduleGenerator, ScheduleGenerationError
 import logging
 from sqlalchemy import and_
+from sqlalchemy.exc import SQLAlchemyError
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +37,12 @@ def get_next_month_dates():
     return next_month, next_month.replace(day=last_day)
 
 
+from services.auth_service import login_required, permission_required, get_current_user
+
 @bp.route("/", methods=["GET"])
+@login_required
 def get_schedules():
-    """Get all schedules for a given period"""
+    """Get all schedules for a given period (requires authentication)"""
     try:
         start_date = request.args.get("start_date")
         end_date = request.args.get("end_date")
@@ -1182,7 +1186,10 @@ def delete_version(version):
 
 @bp.route("/", methods=["POST"])
 def create_schedule():
-    """Create a new schedule entry"""
+    """Create a new schedule entry using transactional session management"""
+    from utils.db_utils import session_manager
+    
+    # Validate input before doing database operations
     try:
         data = request.get_json()
 
@@ -1215,21 +1222,27 @@ def create_schedule():
             status=ScheduleStatus.DRAFT,
         )
 
-        try:
-            db.session.add(schedule)
-            db.session.commit()
-            logger.info(
-                f"Created new schedule for employee {data['employee_id']} on {data['date']}"
-            )
+        # Use session_manager context for automatic transaction handling
+        with session_manager() as session:
+            session.add(schedule)
+            # Commit happens automatically at the end of the context
+            # Rollback happens automatically if an exception occurs
 
-            return jsonify(schedule.to_dict()), HTTPStatus.CREATED
+        logger.info(
+            f"Created new schedule for employee {data['employee_id']} on {data['date']}"
+        )
 
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Database error creating schedule: {str(e)}")
-            return jsonify(
-                {"error": f"Database error: {str(e)}"}
-            ), HTTPStatus.INTERNAL_SERVER_ERROR
+        return jsonify(schedule.to_dict()), HTTPStatus.CREATED
 
+    except SQLAlchemyError as e:
+        # Database-specific errors (already handled by session_manager)
+        logger.error(f"Database error creating schedule: {str(e)}")
+        return jsonify(
+            {"error": f"Database error: {str(e)}"}
+        ), HTTPStatus.INTERNAL_SERVER_ERROR
     except Exception as e:
+        # General errors
         logger.error(f"Error in create_schedule: {str(e)}")
+        return jsonify(
+            {"error": str(e)}
+        ), HTTPStatus.INTERNAL_SERVER_ERROR

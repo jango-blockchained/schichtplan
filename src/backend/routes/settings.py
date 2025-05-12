@@ -7,6 +7,14 @@ import json
 import datetime
 import glob
 from sqlalchemy import inspect, text
+from pydantic import ValidationError
+from schemas.settings import (
+    TablesList, 
+    SettingValue, 
+    CategorySettings, 
+    GenerationRequirements,
+    CompleteSettings
+)
 
 settings = Blueprint("settings", __name__)
 
@@ -129,10 +137,14 @@ def wipe_tables():
         ), HTTPStatus.BAD_REQUEST
 
     data = request.get_json()
-    if not data or not isinstance(data.get("tables"), list):
-        return jsonify({"error": "tables list is required"}), HTTPStatus.BAD_REQUEST
-
-    tables_to_wipe = data["tables"]
+    
+    # Validate input using Pydantic schema
+    try:
+        tables_schema = TablesList(**data)
+        tables_to_wipe = tables_schema.tables
+    except ValidationError as e:
+        return jsonify({"error": "Invalid input data", "details": e.errors()}), HTTPStatus.BAD_REQUEST
+    
     inspector = inspect(db.engine)
     available_tables = [
         t for t in inspector.get_table_names() if t != "alembic_version"
@@ -221,6 +233,15 @@ def get_settings():
 def update_settings():
     """Update settings"""
     data = request.get_json()
+    
+    # Validate input using Pydantic schema
+    try:
+        settings_schema = CompleteSettings(**data)
+        # Convert Pydantic model to dict
+        validated_data = settings_schema.dict(exclude_none=True)
+    except ValidationError as e:
+        return jsonify({"error": "Invalid input data", "details": e.errors()}), HTTPStatus.BAD_REQUEST
+    
     settings = Settings.query.first()
 
     if not settings:
@@ -228,7 +249,7 @@ def update_settings():
         db.session.add(settings)
 
     try:
-        settings.update_from_dict(data)
+        settings.update_from_dict(validated_data)
         db.session.commit()
         return jsonify(settings.to_dict())
     except Exception as e:
@@ -272,6 +293,24 @@ def get_category_settings(category):
 def update_category_settings(category):
     """Update settings for a specific category"""
     data = request.get_json()
+    
+    # Validate based on category
+    try:
+        if category == "general":
+            from schemas.settings import GeneralSettings
+            validated_data = GeneralSettings(**data).dict(exclude_none=True)
+        elif category == "store_hours":
+            from schemas.settings import StoreHoursSettings
+            validated_data = StoreHoursSettings(**data).dict(exclude_none=True)
+        elif category == "scheduling_advanced":
+            from schemas.settings import AdvancedSettings
+            validated_data = AdvancedSettings(**data).dict(exclude_none=True)
+        else:
+            # For custom categories, use generic validation
+            validated_data = CategorySettings(**data).__root__
+    except ValidationError as e:
+        return jsonify({"error": "Invalid input data", "details": e.errors()}), HTTPStatus.BAD_REQUEST
+    
     settings = Settings.query.first()
 
     if not settings:
@@ -279,7 +318,7 @@ def update_category_settings(category):
         db.session.add(settings)
 
     try:
-        settings.update_from_dict({category: data})
+        settings.update_from_dict({category: validated_data})
         db.session.commit()
         return jsonify(settings.to_dict()[category])
     except Exception as e:
@@ -291,6 +330,14 @@ def update_category_settings(category):
 def update_setting(category, key):
     """Update a specific setting"""
     data = request.get_json()
+    
+    # Validate input using Pydantic schema
+    try:
+        setting_value = SettingValue(**data)
+        value = setting_value.value
+    except ValidationError as e:
+        return jsonify({"error": "Invalid input data", "details": e.errors()}), HTTPStatus.BAD_REQUEST
+    
     settings = Settings.query.first()
 
     if not settings:
@@ -298,7 +345,6 @@ def update_setting(category, key):
         db.session.add(settings)
 
     try:
-        value = data.get("value")
         settings_dict = settings.to_dict()
 
         if category not in settings_dict:
@@ -542,6 +588,13 @@ def update_generation_settings():
         if not data:
             return jsonify({"error": "No data provided"}), HTTPStatus.BAD_REQUEST
 
+        # Validate input using Pydantic schema
+        try:
+            generation_settings = GenerationRequirements(**data)
+            validated_data = generation_settings.dict(exclude_none=True)
+        except ValidationError as e:
+            return jsonify({"error": "Invalid input data", "details": e.errors()}), HTTPStatus.BAD_REQUEST
+
         # Get settings
         settings_obj = Settings.query.first()
         if not settings_obj:
@@ -557,8 +610,8 @@ def update_generation_settings():
         if "generation_requirements" not in settings_obj.scheduling_advanced:
             settings_obj.scheduling_advanced["generation_requirements"] = {}
 
-        # Update with new values
-        settings_obj.scheduling_advanced["generation_requirements"].update(data)
+        # Update with validated values
+        settings_obj.scheduling_advanced["generation_requirements"].update(validated_data)
         db.session.commit()
 
         return jsonify(
