@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -13,6 +13,16 @@ import {
     TooltipProvider,
     TooltipTrigger, 
 } from '@/components/ui/tooltip';
+import { 
+    Pagination, 
+    PaginationContent, 
+    PaginationEllipsis, 
+    PaginationItem, 
+    PaginationLink, 
+    PaginationNext, 
+    PaginationPrevious 
+} from '@/components/ui/pagination';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface VersionTableProps {
     versions: VersionMeta[];
@@ -35,6 +45,10 @@ export function VersionTable({
     onDuplicateVersion,
     onCreateNewVersion
 }: VersionTableProps) {
+    // Add pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(5);
+
     if (!versions || versions.length === 0) {
         return (
             <Card>
@@ -88,6 +102,105 @@ export function VersionTable({
     // Sort versions by version number descending
     const sortedVersions = [...versions].sort((a, b) => b.version - a.version);
 
+    // Pagination calculations
+    const totalPages = Math.ceil(sortedVersions.length / itemsPerPage);
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentItems = sortedVersions.slice(indexOfFirstItem, indexOfLastItem);
+
+    // Pagination change handlers
+    const handlePageChange = (page: number) => {
+        setCurrentPage(page);
+    };
+
+    const handleItemsPerPageChange = (value: string) => {
+        setItemsPerPage(Number(value));
+        setCurrentPage(1); // Reset to first page when changing items per page
+    };
+
+    // Generate pagination items
+    const getPaginationItems = () => {
+        const items = [];
+        const maxPagesToShow = 5;
+        
+        if (totalPages <= maxPagesToShow) {
+            // Show all pages if there are fewer than maxPagesToShow
+            for (let i = 1; i <= totalPages; i++) {
+                items.push(
+                    <PaginationItem key={i}>
+                        <PaginationLink
+                            onClick={() => handlePageChange(i)}
+                            isActive={currentPage === i}
+                        >
+                            {i}
+                        </PaginationLink>
+                    </PaginationItem>
+                );
+            }
+        } else {
+            // Always show first page
+            items.push(
+                <PaginationItem key={1}>
+                    <PaginationLink
+                        onClick={() => handlePageChange(1)}
+                        isActive={currentPage === 1}
+                    >
+                        1
+                    </PaginationLink>
+                </PaginationItem>
+            );
+
+            // Show ellipsis if current page is far from the first page
+            if (currentPage > 3) {
+                items.push(
+                    <PaginationItem key="ellipsis1">
+                        <PaginationEllipsis />
+                    </PaginationItem>
+                );
+            }
+
+            // Show pages around current page
+            const startPage = Math.max(2, currentPage - 1);
+            const endPage = Math.min(totalPages - 1, currentPage + 1);
+
+            for (let i = startPage; i <= endPage; i++) {
+                items.push(
+                    <PaginationItem key={i}>
+                        <PaginationLink
+                            onClick={() => handlePageChange(i)}
+                            isActive={currentPage === i}
+                        >
+                            {i}
+                        </PaginationLink>
+                    </PaginationItem>
+                );
+            }
+
+            // Show ellipsis if current page is far from the last page
+            if (currentPage < totalPages - 2) {
+                items.push(
+                    <PaginationItem key="ellipsis2">
+                        <PaginationEllipsis />
+                    </PaginationItem>
+                );
+            }
+
+            // Always show last page
+            items.push(
+                <PaginationItem key={totalPages}>
+                    <PaginationLink
+                        onClick={() => handlePageChange(totalPages)}
+                        isActive={currentPage === totalPages}
+                    >
+                        {totalPages}
+                    </PaginationLink>
+                </PaginationItem>
+            );
+        }
+
+        return items;
+    };
+    
     // Check if a version was created recently (within the last 5 minutes)
     const isNewlyCreated = (createdAt: string | null) => {
         if (!createdAt) return false;
@@ -128,7 +241,7 @@ export function VersionTable({
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {sortedVersions.map((version) => {
+                        {currentItems.map((version) => {
                             const isSelected = selectedVersion === version.version;
                             const isNew = isNewlyCreated(version.created_at);
                             
@@ -233,6 +346,52 @@ export function VersionTable({
                         })}
                     </TableBody>
                 </Table>
+                
+                {/* Pagination controls */}
+                <div className="flex items-center justify-between mt-4">
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">Zeige</span>
+                        <Select
+                            value={itemsPerPage.toString()}
+                            onValueChange={handleItemsPerPageChange}
+                        >
+                            <SelectTrigger className="w-[80px] h-8">
+                                <SelectValue placeholder={itemsPerPage.toString()} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="5">5</SelectItem>
+                                <SelectItem value="10">10</SelectItem>
+                                <SelectItem value="15">15</SelectItem>
+                                <SelectItem value="20">20</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <span className="text-sm text-muted-foreground">pro Seite</span>
+                    </div>
+                    
+                    <div className="flex items-center">
+                        <span className="text-sm text-muted-foreground mr-4">
+                            Seite {currentPage} von {totalPages} ({sortedVersions.length} Versionen)
+                        </span>
+                        
+                        <Pagination>
+                            <PaginationContent>
+                                {currentPage > 1 && (
+                                    <PaginationItem>
+                                        <PaginationPrevious onClick={() => handlePageChange(currentPage - 1)} />
+                                    </PaginationItem>
+                                )}
+                                
+                                {getPaginationItems()}
+                                
+                                {currentPage < totalPages && (
+                                    <PaginationItem>
+                                        <PaginationNext onClick={() => handlePageChange(currentPage + 1)} />
+                                    </PaginationItem>
+                                )}
+                            </PaginationContent>
+                        </Pagination>
+                    </div>
+                </div>
             </CardContent>
         </Card>
     );

@@ -687,19 +687,51 @@ export const updateSchedule = async (
     updates: ScheduleUpdate
 ): Promise<Schedule> => {
     try {
-        // Log the update operation for debugging
-        console.log('🔄 Updating schedule:', { scheduleId, updates });
+        // Enhanced debugging - log the request in more detail for deletion operations
+        if (updates.shift_id === null) {
+            console.log('🗑️ DELETE OPERATION - Deleting shift (setting shift_id to null):', { 
+                scheduleId, 
+                updates,
+                timestamp: new Date().toISOString()
+            });
+        } else {
+            console.log('🔄 Updating schedule:', { scheduleId, updates });
+        }
         
         // If we have a shift_id but no shift times, the backend will handle getting
         // these from the shift template relationship
         const response = await api.put(`/schedules/${scheduleId}`, updates);
         
-        console.log('🔄 Schedule updated:', response.data);
+        if (updates.shift_id === null) {
+            console.log('🗑️ DELETE OPERATION RESULT:', response.data);
+        } else {
+            console.log('🔄 Schedule updated:', response.data);
+        }
         
         // The response data should contain the complete schedule with shift data
         return response.data;
     } catch (error) {
         console.error('Error updating schedule:', error);
+        
+        // Enhanced error logging for deletion operations
+        if (updates.shift_id === null) {
+            console.error('🗑️ DELETE OPERATION FAILED. Additional details:', { 
+                scheduleId, 
+                version: updates.version,
+                errorMessage: error instanceof Error ? error.message : 'Unknown error'
+            });
+            
+            // Log network request details if available
+            if (error.request && error.response) {
+                console.error('🗑️ Network details:', {
+                    status: error.response.status,
+                    statusText: error.response.statusText,
+                    responseData: error.response.data,
+                    requestUrl: error.request.url
+                });
+            }
+        }
+        
         if (error instanceof Error) {
             throw new Error(`Failed to update schedule: ${error.message}`);
         }
