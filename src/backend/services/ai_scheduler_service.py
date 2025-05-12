@@ -36,12 +36,40 @@ class AISchedulerService:
 
     def _load_api_key_from_settings(self):
         logger.app_logger.info("Loading Gemini API Key.") # Use logger.app_logger
-        loaded_key = os.getenv("GEMINI_API_KEY")
-        if not loaded_key:
-            logger.app_logger.error("GEMINI_API_KEY environment variable not set. AI scheduling will fail if attempted.") # Use logger.app_logger
+        try:
+            # Import Settings model here to avoid circular import
+            from src.backend.models.settings import Settings
+            
+            # Get the settings from the database
+            settings = Settings.query.first()
+            if settings and settings.ai_scheduling and isinstance(settings.ai_scheduling, dict):
+                loaded_key = settings.ai_scheduling.get("api_key")
+                
+                # If no key in settings, fall back to env var for backward compatibility
+                if not loaded_key:
+                    loaded_key = os.getenv("GEMINI_API_KEY")
+                    
+                if loaded_key:
+                    logger.app_logger.info("GEMINI_API_KEY loaded successfully.")
+                    return loaded_key
+            else:
+                # Fall back to environment variable if settings aren't available
+                loaded_key = os.getenv("GEMINI_API_KEY")
+                if loaded_key:
+                    logger.app_logger.info("GEMINI_API_KEY loaded from environment variable.")
+                    return loaded_key
+            
+            logger.app_logger.error("GEMINI_API_KEY not found in settings or environment. AI scheduling will fail if attempted.")
             return None
-        logger.app_logger.info("GEMINI_API_KEY loaded successfully.") # Use logger.app_logger
-        return loaded_key
+        except Exception as e:
+            logger.app_logger.error(f"Error loading API key from settings: {str(e)}", exc_info=True)
+            # Fall back to environment variable
+            loaded_key = os.getenv("GEMINI_API_KEY")
+            if loaded_key:
+                logger.app_logger.info("GEMINI_API_KEY loaded from environment variable after settings error.")
+                return loaded_key
+            logger.app_logger.error("GEMINI_API_KEY environment variable not set. AI scheduling will fail if attempted.")
+            return None
 
     def _collect_data_for_ai_prompt(self, start_date, end_date):
         logger.app_logger.info(f"Collecting data for AI prompt from {start_date} to {end_date}.") # Use logger.app_logger

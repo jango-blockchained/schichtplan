@@ -140,6 +140,23 @@ export default function UnifiedSettingsPage() {
     debouncedUpdate(updatedSettings);
   };
   
+  const handleSettingChange = (
+    category: keyof Settings,
+    key: string,
+    value: any,
+    isNumeric: boolean = false
+  ) => {
+    if (!localSettings) return;
+    
+    const parsedValue = isNumeric ? parseFloat(value) : value;
+    const currentCategoryState = localSettings[category] || {};
+    
+    handleSave(category, {
+      ...currentCategoryState,
+      [key]: parsedValue
+    });
+  };
+  
   const handleImmediateUpdate = () => {
     if (localSettings) {
       debouncedUpdate.cancel(); // Cancel any pending debounced updates
