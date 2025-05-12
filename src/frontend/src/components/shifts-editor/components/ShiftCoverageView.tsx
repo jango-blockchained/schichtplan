@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Settings } from '@/types';
 import { Shift } from '@/services/api';
 import { parse, format, differenceInMinutes, isAfter, isBefore, addMinutes, subMinutes } from 'date-fns';
+import { Loader2 } from 'lucide-react'; // Import Loader2
 
 // Constants
 const DAYS = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'] as const;
@@ -18,7 +19,7 @@ interface TimeRange {
 }
 
 interface ShiftCoverageViewProps {
-    settings: Settings;
+    settings?: Settings | null; // Allow settings to be optional, null, or undefined
     shifts: Shift[];
 }
 
@@ -229,13 +230,11 @@ const ShiftBlock: React.FC<{
     );
 };
 
-const EmployeeCounter: React.FC<{ shifts: Shift[] }> = ({ shifts }) => {
-    return (
-        <div className="flex items-center gap-2 text-xs">
-            <span className="font-medium">Total Shifts:</span> {shifts.length}
-        </div>
-    );
-};
+const EmployeeCounter: React.FC<{ shifts: Shift[] }> = ({ shifts }) => (
+    <div className="flex items-center gap-2 text-xs">
+        <span className="font-medium">Total Shifts:</span> {shifts.length}
+    </div>
+);
 
 const Legend: React.FC = () => (
     <div className="flex flex-wrap items-center gap-4 text-sm">
@@ -258,6 +257,17 @@ const Legend: React.FC = () => (
 
 export const ShiftCoverageView: React.FC<ShiftCoverageViewProps> = ({ settings, shifts }) => {
     const [debugInfo, setDebugInfo] = useState<ShiftDebugInfo[]>([]);
+
+    // Add loading state check
+    if (!settings) {
+        return (
+            <div className="flex justify-center items-center h-64">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <span>Loading settings for coverage view...</span>
+            </div>
+        );
+    }
+
     const calculator = new TimeCalculator(settings);
     const timeRange = calculator.calculateExtendedTimeRange();
     const timelineLabels = calculator.calculateTimelineLabels(timeRange);
@@ -280,8 +290,9 @@ export const ShiftCoverageView: React.FC<ShiftCoverageViewProps> = ({ settings, 
     const enhancedShifts = useMemo(() => {
         return shifts.map(shift => {
             // Check if this is an opening or closing shift
-            const isEarlyShift = shift.start_time === settings.general.store_opening;
-            const isLateShift = shift.end_time === settings.general.store_closing;
+            // Safely access settings.general here
+            const isEarlyShift = shift.start_time === settings?.general?.store_opening;
+            const isLateShift = shift.end_time === settings?.general?.store_closing;
 
             return {
                 ...shift,
@@ -294,8 +305,9 @@ export const ShiftCoverageView: React.FC<ShiftCoverageViewProps> = ({ settings, 
     // Enhanced debugging
     console.group('Shift Coverage View Debug');
     console.log('Store Settings:', {
-        opening: settings.general.store_opening,
-        closing: settings.general.store_closing,
+        // Safely access settings.general here
+        opening: settings?.general?.store_opening,
+        closing: settings?.general?.store_closing,
         keyholderBefore: keyholderBeforeMinutes,
         keyholderAfter: keyholderAfterMinutes
     });
@@ -332,7 +344,8 @@ export const ShiftCoverageView: React.FC<ShiftCoverageViewProps> = ({ settings, 
 
                     <div className="space-y-8">
                         {DAYS.map((day, dayIndex) => {
-                            const isStoreOpen = settings.general.opening_days[dayIndex.toString()];
+                            // Safely access settings.general here
+                            const isStoreOpen = settings?.general?.opening_days?.[dayIndex.toString()];
                             // Use type assertion to avoid TypeScript errors with active_days
                             const dayShifts = enhancedShifts.filter(shift =>
                                 (shift.active_days as any)[dayIndex.toString()]

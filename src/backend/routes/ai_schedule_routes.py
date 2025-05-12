@@ -1,10 +1,13 @@
 from flask import Blueprint, request, jsonify
+from flask_cors import CORS # Import CORS
 from src.backend.services.ai_scheduler_service import AISchedulerService # Now this should exist
 from src.backend.utils.logger import logger # Corrected: import the global logger instance
 from pydantic import ValidationError # Import ValidationError
 from src.backend.schemas.ai_schedule import AIScheduleGenerateRequest # Import the Pydantic schema
 
 ai_schedule_bp = Blueprint('ai_schedule_bp', __name__, url_prefix='/ai/schedule')
+# Apply a more explicit CORS to the blueprint for testing
+CORS(ai_schedule_bp, origins="*", methods=["GET", "POST", "OPTIONS"], supports_credentials=True, allow_headers=["Content-Type", "Authorization"])
 
 @ai_schedule_bp.route('/generate', methods=['POST'])
 def generate_ai_schedule():

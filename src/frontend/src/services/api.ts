@@ -362,7 +362,7 @@ export const generateAiSchedule = async (
             timestamp: new Date().toISOString()
         });
 
-        const response = await api.post<ScheduleResponse>('/ai/schedule/generate', {
+        const response = await api.post<ScheduleResponse>('ai/schedule/generate', {
             start_date: startDate,
             end_date: endDate,
             version_id: version, // Ensure key matches backend expectation
@@ -905,17 +905,6 @@ export const restoreDatabase = async (file: File): Promise<void> => {
     }
 };
 
-export const clearLogs = async (): Promise<void> => {
-    try {
-        await api.post('/logs/clear');
-    } catch (error) {
-        if (error instanceof Error) {
-            throw new Error(`Failed to clear logs: ${error.message}`);
-        }
-        throw error;
-    }
-};
-
 export const wipeTables = async (tables: string[]): Promise<void> => {
     try {
         await api.post('/settings/wipe-tables', { tables });
@@ -924,6 +913,20 @@ export const wipeTables = async (tables: string[]): Promise<void> => {
             throw new Error(`Failed to wipe tables: ${error.message}`);
         }
         throw error;
+    }
+};
+
+// New function to get available table names for wiping
+export const getAvailableTables = async (): Promise<string[]> => {
+    try {
+        const response = await api.get<{ tables: string[] }>('/settings/tables/');
+        return response.data.tables;
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to fetch available tables: ${error.message}`);
+        }
+        // Ensure a generic error is thrown if it's not an Error instance
+        throw new Error('An unknown error occurred while fetching available tables.');
     }
 };
 
@@ -977,7 +980,18 @@ export const deleteLog = async (filename: string): Promise<void> => {
         await api.delete(`/logs/${filename}`);
     } catch (error) {
         if (error instanceof Error) {
-            throw new Error(`Failed to delete log: ${error.message}`);
+            throw new Error(`Failed to delete log ${filename}: ${error.message}`);
+        }
+        throw error;
+    }
+};
+
+export const clearAllLogs = async (): Promise<void> => {
+    try {
+        await api.delete('/logs/clear_all'); // Assuming a DELETE endpoint to clear all logs
+    } catch (error) {
+        if (error instanceof Error) {
+            throw new Error(`Failed to clear all logs: ${error.message}`);
         }
         throw error;
     }

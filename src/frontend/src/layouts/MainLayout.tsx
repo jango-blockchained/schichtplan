@@ -28,7 +28,6 @@ export const MainLayout = () => {
     { label: 'Coverage', path: '/coverage', icon: BarChart },
     { label: 'Schichten', path: '/shifts', icon: FileText },
     { label: 'Formulars', path: '/formulars', icon: FileText },
-    { label: 'Optionen', path: '/options', icon: Cog },
   ], []);
 
   const footerNavItems = React.useMemo(() => [
@@ -84,7 +83,7 @@ export const MainLayout = () => {
         minimized && !isSidebarHovered ? "justify-center" : "justify-start"
       )}>
         {(!minimized || isSidebarHovered) ? (
-          <span className="font-semibold text-lg truncate">{settings?.general.store_name || 'ShiftWise'}</span>
+          <span className="font-semibold text-lg truncate">{settings?.general?.store_name || 'ShiftWise'}</span>
         ) : (
           <LayoutDashboard className="h-6 w-6" /> // Show a default icon when minimized
         )}

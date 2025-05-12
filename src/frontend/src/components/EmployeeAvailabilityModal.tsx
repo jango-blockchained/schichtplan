@@ -15,6 +15,7 @@ import { getSettings, updateEmployeeAvailability, getEmployeeAvailabilities, Emp
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { AvailabilityTypeSelect } from './AvailabilityTypeSelect';
+import { DEFAULT_SETTINGS } from '@/hooks/useSettings'; // Import DEFAULT_SETTINGS
 
 interface EmployeeAvailabilityModalProps {
     employeeId: number;
@@ -83,30 +84,30 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
         setDailyHours({});
         setWeeklyHours(0);
 
-        if (settings) {
-            // Filter active days based on opening_days (using Mon=0 index)
-            const activeWeekDays = ALL_DAYS.filter((_, frontendIndex) => {
-                // Directly use frontendIndex (Mon=0) as it matches backend convention now
-                return settings.general.opening_days[frontendIndex.toString()];
+        if (!settings) return; // Add this check
+
+        // Filter active days based on opening_days (using Mon=0 index)
+        const activeWeekDays = ALL_DAYS.filter((_, frontendIndex) => {
+            // Directly use frontendIndex (Mon=0) as it matches backend convention now
+            return settings.general.opening_days[frontendIndex.toString()];
+        });
+
+        setActiveDays(activeWeekDays);
+
+        const { store_opening, store_closing } = settings.general;
+        const [startHour] = store_opening.split(':').map(Number);
+        const [endHour] = store_closing.split(':').map(Number);
+
+        const slots: TimeSlot[] = [];
+        for (let hour = startHour; hour < endHour; hour++) {
+            const nextHour = hour + 1;
+            slots.push({
+                time: `${format(new Date().setHours(hour, 0), TIME_FORMAT)} - ${format(new Date().setHours(nextHour, 0), TIME_FORMAT)}`,
+                hour: hour,
+                days: activeWeekDays.reduce((acc, day) => ({ ...acc, [day]: false }), {}),
             });
-
-            setActiveDays(activeWeekDays);
-
-            const { store_opening, store_closing } = settings.general;
-            const [startHour] = store_opening.split(':').map(Number);
-            const [endHour] = store_closing.split(':').map(Number);
-
-            const slots: TimeSlot[] = [];
-            for (let hour = startHour; hour < endHour; hour++) {
-                const nextHour = hour + 1;
-                slots.push({
-                    time: `${format(new Date().setHours(hour, 0), TIME_FORMAT)} - ${format(new Date().setHours(nextHour, 0), TIME_FORMAT)}`,
-                    hour: hour,
-                    days: activeWeekDays.reduce((acc, day) => ({ ...acc, [day]: false }), {}),
-                });
-            }
-            setTimeSlots(slots);
         }
+        setTimeSlots(slots);
     }, [settings]);
 
     useEffect(() => {

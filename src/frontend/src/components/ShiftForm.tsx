@@ -8,9 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Settings } from '@/types';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
+import { DEFAULT_SETTINGS } from '@/hooks/useSettings';
 
 interface ShiftFormProps {
-    settings: Settings;
+    settings?: Settings | null;
     onSave: (data: {
         start_time: string;
         end_time: string;
@@ -28,11 +29,13 @@ interface ShiftFormProps {
 const ALL_DAYS = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
 
 export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, onSave, initialData }) => {
+    const generalSettings = settings?.general || DEFAULT_SETTINGS.general;
+
     const [formData, setFormData] = useState({
-        start_time: initialData?.start_time || settings.general.store_opening,
-        end_time: initialData?.end_time || settings.general.store_closing,
+        start_time: initialData?.start_time || generalSettings.store_opening,
+        end_time: initialData?.end_time || generalSettings.store_closing,
         requires_break: initialData?.requires_break ?? true,
-        active_days: initialData?.active_days || settings.general.opening_days,
+        active_days: initialData?.active_days || generalSettings.opening_days,
     });
 
     // Convert time string to Date object for DateTimePicker
@@ -131,16 +134,16 @@ export const ShiftForm: React.FC<ShiftFormProps> = ({ settings, onSave, initialD
                         <div className="relative h-12 bg-muted rounded-md">
                             {/* Store hours background */}
                             <div className="absolute inset-0 flex items-center justify-between px-2 text-xs text-muted-foreground">
-                                <span>{settings.general.store_opening}</span>
-                                <span>{settings.general.store_closing}</span>
+                                <span>{generalSettings.store_opening}</span>
+                                <span>{generalSettings.store_closing}</span>
                             </div>
 
                             {/* Shift visualization */}
                             <div
                                 className="absolute h-8 top-2 bg-primary/20 border border-primary rounded"
                                 style={{
-                                    left: `${(timeToMinutes(formData.start_time) - timeToMinutes(settings.general.store_opening)) / (timeToMinutes(settings.general.store_closing) - timeToMinutes(settings.general.store_opening)) * 100}%`,
-                                    width: `${(timeToMinutes(formData.end_time) - timeToMinutes(formData.start_time)) / (timeToMinutes(settings.general.store_closing) - timeToMinutes(settings.general.store_opening)) * 100}%`,
+                                    left: `${(timeToMinutes(formData.start_time) - timeToMinutes(generalSettings.store_opening)) / (timeToMinutes(generalSettings.store_closing) - timeToMinutes(generalSettings.store_opening)) * 100}%`,
+                                    width: `${(timeToMinutes(formData.end_time) - timeToMinutes(formData.start_time)) / (timeToMinutes(generalSettings.store_closing) - timeToMinutes(generalSettings.store_opening)) * 100}%`,
                                 }}
                             >
                                 <div className="absolute inset-0 flex items-center justify-center text-xs">
