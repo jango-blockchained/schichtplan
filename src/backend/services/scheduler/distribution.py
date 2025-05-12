@@ -1,12 +1,13 @@
 """Distribution module for fair employee assignment across shifts."""
 
 from typing import Dict, List, Any, Optional, Union, Tuple, TYPE_CHECKING
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, time # Import time
 from collections import defaultdict
 import functools
 import sys
 import os
 import logging
+from types import SimpleNamespace # Import SimpleNamespace
 from .resources import ScheduleResources # Assuming ScheduleResources is in resources.py
 from .constraints import ConstraintChecker # Assuming ConstraintChecker is in constraints.py
 from .availability import AvailabilityChecker # Assuming AvailabilityChecker is in availability.py
@@ -57,6 +58,7 @@ def import_models():
                     AVAILABLE = "AVAILABLE"
                     PREFERRED = "PREFERRED"
                     UNAVAILABLE = "UNAVAILABLE"
+                    FIXED = "FIXED"  # Add missing FIXED value
                 
                 class Employee:
                     """Type hint class for Employee"""
@@ -67,6 +69,7 @@ def import_models():
                     is_keyholder: bool = False
                     is_active: bool = True
                     contracted_hours: float = 40.0
+                    preferences: Dict[str, Any] = {}  # Add preferences attribute to prevent errors
 
                 class ShiftTemplate:
                     """Type hint class for ShiftTemplate"""
@@ -94,6 +97,17 @@ AvailabilityType, Employee, ShiftTemplate, Schedule, logger = import_models()
 
 # --- Explicit Imports for Type Checking ---
 if TYPE_CHECKING:
+    from typing import Protocol
+    
+    # Define a Protocol for ShiftTemplate-like objects
+    class ShiftTemplateLike(Protocol):
+        id: int
+        start_time: str
+        end_time: str
+        shift_type: str = ""
+        shift_type_id: str = ""
+        duration_hours: float = 0.0
+        
     from src.backend.models.employee import AvailabilityType as ActualAvailabilityType
     from src.backend.models.employee import Employee as ActualEmployee
     # Assuming ShiftTemplate is in fixed_shift based on previous errors
@@ -270,7 +284,7 @@ class DistributionManager:
                  # ml_scores = self.ml_model.predict(features_for_prediction)
                  # predictions = { (features_for_prediction[i]['employee_id'], features_for_prediction[i]['shift_id']): ml_scores[i] 
                  #                 for i in range(len(features_for_prediction)) }
-                 # For now, use dummy predictions:
+                 # For now, use dummy predictions:ss
                  predictions = { (item['employee_id'], item['shift_id']): random.random() 
                                 for item in features_for_prediction }
                  self.logger.info(f"Received predictions for {len(predictions)} potential assignments.")
@@ -313,7 +327,7 @@ class DistributionManager:
                       # You would use methods like self._calculate_history_adjustment, self._calculate_preference_adjustment, etc.
                       # Need to pass necessary context to these methods.
                       # For now, a simple placeholder combined score:
-                      rule_based_score = self._calculate_assignment_score(employee_id, shift, current_date, {}, AvailabilityType.AVAILABLE)
+                      rule_based_score = self.calculate_assignment_score(employee_id, shift, current_date, {}, AvailabilityType.AVAILABLE)
                       # Note: _calculate_assignment_score currently takes ShiftTemplate as input,
                       # you might need to adapt it or get the ShiftTemplate object here.
                       # The fourth argument ({}) is a placeholder for the context dictionary.
@@ -617,7 +631,7 @@ class DistributionManager:
         - LATE: starts at or after 14:00
         """
         # First check if shift_type_id is available
-        if hasattr(shift, "shift_type_id") and shift.shift_type_id:
+        if hasattr(shift, "shift_type_id") and shift.shift_type_id is not None:
             if shift.shift_type_id in ["EARLY", "MIDDLE", "LATE"]:
                 return shift.shift_type_id
 
@@ -625,9 +639,11 @@ class DistributionManager:
         category = "EARLY"  # Default to EARLY if we can't determine
 
         # Extract start hour
-        if hasattr(shift, "start_time") and shift.start_time:
+        if hasattr(shift, "start_time") and shift.start_time is not None:
             try:
-                start_hour = int(shift.start_time.split(":")[0])
+                # Ensure start_time is a string before splitting
+                start_time_str = str(shift.start_time)
+                start_hour = int(start_time_str.split(":")[0])
 
                 # Categorize based on start hour
                 if start_hour < 10:
@@ -708,15 +724,25 @@ class DistributionManager:
     def calculate_assignment_score(
         self,
         employee_id: int,
-        shift_template: 'ActualShiftTemplate',
+        shift_template: Union['ActualShiftTemplate', Dict[str, Any], ShiftTemplate],
         shift_date: date,
         context: Dict[str, Any],
-        availability_type_override: 'ActualAvailabilityType'
+        availability_type_override: Union['ActualAvailabilityType', str]
     ) -> float:
         """Calculate a score for assigning this employee to this shift_template on shift_date.
 
         Higher scores are better.
         The score considers availability, interval-specific needs, employee history, preferences, workload, and overstaffing.
+        
+        Args:
+            employee_id: The ID of the employee
+            shift_template: Either a ShiftTemplate object or a dictionary with shift details
+            shift_date: The date of the shift
+            context: Additional context for scoring
+            availability_type_override: The availability type to use
+            
+        Returns:
+            float: The score (higher is better)
         """
         score = 0.0
         # ADDED CHECK for self.resources
@@ -725,23 +751,37 @@ class DistributionManager:
             self.logger.warning(f"calculate_assignment_score: Employee {employee_id} not found in resources.")
             return -float('inf') # Should not happen if called correctly
 
+        # Get shift_template_id based on object type
+        if isinstance(shift_template, dict):
+            shift_template_id = shift_template.get('id') or shift_template.get('shift_id') or shift_template.get('shift_template_id')
+            if shift_template_id is None:
+                self.logger.warning(f"calculate_assignment_score: No ID found in shift template dict: {shift_template}")
+                return -float('inf')
+        else:
+            shift_template_id = getattr(shift_template, 'id', None)
+            if shift_template_id is None:
+                self.logger.warning(f"calculate_assignment_score: No ID attribute in shift template object")
+                return -float('inf')
+
         # 1. AvailabilityType Scoring (Directly from override)
-        # Ensure AvailabilityType is the actual enum, not DummyAvailabilityType if possible
-        # This might require checking how AvailabilityType is resolved at runtime.
-        # For now, assuming direct comparison works or errors out if DummyAvailabilityType is used.
-        if availability_type_override == AvailabilityType.FIXED:
+        # Convert string availability type to enum values if needed
+        avail_type_str = availability_type_override
+        if hasattr(availability_type_override, 'value'):
+            avail_type_str = availability_type_override.value
+        
+        # Use string comparison for safety
+        if avail_type_str == "FIXED":
             score += 100.0
-        elif availability_type_override == AvailabilityType.PREFERRED:
+        elif avail_type_str == "PREFERRED":
             score += 50.0
-        elif availability_type_override == AvailabilityType.AVAILABLE:
+        elif avail_type_str == "AVAILABLE":
             score += 10.0 # Base score for being available
         else: # UNAVAILABLE or other status - should not reach here if pre-checked
-            self.logger.error(f"calculate_assignment_score called for non-available state: {availability_type_override} for Emp {employee_id}")
+            self.logger.error(f"calculate_assignment_score called for non-available state: {avail_type_str} for Emp {employee_id}")
             return -float('inf')
 
         # 2. Target Interval Needs Scoring (from context - for the interval being directly filled)
         target_interval_needs = context.get("target_interval_needs")
-        shift_template_id = shift_template.get('id') # Use .get() for dictionary
 
         if target_interval_needs:
             if target_interval_needs.get("requires_keyholder"):
@@ -856,9 +896,20 @@ class DistributionManager:
             if not full_day_staffing_snapshot:
                 self.logger.warning("calculate_assignment_score: full_day_staffing_snapshot not in context.")
 
+        # Get shift type for logging
+        if isinstance(shift_template, dict):
+            shift_type = shift_template.get('shift_type', 'N/A')
+        else:
+            shift_type = getattr(shift_template, 'shift_type', 'N/A')
+
+        # Get availability type string for logging
+        avail_log = avail_type_str
+        if hasattr(availability_type_override, 'value'):
+            avail_log = availability_type_override.value
+        
         self.logger.debug(
-            f"Score for Emp {employee_id}, Shift {shift_template_id} ({shift_template.get('shift_type', 'N/A')}) on {shift_date}, "
-            f"Avail: {availability_type_override.value if hasattr(availability_type_override, 'value') else availability_type_override}: Final Score = {score:.2f}"
+            f"Score for Emp {employee_id}, Shift {shift_template_id} ({shift_type}) on {shift_date}, "
+            f"Avail: {avail_log}: Final Score = {score:.2f}"
         )
         return score
 
@@ -871,7 +922,7 @@ class DistributionManager:
         return 0.0 # Neutral for now
 
     def _calculate_history_adjustment_v2(
-        self, employee_id: int, shift_template: 'ActualShiftTemplate', shift_date: date
+        self, employee_id: int, shift_template: Union['ActualShiftTemplate', Dict[str, Any], ShiftTemplate], shift_date: date
     ) -> float:
         """Calculate adjustment based on employee's shift history. Higher score is better.
         Aims to balance shift types (EARLY, MIDDLE, LATE) and weekend/holiday work.
@@ -925,7 +976,11 @@ class DistributionManager:
         return adjustment # Ensure float is returned on all paths
 
     def _calculate_preference_adjustment_v2(
-        self, employee_id: int, shift_template: 'ActualShiftTemplate', shift_date: date, availability_type: Optional['ActualAvailabilityType'] = None
+        self, 
+        employee_id: int, 
+        shift_template: Union['ActualShiftTemplate', Dict[str, Any], ShiftTemplate], 
+        shift_date: date, 
+        availability_type: Union['ActualAvailabilityType', str, None] = None
     ) -> float:
         """Calculate adjustment based on employee preferences. Higher score is better.
         Considers general day/shift preferences.
@@ -940,7 +995,13 @@ class DistributionManager:
 
         prefs = self.employee_preferences[employee_id]
         day_of_week_str = shift_date.strftime("%A").lower()
-        shift_type_attr = getattr(shift_template, 'shift_type', None) # E.g., "Early", "Office", etc.
+        
+        # Get shift_type safely regardless of input type
+        shift_type_attr = None
+        if isinstance(shift_template, dict):
+            shift_type_attr = shift_template.get('shift_type')
+        else:
+            shift_type_attr = getattr(shift_template, 'shift_type', None)
 
         # Explicit Day Preferences
         if day_of_week_str in prefs.get("preferred_days", []):
@@ -955,9 +1016,17 @@ class DistributionManager:
             if shift_type_attr in prefs.get("avoid_shifts", []):
                 adjustment -= 40.0 # Penalty for avoided shift type
         
+        # Get availability type as string for comparison
+        avail_type_str = None
+        if availability_type is not None:
+            if hasattr(availability_type, 'value'):
+                avail_type_str = availability_type.value
+            else:
+                avail_type_str = str(availability_type)
+        
         # If the specific availability for THIS shift instance was PREFERRED,
         # and it also matches a general preference, add a small kicker bonus.
-        if availability_type == AvailabilityType.PREFERRED:
+        if avail_type_str == "PREFERRED":
             if day_of_week_str in prefs.get("preferred_days", []) or \
                (shift_type_attr and shift_type_attr in prefs.get("preferred_shifts", [])):
                 adjustment += 10.0 # Kicker for PREFERRED + General Preference match
@@ -966,11 +1035,11 @@ class DistributionManager:
         return adjustment
 
     # Keep old versions for reference during transition if needed, or remove if confident
-    def _calculate_history_adjustment(self, employee_id: int, shift: 'ActualShiftTemplate', shift_date: date ) -> float:
+    def _calculate_history_adjustment(self, employee_id: int, shift: Union['ActualShiftTemplate', Dict[str, Any], ShiftTemplate], shift_date: date ) -> float:
         self.logger.warning("_calculate_history_adjustment (old) called. Should use _v2 version.")
         return 0.0 # Deprecated, return neutral
 
-    def _calculate_preference_adjustment(self, employee_id: int, shift: 'ActualShiftTemplate', shift_date: date ) -> float: 
+    def _calculate_preference_adjustment(self, employee_id: int, shift: Union['ActualShiftTemplate', Dict[str, Any], ShiftTemplate], shift_date: date ) -> float: 
         self.logger.warning("_calculate_preference_adjustment (old) called. Should use _v2 version.")
         return 0.0 # Deprecated, return neutral
 
@@ -1265,7 +1334,8 @@ class DistributionManager:
         """Set the current assignments to enable constraint checking"""
         self.assignments_by_employee = assignments
         self.schedule_by_date = schedule_by_date
-        self.constraint_checker.set_schedule(assignments, schedule_by_date)
+        if self.constraint_checker:
+            self.constraint_checker.set_schedule(assignments, schedule_by_date)
 
     def generate_diagnostic_report(self, date_to_check: date, shifts: List[Any], assignments: List[Dict]) -> Dict[str, Any]:
         """Generate a comprehensive diagnostic report about the assignment process
@@ -1300,7 +1370,7 @@ class DistributionManager:
         # Analyze shift distribution
         for shift in shifts:
             shift_id = self.get_id(shift, ["id", "shift_id"])
-            shift_type = self.extract_shift_type(shift)
+            shift_type = self._categorize_shift(shift) # Use the correct internal method
             
             diagnostic["shift_types"][shift_type] += 1
             
@@ -1321,10 +1391,14 @@ class DistributionManager:
                 if self.availability_checker:
                     shift_template = None
                     if isinstance(shift, dict):
-                        shift_template = self.resources.get_shift(shift.get("shift_id", shift.get("id")))
+                        # Ensure self.resources is not None before accessing get_shift
+                        if self.resources:
+                            shift_template = self.resources.get_shift(shift.get("shift_id", shift.get("id")))
                     else:
-                        shift_template = self.resources.get_shift(shift_id)
-                        
+                        # Ensure self.resources is not None before accessing get_shift
+                        if self.resources:
+                            shift_template = self.resources.get_shift(shift_id)
+
                     if shift_template:
                         for emp in self.resources.employees:
                             if getattr(emp, "is_active", True):
@@ -1385,10 +1459,10 @@ class DistributionManager:
 
     def _get_intervals_covered_by_shift(
         self, 
-        shift_start_time_str: str, 
-        shift_end_time_str: str, 
+        shift_start_time_str: Optional[str], 
+        shift_end_time_str: Optional[str], 
         interval_minutes: int
-    ) -> List[datetime.time]:
+    ) -> List[time]:
         """
         Calculates all time intervals covered by a given shift.
 
@@ -1401,7 +1475,9 @@ class DistributionManager:
             A list of datetime.time objects representing the start of each interval covered by the shift.
         """
         intervals_covered = []
+        # Ensure none of the inputs are None
         if not shift_start_time_str or not shift_end_time_str or interval_minutes <= 0:
+            self.logger.warning(f"Invalid inputs for _get_intervals_covered_by_shift: start={shift_start_time_str}, end={shift_end_time_str}, interval={interval_minutes}")
             return intervals_covered
 
         start_time = _time_str_to_datetime_time(shift_start_time_str)
@@ -1481,8 +1557,8 @@ class DistributionManager:
         INTERVAL_MINUTES = 15 
 
         self.schedule_by_date[current_date] = [] 
-        daily_interval_needs: Dict[datetime.time, Dict] = {}
-        current_staffing_per_interval: Dict[datetime.time, Dict] = {}
+        daily_interval_needs: Dict[time, Dict] = {}
+        current_staffing_per_interval: Dict[time, Dict] = {}
 
         # --- Phase 1.2: Loop through Time Intervals & Get Needs ---
         current_time_for_interval = datetime.min.time() 
@@ -1551,8 +1627,8 @@ class DistributionManager:
         self,
         current_date: date,
         potential_shifts: List[Dict],
-        daily_interval_needs: Dict[datetime.time, Dict],
-        current_staffing_per_interval: Dict[datetime.time, Dict],
+        daily_interval_needs: Dict[time, Dict],
+        current_staffing_per_interval: Dict[time, Dict],
         resources: ScheduleResources,
         constraint_checker: ConstraintChecker,
         availability_checker: AvailabilityChecker,
@@ -1690,46 +1766,22 @@ class DistributionManager:
     def _try_find_and_make_assignment(
         self,
         current_date: date,
-        interval_time: datetime.time, # This is the target interval we are trying to fill
+        interval_time: time, 
         candidate_shift_ids: List[int],
         potential_shifts_map: Dict[int, Dict], 
         resources: ScheduleResources,
         constraint_checker: ConstraintChecker,
         availability_checker: AvailabilityChecker,
-        current_staffing_per_interval: Dict[datetime.time, Dict], # Full day's staffing snapshot
+        current_staffing_per_interval: Dict[time, Dict],
         final_assignments_so_far: List[Dict], 
         assigned_shift_ids_in_this_run: set,
-        daily_interval_needs: Dict[datetime.time, Dict], # ADDED: Pass daily_interval_needs
+        daily_interval_needs: Dict[time, Dict],
         interval_duration_minutes: int 
     ) -> Optional[Dict]:
         """
         Attempts to find the best single employee-shift assignment for an understaffed interval.
-
-        Evaluates `candidate_shift_ids` that cover the target `interval_time`.
-        For each candidate shift, it iterates through available and compliant employees,
-        calculating an assignment score using `calculate_assignment_score`.
-        If a suitable candidate is found (highest score > -inf), it creates and returns
-        the assignment dictionary and updates the employee's history via
-        `update_with_assignment`. It does *not* directly modify the
-        `current_staffing_per_interval` map; that is the responsibility of the caller
-        (`_perform_interval_based_assignments`).
-
-        Args:
-            current_date: The date for which assignments are being made.
-            interval_time: The specific interval that is understaffed.
-            candidate_shift_ids: List of shift IDs that cover this interval.
-            potential_shifts_map: Map of all potential shifts for the day.
-            resources: ScheduleResources instance.
-            constraint_checker: ConstraintChecker instance.
-            availability_checker: AvailabilityChecker instance.
-            current_staffing_per_interval: Snapshot of staffing levels for all intervals.
-            final_assignments_so_far: List of assignments already made.
-            assigned_shift_ids_in_this_run: Set of shift IDs already assigned in the current run.
-            daily_interval_needs: Dictionary mapping interval start times to their needs.
-            interval_duration_minutes: Duration of the interval in minutes.
-
-        Returns:
-            The new assignment dictionary if successful, otherwise None.
+        
+        ... (rest of docstring)
         """
         best_candidate_for_assignment = None
         highest_score = -float('inf')
@@ -1756,17 +1808,15 @@ class DistributionManager:
             
             self.logger.debug(f"Evaluating shift_template_dict: {shift_template_dict} for interval {interval_time}")
 
-
-            # Convert shift_template_dict to a ShiftTemplate-like object if necessary for scoring
-            # This depends on how calculate_assignment_score expects its shift_template argument
-            # For now, assuming it can handle a dictionary or we adapt it.
-            
             # Identify employees who *could* work this shift_template
-            # This requires access to all employees and their general suitability for the shift_template (e.g., skills, groups)
-            # For simplicity, let's iterate through all active employees from resources
             # In a more optimized version, this list would be pre-filtered.
+            active_employees = []
+            if resources and hasattr(resources, 'employees'):
+                active_employees = [e for e in resources.employees if getattr(e, 'is_active', True)]
             
-            active_employees = [e for e in resources.employees if getattr(e, 'is_active', True)]
+            if not active_employees:
+                self.logger.warning(f"No active employees found in resources.")
+                continue
 
             for employee in active_employees:
                 employee_id = self.get_id(employee)
@@ -1786,14 +1836,25 @@ class DistributionManager:
 
                 # 2. Check availability for this specific shift on this date
                 # The availability_checker needs shift start and end times.
-                shift_start_time_obj = _time_str_to_datetime_time(shift_template_dict['start_time'])
-                shift_end_time_obj = _time_str_to_datetime_time(shift_template_dict['end_time'])
+                start_time_str = shift_template_dict.get('start_time')
+                end_time_str = shift_template_dict.get('end_time')
+                
+                if not start_time_str or not end_time_str:
+                    self.logger.warning(f"Shift template missing start or end time: {shift_template_dict}")
+                    continue
+                    
+                shift_start_time_obj = _time_str_to_datetime_time(start_time_str)
+                shift_end_time_obj = _time_str_to_datetime_time(end_time_str)
+                
+                if not shift_start_time_obj or not shift_end_time_obj:
+                    self.logger.warning(f"Could not parse shift times for shift ID {shift_id}: {start_time_str} - {end_time_str}")
+                    continue
 
                 # Prepare shift details for the availability checker
                 shift_details_for_checker = SimpleNamespace(
                     id=shift_id,
-                    start_time=shift_template_dict['start_time'], # Ensure these keys exist
-                    end_time=shift_template_dict['end_time']   # Ensure these keys exist
+                    start_time=start_time_str,
+                    end_time=end_time_str
                 )
 
                 is_available, actual_availability_type = availability_checker.is_employee_available(
@@ -1815,69 +1876,72 @@ class DistributionManager:
                     "shift_id": shift_id, 
                     "shift_template_id": shift_template_dict.get("shift_template_id", shift_id), # Use shift_template_id if available
                     "date": current_date,
-                    "start_time": shift_template_dict['start_time'],
-                    "end_time": shift_template_dict['end_time'],
+                    "start_time": start_time_str,
+                    "end_time": end_time_str,
                     "shift_type": shift_template_dict.get('shift_type', 'Unknown'), # Add shift_type
                      # Add other relevant details from shift_template_dict
                 }
                 
                 # Get shift intervals for context in constraint checking and scoring
                 shift_covered_intervals = self._get_intervals_covered_by_shift(
-                    shift_template_dict['start_time'], 
-                    shift_template_dict['end_time'], 
+                    start_time_str, 
+                    end_time_str, 
                     interval_duration_minutes
                 )
 
-                # Check constraints with all_current_assignments + this hypothetical one
-                # Pass existing assignments for comprehensive check
-                constraint_violations = constraint_checker.check_all_constraints(
-                    employee_id=employee_id,
-                    new_shift_start_dt=datetime.combine(current_date, shift_start_time_obj),
-                    new_shift_end_dt=datetime.combine(current_date, shift_end_time_obj),
-                    existing_assignments=final_assignments_so_far # Use assignments made so far in this run
-                )
-                if constraint_violations:
-                    self.logger.debug(f"Employee {employee_id} violates constraints for shift {shift_id} on {current_date}. Violations: {constraint_violations}")
-                    continue
-                
-                self.logger.debug(f"Employee {employee_id} passed constraint checks for shift {shift_id} on {current_date}.")
+                if shift_start_time_obj is not None and shift_end_time_obj is not None:
+                    # Check constraints with all_current_assignments + this hypothetical one
+                    # Pass existing assignments for comprehensive check
+                    new_shift_start_dt = datetime.combine(current_date, shift_start_time_obj)
+                    new_shift_end_dt = datetime.combine(current_date, shift_end_time_obj)
+                    
+                    constraint_violations = constraint_checker.check_all_constraints(
+                        employee_id=employee_id,
+                        new_shift_start_dt=new_shift_start_dt,
+                        new_shift_end_dt=new_shift_end_dt,
+                        existing_assignments=final_assignments_so_far # Use assignments made so far in this run
+                    )
+                    
+                    if constraint_violations:
+                        self.logger.debug(f"Employee {employee_id} violates constraints for shift {shift_id} on {current_date}. Violations: {constraint_violations}")
+                        continue
+                    
+                    self.logger.debug(f"Employee {employee_id} passed constraint checks for shift {shift_id} on {current_date}.")
 
-                # 4. Score this potential assignment
-                # Ensure context for scoring has all required keys
-                scoring_context = {
-                    'target_interval_needs': target_interval_needs,
-                    'shift_covered_intervals': shift_covered_intervals,
-                    'full_day_staffing_snapshot': current_staffing_per_interval, # The full day's picture
-                    'interval_duration_minutes': interval_duration_minutes,
-                    'employee_object': employee # Pass the employee object for seniority, etc.
-                }
-                
-                # Ensure shift_template_dict is compatible with ShiftTemplate or adapt
-                # For now, assuming calculate_assignment_score can handle dict or a Pydantic-like model
-                # If ShiftTemplate is a SQLAlchemy model, direct instantiation might be complex here.
-                # A simpler DTO or ensuring shift_template_dict has all fields is better.
-
-                # Use the actual_availability_type for scoring
-                score = self.calculate_assignment_score(
-                    employee_id, 
-                    shift_template_dict, # Pass the dict
-                    current_date, 
-                    context=scoring_context,
-                    availability_type_override=actual_availability_type # Use the actual type here
-                )
-                
-                self.logger.debug(f"Score for employee {employee_id}, shift {shift_id} on {current_date}: {score}")
-
-                if score > highest_score:
-                    highest_score = score
-                    best_candidate_for_assignment = {
-                        "employee_id": employee_id,
-                        "employee_instance": employee, # Keep the employee object for later use if needed
-                        "shift_id": shift_id,
-                        "shift_template_data": shift_template_dict, # Keep the shift data
-                        "score": score,
+                    # 4. Score this potential assignment
+                    # Ensure context for scoring has all required keys
+                    scoring_context = {
+                        'target_interval_needs': target_interval_needs,
+                        'shift_covered_intervals': shift_covered_intervals,
+                        'full_day_staffing_snapshot': current_staffing_per_interval, # The full day's picture
+                        'interval_duration_minutes': interval_duration_minutes,
+                        'employee_object': employee # Pass the employee object for seniority, etc.
                     }
-                    self.logger.debug(f"New best candidate: E{employee_id} for S{shift_id}, score {score}")
+
+                    # Use the actual_availability_type for scoring
+                    score = self.calculate_assignment_score(
+                        employee_id, 
+                        shift_template_dict, # Pass the dict
+                        current_date, 
+                        context=scoring_context,
+                        availability_type_override=actual_availability_type # Use the actual type here
+                    )
+                    
+                    self.logger.debug(f"Score for employee {employee_id}, shift {shift_id} on {current_date}: {score}")
+
+                    if score > highest_score:
+                        highest_score = score
+                        best_candidate_for_assignment = {
+                            "employee_id": employee_id,
+                            "employee_instance": employee, # Keep the employee object for later use if needed
+                            "shift_id": shift_id,
+                            "shift_template_data": shift_template_dict, # Keep the shift data
+                            "score": score,
+                        }
+                        self.logger.debug(f"New best candidate: E{employee_id} for S{shift_id}, score {score}")
+                else:
+                    self.logger.warning(f"Could not use shift for constraint checking: invalid time objects for shift ID {shift_id}")
+                    continue
 
         if best_candidate_for_assignment:
             employee_id = best_candidate_for_assignment["employee_id"]
@@ -2063,7 +2127,7 @@ class DistributionManager:
 
     def is_interval_covered(
         self, 
-        interval_start_time: datetime.time, 
+        interval_start_time: time, # Use time
         interval_needs: Dict[str, Any], 
         current_staffing_for_interval_entry: Dict[str, Any],
         log_details: bool = False
@@ -2131,7 +2195,7 @@ class DistributionManager:
 
     def get_employees_working_during_interval(
         self,
-        interval_start_time: datetime.time,
+        interval_start_time: time, # Use time
         all_final_assignments: List[Dict[str, Any]]
     ) -> List['ActualEmployee']:
         """

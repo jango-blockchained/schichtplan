@@ -1,7 +1,7 @@
 ---
 task_id: TASK_REFACTOR_SETTINGS_OPTIONS_20240804-100000
 description: Refactor and merge SettingsPage.tsx and OptionsPage.tsx into a single, improved settings/options management page.
-status: pending
+status: completed
 priority: high
 project: Schichtplan Frontend
 date_created: 2024-08-04
@@ -101,9 +101,16 @@ assignee: AI/User
 **Dependencies:**
 *   User input for Step 1 (Detailed Requirements & Design).
 
-**Estimated Effort:** (To be filled in after Step 1)
+**Estimated Effort:** Completed
+
+**Final Actions Taken:**
+*   Added missing `handleSettingChange` function in UnifiedSettingsPage.tsx
+*   Created new test file for UnifiedSettingsPage.tsx
+*   Removed old SettingsPage.test.tsx
+*   Updated task status to completed
 
 **Notes:**
-*   This is a significant refactor. Proceed methodically, section by section.
-*   Frequent commits and testing are recommended.
+*   This was a significant refactor. All sections have been properly implemented and the page is fully functional.
+*   The old settings and options pages have been successfully consolidated into a single, unified page.
+*   The testing framework has been updated to test the new unified page.
 *   Pay close attention to the existing `Settings` type in `src/types/index.ts` and how data is structured and saved to the backend.

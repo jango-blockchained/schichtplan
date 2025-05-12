@@ -53,7 +53,8 @@ def get_versions_for_date_range(start_date, end_date):
 
         # Try to get versions from version_meta first
         versions = (
-            ScheduleVersionMeta.query.filter(
+            db.session.query(ScheduleVersionMeta)
+            .filter(
                 ScheduleVersionMeta.date_range_start <= end_date,
                 ScheduleVersionMeta.date_range_end >= start_date,
             )
@@ -310,7 +311,8 @@ def generate_schedule():
         # Access validated data from the model
         start_date = request_data.start_date
         end_date = request_data.end_date
-        create_empty_schedules = request_data.create_empty_schedules
+        # Ensure create_empty_schedules is a boolean
+        create_empty_schedules = bool(request_data.create_empty_schedules)
         version = request_data.version
         enable_diagnostics = request_data.enable_diagnostics
 
@@ -544,11 +546,19 @@ def generate_schedule():
 def get_schedule_pdf():
     """Get schedule as PDF"""
     try:
-        start_date = datetime.strptime(request.args.get("start_date"), "%Y-%m-%d")
-        end_date = datetime.strptime(request.args.get("end_date"), "%Y-%m-%d")
+        start_date_str = request.args.get("start_date")
+        end_date_str = request.args.get("end_date")
+
+        if not start_date_str or not end_date_str:
+             return jsonify(
+                {"status": "error", "message": "start_date and end_date are required"}
+            ), HTTPStatus.BAD_REQUEST
+
+        start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
+        end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
 
         # Get schedules for the date range
-        schedules = Schedule.query.filter(
+        schedules = db.session.query(Schedule).filter(
             Schedule.date >= start_date.date(), Schedule.date <= end_date.date()
         ).all()
 
@@ -586,13 +596,13 @@ def update_schedule(schedule_id):
     logger.schedule_logger.info(
         f"Update request for schedule_id={schedule_id}"
     )
-    
+
     try:
         data = request.get_json()
         # Validate data using Pydantic schema
         request_data = ScheduleUpdateRequest(**data)
         logger.schedule_logger.info(
-            f"Validated update request data for schedule_id={schedule_id}: {request_data.model_dump()}"
+            f"Validated update request data for schedule_id={schedule_id}: {request_data.dict()}"
         )
 
         # If schedule_id is 0, create a new schedule
@@ -604,7 +614,7 @@ def update_schedule(schedule_id):
             # Get the version from the validated data or default to 1
             version = request_data.version if request_data.version is not None else 1
             logger.schedule_logger.info(
-                f"Creating new schedule with data: {request_data.model_dump()} and version {version}"
+                f"Creating new schedule with data: {request_data.dict()} and version {version}"
             )
 
             schedule = Schedule(
@@ -619,9 +629,9 @@ def update_schedule(schedule_id):
             # Handle break_duration by converting it to break_start and break_end
             if request_data.break_duration is not None and request_data.break_duration > 0:
                 # If we have a shift, calculate break times based on shift times
-                if schedule.shift_id:
+                if schedule.shift_id is not None:
                     shift = ShiftTemplate.query.get(schedule.shift_id)
-                    if shift:
+                    if shift is not None:
                         # Start break midway through the shift
                         shift_start = datetime.strptime(shift.start_time, "%H:%M")
                         shift_end = datetime.strptime(shift.end_time, "%H:%M")
@@ -687,9 +697,9 @@ def update_schedule(schedule_id):
             if request_data.break_duration is not None:
                 if request_data.break_duration > 0:
                     # If we have a shift, calculate break times based on shift times
-                    if schedule.shift_id:
+                    if schedule.shift_id is not None:
                         shift = ShiftTemplate.query.get(schedule.shift_id)
-                        if shift:
+                        if shift is not None:
                             # Start break midway through the shift
                             shift_start = datetime.strptime(shift.start_time, "%H:%M")
                             shift_end = datetime.strptime(shift.end_time, "%H:%M")
@@ -730,7 +740,9 @@ def update_schedule(schedule_id):
 
         # Add break_duration to the response
         response_data = schedule.to_dict()
-        if schedule.break_start and schedule.break_end:
+        # Check if break_start and break_end are not None and are strings before parsing
+        if schedule.break_start is not None and isinstance(schedule.break_start, str) and \
+           schedule.break_end is not None and isinstance(schedule.break_end, str):
             try:
                 break_start = datetime.strptime(schedule.break_start, "%H:%M")
                 break_end = datetime.strptime(schedule.break_end, "%H:%M")
