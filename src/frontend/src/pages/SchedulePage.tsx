@@ -1038,18 +1038,65 @@ export function SchedulePage() {
       ],
       onConfirm: async () => {
         try {
-          const deletePromises = convertedSchedules.map(schedule =>
-            updateSchedule(schedule.id, { shift_id: null, version: versionControlSelectedVersion })
-          );
-          await Promise.all(deletePromises);
+          console.log('🗑️ BULK DELETE: Starting deletion of all schedules');
+          
+          // Only delete schedules that actually have a shift assigned
+          const schedulesToDelete = convertedSchedules.filter(s => s.shift_id !== null);
+          
+          if (schedulesToDelete.length === 0) {
+            console.log('🗑️ BULK DELETE: No schedules with shifts to delete');
+            toast({
+              title: "Keine Schichten zum Löschen",
+              description: "Es wurden keine zugewiesenen Schichten gefunden.",
+              variant: "destructive"
+            });
+            setConfirmDeleteMessage(null);
+            return;
+          }
+          
+          console.log(`🗑️ BULK DELETE: Will delete ${schedulesToDelete.length} schedules with version ${versionControlSelectedVersion}`);
+          
+          const deletePromises = schedulesToDelete.map(schedule => {
+            console.log(`🗑️ BULK DELETE: Deleting schedule ID ${schedule.id} with shift ID ${schedule.shift_id}`);
+            return updateSchedule(schedule.id, { 
+              shift_id: null, 
+              version: versionControlSelectedVersion,
+              // Add employee_id to ensure proper identification
+              employee_id: schedule.employee_id
+            });
+          });
+          
+          // Process in smaller batches to avoid overwhelming the server
+          const batchSize = 10;
+          const results = [];
+          
+          for (let i = 0; i < deletePromises.length; i += batchSize) {
+            const batch = deletePromises.slice(i, i + batchSize);
+            console.log(`🗑️ BULK DELETE: Processing batch ${i/batchSize + 1} of ${Math.ceil(deletePromises.length/batchSize)}`);
+            
+            try {
+              const batchResults = await Promise.all(batch);
+              results.push(...batchResults);
+              console.log(`🗑️ BULK DELETE: Batch ${i/batchSize + 1} completed successfully`);
+            } catch (batchError) {
+              console.error(`🗑️ BULK DELETE: Error in batch ${i/batchSize + 1}:`, batchError);
+            }
+          }
+          
+          console.log(`🗑️ BULK DELETE: Completed with ${results.length} successful deletions`);
+          
+          // Force invalidate query cache to ensure fresh data
+          queryClient.invalidateQueries({ queryKey: ['schedules'] });
+          
+          // Then refetch
           await refetchScheduleData();
 
           toast({
             title: "Schichtpläne gelöscht",
-            description: `${deletePromises.length} Einträge wurden entfernt.`,
+            description: `${results.length} Schichten wurden entfernt.`,
           });
         } catch (error) {
-          console.error('Error deleting schedules:', error);
+          console.error('🗑️ BULK DELETE ERROR:', error);
           toast({
             title: "Fehler beim Löschen",
             description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",

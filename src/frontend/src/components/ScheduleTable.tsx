@@ -340,7 +340,21 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence, employeeId, date
                         className="h-6 w-6 p-0 text-destructive hover:text-destructive"
                         onClick={async () => {
                             if (schedule?.id) {
-                                await onUpdate(schedule.id, { shift_id: null });
+                                // Add confirmation before deletion
+                                if (confirm(`Sind Sie sicher, dass Sie diese Schicht löschen möchten?`)) {
+                                    console.log('🗑️ Deleting shift with ID:', schedule.id);
+                                    try {
+                                        await onUpdate(schedule.id, { 
+                                            shift_id: null,
+                                            // Make sure to pass the current version
+                                            ...(currentVersion ? { version: currentVersion } : {})
+                                        });
+                                        console.log('🗑️ Delete request sent successfully for shift ID:', schedule.id);
+                                    } catch (error) {
+                                        console.error('❌ Error deleting shift:', error);
+                                        alert('Fehler beim Löschen der Schicht. Bitte versuchen Sie es erneut.');
+                                    }
+                                }
                             }
                         }}
                     >

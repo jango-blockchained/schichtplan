@@ -601,9 +601,16 @@ def update_schedule(schedule_id):
         data = request.get_json()
         # Validate data using Pydantic schema
         request_data = ScheduleUpdateRequest(**data)
-        logger.schedule_logger.info(
-            f"Validated update request data for schedule_id={schedule_id}: {request_data.dict()}"
-        )
+        
+        # Enhanced logging for shift deletion operations
+        if request_data.shift_id is None:
+            logger.schedule_logger.warning(
+                f"DELETION OPERATION - Request to set shift_id=None for schedule_id={schedule_id}, version={request_data.version}"
+            )
+        else:
+            logger.schedule_logger.info(
+                f"Validated update request data for schedule_id={schedule_id}: {request_data.dict()}"
+            )
 
         # If schedule_id is 0, create a new schedule
         if schedule_id == 0:
@@ -666,27 +673,65 @@ def update_schedule(schedule_id):
         else:
             # Update existing schedule
             schedule = Schedule.query.get_or_404(schedule_id)
-            logger.schedule_logger.info(
-                f"Updating existing schedule: {schedule_id}, current version: {schedule.version}"
-            )
+            
+            # Enhanced logging for shift deletion operations
+            if request_data.shift_id is None:
+                logger.schedule_logger.warning(
+                    f"DELETION OPERATION - Found existing schedule {schedule_id} with current shift_id={schedule.shift_id}, version={schedule.version}"
+                )
+            else:
+                logger.schedule_logger.info(
+                    f"Updating existing schedule: {schedule_id}, current version: {schedule.version}"
+                )
             
             # Update fields from validated data if provided
             if request_data.employee_id is not None:
                 schedule.employee_id = request_data.employee_id
-            if request_data.shift_id is not None:
-                schedule.shift_id = request_data.shift_id
-                logger.schedule_logger.info(
-                    f"After update, shift_id={schedule.shift_id}"
-                )
+                
+            # Handle shift_id specifically for deletion operations (setting to None)
+            if request_data.shift_id is not None or hasattr(request_data, 'shift_id'):
+                # Explicitly check if shift_id is None to detect deletion operations
+                if request_data.shift_id is None:
+                    # This is a deletion operation
+                    logger.schedule_logger.warning(
+                        f"DELETION OPERATION - Setting shift_id=None for schedule_id={schedule_id}"
+                    )
+                    schedule.shift_id = None
+                    
+                    # Also clear related shift data
+                    schedule.shift_start = None
+                    schedule.shift_end = None
+                    schedule.break_start = None
+                    schedule.break_end = None
+                else:
+                    # This is a regular update with a new shift_id
+                    schedule.shift_id = request_data.shift_id
+                    logger.schedule_logger.info(
+                        f"After update, shift_id={schedule.shift_id}"
+                    )
+                    
+                    # If we're setting a shift_id, also update shift times from the template
+                    if schedule.shift_id is not None:
+                        shift_template = ShiftTemplate.query.get(schedule.shift_id)
+                        if shift_template:
+                            schedule.shift_start = shift_template.start_time
+                            schedule.shift_end = shift_template.end_time
+                            logger.schedule_logger.info(
+                                f"Updated shift times from template: {schedule.shift_start} to {schedule.shift_end}"
+                            )
+                
             if request_data.date is not None:
                 schedule.date = request_data.date # Pydantic returns date object
+                
             if request_data.notes is not None:
                 schedule.notes = request_data.notes
+                
             if request_data.version is not None:
                 schedule.version = request_data.version
                 logger.schedule_logger.info(
                     f"Updated schedule version to {schedule.version}"
                 )
+                
             if request_data.availability_type is not None:
                 schedule.availability_type = request_data.availability_type
                 logger.schedule_logger.info(
@@ -734,9 +779,16 @@ def update_schedule(schedule_id):
                     schedule.break_end = None
 
         db.session.commit()
-        logger.schedule_logger.info(
-            f"Database commit successful for schedule_id={schedule_id}"
-        )
+        
+        # Log operation outcome
+        if schedule_id > 0 and (request_data.shift_id is None and hasattr(request_data, 'shift_id')):
+            logger.schedule_logger.warning(
+                f"DELETION OPERATION COMPLETED - Schedule {schedule_id} now has shift_id={schedule.shift_id}"
+            )
+        else:
+            logger.schedule_logger.info(
+                f"Database commit successful for schedule_id={schedule_id}"
+            )
 
         # Add break_duration to the response
         response_data = schedule.to_dict()
