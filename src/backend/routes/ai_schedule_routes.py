@@ -5,7 +5,8 @@ from src.backend.utils.logger import logger # Corrected: import the global logge
 from pydantic import ValidationError # Import ValidationError
 from src.backend.schemas.ai_schedule import AIScheduleGenerateRequest, AIScheduleFeedbackRequest # Import both schemas
 
-ai_schedule_bp = Blueprint('ai_schedule_bp', __name__, url_prefix='/ai/schedule')
+# Fix: Removed redundant url_prefix that was conflicting with blueprint registration in routes/__init__.py
+ai_schedule_bp = Blueprint('ai_schedule_bp', __name__)
 # Apply a more explicit CORS to the blueprint for testing
 CORS(ai_schedule_bp, origins="*", methods=["GET", "POST", "OPTIONS", "PUT"], supports_credentials=True, allow_headers=["Content-Type", "Authorization"])
 

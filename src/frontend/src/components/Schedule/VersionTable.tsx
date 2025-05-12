@@ -5,8 +5,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { differenceInDays } from 'date-fns';
-import { Check, Archive, Pencil, Calendar, Trash, Copy, Plus } from 'lucide-react';
+import { Check, Archive, Pencil, Calendar, Trash, Copy, Plus, Info } from 'lucide-react';
 import { VersionMeta } from '@/services/api';
+import { 
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger, 
+} from '@/components/ui/tooltip';
 
 interface VersionTableProps {
     versions: VersionMeta[];
@@ -78,6 +84,18 @@ export function VersionTable({
                 return <Badge variant="outline">{status}</Badge>;
         }
     };
+    
+    // Sort versions by version number descending
+    const sortedVersions = [...versions].sort((a, b) => b.version - a.version);
+
+    // Check if a version was created recently (within the last 5 minutes)
+    const isNewlyCreated = (createdAt: string | null) => {
+        if (!createdAt) return false;
+        const created = new Date(createdAt);
+        const now = new Date();
+        const diffInMinutes = (now.getTime() - created.getTime()) / (1000 * 60);
+        return diffInMinutes < 5;
+    };
 
     return (
         <Card>
@@ -104,76 +122,115 @@ export function VersionTable({
                             <TableHead>Version</TableHead>
                             <TableHead>Zeitraum</TableHead>
                             <TableHead>Status</TableHead>
+                            <TableHead>Notizen</TableHead>
                             <TableHead>Wochen</TableHead>
                             <TableHead>Aktionen</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {versions.map((version) => (
-                            <TableRow
-                                key={version.version}
-                                className={selectedVersion === version.version ? "bg-muted/50" : ""}
-                            >
-                                <TableCell>
-                                    <Button
-                                        variant={selectedVersion === version.version ? "default" : "ghost"}
-                                        size="sm"
-                                        onClick={() => onSelectVersion(version.version)}
-                                    >
-                                        V{version.version}
-                                    </Button>
-                                </TableCell>
-                                <TableCell>
-                                    {format(new Date(version.date_range.start), 'dd.MM.yyyy')} - {format(new Date(version.date_range.end), 'dd.MM.yyyy')}
-                                </TableCell>
-                                <TableCell>{getStatusBadge(version.status)}</TableCell>
-                                <TableCell>
-                                    {getWeekCount(version.date_range.start, version.date_range.end)}
-                                </TableCell>
-                                <TableCell>
-                                    <div className="flex items-center gap-2">
-                                        {version.status === 'DRAFT' && (
+                        {sortedVersions.map((version) => {
+                            const isSelected = selectedVersion === version.version;
+                            const isNew = isNewlyCreated(version.created_at);
+                            
+                            return (
+                                <TableRow
+                                    key={version.version}
+                                    className={`${isSelected ? "bg-muted/50" : ""} ${isNew ? "bg-blue-50/30" : ""}`}
+                                >
+                                    <TableCell>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant={isSelected ? "default" : "ghost"}
+                                                size="sm"
+                                                onClick={() => onSelectVersion(version.version)}
+                                            >
+                                                V{version.version}
+                                            </Button>
+                                            {isNew && (
+                                                <Badge variant="default" className="bg-blue-500">Neu</Badge>
+                                            )}
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>
+                                        {format(new Date(version.date_range.start), 'dd.MM.yyyy')} - {format(new Date(version.date_range.end), 'dd.MM.yyyy')}
+                                    </TableCell>
+                                    <TableCell>{getStatusBadge(version.status)}</TableCell>
+                                    <TableCell className="max-w-[200px]">
+                                        {version.notes ? (
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <div className="flex items-center cursor-help">
+                                                            <span className="truncate text-sm">{version.notes}</span>
+                                                            <Info className="h-3 w-3 ml-1 text-muted-foreground" />
+                                                        </div>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p className="max-w-[300px] whitespace-normal">{version.notes}</p>
+                                                        {version.base_version && (
+                                                            <p className="text-xs text-muted-foreground mt-1">
+                                                                Basiert auf Version {version.base_version}
+                                                            </p>
+                                                        )}
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        ) : version.base_version ? (
+                                            <span className="text-sm text-muted-foreground">
+                                                Basiert auf V{version.base_version}
+                                            </span>
+                                        ) : (
+                                            <span className="text-sm text-muted-foreground">-</span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell>
+                                        {getWeekCount(version.date_range.start, version.date_range.end)}
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="flex items-center gap-2">
+                                            {version.status === 'DRAFT' && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => onPublishVersion(version.version)}
+                                                    title="Veröffentlichen"
+                                                >
+                                                    <Check className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                            {version.status !== 'ARCHIVED' && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => onArchiveVersion(version.version)}
+                                                    title="Archivieren"
+                                                >
+                                                    <Archive className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                            {onDuplicateVersion && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => onDuplicateVersion(version.version)}
+                                                    title="Duplizieren"
+                                                >
+                                                    <Copy className="h-4 w-4" />
+                                                </Button>
+                                            )}
                                             <Button
                                                 variant="outline"
                                                 size="sm"
-                                                onClick={() => onPublishVersion(version.version)}
-                                                title="Veröffentlichen"
+                                                onClick={() => onDeleteVersion(version.version)}
+                                                title="Löschen"
                                             >
-                                                <Check className="h-4 w-4" />
+                                                <Trash className="h-4 w-4" />
                                             </Button>
-                                        )}
-                                        {version.status !== 'ARCHIVED' && (
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => onArchiveVersion(version.version)}
-                                                title="Archivieren"
-                                            >
-                                                <Archive className="h-4 w-4" />
-                                            </Button>
-                                        )}
-                                        {onDuplicateVersion && (
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => onDuplicateVersion(version.version)}
-                                                title="Duplizieren"
-                                            >
-                                                <Copy className="h-4 w-4" />
-                                            </Button>
-                                        )}
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => onDeleteVersion(version.version)}
-                                            title="Löschen"
-                                        >
-                                            <Trash className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                </TableCell>
-                            </TableRow>
-                        ))}
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            );
+                        })}
                     </TableBody>
                 </Table>
             </CardContent>

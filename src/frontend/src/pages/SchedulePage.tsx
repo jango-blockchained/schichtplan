@@ -184,11 +184,14 @@ export function SchedulePage() {
     generationSteps,
     generationLogs,
     showGenerationOverlay,
-    isPending: isStandardGenerationPending, // MODIFIED: Renamed for clarity
-    generate: standardGenerate, // MODIFIED: Renamed for clarity
+    isPending: isStandardGenerationPending,
+    generate: standardGenerate,
     resetGenerationState,
     addGenerationLog,
-    clearGenerationLogs
+    clearGenerationLogs,
+    updateGenerationStep,
+    setGenerationSteps,
+    setShowGenerationOverlay
   } = useScheduleGeneration({
     dateRange,
     selectedVersion: versionControlSelectedVersion,
@@ -751,7 +754,7 @@ export function SchedulePage() {
   const isUpdating = isLoading || updateShiftMutation.isPending || isStandardGenerationPending || exportMutation.isPending || isAiGenerating; // MODIFIED: Added isAiGenerating
 
   // Function to handle the STANDARD generate action
-  const handleGenerateStandardSchedule = () => { // MODIFIED: Renamed from handleGenerateSchedule
+  const handleGenerateStandardSchedule = () => {
     try {
       // Validate date range
       if (!dateRange?.from || !dateRange?.to) {
@@ -799,7 +802,7 @@ export function SchedulePage() {
       addGenerationLog('info', 'Starting STANDARD schedule generation',
         `Version: ${versionControlSelectedVersion}, Date range: ${formattedFromDate} - ${formattedToDate}`);
 
-      standardGenerate(); // MODIFIED: Call renamed function from hook
+      standardGenerate(); // This will automatically show the overlay through the hook
     } catch (error) {
       console.error("Standard Generation error:", error);
       addGenerationLog('error', 'Fehler bei der Standard-Generierung',
@@ -815,7 +818,11 @@ export function SchedulePage() {
 
   // MODIFIED: Added handler for AI Schedule Generation
   const handleGenerateAiSchedule = async () => {
+    // Add console logs at the start to confirm the function is being called
+    console.log("🔍 handleGenerateAiSchedule triggered");
+    
     if (!dateRange?.from || !dateRange?.to) {
+      console.warn("Missing date range for AI generation");
       toast({
         title: "Zeitraum erforderlich (AI)",
         description: "Bitte wählen Sie einen Zeitraum für die AI-Generierung aus.",
@@ -824,6 +831,7 @@ export function SchedulePage() {
       return;
     }
     if (!versionControlSelectedVersion) {
+      console.warn("Missing version for AI generation");
       toast({
         title: "Version erforderlich (AI)",
         description: "Bitte wählen Sie eine Version für die AI-Generierung aus.",
@@ -832,55 +840,128 @@ export function SchedulePage() {
       return;
     }
 
+    console.log("🚀 Starting AI generation for:", {
+      dateRange: {
+        from: dateRange.from.toISOString(),
+        to: dateRange.to.toISOString()
+      },
+      version: versionControlSelectedVersion
+    });
+
     setIsAiGenerating(true);
-    // Use addGenerationLog if you want AI logs in the same overlay, or handle logging separately.
+    
+    // First clear the existing steps and logs but don't reset the overlay completely
+    clearGenerationLogs();
+    
+    // Set up our own steps for AI generation
+    const aiSteps = [
+      { id: "ai-init", title: "Initialisiere KI-Generierung", status: "pending" as const },
+      { id: "ai-analyze", title: "Analysiere Verfügbarkeiten", status: "pending" as const },
+      { id: "ai-generate", title: "Erstelle Schichtplan", status: "pending" as const },
+      { id: "ai-finalize", title: "Finalisiere KI-Schichtplan", status: "pending" as const },
+    ];
+
+    // Clear previous steps and set new ones manually to avoid triggering resetGenerationState
+    setGenerationSteps(aiSteps);
+    
+    // Force show the overlay
+    setShowGenerationOverlay(true);
+    
+    // Log the start of generation
     addGenerationLog('info', 'Starting AI schedule generation',
       `Version: ${versionControlSelectedVersion}, Date range: ${format(dateRange.from, 'yyyy-MM-dd')} - ${format(dateRange.to, 'yyyy-MM-dd')}`);
     
-    // Show overlay for AI generation if desired
-    // setShowGenerationOverlay(true); // You might want a different overlay or adapt the existing one
-
     try {
+      // Update first step to in-progress
+      updateGenerationStep("ai-init", "in-progress");
+      await new Promise(resolve => setTimeout(resolve, 500)); // Brief delay for UI update
+      
       const fromStr = format(dateRange.from, 'yyyy-MM-dd');
       const toStr = format(dateRange.to, 'yyyy-MM-dd');
       
+      console.log("Calling generateAiSchedule API with:", { fromStr, toStr, versionControlSelectedVersion });
+      
+      // Complete first step and start next
+      updateGenerationStep("ai-init", "completed");
+      updateGenerationStep("ai-analyze", "in-progress");
+      await new Promise(resolve => setTimeout(resolve, 500)); // Brief delay for UI update
+      
       const result = await generateAiSchedule(fromStr, toStr, versionControlSelectedVersion);
       
+      // Continue updating steps
+      updateGenerationStep("ai-analyze", "completed");
+      updateGenerationStep("ai-generate", "in-progress");
+      await new Promise(resolve => setTimeout(resolve, 500)); // Brief delay for UI update
+      
+      console.log("AI Generation Result received:", result);
       addGenerationLog('info', 'AI schedule generation API call successful');
-      console.log("AI Generation Result:", result);
 
+      // More detailed logging of result
+      if (result.schedules) {
+        console.log(`Generated ${result.schedules.length} schedule entries`);
+        addGenerationLog('info', `Generated ${result.schedules.length} schedule entries`);
+      }
+      
+      // Update steps
+      updateGenerationStep("ai-generate", "completed");
+      updateGenerationStep("ai-finalize", "in-progress");
+      await new Promise(resolve => setTimeout(resolve, 500)); // Brief delay for UI update
+      
       await refetchScheduleData();
       queryClient.invalidateQueries({ queryKey: ['versions'] });
+      
+      updateGenerationStep("ai-finalize", "completed");
       
       toast({
         title: "AI Generation Complete",
         description: "The AI schedule has been generated successfully.",
       });
 
-      // if (result.logs) { // Assuming ScheduleResponse has logs for AI too
-      //   result.logs.forEach(log => addGenerationLog('info', 'AI Log:', log));
-      // }
-      // if (result.errors && result.errors.length > 0) {
-      //   result.errors.forEach(err => addGenerationLog('error', 'AI Error:', err.message));
-      //   toast({
-      //     title: "AI Generation Warnings",
-      //     description: `AI generation completed with ${result.errors.length} issues.`,
-      //     variant: "destructive"
-      //   });
-      // }
-
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Ein unerwarteter Fehler bei der AI-Generierung ist aufgetreten";
-      addGenerationLog('error', 'Fehler bei der AI-Generierung', errorMessage);
-      console.error("AI Generation error:", err);
+      // Add logging for any errors or logs returned in the response
+      if (result.logs && result.logs.length > 0) { 
+        console.log("AI Generation Logs:", result.logs);
+        result.logs.forEach(log => addGenerationLog('info', 'AI Log:', log));
+      }
+      
+      if (result.errors && result.errors.length > 0) {
+        console.warn("AI Generation Errors:", result.errors);
+        result.errors.forEach(err => addGenerationLog('error', 'AI Error:', err.message || JSON.stringify(err)));
+        toast({
+          title: "AI Generation Warnings",
+          description: `AI generation completed with ${result.errors.length} issues.`,
+          variant: "destructive"
+        });
+      }
+      
+      // Keep the overlay open for a moment so the user can see the completion
+      setTimeout(() => {
+        setIsAiGenerating(false);
+      }, 2000);
+      
+    } catch (err: unknown) {
+      console.error("AI Generation error (detailed):", err);
+      
+      // Handle error case
+      const errorMessage = err instanceof Error ? err.message : "Unknown error occurred during AI generation";
+      
       toast({
-        title: "Fehler bei der AI-Generierung",
+        title: "AI Generation Error",
         description: errorMessage,
         variant: "destructive"
       });
-    } finally {
-      setIsAiGenerating(false);
-      // resetGenerationState(); // Or a specific reset for AI if the overlay was used
+      
+      // Log the error in the overlay
+      addGenerationLog('error', 'AI Generation Error', errorMessage);
+      
+      // Mark any in-progress steps as error
+      aiSteps.forEach(step => {
+        updateGenerationStep(step.id, "error", "Generation failed");
+      });
+      
+      // Keep the overlay visible so the user can see the error
+      setTimeout(() => {
+        setIsAiGenerating(false);
+      }, 3000);
     }
   };
 
@@ -1346,9 +1427,12 @@ export function SchedulePage() {
       <GenerationOverlay
         generationSteps={generationSteps}
         generationLogs={generationLogs}
-        showGenerationOverlay={showGenerationOverlay}
-        isPending={isStandardGenerationPending} // Only show standard gen overlay for now
-        resetGenerationState={resetGenerationState}
+        showGenerationOverlay={showGenerationOverlay || isAiGenerating}
+        isPending={isStandardGenerationPending || isAiGenerating}
+        resetGenerationState={() => {
+          resetGenerationState();
+          setIsAiGenerating(false);
+        }}
         addGenerationLog={addGenerationLog}
       />
 

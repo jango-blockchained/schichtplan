@@ -105,8 +105,8 @@ export function useVersionControl({ dateRange, onVersionSelected, initialVersion
                 const data = {
                     start_date: params.startDate,
                     end_date: params.endDate,
-                    base_version: selectedVersion,
-                    notes: `New version for ${params.startDate} - ${params.endDate}`
+                    // Remove base_version to create completely blank version
+                    notes: `NEW BLANK VERSION - Empty schedules for ${params.startDate} - ${params.endDate} [Created: ${new Date().toISOString().slice(0, 16).replace('T', ' ')}]`
                 };
                 return await createNewVersion(data);
             } else if (dateRange?.from && dateRange?.to) {
@@ -117,8 +117,8 @@ export function useVersionControl({ dateRange, onVersionSelected, initialVersion
                 const data = {
                     start_date: fromStr,
                     end_date: toStr,
-                    base_version: selectedVersion,
-                    notes: `New version for week ${getWeek(dateRange.from)} (${format(dateRange.from, 'dd.MM.yyyy')} - ${format(dateRange.to, 'dd.MM.yyyy')})`
+                    // Remove base_version to create completely blank version
+                    notes: `NEW BLANK VERSION - Empty schedules for week ${getWeek(dateRange.from)} (${format(dateRange.from, 'dd.MM.yyyy')} - ${format(dateRange.to, 'dd.MM.yyyy')}) [Created: ${new Date().toISOString().slice(0, 16).replace('T', ' ')}]`
                 };
 
                 return await createNewVersion(data);
@@ -144,14 +144,17 @@ export function useVersionControl({ dateRange, onVersionSelected, initialVersion
             versionsQuery.refetch();
 
             // --- Start: Generate and set the structured note ---
-            if (data.version && data.start_date) {
+            // Fix: Extract creation date from response if available, or use current date
+            if (data.version && data.version_meta?.date_range?.start) {
                 try {
-                    const startDate = new Date(data.start_date + 'T00:00:00'); // Ensure correct date parsing
+                    const startDateStr = data.version_meta.date_range.start;
+                    const startDate = new Date(startDateStr + 'T00:00:00'); // Ensure correct date parsing
                     const calendarWeek = getWeek(startDate, { weekStartsOn: 1 });
                     const month = getMonth(startDate) + 1; // getMonth is 0-indexed
                     const year = getYear(startDate) % 100; // Get last two digits of year
+                    const timestamp = Date.now().toString().slice(-4); // Add a timestamp to make the note unique
 
-                    const generatedNote = `SCH-${String(calendarWeek).padStart(2, '0')}-${String(month).padStart(2, '0')}-${String(year).padStart(2, '0')}-${data.version}`;
+                    const generatedNote = `SCH-${String(calendarWeek).padStart(2, '0')}-${String(month).padStart(2, '0')}-${String(year).padStart(2, '0')}-V${data.version}-${timestamp}`;
                     
                     updateVersionDetailsMutation.mutate({ versionId: data.version, details: { notes: generatedNote } });
                 } catch (e) {
@@ -200,7 +203,24 @@ export function useVersionControl({ dateRange, onVersionSelected, initialVersion
 
     // Duplicate version mutation
     const duplicateVersionMutation = useMutation({
-        mutationFn: duplicateVersion,
+        mutationFn: async (version: number) => {
+            if (!dateRange?.from || !dateRange?.to) {
+                throw new Error("Date range is required to duplicate a version");
+            }
+            
+            const fromStr = format(dateRange.from, 'yyyy-MM-dd');
+            const toStr = format(dateRange.to, 'yyyy-MM-dd');
+            const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+            
+            const data = {
+                start_date: fromStr,
+                end_date: toStr,
+                source_version: version,
+                notes: `Duplicate of Version ${version} [Created: ${timestamp}]`
+            };
+            
+            return await duplicateVersion(data);
+        },
         onSuccess: (data) => {
             toast({
                 title: "Success",
@@ -271,7 +291,7 @@ export function useVersionControl({ dateRange, onVersionSelected, initialVersion
             if (params.details.notes === undefined) { // Should not happen with current logic
                 throw new Error("Notes cannot be undefined when updating.");
             }
-            return await updateVersionNotes(params.versionId, params.details.notes);
+            return await updateVersionNotes(params.versionId, { notes: params.details.notes });
         },
         onSuccess: (updatedVersionData) => {
             toast({
@@ -306,7 +326,7 @@ export function useVersionControl({ dateRange, onVersionSelected, initialVersion
 
     const handleCreateNewVersion = () => {
         console.log(`🆕 Creating new version for date range: ${dateRange?.from?.toISOString()} - ${dateRange?.to?.toISOString()}`);
-        createVersionMutation.mutate();
+        createVersionMutation.mutate({});
     };
 
     const handleCreateNewVersionWithOptions = (options: { dateRange: DateRange; weekAmount: number }) => {
@@ -349,11 +369,7 @@ export function useVersionControl({ dateRange, onVersionSelected, initialVersion
 
     const handleDuplicateVersion = (version: number) => {
         if (dateRange?.from && dateRange?.to) {
-            duplicateVersionMutation.mutate({
-                source_version: version,
-                start_date: format(dateRange.from, 'yyyy-MM-dd'),
-                end_date: format(dateRange.to, 'yyyy-MM-dd')
-            });
+            duplicateVersionMutation.mutate(version);
         }
     };
 
@@ -381,4 +397,4 @@ export function useVersionControl({ dateRange, onVersionSelected, initialVersion
     };
 }
 
-export default useVersionControl; 
+export default useVersionControl;

@@ -362,7 +362,7 @@ export const generateAiSchedule = async (
             timestamp: new Date().toISOString()
         });
 
-        const response = await api.post<ScheduleResponse>('ai/schedule/generate', {
+        const response = await api.post<ScheduleResponse>('/ai-schedule/generate', {
             start_date: startDate,
             end_date: endDate,
             version_id: version, // Ensure key matches backend expectation
@@ -372,6 +372,7 @@ export const generateAiSchedule = async (
             'Total schedules': response.data.schedules?.length || 0,
             'Error count': response.data.errors?.length || 0,
             'Logs': response.data.logs?.length || 0,
+            'Response data': response.data, // Add full response logging for debugging
         });
 
         if (response.data.errors && response.data.errors.length > 0) {
@@ -381,6 +382,17 @@ export const generateAiSchedule = async (
         return response.data;
     } catch (error) {
         console.error('❌ AI Schedule generation error:', error);
+        // More detailed error logging
+        if (error.response) {
+            // The request was made and the server responded with a status code
+            // that falls out of the range of 2xx
+            console.error('Error response data:', error.response.data);
+            console.error('Error response status:', error.response.status);
+            console.error('Error response headers:', error.response.headers);
+        } else if (error.request) {
+            // The request was made but no response was received
+            console.error('Error request:', error.request);
+        }
         if (error instanceof Error) {
             throw new Error(`Failed to generate AI schedule: ${error.message}`);
         }
