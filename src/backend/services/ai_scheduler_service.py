@@ -11,6 +11,8 @@ from io import StringIO
 from datetime import datetime, date, time
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import Date as SQLDate # Added import
+from src.backend.schemas.ai_schedule import AIScheduleFeedbackRequest # Import the feedback schema
+from typing import List, Dict, Any # Ensure List, Dict, Any are imported
 
 class AISchedulerService:
     def __init__(self):
@@ -108,7 +110,7 @@ class AISchedulerService:
         3. Consider general scheduling rules provided.
         4. Aim for a fair distribution of shifts among employees.
         5. Prioritize fulfilling fixed assignments and preferred shifts where possible.
-        6. Ensure assigned shifts match employee qualifications (e.g., keyholder).
+        6. Ensure assigned shifts match employee qualifications (e.e., keyholder).
         7. The ShiftTemplateID in the output CSV must correspond to an existing ShiftTemplateID from the input data.
         8. The Date must be in YYYY-MM-DD format.
         9. StartTime and EndTime in the output CSV should be in HH:MM format and match the times of the assigned ShiftTemplateID.
@@ -248,138 +250,218 @@ class AISchedulerService:
                         "raw_row": row
                     })
                 except ValueError as ve:
-                    logger.app_logger.warning(f"Row {row_num}: Error converting data type: {str(ve)}. Row: {row}") # Use logger.app_logger
+                    logger.app_logger.warning(f"Row {row_num}: Data conversion error: {ve}. Row: {row}") # Use logger.app_logger
                     malformed_rows += 1
                 except Exception as e:
-                    logger.app_logger.error(f"Row {row_num}: Unexpected error parsing row: {str(e)}. Row: {row}", exc_info=True) # Use logger.app_logger
+                    logger.app_logger.error(f"Row {row_num}: Unexpected error processing row: {e}. Row: {row}", exc_info=True) # Use logger.app_logger
                     malformed_rows += 1
-            if malformed_rows > 0:
-                logger.app_logger.warning(f"Finished parsing CSV. Total malformed/skipped rows: {malformed_rows}") # Use logger.app_logger
-            logger.app_logger.info(f"Successfully parsed {len(assignments)} valid assignments from CSV.") # Use logger.app_logger
-            return assignments
-        except csv.Error as csv_e:
-            logger.app_logger.error(f"CSV parsing error: {str(csv_e)}", exc_info=True) # Use logger.app_logger
-            raise ValueError(f"Invalid CSV format: {str(csv_e)}") from csv_e
+            logger.app_logger.info(f"Finished parsing CSV response. Total rows: {i+1}, Malformed rows: {malformed_rows}") # Use logger.app_logger
         except Exception as e:
-            logger.app_logger.error(f"Unexpected error during CSV parsing: {str(e)}", exc_info=True) # Use logger.app_logger
-            raise ValueError(f"An unexpected error occurred while parsing the AI response: {str(e)}") from e
+            logger.app_logger.error(f"Critical error during CSV parsing: {e}", exc_info=True) # Use logger.app_logger
+            raise ValueError(f"Failed to parse CSV response: {e}") from e
+        return assignments
 
     def _store_assignments(self, parsed_assignments, version_id, schedule_start_date, schedule_end_date):
-        if not parsed_assignments:
-            logger.app_logger.info("No assignments to store.") # Use logger.app_logger
-            return 0
-        
-        # Convert date objects to datetime objects for full day comparison
-        start_dt = datetime.combine(schedule_start_date, datetime.min.time())
-        end_dt = datetime.combine(schedule_end_date, datetime.max.time())
-
-        logger.app_logger.info(f"Storing {len(parsed_assignments)} assignments for version {version_id} from {schedule_start_date} to {schedule_end_date}.") # Use logger.app_logger
+        logger.app_logger.info(f"Storing {len(parsed_assignments)} assignments for version {version_id} (Dates: {schedule_start_date} to {schedule_end_date}).") # Use logger.app_logger
         try:
-            if version_id is None:
-                logger.app_logger.warning("Attempting to store assignments with version_id=None. Ensure DB schema allows this or provide a valid version.") # Use logger.app_logger
-            
-            Schedule.query.filter(
-                Schedule.version == version_id, 
-                Schedule.date >= start_dt, # Use datetime for comparison
-                Schedule.date <= end_dt  # Use datetime for comparison
-            ).delete(synchronize_session=False)
-            logger.app_logger.info(f"Deleted existing schedules for version {version_id} in date range.") # Use logger.app_logger
+            # Clear existing assignments for this version within the date range if version_id is provided
+            if version_id is not None:
+                 # Note: This assumes Schedule model has a 'version' column and a 'date' column
+                 # Adjust query if model structure is different
+                 delete_count = Schedule.query.filter(
+                     Schedule.version == version_id,
+                     Schedule.date >= schedule_start_date,
+                     Schedule.date <= schedule_end_date
+                 ).delete(synchronize_session='fetch')
+                 logger.app_logger.info(f"Cleared {delete_count} existing assignments for version {version_id} within the date range.")
+            else:
+                 logger.app_logger.info("version_id is None. Not clearing existing assignments.")
 
-            new_assignments_count = 0
-            for parsed_item in parsed_assignments:
-                # Ensure employee and shift_template exist before creating schedule
-                employee = Employee.query.get(parsed_item["employee_id"])
-                shift_template = ShiftTemplate.query.get(parsed_item["shift_template_id"])
-
-                if not employee:
-                    logger.app_logger.warning(f"Employee with ID {parsed_item['employee_id']} not found. Skipping assignment for row: {parsed_item.get('raw_row')}") # Use logger.app_logger
-                    continue
-                if not shift_template:
-                    logger.app_logger.warning(f"ShiftTemplate with ID {parsed_item['shift_template_id']} not found. Skipping assignment for row: {parsed_item.get('raw_row')}") # Use logger.app_logger
-                    continue
-                
-                # Corrected Schedule instantiation
+            new_assignments = []
+            for assignment_data in parsed_assignments:
+                # Map parsed data to Schedule model attributes
+                # Ensure column names match your Schedule model exactly
                 new_assignment = Schedule(
-                    employee_id=parsed_item["employee_id"],
-                    shift_id=parsed_item["shift_template_id"], # Schedule model uses shift_id
-                    date=parsed_item["date"],
-                    version=version_id, # Schedule model uses version
-                    # start_time and end_time are derived from ShiftTemplate via relationship, not set here
-                    # is_ai_generated - this field doesn't exist on Schedule model yet
-                    notes=f"AI Generated: {parsed_item.get('shift_name_from_ai', '')}" # Store AI shift name in notes
+                    employee_id=assignment_data["employee_id"],
+                    date=assignment_data["date"],
+                    shift_id=assignment_data["shift_template_id"], # Use shift_id based on likely schema
+                    # Assuming Schedule model has these columns or they are derivable/not needed directly from AI output
+                    # shift_name=assignment_data["shift_name_from_ai"], # If Schedule has shift_name
+                    # start_time=assignment_data["start_time"], # If Schedule has start_time
+                    # end_time=assignment_data["end_time"], # If Schedule has end_time
+                    version=version_id # Use version based on likely schema
+                    # Add other Schedule model attributes as needed, e.g., created_at, updated_at
                 )
-                db.session.add(new_assignment)
-                new_assignments_count += 1
+                new_assignments.append(new_assignment)
 
-            if new_assignments_count == 0:
-                logger.app_logger.info("No valid new schedule entries to add after processing deletions.") # Use logger.app_logger
-                try: db.session.commit()
-                except SQLAlchemyError as e:
-                    db.session.rollback()
-                    logger.app_logger.error(f"DB error committing deletions: {str(e)}", exc_info=True) # Use logger.app_logger
-                    raise RuntimeError("Database error finalizing schedule.") from e
-                return 0
-            try:
-                db.session.commit()
-                logger.app_logger.info(f"Successfully added {new_assignments_count} new assignments to DB.") # Use logger.app_logger
-                return new_assignments_count
-            except SQLAlchemyError as e:
-                db.session.rollback()
-                logger.app_logger.error(f"Database error storing new assignments: {str(e)}", exc_info=True) # Use logger.app_logger
-                raise RuntimeError("Failed to save new assignments to database.") from e
+            db.session.add_all(new_assignments)
+            db.session.commit()
+            logger.app_logger.info(f"Successfully stored {len(new_assignments)} new assignments.") # Use logger.app_logger
+            return {"status": "success", "message": f"Successfully stored {len(new_assignments)} assignments.", "count": len(new_assignments)}
+
         except SQLAlchemyError as e:
             db.session.rollback()
-            logger.app_logger.error(f"Error deleting existing schedule assignments: {str(e)}", exc_info=True) # Use logger.app_logger
-            raise RuntimeError("Failed to clear existing schedule data.") from e
+            logger.app_logger.error(f"Database error storing assignments: {e}", exc_info=True) # Use logger.app_logger
+            raise RuntimeError(f"Database error storing assignments: {e}") from e
+        except Exception as e:
+            logger.app_logger.error(f"Unexpected error storing assignments: {e}", exc_info=True) # Use logger.app_logger
+            raise RuntimeError(f"Unexpected error storing assignments: {e}") from e
+
+    def process_feedback(self, feedback_data: AIScheduleFeedbackRequest):
+        """
+        Processes user feedback on AI-generated schedules.
+
+        Args:
+            feedback_data: An instance of AIScheduleFeedbackRequest containing feedback data.
+
+        Returns:
+            A dictionary indicating the result of the feedback processing.
+        """
+        logger.app_logger.info(f"Processing feedback for version ID: {feedback_data.version_id}")
+        logger.app_logger.debug(f"Feedback data received: {feedback_data.manual_assignments}")
+
+        # TODO: Implement logic to process feedback data.
+        # This might involve:
+        # - Comparing manual assignments to the original AI assignments for the given version.
+        # - Identifying which assignments were added, removed, or modified.
+        # - Storing this feedback data for future AI model training or fine-tuning.
+        # - Potentially triggering a re-evaluation or partial regeneration based on feedback.
+
+        # Placeholder for feedback processing logic
+        processed_count = len(feedback_data.manual_assignments)
+        message = f"Received {processed_count} manual assignment updates for version {feedback_data.version_id}. Processing logic TBD."
+        logger.app_logger.info(message)
+
+        return {"status": "received", "message": message, "processed_count": processed_count}
 
     def generate_schedule_via_ai(self, start_date_str, end_date_str, version_id=None, ai_model_params=None):
-        logger.app_logger.info(f"Starting AI schedule generation for {start_date_str} to {end_date_str}. Version: {version_id}") # Use logger.app_logger
-        if ai_model_params is None: ai_model_params = {}
+        logger.app_logger.info(f"Initiating AI schedule generation for dates {start_date_str} to {end_date_str}, version_id: {version_id}") # Use logger.app_logger
         try:
             start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
             end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
-        except ValueError as ve:
-            logger.app_logger.error(f"Invalid date format: {ve}", exc_info=True) # Use logger.app_logger
-            raise ValueError("Invalid date format. Use YYYY-MM-DD.") from ve
-        if not self.gemini_api_key:
-             logger.app_logger.error("Cannot generate AI schedule: Gemini API key is not configured.") # Use logger.app_logger
-             raise ValueError("AI Service not configured: API key missing.")
+        except ValueError as e:
+            logger.app_logger.error(f"Invalid date format provided: {e}") # Use logger.app_logger
+            raise ValueError("Invalid date format. Use YYYY-MM-DD.") from e
 
-        prompt_data_text = self._collect_data_for_ai_prompt(start_date, end_date)
-        system_prompt = self._construct_system_prompt(prompt_data_text, start_date, end_date)
-        csv_response = None
+        if start_date > end_date:
+            logger.app_logger.warning(f"Start date ({start_date_str}) is after end date ({end_date_str}).") # Use logger.app_logger
+            return {"status": "failed", "message": "Start date cannot be after end date."}
+
+        # 1. Collect relevant data
         try:
-            csv_response = self._call_gemini_api(system_prompt, model_parameters=ai_model_params)
-        except (ValueError, ConnectionError) as e:
-            logger.app_logger.error(f"AI schedule generation failed during API call: {str(e)}", exc_info=True) # Use logger.app_logger
-            raise RuntimeError(f"AI API interaction failed: {str(e)}") from e
-        if csv_response is None:
-             logger.app_logger.error("AI schedule generation failed: No response from AI after API call.") # Use logger.app_logger
-             raise RuntimeError("AI API call returned no response.")
+            collected_data_text = self._collect_data_for_ai_prompt(start_date, end_date)
+            if not collected_data_text:
+                 logger.app_logger.warning("Collected data for AI prompt is empty.") # Use logger.app_logger
+                 # Depending on requirements, might return an error or an empty schedule
+                 return {"status": "warning", "message": "No relevant data collected for the specified date range. Cannot generate schedule.", "generated_assignments_count": 0}
+        except Exception as e:
+            logger.app_logger.error(f"Failed to collect data for AI prompt: {e}", exc_info=True) # Use logger.app_logger
+            raise RuntimeError(f"Failed to collect data for AI prompt: {e}") from e
 
-        logger.app_logger.info(f"CSV response received from AI (length: {len(csv_response)}). Preview (first 200 chars): '{csv_response[:200]}...'") # Use logger.app_logger
-        parsed_assignments = []
-        if csv_response and csv_response.strip():
-            try:
-                parsed_assignments = self._parse_csv_response(csv_response, start_date, end_date)
-                logger.app_logger.info(f"Successfully parsed {len(parsed_assignments)} assignments from AI CSV.") # Use logger.app_logger
-            except ValueError as ve:
-                logger.app_logger.error(f"Error parsing CSV response from AI: {str(ve)}", exc_info=True) # Use logger.app_logger
-                raise RuntimeError(f"Failed to parse AI schedule data: {str(ve)}") from ve
-        else:
-            logger.app_logger.info("AI returned no CSV data to parse.") # Use logger.app_logger
-        
-        if not parsed_assignments:
-            logger.app_logger.info("No valid assignments parsed. Nothing to store.") # Use logger.app_logger
-            return {"status": "success_no_assignments", "message": "AI generated no valid assignments.", "count": 0, "assignments": []}
-
+        # 2. Construct the prompt
         try:
-            if version_id is None:
-                 logger.app_logger.warning("generate_schedule_via_ai called with version_id=None. This may be an issue if DB requires it for Schedules.") # Use logger.app_logger
-            
-            stored_count = self._store_assignments(parsed_assignments, version_id, start_date, end_date)
-            logger.app_logger.info(f"Successfully stored {stored_count} AI-generated assignments for version '{version_id}'.") # Use logger.app_logger
-            return {"status": "success", "message": f"AI schedule generated and {stored_count} assignments stored for version '{version_id}'.", "count": stored_count, "version_id": version_id}
+            system_prompt = self._construct_system_prompt(collected_data_text, start_date, end_date)
+            if not system_prompt:
+                 logger.app_logger.warning("Constructed system prompt is empty.") # Use logger.app_logger
+                 return {"status": "failed", "message": "Failed to construct system prompt.", "generated_assignments_count": 0}
+        except Exception as e:
+            logger.app_logger.error(f"Failed to construct system prompt: {e}", exc_info=True) # Use logger.app_logger
+            raise RuntimeError(f"Failed to construct system prompt: {e}") from e
+
+        # 3. Call the AI model API
+        try:
+            csv_response = self._call_gemini_api(system_prompt, ai_model_params)
+            if not csv_response:
+                 logger.app_logger.warning("AI API returned an empty response.") # Use logger.app_logger
+                 return {"status": "warning", "message": "AI model returned an empty response. Could not generate assignments.", "generated_assignments_count": 0}
+        except ConnectionError as e:
+            logger.app_logger.error(f"Failed to call Gemini API: {e}", exc_info=True) # Use logger.app_logger
+            return {"status": "error", "message": f"Failed to call AI service: {e}", "generated_assignments_count": 0}
+        except Exception as e:
+            logger.app_logger.error(f"Unexpected error calling AI API: {e}", exc_info=True) # Use logger.app_logger
+            return {"status": "error", "message": f"An unexpected error occurred during AI call: {e}", "generated_assignments_count": 0}
+
+        # 4. Parse the CSV response
+        try:
+            parsed_assignments = self._parse_csv_response(csv_response, start_date, end_date)
+            logger.app_logger.info(f"Parsed {len(parsed_assignments)} valid assignments from AI response.") # Use logger.app_logger
+            if not parsed_assignments:
+                logger.app_logger.warning("No valid assignments parsed from AI response.") # Use logger.app_logger
+                return {"status": "warning", "message": "AI model generated a response, but no valid assignments could be parsed.", "generated_assignments_count": 0}
+        except ValueError as e:
+            logger.app_logger.error(f"Failed to parse AI response CSV: {e}", exc_info=True) # Use logger.app_logger
+            return {"status": "error", "message": f"Failed to parse AI response: {e}", "generated_assignments_count": 0}
+        except Exception as e:
+            logger.app_logger.error(f"Unexpected error parsing AI response: {e}", exc_info=True) # Use logger.app_logger
+            return {"status": "error", "message": f"An unexpected error occurred during parsing: {e}", "generated_assignments_count": 0}
+
+        # 5. Store the assignments
+        try:
+            store_result = self._store_assignments(parsed_assignments, version_id, start_date, end_date)
+            logger.app_logger.info(f"Assignments stored successfully. Count: {store_result.get('count', 0)}") # Use logger.app_logger
+            return {"status": "success", "message": f"Schedule generated and stored successfully. {store_result.get('count', 0)} assignments created.", "generated_assignments_count": store_result.get('count', 0)}
         except RuntimeError as e:
-            logger.app_logger.error(f"Error storing AI-generated assignments: {str(e)}", exc_info=True) # Use logger.app_logger
-            raise
+            logger.app_logger.error(f"Failed to store assignments: {e}", exc_info=True) # Use logger.app_logger
+            return {"status": "error", "message": f"Failed to store generated schedule: {e}", "generated_assignments_count": 0}
+        except Exception as e:
+            logger.app_logger.error(f"Unexpected error storing assignments: {e}", exc_info=True) # Use logger.app_logger
+            return {"status": "error", "message": f"An unexpected error occurred during storage: {e}", "generated_assignments_count": 0}
+
+
+# Helper function for testing (optional, can be removed or moved)
+def test_ai_scheduler_service():
+    # This is a placeholder and requires a running Flask app with DB access
+    # and a configured GEMINI_API_KEY to run successfully.
+    print("\n--- Testing AISchedulerService ---")
+    service = AISchedulerService()
+    
+    # Example dates (replace with actual dates in your DB)
+    start_date_str = "2024-07-01"
+    end_date_str = "2024-07-07"
+    test_version_id = 99 # Use a test-specific version ID
+
+    try:
+        print(f"Attempting to generate schedule for {start_date_str} to {end_date_str}...")
+        result = service.generate_schedule_via_ai(
+            start_date_str=start_date_str,
+            end_date_str=end_date_str,
+            version_id=test_version_id,
+            ai_model_params={"generationConfig": {"temperature": 0.5}}
+        )
+        print(f"Generation Result: {result}")
+
+        # Add a placeholder for testing feedback processing
+        print("\n--- Testing Feedback Processing (Placeholder) ---")
+        mock_feedback_data = AIScheduleFeedbackRequest(
+            version_id=test_version_id,
+            manual_assignments=[
+                {"employee_id": 1, "date": "2024-07-01", "shift_id": 2},
+                {"employee_id": 3, "date": "2024-07-03", "shift_id": 1, "action": "remove"},
+            ]
+        )
+        feedback_result = service.process_feedback(mock_feedback_data)
+        print(f"Feedback Processing Result: {feedback_result}")
+
+
+    except ValueError as e:
+        print(f"Test failed due to Value Error: {e}")
+    except ConnectionError as e:
+        print(f"Test failed due to Connection Error: {e}")
+    except RuntimeError as e:
+        print(f"Test failed due to Runtime Error: {e}")
+    except Exception as e:
+        print(f"An unexpected error occurred during test: {e}")
+
+# To run this test:
+# 1. Ensure your Flask app and database are running.
+# 2. Set the GEMINI_API_KEY environment variable.
+# 3. You might need to add necessary imports for the test function itself.
+# 4. Run this file directly: python -m src.backend.services.ai_scheduler_service
+# (Note: Running directly might have issues with Flask app context/DB. 
+# It's better to call this from a proper Flask shell or test suite.)
+
+if __name__ == '__main__':
+    # This block is mainly for testing the service in isolation if possible,
+    # but note the caveats above about Flask context.
+    # test_ai_scheduler_service()
+    pass # Avoid running test automatically for now

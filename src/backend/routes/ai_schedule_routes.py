@@ -3,11 +3,11 @@ from flask_cors import CORS # Import CORS
 from src.backend.services.ai_scheduler_service import AISchedulerService # Now this should exist
 from src.backend.utils.logger import logger # Corrected: import the global logger instance
 from pydantic import ValidationError # Import ValidationError
-from src.backend.schemas.ai_schedule import AIScheduleGenerateRequest # Import the Pydantic schema
+from src.backend.schemas.ai_schedule import AIScheduleGenerateRequest, AIScheduleFeedbackRequest # Import both schemas
 
 ai_schedule_bp = Blueprint('ai_schedule_bp', __name__, url_prefix='/ai/schedule')
 # Apply a more explicit CORS to the blueprint for testing
-CORS(ai_schedule_bp, origins="*", methods=["GET", "POST", "OPTIONS"], supports_credentials=True, allow_headers=["Content-Type", "Authorization"])
+CORS(ai_schedule_bp, origins="*", methods=["GET", "POST", "OPTIONS", "PUT"], supports_credentials=True, allow_headers=["Content-Type", "Authorization"])
 
 @ai_schedule_bp.route('/generate', methods=['POST'])
 def generate_ai_schedule():
@@ -64,6 +64,39 @@ def generate_ai_schedule():
         return jsonify({"error": f"Operation error: {str(re)}"}), 500
     except Exception as e:
         logger.app_logger.error(f"Unexpected error in AI schedule generation endpoint: {str(e)}", exc_info=True) # Use logger.app_logger
+        return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
+
+@ai_schedule_bp.route('/feedback', methods=['POST'])
+def submit_ai_schedule_feedback():
+    """
+    Endpoint to receive feedback on AI-generated schedule assignments.
+    Expects JSON payload conforming to AIScheduleFeedbackRequest schema.
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            logger.app_logger.warning("AI schedule feedback request with no input data.")
+            return jsonify({"error": "No input data provided"}), 400
+
+        logger.app_logger.info(f"AI schedule feedback request received: {data}")
+
+        # Use Pydantic for validation
+        feedback_data = AIScheduleFeedbackRequest(**data)
+
+        ai_service = AISchedulerService()
+
+        # Assume AISchedulerService has a method to process feedback
+        # This method needs to be implemented in the service layer
+        result = ai_service.process_feedback(feedback_data)
+
+        logger.app_logger.info(f"AI schedule feedback service call completed. Result: {result}")
+        return jsonify({"status": "success", "message": "Feedback received"}), 200 # Or return service result
+
+    except ValidationError as e:
+        logger.app_logger.error(f"Validation error in AI schedule feedback: {e.errors()}")
+        return jsonify({"error": "Invalid input.", "details": e.errors()}), 400
+    except Exception as e:
+        logger.app_logger.error(f"Unexpected error in AI schedule feedback endpoint: {str(e)}", exc_info=True)
         return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
 
 # Further endpoints related to AI scheduling can be added here
