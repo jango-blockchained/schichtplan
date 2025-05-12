@@ -17,7 +17,7 @@ from typing import List, Dict, Any # Ensure List, Dict, Any are imported
 class AISchedulerService:
     def __init__(self):
         self.gemini_api_key = self._load_api_key_from_settings()
-        self.gemini_model_name = "gemini-1.5-pro-latest"
+        self.gemini_model_name = "gemini-1.5-flash"  # Using the more available gemini-1.5-flash model
         self.default_model_params = {
             "generationConfig": {
                 "temperature": 0.6,

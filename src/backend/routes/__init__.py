@@ -16,7 +16,6 @@ __all__ = [
 
 from flask import Blueprint, current_app, jsonify, request
 from werkzeug.exceptions import HTTPException, NotFound
-from src.backend.utils.settings import get_value
 
 api_bp = Blueprint('api', __name__)
 
