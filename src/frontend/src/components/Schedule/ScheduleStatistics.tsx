@@ -81,13 +81,39 @@ const calculateShiftDuration = (schedule: Schedule): number => {
 };
 
 export function ScheduleStatistics({ schedules, employees: propEmployees, startDate, endDate, version }: ScheduleStatisticsProps) {
-    // Debugging info
-    console.log('ScheduleStatistics - raw props:', {
-        totalSchedules: schedules.length,
-        version,
-        startDate,
-        endDate,
-        firstFewSchedules: schedules.slice(0, 3).map(s => ({ id: s.id, version: s.version, shift_id: s.shift_id }))
+    // Validate inputs and provide defaults if needed
+    const validatedSchedules = Array.isArray(schedules) ? schedules : [];
+    const validatedStartDate = startDate || new Date().toISOString().split('T')[0];
+    const validatedEndDate = endDate || new Date().toISOString().split('T')[0];
+    // Enhanced debugging info with version analysis
+    const versionCounts = validatedSchedules.reduce((acc, s) => {
+        if (s.version !== undefined) {
+            acc[s.version] = (acc[s.version] || 0) + 1;
+        } else {
+            acc['undefined'] = (acc['undefined'] || 0) + 1;
+        }
+        return acc;
+    }, {} as Record<string, number>);
+    
+    console.log('ScheduleStatistics - component initialization:', {
+        totalSchedules: validatedSchedules.length,
+        requestedVersion: version,
+        dateRange: { startDate: validatedStartDate, endDate: validatedEndDate },
+        versionDistribution: versionCounts,
+        scheduleTypes: {
+            withShiftId: validatedSchedules.filter(s => s.shift_id !== null).length,
+            withoutShiftId: validatedSchedules.filter(s => s.shift_id === null).length,
+            withValidTimes: validatedSchedules.filter(s => s.shift_id !== null && s.shift_start && s.shift_end).length,
+            withoutValidTimes: validatedSchedules.filter(s => s.shift_id !== null && (!s.shift_start || !s.shift_end)).length
+        },
+        sampleSchedules: validatedSchedules.slice(0, 3).map(s => ({
+            id: s.id,
+            version: s.version,
+            shift_id: s.shift_id,
+            employee_id: s.employee_id,
+            date: s.date,
+            times: `${s.shift_start || 'none'}-${s.shift_end || 'none'}`
+        }))
     });
 
     // Fetch employees if not passed in props
@@ -101,30 +127,79 @@ export function ScheduleStatistics({ schedules, employees: propEmployees, startD
     // Use prop employees if available, otherwise use fetched employees
     const employees = propEmployees && propEmployees.length > 0 ? propEmployees : (fetchedEmployees || []);
 
-    // IMPORTANT: Filter schedules by version if specified - ensure filtering is applied correctly
-    const filteredSchedules = version !== undefined
-        ? schedules.filter(s => s.version === version)
-        : schedules;
-
-    // Log version filtering results for debugging
-    console.log('ScheduleStatistics - version filtering:', {
+    // Analyze schedule data for version integrity
+    const schedulesWithVersion = validatedSchedules.filter(s => s.version !== undefined);
+    const schedulesWithoutVersion = validatedSchedules.filter(s => s.version === undefined);
+    
+    // Log any schedules missing version info for debugging
+    if (schedulesWithoutVersion.length > 0) {
+        console.warn('ScheduleStatistics - schedules missing version information:', 
+            schedulesWithoutVersion.length, 
+            schedulesWithoutVersion.slice(0, 3)
+        );
+    }
+    
+    // Get unique versions in the data
+    const uniqueVersions = [...new Set(schedulesWithVersion.map(s => s.version))].sort();
+    
+    // IMPROVED: Filter schedules by version if specified - with validation
+    let filteredSchedules = validatedSchedules;
+    
+    if (version !== undefined) {
+        // First check if this version exists in our data
+        const versionExists = uniqueVersions.includes(version);
+        
+        if (versionExists) {
+            // Apply filtering only if the version exists in our data
+            filteredSchedules = validatedSchedules.filter(s => s.version === version);
+        } else {
+            // Log warning and fall back to all schedules if requested version doesn't exist
+            console.warn(`ScheduleStatistics - requested version ${version} not found in data. Available versions:`, uniqueVersions);
+        }
+    }
+    
+    // Extended version filtering debug info
+    console.log('ScheduleStatistics - version filtering analysis:', {
+        requestedVersion: version,
+        availableVersions: uniqueVersions,
+        totalSchedules: validatedSchedules.length,
+        schedulesWithVersionInfo: schedulesWithVersion.length,
+        schedulesWithoutVersionInfo: schedulesWithoutVersion.length,
         filteredCount: filteredSchedules.length,
-        originalCount: schedules.length,
-        version,
-        schedulesWithShifts: schedules.filter(s => s.shift_id !== null).length,
+        schedulesWithShifts: validatedSchedules.filter(s => s.shift_id !== null).length,
         filteredWithShifts: filteredSchedules.filter(s => s.shift_id !== null).length,
-        versionCounts: schedules.reduce((acc, s) => {
+        versionDistribution: schedulesWithVersion.reduce((acc, s) => {
             acc[s.version] = (acc[s.version] || 0) + 1;
             return acc;
         }, {} as Record<number, number>),
-        shiftVersionCounts: schedules.filter(s => s.shift_id !== null).reduce((acc, s) => {
+        shiftVersionDistribution: validatedSchedules.filter(s => s.shift_id !== null && s.version !== undefined).reduce((acc, s) => {
             acc[s.version] = (acc[s.version] || 0) + 1;
             return acc;
         }, {} as Record<number, number>)
     });
 
-    // Filter out schedules with no shift assigned
-    const validSchedules = filteredSchedules.filter(s => s.shift_id !== null);
+    // Filter out schedules with no shift assigned, with improved validation
+    const validSchedules = filteredSchedules.filter(s => {
+        // First ensure shift_id exists
+        if (s.shift_id === null || s.shift_id === undefined) {
+            return false;
+        }
+        
+        // Validate basic scheduling data is present
+        const hasRequiredData = 
+            s.employee_id !== undefined && 
+            s.employee_id !== null && 
+            s.date !== undefined && 
+            s.date !== null;
+            
+        // Check shift times if we want to be strict
+        const hasShiftTimes = s.shift_start && s.shift_end;
+        
+        // Return true if we have the basic required data
+        // We don't strictly require shift times because some schedules might be missing them
+        // but are otherwise valid
+        return hasRequiredData;
+    });
 
     // Basic statistics
     const totalShifts = validSchedules.length;

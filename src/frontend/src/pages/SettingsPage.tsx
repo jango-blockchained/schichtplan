@@ -441,20 +441,6 @@ export function SettingsPage() {
                         ))}
                       </div>
                     </div>
-                    <div className="space-y-4 md:col-span-2">
-                        <Label>Employee & Absence Types</Label>
-                        <EmployeeSettingsEditor
-                            type="employee"
-                            groups={(localSettings.employee_groups?.employee_types ?? DEFAULT_SETTINGS.employee_groups.employee_types).map(et => ({...et, type: 'employee' as const}))}
-                            onChange={handleEmployeeGroupChange}
-                        />
-                        <Label>Absence Types</Label>
-                        <EmployeeSettingsEditor
-                            type="absence"
-                            groups={(localSettings.employee_groups?.absence_types ?? DEFAULT_SETTINGS.employee_groups.absence_types).map(at => ({...at, type: 'absence' as const}))}
-                            onChange={handleAbsenceGroupChange}
-                        />
-                    </div>
                   </div>
                 </CardContent>
                 <CardFooter className="flex justify-end">

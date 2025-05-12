@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
 import { DateRange } from 'react-day-picker';
@@ -24,6 +24,13 @@ export function useVersionControl({ dateRange, onVersionSelected, initialVersion
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const [selectedVersion, setSelectedVersion] = useState<number | undefined>(initialVersion);
+    
+    // Track if the user has explicitly made a selection to prevent auto-selection override
+    const [userHasManuallySelected, setUserHasManuallySelected] = useState<boolean>(!!initialVersion);
+    
+    // Track the current date range key to detect when it changes
+    const previousDateRangeRef = useRef<string | null>(null);
+    const currentDateRangeKey = dateRange?.from?.toISOString() + '-' + dateRange?.to?.toISOString();
 
     // Query for versions
     const versionsQuery = useQuery<VersionResponse, Error>({
@@ -41,6 +48,17 @@ export function useVersionControl({ dateRange, onVersionSelected, initialVersion
         enabled: !!dateRange?.from && !!dateRange?.to,
     });
 
+    // Reset manual selection flag when date range changes
+    useEffect(() => {
+        if (previousDateRangeRef.current !== null && 
+            previousDateRangeRef.current !== currentDateRangeKey) {
+            console.log('📅 Date range changed, resetting manual selection flag');
+            setUserHasManuallySelected(false);
+        }
+        
+        previousDateRangeRef.current = currentDateRangeKey;
+    }, [currentDateRangeKey]);
+
     // Set selected version to the latest version for this week when versions change or week changes
     useEffect(() => {
         if (versionsQuery.data?.versions && versionsQuery.data.versions.length > 0) {
@@ -48,19 +66,22 @@ export function useVersionControl({ dateRange, onVersionSelected, initialVersion
             const sortedVersions = [...versionsQuery.data.versions].sort((a, b) => b.version - a.version);
             const latestVersion = sortedVersions[0].version;
 
-            // Only auto-select if no version is currently selected
-            if (selectedVersion === undefined) {
+            // Only auto-select if no version is currently selected AND the user hasn't manually selected a version
+            if (selectedVersion === undefined && !userHasManuallySelected) {
                 console.log(`🔄 Auto-selecting latest version (${latestVersion}) because no version was selected`);
                 setSelectedVersion(latestVersion);
                 if (onVersionSelected) {
                     onVersionSelected(latestVersion);
                 }
             } else if (!versionsQuery.data.versions.some(v => v.version === selectedVersion)) {
+                // Selected version is no longer available - must switch to another version
                 console.log(`🔄 Selected version ${selectedVersion} is no longer available, switching to ${latestVersion}`);
                 setSelectedVersion(latestVersion);
                 if (onVersionSelected) {
                     onVersionSelected(latestVersion);
                 }
+                // Don't track this as a manual selection since it's a fallback
+                setUserHasManuallySelected(false);
             }
         } else {
             // If no versions are available, make sure we don't have a selected version
@@ -70,9 +91,11 @@ export function useVersionControl({ dateRange, onVersionSelected, initialVersion
                 if (onVersionSelected) {
                     onVersionSelected(undefined as any);
                 }
+                // Reset manual selection flag since there's nothing to select
+                setUserHasManuallySelected(false);
             }
         }
-    }, [versionsQuery.data, onVersionSelected, selectedVersion, dateRange]);
+    }, [versionsQuery.data, onVersionSelected, selectedVersion, dateRange, userHasManuallySelected]);
 
     // Create version mutation
     const createVersionMutation = useMutation({
@@ -109,8 +132,10 @@ export function useVersionControl({ dateRange, onVersionSelected, initialVersion
                 description: `Version ${data.version} wurde erfolgreich erstellt.`,
             });
 
-            // Automatically select the new version
+            // Automatically select the new version and mark as manual selection
+            // since the user explicitly created this version
             setSelectedVersion(data.version);
+            setUserHasManuallySelected(true);
             if (onVersionSelected) {
                 onVersionSelected(data.version);
             }
@@ -182,6 +207,7 @@ export function useVersionControl({ dateRange, onVersionSelected, initialVersion
                 description: `Version ${data.version} created as a duplicate`,
             });
             setSelectedVersion(data.version);
+            setUserHasManuallySelected(true); // Mark as manual since user explicitly created this
             if (onVersionSelected) {
                 onVersionSelected(data.version);
             }
@@ -267,6 +293,8 @@ export function useVersionControl({ dateRange, onVersionSelected, initialVersion
 
     const handleVersionChange = (version: number) => {
         console.log(`🔢 Changing selected version to: ${version}`);
+        // Mark this as a manual user selection
+        setUserHasManuallySelected(true);
         setSelectedVersion(version);
         if (onVersionSelected) {
             console.log(`🔄 Triggering onVersionSelected callback with version ${version}`);
@@ -333,6 +361,7 @@ export function useVersionControl({ dateRange, onVersionSelected, initialVersion
         versions: versionsQuery.data?.versions.map(v => v.version) || [],
         versionMetas: versionsQuery.data?.versions || [],
         selectedVersion,
+        isManuallySelected: userHasManuallySelected, // Expose the manual selection state
         isLoading: versionsQuery.isLoading ||
             createVersionMutation.isPending ||
             updateVersionStatusMutation.isPending ||
@@ -346,7 +375,9 @@ export function useVersionControl({ dateRange, onVersionSelected, initialVersion
         handlePublishVersion,
         handleArchiveVersion,
         handleDeleteVersion,
-        handleDuplicateVersion
+        handleDuplicateVersion,
+        // Method to explicitly reset the manual selection flag if needed
+        resetManualSelection: () => setUserHasManuallySelected(false)
     };
 }
 

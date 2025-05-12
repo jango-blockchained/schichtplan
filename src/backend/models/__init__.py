@@ -9,6 +9,7 @@ from .employee import Employee, EmployeeAvailability, EmployeeGroup
 from .schedule import Schedule, ScheduleVersionMeta, ScheduleStatus
 from .absence import Absence
 from .coverage import Coverage
+from .user import User, UserRole
 
 __all__ = [
     "db",
@@ -23,4 +24,6 @@ __all__ = [
     "EmployeeGroup",
     "Absence",
     "Coverage",
+    "User",
+    "UserRole",
 ]

@@ -18,7 +18,7 @@ class AvailabilityUpdateRequest(BaseModel):
     day_of_week: Optional[int] = Field(None, ge=0, le=6) # 0 for Monday, 6 for Sunday
     hour: Optional[int] = Field(None, ge=0, le=23)
     is_available: Optional[bool] = None
-    availability_type: Optional[AvailabilityType] = Field(default=None) # Use the imported enum
+    availability_type: Optional[AvailabilityType] = None
 
 class AvailabilityCheckRequest(BaseModel):
     """Schema for checking employee availability."""
@@ -27,18 +27,21 @@ class AvailabilityCheckRequest(BaseModel):
     hour: Optional[int] = Field(None, ge=0, le=23)
     # We could add validation here to ensure 'date' is in a reasonable range, but for now assume valid date object
 
-class EmployeeAvailabilityUpdateItem(BaseModel):
-    day_of_week: int = Field(..., ge=0, le=6)
+class EmployeeAvailabilityBase(BaseModel):
+    """Base schema for employee availability."""
+    day_of_week: int = Field(..., ge=0, le=6) # 0 for Monday, 6 for Sunday
     hour: int = Field(..., ge=0, le=23)
     is_available: bool
     availability_type: AvailabilityType = Field(default=AvailabilityType.AVAILABLE)
 
+# Use __root__ for Pydantic v1.x compatibility
 class EmployeeAvailabilitiesUpdateRequest(BaseModel):
-    __root__: List[EmployeeAvailabilityUpdateItem]
+    """Schema for the employee availabilities update request."""
+    __root__: List[EmployeeAvailabilityBase]
 
-# Schema for GET /api/availability/by_date
 class EmployeeStatusByDateRequest(BaseModel):
-    date: date # Pydantic handles date parsing
+    """Schema for the employee status by date request."""
+    date: date
 
 # Schema for GET /api/availability/shifts_for_employee
 class EmployeeShiftsForEmployeeRequest(BaseModel):
