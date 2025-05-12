@@ -6,11 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { Loader2 } from 'lucide-react';
-import type { Settings } from '@/types/index';
+import type { Settings } from '@/types';
+import { DEFAULT_SETTINGS } from '@/hooks/useSettings'; // Import DEFAULT_SETTINGS for potential fallback in component
 
 // Props that will be passed from UnifiedSettingsPage.tsx
 interface GeneralStoreSetupSectionProps {
-  localSettings: Partial<Settings>; // Using Partial as not all settings might be loaded initially or relevant here
+  localSettings: Partial<Settings> | null | undefined; // Allow null or undefined
   handleSave: (category: 'general', updates: Partial<Settings['general']>) => void;
   handleImmediateUpdate: () => void;
   updateMutationIsPending: boolean;
@@ -26,8 +27,21 @@ export const GeneralStoreSetupSection: React.FC<GeneralStoreSetupSectionProps> =
   timeStringToDate,
   dateToTimeString,
 }) => {
+
+  // Add a check for localSettings being defined
+  if (!localSettings) {
+    // Or return null; depending on desired behavior when settings are not loaded
+    return (
+        <div className="flex justify-center items-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin" />
+            <span>Loading general settings...</span>
+        </div>
+    );
+  }
+
   // Fallback for localSettings.general if it's undefined
-  const generalSettings = localSettings.general ?? {};
+  // Now this line is safe because localSettings is guaranteed to be defined
+  const generalSettings = localSettings.general ?? DEFAULT_SETTINGS.general; // Use DEFAULT_SETTINGS as a proper fallback
 
   return (
     <div className="space-y-6">
