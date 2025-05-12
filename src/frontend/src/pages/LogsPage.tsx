@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/axios';
-import { clearLogs } from '@/services/api';
+import { clearAllLogs } from '@/services/api';
 import {
     Card,
     CardContent,
@@ -402,10 +402,9 @@ export default function LogsPage() {
         if (window.confirm('Are you sure you want to clear all logs? This action cannot be undone.')) {
             try {
                 setIsClearing(true);
-                await clearLogs();
-                // Invalidate and refetch logs and stats queries
-                await queryClient.invalidateQueries({ queryKey: ['logs'] });
-                await queryClient.invalidateQueries({ queryKey: ['logStats'] });
+                await clearAllLogs();
+                queryClient.invalidateQueries({ queryKey: ['logs'] });
+                queryClient.invalidateQueries({ queryKey: ['logStats'] });
             } catch (error) {
                 console.error('Failed to clear logs:', error);
                 alert('Failed to clear logs. Please try again.');
