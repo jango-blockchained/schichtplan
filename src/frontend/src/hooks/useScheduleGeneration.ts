@@ -340,7 +340,9 @@ export function useScheduleGeneration({
         resetGenerationState,
         addGenerationLog,
         clearGenerationLogs,
-        updateGenerationStep
+        updateGenerationStep,
+        setGenerationSteps,
+        setShowGenerationOverlay
     };
 }
 
