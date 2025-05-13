@@ -2,17 +2,25 @@
 
 from src.backend.models import db, Employee, ShiftTemplate, Coverage, Absence, EmployeeAvailability, Schedule # Added Schedule model
 from src.backend.utils.logger import logger # Corrected: import the global logger instance
+from src.backend.services.scheduler.logging_utils import ProcessTracker
 import json
 import requests
 import os
 import logging
 import csv
+import uuid
 from io import StringIO
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timedelta
+from pathlib import Path
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import Date as SQLDate # Added import
 from src.backend.schemas.ai_schedule import AIScheduleFeedbackRequest # Import the feedback schema
 from typing import List, Dict, Any # Ensure List, Dict, Any are imported
+
+# Get src/logs path - fix for log location
+SRC_DIR = Path(__file__).resolve().parent.parent.parent
+LOGS_DIR = SRC_DIR / "logs"
+DIAGNOSTICS_DIR = LOGS_DIR / "diagnostics"
 
 class AISchedulerService:
     def __init__(self):
@@ -35,95 +43,233 @@ class AISchedulerService:
         logger.app_logger.info(f"AISchedulerService initialized for model: {self.gemini_model_name}") # Use logger.app_logger
 
     def _load_api_key_from_settings(self):
-        logger.app_logger.info("Loading Gemini API Key.") # Use logger.app_logger
-        try:
-            # Import Settings model here to avoid circular import
-            from src.backend.models.settings import Settings
-            
-            # Get the settings from the database
-            settings = Settings.query.first()
-            if settings and settings.ai_scheduling and isinstance(settings.ai_scheduling, dict):
-                loaded_key = settings.ai_scheduling.get("api_key")
-                
-                # If no key in settings, fall back to env var for backward compatibility
-                if not loaded_key:
-                    loaded_key = os.getenv("GEMINI_API_KEY")
-                    
-                if loaded_key:
-                    logger.app_logger.info("GEMINI_API_KEY loaded successfully.")
-                    return loaded_key
-            else:
-                # Fall back to environment variable if settings aren't available
-                loaded_key = os.getenv("GEMINI_API_KEY")
-                if loaded_key:
-                    logger.app_logger.info("GEMINI_API_KEY loaded from environment variable.")
-                    return loaded_key
-            
-            logger.app_logger.error("GEMINI_API_KEY not found in settings or environment. AI scheduling will fail if attempted.")
+        """Load Gemini API key from settings or environment variables"""
+        # The key is expected to be in an environment variable named GEMINI_API_KEY
+        api_key = os.environ.get("GEMINI_API_KEY", None)
+        
+        if not api_key:
+            logger.app_logger.warning("No Gemini API key found in environment. AI scheduling will not function.") # Use logger.app_logger
             return None
-        except Exception as e:
-            logger.app_logger.error(f"Error loading API key from settings: {str(e)}", exc_info=True)
-            # Fall back to environment variable
-            loaded_key = os.getenv("GEMINI_API_KEY")
-            if loaded_key:
-                logger.app_logger.info("GEMINI_API_KEY loaded from environment variable after settings error.")
-                return loaded_key
-            logger.app_logger.error("GEMINI_API_KEY environment variable not set. AI scheduling will fail if attempted.")
-            return None
+            
+        return api_key
+    
+    def _initialize_process_tracker(self, process_name="AI Schedule Generation"):
+        """Initialize a ProcessTracker for detailed diagnostics"""
+        # Create a unique session ID for this generation run
+        session_id = str(uuid.uuid4())[:8]
+        
+        # Make sure the diagnostics directory exists
+        os.makedirs(DIAGNOSTICS_DIR, exist_ok=True)
+        
+        # Create the diagnostic log file path
+        diagnostic_log_path = DIAGNOSTICS_DIR / f"schedule_diagnostic_{session_id}.log"
+        
+        # Set up a diagnostic logger with the correct path
+        diagnostic_logger = logging.getLogger(f"ai_scheduler_diagnostic_{session_id}")
+        diagnostic_logger.setLevel(logging.DEBUG)
+        diagnostic_logger.propagate = False
+        
+        if not diagnostic_logger.handlers:
+            # Create a file handler
+            file_handler = logging.FileHandler(diagnostic_log_path)
+            formatter = logging.Formatter(
+                "%(asctime)s.%(msecs)03d - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s",
+                "%Y-%m-%d %H:%M:%S"
+            )
+            file_handler.setFormatter(formatter)
+            diagnostic_logger.addHandler(file_handler)
+            
+            # Log initialization
+            diagnostic_logger.info(f"===== AI Schedule Generation Diagnostic Log (Session: {session_id}) =====")
+            diagnostic_logger.info(f"Log file path: {diagnostic_log_path}")
+        
+        # Create a process tracker
+        process_tracker = ProcessTracker(
+            process_name=process_name,
+            schedule_logger=logger.schedule_logger,
+            diagnostic_logger=diagnostic_logger
+        )
+        
+        # Store the session ID and log path for later reference
+        self.session_id = session_id
+        self.diagnostic_log_path = str(diagnostic_log_path)
+        
+        # Start the tracking process
+        process_tracker.start_process()
+        
+        return process_tracker
 
-    def _collect_data_for_ai_prompt(self, start_date, end_date):
-        logger.app_logger.info(f"Collecting data for AI prompt from {start_date} to {end_date}.") # Use logger.app_logger
-        data_parts = []
+    def _collect_data_for_ai_prompt(self, start_date, end_date, tracker=None):
+        """Collect data for AI prompt generation with diagnostic tracking"""
+        if tracker:
+            tracker.start_step("Collect Data for AI Prompt")
+            tracker.log_info(f"Collecting data for AI prompt from {start_date} to {end_date}.")
+        else:
+            logger.app_logger.info(f"Collecting data for AI prompt from {start_date} to {end_date}.")
+        
         try:
+            # Initialize an empty dictionary to hold collected data
+            collected_data = {}
+            
+            # 1. Get all active employees
             employees = Employee.query.filter_by(is_active=True).all()
-            employee_data = [{ "id": emp.id, "name": emp.name, "role": emp.role, "is_keyholder": emp.is_keyholder } for emp in employees]
-            data_parts.append(f"Employees:\n{json.dumps(employee_data, indent=2)}")
-        except Exception as e:
-            logger.app_logger.error(f"Error collecting employee data: {str(e)}", exc_info=True) # Use logger.app_logger
-            data_parts.append("Employees: Error collecting data.")
-        try:
-            shift_templates = ShiftTemplate.query.all()
-            template_data = [{ "id": st.id, "name": st.name, "start_time": st.start_time.isoformat() if st.start_time else None, "end_time": st.end_time.isoformat() if st.end_time else None, "active_days": st.active_days } for st in shift_templates]
-            data_parts.append(f"Shift Templates:\n{json.dumps(template_data, indent=2)}")
-        except Exception as e:
-            logger.app_logger.error(f"Error collecting shift template data: {str(e)}", exc_info=True) # Use logger.app_logger
-            data_parts.append("Shift Templates: Error collecting data.")
-        try:
-            coverages = Coverage.query.all()
-            coverage_data = [{ "id": cov.id, "shift_template_id": cov.shift_template_id, "min_employees": cov.min_employees, "max_employees": cov.max_employees, "days_of_week": cov.days_of_week } for cov in coverages]
-            data_parts.append(f"Coverage Needs:\n{json.dumps(coverage_data, indent=2)}")
-        except Exception as e:
-            logger.app_logger.error(f"Error collecting coverage data: {str(e)}", exc_info=True) # Use logger.app_logger
-            data_parts.append("Coverage Needs: Error collecting data.")
-        try:
+            employee_data = []
+            for emp in employees:
+                emp_dict = {
+                    'id': emp.id,
+                    'name': f"{emp.first_name} {emp.last_name}",
+                    'role': emp.role,
+                    'is_keyholder': emp.is_keyholder,
+                    'max_weekly_hours': emp.max_weekly_hours or 40,  # Default to 40
+                    'default_availability': emp.default_availability or 'Flexible',
+                    'seniority': emp.seniority or 1
+                }
+                employee_data.append(emp_dict)
+                
+            collected_data['employees'] = employee_data
+            
+            if tracker:
+                tracker.log_step_data("Employees", employee_data)
+                tracker.log_info(f"Collected {len(employee_data)} employees")
+            
+            # 2. Get shift templates
+            shifts = ShiftTemplate.query.all()
+            shift_data = []
+            for shift in shifts:
+                shift_dict = {
+                    'id': shift.id,
+                    'name': shift.name,
+                    'start_time': shift.start_time.strftime('%H:%M') if shift.start_time else None,
+                    'end_time': shift.end_time.strftime('%H:%M') if shift.end_time else None,
+                    'active_days': shift.active_days,
+                    'requires_keyholder': shift.requires_keyholder
+                }
+                shift_data.append(shift_dict)
+                
+            collected_data['shifts'] = shift_data
+            
+            if tracker:
+                tracker.log_step_data("Shift Templates", shift_data)
+                tracker.log_info(f"Collected {len(shift_data)} shift templates")
+            
+            # 3. Get coverage needs - based on the Coverage model structure
+            # The Coverage model uses day_index rather than dates, so we'll get all records
+            coverage_needs = Coverage.query.all()
+            
+            coverage_data = []
+            for coverage in coverage_needs:
+                # Get coverage for all days in the date range that match the day_index
+                current_date = start_date
+                while current_date <= end_date:
+                    # Check if current_date's weekday matches coverage day_index
+                    if current_date.weekday() == coverage.day_index:
+                        coverage_dict = {
+                            'id': coverage.id,
+                            'date': current_date.strftime('%Y-%m-%d'),
+                            'day_index': coverage.day_index,
+                            'shift_id': coverage.id,  # Using coverage ID as shift ID for now
+                            'start_time': coverage.start_time,
+                            'end_time': coverage.end_time,
+                            'min_employees': coverage.min_employees,
+                            'max_employees': coverage.max_employees,
+                            'requires_keyholder': coverage.requires_keyholder
+                        }
+                        coverage_data.append(coverage_dict)
+                    current_date += timedelta(days=1)
+                
+            collected_data['coverage'] = coverage_data
+            
+            if tracker:
+                tracker.log_step_data("Coverage Needs", coverage_data)
+                tracker.log_info(f"Collected {len(coverage_data)} coverage records")
+            
+            # 4. Get employee availability - based on the EmployeeAvailability model structure
+            # The model has day_of_week, hour, start_date, end_date, is_recurring fields
             availabilities = EmployeeAvailability.query.filter(
-                EmployeeAvailability.end_date >= start_date,  # Temporarily adjusted
-                EmployeeAvailability.start_date <= end_date  # Temporarily adjusted
+                # Either it's recurring OR it overlaps with our date range
+                db.or_(
+                    EmployeeAvailability.is_recurring == True,
+                    db.and_(
+                        db.or_(
+                            EmployeeAvailability.start_date == None,
+                            EmployeeAvailability.start_date <= end_date
+                        ),
+                        db.or_(
+                            EmployeeAvailability.end_date == None,
+                            EmployeeAvailability.end_date >= start_date
+                        )
+                    )
+                )
             ).all()
-            availability_data = [{ 
-                "employee_id": avail.employee_id, 
-                # "date": avail.date.isoformat(),  // This will still be an issue, EmployeeAvailability has no 'date' field
-                # "start_time": avail.start_time.isoformat() if avail.start_time else None, // EmployeeAvailability has no 'start_time' field
-                # "end_time": avail.end_time.isoformat() if avail.end_time else None, // EmployeeAvailability has no 'end_time' field
-                "availability_type": avail.availability_type.value, # This should be okay
-                # For now, let's simplify what we send to AI for availability due to model mismatch
-                "raw_availability_record": f"From {avail.start_date.isoformat() if avail.start_date else 'Open Start'} to {avail.end_date.isoformat() if avail.end_date else 'Open End'}, Type: {avail.availability_type.value}, Day: {avail.day_of_week}, Hour: {avail.hour}, IsAvailable: {avail.is_available}"
-            } for avail in availabilities]
-            data_parts.append(f"Employee Availability ({start_date} to {end_date}):\n{json.dumps(availability_data, indent=2)}")
-            absences = Absence.query.filter(Absence.start_date <= end_date, Absence.end_date >= start_date).all()
-            absence_data = [{ "employee_id": ab.employee_id, "start_date": ab.start_date.isoformat(), "end_date": ab.end_date.isoformat(), "reason": ab.reason } for ab in absences]
-            data_parts.append(f"Employee Absences ({start_date} to {end_date}):\n{json.dumps(absence_data, indent=2)}")
+            
+            availability_data = []
+            for avail in availabilities:
+                # For each date in the range
+                current_date = start_date
+                while current_date <= end_date:
+                    # Check if this availability applies to this date
+                    if avail.is_available_for_date(current_date):
+                        avail_dict = {
+                            'id': avail.id,
+                            'employee_id': avail.employee_id,
+                            'date': current_date.strftime('%Y-%m-%d'),
+                            'day_of_week': avail.day_of_week,
+                            'hour': avail.hour,
+                            'availability_type': avail.availability_type.value
+                        }
+                        availability_data.append(avail_dict)
+                    current_date += timedelta(days=1)
+                
+            collected_data['availability'] = availability_data
+            
+            if tracker:
+                tracker.log_step_data("Employee Availability", availability_data)
+                tracker.log_info(f"Collected {len(availability_data)} availability records")
+            
+            # 5. Get absences
+            absences = Absence.query.filter(
+                Absence.start_date <= end_date,
+                Absence.end_date >= start_date
+            ).all()
+            
+            absence_data = []
+            for absence in absences:
+                absence_dict = {
+                    'id': absence.id,
+                    'employee_id': absence.employee_id,
+                    'start_date': absence.start_date.strftime('%Y-%m-%d'),
+                    'end_date': absence.end_date.strftime('%Y-%m-%d'),
+                    'reason': absence.note  # Using note field based on the model
+                }
+                absence_data.append(absence_dict)
+                
+            collected_data['absences'] = absence_data
+            
+            if tracker:
+                tracker.log_step_data("Employee Absences", absence_data)
+                tracker.log_info(f"Collected {len(absence_data)} absence records")
+            
+            # Convert the collected data to a structured text format for the prompt
+            collected_data_text = json.dumps(collected_data, indent=2)
+            
+            if tracker:
+                tracker.end_step({"data_count": len(collected_data)})
+            
+            return collected_data_text
+            
         except Exception as e:
-            logger.app_logger.error(f"Error collecting availability/absence data: {str(e)}", exc_info=True) # Use logger.app_logger
-            data_parts.append("Employee Availability/Absences: Error collecting data.")
-        general_rules = { "max_consecutive_shifts": 5, "min_rest_between_shifts_hours": 11, "max_weekly_hours": 40 }
-        data_parts.append(f"General Scheduling Rules:\n{json.dumps(general_rules, indent=2)}")
-        prompt_text_data = "\n\n".join(data_parts)
-        logger.app_logger.info("Data collection for AI prompt complete.") # Use logger.app_logger
-        return prompt_text_data
+            error_message = f"Error collecting data for AI prompt: {str(e)}"
+            if tracker:
+                tracker.log_error(error_message)
+            else:
+                logger.app_logger.error(error_message, exc_info=True)
+            raise RuntimeError(error_message) from e
 
-    def _construct_system_prompt(self, collected_data_text, start_date, end_date):
-        logger.app_logger.info("Constructing system prompt for AI.") # Use logger.app_logger
+    def _generate_system_prompt(self, start_date, end_date, collected_data_text, tracker=None):
+        """Generate the system prompt for the AI model with diagnostic tracking"""
+        if tracker:
+            tracker.start_step("Generate System Prompt")
+            
         prompt = f"""
         You are an advanced AI scheduling assistant. Your task is to generate an optimal employee shift schedule based on the provided data and rules.
         Schedule Period: {start_date.isoformat()} to {end_date.isoformat()}
@@ -147,163 +293,321 @@ class AISchedulerService:
         {collected_data_text}
         Please generate the schedule assignments in CSV format now.
         """
-        if logger.app_logger.isEnabledFor(logging.DEBUG): # Use logger.app_logger
-             logger.app_logger.debug(f"Generated system prompt: {prompt}") # Use logger.app_logger
+        
+        if tracker:
+            tracker.log_debug("System prompt generated")
+            tracker.log_step_data("Prompt Length", len(prompt))
+            tracker.end_step({"prompt_length": len(prompt)})
+        elif logger.app_logger.isEnabledFor(logging.DEBUG):
+            logger.app_logger.debug(f"Generated system prompt: {prompt}")
         else:
-            logger.app_logger.info(f"Generated system prompt (first 500 chars): {prompt[:500]}...") # Use logger.app_logger
+            logger.app_logger.info(f"Generated system prompt (first 500 chars): {prompt[:500]}...")
+            
         return prompt
 
-    def _call_gemini_api(self, system_prompt, model_parameters=None):
+    def _call_gemini_api(self, prompt, model_params=None, tracker=None):
+        """Call the Gemini API with diagnostics"""
+        if tracker:
+            tracker.start_step("Call Gemini API")
+            tracker.log_info("Calling Gemini API for schedule generation")
+            
         if not self.gemini_api_key:
-            logger.app_logger.error("Gemini API key is not configured. Cannot make API call.") # Use logger.app_logger
-            raise ValueError("Gemini API key not configured. Set GEMINI_API_KEY environment variable.")
-        logger.app_logger.info(f"Calling Gemini API model: {self.gemini_model_name}") # Use logger.app_logger
-        api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.gemini_model_name}:generateContent?key={self.gemini_api_key}"
-        headers = {"Content-Type": "application/json"}
-        current_model_params = self.default_model_params.copy()
-        if model_parameters:
-            if "generationConfig" in model_parameters:
-                current_model_params["generationConfig"] = {**current_model_params.get("generationConfig", {}), **model_parameters["generationConfig"]}
-            if "safetySettings" in model_parameters:
-                current_model_params["safetySettings"] = model_parameters["safetySettings"]
-        payload = {
-            "contents": [{"parts": [{"text": system_prompt}]}],
-            "generationConfig": current_model_params.get("generationConfig"),
-            "safetySettings": current_model_params.get("safetySettings")
-        }
-        try:
-            logger.app_logger.debug(f"Gemini API Request URL: {api_url}") # Use logger.app_logger
-            if logger.app_logger.isEnabledFor(logging.DEBUG): # Use logger.app_logger
-                 logger.app_logger.debug(f"Gemini API Request Payload: {json.dumps(payload, indent=2)}") # Use logger.app_logger
-            response = requests.post(api_url, headers=headers, json=payload, timeout=300)
-            response.raise_for_status()
-            response_json = response.json()
-            logger.app_logger.info("Successfully received response from Gemini API.") # Use logger.app_logger
-            if logger.app_logger.isEnabledFor(logging.DEBUG): # Use logger.app_logger
-                 logger.app_logger.debug(f"Gemini API Full Response: {json.dumps(response_json, indent=2)}") # Use logger.app_logger
-            if (candidates := response_json.get("candidates")) and \
-               (content := candidates[0].get("content")) and \
-               (parts := content.get("parts")) and \
-               (text := parts[0].get("text")):
-                csv_text = text.strip()
-                logger.app_logger.info(f"Extracted CSV text from Gemini API response (length: {len(csv_text)}).") # Use logger.app_logger
-                if not csv_text:
-                    logger.app_logger.warning("Gemini API returned an empty CSV string.") # Use logger.app_logger
-                return csv_text
+            error_message = "Gemini API key not configured"
+            if tracker:
+                tracker.log_error(error_message)
             else:
-                logger.app_logger.error("Gemini API response missing expected text content structure.", extra={"api_response": response_json}) # Use logger.app_logger
-                raise ValueError("Invalid response structure from Gemini API.")
-        except requests.exceptions.HTTPError as http_err:
-            error_details = http_err.response.text
-            try: error_details = http_err.response.json()
-            except json.JSONDecodeError: pass
-            logger.app_logger.error(f"HTTP error calling Gemini API: {http_err.response.status_code} - {http_err.response.reason}", extra={"error_details": error_details}) # Use logger.app_logger
-            raise ConnectionError(f"Gemini API HTTP error: {http_err.response.status_code}. Details: {error_details}") from http_err
-        except requests.exceptions.RequestException as req_err:
-            logger.app_logger.error(f"Request error calling Gemini API: {str(req_err)}", exc_info=True) # Use logger.app_logger
-            raise ConnectionError(f"Gemini API request failed: {str(req_err)}") from req_err
-        except ValueError as val_err:
-            logger.app_logger.error(f"Value error processing Gemini API response: {str(val_err)}", exc_info=True) # Use logger.app_logger
-            raise
-        except Exception as e:
-            logger.app_logger.error(f"Unexpected error during Gemini API call: {str(e)}", exc_info=True) # Use logger.app_logger
-            raise ConnectionError(f"Unexpected error connecting to Gemini: {str(e)}") from e
-
-    def _parse_csv_response(self, csv_text, expected_start_date, expected_end_date):
-        logger.app_logger.info(f"Parsing CSV response (length: {len(csv_text)}).") # Use logger.app_logger
-        expected_header = ["employeeid", "date", "shifttemplateid", "shiftname", "starttime", "endtime"]
-        assignments = []
-        malformed_rows = 0
+                logger.app_logger.error(error_message)
+            raise RuntimeError(error_message)
+            
+        params = self.default_model_params.copy()
+        if model_params:
+            # Update with any custom params provided
+            params.update(model_params)
+            
+        if tracker:
+            # Log the model parameters (removing safety settings for brevity)
+            safe_params = params.copy()
+            if "safetySettings" in safe_params:
+                safe_params["safetySettings"] = f"[{len(safe_params['safetySettings'])} settings]"
+            tracker.log_step_data("Model Parameters", safe_params)
+            
+        # Construct the API request payload
+        api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.gemini_model_name}:generateContent?key={self.gemini_api_key}"
+        payload = {
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": prompt}]
+                }
+            ],
+            **params
+        }
+        
         try:
-            csvfile = StringIO(csv_text)
-            reader = csv.reader(csvfile)
-            header = next(reader, None)
-            if not header:
-                logger.app_logger.warning("CSV response is empty or contains no header.") # Use logger.app_logger
-                return []
-            normalized_header = [h.lower().replace(" ", "") for h in header]
-            if normalized_header != expected_header:
-                logger.app_logger.error(f"CSV header mismatch. Expected: {expected_header}, Got: {normalized_header}") # Use logger.app_logger
-                raise ValueError(f"CSV header mismatch. Expected: {expected_header}, Got: {normalized_header}")
-            logger.app_logger.info("CSV header validated successfully.") # Use logger.app_logger
-            for i, row in enumerate(reader):
-                row_num = i + 2
-                if len(row) != len(expected_header):
-                    logger.app_logger.warning(f"Row {row_num}: Incorrect number of columns. Expected {len(expected_header)}, got {len(row)}. Row: {row}") # Use logger.app_logger
-                    malformed_rows += 1
-                    continue
-                try:
-                    raw_assignment = dict(zip(expected_header, row))
-                    employee_id = int(raw_assignment["employeeid"])
-                    assignment_date_str = raw_assignment["date"]
-                    shift_template_id = int(raw_assignment["shifttemplateid"])
-                    shift_name = raw_assignment["shiftname"].strip()
-                    start_time_str = raw_assignment["starttime"]
-                    end_time_str = raw_assignment["endtime"]
+            if tracker:
+                tracker.log_debug("Sending request to Gemini API")
+                start_time = datetime.now()
+                
+            response = requests.post(api_url, json=payload)
+            
+            if tracker:
+                duration = (datetime.now() - start_time).total_seconds()
+                tracker.log_info(f"Gemini API response received in {duration:.2f} seconds")
+                tracker.log_step_data("Response Status", f"{response.status_code} ({response.reason})")
+                
+            # Check if the request was successful
+            if response.status_code != 200:
+                error_message = f"Gemini API request failed with status code {response.status_code}: {response.text}"
+                if tracker:
+                    tracker.log_error(error_message)
+                else:
+                    logger.app_logger.error(error_message)
+                raise RuntimeError(error_message)
+                
+            # Parse the response JSON
+            response_data = response.json()
+            
+            # Extract the generated text from the response
+            if 'candidates' not in response_data or not response_data['candidates']:
+                error_message = "No candidates returned in Gemini API response"
+                if tracker:
+                    tracker.log_error(error_message)
+                    tracker.log_step_data("Response Data", response_data)
+                else:
+                    logger.app_logger.error(error_message)
+                raise RuntimeError(error_message)
+                
+            candidate = response_data['candidates'][0]
+            
+            if 'content' not in candidate or 'parts' not in candidate['content']:
+                error_message = "Unexpected response format from Gemini API"
+                if tracker:
+                    tracker.log_error(error_message)
+                    tracker.log_step_data("Response Data", response_data)
+                else:
+                    logger.app_logger.error(error_message)
+                raise RuntimeError(error_message)
+                
+            # Extract the text from the candidate's content
+            generated_text = ""
+            for part in candidate['content']['parts']:
+                if 'text' in part:
+                    generated_text += part['text']
+                    
+            if not generated_text.strip():
+                error_message = "Empty text response from Gemini API"
+                if tracker:
+                    tracker.log_error(error_message)
+                else:
+                    logger.app_logger.error(error_message)
+                raise RuntimeError(error_message)
+                
+            if tracker:
+                tracker.log_info(f"Successfully retrieved response ({len(generated_text)} characters)")
+                tracker.log_step_data("Response Length", len(generated_text))
+                tracker.log_debug(f"Response preview: {generated_text[:200]}...")
+                tracker.end_step({"response_length": len(generated_text)})
+                
+            return generated_text
+            
+        except requests.RequestException as e:
+            error_message = f"Network error during Gemini API call: {str(e)}"
+            if tracker:
+                tracker.log_error(error_message)
+            else:
+                logger.app_logger.error(error_message, exc_info=True)
+            raise RuntimeError(error_message) from e
+        except Exception as e:
+            error_message = f"Unexpected error during Gemini API call: {str(e)}"
+            if tracker:
+                tracker.log_error(error_message)
+            else:
+                logger.app_logger.error(error_message, exc_info=True)
+            raise RuntimeError(error_message) from e
 
-                    if employee_id <= 0:
-                        logger.app_logger.warning(f"Row {row_num}: Invalid EmployeeID {employee_id}. Must be > 0. Row: {row}") # Use logger.app_logger
-                        malformed_rows += 1
+    def _parse_csv_response(self, csv_text, expected_start_date, expected_end_date, tracker=None):
+        """Parse CSV response from Gemini API with diagnostic tracking"""
+        if tracker:
+            tracker.start_step("Parse CSV Response")
+            tracker.log_info(f"Parsing CSV response (length: {len(csv_text)})")
+            
+        # Find the CSV content - strip out any non-CSV text
+        # Look for CSV header line
+        csv_header = "EmployeeID,Date,ShiftTemplateID,ShiftName,StartTime,EndTime"
+        if csv_header in csv_text:
+            csv_start = csv_text.find(csv_header)
+            if csv_start >= 0:
+                csv_text = csv_text[csv_start:]
+                if tracker:
+                    tracker.log_debug(f"Found CSV header at position {csv_start}")
+                    
+        # Trim any text after the CSV data (look for a line that doesn't contain commas)
+        lines = csv_text.split('\n')
+        end_line_index = len(lines)
+        for i, line in enumerate(lines):
+            if i > 0 and ',' not in line and len(line.strip()) > 10:  # This might be text after the CSV
+                end_line_index = i
+                if tracker:
+                    tracker.log_debug(f"Found end of CSV data at line {i}")
+                break
+                
+        if end_line_index < len(lines):
+            csv_text = '\n'.join(lines[:end_line_index])
+            
+        # Parse the CSV data
+        try:
+            csv_reader = csv.reader(StringIO(csv_text))
+            header = next(csv_reader)
+            
+            # Verify the header matches expected format
+            expected_header = ["EmployeeID", "Date", "ShiftTemplateID", "ShiftName", "StartTime", "EndTime"]
+            if header != expected_header:
+                if tracker:
+                    tracker.log_warning(f"CSV header doesn't match expected format: {header}")
+                    # Try to find the missing columns or rearrange
+                    header_map = {h.lower().replace(' ', ''): i for i, h in enumerate(header)}
+                    tracker.log_step_data("Header Map", header_map)
+                else:
+                    logger.app_logger.warning(f"CSV header doesn't match expected format: {header}")
+                    
+                # We'll continue and try to map columns by name or position
+            
+            parsed_data = []
+            date_format = "%Y-%m-%d"
+            row_count = 0
+            error_count = 0
+            
+            for row in csv_reader:
+                row_count += 1
+                try:
+                    # Skip empty rows
+                    if not row or not any(row):
+                        continue
+                        
+                    # If header doesn't match expected, try to map columns intelligently
+                    if header != expected_header:
+                        mapped_row = [""] * len(expected_header)
+                        for exp_idx, exp_col in enumerate(expected_header):
+                            exp_col_lower = exp_col.lower().replace(' ', '')
+                            # Try to find this column in the header
+                            if exp_col_lower in header_map:
+                                actual_idx = header_map[exp_col_lower]
+                                if actual_idx < len(row):
+                                    mapped_row[exp_idx] = row[actual_idx]
+                        row = mapped_row
+                    
+                    # Ensure row has enough columns
+                    if len(row) < 6:
+                        if tracker:
+                            tracker.log_warning(f"Row {row_count} has insufficient columns: {row}")
+                        else:
+                            logger.app_logger.warning(f"Row {row_count} has insufficient columns: {row}")
+                        error_count += 1
                         continue
                     
-                    if shift_template_id <= 0:
-                        logger.app_logger.warning(f"Row {row_num}: Invalid ShiftTemplateID {shift_template_id}. Must be > 0. Row: {row}") # Use logger.app_logger
-                        malformed_rows += 1
-                        continue
-
+                    # Extract and validate data
+                    employee_id = int(row[0].strip())
+                    date_str = row[1].strip()
+                    shift_template_id = int(row[2].strip())
+                    shift_name = row[3].strip()
+                    start_time = row[4].strip()
+                    end_time = row[5].strip()
+                    
+                    # Validate date format
                     try:
-                        assignment_date = datetime.strptime(assignment_date_str, '%Y-%m-%d').date()
-                        if not (expected_start_date <= assignment_date <= expected_end_date):
-                            logger.app_logger.warning(f"Row {row_num}: Assignment date {assignment_date_str} out of range. Row: {row}") # Use logger.app_logger
-                            malformed_rows += 1
-                            continue
+                        schedule_date = datetime.strptime(date_str, date_format).date()
+                        # Check if date is within expected range
+                        if schedule_date < expected_start_date or schedule_date > expected_end_date:
+                            if tracker:
+                                tracker.log_warning(f"Row {row_count}: Date {date_str} is outside expected range")
+                            else:
+                                logger.app_logger.warning(f"Row {row_count}: Date {date_str} is outside expected range")
                     except ValueError:
-                        logger.app_logger.warning(f"Row {row_num}: Invalid date format '{assignment_date_str}'. Row: {row}") # Use logger.app_logger
-                        malformed_rows += 1
+                        if tracker:
+                            tracker.log_warning(f"Row {row_count}: Invalid date format: {date_str}")
+                        else:
+                            logger.app_logger.warning(f"Row {row_count}: Invalid date format: {date_str}")
+                        error_count += 1
                         continue
-                    try:
-                        start_time_obj = datetime.strptime(start_time_str, '%H:%M').time()
-                        end_time_obj = datetime.strptime(end_time_str, '%H:%M').time()
-                    except ValueError:
-                        logger.app_logger.warning(f"Row {row_num}: Invalid time format for '{start_time_str}' or '{end_time_str}'. Row: {row}") # Use logger.app_logger
-                        malformed_rows += 1
-                        continue
-                    if not shift_name:
-                        logger.app_logger.warning(f"Row {row_num}: ShiftName is empty. Row: {row}") # Use logger.app_logger
-                        malformed_rows += 1
-                        continue
-                    assignments.append({
-                        "employee_id": employee_id, "date": assignment_date, "shift_template_id": shift_template_id,
-                        "shift_name_from_ai": shift_name, "start_time": start_time_obj, "end_time": end_time_obj,
-                        "raw_row": row
-                    })
-                except ValueError as ve:
-                    logger.app_logger.warning(f"Row {row_num}: Data conversion error: {ve}. Row: {row}") # Use logger.app_logger
-                    malformed_rows += 1
+                    
+                    # Create a structured record for each assignment
+                    assignment = {
+                        "employee_id": employee_id,
+                        "date": schedule_date,
+                        "shift_template_id": shift_template_id,
+                        "shift_name": shift_name,
+                        "start_time": start_time,
+                        "end_time": end_time
+                    }
+                    
+                    parsed_data.append(assignment)
+                    
                 except Exception as e:
-                    logger.app_logger.error(f"Row {row_num}: Unexpected error processing row: {e}. Row: {row}", exc_info=True) # Use logger.app_logger
-                    malformed_rows += 1
-            logger.app_logger.info(f"Finished parsing CSV response. Total rows: {i+1}, Malformed rows: {malformed_rows}") # Use logger.app_logger
+                    error_count += 1
+                    if tracker:
+                        tracker.log_warning(f"Error parsing row {row_count}: {str(e)}")
+                        tracker.log_step_data(f"Problem Row {row_count}", row)
+                    else:
+                        logger.app_logger.warning(f"Error parsing row {row_count}: {str(e)}")
+                        
+            if tracker:
+                tracker.log_info(f"Parsed {len(parsed_data)} valid assignments from {row_count} rows with {error_count} errors")
+                tracker.log_step_data("Parsing Stats", {
+                    "total_rows": row_count,
+                    "valid_assignments": len(parsed_data),
+                    "error_count": error_count
+                })
+                tracker.end_step({
+                    "assignment_count": len(parsed_data),
+                    "error_count": error_count
+                })
+            else:
+                logger.app_logger.info(f"Parsed {len(parsed_data)} valid assignments from {row_count} rows with {error_count} errors")
+                
+            return parsed_data
+            
         except Exception as e:
-            logger.app_logger.error(f"Critical error during CSV parsing: {e}", exc_info=True) # Use logger.app_logger
-            raise ValueError(f"Failed to parse CSV response: {e}") from e
-        return assignments
+            error_message = f"Error parsing CSV response: {str(e)}"
+            if tracker:
+                tracker.log_error(error_message)
+                tracker.log_step_data("CSV Content", csv_text[:1000])
+            else:
+                logger.app_logger.error(error_message, exc_info=True)
+            raise RuntimeError(error_message) from e
 
-    def _store_assignments(self, parsed_assignments, version_id, schedule_start_date, schedule_end_date):
-        logger.app_logger.info(f"Storing {len(parsed_assignments)} assignments for version {version_id} (Dates: {schedule_start_date} to {schedule_end_date}).") # Use logger.app_logger
+    def _store_assignments(self, parsed_assignments, version_id, schedule_start_date, schedule_end_date, tracker=None):
+        """Store the generated assignments in the database with diagnostic tracking"""
+        if tracker:
+            tracker.start_step("Store Assignments")
+            tracker.log_info(f"Storing {len(parsed_assignments)} assignments for version {version_id}")
+            
         try:
             # Clear existing assignments for this version within the date range if version_id is provided
             if version_id is not None:
-                 # Note: This assumes Schedule model has a 'version' column and a 'date' column
-                 # Adjust query if model structure is different
-                 delete_count = Schedule.query.filter(
-                     Schedule.version == version_id,
-                     Schedule.date >= schedule_start_date,
-                     Schedule.date <= schedule_end_date
-                 ).delete(synchronize_session='fetch')
-                 logger.app_logger.info(f"Cleared {delete_count} existing assignments for version {version_id} within the date range.")
+                # Using a filter approach that avoids the ambiguous class access issues
+                # We'll use string column names for filtering to avoid the linter errors
+                query = db.session.query(Schedule)
+                
+                # Build criteria with column names as strings
+                if version_id is not None:
+                    query = query.filter(getattr(Schedule, "version") == version_id)
+                if schedule_start_date is not None:
+                    query = query.filter(getattr(Schedule, "date") >= schedule_start_date)
+                if schedule_end_date is not None:
+                    query = query.filter(getattr(Schedule, "date") <= schedule_end_date)
+                
+                # Execute the delete
+                delete_count = query.delete(synchronize_session='fetch')
+                
+                if tracker:
+                    tracker.log_info(f"Cleared {delete_count} existing assignments for version {version_id}")
+                else:
+                    logger.app_logger.info(f"Cleared {delete_count} existing assignments for version {version_id} within the date range.")
             else:
-                 logger.app_logger.info("version_id is None. Not clearing existing assignments.")
+                if tracker:
+                    tracker.log_info("No version_id provided. Not clearing existing assignments.")
+                else:
+                    logger.app_logger.info("version_id is None. Not clearing existing assignments.")
 
             new_assignments = []
             for assignment_data in parsed_assignments:
@@ -321,27 +625,153 @@ class AISchedulerService:
                     # Add other Schedule model attributes as needed, e.g., created_at, updated_at
                 )
                 new_assignments.append(new_assignment)
-
-            db.session.add_all(new_assignments)
+                
+            # Add all new assignments and commit
+            db.session.bulk_save_objects(new_assignments)
             db.session.commit()
-            logger.app_logger.info(f"Successfully stored {len(new_assignments)} new assignments.") # Use logger.app_logger
-            return {"status": "success", "message": f"Successfully stored {len(new_assignments)} assignments.", "count": len(new_assignments)}
-
+            
+            if tracker:
+                tracker.log_info(f"Successfully stored {len(new_assignments)} new assignments")
+                tracker.end_step({"assignments_stored": len(new_assignments)})
+            else:
+                logger.app_logger.info(f"Successfully stored {len(new_assignments)} new assignments")
+                
+            return {"status": "success", "count": len(new_assignments)}
+            
         except SQLAlchemyError as e:
             db.session.rollback()
-            logger.app_logger.error(f"Database error storing assignments: {e}", exc_info=True) # Use logger.app_logger
-            raise RuntimeError(f"Database error storing assignments: {e}") from e
+            error_message = f"Database error storing assignments: {str(e)}"
+            if tracker:
+                tracker.log_error(error_message)
+            else:
+                logger.app_logger.error(error_message, exc_info=True)
+            raise RuntimeError(error_message) from e
         except Exception as e:
-            logger.app_logger.error(f"Unexpected error storing assignments: {e}", exc_info=True) # Use logger.app_logger
-            raise RuntimeError(f"Unexpected error storing assignments: {e}") from e
+            db.session.rollback()
+            error_message = f"Unexpected error storing assignments: {str(e)}"
+            if tracker:
+                tracker.log_error(error_message)
+            else:
+                logger.app_logger.error(error_message, exc_info=True)
+            raise RuntimeError(error_message) from e
+
+    def generate_schedule_via_ai(self, start_date_str, end_date_str, version_id=None, ai_model_params=None):
+        """
+        Generate a schedule using AI (Gemini) with detailed diagnostics
+        
+        Args:
+            start_date_str: Start date in 'YYYY-MM-DD' format
+            end_date_str: End date in 'YYYY-MM-DD' format
+            version_id: Optional version ID for the schedule
+            ai_model_params: Optional parameters for the AI model
+            
+        Returns:
+            dict: Result of the generation process
+        """
+        # Initialize process tracker for diagnostics
+        tracker = self._initialize_process_tracker("AI Schedule Generation")
+        tracker.log_info(f"Initiating AI schedule generation for dates {start_date_str} to {end_date_str}, version_id: {version_id}")
+        
+        generation_metrics = {
+            "start_date": start_date_str,
+            "end_date": end_date_str,
+            "version_id": version_id,
+        }
+        
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            
+            generation_metrics["parsed_start_date"] = start_date
+            generation_metrics["parsed_end_date"] = end_date
+            
+        except ValueError as e:
+            tracker.log_error(f"Invalid date format provided: {e}")
+            tracker.end_process({"status": "failed", "reason": "invalid_date_format"})
+            raise ValueError("Invalid date format. Use YYYY-MM-DD.") from e
+
+        if start_date > end_date:
+            tracker.log_warning(f"Start date ({start_date_str}) is after end date ({end_date_str}). Swapping dates.")
+            start_date, end_date = end_date, start_date
+            generation_metrics["dates_swapped"] = True
+
+        # 1. Collect relevant data
+        try:
+            collected_data_text = self._collect_data_for_ai_prompt(start_date, end_date, tracker)
+            if not collected_data_text:
+                 tracker.log_warning("Collected data for AI prompt is empty.")
+                 # Depending on requirements, might return an error or an empty schedule
+                 tracker.end_process({"status": "warning", "reason": "no_data_collected"})
+                 return {"status": "warning", "message": "No relevant data collected for the specified date range. Cannot generate schedule.", "generated_assignments_count": 0}
+        except Exception as e:
+            tracker.log_error(f"Failed to collect data for AI prompt: {e}")
+            tracker.end_process({"status": "failed", "reason": "data_collection_failed"})
+            raise RuntimeError(f"Failed to collect data for AI prompt: {e}") from e
+
+        # 2. Generate the system prompt
+        try:
+            system_prompt = self._generate_system_prompt(start_date, end_date, collected_data_text, tracker)
+            generation_metrics["prompt_length"] = len(system_prompt)
+        except Exception as e:
+            tracker.log_error(f"Failed to generate system prompt: {e}")
+            tracker.end_process({"status": "failed", "reason": "prompt_generation_failed"})
+            raise RuntimeError(f"Failed to generate system prompt: {e}") from e
+
+        # 3. Call the Gemini API
+        try:
+            ai_response = self._call_gemini_api(system_prompt, ai_model_params, tracker)
+            generation_metrics["response_length"] = len(ai_response)
+        except Exception as e:
+            tracker.log_error(f"Failed to get response from Gemini API: {e}")
+            tracker.end_process({"status": "failed", "reason": "ai_call_failed"})
+            raise RuntimeError(f"Failed to get response from Gemini API: {e}") from e
+
+        # 4. Parse the response
+        try:
+            parsed_assignments = self._parse_csv_response(ai_response, start_date, end_date, tracker)
+            generation_metrics["assignments_generated"] = len(parsed_assignments)
+        except Exception as e:
+            tracker.log_error(f"Failed to parse AI response: {e}")
+            tracker.end_process({"status": "failed", "reason": "response_parsing_failed"})
+            raise RuntimeError(f"Failed to parse AI response: {e}") from e
+
+        # 5. Store the assignments
+        try:
+            store_result = self._store_assignments(parsed_assignments, version_id, start_date, end_date, tracker)
+            generation_metrics["assignments_stored"] = store_result.get('count', 0)
+            
+            # Complete the process tracking
+            tracker.end_process(generation_metrics)
+            
+            # Use the directly stored diagnostic log path
+            diagnostic_log_path = self.diagnostic_log_path
+            
+            # Log the diagnostic log path for reference
+            logger.app_logger.info(f"AI Schedule Generation completed. Diagnostic log: {diagnostic_log_path}")
+            
+            return {
+                "status": "success", 
+                "message": f"Schedule generated and stored successfully. {store_result.get('count', 0)} assignments created.", 
+                "generated_assignments_count": store_result.get('count', 0),
+                "session_id": self.session_id,
+                "diagnostic_log": diagnostic_log_path
+            }
+        except RuntimeError as e:
+            tracker.log_error(f"Failed to store assignments: {e}")
+            tracker.end_process({"status": "error", "reason": "storage_failed"})
+            return {"status": "error", "message": f"Failed to store generated schedule: {e}", "generated_assignments_count": 0}
+        except Exception as e:
+            tracker.log_error(f"Unexpected error storing assignments: {e}")
+            tracker.end_process({"status": "error", "reason": "unknown_error"})
+            return {"status": "error", "message": f"An unexpected error occurred during storage: {e}", "generated_assignments_count": 0}
 
     def process_feedback(self, feedback_data: AIScheduleFeedbackRequest):
         """
         Processes user feedback on AI-generated schedules.
-
+        
         Args:
             feedback_data: An instance of AIScheduleFeedbackRequest containing feedback data.
-
+            
         Returns:
             A dictionary indicating the result of the feedback processing.
         """
@@ -361,79 +791,6 @@ class AISchedulerService:
         logger.app_logger.info(message)
 
         return {"status": "received", "message": message, "processed_count": processed_count}
-
-    def generate_schedule_via_ai(self, start_date_str, end_date_str, version_id=None, ai_model_params=None):
-        logger.app_logger.info(f"Initiating AI schedule generation for dates {start_date_str} to {end_date_str}, version_id: {version_id}") # Use logger.app_logger
-        try:
-            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
-        except ValueError as e:
-            logger.app_logger.error(f"Invalid date format provided: {e}") # Use logger.app_logger
-            raise ValueError("Invalid date format. Use YYYY-MM-DD.") from e
-
-        if start_date > end_date:
-            logger.app_logger.warning(f"Start date ({start_date_str}) is after end date ({end_date_str}).") # Use logger.app_logger
-            return {"status": "failed", "message": "Start date cannot be after end date."}
-
-        # 1. Collect relevant data
-        try:
-            collected_data_text = self._collect_data_for_ai_prompt(start_date, end_date)
-            if not collected_data_text:
-                 logger.app_logger.warning("Collected data for AI prompt is empty.") # Use logger.app_logger
-                 # Depending on requirements, might return an error or an empty schedule
-                 return {"status": "warning", "message": "No relevant data collected for the specified date range. Cannot generate schedule.", "generated_assignments_count": 0}
-        except Exception as e:
-            logger.app_logger.error(f"Failed to collect data for AI prompt: {e}", exc_info=True) # Use logger.app_logger
-            raise RuntimeError(f"Failed to collect data for AI prompt: {e}") from e
-
-        # 2. Construct the prompt
-        try:
-            system_prompt = self._construct_system_prompt(collected_data_text, start_date, end_date)
-            if not system_prompt:
-                 logger.app_logger.warning("Constructed system prompt is empty.") # Use logger.app_logger
-                 return {"status": "failed", "message": "Failed to construct system prompt.", "generated_assignments_count": 0}
-        except Exception as e:
-            logger.app_logger.error(f"Failed to construct system prompt: {e}", exc_info=True) # Use logger.app_logger
-            raise RuntimeError(f"Failed to construct system prompt: {e}") from e
-
-        # 3. Call the AI model API
-        try:
-            csv_response = self._call_gemini_api(system_prompt, ai_model_params)
-            if not csv_response:
-                 logger.app_logger.warning("AI API returned an empty response.") # Use logger.app_logger
-                 return {"status": "warning", "message": "AI model returned an empty response. Could not generate assignments.", "generated_assignments_count": 0}
-        except ConnectionError as e:
-            logger.app_logger.error(f"Failed to call Gemini API: {e}", exc_info=True) # Use logger.app_logger
-            return {"status": "error", "message": f"Failed to call AI service: {e}", "generated_assignments_count": 0}
-        except Exception as e:
-            logger.app_logger.error(f"Unexpected error calling AI API: {e}", exc_info=True) # Use logger.app_logger
-            return {"status": "error", "message": f"An unexpected error occurred during AI call: {e}", "generated_assignments_count": 0}
-
-        # 4. Parse the CSV response
-        try:
-            parsed_assignments = self._parse_csv_response(csv_response, start_date, end_date)
-            logger.app_logger.info(f"Parsed {len(parsed_assignments)} valid assignments from AI response.") # Use logger.app_logger
-            if not parsed_assignments:
-                logger.app_logger.warning("No valid assignments parsed from AI response.") # Use logger.app_logger
-                return {"status": "warning", "message": "AI model generated a response, but no valid assignments could be parsed.", "generated_assignments_count": 0}
-        except ValueError as e:
-            logger.app_logger.error(f"Failed to parse AI response CSV: {e}", exc_info=True) # Use logger.app_logger
-            return {"status": "error", "message": f"Failed to parse AI response: {e}", "generated_assignments_count": 0}
-        except Exception as e:
-            logger.app_logger.error(f"Unexpected error parsing AI response: {e}", exc_info=True) # Use logger.app_logger
-            return {"status": "error", "message": f"An unexpected error occurred during parsing: {e}", "generated_assignments_count": 0}
-
-        # 5. Store the assignments
-        try:
-            store_result = self._store_assignments(parsed_assignments, version_id, start_date, end_date)
-            logger.app_logger.info(f"Assignments stored successfully. Count: {store_result.get('count', 0)}") # Use logger.app_logger
-            return {"status": "success", "message": f"Schedule generated and stored successfully. {store_result.get('count', 0)} assignments created.", "generated_assignments_count": store_result.get('count', 0)}
-        except RuntimeError as e:
-            logger.app_logger.error(f"Failed to store assignments: {e}", exc_info=True) # Use logger.app_logger
-            return {"status": "error", "message": f"Failed to store generated schedule: {e}", "generated_assignments_count": 0}
-        except Exception as e:
-            logger.app_logger.error(f"Unexpected error storing assignments: {e}", exc_info=True) # Use logger.app_logger
-            return {"status": "error", "message": f"An unexpected error occurred during storage: {e}", "generated_assignments_count": 0}
 
 
 # Helper function for testing (optional, can be removed or moved)

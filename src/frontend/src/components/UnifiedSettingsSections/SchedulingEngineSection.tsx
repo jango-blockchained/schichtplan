@@ -13,22 +13,23 @@ import { ScheduleGenerationSettings } from "@/components/ScheduleGenerationSetti
 import type { Settings } from '@/types/index';
 
 interface SchedulingEngineSectionProps {
-  localSettings: Partial<Settings>;
-  handleSave: (category: 'scheduling', updates: Partial<Settings['scheduling']>) => void;
-  handleDiagnosticsChange: (checked: boolean) => void;
-  handleImmediateUpdate: () => void;
-  updateMutationIsPending: boolean;
+  settings?: Settings['scheduling'];
+  onInputChange: (key: string, value: any, isNumeric?: boolean) => void;
+  onDiagnosticsChange: (checked: boolean) => void;
+  onGenerationSettingsUpdate: (updates: any) => void;
+  onImmediateUpdate: () => void;
 }
 
 export const SchedulingEngineSection: React.FC<SchedulingEngineSectionProps> = ({
-  localSettings,
-  handleSave,
-  handleDiagnosticsChange,
-  handleImmediateUpdate,
-  updateMutationIsPending,
+  settings,
+  onInputChange,
+  onDiagnosticsChange,
+  onGenerationSettingsUpdate,
+  onImmediateUpdate,
 }) => {
-  const schedulingSettings = localSettings.scheduling ?? {};
-  const generationRequirements = schedulingSettings.generation_requirements ?? {};
+  // Ensure settings is never undefined by providing default empty object
+  const schedulingSettings = settings || {};
+  const generationRequirements = schedulingSettings.generation_requirements || {};
 
   return (
     <div className="grid gap-6">
@@ -43,8 +44,8 @@ export const SchedulingEngineSection: React.FC<SchedulingEngineSectionProps> = (
               <div className="space-y-2">
                 <Label htmlFor="scheduling_resource_type">Resource Type</Label>
                 <Select
-                  value={schedulingSettings.scheduling_resource_type ?? "shifts"}
-                  onValueChange={(value: 'shifts' | 'coverage') => handleSave("scheduling", { scheduling_resource_type: value })}
+                  value={schedulingSettings.scheduling_resource_type || "shifts"}
+                  onValueChange={(value: 'shifts' | 'coverage') => onInputChange("scheduling_resource_type", value)}
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -55,36 +56,80 @@ export const SchedulingEngineSection: React.FC<SchedulingEngineSectionProps> = (
               </div>
               <div className="space-y-2">
                 <Label htmlFor="default_shift_duration">Default Shift Duration (hours)</Label>
-                <Input id="default_shift_duration" type="number" value={schedulingSettings.default_shift_duration ?? 8} onChange={(e) => handleSave("scheduling", { default_shift_duration: parseFloat(e.target.value) })} onBlur={handleImmediateUpdate} />
+                <Input 
+                  id="default_shift_duration" 
+                  type="number" 
+                  value={schedulingSettings.default_shift_duration || 8} 
+                  onChange={(e) => onInputChange("default_shift_duration", e.target.value, true)} 
+                  onBlur={onImmediateUpdate} 
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="min_break_duration">Min Break Duration (minutes)</Label>
-                <Input id="min_break_duration" type="number" value={schedulingSettings.min_break_duration ?? 30} onChange={(e) => handleSave("scheduling", { min_break_duration: Number(e.target.value) })} onBlur={handleImmediateUpdate} />
+                <Input 
+                  id="min_break_duration" 
+                  type="number" 
+                  value={schedulingSettings.min_break_duration || 30} 
+                  onChange={(e) => onInputChange("min_break_duration", e.target.value, true)} 
+                  onBlur={onImmediateUpdate} 
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="min_rest_between_shifts">Min Rest Between Shifts (hours)</Label>
-                <Input id="min_rest_between_shifts" type="number" value={schedulingSettings.min_rest_between_shifts ?? 11} onChange={(e) => handleSave("scheduling", { min_rest_between_shifts: Number(e.target.value) })} onBlur={handleImmediateUpdate} />
+                <Input 
+                  id="min_rest_between_shifts" 
+                  type="number" 
+                  value={schedulingSettings.min_rest_between_shifts || 11} 
+                  onChange={(e) => onInputChange("min_rest_between_shifts", e.target.value, true)} 
+                  onBlur={onImmediateUpdate} 
+                />
               </div>
             </div>
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="max_daily_hours">Max Daily Hours</Label>
-                <Input id="max_daily_hours" type="number" value={schedulingSettings.max_daily_hours ?? 10} onChange={(e) => handleSave("scheduling", { max_daily_hours: Number(e.target.value) })} onBlur={handleImmediateUpdate} />
+                <Input 
+                  id="max_daily_hours" 
+                  type="number" 
+                  value={schedulingSettings.max_daily_hours || 10} 
+                  onChange={(e) => onInputChange("max_daily_hours", e.target.value, true)} 
+                  onBlur={onImmediateUpdate} 
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="max_weekly_hours">Max Weekly Hours</Label>
-                <Input id="max_weekly_hours" type="number" value={schedulingSettings.max_weekly_hours ?? 40} onChange={(e) => handleSave("scheduling", { max_weekly_hours: Number(e.target.value) })} onBlur={handleImmediateUpdate} />
+                <Input 
+                  id="max_weekly_hours" 
+                  type="number" 
+                  value={schedulingSettings.max_weekly_hours || 40} 
+                  onChange={(e) => onInputChange("max_weekly_hours", e.target.value, true)} 
+                  onBlur={onImmediateUpdate} 
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="scheduling_period_weeks">Scheduling Period (weeks)</Label>
-                <Input id="scheduling_period_weeks" type="number" value={schedulingSettings.scheduling_period_weeks ?? 1} onChange={(e) => handleSave("scheduling", { scheduling_period_weeks: Number(e.target.value) })} onBlur={handleImmediateUpdate} />
+                <Input 
+                  id="scheduling_period_weeks" 
+                  type="number" 
+                  value={schedulingSettings.scheduling_period_weeks || 1} 
+                  onChange={(e) => onInputChange("scheduling_period_weeks", e.target.value, true)} 
+                  onBlur={onImmediateUpdate} 
+                />
               </div>
               <div className="flex items-center space-x-2 pt-2">
-                <Switch id="auto_schedule_preferences" checked={schedulingSettings.auto_schedule_preferences ?? true} onCheckedChange={(checked) => handleSave("scheduling", { auto_schedule_preferences: checked })} />
+                <Switch 
+                  id="auto_schedule_preferences" 
+                  checked={schedulingSettings.auto_schedule_preferences !== false} 
+                  onCheckedChange={(checked) => onInputChange("auto_schedule_preferences", checked)} 
+                />
                 <Label htmlFor="auto_schedule_preferences">Auto-schedule by preferences</Label>
               </div>
               <div className="flex items-center space-x-2 pt-2">
-                <Switch id="enable_diagnostics" checked={schedulingSettings.enable_diagnostics ?? false} onCheckedChange={handleDiagnosticsChange} />
+                <Switch 
+                  id="enable_diagnostics" 
+                  checked={!!schedulingSettings.enable_diagnostics} 
+                  onCheckedChange={onDiagnosticsChange} 
+                />
                 <Label htmlFor="enable_diagnostics" className="flex items-center">
                   Enable Scheduling Diagnostics 
                   <HoverCard><HoverCardTrigger asChild><Info className="h-4 w-4 text-muted-foreground cursor-help ml-1.5" /></HoverCardTrigger><HoverCardContent className="w-80 text-sm">Enables detailed logging during schedule generation. Useful for troubleshooting.</HoverCardContent></HoverCard>
@@ -94,21 +139,16 @@ export const SchedulingEngineSection: React.FC<SchedulingEngineSectionProps> = (
           </div>
         </CardContent>
         <CardFooter className="flex justify-end">
-          <Button onClick={handleImmediateUpdate} disabled={updateMutationIsPending}>
-            {updateMutationIsPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save Scheduling Rules
+          <Button onClick={onImmediateUpdate}>
+            Save Scheduling Rules
           </Button>
         </CardFooter>
       </Card>
       <ScheduleGenerationSettings
-        // The settings prop for ScheduleGenerationSettings expects the full Settings object according to SettingsPage.tsx
-        // However, we should only pass what's necessary or adapt the component.
-        // For now, passing localSettings.scheduling.generation_requirements directly if available.
-        settings={{ scheduling: { generation_requirements: generationRequirements } } as any} // Cast as any for now
+        settings={{ scheduling: { generation_requirements: generationRequirements } }}
         onUpdate={(genUpdates) => {
-          if (!localSettings?.scheduling) return;
-          const updatedGenReqs = { ...generationRequirements, ...genUpdates };
-          handleSave("scheduling", { ...schedulingSettings, generation_requirements: updatedGenReqs });
-          handleImmediateUpdate(); // This was in the original logic, ensures save on update from this sub-component
+          onGenerationSettingsUpdate(genUpdates);
+          onImmediateUpdate();
         }}
       />
     </div>

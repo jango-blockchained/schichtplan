@@ -57,8 +57,123 @@ const PlaceholderContent: React.FC<{ title: string }> = ({ title }) => (
 export default function UnifiedSettingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeSection, setActiveSection] = useState<SectionId>(sections[0].id);
-  const [localSettings, setLocalSettings] = useState<Settings | null>(null);
+  const [activeSection, setActiveSection] = useState<SectionId>('general_store_setup');
+  
+  // Initialize with minimal default settings to ensure it's never null
+  const [localSettings, setLocalSettings] = useState<Settings>({
+    id: 0,
+    store_name: 'Store',
+    timezone: 'Europe/Berlin',
+    language: 'de',
+    date_format: 'DD.MM.YYYY',
+    time_format: '24h',
+    store_opening: '09:00',
+    store_closing: '20:00',
+    keyholder_before_minutes: 30,
+    keyholder_after_minutes: 30,
+    opening_days: {},
+    special_days: {},
+    special_hours: {},
+    availability_types: { types: [] },
+    shift_types: [],
+    general: {
+      store_name: 'Store',
+      store_address: '',
+      store_contact: '',
+      timezone: 'Europe/Berlin',
+      language: 'de',
+      date_format: 'DD.MM.YYYY',
+      time_format: '24h',
+      store_opening: '09:00',
+      store_closing: '20:00',
+      keyholder_before_minutes: 30,
+      keyholder_after_minutes: 30,
+      opening_days: {},
+      special_hours: {}
+    },
+    scheduling: {
+      scheduling_resource_type: 'shifts',
+      default_shift_duration: 8,
+      min_break_duration: 30,
+      max_daily_hours: 10,
+      max_weekly_hours: 40,
+      min_rest_between_shifts: 11,
+      scheduling_period_weeks: 1,
+      auto_schedule_preferences: true,
+      enable_diagnostics: false,
+      generation_requirements: {
+        enforce_minimum_coverage: true,
+        enforce_contracted_hours: true,
+        enforce_keyholder_coverage: true,
+        enforce_rest_periods: true,
+        enforce_early_late_rules: true,
+        enforce_employee_group_rules: true,
+        enforce_break_rules: true,
+        enforce_max_hours: true,
+        enforce_consecutive_days: true,
+        enforce_weekend_distribution: true,
+        enforce_shift_distribution: true,
+        enforce_availability: true,
+        enforce_qualifications: true,
+        enforce_opening_hours: true
+      }
+    },
+    display: {
+      theme: 'light',
+      primary_color: '#000000',
+      secondary_color: '#000000',
+      accent_color: '#000000',
+      background_color: '#ffffff',
+      surface_color: '#ffffff',
+      text_color: '#000000',
+      dark_theme: {
+        primary_color: '#ffffff',
+        secondary_color: '#ffffff',
+        accent_color: '#ffffff',
+        background_color: '#000000',
+        surface_color: '#000000',
+        text_color: '#ffffff'
+      },
+      show_sunday: false,
+      show_weekdays: true,
+      start_of_week: 1,
+      email_notifications: false,
+      schedule_published: false,
+      shift_changes: false,
+      time_off_requests: false
+    },
+    employee_groups: {
+      employee_types: [{
+        id: "VZ",
+        name: "Vollzeit",
+        min_hours: 35,
+        max_hours: 40,
+        type: 'employee'
+      }],
+      shift_types: [{
+        id: "EARLY",
+        name: "Frühschicht",
+        color: "#4CAF50",
+        type: 'shift'
+      }],
+      absence_types: [{
+        id: "URL",
+        name: "Urlaub",
+        color: "#FF9800",
+        type: 'absence'
+      }]
+    },
+    actions: {
+      demo_data: {
+        selected_module: '',
+        last_execution: null
+      }
+    },
+    ai_scheduling: {
+      enabled: false,
+      api_key: ""
+    }
+  });
 
   const { data: settingsData, isLoading, error, refetch } = useQuery({
     queryKey: ["settings"],
@@ -71,21 +186,8 @@ export default function UnifiedSettingsPage() {
   useEffect(() => {
     if (settingsData) {
       setLocalSettings(settingsData);
-    } else if (!isLoading && !error) {
-      // If no settings data and not loading/error, initialize with default
-      // This case might occur if the backend returns null/empty for a new setup
-      console.log(
-        'UnifiedSettingsPage useEffect: Attempting to set DEFAULT_SETTINGS. isLoading:',
-        isLoading,
-        'error:',
-        error,
-        'settingsData:',
-        settingsData
-      );
-      console.log('UnifiedSettingsPage useEffect: Value of DEFAULT_SETTINGS before setLocalSettings:', DEFAULT_SETTINGS);
-      setLocalSettings(DEFAULT_SETTINGS as Settings); 
     }
-  }, [settingsData, isLoading, error]);
+  }, [settingsData]);
 
   const updateMutation = useMutation({
     mutationFn: (data: Partial<Settings>) => updateSettings(data),
@@ -118,8 +220,7 @@ export default function UnifiedSettingsPage() {
     category: keyof Settings, // Simplified category to be any key of Settings
     updates: Partial<Settings[typeof category]>
   ) => {
-    if (!localSettings) return;
-
+    // localSettings is always defined now, no need for null check
     const currentCategoryState = localSettings[category];
     let newCategoryState;
 
@@ -146,8 +247,7 @@ export default function UnifiedSettingsPage() {
     value: any,
     isNumeric: boolean = false
   ) => {
-    if (!localSettings) return;
-    
+    // localSettings is always defined now, no need for null check
     const parsedValue = isNumeric ? parseFloat(value) : value;
     const currentCategoryState = localSettings[category] || {};
     
@@ -158,7 +258,7 @@ export default function UnifiedSettingsPage() {
   };
   
   const handleImmediateUpdate = () => {
-    if (localSettings) {
+    // localSettings is always defined now, no need for null check
       debouncedUpdate.cancel(); // Cancel any pending debounced updates
       updateMutation.mutate(localSettings, {
         onSuccess: (updatedData) => {
@@ -170,7 +270,6 @@ export default function UnifiedSettingsPage() {
           });
         }
       });
-    }
   };
 
   const timeStringToDate = (timeStr: string | null | undefined): Date => {
@@ -190,9 +289,11 @@ export default function UnifiedSettingsPage() {
   };
 
   const handleDiagnosticsChange = (checked: boolean) => {
-    if (!localSettings || !localSettings.scheduling) return;
+    // localSettings is always defined now, no need for null check
+    const scheduling = localSettings.scheduling || {};
+    
     const updatedSchedSettings = {
-      ...localSettings.scheduling,
+      ...scheduling,
       enable_diagnostics: checked
     };
     // Directly call handleSave for the 'scheduling' category
@@ -205,8 +306,7 @@ export default function UnifiedSettingsPage() {
     key: keyof Settings['display'],
     value: any
   ) => {
-    if (!localSettings) return;
-
+    // localSettings is always defined now, no need for null check
     const updatedDisplaySettings = {
       ...(localSettings.display || DEFAULT_SETTINGS.display),
       [key]: value,
@@ -227,8 +327,7 @@ export default function UnifiedSettingsPage() {
     key: keyof NonNullable<Settings['ai_scheduling']>, // 'enabled' | 'api_key'
     value: any
   ) => {
-    if (!localSettings) return;
-
+    // localSettings is always defined now, no need for null check
     const updatedAiSettings = {
       ...(localSettings.ai_scheduling || DEFAULT_SETTINGS.ai_scheduling),
       [key]: value,
@@ -246,8 +345,8 @@ export default function UnifiedSettingsPage() {
       return <PlaceholderContent title="Section not found" />;
     }
 
-    // Explicit loading check
-    if (isLoading) {
+    // Only show loading indicator if explicitly loading from API and we have no settings data yet
+    if (isLoading && !settingsData) {
       return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-4 animate-spin" /><span>Loading settings...</span></div>;
     }
 
@@ -256,26 +355,22 @@ export default function UnifiedSettingsPage() {
       return <Alert variant="destructive"><AlertDescription>Error loading settings: {error.message || 'An unknown error occurred'}. Please try again later or contact support.</AlertDescription></Alert>;
     }
 
-    // Check if localSettings is populated after loading and no error
-    // This state should ideally be prevented by the useEffect hook setting DEFAULT_SETTINGS.
-    // If this is reached, it indicates a problem with setting default/fallback settings.
-    // Adding optional chaining below provides an additional layer of safety.
-    if (!localSettings) {
-      console.error("UnifiedSettingsPage: localSettings is null or undefined after loading and without an error. This is unexpected and might indicate an issue with DEFAULT_SETTINGS or the useEffect logic.");
-      return <Alert variant="destructive"><AlertDescription>Settings are currently unavailable, and default settings could not be applied. Please try refreshing the page or contact support if the issue persists.</AlertDescription></Alert>;
-    }
+    // localSettings is always defined now due to useState initialization
 
     // If we've reached this point, localSettings should be a valid Settings object.
     switch (activeSection) {
       case 'general_store_setup':
         return (
           <GeneralStoreSetupSection
-            settings={localSettings?.general}
+            settings={localSettings.general || {}}
             onInputChange={(key, value, isNumeric) => handleSettingChange('general', key, value, isNumeric)}
             onOpeningDaysChange={(dayIndex, checked) => {
-              const currentOpeningDays = localSettings?.general?.opening_days || DEFAULT_SETTINGS.general.opening_days;
+              const currentOpeningDays = localSettings.general?.opening_days || DEFAULT_SETTINGS.general.opening_days;
               const updatedOpeningDays = { ...currentOpeningDays, [dayIndex.toString()]: checked };
               handleSave('general', { opening_days: updatedOpeningDays });
+            }}
+            onSpecialDaysChange={(specialDays) => {
+              handleSave('general', { special_days: specialDays });
             }}
             timeStringToDate={timeStringToDate}
             dateToTimeString={dateToTimeString}
@@ -285,21 +380,21 @@ export default function UnifiedSettingsPage() {
       case 'scheduling_engine':
         return (
           <SchedulingEngineSection
-            settings={localSettings?.scheduling}
+            settings={localSettings.scheduling || {}}
             onInputChange={(key, value, isNumeric) => handleSettingChange('scheduling', key, value, isNumeric)}
             onDiagnosticsChange={(checked) => {
-                if (!localSettings || !localSettings.scheduling) return;
+              const scheduling = localSettings.scheduling || {};
                 const updatedSchedSettings = {
-                    ...(localSettings?.scheduling || DEFAULT_SETTINGS.scheduling),
+                ...scheduling,
                     enable_diagnostics: checked
                 };
                 handleSave("scheduling", updatedSchedSettings);
             }}
             onGenerationSettingsUpdate={(genUpdates) => {
-                if (!localSettings?.scheduling) return;
-                const currentGenReqs = localSettings.scheduling.generation_requirements || DEFAULT_SETTINGS.scheduling.generation_requirements;
+              const scheduling = localSettings.scheduling || {};
+              const currentGenReqs = scheduling.generation_requirements || DEFAULT_SETTINGS.scheduling.generation_requirements;
                 const updatedGenReqs = { ...currentGenReqs, ...genUpdates };
-                handleSave("scheduling", { ...localSettings.scheduling, generation_requirements: updatedGenReqs });
+              handleSave("scheduling", { ...scheduling, generation_requirements: updatedGenReqs });
             }}
             onImmediateUpdate={handleImmediateUpdate}
           />
@@ -307,7 +402,7 @@ export default function UnifiedSettingsPage() {
       case 'employee_shift_definitions':
         return (
           <EmployeeShiftDefinitionsSection 
-            settings={localSettings?.employee_groups} 
+            settings={localSettings.employee_groups || {}} 
             onUpdate={(category, updates) => handleSave(category, updates)}
             onImmediateUpdate={handleImmediateUpdate}
           />
@@ -315,7 +410,7 @@ export default function UnifiedSettingsPage() {
       case 'availability_configuration':
         return (
           <AvailabilityConfigurationSection
-            settings={localSettings?.availability_types}
+            settings={localSettings.availability_types || { types: [] }}
             onUpdate={(updatedTypes) => handleSave('availability_types', { types: updatedTypes })}
             onImmediateUpdate={handleImmediateUpdate}
           />
@@ -323,14 +418,14 @@ export default function UnifiedSettingsPage() {
       case 'appearance_display':
         return (
           <AppearanceDisplaySection
-            settings={localSettings?.display}
+            settings={localSettings.display || {}}
             onDisplaySettingChange={handleDisplaySettingChange} 
           />
         );
       case 'integrations_ai':
         return (
           <IntegrationsAISection
-            settings={localSettings?.ai_scheduling}
+            settings={localSettings.ai_scheduling || { enabled: false, api_key: "" }}
             onSettingChange={handleAiSchedulingChange}
             onImmediateUpdate={handleImmediateUpdate}
           />
@@ -341,7 +436,7 @@ export default function UnifiedSettingsPage() {
       case 'notifications':
         return (
           <NotificationsSection 
-            settings={localSettings?.display}
+            settings={localSettings.display || {}}
             onDisplaySettingChange={handleDisplaySettingChange}
           />
         );

@@ -2,6 +2,28 @@ from pydantic import BaseModel, Field, validator
 from typing import Dict, List, Optional, Any, Union
 from datetime import datetime
 
+class SpecialDayCustomHours(BaseModel):
+    """Schema for custom hours on a special day."""
+    opening: str = Field(..., description="Opening time in HH:MM format.")
+    closing: str = Field(..., description="Closing time in HH:MM format.")
+    
+    @validator('opening', 'closing')
+    def validate_time_format(cls, v):
+        """Validate time is in HH:MM format."""
+        try:
+            hours, minutes = v.split(':')
+            if not (0 <= int(hours) <= 23 and 0 <= int(minutes) <= 59):
+                raise ValueError("Hours must be 0-23, minutes must be 0-59")
+        except Exception:
+            raise ValueError(f"Time must be in HH:MM format, got {v}")
+        return v
+
+class SpecialDay(BaseModel):
+    """Schema for a special day configuration."""
+    description: str = Field(..., description="Description of the special day.")
+    is_closed: bool = Field(..., description="Whether the store is closed on this day.")
+    custom_hours: Optional[SpecialDayCustomHours] = Field(None, description="Custom opening hours if not closed.")
+
 class TablesList(BaseModel):
     """Schema for the wipe tables request."""
     tables: List[str] = Field(..., description="List of table names to wipe.")
@@ -67,12 +89,24 @@ class GeneralSettings(BaseModel):
     store_phone: Optional[str] = Field(None, description="Phone number of the store.")
     store_email: Optional[str] = Field(None, description="Email address of the store.")
     break_duration_minutes: Optional[int] = Field(None, description="Default break duration in minutes.")
+    special_days: Optional[Dict[str, SpecialDay]] = Field(None, description="Special days and holidays configuration.")
     
     @validator('break_duration_minutes')
     def validate_break_duration(cls, v):
         """Validate break duration is reasonable."""
         if v is not None and not (0 <= v <= 120):
             raise ValueError("Break duration must be between 0 and 120 minutes")
+        return v
+    
+    @validator('special_days')
+    def validate_special_days(cls, v):
+        """Validate special days dictionary keys are in YYYY-MM-DD format."""
+        if v is not None:
+            for date_str in v.keys():
+                try:
+                    datetime.strptime(date_str, "%Y-%m-%d")
+                except ValueError:
+                    raise ValueError(f"Special day date must be in YYYY-MM-DD format, got {date_str}")
         return v
 
 class AdvancedSettings(BaseModel):
