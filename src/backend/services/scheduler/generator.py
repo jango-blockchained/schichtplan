@@ -202,33 +202,92 @@ class ScheduleAssignment:
         self.break_start = break_start
         self.break_end = break_end
         
-        # Extract details from shift_template (which could be an ORM object or a dict)
+        # Extract details from shift_template with comprehensive logging
+        central_logger.diagnostic_logger.debug(f"Extracting shift data for employee_id={employee_id}, shift_id={shift_id}, date={date_val}")
+        
+        # First log the shift_template type
+        template_type = type(shift_template).__name__ if shift_template else "None"
+        central_logger.diagnostic_logger.debug(f"shift_template type: {template_type}")
+        
         if shift_template:
-            # Get start_time
+            # Get start_time with detailed logging
             if hasattr(shift_template, 'start_time'):
                 self.start_time = getattr(shift_template, 'start_time')
+                central_logger.diagnostic_logger.debug(f"Extracted start_time from attribute: {self.start_time}")
             elif isinstance(shift_template, dict) and 'start_time' in shift_template:
                 self.start_time = shift_template['start_time']
+                central_logger.diagnostic_logger.debug(f"Extracted start_time from dict: {self.start_time}")
+            else:
+                central_logger.diagnostic_logger.warning(f"Could not extract start_time from shift_template: {shift_template}")
+                # Try to fallback to a default value if needed
+                self.start_time = "00:00"
+                central_logger.diagnostic_logger.debug(f"Using default start_time: {self.start_time}")
 
-            # Get end_time
+            # Get end_time with detailed logging
             if hasattr(shift_template, 'end_time'):
                 self.end_time = getattr(shift_template, 'end_time')
+                central_logger.diagnostic_logger.debug(f"Extracted end_time from attribute: {self.end_time}")
             elif isinstance(shift_template, dict) and 'end_time' in shift_template:
                 self.end_time = shift_template['end_time']
+                central_logger.diagnostic_logger.debug(f"Extracted end_time from dict: {self.end_time}")
+            else:
+                central_logger.diagnostic_logger.warning(f"Could not extract end_time from shift_template: {shift_template}")
+                # Try to fallback to a default value if needed
+                self.end_time = "00:00"
+                central_logger.diagnostic_logger.debug(f"Using default end_time: {self.end_time}")
 
-            # Get shift_type string
+            # Get shift_type string with detailed logging
             # Check for 'shift_type' attribute first (could be an Enum or string)
             shift_type_val = None
-            if hasattr(shift_template, 'shift_type'):
-                shift_type_val = getattr(shift_template, 'shift_type')
-            elif isinstance(shift_template, dict) and 'shift_type' in shift_template:
-                shift_type_val = shift_template['shift_type']
+            
+            # Try multiple common attribute names for shift type
+            for attr_name in ['shift_type', 'shift_type_id', 'type']:
+                if hasattr(shift_template, attr_name):
+                    shift_type_val = getattr(shift_template, attr_name)
+                    central_logger.diagnostic_logger.debug(f"Found shift_type in attribute '{attr_name}': {shift_type_val}")
+                    break
+                    
+            # If not found in attributes, try dict keys
+            if shift_type_val is None and isinstance(shift_template, dict):
+                for key_name in ['shift_type', 'shift_type_id', 'type']:
+                    if key_name in shift_template:
+                        shift_type_val = shift_template[key_name]
+                        central_logger.diagnostic_logger.debug(f"Found shift_type in dict key '{key_name}': {shift_type_val}")
+                        break
             
             if shift_type_val:
                 if hasattr(shift_type_val, 'value'):  # If it's an Enum object
                     self.shift_type_str = shift_type_val.value
+                    central_logger.diagnostic_logger.debug(f"Converted Enum shift_type to string: {self.shift_type_str}")
                 else:  # Assume it's already a string
                     self.shift_type_str = str(shift_type_val)
+                    central_logger.diagnostic_logger.debug(f"Converted shift_type to string: {self.shift_type_str}")
+            else:
+                central_logger.diagnostic_logger.warning(f"Could not extract shift_type from shift_template: {shift_template}")
+                # Try to determine a default shift type based on start time if available
+                if self.start_time:
+                    try:
+                        hour = int(self.start_time.split(':')[0])
+                        if hour < 11:
+                            self.shift_type_str = "EARLY"
+                        elif hour >= 14:
+                            self.shift_type_str = "LATE"
+                        else:
+                            self.shift_type_str = "MIDDLE"
+                        central_logger.diagnostic_logger.debug(f"Determined shift_type from start time: {self.shift_type_str}")
+                    except (ValueError, IndexError):
+                        self.shift_type_str = "UNKNOWN"
+                        central_logger.diagnostic_logger.debug(f"Using default shift_type: {self.shift_type_str}")
+                else:
+                    self.shift_type_str = "UNKNOWN"
+                    central_logger.diagnostic_logger.debug(f"Using default shift_type: {self.shift_type_str}")
+                            
+        # Final validation check for required fields
+        if not self.start_time or not self.end_time:
+            central_logger.error_logger.error(f"Missing required time data for shift: employee_id={employee_id}, shift_id={shift_id}, date={date_val}")
+            central_logger.error_logger.error(f"Retrieved data: start_time={self.start_time}, end_time={self.end_time}, shift_type={self.shift_type_str}")
+        else:
+            central_logger.diagnostic_logger.debug(f"Successfully extracted shift data: start_time={self.start_time}, end_time={self.end_time}, shift_type={self.shift_type_str}")
 
 
 class ScheduleContainer:
@@ -469,7 +528,8 @@ class ScheduleGenerator:
                  pass 
             
             for sa in schedule_assignments_to_process:
-                processed_for_downstream.append({
+                # Create a more comprehensive dictionary with all available fields
+                assignment_dict = {
                     "id": getattr(sa, 'id', None), # ScheduleAssignment might not have an ID yet
                     "employee_id": sa.employee_id,
                     "shift_id": sa.shift_id,
@@ -478,8 +538,26 @@ class ScheduleGenerator:
                     "end_time": sa.end_time,
                     "status": sa.status,
                     "version": sa.version,
-                    # Potentially other fields needed by ActualScheduleModel or serializer
-                })
+                    "availability_type": sa.availability_type,
+                    "shift_type": sa.shift_type_str,
+                    "break_start": sa.break_start,
+                    "break_end": sa.break_end,
+                    "notes": sa.notes
+                }
+                
+                # Log the converted assignment for debugging
+                self.diagnostic_logger.debug(f"Converted assignment: {assignment_dict}")
+                
+                # Check for missing critical fields
+                missing_fields = []
+                for critical_field in ['start_time', 'end_time', 'availability_type']:
+                    if not assignment_dict.get(critical_field):
+                        missing_fields.append(critical_field)
+                
+                if missing_fields:
+                    self.diagnostic_logger.warning(f"Assignment missing critical fields: {missing_fields} - employee_id={sa.employee_id}, shift_id={sa.shift_id}, date={sa.date}")
+                
+                processed_for_downstream.append(assignment_dict)
 
             serialized_result = self.serializer.serialize_schedule(processed_for_downstream) 
             metrics = self.distribution_manager.get_distribution_metrics()

@@ -342,6 +342,23 @@ class ScheduleResources:
         self, employee_id: int, day: date, start_hour: int, end_hour: int
     ) -> bool:
         """Check if an employee is available for a time slot"""
+        # First, check if this is a special day when the store is closed
+        if self.settings:
+            # Convert date to string
+            date_str = day.strftime('%Y-%m-%d')
+            
+            # Check special_days first
+            if hasattr(self.settings, 'special_days') and self.settings.special_days:
+                if date_str in self.settings.special_days and self.settings.special_days[date_str].get('is_closed', False):
+                    logger.info(f"Date {date_str} is a closed special day. No employee is available.")
+                    return False
+            
+            # As fallback, check legacy special_hours
+            elif hasattr(self.settings, 'special_hours') and self.settings.special_hours:
+                if date_str in self.settings.special_hours and self.settings.special_hours[date_str].get('is_closed', False):
+                    logger.info(f"Date {date_str} is closed via special_hours. No employee is available.")
+                    return False
+        
         # Check for absences first
         if self.is_employee_on_leave(employee_id, day):
             logger.info(f"Employee {employee_id} is absent on {day}")

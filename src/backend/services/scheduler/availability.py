@@ -94,6 +94,25 @@ class AvailabilityChecker:
         self.log_debug(
             f"Checking availability for employee {employee_id} on {date_to_check} for shift {shift.id}"
         )
+        
+        # First, check if this is a special day when the store is closed
+        if hasattr(self.resources, 'settings') and self.resources.settings:
+            # Convert date to string if needed
+            date_str = date_to_check
+            if hasattr(date_to_check, 'strftime'):
+                date_str = date_to_check.strftime('%Y-%m-%d')
+                
+            # Check special_days first
+            if hasattr(self.resources.settings, 'special_days') and self.resources.settings.special_days:
+                if date_str in self.resources.settings.special_days and self.resources.settings.special_days[date_str].get('is_closed', False):
+                    self.log_debug(f"Date {date_str} is a closed special day. No employee is available.")
+                    return False, AvailabilityType.UNAVAILABLE.value
+            
+            # As fallback, check legacy special_hours
+            elif hasattr(self.resources.settings, 'special_hours') and self.resources.settings.special_hours:
+                if date_str in self.resources.settings.special_hours and self.resources.settings.special_hours[date_str].get('is_closed', False):
+                    self.log_debug(f"Date {date_str} is closed via special_hours. No employee is available.")
+                    return False, AvailabilityType.UNAVAILABLE.value
 
         # Check if employee is on leave
         if self.is_employee_on_leave(employee_id, date_to_check):

@@ -28,6 +28,8 @@ from routes.absences import bp as absences_bp
 from routes.ai_schedule_routes import ai_schedule_bp
 from routes.auth import bp as auth_bp  # Add auth routes import
 from routes.holiday_routes import holidays as holidays_bp
+from routes.holiday_import import holiday_import as holiday_import_bp
+from routes.special_days import special_days as special_days_bp
 from api.coverage import bp as coverage_bp
 from api.schedules import bp as api_schedules_bp
 from api.settings import bp as api_settings_bp
@@ -121,6 +123,8 @@ def create_app(config_class=Config):
     app.register_blueprint(absences_bp, url_prefix="/api")
     app.register_blueprint(ai_schedule_bp, url_prefix="/api")
     app.register_blueprint(holidays_bp, url_prefix="/api")
+    app.register_blueprint(holiday_import_bp, url_prefix="/api")
+    app.register_blueprint(special_days_bp, url_prefix="/api")
     app.register_blueprint(auth_bp)  # Register auth blueprint
     app.register_blueprint(coverage_bp)
     app.register_blueprint(

@@ -1,0 +1,28 @@
+# Backend Migrations Directory
+
+This is an alternative migrations directory used when running the backend in standalone mode.
+
+## Purpose
+
+This directory contains Alembic migrations that are primarily used during development or 
+for standalone backend operations. In most cases, you should use the primary migrations 
+directory at `/src/migrations/` instead.
+
+## When to Use This Directory
+
+Use this directory only when:
+1. Running the backend separately from the main application
+2. Developing or testing backend-specific features
+3. Instructed to do so in specific documentation
+
+## Usage
+
+From the backend directory:
+
+```bash
+# Using the Alembic CLI directly
+alembic -c migrations/alembic.ini upgrade head
+alembic -c migrations/alembic.ini revision -m "Description of changes"
+```
+
+For more information, see the full [MIGRATIONS.md](/docs/MIGRATIONS.md) documentation.

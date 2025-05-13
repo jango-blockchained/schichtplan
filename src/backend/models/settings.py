@@ -50,13 +50,14 @@ class Settings(db.Model):
         },
     )
 
-    # Special Days (overrides default hours and includes holidays)
-    # Format: {"YYYY-MM-DD": {"description": string, "is_closed": bool, "custom_hours": {"opening": "HH:MM", "closing": "HH:MM"}}}
-    special_days = Column(JSON, nullable=False, default=dict)
-    
     # Special Opening Hours (overrides default hours) - DEPRECATED, use special_days instead
     # Format: {"YYYY-MM-DD": {"is_closed": bool, "opening": "HH:MM", "closing": "HH:MM"}}
     special_hours = Column(JSON, nullable=False, default=dict)
+    
+    # Special Days (overrides default hours and includes holidays)
+    # Format: {"YYYY-MM-DD": {"description": string, "is_closed": bool, "custom_hours": {"opening": "HH:MM", "closing": "HH:MM"}}}
+    # This is accessed via property getter/setter methods to ensure backward compatibility
+    _special_days = Column('special_days', JSON, nullable=True)
 
     # Availability Types
     availability_types = Column(
@@ -391,12 +392,24 @@ class Settings(db.Model):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    @property
+    def special_days(self):
+        """Get special days with backward compatibility"""
+        if hasattr(self, '_special_days') and self._special_days:
+            return self._special_days
+        return {}
+        
+    @special_days.setter
+    def special_days(self, value):
+        """Set special days"""
+        self._special_days = value
+    
     def is_store_open(self, date: datetime) -> bool:
         """Check if store is open on a specific date"""
         date_str = date.strftime("%Y-%m-%d")
 
         # Check special days first
-        if hasattr(self, 'special_days') and self.special_days and date_str in self.special_days:
+        if self.special_days and date_str in self.special_days:
             return not self.special_days[date_str].get("is_closed", False)
             
         # Check special hours as fallback for backward compatibility
@@ -447,7 +460,7 @@ class Settings(db.Model):
                 "keyholder_before_minutes": self.keyholder_before_minutes,
                 "keyholder_after_minutes": self.keyholder_after_minutes,
                 "opening_days": self.opening_days,
-                "special_days": self.special_days or {},
+                "special_days": self.special_days,
                 "special_hours": self.special_hours,
             },
             "scheduling": {
