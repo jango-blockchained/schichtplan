@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
-import { generateSchedule, fixShiftDurations } from '@/services/api';
+import { generateSchedule, fixShiftDurations, fixScheduleDisplay } from '@/services/api';
 import { format } from 'date-fns';
 import { DateRange } from 'react-day-picker';
 
@@ -103,159 +103,116 @@ export function useScheduleGeneration({
                 setGenerationSteps(steps);
                 setShowGenerationOverlay(true);
 
-                // Set a timeout to automatically reset if it takes too long
-                const timeout = setTimeout(() => {
-                    addGenerationLog('error', 'Zeitüberschreitung', 'Die Generierung dauert länger als erwartet. Bitte versuchen Sie es erneut.');
-                    updateGenerationStep('init', 'error', 'Zeitüberschreitung');
-                    throw new Error('Die Generierung dauert länger als erwartet.');
-                }, 30000); // 30 second timeout
+                // Init
+                updateGenerationStep("init", "in-progress");
+                addGenerationLog("info", "Initialisiere Generierung",
+                    `Version: ${selectedVersion}, Zeitraum: ${format(dateRange.from, 'dd.MM.yyyy')} - ${format(dateRange.to, 'dd.MM.yyyy')}`);
+                await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate processing
+                updateGenerationStep("init", "completed");
 
-                try {
-                    // Init
-                    updateGenerationStep("init", "in-progress");
-                    addGenerationLog("info", "Initialisiere Generierung",
-                        `Version: ${selectedVersion}, Zeitraum: ${format(dateRange.from, 'dd.MM.yyyy')} - ${format(dateRange.to, 'dd.MM.yyyy')}`);
-                    await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate processing
-                    updateGenerationStep("init", "completed");
+                // Validate
+                updateGenerationStep("validate", "in-progress");
+                addGenerationLog("info", "Validiere Eingabedaten");
+                await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate processing
+                updateGenerationStep("validate", "completed");
 
-                    // Validate
-                    updateGenerationStep("validate", "in-progress");
-                    addGenerationLog("info", "Validiere Eingabedaten");
-                    await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate processing
-                    updateGenerationStep("validate", "completed");
+                // Process
+                updateGenerationStep("process", "in-progress");
+                addGenerationLog("info", "Starte Verarbeitung");
 
-                    // Process
-                    updateGenerationStep("process", "in-progress");
-                    addGenerationLog("info", "Starte Verarbeitung");
+                // Call API to generate schedule
+                const fromStr = format(dateRange.from, 'yyyy-MM-dd');
+                const toStr = format(dateRange.to, 'yyyy-MM-dd');
 
-                    // Call API to generate schedule
-                    const fromStr = format(dateRange.from, 'yyyy-MM-dd');
-                    const toStr = format(dateRange.to, 'yyyy-MM-dd');
+                // Always use the explicit selectedVersion, no fallback to 1
+                console.log('🚀 Calling generateSchedule API with:', {
+                    fromStr,
+                    toStr,
+                    createEmptySchedules,
+                    selectedVersion,
+                    enableDiagnostics,
+                    'Request will include shift_type values': true
+                });
 
-                    try {
-                        // Always use the explicit selectedVersion, no fallback to 1
-                        console.log('🚀 Calling generateSchedule API with:', {
-                            fromStr,
-                            toStr,
-                            createEmptySchedules,
-                            selectedVersion,
-                            enableDiagnostics,
-                            'Request will include shift_type values': true
-                        });
-
-                        // Make sure we have a valid version number
-                        if (!selectedVersion) {
-                            addGenerationLog("error", "Fehlende Version. Bitte eine Version auswählen oder erstellen.");
-                            throw new Error("Missing version parameter. Please select or create a version.");
-                        }
-
-                        const result = await generateSchedule(
-                            fromStr,
-                            toStr,
-                            createEmptySchedules,
-                            selectedVersion,  // Use the selected version without fallback
-                            enableDiagnostics // Pass the enableDiagnostics flag
-                        );
-
-                        // Log the response to help with debugging
-                        console.log('✅ GenerateSchedule API response:', {
-                            'Total schedules': result.schedules?.length || 0,
-                            'Schedules with shifts': result.schedules?.filter(s => s.shift_id !== null)?.length || 0,
-                            'Unique employees': [...new Set(result.schedules?.map(s => s.employee_id) || [])].length,
-                            'Has errors': result.errors && result.errors.length > 0,
-                            'Error count': result.errors?.length || 0,
-                            'First error': result.errors?.[0] || 'No errors',
-                            'First schedule': result.schedules?.[0] || 'No schedules',
-                            'Diagnostic logs': result.diagnostic_logs || []
-                        });
-
-                        // If we have diagnostic logs and enableDiagnostics is true, add them to our logs
-                        if (enableDiagnostics && result.diagnostic_logs && result.diagnostic_logs.length > 0) {
-                            result.diagnostic_logs.forEach(log => {
-                                // Try to parse log entries in a useful way
-                                const logType = log.includes('ERROR') ? 'error' :
-                                    log.includes('WARNING') ? 'warning' : 'info';
-                                
-                                addGenerationLog(logType, log);
-                            });
-                        }
-
-                        updateGenerationStep("process", "completed");
-
-                        // Assign shifts
-                        updateGenerationStep("assign", "in-progress");
-                        addGenerationLog("info", "Weise Schichten zu");
-                        await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate processing
-                        updateGenerationStep("assign", "completed");
-
-                        // Finalize
-                        updateGenerationStep("finalize", "in-progress");
-                        addGenerationLog("info", "Finalisiere Schichtplan");
-                        
-                        // Auto fix schedule display issues after generation
-                        if (result.schedules?.some(s => s.shift_id !== null && (!s.shift_start || !s.shift_end))) {
-                            addGenerationLog("info", "Korrigiere Anzeige-Probleme");
-                            try {
-                                await fixShiftDurations();
-                                addGenerationLog("info", "Anzeige-Probleme korrigiert");
-                            } catch (fixError) {
-                                addGenerationLog("warning", "Problem beim Korrigieren der Anzeige", 
-                                    String(fixError instanceof Error ? fixError.message : fixError));
-                            }
-                        }
-                        
-                        await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate processing
-                        updateGenerationStep("finalize", "completed");
-
-                        // Clear the timeout since we finished successfully
-                        clearTimeout(timeout);
-
-                        return result;
-                    } catch (apiError) {
-                        // Handle API-specific errors
-                        console.error("API error during generation:", apiError);
-
-                        // Update the appropriate step to error state
-                        updateGenerationStep("process", "error", apiError instanceof Error ? apiError.message : "Unbekannter Fehler");
-
-                        // Add detailed error log
-                        if (apiError instanceof Error) {
-                            addGenerationLog("error", apiError.message, "Fehler bei der API-Anfrage");
-
-                            // Check for various patterns that indicate duration_hours issues
-                            const durationPatterns = [
-                                'duration_hours',
-                                'schichtdauer',
-                                'nonetype',
-                                'attribute',
-                                'none',
-                                'shift',
-                                'duration',
-                                'has no attribute',
-                                'fehlt ein attribut',
-                                'missing attribute'
-                            ];
-
-                            const hasDurationError = durationPatterns.some(pattern =>
-                                apiError.message.toLowerCase().includes(pattern)
-                            );
-
-                            if (hasDurationError) {
-                                addGenerationLog("error", "Schichtdauer fehlt", "Bitte überprüfen Sie die Schichteinstellungen und stellen Sie sicher, dass alle Schichten eine Dauer haben.");
-                            }
-                        } else {
-                            addGenerationLog("error", "Unbekannter API-Fehler", String(apiError));
-                        }
-
-                        // Clear the timeout on error
-                        clearTimeout(timeout);
-                        throw apiError;
-                    }
-                } catch (error) {
-                    // Clear the timeout on error
-                    clearTimeout(timeout);
-                    throw error;
+                // Make sure we have a valid version number
+                if (!selectedVersion) {
+                    addGenerationLog("error", "Fehlende Version. Bitte eine Version auswählen oder erstellen.");
+                    throw new Error("Missing version parameter. Please select or create a version.");
                 }
+
+                const result = await generateSchedule(
+                    fromStr,
+                    toStr,
+                    createEmptySchedules,
+                    selectedVersion,  // Use the selected version without fallback
+                    enableDiagnostics // Pass the enableDiagnostics flag
+                );
+
+                // Log the response to help with debugging
+                console.log('✅ GenerateSchedule API response:', {
+                    'Total schedules': result.schedules?.length || 0,
+                    'Schedules with shifts': result.schedules?.filter(s => s.shift_id !== null)?.length || 0,
+                    'Unique employees': [...new Set(result.schedules?.map(s => s.employee_id) || [])].length,
+                    'Has errors': result.errors && result.errors.length > 0,
+                    'Error count': result.errors?.length || 0,
+                    'First error': result.errors?.[0] || 'No errors',
+                    'First schedule': result.schedules?.[0] || 'No schedules',
+                    'Diagnostic logs': result.diagnostic_logs || []
+                });
+
+                // If we have diagnostic logs and enableDiagnostics is true, add them to our logs
+                if (enableDiagnostics && result.diagnostic_logs && result.diagnostic_logs.length > 0) {
+                    result.diagnostic_logs.forEach(log => {
+                        // Try to parse log entries in a useful way
+                        const logType = log.includes('ERROR') ? 'error' :
+                            log.includes('WARNING') ? 'warning' : 'info';
+                        
+                        addGenerationLog(logType, log);
+                    });
+                }
+
+                updateGenerationStep("process", "completed");
+
+                // Assign shifts
+                updateGenerationStep("assign", "in-progress");
+                addGenerationLog("info", "Weise Schichten zu");
+                await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate processing
+                updateGenerationStep("assign", "completed");
+
+                // Finalize
+                updateGenerationStep("finalize", "in-progress");
+                addGenerationLog("info", "Finalisiere Schichtplan");
+                
+                // Auto fix schedule display issues after generation
+                if (result.schedules?.some(s => s.shift_id !== null && (!s.shift_start || !s.shift_end))) {
+                    addGenerationLog("info", "Korrigiere Anzeige-Probleme");
+                    try {
+                        await fixShiftDurations();
+                        addGenerationLog("info", "Anzeige-Probleme korrigiert");
+                    } catch (fixError) {
+                        addGenerationLog("warning", "Problem beim Korrigieren der Anzeige", 
+                            String(fixError instanceof Error ? fixError.message : fixError));
+                    }
+                }
+                
+                // Fix display issues with the schedule using separate API call
+                try {
+                    addGenerationLog("info", "Optimiere Anzeige");
+                    if (selectedVersion && dateRange.from && dateRange.to) {
+                        const fromFixStr = format(dateRange.from, 'yyyy-MM-dd');
+                        const toFixStr = format(dateRange.to, 'yyyy-MM-dd');
+                        const fixResult = await fixScheduleDisplay(fromFixStr, toFixStr, selectedVersion);
+                        addGenerationLog("info", `Anzeige optimiert: ${fixResult.days_fixed.length} Tage aktualisiert`);
+                    }
+                } catch (displayError) {
+                    addGenerationLog("warning", "Problem bei der Anzeige-Optimierung", 
+                        String(displayError instanceof Error ? displayError.message : displayError));
+                }
+                
+                await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate processing
+                updateGenerationStep("finalize", "completed");
+                
+                return result;
             } catch (error) {
                 console.error("Generation error:", error);
                 if (error instanceof Error) {
@@ -309,9 +266,9 @@ export function useScheduleGeneration({
                 }, 1500);
             }
 
-            // Invalidate queries to refresh data
+            // Invalidate queries to refresh data - fixed to invalidate all schedule queries
             queryClient.invalidateQueries({ queryKey: ['schedules'] });
-
+            
             // Call onSuccess callback if provided
             if (onSuccess) {
                 onSuccess();

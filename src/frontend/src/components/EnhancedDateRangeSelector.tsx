@@ -108,10 +108,17 @@ export function EnhancedDateRangeSelector({
     // Execute the pending action and create a new version
     const handleConfirmChange = () => {
         if (dialogSelectedDateRange?.from && dialogSelectedDateRange?.to) {
+            console.log('📅 EnhancedDateRangeSelector: Creating new version with specific date range:', {
+                from: dialogSelectedDateRange.from.toISOString(),
+                to: dialogSelectedDateRange.to.toISOString()
+            });
+            
             // Call back with only the dateRange selected in the dialog
             onCreateNewVersionWithSpecificDateRange({
                 dateRange: dialogSelectedDateRange
             });
+        } else {
+            console.log('📅 EnhancedDateRangeSelector: Cannot create version - no valid date range selected');
         }
         setIsConfirmDialogOpen(false);
     };

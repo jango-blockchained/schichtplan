@@ -7,7 +7,7 @@ import {
     DropdownMenuTrigger,
     DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu';
-import { CalendarPlus, Trash2, AlertCircle, Play, Settings, Plus, Wrench, Clock, Loader2, Sparkles } from 'lucide-react';
+import { CalendarPlus, Trash2, Play, Settings, Plus, Loader2, Sparkles } from 'lucide-react';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -27,14 +27,11 @@ interface ScheduleActionsProps {
     onGenerateStandardSchedule: () => void;
     onGenerateAiSchedule: () => void;
     onOpenGenerationSettings: () => void;
-    onFixDisplay: () => void;
-    onFixTimeData: () => void;
     isLoading: boolean;
     isGenerating: boolean;
     canAdd: boolean;
     canDelete: boolean;
     canGenerate: boolean;
-    canFix: boolean;
 
 }
 
@@ -44,40 +41,13 @@ export function ScheduleActions({
     onGenerateStandardSchedule,
     onGenerateAiSchedule,
     onOpenGenerationSettings,
-    onFixDisplay,
-    onFixTimeData,
     isLoading,
     isGenerating,
     canAdd,
     canDelete,
     canGenerate,
-    canFix
 }: ScheduleActionsProps) {
-    const [isFixingDisplay, setIsFixingDisplay] = useState(false);
-    const [isFixingTimeData, setIsFixingTimeData] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
-    
-    // Handle fixing display with loading state
-    const handleFixDisplay = async () => {
-        setIsFixingDisplay(true);
-        try {
-            await onFixDisplay();
-        } finally {
-            // Set timeout to show the loading state for at least a bit
-            setTimeout(() => setIsFixingDisplay(false), 500);
-        }
-    };
-    
-    // Handle fixing time data with loading state
-    const handleFixTimeData = async () => {
-        setIsFixingTimeData(true);
-        try {
-            await onFixTimeData();
-        } finally {
-            // Set timeout to show the loading state for at least a bit
-            setTimeout(() => setIsFixingTimeData(false), 500);
-        }
-    };
     
     // Handle delete with loading state
     const handleDelete = async () => {
@@ -114,53 +84,26 @@ export function ScheduleActions({
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuItem onClick={onGenerateStandardSchedule} disabled={isGenerating}>
+                    <DropdownMenuItem onClick={onOpenGenerationSettings}>
+                        <Settings className="h-4 w-4 mr-2" />
+                        <span>Einstellungen</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={onGenerateStandardSchedule} disabled={isGenerating || isLoading}>
                         {isGenerating ? (
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                         ) : (
                             <Play className="h-4 w-4 mr-2" />
                         )}
-                        <span>Standard-Generierung</span>
+                        <span>Standard Generierung</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={onGenerateAiSchedule} disabled={isGenerating}>
+                    <DropdownMenuItem onClick={onGenerateAiSchedule} disabled={isGenerating || isLoading}>
                         {isGenerating ? (
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                         ) : (
                             <Sparkles className="h-4 w-4 mr-2" />
                         )}
                         <span>KI-Generierung</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={onOpenGenerationSettings}>
-                        <Settings className="h-4 w-4 mr-2" />
-                        <span>Generierungseinstellungen</span>
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
-
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="flex items-center gap-1" disabled={isLoading || !canFix}>
-                        <Wrench className="h-4 w-4" />
-                        <span>Reparieren</span>
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuItem onClick={handleFixDisplay} disabled={isFixingDisplay || isLoading}>
-                        {isFixingDisplay ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        ) : (
-                            <AlertCircle className="h-4 w-4 mr-2" />
-                        )}
-                        <span>Display Probleme beheben</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleFixTimeData} disabled={isFixingTimeData || isLoading}>
-                        {isFixingTimeData ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        ) : (
-                            <Clock className="h-4 w-4 mr-2" />
-                        )}
-                        <span>Schichtzeiten reparieren</span>
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>

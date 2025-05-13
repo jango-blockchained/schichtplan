@@ -2,7 +2,7 @@
 """Schedule generation service for Schichtplan."""
 from datetime import date, datetime, timedelta
 import logging
-from typing import Dict, List, Any, Optional, TYPE_CHECKING, Union
+from typing import Dict, List, Any, Optional, TYPE_CHECKING, Union, cast
 import sys
 import os
 import uuid # Import uuid for session ID generation
@@ -186,6 +186,8 @@ class ScheduleAssignment:
         break_start: Optional[str] = None,
         break_end: Optional[str] = None,
         notes: Optional[str] = None,
+        # Add the logger as a parameter
+        logger_instance: Optional[logging.Logger] = None
     ):
         self.employee_id = employee_id
         self.shift_id = shift_id
@@ -202,39 +204,42 @@ class ScheduleAssignment:
         self.break_start = break_start
         self.break_end = break_end
         
-        # Extract details from shift_template with comprehensive logging
-        central_logger.diagnostic_logger.debug(f"Extracting shift data for employee_id={employee_id}, shift_id={shift_id}, date={date_val}")
+        # Use the passed logger_instance, or fallback to app_logger if None
+        current_logger = logger_instance if logger_instance else central_logger.app_logger
         
+        # Extract details from shift_template with comprehensive logging
+        current_logger.debug(f"Extracting shift data for employee_id={employee_id}, shift_id={shift_id}, date={date_val}")
+            
         # First log the shift_template type
         template_type = type(shift_template).__name__ if shift_template else "None"
-        central_logger.diagnostic_logger.debug(f"shift_template type: {template_type}")
+        current_logger.debug(f"shift_template type: {template_type}")
         
         if shift_template:
             # Get start_time with detailed logging
             if hasattr(shift_template, 'start_time'):
                 self.start_time = getattr(shift_template, 'start_time')
-                central_logger.diagnostic_logger.debug(f"Extracted start_time from attribute: {self.start_time}")
+                current_logger.debug(f"Extracted start_time from attribute: {self.start_time}")
             elif isinstance(shift_template, dict) and 'start_time' in shift_template:
                 self.start_time = shift_template['start_time']
-                central_logger.diagnostic_logger.debug(f"Extracted start_time from dict: {self.start_time}")
+                current_logger.debug(f"Extracted start_time from dict: {self.start_time}")
             else:
-                central_logger.diagnostic_logger.warning(f"Could not extract start_time from shift_template: {shift_template}")
+                current_logger.warning(f"Could not extract start_time from shift_template: {shift_template}")
                 # Try to fallback to a default value if needed
                 self.start_time = "00:00"
-                central_logger.diagnostic_logger.debug(f"Using default start_time: {self.start_time}")
+                current_logger.debug(f"Using default start_time: {self.start_time}")
 
             # Get end_time with detailed logging
             if hasattr(shift_template, 'end_time'):
                 self.end_time = getattr(shift_template, 'end_time')
-                central_logger.diagnostic_logger.debug(f"Extracted end_time from attribute: {self.end_time}")
+                current_logger.debug(f"Extracted end_time from attribute: {self.end_time}")
             elif isinstance(shift_template, dict) and 'end_time' in shift_template:
                 self.end_time = shift_template['end_time']
-                central_logger.diagnostic_logger.debug(f"Extracted end_time from dict: {self.end_time}")
+                current_logger.debug(f"Extracted end_time from dict: {self.end_time}")
             else:
-                central_logger.diagnostic_logger.warning(f"Could not extract end_time from shift_template: {shift_template}")
+                current_logger.warning(f"Could not extract end_time from shift_template: {shift_template}")
                 # Try to fallback to a default value if needed
                 self.end_time = "00:00"
-                central_logger.diagnostic_logger.debug(f"Using default end_time: {self.end_time}")
+                current_logger.debug(f"Using default end_time: {self.end_time}")
 
             # Get shift_type string with detailed logging
             # Check for 'shift_type' attribute first (could be an Enum or string)
@@ -244,7 +249,7 @@ class ScheduleAssignment:
             for attr_name in ['shift_type', 'shift_type_id', 'type']:
                 if hasattr(shift_template, attr_name):
                     shift_type_val = getattr(shift_template, attr_name)
-                    central_logger.diagnostic_logger.debug(f"Found shift_type in attribute '{attr_name}': {shift_type_val}")
+                    current_logger.debug(f"Found shift_type in attribute '{attr_name}': {shift_type_val}")
                     break
                     
             # If not found in attributes, try dict keys
@@ -252,18 +257,18 @@ class ScheduleAssignment:
                 for key_name in ['shift_type', 'shift_type_id', 'type']:
                     if key_name in shift_template:
                         shift_type_val = shift_template[key_name]
-                        central_logger.diagnostic_logger.debug(f"Found shift_type in dict key '{key_name}': {shift_type_val}")
+                        current_logger.debug(f"Found shift_type in dict key '{key_name}': {shift_type_val}")
                         break
             
             if shift_type_val:
                 if hasattr(shift_type_val, 'value'):  # If it's an Enum object
                     self.shift_type_str = shift_type_val.value
-                    central_logger.diagnostic_logger.debug(f"Converted Enum shift_type to string: {self.shift_type_str}")
+                    current_logger.debug(f"Converted Enum shift_type to string: {self.shift_type_str}")
                 else:  # Assume it's already a string
                     self.shift_type_str = str(shift_type_val)
-                    central_logger.diagnostic_logger.debug(f"Converted shift_type to string: {self.shift_type_str}")
+                    current_logger.debug(f"Converted shift_type to string: {self.shift_type_str}")
             else:
-                central_logger.diagnostic_logger.warning(f"Could not extract shift_type from shift_template: {shift_template}")
+                current_logger.warning(f"Could not extract shift_type from shift_template: {shift_template}")
                 # Try to determine a default shift type based on start time if available
                 if self.start_time:
                     try:
@@ -274,20 +279,21 @@ class ScheduleAssignment:
                             self.shift_type_str = "LATE"
                         else:
                             self.shift_type_str = "MIDDLE"
-                        central_logger.diagnostic_logger.debug(f"Determined shift_type from start time: {self.shift_type_str}")
+                        current_logger.debug(f"Determined shift_type from start time: {self.shift_type_str}")
                     except (ValueError, IndexError):
                         self.shift_type_str = "UNKNOWN"
-                        central_logger.diagnostic_logger.debug(f"Using default shift_type: {self.shift_type_str}")
+                        current_logger.debug(f"Using default shift_type: {self.shift_type_str}")
                 else:
                     self.shift_type_str = "UNKNOWN"
-                    central_logger.diagnostic_logger.debug(f"Using default shift_type: {self.shift_type_str}")
+                    current_logger.debug(f"Using default shift_type: {self.shift_type_str}")
                             
         # Final validation check for required fields
         if not self.start_time or not self.end_time:
+            # Error logging should be safe since error_logger is part of the basic logger interface
             central_logger.error_logger.error(f"Missing required time data for shift: employee_id={employee_id}, shift_id={shift_id}, date={date_val}")
             central_logger.error_logger.error(f"Retrieved data: start_time={self.start_time}, end_time={self.end_time}, shift_type={self.shift_type_str}")
         else:
-            central_logger.diagnostic_logger.debug(f"Successfully extracted shift data: start_time={self.start_time}, end_time={self.end_time}, shift_type={self.shift_type_str}")
+            current_logger.debug(f"Successfully extracted shift data: start_time={self.start_time}, end_time={self.end_time}, shift_type={self.shift_type_str}")
 
 
 class ScheduleContainer:
@@ -520,7 +526,7 @@ class ScheduleGenerator:
             
             # CONVERSION STEP: ScheduleAssignment to dict or ActualScheduleModel for serializer/validator
             # This is a placeholder; actual mapping fields would be needed.
-            processed_for_downstream: List[Dict] = []
+            processed_for_downstream: List[Dict[str, Any]] = []
             if TYPE_CHECKING:
                  # For type hinting, this would be List[ActualScheduleModel]
                  # but the conversion logic to ActualScheduleModel instances is complex here.
@@ -529,7 +535,7 @@ class ScheduleGenerator:
             
             for sa in schedule_assignments_to_process:
                 # Create a more comprehensive dictionary with all available fields
-                assignment_dict = {
+                assignment_dict: Dict[str, Any] = {
                     "id": getattr(sa, 'id', None), # ScheduleAssignment might not have an ID yet
                     "employee_id": sa.employee_id,
                     "shift_id": sa.shift_id,
@@ -598,7 +604,8 @@ class ScheduleGenerator:
 
             validator = ScheduleValidator(self.resources)
             # validator.validate expects List[ActualScheduleModel] or List[Dict] that maps to it.
-            validation_errors = validator.validate(processed_for_downstream, config=validator_config_arg)
+            # Cast to List[Dict[str, Any]] to satisfy Mypy due to List invariance with Union types.
+            validation_errors = validator.validate(cast(List[Dict[str, Any]], processed_for_downstream), config=validator_config_arg)
             
             coverage_summary = validator.get_coverage_summary()
             self.process_tracker.end_step({
@@ -908,16 +915,15 @@ class ScheduleGenerator:
         # Ensure employee_id and shift_id are placeholders that make sense, e.g., 0 or -1
         # Or use a specific 'NO_SHIFT' or 'NO_EMPLOYEE' marker if defined.
         no_work_assignment = ScheduleAssignment(
-            employee_id=0,  # Placeholder for 'no employee'
+            employee_id=-1,  # Use -1 as placeholder for 'empty day assignment'
             shift_id=0,  # Placeholder for 'no shift'
             date_val=current_date,
             status="EMPTY",  # Custom status to indicate this is a placeholder
             version=self.schedule.version if self.schedule else 1,
+            logger_instance=self.diagnostic_logger # Pass the generator's diagnostic logger
         )
         if self.schedule:
             self.schedule.add_assignment(no_work_assignment) # Use the add_assignment method
-            # The line below was self.schedule.entries.append(no_work_assignment)
-            # It's replaced by add_assignment which handles both self.assignments and self.schedule_entries_by_date
 
         self.process_tracker.log_info(f"Empty schedule entry created for {current_date}")
 
@@ -938,8 +944,8 @@ class ScheduleGenerator:
 
         try:
             # Import the session manager for safe database operations
-            from utils.db_utils import session_manager
-            from backend.models.schedule import Schedule as DbSchedule, ScheduleStatus
+            from src.backend.utils.db_utils import session_manager
+            from src.backend.models.schedule import Schedule as DbSchedule, ScheduleStatus
 
             saved_count = 0
             failed_count = 0
@@ -948,6 +954,10 @@ class ScheduleGenerator:
             with session_manager() as session:
                 for entry in self.schedule.assignments:
                     try:
+                        # Enhanced logging for debugging the NULL values issue
+                        self.process_tracker.log_info(f"Processing entry for database save: employee_id={entry.employee_id}, shift_id={entry.shift_id}, date={entry.date}", log_to_diag=True)
+                        self.process_tracker.log_info(f"Entry fields: availability_type={entry.availability_type}, shift_type_str={entry.shift_type_str}, start_time={entry.start_time}, end_time={entry.end_time}", log_to_diag=True)
+                        
                         # Map ScheduleAssignment (entry) to DbSchedule model instance
                         current_status_str = entry.status
                         target_status_enum = ScheduleStatus.DRAFT # Default
@@ -963,8 +973,28 @@ class ScheduleGenerator:
                             target_status_enum = ScheduleStatus.DRAFT
                         
                         # Handle placeholder IDs to prevent foreign key constraint issues
-                        actual_employee_id = entry.employee_id if entry.employee_id != 0 else None
+                        # actual_employee_id = entry.employee_id if entry.employee_id != 0 else None
+                        # New logic for handling placeholders:
+                        if entry.employee_id == -1: # Our new placeholder for an empty day linked to a dummy employee
+                            actual_employee_id = -1
+                        elif entry.employee_id == 0: # Should ideally not happen for employee_id if assignments are well-formed
+                            actual_employee_id = None # Converts 0 to None for DB
+                        else: # Regular, valid employee ID
+                            actual_employee_id = entry.employee_id
+                        
                         actual_shift_id = entry.shift_id if entry.shift_id != 0 else None
+                        
+                        # Ensure we have non-null values for required fields
+                        availability_type = entry.availability_type or "AVAILABLE"
+                        shift_type = entry.shift_type_str or "UNKNOWN"
+                        
+                        # Add structured notes if missing
+                        notes = entry.notes
+                        if not notes and entry.shift_template_source:
+                            # Try to add structured info from shift template
+                            template_info = getattr(entry.shift_template_source, 'name', None)
+                            if template_info:
+                                notes = f"Auto-assigned to {template_info}"
 
                         db_entry = DbSchedule(
                             employee_id=actual_employee_id,
@@ -972,13 +1002,17 @@ class ScheduleGenerator:
                             date=entry.date,
                             status=target_status_enum,
                             version=entry.version,
-                            # Use the fields directly from ScheduleAssignment
+                            # Use the fields directly from ScheduleAssignment with fallbacks
                             break_start=entry.break_start,
                             break_end=entry.break_end,
-                            notes=entry.notes,
-                            availability_type=entry.availability_type,
-                            shift_type=entry.shift_type_str # Use the stored string value
+                            notes=notes,
+                            availability_type=availability_type,
+                            shift_type=shift_type
                         )
+                        
+                        # Log the database entry about to be added
+                        self.process_tracker.log_info(f"Adding DB entry: employee_id={db_entry.employee_id}, shift_id={db_entry.shift_id}, availability_type={db_entry.availability_type}, shift_type={db_entry.shift_type}", log_to_diag=True)
+                        
                         session.add(db_entry)
                         saved_count += 1
                     except Exception as e_item:

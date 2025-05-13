@@ -12,6 +12,12 @@ import {
     type VersionMeta,
     deleteVersion,
     updateVersionNotes,
+    getVersions as fetchVersions,
+    getVersionMetas,
+    createNewVersion as apiCreateNewVersion,
+    archiveVersion as apiArchiveVersion,
+    duplicateVersion as apiDuplicateVersion,
+    createVersion as apiCreateVersion,
 } from '@/services/api';
 
 interface UseVersionControlProps {
@@ -66,6 +72,16 @@ export function useVersionControl({ dateRange, onVersionSelected, initialVersion
             const sortedVersions = [...versionsQuery.data.versions].sort((a, b) => b.version - a.version);
             const latestVersion = sortedVersions[0].version;
 
+            console.log('🔄 Version selection logic:', {
+                selectedVersion,
+                userHasManuallySelected,
+                availableVersions: sortedVersions.map(v => v.version),
+                dateRange: { 
+                    from: dateRange?.from?.toISOString(), 
+                    to: dateRange?.to?.toISOString() 
+                }
+            });
+
             // Only auto-select if no version is currently selected AND the user hasn't manually selected a version
             if (selectedVersion === undefined && !userHasManuallySelected) {
                 console.log(`🔄 Auto-selecting latest version (${latestVersion}) because no version was selected`);
@@ -99,85 +115,55 @@ export function useVersionControl({ dateRange, onVersionSelected, initialVersion
 
     // Create version mutation
     const createVersionMutation = useMutation({
-        mutationFn: async (params?: { startDate?: string; endDate?: string; }) => {
-            if (params?.startDate && params?.endDate) {
-                // Use provided date range from params
-                const data = {
-                    start_date: params.startDate,
-                    end_date: params.endDate,
-                    // Remove base_version to create completely blank version
-                    notes: `NEW BLANK VERSION - Empty schedules for ${params.startDate} - ${params.endDate} [Created: ${new Date().toISOString().slice(0, 16).replace('T', ' ')}]`
-                };
-                return await createNewVersion(data);
-            } else if (dateRange?.from && dateRange?.to) {
-                // Use the date range from the component state
-                const fromStr = format(dateRange.from, 'yyyy-MM-dd');
-                const toStr = format(dateRange.to, 'yyyy-MM-dd');
-
-                const data = {
-                    start_date: fromStr,
-                    end_date: toStr,
-                    // Remove base_version to create completely blank version
-                    notes: `NEW BLANK VERSION - Empty schedules for week ${getWeek(dateRange.from)} (${format(dateRange.from, 'dd.MM.yyyy')} - ${format(dateRange.to, 'dd.MM.yyyy')}) [Created: ${new Date().toISOString().slice(0, 16).replace('T', ' ')}]`
-                };
-
-                return await createNewVersion(data);
-            } else {
-                throw new Error("Please select a date range");
+        mutationFn: async (options: { 
+            startDate?: string; 
+            endDate?: string; 
+            isUserInitiated?: boolean 
+        } = {}) => {
+            // Default to using the current dateRange if not provided
+            const startDate = options.startDate || (dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : undefined);
+            const endDate = options.endDate || (dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined);
+            
+            // Ensure we have dates to work with
+            if (!startDate || !endDate) {
+                throw new Error("Date range is required to create a version");
             }
+            
+            return createNewVersion(startDate, endDate);
         },
-        onSuccess: (data) => {
+        onSuccess: (data, variables) => {
+            console.log('💡 New version created:', data.version, 'Variables:', variables);
+            
             toast({
                 title: "Neue Version erstellt",
                 description: `Version ${data.version} wurde erfolgreich erstellt.`,
             });
 
-            // Automatically select the new version and mark as manual selection
-            // since the user explicitly created this version
+            // Automatically select the new version
+            console.log('🔄 Selecting newly created version:', data.version);
             setSelectedVersion(data.version);
-            setUserHasManuallySelected(true);
+            
+            // For version creation, we want automatic selection to work without being overridden
+            // Reset the user manual selection flag to allow the selection to take effect
+            console.log('🔄 Resetting userHasManuallySelected flag');
+            setUserHasManuallySelected(false);
+            
             if (onVersionSelected) {
+                console.log('🔄 Calling onVersionSelected callback with version:', data.version);
                 onVersionSelected(data.version);
             }
 
             // Refresh the versions list
             versionsQuery.refetch();
-
-            // --- Start: Generate and set the structured note ---
-            // Fix: Extract creation date from response if available, or use current date
-            if (data.version && data.version_meta?.date_range?.start) {
-                try {
-                    const startDateStr = data.version_meta.date_range.start;
-                    const startDate = new Date(startDateStr + 'T00:00:00'); // Ensure correct date parsing
-                    const calendarWeek = getWeek(startDate, { weekStartsOn: 1 });
-                    const month = getMonth(startDate) + 1; // getMonth is 0-indexed
-                    const year = getYear(startDate) % 100; // Get last two digits of year
-                    const timestamp = Date.now().toString().slice(-4); // Add a timestamp to make the note unique
-
-                    const generatedNote = `SCH-${String(calendarWeek).padStart(2, '0')}-${String(month).padStart(2, '0')}-${String(year).padStart(2, '0')}-V${data.version}-${timestamp}`;
-                    
-                    updateVersionDetailsMutation.mutate({ versionId: data.version, details: { notes: generatedNote } });
-                } catch (e) {
-                    console.error("Error generating or setting structured note:", e);
-                    toast({
-                        title: "Hinweis",
-                        description: "Version erstellt, aber der automatische Notizname konnte nicht gesetzt werden.",
-                        variant: "default" // Or warning
-                    });
-                }
-            }
-            // --- End: Generate and set the structured note ---
-
-            // Invalidate schedule queries
-            queryClient.invalidateQueries({ queryKey: ['schedules'] });
         },
         onError: (error) => {
+            console.error('❌ Error creating version:', error);
             toast({
-                title: "Fehler",
-                description: `Fehler beim Erstellen der neuen Version: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`,
+                title: "Fehler beim Erstellen der Version",
+                description: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten",
                 variant: "destructive",
             });
-        }
+        },
     });
 
     // Update version status mutation
@@ -324,12 +310,12 @@ export function useVersionControl({ dateRange, onVersionSelected, initialVersion
         }
     };
 
-    const handleCreateNewVersion = () => {
-        console.log(`🆕 Creating new version for date range: ${dateRange?.from?.toISOString()} - ${dateRange?.to?.toISOString()}`);
-        createVersionMutation.mutate({});
+    const handleCreateNewVersion = (isUserInitiated: boolean = true) => {
+        console.log(`🆕 Creating new version for date range: ${dateRange?.from?.toISOString()} - ${dateRange?.to?.toISOString()}, user-initiated: ${isUserInitiated}`);
+        createVersionMutation.mutate({ isUserInitiated });
     };
 
-    const handleCreateNewVersionWithOptions = (options: { dateRange: DateRange; weekAmount: number }) => {
+    const handleCreateNewVersionWithOptions = (options: { dateRange: DateRange; weekAmount: number; isUserInitiated?: boolean }) => {
         if (!options.dateRange.from || !options.dateRange.to) {
             toast({
                 title: "Fehler",
@@ -339,7 +325,9 @@ export function useVersionControl({ dateRange, onVersionSelected, initialVersion
             return;
         }
 
-        console.log(`🆕 Creating new version with custom options:`, options);
+        // Get isUserInitiated from options or default to true
+        const isUserInitiated = options.isUserInitiated !== false;
+        console.log(`🆕 Creating new version with custom options:`, options, `user-initiated: ${isUserInitiated}`);
 
         // Format dates for API
         const fromStr = format(options.dateRange.from, 'yyyy-MM-dd');
@@ -348,7 +336,8 @@ export function useVersionControl({ dateRange, onVersionSelected, initialVersion
         // Create with the specific date range
         createVersionMutation.mutate({
             startDate: fromStr,
-            endDate: toStr
+            endDate: toStr,
+            isUserInitiated
         });
     };
 
@@ -370,6 +359,25 @@ export function useVersionControl({ dateRange, onVersionSelected, initialVersion
     const handleDuplicateVersion = (version: number) => {
         if (dateRange?.from && dateRange?.to) {
             duplicateVersionMutation.mutate(version);
+        }
+    };
+
+    const createNewVersion = async (startDate: string, endDate: string) => {
+        console.log(`📝 Creating new version for dates ${startDate} to ${endDate}`);
+        
+        const data = {
+            start_date: startDate,
+            end_date: endDate,
+            notes: `NEW BLANK VERSION - Empty schedules for ${startDate} - ${endDate} [Created: ${new Date().toISOString().slice(0, 16).replace('T', ' ')}]`
+        };
+
+        try {
+            const response = await apiCreateNewVersion(data);
+            console.log(`📝 Version created successfully:`, response);
+            return response;
+        } catch (error) {
+            console.error('Error creating version:', error);
+            throw error;
         }
     };
 
