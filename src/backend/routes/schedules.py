@@ -455,7 +455,11 @@ def generate_schedule():
                 create_empty_schedules=create_empty_schedules,
                 version=version,  # Pass the version to the generator
             )
-
+            
+            # Explicitly call _save_to_database method to ensure schedules are saved to the database
+            logger.schedule_logger.info("Explicitly calling _save_to_database to persist schedules...")
+            generator._save_to_database()
+            
             # Create a lookup of all shifts to ensure we have complete shift data
             shift_lookup = {shift.id: shift for shift in shifts}
 

@@ -245,24 +245,30 @@ export function VersionTable({
                             const isSelected = selectedVersion === version.version;
                             const isNew = isNewlyCreated(version.created_at);
                             
+                            // Add debug console log for selection state
+                            if (isSelected) {
+                                console.log(`🎯 VersionTable: Version ${version.version} is currently selected`);
+                            }
+                            if (isNew) {
+                                console.log(`🆕 VersionTable: Version ${version.version} was recently created`);
+                            }
+                            
                             return (
                                 <TableRow
                                     key={version.version}
-                                    className={`${isSelected ? "bg-muted/50" : ""} ${isNew ? "bg-blue-50/30" : ""}`}
+                                    className={`${isSelected ? 'bg-primary/5' : ''} ${isNew ? 'bg-green-50' : ''}`}
                                 >
-                                    <TableCell>
-                                        <div className="flex items-center gap-2">
-                                            <Button
-                                                variant={isSelected ? "default" : "ghost"}
-                                                size="sm"
-                                                onClick={() => onSelectVersion(version.version)}
-                                            >
-                                                V{version.version}
-                                            </Button>
-                                            {isNew && (
-                                                <Badge variant="default" className="bg-blue-500">Neu</Badge>
-                                            )}
-                                        </div>
+                                    <TableCell className="font-medium">
+                                        <Button
+                                            variant={isSelected ? "secondary" : "ghost"}
+                                            size="sm"
+                                            onClick={() => {
+                                                console.log(`🎯 VersionTable: User clicked to select version ${version.version}`);
+                                                onSelectVersion(version.version);
+                                            }}
+                                        >
+                                            {version.version}
+                                        </Button>
                                     </TableCell>
                                     <TableCell>
                                         {format(new Date(version.date_range.start), 'dd.MM.yyyy')} - {format(new Date(version.date_range.end), 'dd.MM.yyyy')}

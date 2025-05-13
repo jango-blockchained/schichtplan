@@ -370,8 +370,14 @@ def test_scheduler_components(db_path: str, test_date: date) -> None:
         print(f"Loaded {len(shifts)} shifts")
         print(f"Loaded {len(coverage)} coverage records")
         
-        # Create custom resource container
-        class CustomScheduleResources:
+        # Import scheduler components first to get types
+        print("\nInitializing scheduler components...")
+        from src.backend.services.scheduler.generator import ScheduleGenerator
+        from src.backend.services.scheduler.resources import ScheduleResources
+        from typing import Any, cast
+        
+        # Create custom resource container that inherits from ScheduleResources
+        class CustomScheduleResources(ScheduleResources):
             def __init__(self, employees, shifts, coverage):
                 self.employees = employees
                 self.shifts = shifts
@@ -432,10 +438,6 @@ def test_scheduler_components(db_path: str, test_date: date) -> None:
                 """Mock implementation - no avoided shifts"""
                 return []
         
-        # Import scheduler components
-        print("\nInitializing scheduler components...")
-        from src.backend.services.scheduler.generator import ScheduleGenerator
-        
         # Create resources
         resources = CustomScheduleResources(employees, shifts, coverage)
         print("Created custom resource container")
@@ -444,27 +446,7 @@ def test_scheduler_components(db_path: str, test_date: date) -> None:
         generator = ScheduleGenerator(resources=resources)
         print("Created ScheduleGenerator")
         
-        # Test coverage processing
-        print(f"\nTesting coverage processing for {test_date}...")
-        shift_needs = generator._process_coverage(test_date)
-        if shift_needs:
-            print(f"Coverage needs: {shift_needs}")
-        else:
-            print("No coverage needs found for this date!")
-            
-            # Check if coverage exists for this day
-            day_index = test_date.weekday() + 1
-            if day_index == 7:  # Convert Sunday (6) to 0
-                day_index = 0
-                
-            matching_coverage = [cov for cov in coverage if cov.day_index == day_index]
-            print(f"Coverage records for day {day_index}: {len(matching_coverage)}")
-            if matching_coverage:
-                print("Sample coverage:")
-                for i, cov in enumerate(matching_coverage[:3]):
-                    print(f"  {i+1}. ID={cov.id}, Time={cov.start_time}-{cov.end_time}, Min={cov.min_employees}")
-        
-        # Test shift creation
+        # Test shift creation for the date
         print(f"\nTesting shift creation for {test_date}...")
         date_shifts = generator._create_date_shifts(test_date)
         if date_shifts:
@@ -477,25 +459,52 @@ def test_scheduler_components(db_path: str, test_date: date) -> None:
             
             # Check if any shifts are configured for this day
             weekday = test_date.weekday()
-            matching_shifts = [s for s in shifts if hasattr(s, 'active_days') and s.active_days and weekday in s.active_days]
+            # Use a safer approach for checking active_days that avoids SQLAlchemy operator issues
+            matching_shifts = []
+            for s in shifts:
+                try:
+                    # This handles both regular lists and SQLAlchemy column objects
+                    if hasattr(s, 'active_days') and s.active_days:
+                        active_days = s.active_days
+                        # Convert to list if it's a string representation
+                        if isinstance(active_days, str):
+                            import json
+                            try:
+                                active_days = json.loads(active_days)
+                            except:
+                                active_days = []
+                        
+                        # Now check if weekday is in the list
+                        if weekday in active_days:
+                            matching_shifts.append(s)
+                except Exception as e:
+                    print(f"Error checking shift active_days: {e}")
+                    continue
+                    
             print(f"Shifts configured for weekday {weekday}: {len(matching_shifts)}")
             if matching_shifts:
                 print("Sample shifts:")
                 for i, shift in enumerate(matching_shifts[:3]):
                     print(f"  {i+1}. ID={shift.id}, Type={shift.shift_type}, Active days={shift.active_days}")
         
-        # If we have shifts and coverage, test distribution
-        if date_shifts and shift_needs:
-            # Test employee availability
-            print("\nTesting employee availability...")
-            available_employees = generator.distribution_manager.get_available_employees(test_date)
-            print(f"Available employees: {len(available_employees)}")
+        # Test assignment generation for the date
+        print(f"\nTesting assignment generation for {test_date}...")
+        try:
+            # Create a wrapper function to handle the parameter passing issues
+            def test_generate_assignments():
+                # Use try-except to handle possible errors in the internal method call
+                try:
+                    return generator._generate_assignments_for_date(test_date)
+                except TypeError as e:
+                    # If there's a parameter mismatch, try with the correct keyword
+                    if "missing 1 required positional argument" in str(e):
+                        return generator._generate_assignments_for_date(current_date=test_date)
+                except Exception as e:
+                    print(f"Error generating assignments: {e}")
+                    return None
             
-            # Test distribution
-            print("\nTesting employee distribution...")
-            assignments = generator.distribution_manager.assign_employees_with_distribution(
-                test_date, date_shifts, shift_needs
-            )
+            # Call the wrapper function
+            assignments = test_generate_assignments()
             
             if assignments:
                 print(f"Generated {len(assignments)} assignments")
@@ -505,8 +514,39 @@ def test_scheduler_components(db_path: str, test_date: date) -> None:
                     shift_id = assignment.get('shift_id')
                     print(f"  {i+1}. Employee {emp_id} assigned to Shift {shift_id}")
             else:
-                print("No assignments were generated by the distribution manager.")
-                print("This suggests a problem with the assignment algorithm.")
+                print("No assignments were generated for this date.")
+                
+                # Try to get coverage needs for intervals to diagnose the issue
+                from src.backend.services.scheduler.coverage_utils import get_required_staffing_for_interval
+                
+                # Check coverage for a typical interval
+                interval_start_time = datetime.time(9, 0)  # 9:00 AM
+                needs = get_required_staffing_for_interval(
+                    target_date=test_date,
+                    interval_start_time=interval_start_time,
+                    resources=resources,
+                    interval_duration_minutes=15
+                )
+                
+                print(f"\nCoverage needs for interval {interval_start_time}:")
+                print(f"  min_employees: {needs.get('min_employees', 0)}")
+                print(f"  employee_types: {needs.get('employee_types', set())}")
+                print(f"  requires_keyholder: {needs.get('requires_keyholder', False)}")
+                
+                # Check for day-specific coverage
+                day_index = test_date.weekday()
+                matching_coverage = [cov for cov in coverage if hasattr(cov, 'day_index') and cov.day_index == day_index]
+                print(f"Coverage records for day {day_index}: {len(matching_coverage)}")
+                if matching_coverage:
+                    print("Sample coverage:")
+                    for i, cov in enumerate(matching_coverage[:3]):
+                        print(f"  {i+1}. ID={cov.id}, Time={cov.start_time}-{cov.end_time}, Min={cov.min_employees}")
+                else:
+                    print("No coverage found for this day of the week.")
+                    
+        except Exception as e:
+            print(f"Error generating assignments: {e}")
+            traceback.print_exc()
         
         print("\nScheduler component testing complete.")
         
@@ -605,6 +645,174 @@ def run_diagnostic(db_path: str, test_date: date) -> None:
     
     print("\nDiagnostic complete.")
 
+def test_assignment_persistence(db_path: str, test_date: date, accumulated_ids_list: List[int]) -> bool:
+    """
+    Tests if assignments are correctly saved to the DB for a single date
+    and appends created IDs to the accumulated list.
+    Returns True if successful for this date, False otherwise.
+    """
+    print(f"\n--- Testing Assignment Persistence for {test_date} ---")
+    created_assignment_ids_for_this_date: List[int] = []
+    conn = None
+    success_for_this_date = False
+    try:
+        conn, cursor = get_connection(db_path)
+
+        # 1. Define test assignments
+        cursor.execute("SELECT id FROM employees WHERE is_active = 1 LIMIT 1")
+        employee_row = cursor.fetchone()
+        if not employee_row:
+            print(f"❌ No active employees found for {test_date}. Skipping persistence test for this date.")
+            return False
+        test_employee_id = employee_row[0]
+
+        cursor.execute("SELECT id FROM shifts LIMIT 1")
+        shift_row = cursor.fetchone()
+        if not shift_row:
+            print(f"❌ No shifts found for {test_date}. Skipping persistence test for this date.")
+            return False
+        test_shift_id = shift_row[0]
+        
+        cursor.execute("SELECT COALESCE(MAX(id), 0) FROM schedules")
+        max_id = cursor.fetchone()[0]
+        next_id = max_id + 1
+
+        test_assignments_data = [
+            {
+                "id": next_id,
+                "employee_id": test_employee_id,
+                "shift_id": test_shift_id,
+                "date": test_date.isoformat(),
+                "status": "PERSISTENCE_TEST",
+                "created_at": datetime.now().isoformat(),
+                "updated_at": datetime.now().isoformat(),
+                "version": 999 
+            }
+        ]
+
+        print(f"Attempting to create {len(test_assignments_data)} test assignment(s) for {test_date}...")
+        for assignment_data in test_assignments_data:
+            try:
+                cursor.execute(
+                    """
+                    INSERT INTO schedules (
+                        id, employee_id, shift_id, date, status, created_at, updated_at, version
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        assignment_data["id"],
+                        assignment_data["employee_id"],
+                        assignment_data["shift_id"],
+                        assignment_data["date"],
+                        assignment_data["status"],
+                        assignment_data["created_at"],
+                        assignment_data["updated_at"],
+                        assignment_data["version"],
+                    )
+                )
+                created_assignment_ids_for_this_date.append(assignment_data["id"])
+                print(f"  ✅ Created test assignment ID: {assignment_data['id']} for {test_date}")
+            except sqlite3.Error as e:
+                print(f"  ❌ Error creating test assignment for {test_date}: {e}")
+                conn.rollback()
+                return False # Stop for this date if creation fails
+        
+        if not created_assignment_ids_for_this_date:
+            print(f"No test assignments were created for {test_date}.")
+            return False
+
+        conn.commit()
+        print(f"Test assignment(s) for {test_date} committed.")
+
+        # 2. Verify assignments
+        print(f"Verifying test assignment(s) for {test_date}...")
+        verified_count = 0
+        for assignment_id in created_assignment_ids_for_this_date:
+            cursor.execute(
+                "SELECT id, employee_id, shift_id, date, status, version FROM schedules WHERE id = ?",
+                (assignment_id,)
+            )
+            row = cursor.fetchone()
+            if row:
+                original_data = next(item for item in test_assignments_data if item["id"] == assignment_id)
+                if (row["employee_id"] == original_data["employee_id"] and
+                    row["shift_id"] == original_data["shift_id"] and
+                    row["date"] == original_data["date"] and
+                    row["status"] == original_data["status"] and
+                    row["version"] == original_data["version"]):
+                    print(f"  ✅ Verified assignment ID: {assignment_id} for {test_date}.")
+                    verified_count += 1
+                else:
+                    print(f"  ❌ Verification failed for assignment ID: {assignment_id} on {test_date}. Data mismatch.")
+            else:
+                print(f"  ❌ Verification failed. Assignment ID: {assignment_id} for {test_date} not found.")
+
+        if verified_count == len(created_assignment_ids_for_this_date):
+            print(f"✅ All test assignments for {test_date} successfully created and verified.")
+            accumulated_ids_list.extend(created_assignment_ids_for_this_date) # Add to main list
+            success_for_this_date = True
+        else:
+            print(f"❌ Verification issues for {test_date}: {verified_count}/{len(created_assignment_ids_for_this_date)} verified.")
+            # Optionally, decide if partially successful tests should still have their IDs added for reversal
+            # For now, only adding if all are verified for this date.
+
+    except sqlite3.Error as e:
+        print(f"❌ Database error during persistence test for {test_date}: {e}")
+        if conn: conn.rollback()
+    except Exception as e:
+        print(f"❌ Unexpected error for {test_date}: {e}")
+        traceback.print_exc()
+        if conn: conn.rollback()
+    finally:
+        if conn: conn.close()
+        print(f"--- Finished Assignment Persistence Test for {test_date} ---")
+    
+    return success_for_this_date
+
+
+def ask_and_reverse_assignments(db_path: str, assignment_ids: List[int]):
+    """
+    Asks the user if they want to delete the specified assignments and does so if confirmed.
+    """
+    if not assignment_ids:
+        print("No assignment IDs provided for reversal.")
+        return
+
+    print("-" * 40)
+    user_input = input(f"Do you want to reverse/delete the {len(assignment_ids)} test assignment(s) created? (yes/no): ").strip().lower()
+    
+    if user_input == 'yes':
+        conn = None
+        try:
+            conn, cursor = get_connection(db_path)
+            placeholders = ','.join('?' for _ in assignment_ids)
+            sql = f"DELETE FROM schedules WHERE id IN ({placeholders})"
+            
+            cursor.execute(sql, assignment_ids)
+            deleted_count = cursor.rowcount
+            conn.commit()
+            
+            if deleted_count == len(assignment_ids):
+                print(f"✅ Successfully deleted {deleted_count} test assignment(s).")
+            elif deleted_count > 0:
+                 print(f"⚠️ Deleted {deleted_count} assignment(s), but expected to delete {len(assignment_ids)}.")
+            else:
+                print("❌ No test assignments were deleted. They might have been removed by another process or did not exist.")
+
+        except sqlite3.Error as e:
+            print(f"❌ Database error during assignment reversal: {e}")
+            if conn:
+                conn.rollback()
+        except Exception as e:
+            print(f"❌ An unexpected error occurred during reversal: {e}")
+            traceback.print_exc()
+        finally:
+            if conn:
+                conn.close()
+    else:
+        print("Test assignments were NOT reversed and remain in the database.")
+    print("-" * 40)
+
 def main():
     """Main function to parse arguments and run the appropriate action"""
     parser = argparse.ArgumentParser(description="Scheduler Companion Utility")
@@ -615,59 +823,108 @@ def main():
     parser.add_argument("--create-assignments", action="store_true", help="Create test assignments")
     parser.add_argument("--test-components", action="store_true", help="Test scheduler components")
     parser.add_argument("--diagnostic", action="store_true", help="Run comprehensive diagnostic")
-    parser.add_argument("--date", type=str, help="Date to use for testing (YYYY-MM-DD format)")
+    # parser.add_argument("--date", type=str, help="Date to use for testing (YYYY-MM-DD format)") # Removed
+    parser.add_argument("--start-date", type=str, help="Start date for testing (YYYY-MM-DD format). Defaults to today if not specified.")
+    parser.add_argument("--end-date", type=str, help="End date for testing (YYYY-MM-DD format). If provided, creates a range with start-date.")
+    parser.add_argument("--test-assignment-persistence", action="store_true", help="Test assignment creation, DB save, and offer reversal")
     
     args = parser.parse_args()
     
     # Find the database file
     db_path = os.path.join(root_dir, "src/instance/app.db")
     
-    # Determine the test date
-    if args.date:
+    # Determine the test date(s)
+    dates_to_process: List[date] = []
+    
+    start_date_obj: Optional[date] = None
+    end_date_obj: Optional[date] = None
+
+    if args.start_date:
         try:
-            test_date = date.fromisoformat(args.date)
+            start_date_obj = date.fromisoformat(args.start_date)
         except ValueError:
-            print(f"Invalid date format: {args.date}. Use YYYY-MM-DD.")
+            print(f"Invalid start-date format: {args.start_date}. Use YYYY-MM-DD.")
             return
-    else:
-        test_date = date.today()
     
+    if args.end_date:
+        try:
+            end_date_obj = date.fromisoformat(args.end_date)
+        except ValueError:
+            print(f"Invalid end-date format: {args.end_date}. Use YYYY-MM-DD.")
+            return
+
+    if start_date_obj and end_date_obj:
+        if end_date_obj < start_date_obj:
+            print("Error: End date cannot be before start date.")
+            return
+        current_date_in_loop = start_date_obj
+        while current_date_in_loop <= end_date_obj:
+            dates_to_process.append(current_date_in_loop)
+            current_date_in_loop += timedelta(days=1)
+    elif start_date_obj:
+        dates_to_process.append(start_date_obj)
+    else: # Neither start_date nor end_date provided, default to today
+        dates_to_process.append(date.today())
+
+    if not dates_to_process:
+        print("No dates selected for processing.")
+        return
+
     print(f"Using database: {db_path}")
-    print(f"Using test date: {test_date}")
-    
+    if len(dates_to_process) == 1:
+        print(f"Processing for date: {dates_to_process[0]}")
+    else:
+        print(f"Processing for date range: {dates_to_process[0]} to {dates_to_process[-1]}")
+
     # Run the requested actions
-    if args.check:
-        print("\nCHECKING CONFIGURATION")
-        print("=" * 40)
-        db_ok = check_database(db_path)
-        active_days_ok = check_active_days(db_path)
+    # Note: Some actions like diagnostic might run multiple times if a range is selected.
+    # Consider if this is desired or if they should only run for the start_date.
+    # For now, they will run for each date in dates_to_process if their flag is set.
+    
+    all_accumulated_assignment_ids: List[int] = []
+
+    for current_test_date in dates_to_process:
+        print(f"\n=== Processing actions for date: {current_test_date} ===")
+        if args.check: # This will run for each date in range
+            print("\nCHECKING CONFIGURATION")
+            print("=" * 40)
+            db_ok = check_database(db_path)
+            active_days_ok = check_active_days(db_path) # This check is not date-specific
+            if db_ok and active_days_ok:
+                print("✅ All configuration checks passed.")
+            else:
+                print("⚠️ Some configuration checks failed.")
         
-        if db_ok and active_days_ok:
-            print("✅ All configuration checks passed.")
-        else:
-            print("⚠️ Some configuration checks failed. See above for details.")
-    
-    if args.fix_active_days:
-        print("\nFIXING SHIFT ACTIVE_DAYS")
-        print("=" * 40)
-        fix_active_days(db_path)
-    
-    if args.create_assignments:
-        print("\nCREATING TEST ASSIGNMENTS")
-        print("=" * 40)
-        create_test_assignments(db_path, test_date)
-    
-    if args.test_components:
-        print("\nTESTING SCHEDULER COMPONENTS")
-        print("=" * 40)
-        test_scheduler_components(db_path, test_date)
-    
-    if args.diagnostic:
-        run_diagnostic(db_path, test_date)
-    
+        if args.fix_active_days: # Not date-specific, will run multiple times if in range
+            print("\nFIXING SHIFT ACTIVE_DAYS")
+            print("=" * 40)
+            fix_active_days(db_path)
+        
+        if args.create_assignments: # Date-specific
+            print("\nCREATING TEST ASSIGNMENTS")
+            print("=" * 40)
+            create_test_assignments(db_path, current_test_date)
+        
+        if args.test_components: # Date-specific
+            print("\nTESTING SCHEDULER COMPONENTS")
+            print("=" * 40)
+            test_scheduler_components(db_path, current_test_date)
+        
+        if args.diagnostic: # Date-specific
+            run_diagnostic(db_path, current_test_date)
+        
+        if args.test_assignment_persistence: # Date-specific
+            test_assignment_persistence(db_path, current_test_date, all_accumulated_assignment_ids)
+
+    # After processing all dates, handle reversal if assignments were created
+    if args.test_assignment_persistence and all_accumulated_assignment_ids:
+        print("\n=== End of Date Range Processing ===")
+        ask_and_reverse_assignments(db_path, all_accumulated_assignment_ids)
+    elif args.test_assignment_persistence: # Flag was set but no IDs accumulated
+        print("\nNo assignments were created by the persistence test across the date range.")
+
     # If no arguments provided, show help
-    if not any([args.check, args.fix_active_days, args.create_assignments, 
-                args.test_components, args.diagnostic]):
+    if not any(getattr(args, arg) for arg in vars(args) if arg not in ['start_date', 'end_date']):
         parser.print_help()
 
 if __name__ == "__main__":

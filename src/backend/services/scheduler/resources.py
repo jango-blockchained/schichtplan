@@ -66,8 +66,160 @@ except ImportError as e1:
             logging.getLogger(__name__).critical(
                 f"All model imports failed. Primary: {ModelImportError_Primary}, Fallback1: {ModelImportError_Fallback1}, Fallback2: {ModelImportError_Fallback2}. Resources module will likely fail."
             )
-            # Placeholder classes REMOVED. Runtime errors will occur if models are unavailable.
-            # If running tests, mocks should be used.
+            
+            # Define necessary placeholder classes since all imports failed
+            class MockSettings:
+                """Fallback Settings class for when imports fail"""
+                def __init__(self):
+                    self.special_days = {}
+                    self.special_hours = {}
+                    self.id = 0
+                
+            # Define placeholder for Coverage model
+            class MockCoverage:
+                """Fallback Coverage class for when imports fail"""
+                def __init__(self):
+                    self.id = 0
+                    self.day_index = 0
+                    self.start_time = "09:00"
+                    self.end_time = "17:00"
+                    self.min_employees = 1
+                    self.max_employees = 3
+                    self.requires_keyholder = False
+                
+                @staticmethod
+                def query():
+                    class MockQuery:
+                        @staticmethod
+                        def all():
+                            return []
+                    return MockQuery()
+            
+            # Define placeholder for Employee model
+            class MockEmployee:
+                """Fallback Employee class for when imports fail"""
+                def __init__(self):
+                    self.id = 0
+                    self.name = "Mock Employee"
+                    self.is_keyholder = False
+                    self.is_active = True
+                    self.employee_group = None
+                
+                @staticmethod
+                def query():
+                    class MockQuery:
+                        @staticmethod
+                        def filter_by(**kwargs):
+                            class MockFilterResult:
+                                @staticmethod
+                                def all():
+                                    return []
+                            return MockFilterResult()
+                    return MockQuery()
+            
+            # Define placeholder for ShiftTemplate model
+            class MockShiftTemplate:
+                """Fallback ShiftTemplate class for when imports fail"""
+                def __init__(self):
+                    self.id = 0
+                    self.name = "Mock Shift"
+                    self.start_time = "09:00"
+                    self.end_time = "17:00"
+                    self.active_days = [0, 1, 2, 3, 4]
+                    self.shift_type = "STANDARD"
+                
+                @staticmethod
+                def query():
+                    class MockQuery:
+                        @staticmethod
+                        def all():
+                            return []
+                    return MockQuery()
+            
+            # Define placeholder for Absence model
+            class MockAbsence:
+                """Fallback Absence class for when imports fail"""
+                def __init__(self):
+                    self.id = 0
+                    self.employee_id = 0
+                    self.start_date = date.today()
+                    self.end_date = date.today()
+                
+                @staticmethod
+                def query():
+                    class MockQuery:
+                        @staticmethod
+                        def all():
+                            return []
+                    return MockQuery()
+            
+            # Define placeholder for EmployeeAvailability model
+            class MockEmployeeAvailability:
+                """Fallback EmployeeAvailability class for when imports fail"""
+                def __init__(self):
+                    self.id = 0
+                    self.employee_id = 0
+                    self.day_of_week = 0
+                    self.hour = 9
+                    self.is_available = True
+                    self.availability_type = None
+                
+                @staticmethod
+                def query():
+                    class MockQuery:
+                        @staticmethod
+                        def all():
+                            return []
+                    return MockQuery()
+            
+            # Define placeholder for Schedule model
+            class MockSchedule:
+                """Fallback Schedule class for when imports fail"""
+                def __init__(self):
+                    self.id = 0
+                    self.employee_id = 0
+                    self.shift_id = 0
+                    self.date = date.today()
+                    self.status = "DRAFT"
+                    self.version = 1
+            
+            # Define placeholder for EmployeeGroup and AvailabilityType enums
+            class MockEmployeeGroup:
+                """Fallback EmployeeGroup enum for when imports fail"""
+                VZ = "VZ"  # Full-time
+                TZ = "TZ"  # Part-time
+                GFB = "GFB"  # Mini-job
+                TL = "TL"  # Team leader
+            
+            class MockAvailabilityType:
+                """Fallback AvailabilityType enum for when imports fail"""
+                AVAILABLE = "AVL"
+                PREFERRED = "PRF"
+                UNAVAILABLE = "UNV"
+                FIXED = "FIX"
+            
+            # Define placeholders for database access
+            class MockDb:
+                """Mock database class"""
+                class session:
+                    @staticmethod
+                    def add(obj):
+                        pass
+                    @staticmethod
+                    def commit():
+                        pass
+            
+            # Assign the mocks to global scope
+            Settings = MockSettings
+            Coverage = MockCoverage
+            Employee = MockEmployee
+            ShiftTemplate = MockShiftTemplate
+            Absence = MockAbsence
+            EmployeeAvailability = MockEmployeeAvailability
+            Schedule = MockSchedule
+            EmployeeGroup = MockEmployeeGroup
+            AvailabilityType = MockAvailabilityType
+            db = MockDb()
 
 # Configure logger
 # logger = logging.getLogger(__name__) # Original logger

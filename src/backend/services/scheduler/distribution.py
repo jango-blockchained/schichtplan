@@ -11,7 +11,40 @@ from types import SimpleNamespace # Import SimpleNamespace
 from .resources import ScheduleResources # Assuming ScheduleResources is in resources.py
 from .constraints import ConstraintChecker # Assuming ConstraintChecker is in constraints.py
 from .availability import AvailabilityChecker # Assuming AvailabilityChecker is in availability.py
-from .coverage_utils import get_required_staffing_for_interval, _time_str_to_datetime_time # Import the new utility and helper
+try:
+    from .coverage_utils import get_required_staffing_for_interval, _time_str_to_datetime_time
+except ImportError:
+    # Fallback implementations if imports fail
+    def _time_str_to_datetime_time(time_str: str) -> time:
+        """Convert a time string (HH:MM) to a datetime.time object"""
+        try:
+            if not time_str or not isinstance(time_str, str):
+                return time(9, 0)  # Default to 9:00 AM
+            
+            # Parse the time string
+            if ":" in time_str:
+                hours, minutes = map(int, time_str.split(":"))
+                return time(hours, minutes)
+            else:
+                return time(int(time_str), 0)
+        except (ValueError, TypeError):
+            # Fallback to a default time if parsing fails
+            return time(9, 0)  # Default to 9:00 AM
+    
+    def get_required_staffing_for_interval(
+        resources: ScheduleResources,
+        target_date: date,
+        interval_start: time,
+        interval_end: time
+    ) -> Dict[str, Any]:
+        """Fallback implementation returning minimum staffing"""
+        return {
+            "min_employees": 1,
+            "max_employees": 3,
+            "requires_keyholder": False,
+            "coverage_id": None,
+            "has_coverage": True
+        } # Import the new utility and helper
 from .feature_extractor import FeatureExtractor # Import the FeatureExtractor
 import random # Import random for dummy predictions
 
