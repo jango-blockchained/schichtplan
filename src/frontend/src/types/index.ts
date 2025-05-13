@@ -118,6 +118,17 @@ export interface StoreConfig {
     keyholder_after_minutes: number;
     opening_days: { [key: string]: boolean };
     special_hours: { [key: string]: { is_closed: boolean, opening: string, closing: string } };
+    special_days: { 
+        [date: string]: {
+            date: string;
+            description: string;
+            is_closed: boolean;
+            custom_hours?: {
+                opening: string; // HH:MM format
+                closing: string; // HH:MM format
+            };
+        }
+    };
     break_duration_minutes: number;
     created_at?: string;
     updated_at?: string;
@@ -189,6 +200,17 @@ export interface Settings {
         keyholder_after_minutes: number;
         opening_days: { [key: string]: boolean };
         special_hours: { [key: string]: { is_closed: boolean, opening: string, closing: string } };
+        special_days: { 
+            [date: string]: {
+                date: string;
+                description: string;
+                is_closed: boolean;
+                custom_hours?: {
+                    opening: string; // HH:MM format
+                    closing: string; // HH:MM format
+                };
+            }
+        };
     };
     scheduling: {
         scheduling_resource_type: 'shifts' | 'coverage';

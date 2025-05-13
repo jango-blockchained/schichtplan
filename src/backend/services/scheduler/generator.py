@@ -729,8 +729,9 @@ class ScheduleGenerator:
         """
         Generates shift assignments for a single date.
         This method will now:
-        1. Create potential shift instances for the day.
-        2. Delegate to DistributionManager to assign employees to these shifts
+        1. Check if the store is closed on this date due to a special day/holiday.
+        2. Create potential shift instances for the day.
+        3. Delegate to DistributionManager to assign employees to these shifts
            based on interval-based coverage needs (to be implemented in DistributionManager).
         """
         date_str = current_date.isoformat()
@@ -740,6 +741,23 @@ class ScheduleGenerator:
         assignments_for_date: List[Dict] = []
 
         try:
+            # Check if store is closed on this date due to a special day/holiday
+            if hasattr(self.resources, 'settings') and self.resources.settings:
+                # First check special_days if it exists
+                if hasattr(self.resources.settings, 'special_days') and self.resources.settings.special_days:
+                    if date_str in self.resources.settings.special_days and self.resources.settings.special_days[date_str].get('is_closed', False):
+                        description = self.resources.settings.special_days[date_str].get('description', 'Special Day')
+                        self.logger.info(f"Store is closed on {date_str} due to: {description}")
+                        self.process_tracker.log_info(f"Skipping date {date_str}: Store closed for {description}")
+                        return []
+                
+                # If special_days doesn't exist or date not found, check legacy special_hours
+                elif hasattr(self.resources.settings, 'special_hours') and self.resources.settings.special_hours:
+                    if date_str in self.resources.settings.special_hours and self.resources.settings.special_hours[date_str].get('is_closed', False):
+                        self.logger.info(f"Store is closed on {date_str} (special hours setting)")
+                        self.process_tracker.log_info(f"Skipping date {date_str}: Store closed (special hours)")
+                        return []
+            
             # Sub-step: Create Shift Instances
             self.process_tracker.start_step(f"Create Shift Instances for {date_str}")
             # These are shift *instances* (dicts), potential shifts for the day

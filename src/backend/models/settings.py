@@ -50,7 +50,11 @@ class Settings(db.Model):
         },
     )
 
-    # Special Opening Hours (overrides default hours)
+    # Special Days (overrides default hours and includes holidays)
+    # Format: {"YYYY-MM-DD": {"description": string, "is_closed": bool, "custom_hours": {"opening": "HH:MM", "closing": "HH:MM"}}}
+    special_days = Column(JSON, nullable=False, default=dict)
+    
+    # Special Opening Hours (overrides default hours) - DEPRECATED, use special_days instead
     # Format: {"YYYY-MM-DD": {"is_closed": bool, "opening": "HH:MM", "closing": "HH:MM"}}
     special_hours = Column(JSON, nullable=False, default=dict)
 
@@ -391,7 +395,11 @@ class Settings(db.Model):
         """Check if store is open on a specific date"""
         date_str = date.strftime("%Y-%m-%d")
 
-        # Check special hours first
+        # Check special days first
+        if hasattr(self, 'special_days') and self.special_days and date_str in self.special_days:
+            return not self.special_days[date_str].get("is_closed", False)
+            
+        # Check special hours as fallback for backward compatibility
         if date_str in self.special_hours:
             return not self.special_hours[date_str].get("is_closed", False)
 
@@ -403,10 +411,17 @@ class Settings(db.Model):
         """Get store opening and closing hours for a specific date"""
         date_str = date.strftime("%Y-%m-%d")
 
-        # Check special hours first
-        if date_str in self.special_hours and not self.special_hours[date_str].get(
-            "is_closed", False
-        ):
+        # Check special days first
+        if hasattr(self, 'special_days') and self.special_days and date_str in self.special_days and not self.special_days[date_str].get("is_closed", False):
+            special = self.special_days[date_str]
+            if special.get("custom_hours"):
+                # Use custom hours from special days if available
+                opening = special["custom_hours"].get("opening", str(self.store_opening))
+                closing = special["custom_hours"].get("closing", str(self.store_closing))
+                return opening, closing
+        
+        # Check special hours as fallback for backward compatibility
+        if date_str in self.special_hours and not self.special_hours[date_str].get("is_closed", False):
             special = self.special_hours[date_str]
             # Use the special hours if available, otherwise fall back to default store hours
             opening = special.get("opening", str(self.store_opening))
@@ -432,6 +447,7 @@ class Settings(db.Model):
                 "keyholder_before_minutes": self.keyholder_before_minutes,
                 "keyholder_after_minutes": self.keyholder_after_minutes,
                 "opening_days": self.opening_days,
+                "special_days": self.special_days or {},
                 "special_hours": self.special_hours,
             },
             "scheduling": {

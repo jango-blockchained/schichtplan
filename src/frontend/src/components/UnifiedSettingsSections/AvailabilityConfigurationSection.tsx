@@ -28,10 +28,9 @@ interface FrontendAvailabilityType {
 }
 
 interface AvailabilityConfigurationSectionProps {
-  localSettings: Partial<Settings>;
-  handleSave: (category: 'availability_types', updates: Partial<Settings['availability_types']>) => void;
-  handleImmediateUpdate: () => void;
-  updateMutationIsPending: boolean;
+  settings?: Settings['availability_types']; // Match the prop name being passed from UnifiedSettingsPage
+  onUpdate: (updatedTypes: AvailabilityTypeFromSettings[]) => void;
+  onImmediateUpdate: () => void;
 }
 
 const mapToFrontend = (backendTypes: AvailabilityTypeFromSettings[] = []): FrontendAvailabilityType[] => {
@@ -57,18 +56,19 @@ const mapToBackend = (frontendTypes: FrontendAvailabilityType[]): AvailabilityTy
 };
 
 export const AvailabilityConfigurationSection: React.FC<AvailabilityConfigurationSectionProps> = ({
-  localSettings,
-  handleSave,
-  handleImmediateUpdate,
-  updateMutationIsPending,
+  settings,
+  onUpdate,
+  onImmediateUpdate,
 }) => {
   const [displayableTypes, setDisplayableTypes] = useState<FrontendAvailabilityType[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingType, setEditingType] = useState<FrontendAvailabilityType | null>(null);
 
   useEffect(() => {
-    setDisplayableTypes(mapToFrontend(localSettings.availability_types?.types));
-  }, [localSettings.availability_types]);
+    // Ensure settings and types are not undefined
+    const availabilityTypes = settings?.types || [];
+    setDisplayableTypes(mapToFrontend(availabilityTypes));
+  }, [settings]);
 
   const handleOpenModal = (type: FrontendAvailabilityType) => {
     setEditingType({ ...type }); 
@@ -95,7 +95,7 @@ export const AvailabilityConfigurationSection: React.FC<AvailabilityConfiguratio
     setDisplayableTypes(updatedDisplayableTypes);
 
     const backendFormattedTypes = mapToBackend(updatedDisplayableTypes);
-    handleSave('availability_types', { types: backendFormattedTypes });
+    onUpdate(backendFormattedTypes);
     handleCloseModal();
   };
 
@@ -143,8 +143,8 @@ export const AvailabilityConfigurationSection: React.FC<AvailabilityConfiguratio
           </Table>
         </CardContent>
         <CardFooter className="flex justify-end">
-            <Button onClick={handleImmediateUpdate} disabled={updateMutationIsPending}>
-                {updateMutationIsPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save Availability Configuration
+            <Button onClick={onImmediateUpdate}>
+                Save Availability Configuration
             </Button>
         </CardFooter>
       </Card>

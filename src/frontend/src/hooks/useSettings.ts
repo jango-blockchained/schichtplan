@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS: Settings = {
     keyholder_after_minutes: 30,
     opening_days: {},
     special_hours: {},
+    special_days: {},
     availability_types: { types: [] },
     shift_types: [],
     general: {
@@ -33,7 +34,8 @@ export const DEFAULT_SETTINGS: Settings = {
         keyholder_before_minutes: 30,
         keyholder_after_minutes: 30,
         opening_days: {},
-        special_hours: {}
+        special_hours: {},
+        special_days: {}
     },
     scheduling: {
         scheduling_resource_type: 'shifts',
@@ -172,9 +174,9 @@ export function useSettings() {
         const formattedData: Record<string, any> = {};
 
         // Format general settings
-        if (Object.keys(newSettings).some(key => ['store_name', 'store_address', 'store_contact', 'timezone', 'language', 'date_format', 'time_format', 'store_opening', 'store_closing', 'keyholder_before_minutes', 'keyholder_after_minutes', 'opening_days', 'special_hours'].includes(key))) {
+        if (Object.keys(newSettings).some(key => ['store_name', 'store_address', 'store_contact', 'timezone', 'language', 'date_format', 'time_format', 'store_opening', 'store_closing', 'keyholder_before_minutes', 'keyholder_after_minutes', 'opening_days', 'special_hours', 'special_days'].includes(key))) {
             formattedData.general = {};
-            ['store_name', 'store_address', 'store_contact', 'timezone', 'language', 'date_format', 'time_format', 'store_opening', 'store_closing', 'keyholder_before_minutes', 'keyholder_after_minutes', 'opening_days', 'special_hours'].forEach(key => {
+            ['store_name', 'store_address', 'store_contact', 'timezone', 'language', 'date_format', 'time_format', 'store_opening', 'store_closing', 'keyholder_before_minutes', 'keyholder_after_minutes', 'opening_days', 'special_hours', 'special_days'].forEach(key => {
                 if (key in newSettings) {
                     formattedData.general[key] = newSettings[key as keyof Settings];
                 }

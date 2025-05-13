@@ -14,34 +14,37 @@ import ShiftTypesEditor, {
 import type { Settings, EmployeeType, AbsenceType, ShiftType } from '@/types/index'; // Assuming these are the correct root types
 
 interface EmployeeShiftDefinitionsSectionProps {
-  localSettings: Partial<Settings>;
-  handleSave: (category: 'employee_groups', updates: Partial<Settings['employee_groups']>) => void;
-  handleImmediateUpdate: () => void;
-  updateMutationIsPending: boolean;
+  settings?: Settings['employee_groups']; // Match the prop name being passed from UnifiedSettingsPage
+  onUpdate: (category: keyof Settings, updates: Partial<Settings[keyof Settings]>) => void;
+  onImmediateUpdate: () => void;
 }
 
 export const EmployeeShiftDefinitionsSection: React.FC<EmployeeShiftDefinitionsSectionProps> = ({
-  localSettings,
-  handleSave,
-  handleImmediateUpdate,
-  updateMutationIsPending,
+  settings,
+  onUpdate,
+  onImmediateUpdate,
 }) => {
-  const employeeGroups = localSettings.employee_groups ?? { employee_types: [], absence_types: [], shift_types: [] };
+  // Ensure settings is never undefined by providing default empty object
+  const employeeGroups = settings || { 
+    employee_types: [], 
+    absence_types: [], 
+    shift_types: [] 
+  };
 
   const handleEmployeeTypesChange = (updatedEmployeeTypes: EditorEmployeeType[]) => {
     // Remove the 'type' field added by the editor if it exists, ensure it matches backend model
     const formattedEmployeeTypes: EmployeeType[] = updatedEmployeeTypes.map(({ type, ...rest }) => rest as EmployeeType);
-    handleSave('employee_groups', { ...employeeGroups, employee_types: formattedEmployeeTypes });
+    onUpdate('employee_groups', { ...employeeGroups, employee_types: formattedEmployeeTypes });
   };
 
   const handleAbsenceTypesChange = (updatedAbsenceTypes: EditorAbsenceType[]) => {
     const formattedAbsenceTypes: AbsenceType[] = updatedAbsenceTypes.map(({ type, ...rest }) => rest as AbsenceType);
-    handleSave('employee_groups', { ...employeeGroups, absence_types: formattedAbsenceTypes });
+    onUpdate('employee_groups', { ...employeeGroups, absence_types: formattedAbsenceTypes });
   };
 
   const handleShiftTypesChange = (updatedShiftTypes: EditorShiftType[]) => {
     const formattedShiftTypes: ShiftType[] = updatedShiftTypes.map(({ type, ...rest }) => rest as ShiftType);
-    handleSave('employee_groups', { ...employeeGroups, shift_types: formattedShiftTypes });
+    onUpdate('employee_groups', { ...employeeGroups, shift_types: formattedShiftTypes });
   };
 
   return (
@@ -88,8 +91,8 @@ export const EmployeeShiftDefinitionsSection: React.FC<EmployeeShiftDefinitionsS
       </Card>
 
       <div className="flex justify-end mt-6">
-        <Button onClick={handleImmediateUpdate} disabled={updateMutationIsPending}>
-          {updateMutationIsPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save Employee & Shift Definitions
+        <Button onClick={onImmediateUpdate}>
+          Save Employee & Shift Definitions
         </Button>
       </div>
     </div>
