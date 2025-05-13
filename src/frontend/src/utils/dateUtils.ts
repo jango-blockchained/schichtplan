@@ -19,30 +19,49 @@ export function getWeekDateRange(year: number, week: number, weekCount: number =
             weekCount = 1;
         }
 
-        // Use the more accurate ISO week date calculation
-        // Jan 4th is always in the first week of the ISO year
-        const jan4 = new Date(year, 0, 4);
-        // Go back to Monday of that week
-        const firstMonday = startOfWeek(jan4, { weekStartsOn: 1 });
-
+        // Use ISO week date calculation with explicit Monday start
+        const firstDayOfYear = new Date(year, 0, 1);
+        const firstDayOfYearDay = firstDayOfYear.getDay() || 7; // Convert Sunday (0) to 7
+        
+        // Calculate the first Monday of the year
+        // If Jan 1 is already Monday (day 1), keep it, otherwise go to next Monday
+        const daysToFirstMonday = (firstDayOfYearDay <= 1) ? 0 : (8 - firstDayOfYearDay);
+        const firstMonday = new Date(year, 0, 1 + daysToFirstMonday);
+        
         // Calculate the start date of the target week
-        const startDate = addDays(firstMonday, (week - 1) * 7);
-        const endDate = addDays(startDate, (weekCount * 7) - 1);
+        // First week (1) starts with the first Monday, so week 2 would be +7 days, etc.
+        const startDate = new Date(firstMonday);
+        startDate.setDate(firstMonday.getDate() + (week - 1) * 7);
+        
+        // End date is 6 days after start date for 1 week (Monday to Sunday)
+        // Or more for multiple weeks
+        const endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + (weekCount * 7) - 1);
 
+        // Add debug logging with explicit day of week checks
         console.log('Week date calculation:', {
             year,
             week,
             weekCount,
-            jan4: jan4.toISOString(),
             firstMonday: firstMonday.toISOString(),
             startDate: startDate.toISOString(),
-            endDate: endDate.toISOString()
+            endDate: endDate.toISOString(),
+            startDay: startDate.getDay() || 7, // 1 = Monday, 7 = Sunday
+            endDay: endDate.getDay() || 7 // 1 = Monday, 7 = Sunday
         });
+
+        // Verify start date is Monday (day 1) and end date is Sunday (day 0 or 7)
+        const startDay = startDate.getDay();
+        if (startDay !== 1) {
+            console.warn(`Start date is not Monday! Day of week: ${startDay}. Fixing...`);
+            // Force to Monday
+            startDate.setDate(startDate.getDate() - startDay + 1);
+        }
 
         return { start: startDate, end: endDate };
     } catch (error) {
         console.error('Error in getWeekDateRange:', error);
-        // Fallback to current week
+        // Fallback to current week with explicit Monday start
         const today = new Date();
         const start = startOfWeek(today, { weekStartsOn: 1 });
         const end = addDays(start, (weekCount * 7) - 1);
