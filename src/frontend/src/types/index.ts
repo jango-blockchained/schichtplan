@@ -89,6 +89,7 @@ export interface ScheduleResponse {
 }
 
 export interface ScheduleUpdate {
+    id?: number;
     employee_id?: number | null;
     shift_id?: number | null;
     date?: string | null;

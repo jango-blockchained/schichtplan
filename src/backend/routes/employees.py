@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
-from models import db, Employee, EmployeeAvailability
-from models.employee import AvailabilityType
+from src.backend.models import db, Employee, EmployeeAvailability
+from src.backend.models.employee import AvailabilityType
 from http import HTTPStatus
 from pydantic import ValidationError
 from src.backend.schemas.employees import EmployeeCreateRequest, EmployeeUpdateRequest
@@ -148,8 +148,8 @@ def update_employee_availabilities(employee_id):
         # Add new availabilities
         availabilities_data = request.json
         for data in availabilities_data:
-            # Get availability type from data or default to AVL
-            avail_type = data.get("availability_type", "AVL")
+            # Get availability type from data or default to AVAILABLE
+            avail_type = data.get("availability_type", "AVAILABLE")
             availability = EmployeeAvailability(
                 employee_id=employee_id,
                 day_of_week=data["day_of_week"],

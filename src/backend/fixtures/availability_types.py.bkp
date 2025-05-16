@@ -5,36 +5,36 @@ class AvailabilityType(TypedDict):
     name: str
     color: str
     description: str
-    type: Literal['AVL', 'FIX', 'PRF', 'UNV']
+    type: Literal['AVAILABLE', 'FIXED', 'PREFERRED', 'UNAVAILABLE']
 
 AVAILABILITY_TYPES: list[AvailabilityType] = [
     {
-        'code': 'AVL',
+        'code': 'AVAILABLE',
         'name': 'Available',
         'color': '#22c55e',
         'description': 'Employee is available for work',
-        'type': 'AVL'
+        'type': 'AVAILABLE'
     },
     {
-        'code': 'FIX',
+        'code': 'FIXED',
         'name': 'Fixed',
         'color': '#3b82f6',
         'description': 'Fixed/regular schedule',
-        'type': 'FIX'
+        'type': 'FIXED'
     },
     {
         'code': 'UNA',
         'name': 'Unavailable',
         'color': '#ef4444',
         'description': 'Not available for work',
-        'type': 'UNV'
+        'type': 'UNAVAILABLE'
     },
     {
-        'code': 'PRF',
+        'code': 'PREFERRED',
         'name': 'Preferred',
         'color': '#8b5cf6',
         'description': 'Preferred working time',
-        'type': 'PRF'
+        'type': 'PREFERRED'
     }
 ]
 

@@ -58,6 +58,17 @@ from .resources import ScheduleResources as RuntimeScheduleResources # Runtime a
 from .validator import ScheduleValidator
 from .validator import ScheduleConfig as ValidatorRuntimeScheduleConfig # Runtime alias for validator's config
 
+# --- Model Imports ---
+try:
+    from src.backend.models import Employee, ShiftTemplate, Schedule
+    from src.backend.models.employee import AvailabilityType
+    central_logger.app_logger.info("Successfully imported models (Employee, ShiftTemplate, Schedule, AvailabilityType) from src.backend.models")
+except ImportError as e:
+    central_logger.app_logger.error(f"CRITICAL: Failed to import core models from src.backend.models: {e}", exc_info=True)
+    # If core models cannot be imported, re-raise as this is a critical failure.
+    raise ImportError(f"Could not import core models from src.backend.models. Scheduling cannot proceed. Error: {e}") from e
+
+
 # --- Explicit Imports for Type Checking ---
 if TYPE_CHECKING:
     from .resources import ScheduleResources as ActualScheduleResources
@@ -72,67 +83,16 @@ if TYPE_CHECKING:
 import importlib.util
 from enum import Enum
 
-# First, define fallback classes to use if imports fail
-# pylint: disable=redefined-outer-name, duplicate-code
 
-
-class _AvailabilityType(str, Enum):
-    """Fallback enum for availability types"""
-
-    AVAILABLE = "AVL"
-    FIXED = "FIX"
-    PREFERRED = "PRF"
-    UNAVAILABLE = "UNV"
-
-
-class _Employee:
-    """Fallback Employee class"""
-
-    id: int
-
-
-class _ShiftTemplate:
-    """Fallback ShiftTemplate class"""
-
-    id: int
-    name: str
-    start_time: str
-    end_time: str
-    shift_type: str
-    duration_hours: float
-
-
-class _Schedule:
-    """Fallback Schedule class"""
-
-    id: int
-    entries = []
-
-
-# Function to dynamically import a module
-def try_import(module_name, class_name=None):
-    try:
-        module = importlib.import_module(module_name)
-        central_logger.app_logger.debug(f"Successfully imported module: {module_name}")
-        return module if class_name is None else getattr(module, class_name)
-    except (ImportError, AttributeError) as e:
-        central_logger.app_logger.warning(f"Failed to import {class_name or module_name}: {e}")
-        return None
-
-
-# Try to import the required classes, falling back on our defined classes if needed
-models_module = try_import("models")
-if models_module is None:
-    models_module = try_import("backend.models")
-if models_module is None:
-    models_module = try_import("src.backend.models")
 
 # Now try to import employee module
-employee_module = try_import("models.employee")
-if employee_module is None:
-    employee_module = try_import("backend.models.employee")
-if employee_module is None:
-    employee_module = try_import("src.backend.models.employee")
+# --- MODIFIED IMPORT FOR AvailabilityType ---
+try:
+    from src.backend.models.employee import AvailabilityType
+    central_logger.app_logger.info("Successfully imported AvailabilityType from src.backend.models.employee")
+except ImportError as e:
+    central_logger.app_logger.error(f"CRITICAL: Failed to import AvailabilityType from src.backend.models.employee: {e}", exc_info=True)
+    raise ImportError(f"Could not import AvailabilityType from src.backend.models.employee. Scheduling cannot proceed. Error: {e}") from e
 
 # Try to import logger - REMOVED, using direct import now
 # utils_logger = try_import("utils.logger")
@@ -140,24 +100,6 @@ if employee_module is None:
 #     utils_logger = try_import("backend.utils.logger")
 # if utils_logger is None:
 #     utils_logger = try_import("src.backend.utils.logger")
-
-# Set up our classes based on successful imports or fallbacks
-if employee_module and hasattr(employee_module, "AvailabilityType"):
-    AvailabilityType = employee_module.AvailabilityType
-else:
-    AvailabilityType = _AvailabilityType
-    central_logger.app_logger.warning("Using fallback AvailabilityType enum.")
-
-
-if models_module:
-    Employee = getattr(models_module, "Employee", _Employee)
-    ShiftTemplate = getattr(models_module, "ShiftTemplate", _ShiftTemplate)
-    Schedule = getattr(models_module, "Schedule", _Schedule)
-else:
-    Employee = _Employee
-    ShiftTemplate = _ShiftTemplate
-    Schedule = _Schedule
-    central_logger.app_logger.warning("Using fallback data models (Employee, ShiftTemplate, Schedule).")
 
 
 # if utils_logger: # REMOVED
@@ -193,7 +135,29 @@ class ScheduleAssignment:
         self.shift_id = shift_id
         self.date = date_val
         self.shift_template_source = shift_template # Store the original for reference
-        self.availability_type = availability_type or (AvailabilityType.AVAILABLE.value if hasattr(AvailabilityType, 'AVAILABLE') else "AVL")
+        # Ensure AvailabilityType is the correct one from models.employee
+        if availability_type is not None:
+             # If a string is passed, try to map it to the Enum or use as is if it's already a valid Enum member's value
+            if isinstance(availability_type, str):
+                try:
+                    # Check if it's a valid value of the Enum
+                    self.availability_type = AvailabilityType(availability_type).value
+                except ValueError:
+                    # If it's not a direct valid value (e.g. "FIXED" vs "FIXED")
+                    # This part might need more sophisticated mapping if we expect short forms,
+                    # but for now, we'll assume it should be a value from the *correct* Enum.
+                    # Or, if the schema for Schedule.availability_type is changed to SQLEnum, this assignment
+                    # would ideally directly take an AvailabilityType member, not its .value
+                    self.availability_type = availability_type # Store as is; DB schema will validate if it's an Enum
+                    central_logger.app_logger.warning(f"Potentially incorrect availability_type string '{availability_type}' used for ScheduleAssignment. Expected a value from models.employee.AvailabilityType.")
+            elif isinstance(availability_type, AvailabilityType):
+                self.availability_type = availability_type.value
+            else:
+                self.availability_type = AvailabilityType.AVAILABLE.value # Default
+                central_logger.app_logger.warning(f"Unexpected type for availability_type '{type(availability_type)}', defaulting to AVAILABLE.")
+        else:
+            self.availability_type = AvailabilityType.AVAILABLE.value
+
         self.status = status
         self.version = version
 
@@ -985,9 +949,24 @@ class ScheduleGenerator:
                         actual_shift_id = entry.shift_id if entry.shift_id != 0 else None
                         
                         # Ensure we have non-null values for required fields
-                        availability_type = entry.availability_type or "AVAILABLE"
-                        shift_type = entry.shift_type_str or "UNKNOWN"
+                        # Use the .value of the correct enum
+                        resolved_availability_type = entry.availability_type
+                        if isinstance(entry.availability_type, AvailabilityType): # If it's an enum member
+                            resolved_availability_type = entry.availability_type.value
+                        elif isinstance(entry.availability_type, str):
+                            # Attempt to cast to ensure it's a valid value, if not, default or log warning
+                            try:
+                                resolved_availability_type = AvailabilityType(entry.availability_type).value
+                            except ValueError:
+                                central_logger.error_logger.error(f"Invalid availability_type string '{entry.availability_type}' found during DB save. Defaulting to AVAILABLE. This should not happen if Schedule.availability_type is an Enum column.")
+                                resolved_availability_type = AvailabilityType.AVAILABLE.value
+                        else: # Should not happen
+                            central_logger.error_logger.error(f"Unexpected availability_type type '{type(entry.availability_type)}' found during DB save. Defaulting to AVAILABLE.")
+                            resolved_availability_type = AvailabilityType.AVAILABLE.value
                         
+                        availability_type_to_save = resolved_availability_type or AvailabilityType.AVAILABLE.value
+                        shift_type_to_save = entry.shift_type_str or "UNKNOWN" # Assuming UNKNOWN is a safe default string
+
                         # Add structured notes if missing
                         notes = entry.notes
                         if not notes and entry.shift_template_source:
@@ -1006,8 +985,8 @@ class ScheduleGenerator:
                             break_start=entry.break_start,
                             break_end=entry.break_end,
                             notes=notes,
-                            availability_type=availability_type,
-                            shift_type=shift_type
+                            availability_type=availability_type_to_save,
+                            shift_type=shift_type_to_save
                         )
                         
                         # Log the database entry about to be added

@@ -44,7 +44,7 @@ def fix_promise_enum_values():
         result = connection.execute(
             """
             UPDATE employee_availabilities 
-            SET availability_type = 'PRF' 
+            SET availability_type = 'PREFERRED' 
             WHERE availability_type = 'PROMISE' OR availability_type = 'PRM'
             """
         )

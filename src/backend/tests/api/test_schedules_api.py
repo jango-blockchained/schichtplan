@@ -97,7 +97,7 @@ def test_create_schedule(client, setup_db, new_version_meta):
         'date': date.today().isoformat(),
         'version': new_version_meta.version,
         'notes': 'New Schedule',
-        'availability_type': 'AVL'
+        'availability_type': 'AVAILABLE'
     }
     response = client.put('/api/schedules/0', json=schedule_data)
     assert response.status_code == HTTPStatus.OK # Or HTTPStatus.CREATED depending on implementation

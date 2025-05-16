@@ -187,7 +187,7 @@ class CustomScheduleResources:
         
     def is_employee_available(self, employee_id, date_to_check, shift):
         """Mock implementation - all employees are available for testing"""
-        return True, "AVL"  # Available with standard availability
+        return True, "AVAILABLE"  # Available with standard availability
         
     def get_employee_availability(self, employee_id: int, day_of_week: int) -> List[Any]:
         """Mock implementation: Get availability for a specific day of the week."""

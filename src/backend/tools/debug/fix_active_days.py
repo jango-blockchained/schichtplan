@@ -13,7 +13,7 @@ from datetime import date, timedelta
 def main():
     """Fix the active_days for shift templates."""
     print("=================================================================")
-    print("             SHIFT TEMPLATE ACTIVE_DAYS FIX TOOL                 ")
+    print("             SHIFT TEMPLATE ACTIVE_DAYS FIXED TOOL                 ")
     print("=================================================================")
     
     # Find the database file

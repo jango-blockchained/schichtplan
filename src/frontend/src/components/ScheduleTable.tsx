@@ -247,38 +247,37 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence, employeeId, date
                     </div>
                 )}
 
-                {isAddModalOpen && (
-                    <AddScheduleDialog
-                        isOpen={isAddModalOpen}
-                        onClose={() => setIsAddModalOpen(false)}
-                        onAddSchedule={async (scheduleData) => {
-                            try {
-                                // If we have an existing schedule, update it
-                                if (schedule?.id) {
-                                    await onUpdate(schedule.id, { shift_id: scheduleData.shift_id });
-                                } else {
-                                    // Otherwise, create a new schedule entry
-                                    const newScheduleData = {
-                                        employee_id: employeeId,
-                                        date: format(date, 'yyyy-MM-dd'),
-                                        shift_id: scheduleData.shift_id,
-                                        version: currentVersion || 1
-                                    };
+                {/* AddScheduleDialog is now always rendered, visibility controlled by isOpen prop */}
+                <AddScheduleDialog
+                    isOpen={isAddModalOpen}
+                    onClose={() => setIsAddModalOpen(false)}
+                    onAddSchedule={async (scheduleData) => {
+                        try {
+                            // If we have an existing schedule, update it
+                            if (schedule?.id) {
+                                await onUpdate(schedule.id, { shift_id: scheduleData.shift_id });
+                            } else {
+                                // Otherwise, create a new schedule entry
+                                const newScheduleData = {
+                                    employee_id: employeeId,
+                                    date: format(date, 'yyyy-MM-dd'),
+                                    shift_id: scheduleData.shift_id,
+                                    version: currentVersion || 1
+                                };
 
-                                    // Create schedule via API
-                                    await createSchedule(newScheduleData);
-                                }
-                                // Close the modal after successful operation
-                                setIsAddModalOpen(false);
-                            } catch (error) {
-                                console.error("Failed to add/update schedule:", error);
+                                // Create schedule via API
+                                await createSchedule(newScheduleData);
                             }
-                        }}
-                        defaultEmployeeId={employeeId}
-                        defaultDate={date}
-                        version={currentVersion || 1}
-                    />
-                )}
+                            // Close the modal after successful operation
+                            setIsAddModalOpen(false);
+                        } catch (error) {
+                            console.error("Failed to add/update schedule:", error);
+                        }
+                    }}
+                    defaultEmployeeId={employeeId}
+                    defaultDate={date}
+                    version={currentVersion || 1}
+                />
             </div>
         );
     }
@@ -347,7 +346,9 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence, employeeId, date
                                         await onUpdate(schedule.id, { 
                                             shift_id: null,
                                             // Make sure to pass the current version
-                                            ...(currentVersion ? { version: currentVersion } : {})
+                                            ...(currentVersion ? { version: currentVersion } : {}),
+                                            // Add employee_id to ensure proper identification
+                                            employee_id: schedule.employee_id
                                         });
                                         console.log('🗑️ Delete request sent successfully for shift ID:', schedule.id);
                                     } catch (error) {
@@ -363,18 +364,24 @@ const ScheduleCell = ({ schedule, onDrop, onUpdate, hasAbsence, employeeId, date
                 </div>
             )}
 
-            {isEditModalOpen && schedule && currentVersion && (
-                <ShiftEditModal
-                    isOpen={isEditModalOpen}
-                    onClose={() => setIsEditModalOpen(false)}
-                    schedule={schedule}
-                    onUpdate={async (updates) => {
-                        await onUpdate(schedule.id, updates);
-                        setIsEditModalOpen(false);
-                    }}
-                    currentVersion={currentVersion}
-                />
-            )}
+            {/* ShiftEditModal is now always rendered, visibility controlled by isOpen prop */}
+            {/* Ensure schedule and currentVersion are valid before allowing the modal to open */}
+            <ShiftEditModal
+                isOpen={isEditModalOpen && !!schedule && !!currentVersion}
+                onClose={() => setIsEditModalOpen(false)}
+                schedule={schedule!}
+                onUpdate={async (updates) => {
+                     // Need null/undefined check for schedule.id here as schedule might be undefined
+                     if (schedule?.id) {
+                         await onUpdate(schedule.id, updates);
+                         setIsEditModalOpen(false);
+                     } else {
+                          console.error("Attempted to update schedule with undefined ID");
+                          setIsEditModalOpen(false); // Close modal even on error
+                     }
+                }}
+                currentVersion={currentVersion!}
+            />
         </div>
     );
 };

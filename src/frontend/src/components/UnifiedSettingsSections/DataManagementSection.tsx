@@ -20,6 +20,7 @@ import {
 const DataManagementSection: React.FC = () => {
   const { toast } = useToast();
   const [selectedDemoModule, setSelectedDemoModule] = useState<string>("all");
+  const [numEmployees, setNumEmployees] = useState<number | string>(30); // Added state for numEmployees
   const [selectedTablesToWipe, setSelectedTablesToWipe] = useState<string[]>([]);
   const [availableTables, setAvailableTables] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -61,12 +62,21 @@ const DataManagementSection: React.FC = () => {
         toast({ title: "No module selected", description: "Please select a module to generate demo data.", variant: "warning" });
         return;
     }
-    handleAction(() => generateDemoData(selectedDemoModule), "Demo data generated successfully.", "Failed to generate demo data");
+    const employeeCount = typeof numEmployees === 'string' ? parseInt(numEmployees, 10) : numEmployees;
+    if (isNaN(employeeCount) || employeeCount <= 0) {
+        toast({ title: "Invalid employee count", description: "Please enter a valid number of employees greater than 0.", variant: "warning" });
+        return;
+    }
+    handleAction(() => generateDemoData(selectedDemoModule, employeeCount), "Demo data generated successfully.", "Failed to generate demo data");
   }
   
-  // Updated: generateOptimizedDemoData API does not take a module argument
   const handleGenerateOptimizedDemoData = () => {
-    handleAction(() => generateOptimizedDemoData(), "Optimized demo data generated successfully.", "Failed to generate optimized demo data");
+    const employeeCount = typeof numEmployees === 'string' ? parseInt(numEmployees, 10) : numEmployees;
+    if (isNaN(employeeCount) || employeeCount <= 0) {
+        toast({ title: "Invalid employee count", description: "Please enter a valid number of employees greater than 0.", variant: "warning" });
+        return;
+    }
+    handleAction(() => generateOptimizedDemoData(employeeCount), "Optimized demo data generated successfully.", "Failed to generate optimized demo data");
   }
 
   const handleBackup = async () => {
@@ -135,11 +145,22 @@ const DataManagementSection: React.FC = () => {
               </SelectContent>
             </Select>
           </div>
+          <div className="flex flex-col space-y-1.5">
+            <Label htmlFor="num-employees">Number of Employees</Label>
+            <Input 
+              id="num-employees"
+              type="number"
+              value={numEmployees}
+              onChange={(e) => setNumEmployees(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
+              placeholder="e.g., 30"
+              className="w-[180px]"
+              min="1"
+            />
+          </div>
           <div className="flex space-x-2">
             <Button onClick={handleGenerateDemoData} disabled={isProcessing || !selectedDemoModule}>
               {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Generate Data
             </Button>
-            {/* Updated: generateOptimizedDemoData button is no longer disabled by !selectedDemoModule */}
             <Button onClick={handleGenerateOptimizedDemoData} variant="outline" disabled={isProcessing}>
               {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Generate Optimized
             </Button>

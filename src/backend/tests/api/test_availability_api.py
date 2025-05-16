@@ -11,7 +11,7 @@ def test_create_availability_valid(client, new_employee):
         'day_of_week': 0, # Monday
         'hour': 9,
         'is_available': True,
-        'availability_type': 'AVL'
+        'availability_type': 'AVAILABLE'
     }
     response = client.post('/api/availability/', json=availability_data)
     assert response.status_code == HTTPStatus.CREATED
@@ -20,7 +20,7 @@ def test_create_availability_valid(client, new_employee):
     assert data['day_of_week'] == 0
     assert data['hour'] == 9
     assert data['is_available'] is True
-    assert data['availability_type'] == 'AVL'
+    assert data['availability_type'] == 'AVAILABLE'
 
     # Verify in database
     availability = EmployeeAvailability.query.filter_by(employee_id=new_employee.id, day_of_week=0, hour=9).first()
@@ -35,7 +35,7 @@ def test_create_availability_invalid_data(client, new_employee):
         'day_of_week': 0, # Monday
         # hour is missing
         'is_available': True,
-        'availability_type': 'AVL'
+        'availability_type': 'AVAILABLE'
     }
     response = client.post('/api/availability/', json=availability_data)
     assert response.status_code == HTTPStatus.BAD_REQUEST
@@ -47,13 +47,13 @@ def test_update_availability_valid(client, new_employee, new_availability):
     """Test updating an existing availability record with valid data."""
     update_data = {
         'is_available': False,
-        'availability_type': 'FIX'
+        'availability_type': 'FIXED'
     }
     response = client.put(f'/api/availability/{new_availability.id}', json=update_data)
     assert response.status_code == HTTPStatus.OK
     data = response.get_json()
     assert data['is_available'] is False
-    assert data['availability_type'] == 'FIX'
+    assert data['availability_type'] == 'FIXED'
 
     # Verify in database
     updated_availability = EmployeeAvailability.query.get(new_availability.id)
@@ -137,7 +137,7 @@ def test_update_employee_availabilities_valid(client, new_employee, setup_db):
             'day_of_week': 0, # Monday
             'hour': 8,
             'is_available': False,
-            'availability_type': 'FIX'
+            'availability_type': 'FIXED'
         },
         {
             'day_of_week': 1, # Tuesday

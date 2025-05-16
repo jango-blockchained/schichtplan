@@ -3,12 +3,14 @@ import { ScheduleTable } from './ScheduleTable';
 import { Schedule, ScheduleUpdate } from '@/types';
 import { DateRange } from 'react-day-picker';
 import { Card, CardContent } from '@/components/ui/card';
+import { Calendar, Loader2, Plus } from 'lucide-react'; // For empty state
+import { Button } from '@/components/ui/button'; // For empty state
 
 interface ScheduleManagerProps {
     schedules: Schedule[];
     dateRange: DateRange | undefined;
-    onDrop: (scheduleId: number, newEmployeeId: number, newDate: Date, newShiftId: number) => Promise<void>;
-    onUpdate: (scheduleId: number, updates: ScheduleUpdate) => Promise<void>;
+    onDrop: (update: ScheduleUpdate) => Promise<void>;
+    onUpdate: (update: ScheduleUpdate) => Promise<void>;
     isLoading: boolean;
     employeeAbsences?: Record<number, any[]>;
     absenceTypes?: Array<{
@@ -19,6 +21,13 @@ interface ScheduleManagerProps {
     }>;
     currentVersion?: number;
     // Removed activeView as we're always using table view
+
+    // New props for empty state handling
+    isEmptyState: boolean;
+    versions: Array<{ version: number; /* other version props */ }>; // Adjust as per your actual version type
+    isGenerating?: boolean;
+    onEmptyStateCreateVersion: () => void;
+    onEmptyStateGenerateSchedule: () => void;
 }
 
 export function ScheduleManager({
@@ -29,7 +38,13 @@ export function ScheduleManager({
     isLoading,
     employeeAbsences,
     absenceTypes,
-    currentVersion
+    currentVersion,
+    // Destructure new props
+    isEmptyState,
+    versions,
+    isGenerating,
+    onEmptyStateCreateVersion,
+    onEmptyStateGenerateSchedule
 }: ScheduleManagerProps) {
     // Log detailed debug info about received schedules
     useEffect(() => {
@@ -47,16 +62,19 @@ export function ScheduleManager({
             dateRange: dateRange ? {
                 from: dateRange.from?.toISOString(),
                 to: dateRange.to?.toISOString()
-            } : null
+            } : null,
+            isEmptyState,
+            versionsCount: versions.length,
+            isGenerating
         });
         
         // Log the first few schedules with shift IDs for debugging
         if (schedulesWithShiftId.length > 0) {
             console.log('🔵 First 3 schedules with shifts:', schedulesWithShiftId.slice(0, 3));
-        } else {
-            console.log('🔵 WARNING: No schedules with shift IDs found');
+        } else if (!isEmptyState) { // Only warn if not in empty state, otherwise it's expected
+            console.log('🔵 WARNING: No schedules with shift IDs found (and not in empty state)');
         }
-    }, [schedules, dateRange, currentVersion]);
+    }, [schedules, dateRange, currentVersion, isEmptyState, versions, isGenerating]);
 
     // Debug log for ScheduleManager render
     console.log('🔍 RENDERING ScheduleManager with:', {
@@ -64,12 +82,61 @@ export function ScheduleManager({
         dateRangeFrom: dateRange?.from ? dateRange.from.toISOString() : 'undefined',
         dateRangeTo: dateRange?.to ? dateRange.to.toISOString() : 'undefined',
         isLoading,
-        currentVersion
+        currentVersion,
+        isEmptyState,
+        isGenerating
     });
 
-    // We've removed the enhanced drop handler that handled both table and grid view
-    // Now we're always using the table view, so we can directly pass onDrop to the ScheduleTable
+    if (isEmptyState) {
+        return (
+            <Card className="mb-4 border-dashed border-2 border-muted">
+                <CardContent className="flex flex-col items-center justify-center py-8">
+                    <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-medium mb-2">Keine Einträge gefunden</h3>
+                    <p className="text-muted-foreground text-center mb-4">
+                        {versions.length === 0
+                            ? "Für den ausgewählten Zeitraum wurde noch keine Version erstellt."
+                            : "Für den ausgewählten Zeitraum wurden keine Schichtplan-Einträge gefunden."}
+                    </p>
+                    {versions.length === 0 ? (
+                        <Button
+                            onClick={onEmptyStateCreateVersion}
+                            variant="outline"
+                        >
+                            Neue Version erstellen
+                        </Button>
+                    ) : (
+                        <Button
+                            onClick={onEmptyStateGenerateSchedule}
+                            disabled={isGenerating || !currentVersion}
+                            className="flex items-center gap-2"
+                        >
+                            {isGenerating ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Plus className="h-4 w-4" />
+                            )}
+                            Schichtplan generieren
+                        </Button>
+                    )}
+                    {!currentVersion && versions.length > 0 && (
+                        <p className="text-sm text-muted-foreground mt-2">
+                            Bitte wählen Sie eine Version aus, um den Dienstplan zu generieren.
+                        </p>
+                    )}
+                    {/* Consider if this condition is still needed or how to check it
+                    {(!dateRange?.from || !dateRange?.to) && versions.length === 0 && (
+                        <p className="text-sm text-muted-foreground mt-2">
+                            Bitte wählen Sie einen Datumsbereich aus, um eine Version zu erstellen.
+                        </p>
+                    )}
+                    */}
+                </CardContent>
+            </Card>
+        );
+    }
 
+    // Original rendering logic when not in empty state
     return (
         <Card>
             <CardContent className="p-0">

@@ -193,10 +193,10 @@ except ImportError as e1:
             
             class MockAvailabilityType:
                 """Fallback AvailabilityType enum for when imports fail"""
-                AVAILABLE = "AVL"
-                PREFERRED = "PRF"
-                UNAVAILABLE = "UNV"
-                FIXED = "FIX"
+                AVAILABLE = "AVAILABLE"
+                PREFERRED = "PREFERRED"
+                UNAVAILABLE = "UNAVAILABLE"
+                FIXED = "FIXED"
             
             # Define placeholders for database access
             class MockDb:

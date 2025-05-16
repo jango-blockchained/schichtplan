@@ -143,5 +143,5 @@ if __name__ == "__main__":
     fix_shift_types()
     
     print("\n" + "=" * 80)
-    print(" FIX COMPLETE ".center(80, "="))
+    print(" FIXED COMPLETE ".center(80, "="))
     print("=" * 80) 

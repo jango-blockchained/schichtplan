@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from models import (
+from src.backend.models import (
     db,
     Settings,
     Employee,
@@ -8,8 +8,8 @@ from models import (
     ShiftTemplate,
     Absence,
 )
-from models.employee import AvailabilityType, EmployeeGroup
-from models.fixed_shift import ShiftType
+from src.backend.models.employee import AvailabilityType, EmployeeGroup
+from src.backend.models.fixed_shift import ShiftType
 from http import HTTPStatus
 from datetime import datetime, date, timedelta
 import random
@@ -96,7 +96,7 @@ def generate_availability_types():
     ]
 
 
-def generate_employee_data():
+def generate_employee_data(num_employees: int = 30):
     """Generate demo employee data"""
     settings = Settings.query.first()
     if not settings:
@@ -164,7 +164,7 @@ def generate_employee_data():
     ]
 
     employees = []
-    for i in range(30):
+    for i in range(num_employees):
         emp_type = random.choice(employee_types)
         first_name = random.choice(first_names)
         last_name = random.choice(last_names)
@@ -189,12 +189,9 @@ def generate_employee_data():
                 f"TZ employee: {first_name} {last_name}, contracted_hours: {contracted_hours}"
             )
         else:  # GFB
-            # Geringfügig Beschäftigt employees must stay under the monthly limit
-            # Based on validation in employee.py: max_monthly_hours = 556 / 12.41 / 4.33
-            # This is approximately 10.35 hours per week
             contracted_hours = random.randint(
                 5, 10
-            )  # Mini-job range, max 10 to stay within limit
+            )
             logging.info(
                 f"GFB employee: {first_name} {last_name}, contracted_hours: {contracted_hours}"
             )
@@ -205,7 +202,7 @@ def generate_employee_data():
             last_name=last_name,
             employee_group=emp_type["id"],
             contracted_hours=contracted_hours,
-            is_keyholder=i < 3,  # First 3 employees are keyholders
+            is_keyholder=i < 3,
             is_active=True,
             email=f"employee{i + 1}@example.com",
             phone=f"+49 {random.randint(100, 999)} {random.randint(1000000, 9999999)}",
@@ -479,16 +476,29 @@ def generate_shift_templates():
 def generate_demo_data():
     """Generate demo data"""
     try:
-        module = request.json.get("module", "all")
-        logging.info(f"Generating demo data for module: {module}")
+        json_data = request.get_json() or {}
+        module = json_data.get("module", "all")
+        
+        num_employees_raw = json_data.get("num_employees")
+        num_employees = 30  # Default
+        if isinstance(num_employees_raw, int):
+            if num_employees_raw > 0:
+                num_employees = num_employees_raw
+        elif isinstance(num_employees_raw, str):
+            if num_employees_raw.isdigit():
+                parsed_num = int(num_employees_raw)
+                if parsed_num > 0:
+                    num_employees = parsed_num
+
+        logging.info(f"Generating demo data for module: {module}, num_employees: {num_employees}")
 
         if module in ["settings", "all"]:
             logging.info("Generating demo settings...")
             settings = Settings.query.first()
             if not settings:
                 settings = Settings.get_default_settings()
-            settings.employee_types = generate_employee_types()
-            settings.absence_types = generate_absence_types()
+            settings.employee_types = generate_employee_types()  # type: ignore[assignment]
+            settings.absence_types = generate_absence_types()  # type: ignore[assignment]
             try:
                 db.session.commit()
                 logging.info("Successfully updated employee and absence types")
@@ -525,7 +535,7 @@ def generate_demo_data():
             # Clear existing employees
             logging.info("Generating employees...")
             Employee.query.delete()
-            employees = generate_employee_data()
+            employees = generate_employee_data(num_employees=num_employees)
             db.session.add_all(employees)
             try:
                 db.session.commit()
@@ -636,9 +646,9 @@ def generate_demo_data():
         ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-def generate_improved_employee_data():
+def generate_improved_employee_data(num_employees_override: int | None = None):
     """Generate optimized employee data with keyholders and proper distribution of types"""
-    logging.info("Starting to generate improved employee data")
+    logging.info(f"Starting to generate improved employee data. Override: {num_employees_override}")
 
     settings = Settings.query.first()
     if not settings:
@@ -672,7 +682,7 @@ def generate_improved_employee_data():
             "id": "TZ",  # String value for employee group
             "enum": EmployeeGroup.TZ,  # Keep enum for reference
             "name": "Teilzeit",
-            "min_hours": 15,
+            "min_hours": 10,  # Changed from 15 to 10
             "max_hours": 34,
             "count": 12,
         },
@@ -681,7 +691,7 @@ def generate_improved_employee_data():
             "enum": EmployeeGroup.GFB,  # Keep enum for reference
             "name": "Geringfügig Beschäftigt",
             "min_hours": 0,
-            "max_hours": 14,
+            "max_hours": 10,  # Changed from 14 to 10
             "count": 8,
         },
     ]
@@ -759,69 +769,100 @@ def generate_improved_employee_data():
     employees = []
     employee_id_counter = 1
 
-    # Create employees based on the defined distribution
-    for emp_type in employee_types:
-        for i in range(emp_type["count"]):
+    if num_employees_override is not None:
+        logging.info(f"Generating specified number of employees: {num_employees_override}")
+        for _ in range(num_employees_override):
+            emp_type = random.choice(employee_types)
             first_name = random.choice(first_names)
             last_name = random.choice(last_names)
 
-            # Generate employee_id based on name
             base_id = f"{first_name[0]}{last_name[:2]}".upper()
             employee_id = f"{base_id}{employee_id_counter:02d}"
             employee_id_counter += 1
 
-            # Set contracted hours within valid range for employee type
-            if emp_type["id"] in ["VZ", "TL"]:
-                contracted_hours = 40.0  # Standard full-time hours
-                logging.info(
-                    f"VZ/TL employee: {first_name} {last_name}, contracted_hours: {contracted_hours}"
-                )
-            elif emp_type["id"] == "TZ":
-                contracted_hours = random.randint(20, 34)  # Part-time range
-                logging.info(
-                    f"TZ employee: {first_name} {last_name}, contracted_hours: {contracted_hours}"
-                )
-            else:  # GFB
-                # Geringfügig Beschäftigt employees must stay under the monthly limit
-                # Based on validation in employee.py: max_monthly_hours = 556 / 12.41 / 4.33
-                # This is approximately 10.35 hours per week
-                contracted_hours = random.randint(
-                    5, 10
-                )  # Mini-job range, max 10 to stay within limit
-                logging.info(
-                    f"GFB employee: {first_name} {last_name}, contracted_hours: {contracted_hours}"
-                )
+            # Contracted hours based on chosen emp_type
+            contracted_hours = random.randint(emp_type["min_hours"], emp_type["max_hours"])
+            if emp_type["id"] in ["VZ", "TL"] and contracted_hours < 35: # Ensure VZ/TL have at least 35
+                contracted_hours = 40.0
+            elif emp_type["id"] == "GFB" and contracted_hours > 10: # Cap GFB at 10 (was 14)
+                 contracted_hours = 10.0
+            elif emp_type["id"] == "TZ" and contracted_hours < 10: # Ensure TZ has at least 10
+                 contracted_hours = 10.0
 
-            # Make all employees keyholders except GFB as requested
             is_keyholder = emp_type["id"] != "GFB"
 
             logging.info(
-                f"Creating employee: {first_name} {last_name}, "
+                f"Creating employee (override): {first_name} {last_name}, "
                 f"group: {emp_type['id']}, hours: {contracted_hours}, "
                 f"keyholder: {is_keyholder}"
             )
-
             try:
                 employee = Employee(
                     employee_id=employee_id,
                     first_name=first_name,
                     last_name=last_name,
-                    employee_group=emp_type["id"],  # Using string value
+                    employee_group=emp_type["id"],
                     contracted_hours=contracted_hours,
                     is_keyholder=is_keyholder,
                     is_active=True,
-                    email=f"employee{len(employees) + 1}@example.com",
+                    email=f"employee{employee_id_counter}@example.com", # Use unique counter for email
                     phone=f"+49 {random.randint(100, 999)} {random.randint(1000000, 9999999)}",
                 )
                 employees.append(employee)
             except Exception as e:
-                logging.error(f"Error creating employee: {e}")
+                logging.error(f"Error creating employee (override): {e}")
                 logging.error(
                     f"Employee details: group={emp_type['id']}, "
                     f"type={type(emp_type['id'])}, hours={contracted_hours}"
                 )
                 raise
+    else:
+        # Original logic: Create employees based on the defined distribution in employee_types counts
+        for emp_type in employee_types:
+            for i in range(emp_type["count"]):
+                first_name = random.choice(first_names)
+                last_name = random.choice(last_names)
 
+                # Generate employee_id based on name
+                base_id = f"{first_name[0]}{last_name[:2]}".upper()
+                employee_id = f"{base_id}{employee_id_counter:02d}"
+                employee_id_counter += 1
+
+                # Set contracted hours within valid range for employee type
+                if emp_type["id"] in ["VZ", "TL"]:
+                    contracted_hours = 40.0
+                elif emp_type["id"] == "TZ":
+                    contracted_hours = random.randint(20, 34)
+                else:  # GFB
+                    contracted_hours = random.randint(5, 10)
+
+                is_keyholder = emp_type["id"] != "GFB"
+
+                logging.info(
+                    f"Creating employee (original dist): {first_name} {last_name}, "
+                    f"group: {emp_type['id']}, hours: {contracted_hours}, "
+                    f"keyholder: {is_keyholder}"
+                )
+                try:
+                    employee = Employee(
+                        employee_id=employee_id,
+                        first_name=first_name,
+                        last_name=last_name,
+                        employee_group=emp_type["id"],
+                        contracted_hours=contracted_hours,
+                        is_keyholder=is_keyholder,
+                        is_active=True,
+                        email=f"employee{employee_id_counter}@example.com", # Use unique counter for email
+                        phone=f"+49 {random.randint(100, 999)} {random.randint(1000000, 9999999)}",
+                    )
+                    employees.append(employee)
+                except Exception as e:
+                    logging.error(f"Error creating employee (original dist): {e}")
+                    logging.error(
+                        f"Employee details: group={emp_type['id']}, "
+                        f"type={type(emp_type['id'])}, hours={contracted_hours}"
+                    )
+                    raise
     return employees
 
 
@@ -867,156 +908,312 @@ def generate_improved_coverage_data():
 
 
 def generate_improved_availability_data(employees):
-    """Generate optimized availability data ensuring coverage requirements are met"""
+    """Generate optimized availability data using hourly slots, ensuring most employees
+    are available most of the time, and keyholders follow a clopen pattern.
+    FIXED AT only for >= 30 contracted hours. FIXED is a portion. All get AVAILABLE.
+    """
     availabilities = []
+    # Tracks the dominant AvailabilityType for an employee on a given day_idx (0-5 for Mon-Sat)
+    # Used to prevent mixing FIXED with AVAILABLE/PREFERRED on the same day if not intended.
+    # Value can be FIXED if any fixed block exists, otherwise AVAILABLE/PREFERRED.
+    daily_employee_day_type = {}
+    employee_weekly_hours = {emp.id: 0.0 for emp in employees}
 
-    # Group employees by type for easier assignment
-    employee_groups = {
-        "TL": [e for e in employees if e.employee_group == "TL"],
-        "VZ": [e for e in employees if e.employee_group == "VZ"],
-        "TZ": [e for e in employees if e.employee_group == "TZ"],
-        "GFB": [e for e in employees if e.employee_group == "GFB"],
-    }
+    working_days_indices = list(range(0, 6))  # 0=Monday, 1=Tuesday, ..., 5=Saturday
 
-    # Define working days (Monday to Saturday)
-    # Monday is 0, Tuesday is 1, etc. in the system
-    working_days = range(0, 6)  # 0-5 (Monday-Saturday)
+    today = date.today()
+    start_of_week_date = today - timedelta(days=today.weekday())
 
-    # Step 1: Ensure keyholders have availability for each time slot
-    keyholders = [e for e in employees if e.is_keyholder]
-    for day in working_days:
-        for slot_idx, (start_hour, end_hour) in enumerate([(9, 14), (14, 20)]):
-            # Ensure at least 2 keyholders per slot if possible
-            slot_keyholders = random.sample(keyholders, min(3, len(keyholders)))
-            for keyholder in slot_keyholders:
-                for hour in range(start_hour, end_hour):
-                    availability = EmployeeAvailability(
-                        employee_id=keyholder.id,
-                        is_recurring=True,
-                        day_of_week=day,
-                        hour=hour,
-                        is_available=True,
-                        availability_type=AvailabilityType.FIXED,
-                    )
-                    availabilities.append(availability)
+    # --- Step 1: Core Keyholders (e.g., first 2 keyholders, if they meet criteria) ---
+    all_keyholders = [e for e in employees if e.is_keyholder]
+    num_core_keyholders = min(2, len(all_keyholders))
+    core_keyholders = random.sample(all_keyholders, num_core_keyholders) if all_keyholders else []
+    
+    logging.info(f"Processing Core Keyholders: {[e.employee_id for e in core_keyholders]}")
 
-    # Step 2: Make all employees available for at least 90% of their contracted hours
-    for employee in employees:
-        # Calculate how many hours the employee needs to be available each week
-        # Add 10% buffer (available for 90% minimum of contracted hours)
-        required_weekly_hours = max(employee.contracted_hours * 1.1, 5)  # At least 5 hours
-        logging.info(f"Employee {employee.employee_id} requires {required_weekly_hours} available hours per week")
+    for emp in core_keyholders:
+        current_emp_weekly_hours_fixed = 0
+        current_emp_weekly_hours_available = 0
         
-        # Calculate how many days and hours per day they need
-        if employee.employee_group in ["TL", "VZ"]:
-            # Full-time employees typically work 5 days
-            days_needed = min(5, len(working_days))
-            hours_per_day = math.ceil(required_weekly_hours / days_needed)
-        elif employee.employee_group == "TZ":
-            # Part-time employees work 3-5 days
-            days_needed = min(random.randint(3, 5), len(working_days))
-            hours_per_day = math.ceil(required_weekly_hours / days_needed)
+        # Core keyholders get some FIXED time ONLY IF their contracted hours are >= 30
+        if emp.contracted_hours >= 30:
+            fixed_block_start_hour = 10  # e.g., 10:00
+            fixed_block_duration = 6     # e.g., 6 hours fixed
+            fixed_block_end_hour = fixed_block_start_hour + fixed_block_duration # 16:00
+            
+            logging.info(f"  Core Keyholder {emp.employee_id} (contracted: {emp.contracted_hours}h) eligible for FIXED block {fixed_block_start_hour}-{fixed_block_end_hour}.")
+
+            for day_idx in working_days_indices: # Assign fixed block on all working days
+                day_date_obj = start_of_week_date + timedelta(days=day_idx)
+                daily_employee_day_type[(emp.id, day_idx)] = AvailabilityType.FIXED # Mark day as having FIXED
+                for hour_of_day in range(fixed_block_start_hour, fixed_block_end_hour):
+                    avail_slot = EmployeeAvailability(
+                        employee_id=emp.id, day_of_week=day_idx, hour=hour_of_day,
+                        is_available=True, availability_type=AvailabilityType.FIXED,
+                        start_date=day_date_obj, end_date=day_date_obj, is_recurring=False
+                    )
+                    availabilities.append(avail_slot)
+                    current_emp_weekly_hours_fixed += 1
+            logging.info(f"  Core Keyholder {emp.employee_id} assigned {current_emp_weekly_hours_fixed}h total FIXED.")
+
+        # All core keyholders (even those not getting FIXED) should also have AVAILABLE time.
+        # Target roughly their contracted hours as total availability for simplicity here.
+        # This available time will be outside their fixed block if they have one.
+        target_available_hours_for_core = emp.contracted_hours * 1.1 - current_emp_weekly_hours_fixed
+        num_available_days_for_core = random.randint(4, 6) # Spread available time
+        
+        if target_available_hours_for_core > 0:
+            chosen_days_for_available = random.sample(working_days_indices, num_available_days_for_core)
+            remaining_available_target = target_available_hours_for_core
+
+            for day_idx in chosen_days_for_available:
+                if remaining_available_target <= 0: break
+                day_date_obj = start_of_week_date + timedelta(days=day_idx)
+                
+                # Determine hours for this day from remaining target
+                avg_avail_hrs_per_day = remaining_available_target / len([d for d in chosen_days_for_available if d >= day_idx])
+                avail_hours_this_day = math.floor(random.uniform(max(2.0, avg_avail_hrs_per_day - 1), min(8.0, avg_avail_hrs_per_day + 1, remaining_available_target)))
+                avail_hours_this_day = max(0, avail_hours_this_day)
+
+                if avail_hours_this_day == 0: continue
+
+                # Assign available slots, avoiding the fixed block if one exists on this day
+                # For simplicity, let's try to add available slots in morning (09-fixed_start) or evening (fixed_end-20)
+                
+                possible_avail_slots = []
+                if daily_employee_day_type.get((emp.id, day_idx)) == AvailabilityType.FIXED:
+                    # Morning part
+                    for h in range(9, fixed_block_start_hour): possible_avail_slots.append(h)
+                    # Evening part
+                    for h in range(fixed_block_end_hour, 20): possible_avail_slots.append(h)
+                else: # No fixed block on this day, can use 09-20
+                    for h in range(9, 20): possible_avail_slots.append(h)
+                
+                random.shuffle(possible_avail_slots) # Randomize order of filling
+                
+                hours_added_as_available_today = 0
+                for hour_val in possible_avail_slots:
+                    if hours_added_as_available_today >= avail_hours_this_day: break
+                    
+                    # Check if this slot is already taken by fixed
+                    is_slot_taken_by_fixed = False
+                    if daily_employee_day_type.get((emp.id, day_idx)) == AvailabilityType.FIXED:
+                        if fixed_block_start_hour <= hour_val < fixed_block_end_hour:
+                           is_slot_taken_by_fixed = True
+                    
+                    if not is_slot_taken_by_fixed:
+                        avail_slot = EmployeeAvailability(
+                            employee_id=emp.id, day_of_week=day_idx, hour=hour_val,
+                            is_available=True, availability_type=AvailabilityType.AVAILABLE,
+                            start_date=day_date_obj, end_date=day_date_obj, is_recurring=False
+                        )
+                        availabilities.append(avail_slot)
+                        current_emp_weekly_hours_available += 1
+                        hours_added_as_available_today +=1
+                        # If this day previously wasn't marked as having FIXED, mark it as AVAILABLE
+                        if daily_employee_day_type.get((emp.id, day_idx)) != AvailabilityType.FIXED:
+                             daily_employee_day_type[(emp.id, day_idx)] = AvailabilityType.AVAILABLE
+                remaining_available_target -= hours_added_as_available_today
+            logging.info(f"  Core Keyholder {emp.employee_id} assigned {current_emp_weekly_hours_available}h additional AVAILABLE time.")
+        employee_weekly_hours[emp.id] = current_emp_weekly_hours_fixed + current_emp_weekly_hours_available
+
+    # --- Step 2: Other Employees (Non-Core Keyholders & Regular Staff) ---
+    other_employees = [e for e in employees if e not in core_keyholders]
+    logging.info(f"Processing Other Employees: {len(other_employees)} staff members.")
+    
+    for employee in other_employees:
+        target_weekly_hours = 0
+        num_available_days = 0
+
+        # Define target weekly hours based on contracted hours (aim for more than contracted)
+        if employee.employee_group in [EmployeeGroup.VZ, EmployeeGroup.TL]:
+            target_weekly_hours = random.uniform(employee.contracted_hours * 1.1, employee.contracted_hours * 1.3)
+            num_available_days = random.randint(5, 6)
+        elif employee.employee_group == EmployeeGroup.TZ:
+            target_weekly_hours = random.uniform(employee.contracted_hours * 1.2, min(40.0, employee.contracted_hours * 1.5))
+            num_available_days = random.randint(4, 5)
         else:  # GFB
-            # GFB typically work 2-4 days
-            days_needed = min(random.randint(2, 4), len(working_days))
-            hours_per_day = min(math.ceil(required_weekly_hours / days_needed), 6)  # Cap at 6 hours
+            target_weekly_hours = random.uniform(employee.contracted_hours * 1.2, min(15.0, employee.contracted_hours * 1.8))
+            min_days_for_gfb = max(1, math.ceil(target_weekly_hours / 10.0)) 
+            num_available_days = random.randint(min_days_for_gfb, 4)
+        target_weekly_hours = round(target_weekly_hours,1)
+
+        logging.info(f"  Emp {employee.employee_id} ({employee.employee_group.value}, contracted: {employee.contracted_hours}h): Target avail. {target_weekly_hours:.1f}h over {num_available_days} days.")
+
+        potential_days_for_av = [d_idx for d_idx in working_days_indices if daily_employee_day_type.get((employee.id, d_idx)) != AvailabilityType.FIXED]
         
-        # Ensure at least 1 hour per day
-        hours_per_day = max(hours_per_day, 1)
-        logging.info(f"Employee {employee.employee_id} scheduled for {days_needed} days with {hours_per_day} hours per day")
-        
-        # Assign work days - ensure schedule is not too fractured
-        work_days = random.sample(list(working_days), days_needed)
-        work_days.sort()  # Sort days to make scheduling more continuous
-        
-        # For each work day, create a single continuous block of availability
-        for day in work_days:
-            # Determine start time based on employee type for more realistic scheduling
-            if employee.employee_group == "TL":
-                # Team leaders often work standard business hours
-                start_options = [9, 10]
-            elif employee.employee_group == "VZ":
-                # Full-time employees might start early or late
-                start_options = [9, 10, 12, 14]
-            elif employee.employee_group == "TZ":
-                # Part-time employees have more varied start times
-                start_options = [9, 11, 13, 15, 16]
-            else:  # GFB
-                # Mini-job employees often work peak periods
-                start_options = [9, 12, 16, 17]
+        if len(potential_days_for_av) < num_available_days:
+            chosen_days_indices = random.sample(potential_days_for_av if potential_days_for_av else working_days_indices, 
+                                                min(num_available_days, len(potential_days_for_av if potential_days_for_av else working_days_indices)))
+        else:
+            chosen_days_indices = random.sample(potential_days_for_av, num_available_days)
+        chosen_days_indices.sort()
+
+        if not chosen_days_indices and target_weekly_hours > 0:
+            logging.warning(f"  No assignable days for {employee.employee_id} to meet {target_weekly_hours}h. Skipping.")
+            continue
+
+        current_emp_weekly_hours_fixed_local = 0
+        current_emp_weekly_hours_available_local = 0
+        remaining_target_hours = target_weekly_hours
+
+        for day_idx in chosen_days_indices:
+            if remaining_target_hours <= 0: break
+            day_date_obj = start_of_week_date + timedelta(days=day_idx)
             
-            start_hour = random.choice(start_options)
-            # Ensure the shift doesn't go beyond 20:00 (store closing)
-            end_hour = min(start_hour + hours_per_day, 20)
+            num_remaining_chosen_days = len([d for d in chosen_days_indices if d >= day_idx])
+            hours_for_this_day_total = 0
+            if num_remaining_chosen_days > 0:
+                avg_hours_per_rem_day = remaining_target_hours / num_remaining_chosen_days
+                hours_for_this_day_total = random.uniform(max(4.0, avg_hours_per_rem_day - 2), 
+                                                       min(10.0, avg_hours_per_rem_day + 2, remaining_target_hours))
+            hours_for_this_day_total = max(4.0, min(hours_for_this_day_total, 10.0, remaining_target_hours))
+            hours_for_this_day_total = math.floor(hours_for_this_day_total)
+
+            if hours_for_this_day_total < 1: continue
+
+            day_block_start_hour = random.randint(9, max(9, 20 - int(hours_for_this_day_total)))
+            day_block_end_hour = day_block_start_hour + int(hours_for_this_day_total)
+
+            # Determine if this employee gets FIXED time on this block
+            fixed_hours_on_block = 0
+            available_hours_on_block = hours_for_this_day_total
+            current_day_primary_type = AvailabilityType.AVAILABLE # Default for the block
+
+            if employee.is_keyholder and employee.contracted_hours >= 30:
+                # Non-core KH with enough contracted hours: assign a portion as FIXED
+                fixed_hours_on_block = math.floor(hours_for_this_day_total * 0.6) # e.g., 60% fixed
+                fixed_hours_on_block = min(fixed_hours_on_block, 5) # Cap fixed portion to, say, 5 hours
+                available_hours_on_block = hours_for_this_day_total - fixed_hours_on_block
+                current_day_primary_type = AvailabilityType.FIXED # Day contains fixed
             
-            # For realism, occasionally add a bit of extra availability
-            if random.random() < 0.3:  # 30% chance
-                extra_hours = random.randint(1, 2)
-                end_hour = min(end_hour + extra_hours, 20)
+            # If not a KH eligible for fixed, the whole block is AVAILABLE (or PREFERRED by some minor chance)
+            if current_day_primary_type == AvailabilityType.AVAILABLE and random.random() < 0.15: # Small chance for PREFERRED
+                current_day_primary_type = AvailabilityType.PREFERRED
+
+            daily_employee_day_type[(employee.id, day_idx)] = current_day_primary_type
             
-            # Set availability type based on employee preference
-            if employee.employee_group in ["TL", "VZ"]:
-                # Team leaders and full-time employees often have fixed schedules
-                avail_type = AvailabilityType.FIXED if random.random() < 0.7 else AvailabilityType.AVAILABLE
-            else:
-                # Part-time and mini-job employees have more flexible schedules
-                avail_type = AvailabilityType.AVAILABLE
-            
-            logging.info(f"Setting {employee.employee_id} availability on day {day}: {start_hour}:00-{end_hour}:00 as {avail_type}")
-            
-            for hour in range(start_hour, end_hour):
-                availability = EmployeeAvailability(
-                    employee_id=employee.id,
-                    is_recurring=True,
-                    day_of_week=day,
-                    hour=hour,
-                    is_available=True,
-                    availability_type=avail_type,
+            # Assign FIXED slots if any
+            for h_offset in range(fixed_hours_on_block):
+                hour_val = day_block_start_hour + h_offset
+                avail_slot = EmployeeAvailability(
+                    employee_id=employee.id, day_of_week=day_idx, hour=hour_val,
+                    is_available=True, availability_type=AvailabilityType.FIXED,
+                    start_date=day_date_obj, end_date=day_date_obj, is_recurring=False
                 )
-                availabilities.append(availability)
-        
-        # Add some preferred availability on non-primary days for more flexibility
-        # This helps with shift assignment while keeping main schedules consistent
-        remaining_days = [d for d in working_days if d not in work_days]
-        if remaining_days:
-            # Add preferred availability on 1-2 additional days
-            preferred_days_count = min(random.randint(1, 2), len(remaining_days))
-            preferred_days = random.sample(remaining_days, preferred_days_count)
+                availabilities.append(avail_slot)
+                current_emp_weekly_hours_fixed_local += 1
+
+            # Assign AVAILABLE/PREFERRED slots
+            # Start after fixed slots end, or from block start if no fixed slots
+            start_hour_for_available = day_block_start_hour + fixed_hours_on_block 
+            for h_offset in range(available_hours_on_block):
+                hour_val = start_hour_for_available + h_offset
+                avail_slot = EmployeeAvailability(
+                    employee_id=employee.id, day_of_week=day_idx, hour=hour_val,
+                    is_available=True, availability_type= current_day_primary_type if fixed_hours_on_block == 0 else AvailabilityType.AVAILABLE, # If fixed was present, remainder is AVAILABLE
+                    start_date=day_date_obj, end_date=day_date_obj, is_recurring=False
+                )
+                availabilities.append(avail_slot)
+                current_emp_weekly_hours_available_local += 1
             
-            for day in preferred_days:
-                # Shorter preferred availability windows
-                pref_hours = min(random.randint(2, 4), hours_per_day)
-                if day in [5, 6]:  # Weekend days
-                    start_options = [9, 10, 12, 14]  # More flexible on weekends
-                else:
-                    start_options = [9, 12, 16]  # Standard periods on weekdays
+            remaining_target_hours -= hours_for_this_day_total
+            logging.debug(f"    Emp {employee.employee_id} Day {day_idx}: Block {day_block_start_hour:02d}-{day_block_end_hour:02d} ({hours_for_this_day_total}h total). "
+                          f"Fixed: {fixed_hours_on_block}h, Avail/Pref: {available_hours_on_block}h ({current_day_primary_type.value}). RemTarget: {remaining_target_hours:.1f}h")
+
+        employee_weekly_hours[employee.id] = current_emp_weekly_hours_fixed_local + current_emp_weekly_hours_available_local
+        logging.info(f"  Emp {employee.employee_id} assigned total {employee_weekly_hours[employee.id]:.1f}h (Fixed: {current_emp_weekly_hours_fixed_local}h, Avail/Pref: {current_emp_weekly_hours_available_local}h) for week (target was ~{target_weekly_hours:.1f}h).")
+
+    # --- Step 3: "Clopen" Logic for Non-Core Keyholders ---
+    # This logic remains largely the same: if a keyholder (who is not a core_keyholder and thus subject to Step 2)
+    # had a FIXED block ending late, they get PREFERRED opening the next day.
+    non_core_keyholders_for_clopen = [e for e in employees if e.is_keyholder and e not in core_keyholders]
+    opening_hours_clopen = list(range(9, 14)) 
+    closing_check_hours = [18, 19] 
+
+    logging.info(f"Processing Clopen Logic for {len(non_core_keyholders_for_clopen)} non-core keyholders.")
+    for kh_emp in non_core_keyholders_for_clopen:
+        for day_idx in working_days_indices:
+            is_closing_keyholder_today = False
+            # Check if the day was marked as having FIXED and if specific late hours were indeed FIXED
+            if daily_employee_day_type.get((kh_emp.id, day_idx)) == AvailabilityType.FIXED:
+                fixed_late_hours_found = 0
+                for chk_hour in closing_check_hours:
+                    for av in availabilities:
+                        if av.employee_id == kh_emp.id and av.day_of_week == day_idx and \
+                           av.hour == chk_hour and av.availability_type == AvailabilityType.FIXED:
+                            fixed_late_hours_found +=1
+                            break 
+                if fixed_late_hours_found == len(closing_check_hours): # Must have all closing hours as fixed
+                    is_closing_keyholder_today = True
+            
+            if is_closing_keyholder_today:
+                actual_next_working_day_idx = (day_idx + 1) if day_idx < 5 else 0 
+                next_day_date_obj = start_of_week_date + timedelta(days=actual_next_working_day_idx)
                 
-                pref_start = random.choice(start_options)
-                pref_end = min(pref_start + pref_hours, 20)
+                type_for_next_day_overall = daily_employee_day_type.get((kh_emp.id, actual_next_working_day_idx))
                 
-                for hour in range(pref_start, pref_end):
-                    availability = EmployeeAvailability(
-                        employee_id=employee.id,
-                        is_recurring=True,
-                        day_of_week=day,
-                        hour=hour,
-                        is_available=True,
-                        availability_type=AvailabilityType.PREFERRED,
+                if type_for_next_day_overall == AvailabilityType.FIXED:
+                    logging.debug(f"  KH {kh_emp.employee_id} already primarily FIXED on next working day {actual_next_working_day_idx}. Skipping PREFERRED clopen addition.")
+                    continue
+
+                logging.info(f"  Adding PREFERRED clopen (09-14) for KH {kh_emp.employee_id} on day {actual_next_working_day_idx} due to closing FIXED on day {day_idx}")
+                
+                clopen_hours_added_count = 0
+                for h_open in opening_hours_clopen:
+                    # Remove any existing AVAILABLE slots for these hours on this day before adding PREFERRED
+                    # And ensure we don't overwrite an existing FIXED slot from core assignment (though unlikely for non-core)
+                    
+                    # Check if a FIXED slot already exists from another part of logic
+                    existing_fixed_for_clopen_hour = any(
+                        av.employee_id == kh_emp.id and 
+                        av.day_of_week == actual_next_working_day_idx and 
+                        av.hour == h_open and
+                        av.availability_type == AvailabilityType.FIXED 
+                        for av in availabilities
                     )
-                    availabilities.append(availability)
+                    if existing_fixed_for_clopen_hour:
+                        logging.debug(f"    Skipping PREFERRED for {h_open} on day {actual_next_working_day_idx} for KH {kh_emp.employee_id}, already FIXED.")
+                        continue
 
-    # Log availability statistics
-    for employee in employees:
-        available_hours = len(
-            [a for a in availabilities if a.employee_id == employee.id]
-        )
-        logging.info(
-            f"Employee {employee.employee_id} ({employee.employee_group}): "
-            f"Contracted={employee.contracted_hours:.1f}h/week, "
-            f"Available={available_hours}h total"
-        )
+                    # Remove existing non-FIXED (AVAILABLE or PREFERRED) for this hour to replace with this clopen PREFERRED
+                    availabilities = [
+                        av for av in availabilities 
+                        if not (av.employee_id == kh_emp.id and 
+                                av.day_of_week == actual_next_working_day_idx and 
+                                av.hour == h_open and
+                                av.availability_type != AvailabilityType.FIXED) # Keep any fixed
+                    ]
 
-    return availabilities
+                    clopen_slot = EmployeeAvailability(
+                        employee_id=kh_emp.id, day_of_week=actual_next_working_day_idx, hour=h_open,
+                        is_available=True, availability_type=AvailabilityType.PREFERRED,
+                        start_date=next_day_date_obj, end_date=next_day_date_obj, is_recurring=False
+                    )
+                    availabilities.append(clopen_slot)
+                    clopen_hours_added_count +=1
+                
+                # Update the overall day type if it wasn't FIXED
+                if type_for_next_day_overall != AvailabilityType.FIXED:
+                    daily_employee_day_type[(kh_emp.id, actual_next_working_day_idx)] = AvailabilityType.PREFERRED
+                
+                employee_weekly_hours[kh_emp.id] = employee_weekly_hours.get(kh_emp.id, 0.0) + clopen_hours_added_count
+                if clopen_hours_added_count > 0:
+                    logging.debug(f"    KH {kh_emp.employee_id} weekly hours updated to {employee_weekly_hours[kh_emp.id]:.1f} after {clopen_hours_added_count}h PREFERRED clopen add.")
+    
+    # Final summary log (optional, can be extensive)
+    for emp_id_log, total_hrs_log in employee_weekly_hours.items():
+        emp_obj_log = next((e for e in employees if e.id == emp_id_log), None)
+        if emp_obj_log:
+            fixed_count = sum(1 for av in availabilities if av.employee_id == emp_id_log and av.availability_type == AvailabilityType.FIXED)
+            avail_count = sum(1 for av in availabilities if av.employee_id == emp_id_log and av.availability_type == AvailabilityType.AVAILABLE)
+            pref_count = sum(1 for av in availabilities if av.employee_id == emp_id_log and av.availability_type == AvailabilityType.PREFERRED)
+            logging.info(
+                f"Final Availability Summary for Emp {emp_obj_log.employee_id} ({emp_obj_log.employee_group.value}, contracted: {emp_obj_log.contracted_hours}h): "
+                f"Total Generated: {total_hrs_log:.1f}h. Counts - FIXED: {fixed_count}, AVAILABLE: {avail_count}, PREFERRED: {pref_count}"
+            )
+    
+    return availabilities, daily_employee_day_type, employee_weekly_hours
 
 
 def generate_improved_shift_templates():
@@ -1374,17 +1571,17 @@ def generate_improved_absences(employees):
 
                     while attempts < max_attempts and not valid_date_found:
                         # Random start date within next 3 months
-                        start_date = today + timedelta(
+                        start_date_obj = today + timedelta(  # Renamed to avoid conflict
                             days=random.randint(1, date_range - duration)
                         )
-                        end_date = start_date + timedelta(days=duration - 1)
+                        end_date_obj = start_date_obj + timedelta(days=duration - 1) # Renamed
 
                         # Check if this period overlaps with existing absences
                         overlaps = False
                         for existing in absences:
                             if existing.employee_id == employee.id and not (
-                                end_date < existing.start_date
-                                or start_date > existing.end_date
+                                end_date_obj < existing.start_date # Use renamed var
+                                or start_date_obj > existing.end_date # Use renamed var
                             ):
                                 overlaps = True
                                 break
@@ -1392,20 +1589,19 @@ def generate_improved_absences(employees):
                         if not overlaps:
                             valid_date_found = True
                             absence = Absence(
-                                employee_id=employee.id,
-                                absence_type_id=absence_type,  # Fixed: Changed from absence_type to absence_type_id
-                                start_date=start_date,
-                                end_date=end_date,
-                                note=f"Generated {absence_type} absence",  # Fixed: Changed from comment to note
+                                employee_id=employee.id,  # noqa
+                                absence_type_id=absence_type,  # noqa
+                                start_date=start_date_obj, # Use renamed var # noqa
+                                end_date=end_date_obj,   # Use renamed var # noqa
+                                note=f"Generated {absence_type} absence",  # noqa
                             )
                             absences.append(absence)
                             logging.info(
                                 f"Created {absence_type} absence for {employee.employee_id} "
-                                f"from {start_date} to {end_date}"
+                                f"from {start_date_obj} to {end_date_obj}" # Use renamed vars
                             )
 
                         attempts += 1
-
     return absences
 
 
@@ -1413,18 +1609,27 @@ def generate_improved_absences(employees):
 def generate_optimized_demo_data():
     """Generate optimized demo data with more diverse shifts and granular coverage"""
     try:
-        logging.info("Generating optimized demo data with diverse shift patterns")
+        json_data = request.get_json() or {}
+        num_employees_raw = json_data.get("num_employees")
+        num_employees_override = None  # Default
+        if isinstance(num_employees_raw, int):
+            if num_employees_raw > 0:
+                num_employees_override = num_employees_raw
+        elif isinstance(num_employees_raw, str):
+            if num_employees_raw.isdigit():
+                parsed_num = int(num_employees_raw)
+                if parsed_num > 0:
+                    num_employees_override = parsed_num
 
-        # Import math module for ceil function used in availability generation
-        import math
+        logging.info(f"Generating optimized demo data with diverse shift patterns, num_employees_override: {num_employees_override}")
 
         # Update settings first
         settings = Settings.query.first()
         if not settings:
             settings = Settings.get_default_settings()
 
-        settings.employee_types = generate_employee_types()
-        settings.absence_types = generate_absence_types()
+        settings.employee_types = generate_employee_types()  # type: ignore[assignment]
+        settings.absence_types = generate_absence_types()  # type: ignore[assignment]
         db.session.commit()
         logging.info("Successfully updated employee and absence types")
 
@@ -1434,14 +1639,14 @@ def generate_optimized_demo_data():
         Coverage.query.delete()
         ShiftTemplate.query.delete()
         Employee.query.delete()
-        Absence.query.delete()  # Add this line to clear existing absences
+        Absence.query.delete()
         db.session.commit()
         logging.info("Successfully cleaned up existing data")
 
         # Generate new optimized data
         try:
             logging.info("Generating improved employee data...")
-            employees = generate_improved_employee_data()
+            employees = generate_improved_employee_data(num_employees_override=num_employees_override)
             logging.info(f"Created {len(employees)} employees, adding to session...")
             db.session.add_all(employees)
             logging.info("Committing employees to database...")
@@ -1473,7 +1678,10 @@ def generate_optimized_demo_data():
         )
 
         # Generate optimized availability data
-        availabilities = generate_improved_availability_data(employees)
+        # Note: The old generate_improved_availability_data is being replaced.
+        # The new one (defined as a string above) should be used here.
+        # For now, this call will use the OLD version from the file.
+        availabilities, daily_employee_day_type, employee_weekly_hours = generate_improved_availability_data(employees)
         db.session.add_all(availabilities)
         db.session.commit()
         logging.info(f"Successfully created {len(availabilities)} availabilities")

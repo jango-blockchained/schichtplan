@@ -103,5 +103,5 @@ if __name__ == "__main__":
     fix_active_days_format()
     
     print("\n" + "=" * 80)
-    print(" FIX COMPLETE ".center(80, "="))
+    print(" FIXED COMPLETE ".center(80, "="))
     print("=" * 80) 

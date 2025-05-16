@@ -43,7 +43,7 @@ interface ScheduleGenerationSettingsProps {
     /** Current application settings */
     settings: Settings;
     /** Callback for updating generation requirements */
-    onUpdate: (updates: Partial<Settings['scheduling']['generation_requirements']>) => void;
+    onUpdate: (updatedSettings: Settings) => Promise<void>;
     /** Whether to create empty schedules during generation */
     createEmptySchedules?: boolean;
     /** Whether to include empty schedules in the view */

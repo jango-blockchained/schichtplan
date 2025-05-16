@@ -620,7 +620,7 @@ export interface Availability {
     end_date: string;
     start_time?: string;
     end_time?: string;
-    availability_type: 'AVL' | 'FIX' | 'PRF' | 'UNV';
+    availability_type: 'AVAILABLE' | 'FIXED' | 'PREFERRED' | 'UNAVAILABLE';
     reason?: string;
     is_recurring: boolean;
     recurrence_day?: number;
@@ -791,9 +791,13 @@ export const updateCoverage = async (coverage: DailyCoverage[]): Promise<void> =
 };
 
 // Demo Data
-export const generateDemoData = async (module: string): Promise<void | Settings> => {
+export const generateDemoData = async (module: string, numEmployees?: number): Promise<void | Settings> => {
     try {
-        const response = await api.post('/demo-data/', { module });
+        const payload: { module: string; num_employees?: number } = { module };
+        if (numEmployees !== undefined) {
+            payload.num_employees = numEmployees;
+        }
+        const response = await api.post('/demo-data/', payload);
 
         // If generating settings data, update the settings in the store
         if (module === 'settings' || module === 'all') {
@@ -811,9 +815,13 @@ export const generateDemoData = async (module: string): Promise<void | Settings>
 };
 
 // Generate optimized demo data with more diverse shift patterns
-export const generateOptimizedDemoData = async (): Promise<void | Settings> => {
+export const generateOptimizedDemoData = async (numEmployees?: number): Promise<void | Settings> => {
     try {
-        const response = await api.post('/demo-data/optimized/');
+        const payload: { num_employees?: number } = {};
+        if (numEmployees !== undefined) {
+            payload.num_employees = numEmployees;
+        }
+        const response = await api.post('/demo-data/optimized/', payload.num_employees !== undefined ? payload : {}); // Send empty object if no numEmployees
 
         // Always refresh settings after optimized data generation
         const settings = await getSettings();
@@ -1312,7 +1320,7 @@ export interface CreateScheduleRequest {
     break_start?: string;
     break_end?: string;
     notes?: string;
-    availability_type?: 'AVL' | 'FIX' | 'PRF' | 'UNV';
+    availability_type?: 'AVAILABLE' | 'FIXED' | 'PREFERRED' | 'UNAVAILABLE';
 }
 
 export const createSchedule = async (data: {

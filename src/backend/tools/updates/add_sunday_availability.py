@@ -55,7 +55,7 @@ def add_sunday_availability():
                 """
                 INSERT INTO employee_availabilities 
                 (employee_id, day_of_week, hour, is_available, is_recurring, availability_type, created_at, updated_at)
-                VALUES (?, 0, ?, 1, 1, 'AVL', ?, ?)
+                VALUES (?, 0, ?, 1, 1, 'AVAILABLE', ?, ?)
             """,
                 (employee_id, hour, now, now),
             )

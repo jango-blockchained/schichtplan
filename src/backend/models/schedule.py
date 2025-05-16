@@ -4,6 +4,9 @@ from sqlalchemy import Column, Integer, ForeignKey, DateTime, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from enum import Enum
 
+# Import AvailabilityType from employee model
+from .employee import AvailabilityType
+
 
 class ScheduleStatus(str, Enum):
     DRAFT = "DRAFT"  # Initial state, can be modified
@@ -25,7 +28,7 @@ class Schedule(db.Model):
     notes = Column(db.Text, nullable=True)
     shift_type = Column(db.String(20), nullable=True)
     availability_type = Column(
-        db.String(15), nullable=True
+        SQLEnum(AvailabilityType), nullable=True, default=AvailabilityType.AVAILABLE
     )  # AVAILABLE, FIXED, PREFERRED, UNAVAILABLE
     status = Column(
         SQLEnum(ScheduleStatus), nullable=False, default=ScheduleStatus.DRAFT
@@ -51,7 +54,7 @@ class Schedule(db.Model):
         break_end=None,
         notes=None,
         shift_type=None,
-        availability_type=None,
+        availability_type=AvailabilityType.AVAILABLE,
         status=ScheduleStatus.DRAFT,
     ):
         self.employee_id = employee_id
@@ -62,7 +65,7 @@ class Schedule(db.Model):
         self.break_end = break_end
         self.notes = notes
         self.shift_type = shift_type
-        self.availability_type = availability_type
+        self.availability_type = availability_type.value if isinstance(availability_type, AvailabilityType) else availability_type
         self.status = status
 
     def to_dict(self):
@@ -73,16 +76,16 @@ class Schedule(db.Model):
             "id": self.id,
             "employee_id": self.employee_id,
             "shift_id": self.shift_id,
-            "date": self.date.isoformat() if self.date else None,
+            "date": self.date.isoformat() if self.date is not None else None,
             "version": self.version,
             "break_start": self.break_start,
             "break_end": self.break_end,
             "notes": self.notes,
             "shift_type": self.shift_type,
-            "availability_type": self.availability_type,
-            "status": self.status.value if self.status else "DRAFT",
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "availability_type": self.availability_type.value if isinstance(self.availability_type, AvailabilityType) else self.availability_type,
+            "status": self.status.value if self.status is not None else "DRAFT",
+            "created_at": self.created_at.isoformat() if self.created_at is not None else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at is not None else None,
         }
 
         # Add shift details if available through relationship
@@ -186,16 +189,16 @@ class ScheduleVersionMeta(db.Model):
     def to_dict(self):
         return {
             "version": self.version,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at is not None else None,
             "created_by": self.created_by,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at is not None else None,
             "updated_by": self.updated_by,
             "status": self.status.value,
             "date_range": {
                 "start": self.date_range_start.isoformat()
-                if self.date_range_start
+                if self.date_range_start is not None
                 else None,
-                "end": self.date_range_end.isoformat() if self.date_range_end else None,
+                "end": self.date_range_end.isoformat() if self.date_range_end is not None else None,
             },
             "base_version": self.base_version,
             "notes": self.notes,

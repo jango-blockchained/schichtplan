@@ -10,39 +10,39 @@ import click
 import json
 
 # Add the parent directory to Python path
-current_dir = Path(__file__).resolve().parent
-if str(current_dir) not in sys.path:
-    sys.path.append(str(current_dir))
+# current_dir = Path(__file__).resolve().parent
+# if str(current_dir) not in sys.path:
+#     sys.path.append(str(current_dir))
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_migrate import Migrate
-from models import db
-from config import Config
-from routes.shifts import shifts
-from routes.settings import settings
-from routes.schedules import schedules
-from routes.employees import employees
-from routes.availability import availability
-from routes.absences import bp as absences_bp
-from routes.ai_schedule_routes import ai_schedule_bp
-from routes.auth import bp as auth_bp  # Add auth routes import
-from routes.holiday_routes import holidays as holidays_bp
-from routes.holiday_import import holiday_import as holiday_import_bp
-from routes.special_days import special_days as special_days_bp
-from api.coverage import bp as coverage_bp
-from api.schedules import bp as api_schedules_bp
-from api.settings import bp as api_settings_bp
-from api.demo_data import bp as demo_data_bp
-from routes import logs  # Add logs import
-from utils.logger import (
-    Logger,
+from src.backend.models import db
+from src.backend.config import Config
+from src.backend.routes.shifts import shifts
+from src.backend.routes.settings import settings
+from src.backend.routes.schedules import schedules
+from src.backend.routes.employees import employees
+from src.backend.routes.availability import availability
+from src.backend.routes.absences import bp as absences_bp
+from src.backend.routes.ai_schedule_routes import ai_schedule_bp
+from src.backend.routes.auth import bp as auth_bp
+from src.backend.routes.holiday_routes import holidays as holidays_bp
+from src.backend.routes.holiday_import import holiday_import as holiday_import_bp
+from src.backend.routes.special_days import special_days as special_days_bp
+from src.backend.api.coverage import bp as coverage_bp
+from src.backend.api.schedules import bp as api_schedules_bp
+from src.backend.api.settings import bp as api_settings_bp
+from src.backend.api.demo_data import bp as demo_data_bp
+from src.backend.routes import logs
+from src.backend.utils.logger import (
+    logger as global_logger,
     CustomFormatter,
-)  # Import Logger class and CustomFormatter
+)
 
 # Import diagnostic tools
 try:
-    from tools.debug.flask_diagnostic import (
+    from src.backend.tools.debug.flask_diagnostic import (
         register_commands as register_diagnostic_commands,
     )
 except ImportError:
@@ -51,7 +51,7 @@ except ImportError:
 
 def setup_logging(app):
     # Create a new logger instance
-    app_logger = Logger()
+    app_logger = global_logger
 
     # Configure Flask app logger
     app.logger.handlers = []  # Remove default handlers
@@ -136,14 +136,6 @@ def create_app(config_class=Config):
         api_schedules_bp, name="api_schedules"
     )  # Register with unique name to avoid conflict
 
-    # Register CLI commands
-    try:
-        # Import is wrapped in try/except to handle missing modules
-        from tools.test_scheduler import register_commands
-        register_commands(app)
-    except ImportError:
-        pass  # Ignore if test_scheduler is not available
-
     # Register diagnostic commands if available
     if register_diagnostic_commands:
         register_diagnostic_commands(app)
@@ -184,8 +176,8 @@ def create_app(config_class=Config):
     )
     def run_diagnostic(start_date=None, end_date=None, days=7):
         """Run the schedule generator diagnostic"""
-        from models import Employee, ShiftTemplate, Coverage
-        from services.scheduler import ScheduleGenerator
+        from src.backend.models import Employee, ShiftTemplate, Coverage
+        from src.backend.services.scheduler import ScheduleGenerator
 
         session_id = str(uuid.uuid4())[:8]
         app.logger.info(f"Starting diagnostic session {session_id}")
@@ -255,8 +247,8 @@ def create_app(config_class=Config):
     )
     def run_ai_diagnostic(start_date=None, end_date=None, days=7):
         """Run the AI schedule generator diagnostic"""
-        from models import Employee, ShiftTemplate, Coverage
-        from services.ai_scheduler_service import AISchedulerService
+        from src.backend.models import Employee, ShiftTemplate, Coverage
+        from src.backend.services.ai_scheduler_service import AISchedulerService
         from pathlib import Path
         
         session_id = str(uuid.uuid4())[:8]
