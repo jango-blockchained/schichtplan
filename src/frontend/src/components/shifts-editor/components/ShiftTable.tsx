@@ -1,21 +1,38 @@
-import { Card } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { cn } from '@/lib/utils';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Skeleton } from '@/components/ui/skeleton';
-import { WeeklySchedule } from '@/types';
-import { format, addDays } from 'date-fns';
-import { de } from 'date-fns/locale';
-import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
-import { useState, useCallback } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { AlertCircle, Edit2, Loader2 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/components/ui/use-toast';
-import { useQuery } from '@tanstack/react-query';
-import { getSettings } from '@/services/api';
+import { Card } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { cn } from "@/lib/utils";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import { WeeklySchedule } from "@/types";
+import { format, addDays } from "date-fns";
+import { de } from "date-fns/locale";
+import {
+  DragDropContext,
+  Droppable,
+  Draggable,
+  DropResult,
+} from "react-beautiful-dnd";
+import { useState, useCallback } from "react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { AlertCircle, Edit2, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
+import { useQuery } from "@tanstack/react-query";
+import { getSettings } from "@/services/api";
 
 interface ShiftTableProps {
   weekStart: Date;
@@ -23,8 +40,16 @@ interface ShiftTableProps {
   isLoading?: boolean;
   error?: string | null;
   data: WeeklySchedule[];
-  onShiftUpdate?: (employeeId: number, fromDay: number, toDay: number) => Promise<void>;
-  onBreakNotesUpdate?: (employeeId: number, day: number, notes: string) => Promise<void>;
+  onShiftUpdate?: (
+    employeeId: number,
+    fromDay: number,
+    toDay: number,
+  ) => Promise<void>;
+  onBreakNotesUpdate?: (
+    employeeId: number,
+    day: number,
+    notes: string,
+  ) => Promise<void>;
 }
 
 interface SubRowProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -32,7 +57,13 @@ interface SubRowProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 const SubRow = ({ children, className, ...props }: SubRowProps) => (
-  <div className={cn("flex flex-col border-t border-border first:border-t-0", className)} {...props}>
+  <div
+    className={cn(
+      "flex flex-col border-t border-border first:border-t-0",
+      className,
+    )}
+    {...props}
+  >
     {children}
   </div>
 );
@@ -68,7 +99,7 @@ const LoadingSkeleton = () => (
 
 const parseTime = (timeStr: string): number => {
   if (!timeStr) return 0;
-  const [hours, minutes] = timeStr.split(':').map(Number);
+  const [hours, minutes] = timeStr.split(":").map(Number);
   return hours + minutes / 60;
 };
 
@@ -78,10 +109,14 @@ const formatHours = (totalHours: number): string => {
 
   const hours = Math.floor(totalHours);
   const minutes = Math.round((totalHours - hours) * 60);
-  return `${hours}:${minutes.toString().padStart(2, '0')}`;
+  return `${hours}:${minutes.toString().padStart(2, "0")}`;
 };
 
-const calculateShiftHours = (shift: { start?: string; end?: string; break?: { start: string; end: string; notes?: string } }): number => {
+const calculateShiftHours = (shift: {
+  start?: string;
+  end?: string;
+  break?: { start: string; end: string; notes?: string };
+}): number => {
   if (!shift.start || !shift.end) return 0;
 
   let totalHours = parseTime(shift.end) - parseTime(shift.start);
@@ -93,17 +128,21 @@ const calculateShiftHours = (shift: { start?: string; end?: string; break?: { st
 
   // Subtract break time if present
   if (shift.break) {
-    let breakDuration = parseTime(shift.break.end) - parseTime(shift.break.start);
+    let breakDuration =
+      parseTime(shift.break.end) - parseTime(shift.break.start);
     if (breakDuration < 0) {
       breakDuration += 24;
     }
 
     // Handle second break from notes if present (for shifts > 9 hours)
-    if (shift.break.notes?.includes('Second break:')) {
-      const secondBreakMatch = shift.break.notes.match(/Second break: (\d{2}:\d{2})-(\d{2}:\d{2})/);
+    if (shift.break.notes?.includes("Second break:")) {
+      const secondBreakMatch = shift.break.notes.match(
+        /Second break: (\d{2}:\d{2})-(\d{2}:\d{2})/,
+      );
       if (secondBreakMatch) {
         const [_, secondBreakStart, secondBreakEnd] = secondBreakMatch;
-        let secondBreakDuration = parseTime(secondBreakEnd) - parseTime(secondBreakStart);
+        let secondBreakDuration =
+          parseTime(secondBreakEnd) - parseTime(secondBreakStart);
         if (secondBreakDuration < 0) {
           secondBreakDuration += 24;
         }
@@ -117,48 +156,82 @@ const calculateShiftHours = (shift: { start?: string; end?: string; break?: { st
   return totalHours;
 };
 
-const calculateDailyHours = (shift: { start?: string; end?: string; break?: { start: string; end: string; notes?: string } }): string => {
+const calculateDailyHours = (shift: {
+  start?: string;
+  end?: string;
+  break?: { start: string; end: string; notes?: string };
+}): string => {
   return formatHours(calculateShiftHours(shift));
 };
 
-const calculateWeeklyHours = (shifts: Array<{ start?: string; end?: string; break?: { start: string; end: string; notes?: string } }>): string => {
-  const totalHours = shifts.reduce((acc, shift) => acc + calculateShiftHours(shift), 0);
+const calculateWeeklyHours = (
+  shifts: Array<{
+    start?: string;
+    end?: string;
+    break?: { start: string; end: string; notes?: string };
+  }>,
+): string => {
+  const totalHours = shifts.reduce(
+    (acc, shift) => acc + calculateShiftHours(shift),
+    0,
+  );
   return formatHours(totalHours);
 };
 
-const calculateMonthlyHours = (shifts: Array<{ start?: string; end?: string; break?: { start: string; end: string; notes?: string } }>): string => {
+const calculateMonthlyHours = (
+  shifts: Array<{
+    start?: string;
+    end?: string;
+    break?: { start: string; end: string; notes?: string };
+  }>,
+): string => {
   // Calculate weekly hours and multiply by average weeks per month (4.33)
   // This provides a more accurate projection of monthly hours
-  const weeklyHours = shifts.reduce((acc, shift) => acc + calculateShiftHours(shift), 0);
+  const weeklyHours = shifts.reduce(
+    (acc, shift) => acc + calculateShiftHours(shift),
+    0,
+  );
   const monthlyHours = weeklyHours * 4.33;
   return formatHours(monthlyHours);
 };
 
-const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeId }: {
-  shift: WeeklySchedule['shifts'][0] | undefined;
+const ShiftCell = ({
+  shift,
+  showValidation = true,
+  onBreakNotesUpdate,
+  employeeId,
+}: {
+  shift: WeeklySchedule["shifts"][0] | undefined;
   showValidation?: boolean;
-  onBreakNotesUpdate?: (employeeId: number, day: number, notes: string) => Promise<void>;
+  onBreakNotesUpdate?: (
+    employeeId: number,
+    day: number,
+    notes: string,
+  ) => Promise<void>;
   employeeId?: number;
 }) => {
   const [isEditingNotes, setIsEditingNotes] = useState(false);
-  const [notes, setNotes] = useState(shift?.break?.notes || '');
+  const [notes, setNotes] = useState(shift?.break?.notes || "");
   const [isUpdating, setIsUpdating] = useState(false);
   const { toast } = useToast();
 
   // Fetch settings to get shift type details
   const { data: settings } = useQuery({
-    queryKey: ['settings'],
+    queryKey: ["settings"],
     queryFn: getSettings,
   });
 
   if (!shift) return null;
 
   const dailyHours = calculateDailyHours(shift);
-  const shiftHours = parseFloat(dailyHours.split(':')[0]) + parseFloat(dailyHours.split(':')[1]) / 60;
+  const shiftHours =
+    parseFloat(dailyHours.split(":")[0]) +
+    parseFloat(dailyHours.split(":")[1]) / 60;
 
   // Enhanced validation checks
   const hasBreakViolation = shiftHours > 6 && !shift.break;
-  const hasLongBreakViolation = shiftHours > 9 && (!shift.break?.notes?.includes('Second break:'));
+  const hasLongBreakViolation =
+    shiftHours > 9 && !shift.break?.notes?.includes("Second break:");
   const hasHoursViolation = shiftHours > 10;
 
   // Determine shift type based on time
@@ -169,27 +242,38 @@ const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeI
     }
 
     // Otherwise guess based on start time
-    const startHour = parseInt(shift.start?.split(':')[0] || '0');
-    if (startHour < 11) return 'EARLY';
-    if (startHour >= 16) return 'LATE';
-    return 'MIDDLE';
+    const startHour = parseInt(shift.start?.split(":")[0] || "0");
+    if (startHour < 11) return "EARLY";
+    if (startHour >= 16) return "LATE";
+    return "MIDDLE";
   };
 
   const shiftTypeId = determineShiftType();
 
   // Find the shift type details in settings
-  const shiftTypeInfo = settings?.shift_types?.find(type => type.id === shiftTypeId);
-
-  // Get the color and name for the shift type
-  const shiftTypeColor = shiftTypeInfo?.color || '#64748b'; // Default slate gray
-  const shiftTypeName = shiftTypeInfo?.name || (
-    shiftTypeId === 'EARLY' ? 'Frühschicht' :
-      shiftTypeId === 'MIDDLE' ? 'Mittelschicht' :
-        shiftTypeId === 'LATE' ? 'Spätschicht' : 'Schicht'
+  const shiftTypeInfo = settings?.shift_types?.find(
+    (type) => type.id === shiftTypeId,
   );
 
+  // Get the color and name for the shift type
+  const shiftTypeColor = shiftTypeInfo?.color || "#64748b"; // Default slate gray
+  const shiftTypeName =
+    shiftTypeInfo?.name ||
+    (shiftTypeId === "EARLY"
+      ? "Frühschicht"
+      : shiftTypeId === "MIDDLE"
+        ? "Mittelschicht"
+        : shiftTypeId === "LATE"
+          ? "Spätschicht"
+          : "Schicht");
+
   const handleNotesUpdate = async () => {
-    if (!onBreakNotesUpdate || !employeeId || shift.day === undefined || !shift.break) {
+    if (
+      !onBreakNotesUpdate ||
+      !employeeId ||
+      shift.day === undefined ||
+      !shift.break
+    ) {
       return;
     }
 
@@ -203,7 +287,10 @@ const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeI
     } catch (error) {
       toast({
         title: "Fehler",
-        description: error instanceof Error ? error.message : "Fehler beim Speichern der Notizen",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Fehler beim Speichern der Notizen",
         variant: "destructive",
       });
     } finally {
@@ -212,15 +299,19 @@ const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeI
   };
 
   const handleCancel = () => {
-    setNotes(shift.break?.notes || '');
+    setNotes(shift.break?.notes || "");
     setIsEditingNotes(false);
   };
 
   return (
-    <div className={cn(
-      "p-2 rounded border border-border",
-      (hasBreakViolation || hasLongBreakViolation || hasHoursViolation) ? "border-destructive" : "hover:border-primary"
-    )}>
+    <div
+      className={cn(
+        "p-2 rounded border border-border",
+        hasBreakViolation || hasLongBreakViolation || hasHoursViolation
+          ? "border-destructive"
+          : "hover:border-primary",
+      )}
+    >
       {/* Display shift type in badge with the correct color */}
       <div className="mb-2">
         <Badge
@@ -228,7 +319,7 @@ const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeI
           style={{
             backgroundColor: `${shiftTypeColor}20`, // Add transparency
             color: shiftTypeColor,
-            borderColor: shiftTypeColor
+            borderColor: shiftTypeColor,
           }}
         >
           {shiftTypeName}
@@ -277,7 +368,7 @@ const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeI
             ) : (
               <div className="flex items-center gap-2 w-full">
                 <span className="text-sm text-muted-foreground flex-1">
-                  {shift.break.notes || 'Keine Pausennotizen'}
+                  {shift.break.notes || "Keine Pausennotizen"}
                 </span>
                 {onBreakNotesUpdate && (
                   <Button
@@ -297,69 +388,89 @@ const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeI
       <SubRow>Ende: {shift.end}</SubRow>
       <SubRow className="flex justify-between items-center">
         <span>Summe / Tag: {dailyHours}</span>
-        {showValidation && (hasBreakViolation || hasLongBreakViolation || hasHoursViolation) && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger>
-                <AlertCircle className="h-4 w-4 text-destructive" />
-              </TooltipTrigger>
-              <TooltipContent>
-                {hasBreakViolation && <p>Pause erforderlich für Schichten &gt; 6 Stunden</p>}
-                {hasLongBreakViolation && <p>Zweite Pause erforderlich für Schichten &gt; 9 Stunden</p>}
-                {hasHoursViolation && <p>Maximale Arbeitszeit von 10 Stunden überschritten</p>}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
+        {showValidation &&
+          (hasBreakViolation || hasLongBreakViolation || hasHoursViolation) && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <AlertCircle className="h-4 w-4 text-destructive" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  {hasBreakViolation && (
+                    <p>Pause erforderlich für Schichten &gt; 6 Stunden</p>
+                  )}
+                  {hasLongBreakViolation && (
+                    <p>
+                      Zweite Pause erforderlich für Schichten &gt; 9 Stunden
+                    </p>
+                  )}
+                  {hasHoursViolation && (
+                    <p>Maximale Arbeitszeit von 10 Stunden überschritten</p>
+                  )}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
       </SubRow>
     </div>
   );
 };
 
-export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShiftUpdate, onBreakNotesUpdate }: ShiftTableProps) => {
+export const ShiftTable = ({
+  weekStart,
+  weekEnd,
+  isLoading,
+  error,
+  data,
+  onShiftUpdate,
+  onBreakNotesUpdate,
+}: ShiftTableProps) => {
   const [localData, setLocalData] = useState(data);
   const dates = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)); // Changed to 7 days to include Sunday
 
-  const handleDragEnd = useCallback(async (result: DropResult) => {
-    if (!result.destination || !onShiftUpdate) return;
+  const handleDragEnd = useCallback(
+    async (result: DropResult) => {
+      if (!result.destination || !onShiftUpdate) return;
 
-    const { source, destination, draggableId } = result;
-    const [employeeId, dayStr] = draggableId.split('-');
-    const fromDay = parseInt(dayStr, 10);
-    const toDay = parseInt(destination.droppableId.split('-')[1], 10);
+      const { source, destination, draggableId } = result;
+      const [employeeId, dayStr] = draggableId.split("-");
+      const fromDay = parseInt(dayStr, 10);
+      const toDay = parseInt(destination.droppableId.split("-")[1], 10);
 
-    // Don't do anything if dropped in the same spot
-    if (fromDay === toDay) return;
+      // Don't do anything if dropped in the same spot
+      if (fromDay === toDay) return;
 
-    try {
-      // Update backend
-      await onShiftUpdate(parseInt(employeeId, 10), fromDay, toDay);
+      try {
+        // Update backend
+        await onShiftUpdate(parseInt(employeeId, 10), fromDay, toDay);
 
-      // Update local state
-      setLocalData(prevData => {
-        return prevData.map(employee => {
-          if (employee.employee_id.toString() !== employeeId) return employee;
+        // Update local state
+        setLocalData((prevData) => {
+          return prevData.map((employee) => {
+            if (employee.employee_id.toString() !== employeeId) return employee;
 
-          const newShifts = [...employee.shifts];
-          const shiftIndex = newShifts.findIndex(s => s.day === fromDay);
-          if (shiftIndex === -1) return employee;
+            const newShifts = [...employee.shifts];
+            const shiftIndex = newShifts.findIndex((s) => s.day === fromDay);
+            if (shiftIndex === -1) return employee;
 
-          const [shift] = newShifts.splice(shiftIndex, 1);
-          shift.day = toDay;
-          newShifts.push(shift);
+            const [shift] = newShifts.splice(shiftIndex, 1);
+            shift.day = toDay;
+            newShifts.push(shift);
 
-          return {
-            ...employee,
-            shifts: newShifts,
-          };
+            return {
+              ...employee,
+              shifts: newShifts,
+            };
+          });
         });
-      });
-    } catch (error) {
-      console.error('Failed to update shift:', error);
-      // Reset to original data if update fails
-      setLocalData(data);
-    }
-  }, [onShiftUpdate, data]);
+      } catch (error) {
+        console.error("Failed to update shift:", error);
+        // Reset to original data if update fails
+        setLocalData(data);
+      }
+    },
+    [onShiftUpdate, data],
+  );
 
   if (isLoading) {
     return <LoadingSkeleton />;
@@ -377,21 +488,31 @@ export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShift
     <DragDropContext onDragEnd={handleDragEnd}>
       <Card className="overflow-x-auto">
         <div className="p-4 border-b border-border">
-          <h2 className="text-xl font-semibold">Mitarbeiter-Einsatz-Planung (MEP)</h2>
+          <h2 className="text-xl font-semibold">
+            Mitarbeiter-Einsatz-Planung (MEP)
+          </h2>
           <div className="text-sm text-muted-foreground mt-2">
             <span>Filiale: {/* Add filiale number */}</span>
-            <span className="ml-4">Woche vom: {format(weekStart, 'dd.MM.yy')} bis: {format(weekEnd, 'dd.MM.yy')}</span>
+            <span className="ml-4">
+              Woche vom: {format(weekStart, "dd.MM.yy")} bis:{" "}
+              {format(weekEnd, "dd.MM.yy")}
+            </span>
           </div>
         </div>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableCell className="font-medium min-w-[150px]">Name, Vorname</TableCell>
+              <TableCell className="font-medium min-w-[150px]">
+                Name, Vorname
+              </TableCell>
               <TableCell className="font-medium w-20">Position</TableCell>
               <TableCell className="font-medium w-20">Plan / Woche</TableCell>
               {dates.map((date) => (
-                <TableCell key={date.toISOString()} className="font-medium min-w-[100px]">
-                  {format(date, 'EEEE\ndd.MM', { locale: de })}
+                <TableCell
+                  key={date.toISOString()}
+                  className="font-medium min-w-[100px]"
+                >
+                  {format(date, "EEEE\ndd.MM", { locale: de })}
                 </TableCell>
               ))}
               <TableCell className="font-medium w-20">Summe / Woche</TableCell>
@@ -400,12 +521,19 @@ export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShift
           </TableHeader>
           <TableBody>
             {localData.map((employee, index) => (
-              <TableRow key={employee.employee_id} className={cn(index % 2 === 0 ? 'bg-background' : 'bg-muted/50')}>
+              <TableRow
+                key={employee.employee_id}
+                className={cn(
+                  index % 2 === 0 ? "bg-background" : "bg-muted/50",
+                )}
+              >
                 <TableCell className="align-top">
                   <div className="flex flex-col gap-1">
                     <span className="text-sm font-medium">{employee.name}</span>
-                    {employee.position === 'Teamleiter' && (
-                      <Badge variant="secondary" className="w-fit">TL</Badge>
+                    {employee.position === "Teamleiter" && (
+                      <Badge variant="secondary" className="w-fit">
+                        TL
+                      </Badge>
                     )}
                   </div>
                 </TableCell>
@@ -424,11 +552,11 @@ export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShift
                           {...provided.droppableProps}
                           className={cn(
                             "min-h-[120px] p-2",
-                            snapshot.isDraggingOver && "bg-accent"
+                            snapshot.isDraggingOver && "bg-accent",
                           )}
                         >
                           {employee.shifts
-                            .filter(s => s.day === dayIndex)
+                            .filter((s) => s.day === dayIndex)
                             .map((shift, index) => (
                               <Draggable
                                 key={`${employee.employee_id}-${shift.day}`}
@@ -442,7 +570,7 @@ export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShift
                                     {...provided.dragHandleProps}
                                     className={cn(
                                       "mb-2 last:mb-0",
-                                      snapshot.isDragging && "opacity-50"
+                                      snapshot.isDragging && "opacity-50",
                                     )}
                                   >
                                     <ShiftCell
@@ -473,11 +601,13 @@ export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShift
         <div className="p-4 space-y-2 text-sm text-muted-foreground border-t border-border">
           <p>h : 60 Minuten</p>
           <p>
-            Anwesenheiten: Arbeitszeitbeginn bis Arbeitszeitende inkl. Pausenzeiten und die Tagesstunden eintragen.
-            Am Ende der Woche: wöchentliche und monatliche Summe eintragen.
+            Anwesenheiten: Arbeitszeitbeginn bis Arbeitszeitende inkl.
+            Pausenzeiten und die Tagesstunden eintragen. Am Ende der Woche:
+            wöchentliche und monatliche Summe eintragen.
           </p>
           <p>
-            Abwesenheiten: Feiertag, Krankheit (AU-Bescheinigung), Freizeit, Schule (Führungsnachweis), Urlaub
+            Abwesenheiten: Feiertag, Krankheit (AU-Bescheinigung), Freizeit,
+            Schule (Führungsnachweis), Urlaub
           </p>
         </div>
       </Card>

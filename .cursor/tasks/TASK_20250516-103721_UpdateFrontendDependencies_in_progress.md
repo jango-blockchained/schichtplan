@@ -43,19 +43,19 @@ This phase focuses on updating packages with patch or minor version changes, whi
     *   Package: `@tanstack/react-query`
     *   Command: `npx npm-check-updates -u @tanstack/react-query`
     *   Install: `bun install`
-    *   Test & Commit.
+    *   Test & Commit. (DONE - 20250516-103721: @tanstack/react-query updated to ^5.76.1 and installed. Manual testing and commit by user pending.)
 
 3.  **Update TypeScript & Core Build Tooling**
     *   Packages: `typescript` (patch), `@vitejs/plugin-react`, `autoprefixer`, `postcss`
     *   Command: `npx npm-check-updates -u typescript @vitejs/plugin-react autoprefixer postcss`
     *   Install: `bun install`
-    *   Test & Commit.
+    *   Test & Commit. (DONE - 20250516-103721: TypeScript, Vite plugin, autoprefixer, postcss updated in package.json and bun install run. Manual testing and commit by user pending.)
 
 4.  **Update Linters & Formatters (Minor/Patch)**
     *   Packages: `@typescript-eslint/eslint-plugin`, `@typescript-eslint/parser`, `prettier`
     *   Command: `npx npm-check-updates -u @typescript-eslint/eslint-plugin @typescript-eslint/parser prettier`
     *   Install: `bun install`
-    *   Test & Commit.
+    *   Test & Commit. (DONE - 20250516-103721: ESLint TypeScript plugins and Prettier updated and installed. Manual testing, running linters/formatters, and commit by user pending.)
 
 5.  **Update Testing & Dev Utilities (Minor/Patch)**
     *   Packages: `happy-dom`, `jsdom`, `msw`, `serve`, `vite-bundle-visualizer`

@@ -1,19 +1,36 @@
-import { Card } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { cn } from '@/lib/utils';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Skeleton } from '@/components/ui/skeleton';
-import { WeeklySchedule, WeeklyShift } from '@/types';
-import { format, addDays } from 'date-fns';
-import { de } from 'date-fns/locale';
-import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
-import { useState, useCallback } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { AlertCircle, Edit2, Loader2 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/components/ui/use-toast';
+import { Card } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { cn } from "@/lib/utils";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import { WeeklySchedule, WeeklyShift } from "@/types";
+import { format, addDays } from "date-fns";
+import { de } from "date-fns/locale";
+import {
+  DragDropContext,
+  Droppable,
+  Draggable,
+  DropResult,
+} from "react-beautiful-dnd";
+import { useState, useCallback } from "react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { AlertCircle, Edit2, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
 
 interface ShiftTableProps {
   weekStart: Date;
@@ -21,8 +38,16 @@ interface ShiftTableProps {
   isLoading?: boolean;
   error?: string | null;
   data: WeeklySchedule[];
-  onShiftUpdate?: (employeeId: number, fromDay: number, toDay: number) => Promise<void>;
-  onBreakNotesUpdate?: (employeeId: number, day: number, notes: string) => Promise<void>;
+  onShiftUpdate?: (
+    employeeId: number,
+    fromDay: number,
+    toDay: number,
+  ) => Promise<void>;
+  onBreakNotesUpdate?: (
+    employeeId: number,
+    day: number,
+    notes: string,
+  ) => Promise<void>;
 }
 
 interface SubRowProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -30,7 +55,13 @@ interface SubRowProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 const SubRow = ({ children, className, ...props }: SubRowProps) => (
-  <div className={cn("flex flex-col border-t border-border first:border-t-0", className)} {...props}>
+  <div
+    className={cn(
+      "flex flex-col border-t border-border first:border-t-0",
+      className,
+    )}
+    {...props}
+  >
     {children}
   </div>
 );
@@ -65,14 +96,14 @@ const LoadingSkeleton = () => (
 );
 
 const parseTime = (timeStr: string): number => {
-  const [hours, minutes] = timeStr.split(':').map(Number);
+  const [hours, minutes] = timeStr.split(":").map(Number);
   return hours + minutes / 60;
 };
 
 const formatHours = (totalHours: number): string => {
   const hours = Math.floor(totalHours);
   const minutes = Math.round((totalHours - hours) * 60);
-  return `${hours}:${minutes.toString().padStart(2, '0')}`;
+  return `${hours}:${minutes.toString().padStart(2, "0")}`;
 };
 
 const calculateShiftHours = (shift: WeeklyShift): number => {
@@ -81,7 +112,8 @@ const calculateShiftHours = (shift: WeeklyShift): number => {
   let totalHours = parseTime(shift.end_time) - parseTime(shift.start_time);
 
   if (shift.break) {
-    const breakHours = parseTime(shift.break.end) - parseTime(shift.break.start);
+    const breakHours =
+      parseTime(shift.break.end) - parseTime(shift.break.start);
     totalHours -= breakHours;
   }
 
@@ -93,31 +125,47 @@ const calculateDailyHours = (shift: WeeklyShift): string => {
 };
 
 const calculateWeeklyHours = (shifts: WeeklyShift[]): string => {
-  const totalHours = shifts.reduce((acc, shift) => acc + calculateShiftHours(shift), 0);
+  const totalHours = shifts.reduce(
+    (acc, shift) => acc + calculateShiftHours(shift),
+    0,
+  );
   return formatHours(totalHours);
 };
 
 const calculateMonthlyHours = (shifts: WeeklyShift[]): string => {
-  const totalHours = shifts.reduce((acc, shift) => acc + calculateShiftHours(shift), 0);
+  const totalHours = shifts.reduce(
+    (acc, shift) => acc + calculateShiftHours(shift),
+    0,
+  );
   return formatHours(totalHours * 4); // Assuming 4 weeks per month
 };
 
 interface ShiftCellProps {
   shift: WeeklyShift | undefined;
   showValidation?: boolean;
-  onBreakNotesUpdate?: (employeeId: number, day: number, notes: string) => Promise<void>;
+  onBreakNotesUpdate?: (
+    employeeId: number,
+    day: number,
+    notes: string,
+  ) => Promise<void>;
   employeeId?: number;
 }
 
-const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeId }: ShiftCellProps) => {
-  const [notes, setNotes] = useState(shift?.break?.notes || '');
+const ShiftCell = ({
+  shift,
+  showValidation = true,
+  onBreakNotesUpdate,
+  employeeId,
+}: ShiftCellProps) => {
+  const [notes, setNotes] = useState(shift?.break?.notes || "");
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
 
   const shiftHours = shift ? calculateShiftHours(shift) : 0;
   const hasBreakViolation = shiftHours > 6 && !shift?.break;
-  const hasLongBreakViolation = shiftHours > 9 && (!shift?.break?.notes?.includes('Second break:'));
+  const hasLongBreakViolation =
+    shiftHours > 9 && !shift?.break?.notes?.includes("Second break:");
 
   const handleNotesUpdate = async () => {
     if (!onBreakNotesUpdate || !employeeId || !shift?.day) {
@@ -144,7 +192,7 @@ const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeI
   };
 
   const handleCancel = () => {
-    setNotes(shift?.break?.notes || '');
+    setNotes(shift?.break?.notes || "");
     setIsEditing(false);
   };
 
@@ -199,7 +247,9 @@ const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeI
                   onClick={handleNotesUpdate}
                   disabled={isSaving}
                 >
-                  {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {isSaving && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
                   Speichern
                 </Button>
                 <Button
@@ -214,13 +264,19 @@ const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeI
             </div>
           ) : (
             <div className="text-muted-foreground">
-              {shift.break?.notes || 'Keine Pausennotizen'}
+              {shift.break?.notes || "Keine Pausennotizen"}
             </div>
           )}
         </SubRow>
         <SubRow>Ende: {shift.end_time}</SubRow>
         <SubRow>
-          <Badge variant={hasBreakViolation || hasLongBreakViolation ? "destructive" : "secondary"}>
+          <Badge
+            variant={
+              hasBreakViolation || hasLongBreakViolation
+                ? "destructive"
+                : "secondary"
+            }
+          >
             {calculateDailyHours(shift)}h
           </Badge>
         </SubRow>
@@ -229,7 +285,15 @@ const ShiftCell = ({ shift, showValidation = true, onBreakNotesUpdate, employeeI
   );
 };
 
-export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShiftUpdate, onBreakNotesUpdate }: ShiftTableProps) => {
+export const ShiftTable = ({
+  weekStart,
+  weekEnd,
+  isLoading,
+  error,
+  data,
+  onShiftUpdate,
+  onBreakNotesUpdate,
+}: ShiftTableProps) => {
   const [isDragging, setIsDragging] = useState(false);
 
   const handleDragEnd = useCallback(
@@ -240,7 +304,7 @@ export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShift
         return;
       }
 
-      const [employeeId, fromDay] = result.draggableId.split('-').map(Number);
+      const [employeeId, fromDay] = result.draggableId.split("-").map(Number);
       const toDay = parseInt(result.destination.droppableId);
 
       if (fromDay === toDay) {
@@ -250,10 +314,10 @@ export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShift
       try {
         await onShiftUpdate(employeeId, fromDay, toDay);
       } catch (error) {
-        console.error('Failed to update shift:', error);
+        console.error("Failed to update shift:", error);
       }
     },
-    [onShiftUpdate]
+    [onShiftUpdate],
   );
 
   if (isLoading) return <LoadingSkeleton />;
@@ -283,7 +347,7 @@ export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShift
                 const date = addDays(weekStart, i);
                 return (
                   <TableHead key={i}>
-                    {format(date, 'EEE dd.MM', { locale: de })}
+                    {format(date, "EEE dd.MM", { locale: de })}
                   </TableHead>
                 );
               })}
@@ -293,11 +357,16 @@ export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShift
           </TableHeader>
           <TableBody>
             {data.map((employee, index) => (
-              <TableRow key={employee.employee_id} className={cn(index % 2 === 0 ? 'bg-background' : 'bg-muted/50')}>
+              <TableRow
+                key={employee.employee_id}
+                className={cn(
+                  index % 2 === 0 ? "bg-background" : "bg-muted/50",
+                )}
+              >
                 <TableCell>
                   <div className="flex flex-col gap-1">
                     <span className="text-sm font-medium">{employee.name}</span>
-                    {employee.position === 'Teamleiter' && (
+                    {employee.position === "Teamleiter" && (
                       <Badge variant="outline" className="w-fit">
                         TL
                       </Badge>
@@ -307,7 +376,7 @@ export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShift
                 <TableCell>{employee.position}</TableCell>
                 <TableCell>{employee.contracted_hours}:00</TableCell>
                 {Array.from({ length: 7 }).map((_, day) => {
-                  const shift = employee.shifts.find(s => s.day === day);
+                  const shift = employee.shifts.find((s) => s.day === day);
                   return (
                     <Droppable key={day} droppableId={day.toString()}>
                       {(provided, snapshot) => (
@@ -315,8 +384,8 @@ export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShift
                           ref={provided.innerRef}
                           {...provided.droppableProps}
                           className={cn(
-                            'p-0 relative',
-                            snapshot.isDraggingOver && 'bg-accent'
+                            "p-0 relative",
+                            snapshot.isDraggingOver && "bg-accent",
                           )}
                         >
                           {shift && (
@@ -330,8 +399,8 @@ export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShift
                                   {...provided.draggableProps}
                                   {...provided.dragHandleProps}
                                   className={cn(
-                                    'p-4',
-                                    snapshot.isDragging && 'bg-accent'
+                                    "p-4",
+                                    snapshot.isDragging && "bg-accent",
                                   )}
                                 >
                                   <ShiftCell
@@ -349,12 +418,8 @@ export const ShiftTable = ({ weekStart, weekEnd, isLoading, error, data, onShift
                     </Droppable>
                   );
                 })}
-                <TableCell>
-                  {calculateWeeklyHours(employee.shifts)}h
-                </TableCell>
-                <TableCell>
-                  {calculateMonthlyHours(employee.shifts)}h
-                </TableCell>
+                <TableCell>{calculateWeeklyHours(employee.shifts)}h</TableCell>
+                <TableCell>{calculateMonthlyHours(employee.shifts)}h</TableCell>
               </TableRow>
             ))}
           </TableBody>
