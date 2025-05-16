@@ -15,7 +15,7 @@ sys.path.insert(0, backend_dir)
 def main():
     """Main function to check and fix shift template active_days."""
     print("=================================================================")
-    print("                 SHIFT ACTIVE DAYS FIX TOOL                      ")
+    print("                 SHIFT ACTIVE DAYS FIXED TOOL                      ")
     print("=================================================================")
     
     # Import necessary modules in function to ensure proper path resolution

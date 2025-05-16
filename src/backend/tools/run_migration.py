@@ -41,25 +41,25 @@ def fix_enum_values():
         updates = [
             # Fix old PROMISE values
             (
-                "UPDATE employee_availabilities SET availability_type = 'PRF' WHERE availability_type = 'PROMISE' OR availability_type = 'PRM'",
-                "PROMISE/PRM to PRF",
+                "UPDATE employee_availabilities SET availability_type = 'PREFERRED' WHERE availability_type = 'PROMISE' OR availability_type = 'PRM'",
+                "PROMISE/PRM to PREFERRED",
             ),
             # Fix any values using the full enum names instead of codes
             (
-                "UPDATE employee_availabilities SET availability_type = 'AVL' WHERE availability_type = 'AVAILABLE'",
-                "AVAILABLE to AVL",
+                "UPDATE employee_availabilities SET availability_type = 'AVAILABLE' WHERE availability_type = 'AVAILABLE'",
+                "AVAILABLE to AVAILABLE",
             ),
             (
-                "UPDATE employee_availabilities SET availability_type = 'FIX' WHERE availability_type = 'FIXED'",
-                "FIXED to FIX",
+                "UPDATE employee_availabilities SET availability_type = 'FIXED' WHERE availability_type = 'FIXED'",
+                "FIXED to FIXED",
             ),
             (
-                "UPDATE employee_availabilities SET availability_type = 'PRF' WHERE availability_type = 'PREFERRED'",
-                "PREFERRED to PRF",
+                "UPDATE employee_availabilities SET availability_type = 'PREFERRED' WHERE availability_type = 'PREFERRED'",
+                "PREFERRED to PREFERRED",
             ),
             (
-                "UPDATE employee_availabilities SET availability_type = 'UNV' WHERE availability_type = 'UNAVAILABLE'",
-                "UNAVAILABLE to UNV",
+                "UPDATE employee_availabilities SET availability_type = 'UNAVAILABLE' WHERE availability_type = 'UNAVAILABLE'",
+                "UNAVAILABLE to UNAVAILABLE",
             ),
         ]
 

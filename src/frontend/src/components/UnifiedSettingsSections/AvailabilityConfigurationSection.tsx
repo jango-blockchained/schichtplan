@@ -50,8 +50,8 @@ const mapToBackend = (frontendTypes: FrontendAvailabilityType[]): AvailabilityTy
     name: ft.name,
     color: ft.color,
     description: ft.description,
-    priority: ft.originalPriority ?? (ft.id === 'UNV' ? 4 : ft.id === 'FIX' ? 1 : ft.id === 'AVL' ? 2 : 3),
-    is_available: ft.originalIsAvailable ?? (ft.id !== 'UNV'),
+    priority: ft.originalPriority ?? (ft.id === 'UNAVAILABLE' ? 4 : ft.id === 'FIXED' ? 1 : ft.id === 'AVAILABLE' ? 2 : 3),
+    is_available: ft.originalIsAvailable ?? (ft.id !== 'UNAVAILABLE'),
   }));
 };
 

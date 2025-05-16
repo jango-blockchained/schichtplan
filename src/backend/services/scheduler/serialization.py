@@ -31,10 +31,10 @@ except ImportError:
             class AvailabilityType:
                 """Enum placeholder for availability types"""
 
-                AVAILABLE = "AVL"
-                FIXED = "FIX"
-                PREFERRED = "PRF"
-                UNAVAILABLE = "UNV"
+                AVAILABLE = "AVAILABLE"
+                FIXED = "FIXED"
+                PREFERRED = "PREFERRED"
+                UNAVAILABLE = "UNAVAILABLE"
 
             class Employee:
                 """Type hint class for Employee"""

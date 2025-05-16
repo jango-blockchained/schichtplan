@@ -17,7 +17,7 @@ class ScheduleUpdateRequest(BaseModel):
     date: Optional[date] = None
     version: Optional[int] = Field(None, description="Version of the schedule.")
     notes: Optional[str] = Field(None, description="Notes for the schedule entry.")
-    availability_type: Optional[str] = Field(None, description="Availability type for the schedule entry (e.g., FIX, PREF, AVL).")
+    availability_type: Optional[str] = Field(None, description="Availability type for the schedule entry (e.g., FIXED, PREF, AVAILABLE).")
     break_duration: Optional[int] = Field(None, description="Break duration in minutes.")
     # shift_type is derived from shift_id, not a direct input field
     # id is part of the URL, not the request body 

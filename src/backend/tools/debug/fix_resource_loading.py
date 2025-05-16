@@ -21,7 +21,7 @@ sys.path.insert(0, root_dir)
 def main():
     """Main function for diagnosing and fixing resource loading"""
     print("=" * 80)
-    print("RESOURCE LOADING DIAGNOSTIC AND FIX TOOL")
+    print("RESOURCE LOADING DIAGNOSTIC AND FIXED TOOL")
     print("=" * 80)
     print("This tool examines resource loading and ensures the database has the necessary data.\n")
 

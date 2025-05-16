@@ -249,6 +249,106 @@ class Logger:
         diag_filename = f"schedule_diagnostic_{session_id}.log"
         return str(self.diagnostics_dir / diag_filename)
 
+    def debug(self, message, event_type=None, details=None, status=None):
+        self.log_message(logging.DEBUG, message, event_type, details, status)
+
+    def warning(self, message, event_type=None, details=None, status=None, exc_info=None, stack_info=False, extra=None):
+        # Flask's logger.warning can pass exc_info, stack_info, and extra.
+        # We'll pass them to log_message if it's adapted, or handle them here.
+        # For now, keeping it simple and aligned with other custom methods.
+        # The standard logging.warning uses logging.WARNING (level 30)
+        self.log_message(logging.WARNING, message, event_type, details, status, exc_info=exc_info, stack_info=stack_info)
+
+    def error(self, message, event_type=None, details=None, status="Error", exc_info=None, stack_info=False):
+        self.log_message(logging.ERROR, message, event_type, details, status, exc_info=exc_info, stack_info=stack_info)
+
+    def log_message(
+        self,
+        level,
+        message,
+        event_type=None,
+        details=None,
+        status=None,
+        exc_info=None,
+        stack_info=False,
+    ):
+        if not self.initialized:
+            print("Logger not initialized, skipping log message.")
+        log_entry = {
+            "timestamp": self.formatTime(record, self.datefmt),
+            "level": record.levelname,
+            "module": record.module,
+            "function": record.funcName,
+            "line": record.lineno,
+            "message": record.message,
+            "user": getattr(record, "user", "anonymous"),
+            "page": getattr(record, "page", "unknown"),
+            "action": getattr(record, "action", "unknown"),
+            "extra": getattr(record, "extra_data", {}),
+        }
+        log_entry["status"] = status if status else self.default_status.get(level, "")
+
+        try:
+            # Ensure details are JSON serializable if they are complex objects
+            if details is not None and not isinstance(details, (str, int, float, bool, list, dict, type(None))):
+                try:
+                    details = json.dumps(details, default=str)
+                except (TypeError, OverflowError):
+                    details = str(details) # Fallback to string representation
+
+            log_entry["details"] = details
+            
+            # Construct the full log message string
+            full_message = f"{message}"
+            if event_type:
+                full_message += f" (Event: {event_type})"
+            if details:
+                # Avoid duplicating details if they are already part of the main message for text logger
+                pass # Details are primarily for JSON output
+            if status:
+                full_message += f" (Status: {status})"
+
+            # Log to console handler (text output)
+            if self.console_handler:
+                # Create a temporary LogRecord for the console handler to format
+                record = logging.LogRecord(
+                    name=self.logger_name,
+                    level=level,
+                    pathname="",
+                    lineno=0,
+                    msg=full_message, # Use the constructed full_message
+                    args=(),
+                    exc_info=exc_info, # Pass exc_info
+                    func="",
+                )
+                record.stack_info = stack_info # Pass stack_info
+                # Add other fields from log_entry if formatter expects them
+                for key, value in log_entry.items():
+                    if not hasattr(record, key):
+                        setattr(record, key, value)
+                
+                self.console_handler.handle(record)
+
+            # Log to file handler (JSON output)
+            if self.file_handler:
+                # Create a temporary LogRecord for the file handler
+                record = logging.LogRecord(
+                    name=self.logger_name,
+                    level=level,
+                    pathname="",
+                    lineno=0,
+                    msg=log_entry,  # Pass the whole dict for JSON
+                    args=(),
+                    exc_info=exc_info, # Pass exc_info
+                    func="",
+                )
+                record.stack_info = stack_info # Pass stack_info
+                self.file_handler.handle(record)
+
+        except Exception as e:
+            print(f"Error during logging: {e}")
+            traceback.print_exc()
+
 
 # Create a global logger instance
 print("!!! About to create global Logger instance !!!", file=sys.stderr) # DEBUG PRINT

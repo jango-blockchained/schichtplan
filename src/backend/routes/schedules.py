@@ -1,18 +1,19 @@
 from datetime import datetime, date, timedelta
 from flask import Blueprint, request, jsonify, current_app, send_file
-from models import db, Schedule, ShiftTemplate, Employee
-from models.schedule import ScheduleStatus, ScheduleVersionMeta
+from src.backend.models import db, Schedule, ShiftTemplate, Employee
+from src.backend.models.schedule import ScheduleStatus, ScheduleVersionMeta
 from sqlalchemy import desc, text
-from services.pdf_generator import PDFGenerator
+from src.backend.services.pdf_generator import PDFGenerator
 from http import HTTPStatus
-from utils.logger import logger
-from services.scheduler.generator import ScheduleGenerator
-from services.scheduler.resources import ScheduleResources, ScheduleResourceError
-from services.scheduler.validator import ScheduleValidator, ScheduleConfig
-from models.fixed_shift import ShiftTemplate
+from src.backend.utils.logger import logger
+from src.backend.services.scheduler.generator import ScheduleGenerator
+from src.backend.services.scheduler.resources import ScheduleResources, ScheduleResourceError
+from src.backend.services.scheduler.validator import ScheduleValidator, ScheduleConfig
+from src.backend.models.fixed_shift import ShiftTemplate as FixedShiftShiftTemplate
 import logging
 from pydantic import ValidationError
 from src.backend.schemas.schedules import ScheduleGenerateRequest, ScheduleUpdateRequest
+from sqlalchemy.exc import IntegrityError
 
 # Define blueprint
 schedules = Blueprint("schedules", __name__)
@@ -206,7 +207,7 @@ def get_schedules():
         all_schedules = query.all()
 
         # Get the placeholder shift (00:00 - 00:00)
-        placeholder_shift = ShiftTemplate.query.filter_by(
+        placeholder_shift = FixedShiftShiftTemplate.query.filter_by(
             start_time="00:00", end_time="00:00"
         ).first()
 
@@ -217,7 +218,7 @@ def get_schedules():
             schedules = all_schedules
 
         # Create a lookup of all shifts for data enrichment
-        all_shifts = ShiftTemplate.query.all()
+        all_shifts = FixedShiftShiftTemplate.query.all()
         shift_lookup = {shift.id: shift for shift in all_shifts}
         
         # Enrich schedule data
@@ -338,7 +339,7 @@ def generate_schedule():
             return jsonify({"status": "error", "message": error_msg}), HTTPStatus.BAD_REQUEST
 
         # Get all shifts and validate their durations
-        shifts = ShiftTemplate.query.all()
+        shifts = FixedShiftShiftTemplate.query.all()
         invalid_shifts = []
 
         # First pass: Check all shifts for invalid durations
@@ -641,7 +642,7 @@ def update_schedule(schedule_id):
             if request_data.break_duration is not None and request_data.break_duration > 0:
                 # If we have a shift, calculate break times based on shift times
                 if schedule.shift_id is not None:
-                    shift = ShiftTemplate.query.get(schedule.shift_id)
+                    shift = FixedShiftShiftTemplate.query.get(schedule.shift_id)
                     if shift is not None:
                         # Start break midway through the shift
                         shift_start = datetime.strptime(shift.start_time, "%H:%M")
@@ -716,7 +717,7 @@ def update_schedule(schedule_id):
                     
                     # If we're setting a shift_id, also update shift times from the template
                     if schedule.shift_id is not None:
-                        shift_template = ShiftTemplate.query.get(schedule.shift_id)
+                        shift_template = FixedShiftShiftTemplate.query.get(schedule.shift_id)
                         if shift_template:
                             schedule.shift_start = shift_template.start_time
                             schedule.shift_end = shift_template.end_time
@@ -747,7 +748,7 @@ def update_schedule(schedule_id):
                 if request_data.break_duration > 0:
                     # If we have a shift, calculate break times based on shift times
                     if schedule.shift_id is not None:
-                        shift = ShiftTemplate.query.get(schedule.shift_id)
+                        shift = FixedShiftShiftTemplate.query.get(schedule.shift_id)
                         if shift is not None:
                             # Start break midway through the shift
                             shift_start = datetime.strptime(shift.start_time, "%H:%M")
@@ -1738,13 +1739,13 @@ def fix_schedule_display():
         logger.schedule_logger.info(f"{len(incomplete_schedules)} schedules have shift_id but missing relationship data")
 
         # Get all shift templates to ensure we have complete shift info
-        all_shifts = ShiftTemplate.query.all()
+        all_shifts = FixedShiftShiftTemplate.query.all()
         shift_lookup = {shift.id: shift for shift in all_shifts}
         
         # Get default shift (early shift)
-        default_shift = ShiftTemplate.query.filter_by(shift_type_id="EARLY").first()
+        default_shift = FixedShiftShiftTemplate.query.filter_by(shift_type_id="EARLY").first()
         if not default_shift:
-            default_shift = ShiftTemplate.query.first()
+            default_shift = FixedShiftShiftTemplate.query.first()
         
         if not default_shift:
             return jsonify({
@@ -1777,7 +1778,7 @@ def fix_schedule_display():
                     
                     # Set availability type if the model has this field
                     if hasattr(first_schedule, 'availability_type'):
-                        first_schedule.availability_type = 'FIX'
+                        first_schedule.availability_type = 'FIXED'
                     
                     # Set shift_type_id if both objects have it
                     if hasattr(default_shift, 'shift_type_id') and hasattr(first_schedule, 'shift_type_id'):
@@ -1803,7 +1804,7 @@ def fix_schedule_display():
                                 other_schedule.shift_id = default_shift.id
                                 other_schedule.shift = default_shift  # Set relationship explicitly
                                 if hasattr(other_schedule, 'availability_type'):
-                                    other_schedule.availability_type = 'FIX'
+                                    other_schedule.availability_type = 'FIXED'
                                 if hasattr(other_schedule, 'is_empty'):
                                     other_schedule.is_empty = False
                                 assigned_count += 1

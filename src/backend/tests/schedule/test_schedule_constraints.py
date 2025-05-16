@@ -14,6 +14,7 @@ from src.backend.models.fixed_shift import ShiftTemplate
 from src.backend.models.employee import Employee
 from src.backend.models.settings import Settings
 from src.backend.models.employee import EmployeeAvailability as Availability
+from src.backend.models.employee import AvailabilityType
 from src.backend.services.scheduler.generator import ScheduleGenerator
 from src.backend.models import db
 
@@ -390,7 +391,7 @@ def test_employee_availability_constraint():
                 employee_id=test_employee.id,
                 start_date=test_date,
                 end_date=test_date,
-                availability_type="UNV",  # Unavailable
+                availability_type=AvailabilityType.UNAVAILABLE,  # Use Enum member
                 is_recurring=False,
             )
             db.session.add(unavailability)

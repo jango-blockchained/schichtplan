@@ -363,7 +363,7 @@ def verify_resources_for_scheduler(cursor, test_date):
 def main():
     """Main function for checking and fixing resource data"""
     print("=" * 80)
-    print("SQLITE RESOURCE CHECK AND FIX TOOL")
+    print("SQLITE RESOURCE CHECK AND FIXED TOOL")
     print("=" * 80)
     print("This tool directly checks and fixes resource data for the scheduler.\n")
     

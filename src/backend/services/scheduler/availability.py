@@ -28,10 +28,10 @@ except ImportError:
             class AvailabilityType(str, Enum):
                 """Mock enum for availability types"""
 
-                AVAILABLE = "AVL"
-                FIXED = "FIX"
-                PREFERRED = "PRF"
-                UNAVAILABLE = "UNV"
+                AVAILABLE = "AVAILABLE"
+                FIXED = "FIXED"
+                PREFERRED = "PREFERRED"
+                UNAVAILABLE = "UNAVAILABLE"
 
 
 # Try to handle imports in different environments

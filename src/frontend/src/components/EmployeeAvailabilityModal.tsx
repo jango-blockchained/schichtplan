@@ -56,7 +56,7 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
     const [dailyHours, setDailyHours] = useState<{ [key: string]: number }>({});
     const [weeklyHours, setWeeklyHours] = useState(0);
     const [activeDays, setActiveDays] = useState<string[]>([]);
-    const [currentType, setCurrentType] = useState<string>('AVL');
+    const [currentType, setCurrentType] = useState<string>('AVAILABLE');
 
     const { data: settings } = useQuery({
         queryKey: ['settings'],
@@ -416,10 +416,10 @@ export const EmployeeAvailabilityModal: React.FC<EmployeeAvailabilityModalProps>
                                         {activeDays.map(day => {
                                             const cellId = `${day}-${time}`;
                                             const isSelected = selectedCells.has(cellId);
-                                            const cellType = isSelected ? selectedCells.get(cellId) : 'UNV';
+                                            const cellType = isSelected ? selectedCells.get(cellId) : 'UNAVAILABLE';
                                             const cellColor = isSelected
                                                 ? getCellColor(cellId)
-                                                : settings?.availability_types?.types.find(t => t.id === 'UNV')?.color || '#ef4444';
+                                                : settings?.availability_types?.types.find(t => t.id === 'UNAVAILABLE')?.color || '#ef4444';
 
                                             // Calculate cumulative hours for this day up to current hour for the selected type
                                             const cumulativeHours = calculateCumulativeHours(day, hour);

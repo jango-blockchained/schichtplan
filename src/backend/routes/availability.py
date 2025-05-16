@@ -193,7 +193,7 @@ def get_employee_availabilities(employee_id):
         'day_of_week': a.day_of_week,
         'hour': a.hour,
         'is_available': a.is_available,
-        'availability_type': a.availability_type.value if a.availability_type else 'AVL',
+        'availability_type': a.availability_type.value if a.availability_type else 'AVAILABLE',
         'created_at': a.created_at.isoformat() if a.created_at else None,
         'updated_at': a.updated_at.isoformat() if a.updated_at else None
     } for a in availabilities]), HTTPStatus.OK
@@ -420,7 +420,7 @@ def get_shifts_for_employee_on_date():
                 else:
                     availability_hours.append({
                         'hour': hour_of_day,
-                        'availability_type': hourly_availability.availability_type.value if hourly_availability.availability_type else 'AVL'
+                        'availability_type': hourly_availability.availability_type.value if hourly_availability.availability_type else 'AVAILABLE'
                     })
             
             # Determine the most restrictive availability type from available hours

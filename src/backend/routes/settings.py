@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, send_file
-from models import db, Settings
+from src.backend.models import db, Settings
 from http import HTTPStatus
 import logging
 import os
@@ -8,13 +8,14 @@ import datetime
 import glob
 from sqlalchemy import inspect, text
 from pydantic import ValidationError
-from schemas.settings import (
+from src.backend.schemas.settings import (
     TablesList, 
     SettingValue, 
     CategorySettings, 
     GenerationRequirements,
     CompleteSettings
 )
+from sqlalchemy.exc import IntegrityError
 
 settings = Blueprint("settings", __name__)
 

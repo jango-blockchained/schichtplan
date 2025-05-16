@@ -40,20 +40,20 @@ def reverse_enum_values():
         updates = [
             # Convert code values to full enum names
             (
-                "UPDATE employee_availabilities SET availability_type = 'AVAILABLE' WHERE availability_type = 'AVL'",
-                "AVL to AVAILABLE",
+                "UPDATE employee_availabilities SET availability_type = 'AVAILABLE' WHERE availability_type = 'AVAILABLE'",
+                "AVAILABLE to AVAILABLE",
             ),
             (
-                "UPDATE employee_availabilities SET availability_type = 'FIXED' WHERE availability_type = 'FIX'",
-                "FIX to FIXED",
+                "UPDATE employee_availabilities SET availability_type = 'FIXED' WHERE availability_type = 'FIXED'",
+                "FIXED to FIXED",
             ),
             (
-                "UPDATE employee_availabilities SET availability_type = 'PREFERRED' WHERE availability_type = 'PRF'",
-                "PRF to PREFERRED",
+                "UPDATE employee_availabilities SET availability_type = 'PREFERRED' WHERE availability_type = 'PREFERRED'",
+                "PREFERRED to PREFERRED",
             ),
             (
-                "UPDATE employee_availabilities SET availability_type = 'UNAVAILABLE' WHERE availability_type = 'UNV'",
-                "UNV to UNAVAILABLE",
+                "UPDATE employee_availabilities SET availability_type = 'UNAVAILABLE' WHERE availability_type = 'UNAVAILABLE'",
+                "UNAVAILABLE to UNAVAILABLE",
             ),
         ]
 

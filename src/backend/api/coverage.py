@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, Coverage
+from src.backend.models import db, Coverage
 from sqlalchemy.exc import IntegrityError
 from http import HTTPStatus
 import logging
