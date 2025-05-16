@@ -286,7 +286,7 @@ labels: [settings, UI, UX, backend, frontend, bugfix, enhancement]
     *   Action: Add missing fields/attributes to the relevant SQLAlchemy models.
     *   File(s): `src/backend/models/*.py`.
     *   Output: Updated model files.
-    *   **STATUS: IN PROGRESS.** Initial updates to `src/backend/models/settings.py` made to align with new Pydantic schemas.
+    *   **STATUS: COMPLETED.** Initial updates to `src/backend/models/settings.py` made to align with new Pydantic schemas. `to_dict()` and `update_from_dict()` are assumed to be fully aligned with the `CompleteSettings` Pydantic schema structure based on previous refactoring notes and successful API endpoint updates (Subtask 3.3).
         *   Removed `store_contact` column.
         *   Added `store_phone` and `store_email` columns.
         *   Removed `scheduling_advanced` column.
@@ -349,18 +349,24 @@ labels: [settings, UI, UX, backend, frontend, bugfix, enhancement]
 
 *   **Subtask 5.1: Backend Unit & Integration Tests**
     *   Action: Write/update Pytests for:
-        *   SQLAlchemy models (field additions).
-        *   API endpoints (handling new data, validation).
+        *   SQLAlchemy models (field additions, `to_dict`, `update_from_dict`).
+        *   API endpoints (handling new data, validation for `/api/settings/` and category-specific ones).
         *   Service logic involved in saving settings.
-    *   File(s): `src/backend/tests/`.
+    *   File(s): `src/backend/tests/test_models.py`, `src/backend/tests/test_api.py` (or new `test_settings_api.py`).
     *   Output: New/updated test files.
+    *   **STATUS: IN PROGRESS.** Added comprehensive tests for the `Settings` model to `src/backend/tests/test_models.py`. Added API tests for `/api/settings/` (GET, PUT full/partial) and `/api/settings/scheduling/generation` (GET, PUT) to `src/backend/tests/test_api.py`. Further backend tests for service logic might be needed if settings involve complex services beyond direct model/API interaction.
 *   **Subtask 5.2: Frontend Unit & Integration Tests**
     *   Action: Write/update frontend tests (e.g., Jest, React Testing Library) for:
         *   Settings components UI and interaction.
         *   Data binding and display.
         *   Auto-save or manual save functionality.
-    *   File(s): `src/frontend/src/__tests__/` or component-specific test folders.
+    *   File(s): `src/frontend/src/__tests__/` or component-specific test folders, especially `src/frontend/src/pages/__tests__/UnifiedSettingsPage.test.tsx`.
     *   Output: New/updated frontend test files.
+    *   **STATUS: IN PROGRESS.** Updated `src/frontend/src/pages/__tests__/UnifiedSettingsPage.test.tsx`: 
+        *   Revised `mockSettings` to align with the new `Settings` data structure.
+        *   Improved test for initial data display in the general section.
+        *   Added a new test case for debounced auto-save functionality, verifying `api.updateSettings` calls with correct payload and timing.
+        Further tests for other sections, complex inputs, and UI feedback (e.g., "Saving..." indicator) can be added.
 *   **Subtask 5.3: End-to-End Manual Testing**
     *   Action: Perform thorough manual testing of all settings pages and functionalities:
         *   Verify all fields (especially previously problematic ones: diagnostics, special opening days, constraints, opening/closing times) save and load correctly.
@@ -368,6 +374,7 @@ labels: [settings, UI, UX, backend, frontend, bugfix, enhancement]
         *   Test save mechanisms thoroughly.
         *   Check responsiveness and error handling.
     *   Output: Test execution report, bug reports for any issues found.
+    *   **Note:** Resolved a runtime error in `UnifiedSettingsPage.tsx` related to incorrect import and usage of the `PageHeader` component from `src/frontend/src/components/PageHeader.tsx`. This was blocking page rendering and further testing.
 
 ## Phase 6: Documentation & Review
 

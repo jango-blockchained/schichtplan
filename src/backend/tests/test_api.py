@@ -13,6 +13,7 @@ from models import (
 )
 from datetime import datetime, date, time, timedelta
 from models.employee import AvailabilityType
+from models.settings import DAY_NAME_TO_NUM_KEY, NUM_KEY_TO_DAY_NAME # For API test payload if needed
 
 
 def test_get_employees_empty(client, session):
@@ -809,3 +810,218 @@ def ensure_settings(session):
         session.add(settings)
         session.commit()
     return settings
+
+def test_get_settings_api(client, session):
+    """Test GET /api/settings/ endpoint."""
+    ensure_settings(session) # Ensure settings exist
+    response = client.get("/api/settings/")
+    assert response.status_code == 200
+    settings_data = response.json
+
+    # Basic structure check, similar to model's to_dict test
+    actual_top_level_keys = [
+        "general", "scheduling", "display", "pdf_layout", 
+        "employee_groups", "availability_types", 
+        "actions", "ai_scheduling"
+    ]
+    for key in actual_top_level_keys:
+        assert key in settings_data, f"Top-level key '{key}' missing in API response"
+
+    assert "store_name" in settings_data["general"]
+    assert "generation_requirements" in settings_data["scheduling"]
+    assert "dark_theme" in settings_data["display"]
+    assert "margins" in settings_data["pdf_layout"]
+    assert "employee_types" in settings_data["employee_groups"]
+    assert "types" in settings_data["availability_types"]
+    assert "demo_data" in settings_data["actions"]
+    assert "enabled" in settings_data["ai_scheduling"]
+    # Check a known default from the created settings
+    assert settings_data["general"]["store_name"] == "TEDi Store"
+
+
+def test_update_settings_api_full(client, session):
+    """Test PUT /api/settings/ with a comprehensive payload."""
+    ensure_settings(session)
+
+    update_payload = {
+        "general": {
+            "store_name": "API Updated Store",
+            "timezone": "UTC",
+            "opening_days": { # Input uses string day names
+                "monday": False, "tuesday": False, "wednesday": False, "thursday": False,
+                "friday": False, "saturday": True, "sunday": True 
+            },
+            "special_days": {
+                "2025-01-01": {"description": "New Year API", "is_closed": True}
+            }
+        },
+        "scheduling": {
+            "enable_diagnostics": True,
+            "scheduling_algorithm": "api_algo",
+            "generation_requirements": {"enforce_max_hours": False}
+        },
+        "display": {
+            "theme": "gothic",
+            "schedule_published_notify": False
+        },
+        "pdf_layout": {
+            "page_size": "A5",
+            "orientation": "landscape",
+            "margins": {"top": 5, "right": 5, "bottom": 5, "left": 5},
+            "table_style": {"header_bg_color": "#111111"},
+            "fonts": {"family": "Times New Roman"},
+            "content": {"show_total_hours": False}
+        },
+        "employee_groups": {
+            "employee_types": [{"id": "API_TYPE", "name": "API Type", "abbr": "AT", "min_hours": 5, "max_hours": 15, "type": "employee"}],
+            "shift_types": [],
+            "absence_types": []
+        },
+        "availability_types": {
+            "types": [
+                {"id": "API_AVAILABLE", "name": "API Available", "description": "API Desc", "color": "#ABCDEF", "priority": 10, "is_available": True}
+            ]
+        },
+        "actions": {
+            "demo_data": {"selected_module": "shifts_api", "last_execution": "2025-02-01T00:00:00Z"}
+        },
+        "ai_scheduling": {
+            "enabled": True,
+            "api_key": "api_key_live_test"
+        }
+    }
+
+    put_response = client.put("/api/settings/", json=update_payload)
+    assert put_response.status_code == 200
+    updated_data_from_put = put_response.json
+
+    # Verify some fields from the PUT response itself
+    assert updated_data_from_put["general"]["store_name"] == "API Updated Store"
+    assert updated_data_from_put["scheduling"]["enable_diagnostics"] is True
+    assert updated_data_from_put["pdf_layout"]["page_size"] == "A5"
+
+    # Fetch again to confirm persistence
+    get_response = client.get("/api/settings/")
+    assert get_response.status_code == 200
+    persisted_data = get_response.json
+
+    assert persisted_data["general"]["store_name"] == "API Updated Store"
+    assert persisted_data["general"]["timezone"] == "UTC"
+    assert persisted_data["general"]["opening_days"]["monday"] is False
+    assert "2025-01-01" in persisted_data["general"]["special_days"]
+
+    assert persisted_data["scheduling"]["enable_diagnostics"] is True
+    assert persisted_data["scheduling"]["scheduling_algorithm"] == "api_algo"
+    assert persisted_data["scheduling"]["generation_requirements"]["enforce_max_hours"] is False
+    # Check if other generation_requirements were preserved (assuming merge logic or full overwrite)
+    # If it's a full overwrite of generation_requirements, other keys will be gone.
+    # If it's a merge at the settings.generation_requirements level, they should be there.
+    # The Pydantic schema for generation_requirements has all fields Optional.
+    # The model's update_from_dict for JSON often does a .update(), which is a shallow merge.
+    assert "enforce_minimum_coverage" in persisted_data["scheduling"]["generation_requirements"] # This was true by default
+
+    assert persisted_data["display"]["theme"] == "gothic"
+    assert persisted_data["display"]["schedule_published_notify"] is False
+
+    assert persisted_data["pdf_layout"]["margins"]["top"] == 5
+    assert persisted_data["pdf_layout"]["content"]["show_total_hours"] is False
+
+    assert len(persisted_data["employee_groups"]["employee_types"]) == 1
+    assert persisted_data["employee_groups"]["employee_types"][0]["name"] == "API Type"
+
+    assert len(persisted_data["availability_types"]["types"]) == 1
+    assert persisted_data["availability_types"]["types"][0]["name"] == "API Available"
+
+    assert persisted_data["actions"]["demo_data"]["selected_module"] == "shifts_api"
+    assert persisted_data["ai_scheduling"]["api_key"] == "api_key_live_test"
+
+
+def test_update_settings_api_partial(client, session):
+    """Test PUT /api/settings/ with a partial payload (only one section)."""
+    ensure_settings(session)
+
+    # Get initial state of a different section to verify it's untouched
+    initial_get_response = client.get("/api/settings/")
+    initial_scheduling_algo = initial_get_response.json["scheduling"]["scheduling_algorithm"]
+    initial_theme = initial_get_response.json["display"]["theme"]
+
+    partial_update_payload = {
+        "general": {
+            "store_name": "Partial Update Store Name",
+            "language": "fr"
+        }
+        # Other sections like scheduling, display, etc., are omitted
+    }
+
+    put_response = client.put("/api/settings/", json=partial_update_payload)
+    assert put_response.status_code == 200
+
+    # Fetch again to confirm persistence and check other sections
+    get_response = client.get("/api/settings/")
+    assert get_response.status_code == 200
+    persisted_data = get_response.json
+
+    # Verify changed section
+    assert persisted_data["general"]["store_name"] == "Partial Update Store Name"
+    assert persisted_data["general"]["language"] == "fr"
+
+    # Verify unchanged sections (using values fetched before this partial update)
+    assert persisted_data["scheduling"]["scheduling_algorithm"] == initial_scheduling_algo
+    assert persisted_data["display"]["theme"] == initial_theme
+    # Verify a default value from an untouched section to be more robust
+    assert persisted_data["pdf_layout"]["page_size"] == "A4" # Default
+
+
+# Ensure this test is placed after ensure_settings if it relies on it globally or define it within specific tests
+# For now, assuming ensure_settings is available from the conftest or existing imports
+
+# Need to test specific category GET/PUT if they are still primary, e.g., /api/settings/scheduling/generation
+
+def test_get_settings_scheduling_generation_api(client, session):
+    """Test GET /api/settings/scheduling/generation endpoint."""
+    ensure_settings(session)
+    response = client.get("/api/settings/scheduling/generation")
+    assert response.status_code == 200
+    generation_data = response.json
+    # This endpoint returns the generation_requirements dict directly
+    assert "enforce_minimum_coverage" in generation_data
+    assert generation_data["enforce_minimum_coverage"] is True # Default
+
+def test_update_settings_scheduling_generation_api(client, session):
+    """Test PUT /api/settings/scheduling/generation endpoint."""
+    ensure_settings(session)
+
+    update_payload = {
+        "enforce_minimum_coverage": False,
+        "enforce_contracted_hours": False,
+        # Add a few more to ensure they are processed
+        "enforce_keyholder_coverage": False 
+    }
+
+    put_response = client.put("/api/settings/scheduling/generation", json=update_payload)
+    assert put_response.status_code == 200
+    updated_data_from_put = put_response.json
+
+    assert updated_data_from_put["enforce_minimum_coverage"] is False
+    assert updated_data_from_put["enforce_contracted_hours"] is False
+
+    # Fetch again via the same endpoint to confirm persistence
+    get_response = client.get("/api/settings/scheduling/generation")
+    assert get_response.status_code == 200
+    persisted_data = get_response.json
+
+    assert persisted_data["enforce_minimum_coverage"] is False
+    assert persisted_data["enforce_contracted_hours"] is False
+    assert persisted_data["enforce_keyholder_coverage"] is False
+    # Check a default value that wasn't in the update to see if it was preserved or reset
+    # The route implementation seems to be: `new_settings = {**default_settings, **validated_data}` then `settings.generation_requirements.update(new_settings)`.
+    # This means unprovided keys in the PUT payload should retain their original values from the DB if the default_settings load is from DB.
+    # Or, if default_settings is a hardcoded default, then it might reset others.
+    # The current route code: `current_settings = settings_obj.generation_requirements or Settings.get_default_settings().generation_requirements`
+    # `new_settings_data = {**current_settings, **validated_data}` -> this ensures merge.
+    assert persisted_data.get("enforce_rest_periods") is True # This was default True and not in payload
+
+
+# Ensure ensure_settings is properly defined or imported if not already present
+# It is present at the end of the file. Adding a forward declaration or moving it up might be cleaner for linters.
+# For now, assume it works as is.
