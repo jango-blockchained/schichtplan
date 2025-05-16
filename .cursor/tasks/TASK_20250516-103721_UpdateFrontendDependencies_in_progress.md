@@ -61,7 +61,7 @@ This phase focuses on updating packages with patch or minor version changes, whi
     *   Packages: `happy-dom`, `jsdom`, `msw`, `serve`, `vite-bundle-visualizer`
     *   Command: `npx npm-check-updates -u happy-dom jsdom msw serve vite-bundle-visualizer`
     *   Install: `bun install`
-    *   Test & Commit.
+    *   Test & Commit. (DONE - 20250516-103721: happy-dom, jsdom, msw, serve, vite-bundle-visualizer updated in package.json and bun install run. Manual testing, especially of test environments and dev server, and commit by user pending.)
 
 ---
 
