@@ -9,11 +9,19 @@ import glob
 from sqlalchemy import inspect, text
 from pydantic import ValidationError
 from src.backend.schemas.settings import (
-    TablesList, 
-    SettingValue, 
-    CategorySettings, 
+    TablesList,
+    SettingValue,
+    CategorySettings,
     GenerationRequirements,
-    CompleteSettings
+    CompleteSettings,
+    GeneralSettings, # Added
+    SchedulingSettingsSchema, # Added
+    DisplaySettingsSchema, # Added
+    PDFLayoutSettingsSchema, # Added
+    EmployeeGroupsSettingsSchema, # Added
+    AvailabilityTypesSettingsSchema, # Added
+    ActionsSettingsSchema, # Added
+    AISchedulingSettingsSchema # Added
 )
 from sqlalchemy.exc import IntegrityError
 
@@ -298,17 +306,23 @@ def update_category_settings(category):
     # Validate based on category
     try:
         if category == "general":
-            from schemas.settings import GeneralSettings
             validated_data = GeneralSettings(**data).dict(exclude_none=True)
-        elif category == "store_hours":
-            from schemas.settings import StoreHoursSettings
-            validated_data = StoreHoursSettings(**data).dict(exclude_none=True)
-        elif category == "scheduling_advanced":
-            from schemas.settings import AdvancedSettings
-            validated_data = AdvancedSettings(**data).dict(exclude_none=True)
+        elif category == "scheduling":
+            validated_data = SchedulingSettingsSchema(**data).dict(exclude_none=True)
+        elif category == "display":
+            validated_data = DisplaySettingsSchema(**data).dict(exclude_none=True)
+        elif category == "pdf_layout":
+            validated_data = PDFLayoutSettingsSchema(**data).dict(exclude_none=True)
+        elif category == "employee_groups":
+            validated_data = EmployeeGroupsSettingsSchema(**data).dict(exclude_none=True)
+        elif category == "availability_types":
+            validated_data = AvailabilityTypesSettingsSchema(**data).dict(exclude_none=True)
+        elif category == "actions":
+            validated_data = ActionsSettingsSchema(**data).dict(exclude_none=True)
+        elif category == "ai_scheduling":
+            validated_data = AISchedulingSettingsSchema(**data).dict(exclude_none=True)
         else:
-            # For custom categories, use generic validation
-            validated_data = CategorySettings(**data).__root__
+            return jsonify({"error": f"Unknown or unsupported settings category: {category}"}), HTTPStatus.BAD_REQUEST
     except ValidationError as e:
         return jsonify({"error": "Invalid input data", "details": e.errors()}), HTTPStatus.BAD_REQUEST
     
@@ -555,25 +569,14 @@ def get_generation_settings():
             "enforce_opening_hours": True,
         }
 
-        # Try to get settings from scheduling_advanced
-        if (
-            hasattr(settings_obj, "scheduling_advanced")
-            and settings_obj.scheduling_advanced
-        ):
-            scheduling_advanced = settings_obj.scheduling_advanced
-            if (
-                isinstance(scheduling_advanced, dict)
-                and "generation_requirements" in scheduling_advanced
-            ):
-                # Return stored settings with defaults filled in
-                generation_requirements = scheduling_advanced["generation_requirements"]
-                # Ensure all required keys are present
-                for key, value in default_requirements.items():
-                    if key not in generation_requirements:
-                        generation_requirements[key] = value
-                return jsonify(generation_requirements), HTTPStatus.OK
-
-        # If we get here, return default settings
+        stored_requirements = settings_obj.generation_requirements
+        if isinstance(stored_requirements, dict) and stored_requirements:
+            # Merge with defaults to ensure all keys are present
+            final_requirements = default_requirements.copy()
+            final_requirements.update(stored_requirements)
+            return jsonify(final_requirements), HTTPStatus.OK
+        
+        # If not stored or empty, return full defaults
         return jsonify(default_requirements), HTTPStatus.OK
     except Exception as e:
         logging.error(f"Error getting generation settings: {str(e)}")
@@ -603,21 +606,13 @@ def update_generation_settings():
             db.session.add(settings_obj)
             db.session.commit()
 
-        # Initialize scheduling_advanced if it doesn't exist
-        if settings_obj.scheduling_advanced is None:
-            settings_obj.scheduling_advanced = {}
-
-        # Update generation requirements
-        if "generation_requirements" not in settings_obj.scheduling_advanced:
-            settings_obj.scheduling_advanced["generation_requirements"] = {}
-
-        # Update with validated values
-        settings_obj.scheduling_advanced["generation_requirements"].update(validated_data)
+        if settings_obj.generation_requirements is None or not isinstance(settings_obj.generation_requirements, dict):
+            settings_obj.generation_requirements = {}
+        
+        settings_obj.generation_requirements.update(validated_data) # validated_data is already a dict from Pydantic
         db.session.commit()
 
-        return jsonify(
-            settings_obj.scheduling_advanced["generation_requirements"]
-        ), HTTPStatus.OK
+        return jsonify(settings_obj.generation_requirements), HTTPStatus.OK
     except Exception as e:
         logging.error(f"Error updating generation settings: {str(e)}")
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR

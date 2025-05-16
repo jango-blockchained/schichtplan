@@ -65,7 +65,6 @@ export const GeneralStoreSetupSection: React.FC<
                 id="storeName"
                 value={generalSettings.store_name || ""}
                 onChange={(e) => onInputChange("store_name", e.target.value)}
-                onBlur={onImmediateUpdate}
               />
             </div>
             <div className="space-y-2">
@@ -74,7 +73,6 @@ export const GeneralStoreSetupSection: React.FC<
                 id="storeAddress"
                 value={generalSettings.store_address || ""}
                 onChange={(e) => onInputChange("store_address", e.target.value)}
-                onBlur={onImmediateUpdate}
               />
             </div>
             <div className="space-y-2">
@@ -83,14 +81,10 @@ export const GeneralStoreSetupSection: React.FC<
                 id="storeContact"
                 value={generalSettings.store_contact || ""}
                 onChange={(e) => onInputChange("store_contact", e.target.value)}
-                onBlur={onImmediateUpdate}
               />
             </div>
           </div>
         </CardContent>
-        <CardFooter className="flex justify-end">
-          <Button onClick={onImmediateUpdate}>Save Store Information</Button>
-        </CardFooter>
       </Card>
 
       {/* Store Hours & Opening Days Card */}
@@ -174,7 +168,6 @@ export const GeneralStoreSetupSection: React.FC<
                     true,
                   )
                 }
-                onBlur={onImmediateUpdate}
               />
             </div>
             <div className="space-y-2">
@@ -188,14 +181,10 @@ export const GeneralStoreSetupSection: React.FC<
                 onChange={(e) =>
                   onInputChange("keyholder_after_minutes", e.target.value, true)
                 }
-                onBlur={onImmediateUpdate}
               />
             </div>
           </div>
         </CardContent>
-        <CardFooter className="flex justify-end">
-          <Button onClick={onImmediateUpdate}>Save Hours & Opening Days</Button>
-        </CardFooter>
       </Card>
 
       {/* Special Days & Holidays Card */}
@@ -203,7 +192,6 @@ export const GeneralStoreSetupSection: React.FC<
         <SpecialDaysManagement
           specialDays={generalSettings.special_days || {}}
           onUpdate={handleSpecialDaysUpdate}
-          onImmediateUpdate={onImmediateUpdate}
         />
       )}
     </div>

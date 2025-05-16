@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDebouncedCallback } from "use-debounce";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/PageHeader";
+import { PageHeader, PageHeaderDescription, PageHeaderHeading } from "@/components/PageHeader";
 import { Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
@@ -85,27 +85,15 @@ export default function UnifiedSettingsPage() {
     "general_store_setup",
   );
 
-  // Initialize with minimal default settings to ensure it's never null
+  // Initialize with the new nested Settings structure
   const [localSettings, setLocalSettings] = useState<Settings>({
-    id: 0,
-    store_name: "Store",
-    timezone: "Europe/Berlin",
-    language: "de",
-    date_format: "DD.MM.YYYY",
-    time_format: "24h",
-    store_opening: "09:00",
-    store_closing: "20:00",
-    keyholder_before_minutes: 30,
-    keyholder_after_minutes: 30,
-    opening_days: {},
-    special_days: {},
-    special_hours: {},
-    availability_types: { types: [] },
-    shift_types: [],
+    id: 0, // ID remains top-level
     general: {
       store_name: "Store",
       store_address: "",
-      store_contact: "",
+      // store_contact: "", // Removed, use phone/email
+      store_phone: null,
+      store_email: null,
       timezone: "Europe/Berlin",
       language: "de",
       date_format: "DD.MM.YYYY",
@@ -114,8 +102,11 @@ export default function UnifiedSettingsPage() {
       store_closing: "20:00",
       keyholder_before_minutes: 30,
       keyholder_after_minutes: 30,
-      opening_days: {},
-      special_hours: {},
+      opening_days: { // Default to all closed
+        "0": false, "1": false, "2": false, "3": false, "4": false, "5": false, "6": false
+      },
+      special_hours: {}, // Assuming this structure, confirm if used
+      special_days: {},
     },
     scheduling: {
       scheduling_resource_type: "shifts",
@@ -127,6 +118,8 @@ export default function UnifiedSettingsPage() {
       scheduling_period_weeks: 1,
       auto_schedule_preferences: true,
       enable_diagnostics: false,
+      scheduling_algorithm: "standard",
+      max_generation_attempts: 100,
       generation_requirements: {
         enforce_minimum_coverage: true,
         enforce_contracted_hours: true,
@@ -162,38 +155,41 @@ export default function UnifiedSettingsPage() {
       },
       show_sunday: false,
       show_weekdays: true,
-      start_of_week: 1,
+      start_of_week: 1, // Monday
       email_notifications: false,
       schedule_published: false,
       shift_changes: false,
       time_off_requests: false,
     },
+    pdf_layout: {
+      page_size: "A4",
+      orientation: "portrait",
+      margins: { top: 1, right: 1, bottom: 1, left: 1 }, // Assuming cm or similar unit
+      table_style: {
+        header_bg_color: "#F0F0F0",
+        border_color: "#CCCCCC",
+        text_color: "#333333",
+        header_text_color: "#000000",
+      },
+      fonts: {
+        family: "Arial",
+        size: 10,
+        header_size: 12,
+      },
+      content: {
+        show_employee_id: false,
+        show_position: true,
+        show_breaks: true,
+        show_total_hours: true,
+      },
+    },
     employee_groups: {
-      employee_types: [
-        {
-          id: "VZ",
-          name: "Vollzeit",
-          min_hours: 35,
-          max_hours: 40,
-          type: "employee",
-        },
-      ],
-      shift_types: [
-        {
-          id: "EARLY",
-          name: "Frühschicht",
-          color: "#4CAF50",
-          type: "shift",
-        },
-      ],
-      absence_types: [
-        {
-          id: "URL",
-          name: "Urlaub",
-          color: "#FF9800",
-          type: "absence",
-        },
-      ],
+      employee_types: [],
+      shift_types: [],
+      absence_types: [],
+    },
+    availability_types: {
+      types: [],
     },
     actions: {
       demo_data: {
@@ -203,56 +199,81 @@ export default function UnifiedSettingsPage() {
     },
     ai_scheduling: {
       enabled: false,
-      api_key: "",
+      api_key: null,
     },
   });
 
-  const {
-    data: settingsData,
-    isLoading,
-    error,
-    refetch,
-  } = useQuery({
-    queryKey: ["settings"],
-    queryFn: getSettings,
-    retry: 3,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    refetchOnWindowFocus: true, // Keep true, or make it configurable if needed
-  } as const);
-
-  useEffect(() => {
-    if (settingsData) {
-      setLocalSettings(settingsData);
+  const { data: settingsData, isLoading: isLoadingSettings, error: settingsError } = useQuery<Settings, Error>(
+    ["settings"],
+    getSettings,
+    {
+      onSuccess: (data) => {
+        // Deep merge with DEFAULT_SETTINGS to ensure all keys are present
+        // This is a simple merge, for more complex scenarios, a deep merge utility might be needed
+        const mergedSettings = { 
+            ...DEFAULT_SETTINGS, 
+            ...data, 
+            // Ensure nested objects are also merged, example for general and scheduling
+            general: { ...DEFAULT_SETTINGS.general, ...(data.general || {}) },
+            scheduling: { ...DEFAULT_SETTINGS.scheduling, ...(data.scheduling || {}), 
+                generation_requirements: { 
+                    ...(DEFAULT_SETTINGS.scheduling?.generation_requirements || {}), 
+                    ...(data.scheduling?.generation_requirements || {}) 
+                }
+            },
+            display: { ...DEFAULT_SETTINGS.display, ...(data.display || {}),
+                dark_theme: { 
+                    ...(DEFAULT_SETTINGS.display?.dark_theme || {}), 
+                    ...(data.display?.dark_theme || {}) 
+                }
+            },
+            pdf_layout: { ...DEFAULT_SETTINGS.pdf_layout, ...(data.pdf_layout || {}),
+                margins: { ...(DEFAULT_SETTINGS.pdf_layout?.margins || {}), ...(data.pdf_layout?.margins || {}) },
+                table_style: { ...(DEFAULT_SETTINGS.pdf_layout?.table_style || {}), ...(data.pdf_layout?.table_style || {}) },
+                fonts: { ...(DEFAULT_SETTINGS.pdf_layout?.fonts || {}), ...(data.pdf_layout?.fonts || {}) },
+                content: { ...(DEFAULT_SETTINGS.pdf_layout?.content || {}), ...(data.pdf_layout?.content || {}) },
+            },
+            employee_groups: { ...DEFAULT_SETTINGS.employee_groups, ...(data.employee_groups || {}),
+                employee_types: [ ...(DEFAULT_SETTINGS.employee_groups?.employee_types || []), ...(data.employee_groups?.employee_types || []) ],
+                shift_types: [ ...(DEFAULT_SETTINGS.employee_groups?.shift_types || []), ...(data.employee_groups?.shift_types || []) ],
+                absence_types: [ ...(DEFAULT_SETTINGS.employee_groups?.absence_types || []), ...(data.employee_groups?.absence_types || []) ],
+            },
+            availability_types: { ...DEFAULT_SETTINGS.availability_types, ...(data.availability_types || {}),
+                types: [ ...(DEFAULT_SETTINGS.availability_types?.types || []), ...(data.availability_types?.types || []) ],
+            },
+            actions: { ...DEFAULT_SETTINGS.actions, ...(data.actions || {}),
+                demo_data: { ...(DEFAULT_SETTINGS.actions?.demo_data || {}), ...(data.actions?.demo_data || {}) },
+            },
+            ai_scheduling: { ...DEFAULT_SETTINGS.ai_scheduling, ...(data.ai_scheduling || {}) },
+        };
+        setLocalSettings(mergedSettings);
+      },
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      refetchOnWindowFocus: false,
     }
-  }, [settingsData]);
+  );
 
-  const updateMutation = useMutation({
-    mutationFn: (data: Partial<Settings>) => updateSettings(data),
-    onSuccess: (updatedSettings) => {
-      queryClient.setQueryData(["settings"], updatedSettings);
-      setLocalSettings(updatedSettings);
-      // Removed toast from here to be called in handleImmediateUpdate for more specific feedback
+  const mutation = useMutation<Settings, Error, Settings>(updateSettings, {
+    onSuccess: (data) => {
+      queryClient.invalidateQueries(["settings"]);
+      // setLocalSettings(data); // Optimistic update can be tricky with debouncing, rely on refetch for now
+      toast({
+        title: "Settings Saved",
+        description: "Your changes have been saved successfully.",
+      });
     },
     onError: (error) => {
-      const cachedSettings = queryClient.getQueryData<Settings>(["settings"]);
-      if (cachedSettings) {
-        setLocalSettings(cachedSettings);
-      }
       toast({
-        title: "Error Updating Settings",
-        description:
-          error.message || "Failed to update settings. Changes were reverted.",
+        title: "Error Saving Settings",
+        description: error.message || "An unexpected error occurred.",
         variant: "destructive",
       });
     },
   });
 
-  const debouncedUpdate = useDebouncedCallback(
-    (updatedSettings: Settings) => {
-      updateMutation.mutate(updatedSettings);
-    },
-    2000, // 2 seconds debounce time
-  );
+  const debouncedUpdateSettings = useDebouncedCallback((settingsToSave: Settings) => {
+    mutation.mutate(settingsToSave);
+  }, 2000);
 
   const handleSave = (
     category: keyof Settings, // Simplified category to be any key of Settings
@@ -279,7 +300,7 @@ export default function UnifiedSettingsPage() {
     };
 
     setLocalSettings(updatedSettings);
-    debouncedUpdate(updatedSettings);
+    debouncedUpdateSettings(updatedSettings);
   };
 
   const handleSettingChange = (
@@ -300,8 +321,8 @@ export default function UnifiedSettingsPage() {
 
   const handleImmediateUpdate = () => {
     // localSettings is always defined now, no need for null check
-    debouncedUpdate.cancel(); // Cancel any pending debounced updates
-    updateMutation.mutate(localSettings, {
+    debouncedUpdateSettings.cancel(); // Cancel any pending debounced updates
+    mutation.mutate(localSettings, {
       onSuccess: (updatedData) => {
         queryClient.setQueryData(["settings"], updatedData);
         setLocalSettings(updatedData);
@@ -388,7 +409,7 @@ export default function UnifiedSettingsPage() {
     }
 
     // Only show loading indicator if explicitly loading from API and we have no settings data yet
-    if (isLoading && !settingsData) {
+    if (isLoadingSettings && !settingsData) {
       return (
         <div className="flex justify-center items-center h-64">
           <Loader2 className="h-8 w-4 animate-spin" />
@@ -398,12 +419,12 @@ export default function UnifiedSettingsPage() {
     }
 
     // Explicit error check
-    if (error) {
+    if (settingsError) {
       return (
         <Alert variant="destructive">
           <AlertDescription>
             Error loading settings:{" "}
-            {error.message || "An unknown error occurred"}. Please try again
+            {settingsError.message || "An unknown error occurred"}. Please try again
             later or contact support.
           </AlertDescription>
         </Alert>
@@ -519,11 +540,19 @@ export default function UnifiedSettingsPage() {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <PageHeader
-        title="Unified Settings"
-        description="Manage all application settings and options from one place."
-      />
+    <div className="container mx-auto p-4 md:p-6 lg:p-8">
+      <PageHeader className="mb-6">
+        <PageHeaderHeading>Application Settings</PageHeaderHeading>
+        <PageHeaderDescription>
+          Manage and customize various aspects of the application.
+          {mutation.isLoading && (
+            <span className="ml-2 text-sm text-muted-foreground flex items-center">
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              Saving...
+            </span>
+          )}
+        </PageHeaderDescription>
+      </PageHeader>
       <div className="flex flex-col md:flex-row md:space-x-6 space-y-6 md:space-y-0">
         <nav className="md:w-1/4 lg:w-1/5 space-y-1">
           {sections.map((section) => (

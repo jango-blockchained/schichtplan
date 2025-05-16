@@ -168,41 +168,11 @@ export interface ApiError {
 
 export interface Settings {
   id: number;
-  store_name: string;
-  store_address: string | null;
-  store_contact: string | null;
-  timezone: string;
-  language: string;
-  date_format: string;
-  time_format: string;
-  store_opening: string;
-  store_closing: string;
-  keyholder_before_minutes: number;
-  keyholder_after_minutes: number;
-  opening_days: { [key: string]: boolean };
-  special_hours: {
-    [key: string]: { is_closed: boolean; opening: string; closing: string };
-  };
-  availability_types: {
-    types: Array<{
-      id: string;
-      name: string;
-      description: string;
-      color: string;
-      priority: number;
-      is_available: boolean;
-    }>;
-  };
-  shift_types: Array<{
-    id: string;
-    name: string;
-    color: string;
-    type: string;
-  }>;
   general: {
     store_name: string;
-    store_address: string;
-    store_contact: string;
+    store_address: string | null;
+    store_phone: string | null;
+    store_email: string | null;
     timezone: string;
     language: string;
     date_format: string;
@@ -237,8 +207,6 @@ export interface Settings {
     scheduling_period_weeks: number;
     auto_schedule_preferences: boolean;
     enable_diagnostics?: boolean;
-    min_employees_per_shift?: number;
-    max_employees_per_shift?: number;
     generation_requirements: {
       enforce_minimum_coverage: boolean;
       enforce_contracted_hours: boolean;
@@ -255,24 +223,8 @@ export interface Settings {
       enforce_qualifications: boolean;
       enforce_opening_hours: boolean;
     };
-  };
-  scheduling_advanced?: {
-    generation_requirements?: {
-      enforce_minimum_coverage?: boolean;
-      enforce_contracted_hours?: boolean;
-      enforce_keyholder_coverage?: boolean;
-      enforce_rest_periods?: boolean;
-      enforce_early_late_rules?: boolean;
-      enforce_employee_group_rules?: boolean;
-      enforce_break_rules?: boolean;
-      enforce_max_hours?: boolean;
-      enforce_consecutive_days?: boolean;
-      enforce_weekend_distribution?: boolean;
-      enforce_shift_distribution?: boolean;
-      enforce_availability?: boolean;
-      enforce_qualifications?: boolean;
-      enforce_opening_hours?: boolean;
-    };
+    scheduling_algorithm?: "standard" | "optimized";
+    max_generation_attempts?: number;
   };
   display: {
     theme: string;
@@ -282,7 +234,7 @@ export interface Settings {
     background_color: string;
     surface_color: string;
     text_color: string;
-    dark_theme: {
+    dark_theme?: {
       primary_color: string;
       secondary_color: string;
       accent_color: string;
@@ -330,8 +282,8 @@ export interface Settings {
       id: string;
       name: string;
       abbr?: string;
-      min_hours: number;
-      max_hours: number;
+      min_hours?: number;
+      max_hours?: number;
       type: "employee";
     }>;
     shift_types: Array<{
@@ -347,15 +299,25 @@ export interface Settings {
       type: "absence";
     }>;
   };
+  availability_types: {
+    types: Array<{
+      id: string;
+      name: string;
+      description?: string;
+      color: string;
+      priority?: number;
+      is_available: boolean;
+    }>;
+  };
   actions: {
-    demo_data: {
-      selected_module: string;
-      last_execution: string | null;
+    demo_data?: {
+      selected_module?: string;
+      last_execution?: string | null;
     };
   };
   ai_scheduling?: {
-    enabled: boolean;
-    api_key: string;
+    enabled?: boolean;
+    api_key?: string | null;
   };
 }
 

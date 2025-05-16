@@ -95,7 +95,6 @@ export const SchedulingEngineSection: React.FC<
                       true,
                     )
                   }
-                  onBlur={onImmediateUpdate}
                 />
               </div>
               <div className="space-y-2">
@@ -109,7 +108,6 @@ export const SchedulingEngineSection: React.FC<
                   onChange={(e) =>
                     onInputChange("min_break_duration", e.target.value, true)
                   }
-                  onBlur={onImmediateUpdate}
                 />
               </div>
               <div className="space-y-2">
@@ -127,7 +125,6 @@ export const SchedulingEngineSection: React.FC<
                       true,
                     )
                   }
-                  onBlur={onImmediateUpdate}
                 />
               </div>
             </div>
@@ -141,7 +138,6 @@ export const SchedulingEngineSection: React.FC<
                   onChange={(e) =>
                     onInputChange("max_daily_hours", e.target.value, true)
                   }
-                  onBlur={onImmediateUpdate}
                 />
               </div>
               <div className="space-y-2">
@@ -153,7 +149,6 @@ export const SchedulingEngineSection: React.FC<
                   onChange={(e) =>
                     onInputChange("max_weekly_hours", e.target.value, true)
                   }
-                  onBlur={onImmediateUpdate}
                 />
               </div>
               <div className="space-y-2">
@@ -171,7 +166,6 @@ export const SchedulingEngineSection: React.FC<
                       true,
                     )
                   }
-                  onBlur={onImmediateUpdate}
                 />
               </div>
               <div className="flex items-center space-x-2 pt-2">
@@ -213,18 +207,10 @@ export const SchedulingEngineSection: React.FC<
             </div>
           </div>
         </CardContent>
-        <CardFooter className="flex justify-end">
-          <Button onClick={onImmediateUpdate}>Save Scheduling Rules</Button>
-        </CardFooter>
       </Card>
       <ScheduleGenerationSettings
-        settings={{
-          scheduling: { generation_requirements: generationRequirements },
-        }}
-        onUpdate={(genUpdates) => {
-          onGenerationSettingsUpdate(genUpdates);
-          onImmediateUpdate();
-        }}
+        settings={generationRequirements}
+        onUpdate={onGenerationSettingsUpdate}
       />
     </div>
   );
