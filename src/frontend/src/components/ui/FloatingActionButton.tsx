@@ -1,6 +1,12 @@
-import React from 'react';
-import { Button } from '@/components/ui/button';
-import { Zap, ArrowUp, ArrowDown, LayoutPanelLeft, SunMoon } from 'lucide-react'; // Added more icons
+import React from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Zap,
+  ArrowUp,
+  ArrowDown,
+  LayoutPanelLeft,
+  SunMoon,
+} from "lucide-react"; // Added more icons
 
 export const FloatingActionButton: React.FC = () => {
   const [isOpen, setIsOpen] = React.useState(false);
@@ -10,22 +16,22 @@ export const FloatingActionButton: React.FC = () => {
   };
 
   const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: "smooth" });
     setIsOpen(false); // Close menu after action
   };
 
   const scrollToBottom = () => {
-    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
     setIsOpen(false); // Close menu after action
   };
 
   // Placeholder functions for future features
   const handleLayoutChange = () => {
-    console.log('Layout change clicked');
+    console.log("Layout change clicked");
     setIsOpen(false);
   };
   const handleThemeChange = () => {
-    console.log('Theme change clicked');
+    console.log("Theme change clicked");
     setIsOpen(false);
   };
 
@@ -33,16 +39,36 @@ export const FloatingActionButton: React.FC = () => {
     <div className="fixed bottom-8 right-8 z-50 flex flex-col items-end">
       {isOpen && (
         <div className="mb-3 p-2 bg-card/80 backdrop-blur-md border border-border/50 rounded-lg shadow-2xl space-y-1 w-48 transition-all duration-200 ease-out">
-          <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={scrollToTop}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start gap-2"
+            onClick={scrollToTop}
+          >
             <ArrowUp size={16} /> To Top
           </Button>
-          <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={scrollToBottom}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start gap-2"
+            onClick={scrollToBottom}
+          >
             <ArrowDown size={16} /> To Bottom
           </Button>
-          <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={handleLayoutChange}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start gap-2"
+            onClick={handleLayoutChange}
+          >
             <LayoutPanelLeft size={16} /> Layouts
           </Button>
-          <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={handleThemeChange}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start gap-2"
+            onClick={handleThemeChange}
+          >
             <SunMoon size={16} /> Theme
           </Button>
         </div>
@@ -57,4 +83,4 @@ export const FloatingActionButton: React.FC = () => {
       </Button>
     </div>
   );
-}; 
+};

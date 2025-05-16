@@ -1,40 +1,59 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
-  Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter
-} from '@/components/ui/card';
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from "@/components/ui/card";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow
-} from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { ColorPicker } from '@/components/ui/color-picker';
-import { Input } from '@/components/ui/input';
-import { Pencil, Loader2 } from 'lucide-react';
-import type { Settings } from '@/types/index';
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { ColorPicker } from "@/components/ui/color-picker";
+import { Input } from "@/components/ui/input";
+import { Pencil, Loader2 } from "lucide-react";
+import type { Settings } from "@/types/index";
 
 // Correct type for an item in settings.availability_types.types
 // This is the structure defined in Settings type in @/types/index.ts
-type AvailabilityTypeFromSettings = Settings['availability_types']['types'][number];
+type AvailabilityTypeFromSettings =
+  Settings["availability_types"]["types"][number];
 
 // Frontend representation, similar to OptionsPage
 interface FrontendAvailabilityType {
-  id: string; 
+  id: string;
   name: string;
   color: string;
   description: string;
-  originalPriority?: number; 
+  originalPriority?: number;
   originalIsAvailable?: boolean;
 }
 
 interface AvailabilityConfigurationSectionProps {
-  settings?: Settings['availability_types']; // Match the prop name being passed from UnifiedSettingsPage
+  settings?: Settings["availability_types"]; // Match the prop name being passed from UnifiedSettingsPage
   onUpdate: (updatedTypes: AvailabilityTypeFromSettings[]) => void;
   onImmediateUpdate: () => void;
 }
 
-const mapToFrontend = (backendTypes: AvailabilityTypeFromSettings[] = []): FrontendAvailabilityType[] => {
-  return backendTypes.map(bt => ({
+const mapToFrontend = (
+  backendTypes: AvailabilityTypeFromSettings[] = [],
+): FrontendAvailabilityType[] => {
+  return backendTypes.map((bt) => ({
     id: bt.id,
     name: bt.name,
     color: bt.color,
@@ -44,25 +63,36 @@ const mapToFrontend = (backendTypes: AvailabilityTypeFromSettings[] = []): Front
   }));
 };
 
-const mapToBackend = (frontendTypes: FrontendAvailabilityType[]): AvailabilityTypeFromSettings[] => {
-  return frontendTypes.map(ft => ({
+const mapToBackend = (
+  frontendTypes: FrontendAvailabilityType[],
+): AvailabilityTypeFromSettings[] => {
+  return frontendTypes.map((ft) => ({
     id: ft.id,
     name: ft.name,
     color: ft.color,
     description: ft.description,
-    priority: ft.originalPriority ?? (ft.id === 'UNAVAILABLE' ? 4 : ft.id === 'FIXED' ? 1 : ft.id === 'AVAILABLE' ? 2 : 3),
-    is_available: ft.originalIsAvailable ?? (ft.id !== 'UNAVAILABLE'),
+    priority:
+      ft.originalPriority ??
+      (ft.id === "UNAVAILABLE"
+        ? 4
+        : ft.id === "FIXED"
+          ? 1
+          : ft.id === "AVAILABLE"
+            ? 2
+            : 3),
+    is_available: ft.originalIsAvailable ?? ft.id !== "UNAVAILABLE",
   }));
 };
 
-export const AvailabilityConfigurationSection: React.FC<AvailabilityConfigurationSectionProps> = ({
-  settings,
-  onUpdate,
-  onImmediateUpdate,
-}) => {
-  const [displayableTypes, setDisplayableTypes] = useState<FrontendAvailabilityType[]>([]);
+export const AvailabilityConfigurationSection: React.FC<
+  AvailabilityConfigurationSectionProps
+> = ({ settings, onUpdate, onImmediateUpdate }) => {
+  const [displayableTypes, setDisplayableTypes] = useState<
+    FrontendAvailabilityType[]
+  >([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingType, setEditingType] = useState<FrontendAvailabilityType | null>(null);
+  const [editingType, setEditingType] =
+    useState<FrontendAvailabilityType | null>(null);
 
   useEffect(() => {
     // Ensure settings and types are not undefined
@@ -71,7 +101,7 @@ export const AvailabilityConfigurationSection: React.FC<AvailabilityConfiguratio
   }, [settings]);
 
   const handleOpenModal = (type: FrontendAvailabilityType) => {
-    setEditingType({ ...type }); 
+    setEditingType({ ...type });
     setIsModalOpen(true);
   };
 
@@ -89,8 +119,8 @@ export const AvailabilityConfigurationSection: React.FC<AvailabilityConfiguratio
   const handleSaveColor = () => {
     if (!editingType) return;
 
-    const updatedDisplayableTypes = displayableTypes.map(dt => 
-      dt.id === editingType.id ? { ...dt, color: editingType.color } : dt
+    const updatedDisplayableTypes = displayableTypes.map((dt) =>
+      dt.id === editingType.id ? { ...dt, color: editingType.color } : dt,
     );
     setDisplayableTypes(updatedDisplayableTypes);
 
@@ -104,7 +134,12 @@ export const AvailabilityConfigurationSection: React.FC<AvailabilityConfiguratio
       <Card>
         <CardHeader>
           <CardTitle>Availability Types</CardTitle>
-          <CardDescription>Configure availability status types and their colors. Other properties like name, description, priority, and availability status are managed by the system or in other configuration areas and are not directly editable here.</CardDescription>
+          <CardDescription>
+            Configure availability status types and their colors. Other
+            properties like name, description, priority, and availability status
+            are managed by the system or in other configuration areas and are
+            not directly editable here.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -113,7 +148,9 @@ export const AvailabilityConfigurationSection: React.FC<AvailabilityConfiguratio
                 <TableHead className="w-[100px]">ID</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Color</TableHead>
-                <TableHead className="hidden md:table-cell">Description</TableHead>
+                <TableHead className="hidden md:table-cell">
+                  Description
+                </TableHead>
                 <TableHead className="w-[100px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -131,9 +168,15 @@ export const AvailabilityConfigurationSection: React.FC<AvailabilityConfiguratio
                       {type.color}
                     </div>
                   </TableCell>
-                  <TableCell className="hidden md:table-cell">{type.description}</TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    {type.description}
+                  </TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="sm" onClick={() => handleOpenModal(type)}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleOpenModal(type)}
+                    >
                       <Pencil className="h-4 w-4" />
                     </Button>
                   </TableCell>
@@ -143,9 +186,9 @@ export const AvailabilityConfigurationSection: React.FC<AvailabilityConfiguratio
           </Table>
         </CardContent>
         <CardFooter className="flex justify-end">
-            <Button onClick={onImmediateUpdate}>
-                Save Availability Configuration
-            </Button>
+          <Button onClick={onImmediateUpdate}>
+            Save Availability Configuration
+          </Button>
         </CardFooter>
       </Card>
 
@@ -153,25 +196,33 @@ export const AvailabilityConfigurationSection: React.FC<AvailabilityConfiguratio
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Edit Color for {editingType.name} ({editingType.id})</DialogTitle>
+              <DialogTitle>
+                Edit Color for {editingType.name} ({editingType.id})
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor={`availability-color-${editingType.id}`}>Color</Label>
+                <Label htmlFor={`availability-color-${editingType.id}`}>
+                  Color
+                </Label>
                 <ColorPicker
                   id={`availability-color-${editingType.id}`}
                   color={editingType.color}
                   onChange={handleColorChangeInModal}
                 />
-                <Input 
-                    value={editingType.color} 
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleColorChangeInModal(e.target.value)} 
-                    className="mt-2"
+                <Input
+                  value={editingType.color}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    handleColorChangeInModal(e.target.value)
+                  }
+                  className="mt-2"
                 />
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={handleCloseModal}>Cancel</Button>
+              <Button variant="outline" onClick={handleCloseModal}>
+                Cancel
+              </Button>
               <Button onClick={handleSaveColor}>Apply Color</Button>
             </DialogFooter>
           </DialogContent>
@@ -179,4 +230,4 @@ export const AvailabilityConfigurationSection: React.FC<AvailabilityConfiguratio
       )}
     </div>
   );
-}; 
+};

@@ -1,33 +1,33 @@
-import React, { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useDebouncedCallback } from 'use-debounce';
-import { format } from 'date-fns';
-import { Button } from '@/components/ui/button';
-import { PageHeader } from '@/components/PageHeader';
-import { Loader2 } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import React, { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useDebouncedCallback } from "use-debounce";
+import { format } from "date-fns";
+import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/PageHeader";
+import { Loader2 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
-import type { Settings } from '@/types/index';
-import { getSettings, updateSettings } from '@/services/api'; // Assuming API functions are here
-import { GeneralStoreSetupSection } from '@/components/UnifiedSettingsSections/GeneralStoreSetupSection';
+import type { Settings } from "@/types/index";
+import { getSettings, updateSettings } from "@/services/api"; // Assuming API functions are here
+import { GeneralStoreSetupSection } from "@/components/UnifiedSettingsSections/GeneralStoreSetupSection";
 import { DEFAULT_SETTINGS } from "@/hooks/useSettings"; // Assuming default settings are here
-import { SchedulingEngineSection } from '@/components/UnifiedSettingsSections/SchedulingEngineSection';
-import { EmployeeShiftDefinitionsSection } from '@/components/UnifiedSettingsSections/EmployeeShiftDefinitionsSection';
-import { AvailabilityConfigurationSection } from '@/components/UnifiedSettingsSections/AvailabilityConfigurationSection';
+import { SchedulingEngineSection } from "@/components/UnifiedSettingsSections/SchedulingEngineSection";
+import { EmployeeShiftDefinitionsSection } from "@/components/UnifiedSettingsSections/EmployeeShiftDefinitionsSection";
+import { AvailabilityConfigurationSection } from "@/components/UnifiedSettingsSections/AvailabilityConfigurationSection";
 import AppearanceDisplaySection from "@/components/UnifiedSettingsSections/AppearanceDisplaySection";
 import IntegrationsAISection from "@/components/UnifiedSettingsSections/IntegrationsAISection";
 import DataManagementSection from "@/components/UnifiedSettingsSections/DataManagementSection";
 import NotificationsSection from "@/components/UnifiedSettingsSections/NotificationsSection";
 
-type SectionId = 
-  | 'general_store_setup'
-  | 'scheduling_engine'
-  | 'employee_shift_definitions'
-  | 'availability_configuration'
-  | 'appearance_display'
-  | 'integrations_ai'
-  | 'data_management'
-  | 'notifications';
+type SectionId =
+  | "general_store_setup"
+  | "scheduling_engine"
+  | "employee_shift_definitions"
+  | "availability_configuration"
+  | "appearance_display"
+  | "integrations_ai"
+  | "data_management"
+  | "notifications";
 
 interface Section {
   id: SectionId;
@@ -36,14 +36,38 @@ interface Section {
 }
 
 const sections: Section[] = [
-  { id: 'general_store_setup', title: 'General Store Setup'/*, component: GeneralStoreSetupSection*/ },
-  { id: 'scheduling_engine', title: 'Scheduling Engine' /*, component: PlaceholderContent*/ },
-  { id: 'employee_shift_definitions', title: 'Employee & Shift Definitions' /*, component: PlaceholderContent*/ },
-  { id: 'availability_configuration', title: 'Availability Configuration' /*, component: PlaceholderContent*/ },
-  { id: 'appearance_display', title: 'Appearance & Display' /*, component: PlaceholderContent*/ },
-  { id: 'integrations_ai', title: 'Integrations & AI' /*, component: PlaceholderContent*/ },
-  { id: 'data_management', title: 'Data Management' /*, component: PlaceholderContent*/ },
-  { id: 'notifications', title: 'Notifications' /*, component: PlaceholderContent*/ },
+  {
+    id: "general_store_setup",
+    title: "General Store Setup" /*, component: GeneralStoreSetupSection*/,
+  },
+  {
+    id: "scheduling_engine",
+    title: "Scheduling Engine" /*, component: PlaceholderContent*/,
+  },
+  {
+    id: "employee_shift_definitions",
+    title: "Employee & Shift Definitions" /*, component: PlaceholderContent*/,
+  },
+  {
+    id: "availability_configuration",
+    title: "Availability Configuration" /*, component: PlaceholderContent*/,
+  },
+  {
+    id: "appearance_display",
+    title: "Appearance & Display" /*, component: PlaceholderContent*/,
+  },
+  {
+    id: "integrations_ai",
+    title: "Integrations & AI" /*, component: PlaceholderContent*/,
+  },
+  {
+    id: "data_management",
+    title: "Data Management" /*, component: PlaceholderContent*/,
+  },
+  {
+    id: "notifications",
+    title: "Notifications" /*, component: PlaceholderContent*/,
+  },
 ];
 
 // Temporary Placeholder for other sections
@@ -57,18 +81,20 @@ const PlaceholderContent: React.FC<{ title: string }> = ({ title }) => (
 export default function UnifiedSettingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeSection, setActiveSection] = useState<SectionId>('general_store_setup');
-  
+  const [activeSection, setActiveSection] = useState<SectionId>(
+    "general_store_setup",
+  );
+
   // Initialize with minimal default settings to ensure it's never null
   const [localSettings, setLocalSettings] = useState<Settings>({
     id: 0,
-    store_name: 'Store',
-    timezone: 'Europe/Berlin',
-    language: 'de',
-    date_format: 'DD.MM.YYYY',
-    time_format: '24h',
-    store_opening: '09:00',
-    store_closing: '20:00',
+    store_name: "Store",
+    timezone: "Europe/Berlin",
+    language: "de",
+    date_format: "DD.MM.YYYY",
+    time_format: "24h",
+    store_opening: "09:00",
+    store_closing: "20:00",
     keyholder_before_minutes: 30,
     keyholder_after_minutes: 30,
     opening_days: {},
@@ -77,22 +103,22 @@ export default function UnifiedSettingsPage() {
     availability_types: { types: [] },
     shift_types: [],
     general: {
-      store_name: 'Store',
-      store_address: '',
-      store_contact: '',
-      timezone: 'Europe/Berlin',
-      language: 'de',
-      date_format: 'DD.MM.YYYY',
-      time_format: '24h',
-      store_opening: '09:00',
-      store_closing: '20:00',
+      store_name: "Store",
+      store_address: "",
+      store_contact: "",
+      timezone: "Europe/Berlin",
+      language: "de",
+      date_format: "DD.MM.YYYY",
+      time_format: "24h",
+      store_opening: "09:00",
+      store_closing: "20:00",
       keyholder_before_minutes: 30,
       keyholder_after_minutes: 30,
       opening_days: {},
-      special_hours: {}
+      special_hours: {},
     },
     scheduling: {
-      scheduling_resource_type: 'shifts',
+      scheduling_resource_type: "shifts",
       default_shift_duration: 8,
       min_break_duration: 30,
       max_daily_hours: 10,
@@ -115,24 +141,24 @@ export default function UnifiedSettingsPage() {
         enforce_shift_distribution: true,
         enforce_availability: true,
         enforce_qualifications: true,
-        enforce_opening_hours: true
-      }
+        enforce_opening_hours: true,
+      },
     },
     display: {
-      theme: 'light',
-      primary_color: '#000000',
-      secondary_color: '#000000',
-      accent_color: '#000000',
-      background_color: '#ffffff',
-      surface_color: '#ffffff',
-      text_color: '#000000',
+      theme: "light",
+      primary_color: "#000000",
+      secondary_color: "#000000",
+      accent_color: "#000000",
+      background_color: "#ffffff",
+      surface_color: "#ffffff",
+      text_color: "#000000",
       dark_theme: {
-        primary_color: '#ffffff',
-        secondary_color: '#ffffff',
-        accent_color: '#ffffff',
-        background_color: '#000000',
-        surface_color: '#000000',
-        text_color: '#ffffff'
+        primary_color: "#ffffff",
+        secondary_color: "#ffffff",
+        accent_color: "#ffffff",
+        background_color: "#000000",
+        surface_color: "#000000",
+        text_color: "#ffffff",
       },
       show_sunday: false,
       show_weekdays: true,
@@ -140,42 +166,53 @@ export default function UnifiedSettingsPage() {
       email_notifications: false,
       schedule_published: false,
       shift_changes: false,
-      time_off_requests: false
+      time_off_requests: false,
     },
     employee_groups: {
-      employee_types: [{
-        id: "VZ",
-        name: "Vollzeit",
-        min_hours: 35,
-        max_hours: 40,
-        type: 'employee'
-      }],
-      shift_types: [{
-        id: "EARLY",
-        name: "Frühschicht",
-        color: "#4CAF50",
-        type: 'shift'
-      }],
-      absence_types: [{
-        id: "URL",
-        name: "Urlaub",
-        color: "#FF9800",
-        type: 'absence'
-      }]
+      employee_types: [
+        {
+          id: "VZ",
+          name: "Vollzeit",
+          min_hours: 35,
+          max_hours: 40,
+          type: "employee",
+        },
+      ],
+      shift_types: [
+        {
+          id: "EARLY",
+          name: "Frühschicht",
+          color: "#4CAF50",
+          type: "shift",
+        },
+      ],
+      absence_types: [
+        {
+          id: "URL",
+          name: "Urlaub",
+          color: "#FF9800",
+          type: "absence",
+        },
+      ],
     },
     actions: {
       demo_data: {
-        selected_module: '',
-        last_execution: null
-      }
+        selected_module: "",
+        last_execution: null,
+      },
     },
     ai_scheduling: {
       enabled: false,
-      api_key: ""
-    }
+      api_key: "",
+    },
   });
 
-  const { data: settingsData, isLoading, error, refetch } = useQuery({
+  const {
+    data: settingsData,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ["settings"],
     queryFn: getSettings,
     retry: 3,
@@ -203,7 +240,8 @@ export default function UnifiedSettingsPage() {
       }
       toast({
         title: "Error Updating Settings",
-        description: error.message || "Failed to update settings. Changes were reverted.",
+        description:
+          error.message || "Failed to update settings. Changes were reverted.",
         variant: "destructive",
       });
     },
@@ -213,68 +251,72 @@ export default function UnifiedSettingsPage() {
     (updatedSettings: Settings) => {
       updateMutation.mutate(updatedSettings);
     },
-    2000 // 2 seconds debounce time
+    2000, // 2 seconds debounce time
   );
 
   const handleSave = (
     category: keyof Settings, // Simplified category to be any key of Settings
-    updates: Partial<Settings[typeof category]>
+    updates: Partial<Settings[typeof category]>,
   ) => {
     // localSettings is always defined now, no need for null check
     const currentCategoryState = localSettings[category];
     let newCategoryState;
 
-    if (typeof currentCategoryState === 'object' && currentCategoryState !== null) {
-        newCategoryState = { ...currentCategoryState, ...updates };
+    if (
+      typeof currentCategoryState === "object" &&
+      currentCategoryState !== null
+    ) {
+      newCategoryState = { ...currentCategoryState, ...updates };
     } else {
-        // If the category is not an object (e.g. a primitive type directy under settings, though unlikely for most of our structure)
-        // or if it's null, we just take the updates. This part might need refinement based on Settings structure.
-        newCategoryState = updates;
+      // If the category is not an object (e.g. a primitive type directy under settings, though unlikely for most of our structure)
+      // or if it's null, we just take the updates. This part might need refinement based on Settings structure.
+      newCategoryState = updates;
     }
 
     const updatedSettings: Settings = {
       ...localSettings,
       [category]: newCategoryState,
     };
-    
+
     setLocalSettings(updatedSettings);
     debouncedUpdate(updatedSettings);
   };
-  
+
   const handleSettingChange = (
     category: keyof Settings,
     key: string,
     value: any,
-    isNumeric: boolean = false
+    isNumeric: boolean = false,
   ) => {
     // localSettings is always defined now, no need for null check
     const parsedValue = isNumeric ? parseFloat(value) : value;
     const currentCategoryState = localSettings[category] || {};
-    
+
     handleSave(category, {
       ...currentCategoryState,
-      [key]: parsedValue
+      [key]: parsedValue,
     });
   };
-  
+
   const handleImmediateUpdate = () => {
     // localSettings is always defined now, no need for null check
-      debouncedUpdate.cancel(); // Cancel any pending debounced updates
-      updateMutation.mutate(localSettings, {
-        onSuccess: (updatedData) => {
-          queryClient.setQueryData(["settings"], updatedData);
-          setLocalSettings(updatedData);
-          toast({
-            title: "Settings Saved",
-            description: "Your settings have been successfully saved to the server.",
-          });
-        }
-      });
+    debouncedUpdate.cancel(); // Cancel any pending debounced updates
+    updateMutation.mutate(localSettings, {
+      onSuccess: (updatedData) => {
+        queryClient.setQueryData(["settings"], updatedData);
+        setLocalSettings(updatedData);
+        toast({
+          title: "Settings Saved",
+          description:
+            "Your settings have been successfully saved to the server.",
+        });
+      },
+    });
   };
 
   const timeStringToDate = (timeStr: string | null | undefined): Date => {
-    if (!timeStr) timeStr = '00:00';
-    const [hours, minutes] = timeStr.split(':').map(Number);
+    if (!timeStr) timeStr = "00:00";
+    const [hours, minutes] = timeStr.split(":").map(Number);
     const date = new Date();
     date.setHours(hours);
     date.setMinutes(minutes);
@@ -285,26 +327,26 @@ export default function UnifiedSettingsPage() {
 
   const dateToTimeString = (date: Date | null | undefined): string => {
     if (!date) return "00:00";
-    return format(date, 'HH:mm');
+    return format(date, "HH:mm");
   };
 
   const handleDiagnosticsChange = (checked: boolean) => {
     // localSettings is always defined now, no need for null check
     const scheduling = localSettings.scheduling || {};
-    
+
     const updatedSchedSettings = {
       ...scheduling,
-      enable_diagnostics: checked
+      enable_diagnostics: checked,
     };
     // Directly call handleSave for the 'scheduling' category
-    handleSave('scheduling' as any, updatedSchedSettings); // Cast as any for now, or refine handleSave type
+    handleSave("scheduling" as any, updatedSchedSettings); // Cast as any for now, or refine handleSave type
     // Potentially call handleImmediateUpdate() if this change should be saved instantly
-    // handleImmediateUpdate(); 
+    // handleImmediateUpdate();
   };
 
   const handleDisplaySettingChange = (
-    key: keyof Settings['display'],
-    value: any
+    key: keyof Settings["display"],
+    value: any,
   ) => {
     // localSettings is always defined now, no need for null check
     const updatedDisplaySettings = {
@@ -313,26 +355,26 @@ export default function UnifiedSettingsPage() {
     };
 
     // Update local state and debounce the save for general persistence
-    handleSave('display', updatedDisplaySettings);
-    
+    handleSave("display", updatedDisplaySettings);
+
     // For display changes, especially theme, an immediate effect and save is often desired.
     // We can call handleImmediateUpdate here if all display changes should be instant.
     // Alternatively, make it conditional based on the 'key' if only some are instant.
     // For simplicity now, let's make all display changes attempt an immediate save.
-    handleImmediateUpdate(); 
+    handleImmediateUpdate();
   };
 
   // Handler for AI Scheduling settings changes
   const handleAiSchedulingChange = (
-    key: keyof NonNullable<Settings['ai_scheduling']>, // 'enabled' | 'api_key'
-    value: any
+    key: keyof NonNullable<Settings["ai_scheduling"]>, // 'enabled' | 'api_key'
+    value: any,
   ) => {
     // localSettings is always defined now, no need for null check
     const updatedAiSettings = {
       ...(localSettings.ai_scheduling || DEFAULT_SETTINGS.ai_scheduling),
       [key]: value,
     };
-    handleSave('ai_scheduling', updatedAiSettings);
+    handleSave("ai_scheduling", updatedAiSettings);
     // API key changes might benefit from immediate update on blur, which is handled by passing handleImmediateUpdate
     // The switch for 'enabled' will also trigger handleSave, and if an immediate save is desired for that too,
     // handleImmediateUpdate() could be called here unconditionally or passed to the component to decide.
@@ -340,102 +382,133 @@ export default function UnifiedSettingsPage() {
   };
 
   const renderSectionContent = () => {
-    const currentSectionMeta = sections.find(sec => sec.id === activeSection);
+    const currentSectionMeta = sections.find((sec) => sec.id === activeSection);
     if (!currentSectionMeta) {
       return <PlaceholderContent title="Section not found" />;
     }
 
     // Only show loading indicator if explicitly loading from API and we have no settings data yet
     if (isLoading && !settingsData) {
-      return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-4 animate-spin" /><span>Loading settings...</span></div>;
+      return (
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-4 animate-spin" />
+          <span>Loading settings...</span>
+        </div>
+      );
     }
 
     // Explicit error check
     if (error) {
-      return <Alert variant="destructive"><AlertDescription>Error loading settings: {error.message || 'An unknown error occurred'}. Please try again later or contact support.</AlertDescription></Alert>;
+      return (
+        <Alert variant="destructive">
+          <AlertDescription>
+            Error loading settings:{" "}
+            {error.message || "An unknown error occurred"}. Please try again
+            later or contact support.
+          </AlertDescription>
+        </Alert>
+      );
     }
 
     // localSettings is always defined now due to useState initialization
 
     // If we've reached this point, localSettings should be a valid Settings object.
     switch (activeSection) {
-      case 'general_store_setup':
+      case "general_store_setup":
         return (
           <GeneralStoreSetupSection
             settings={localSettings.general || {}}
-            onInputChange={(key, value, isNumeric) => handleSettingChange('general', key, value, isNumeric)}
+            onInputChange={(key, value, isNumeric) =>
+              handleSettingChange("general", key, value, isNumeric)
+            }
             onOpeningDaysChange={(dayIndex, checked) => {
-              const currentOpeningDays = localSettings.general?.opening_days || DEFAULT_SETTINGS.general.opening_days;
-              const updatedOpeningDays = { ...currentOpeningDays, [dayIndex.toString()]: checked };
-              handleSave('general', { opening_days: updatedOpeningDays });
+              const currentOpeningDays =
+                localSettings.general?.opening_days ||
+                DEFAULT_SETTINGS.general.opening_days;
+              const updatedOpeningDays = {
+                ...currentOpeningDays,
+                [dayIndex.toString()]: checked,
+              };
+              handleSave("general", { opening_days: updatedOpeningDays });
             }}
             onSpecialDaysChange={(specialDays) => {
-              handleSave('general', { special_days: specialDays });
+              handleSave("general", { special_days: specialDays });
             }}
             timeStringToDate={timeStringToDate}
             dateToTimeString={dateToTimeString}
             onImmediateUpdate={handleImmediateUpdate}
           />
         );
-      case 'scheduling_engine':
+      case "scheduling_engine":
         return (
           <SchedulingEngineSection
             settings={localSettings.scheduling || {}}
-            onInputChange={(key, value, isNumeric) => handleSettingChange('scheduling', key, value, isNumeric)}
+            onInputChange={(key, value, isNumeric) =>
+              handleSettingChange("scheduling", key, value, isNumeric)
+            }
             onDiagnosticsChange={(checked) => {
               const scheduling = localSettings.scheduling || {};
-                const updatedSchedSettings = {
+              const updatedSchedSettings = {
                 ...scheduling,
-                    enable_diagnostics: checked
-                };
-                handleSave("scheduling", updatedSchedSettings);
+                enable_diagnostics: checked,
+              };
+              handleSave("scheduling", updatedSchedSettings);
             }}
             onGenerationSettingsUpdate={(genUpdates) => {
               const scheduling = localSettings.scheduling || {};
-              const currentGenReqs = scheduling.generation_requirements || DEFAULT_SETTINGS.scheduling.generation_requirements;
-                const updatedGenReqs = { ...currentGenReqs, ...genUpdates };
-              handleSave("scheduling", { ...scheduling, generation_requirements: updatedGenReqs });
+              const currentGenReqs =
+                scheduling.generation_requirements ||
+                DEFAULT_SETTINGS.scheduling.generation_requirements;
+              const updatedGenReqs = { ...currentGenReqs, ...genUpdates };
+              handleSave("scheduling", {
+                ...scheduling,
+                generation_requirements: updatedGenReqs,
+              });
             }}
             onImmediateUpdate={handleImmediateUpdate}
           />
         );
-      case 'employee_shift_definitions':
+      case "employee_shift_definitions":
         return (
-          <EmployeeShiftDefinitionsSection 
-            settings={localSettings.employee_groups || {}} 
+          <EmployeeShiftDefinitionsSection
+            settings={localSettings.employee_groups || {}}
             onUpdate={(category, updates) => handleSave(category, updates)}
             onImmediateUpdate={handleImmediateUpdate}
           />
         );
-      case 'availability_configuration':
+      case "availability_configuration":
         return (
           <AvailabilityConfigurationSection
             settings={localSettings.availability_types || { types: [] }}
-            onUpdate={(updatedTypes) => handleSave('availability_types', { types: updatedTypes })}
+            onUpdate={(updatedTypes) =>
+              handleSave("availability_types", { types: updatedTypes })
+            }
             onImmediateUpdate={handleImmediateUpdate}
           />
         );
-      case 'appearance_display':
+      case "appearance_display":
         return (
           <AppearanceDisplaySection
             settings={localSettings.display || {}}
-            onDisplaySettingChange={handleDisplaySettingChange} 
+            onDisplaySettingChange={handleDisplaySettingChange}
           />
         );
-      case 'integrations_ai':
+      case "integrations_ai":
         return (
           <IntegrationsAISection
-            settings={localSettings.ai_scheduling || { enabled: false, api_key: "" }}
+            settings={
+              localSettings.ai_scheduling || { enabled: false, api_key: "" }
+            }
             onSettingChange={handleAiSchedulingChange}
             onImmediateUpdate={handleImmediateUpdate}
           />
         );
-      case 'data_management':
+      case "data_management":
         // DataManagementSection doesn't seem to directly use nested settings
         return <DataManagementSection />;
-      case 'notifications':
+      case "notifications":
         return (
-          <NotificationsSection 
+          <NotificationsSection
             settings={localSettings.display || {}}
             onDisplaySettingChange={handleDisplaySettingChange}
           />
@@ -456,7 +529,7 @@ export default function UnifiedSettingsPage() {
           {sections.map((section) => (
             <Button
               key={section.id}
-              variant={activeSection === section.id ? 'default' : 'ghost'}
+              variant={activeSection === section.id ? "default" : "ghost"}
               className="w-full justify-start"
               onClick={() => setActiveSection(section.id)}
             >
@@ -470,4 +543,4 @@ export default function UnifiedSettingsPage() {
       </div>
     </div>
   );
-} 
+}

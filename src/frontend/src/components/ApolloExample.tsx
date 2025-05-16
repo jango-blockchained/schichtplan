@@ -1,4 +1,4 @@
-import { gql, useQuery } from '@apollo/client';
+import { gql, useQuery } from "@apollo/client";
 
 // Example GraphQL query
 const EXAMPLE_QUERY = gql`
@@ -19,16 +19,20 @@ export function ApolloExample() {
     <div className="p-4 border rounded-lg bg-card">
       <h2 className="text-lg font-medium mb-2">Apollo Client Example</h2>
       <p className="text-sm text-muted-foreground mb-4">
-        This component demonstrates Apollo Client integration. 
-        Open Apollo DevTools in your browser to see it working.
+        This component demonstrates Apollo Client integration. Open Apollo
+        DevTools in your browser to see it working.
       </p>
-      
+
       <div className="text-sm">
         <p>Query Status:</p>
         {loading && <p className="text-blue-500">Loading...</p>}
         {error && <p className="text-red-500">Error: {error.message}</p>}
-        {data && <pre className="bg-muted p-2 rounded mt-2">{JSON.stringify(data, null, 2)}</pre>}
+        {data && (
+          <pre className="bg-muted p-2 rounded mt-2">
+            {JSON.stringify(data, null, 2)}
+          </pre>
+        )}
       </div>
     </div>
   );
-} 
+}

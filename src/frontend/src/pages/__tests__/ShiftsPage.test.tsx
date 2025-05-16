@@ -1,16 +1,22 @@
-import { describe, it as test, expect, mock } from 'bun:test';
-import { render, screen, fireEvent } from '../../test-utils/test-utils';
-import { ShiftsPage } from '../ShiftsPage';
-import { getShifts, createShift, updateShift, deleteShift, createDefaultShifts } from '../../services/api';
+import { describe, it as test, expect, mock } from "bun:test";
+import { render, screen, fireEvent } from "../../test-utils/test-utils";
+import { ShiftsPage } from "../ShiftsPage";
+import {
+  getShifts,
+  createShift,
+  updateShift,
+  deleteShift,
+  createDefaultShifts,
+} from "../../services/api";
 
 // Mock the API functions
 const mockShift = {
   id: 1,
-  start_time: '08:00',
-  end_time: '16:00',
+  start_time: "08:00",
+  end_time: "16:00",
   duration_hours: 8,
   requires_break: true,
-  active_days: { '0': true, '1': true, '2': true, '3': true, '4': true },
+  active_days: { "0": true, "1": true, "2": true, "3": true, "4": true },
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
 };
@@ -31,18 +37,18 @@ Object.assign(globalThis, {
   createDefaultShifts: mockCreateDefaultShifts,
 });
 
-describe('ShiftsPage', () => {
-  test('renders shifts list', async () => {
+describe("ShiftsPage", () => {
+  test("renders shifts list", async () => {
     mockGetShifts.mockImplementation(() => Promise.resolve([mockShift]));
 
     render(<ShiftsPage />);
 
     // Wait for the shift time to appear
-    const shiftTime = await screen.findByText('08:00 - 16:00');
+    const shiftTime = await screen.findByText("08:00 - 16:00");
     expect(shiftTime).toBeDefined();
   });
 
-  test('can create new shift', async () => {
+  test("can create new shift", async () => {
     render(<ShiftsPage />);
 
     // Click the "Add Shift" button
@@ -51,10 +57,10 @@ describe('ShiftsPage', () => {
 
     // Fill out the form
     const startTimeInput = screen.getByLabelText(/start time/i);
-    fireEvent.change(startTimeInput, { target: { value: '09:00' } });
+    fireEvent.change(startTimeInput, { target: { value: "09:00" } });
 
     const endTimeInput = screen.getByLabelText(/end time/i);
-    fireEvent.change(endTimeInput, { target: { value: '17:00' } });
+    fireEvent.change(endTimeInput, { target: { value: "17:00" } });
 
     // Submit the form
     const submitButton = screen.getByText(/save/i);
@@ -64,7 +70,7 @@ describe('ShiftsPage', () => {
     expect(mockCreateShift).toHaveBeenCalled();
   });
 
-  test('can delete shift', async () => {
+  test("can delete shift", async () => {
     mockGetShifts.mockImplementation(() => Promise.resolve([mockShift]));
 
     render(<ShiftsPage />);
@@ -80,4 +86,4 @@ describe('ShiftsPage', () => {
     // Verify the delete function was called
     expect(mockDeleteShift).toHaveBeenCalledWith(1);
   });
-}); 
+});

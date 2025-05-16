@@ -1,9 +1,21 @@
-import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import React from "react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface EmployeeFormProps {
   onSubmit: (employee: {
@@ -14,16 +26,16 @@ interface EmployeeFormProps {
 }
 
 const EmployeeForm: React.FC<EmployeeFormProps> = ({ onSubmit }) => {
-  const [name, setName] = React.useState('');
-  const [position, setPosition] = React.useState('');
-  const [contractedHours, setContractedHours] = React.useState('');
+  const [name, setName] = React.useState("");
+  const [position, setPosition] = React.useState("");
+  const [contractedHours, setContractedHours] = React.useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({ name, position, contractedHours });
-    setName('');
-    setPosition('');
-    setContractedHours('');
+    setName("");
+    setPosition("");
+    setContractedHours("");
   };
 
   return (
@@ -79,4 +91,4 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({ onSubmit }) => {
   );
 };
 
-export default EmployeeForm; 
+export default EmployeeForm;
