@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDebouncedCallback } from "use-debounce";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { PageHeader, PageHeaderDescription, PageHeaderHeading } from "@/components/PageHeader";
+import { PageHeader } from "@/components/PageHeader";
 import { Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/use-toast";
@@ -541,18 +541,19 @@ export default function UnifiedSettingsPage() {
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8">
-      <PageHeader className="mb-6">
-        <PageHeaderHeading>Application Settings</PageHeaderHeading>
-        <PageHeaderDescription>
-          Manage and customize various aspects of the application.
-          {mutation.isLoading && (
+      <PageHeader 
+        className="mb-6"
+        title="Application Settings"
+        description="Manage your application settings across various modules. Select a category from the sidebar to view and edit specific settings. All changes are auto-saved with a short delay. You can monitor the save status at the top right."
+        actions={
+          mutation.isLoading ? (
             <span className="ml-2 text-sm text-muted-foreground flex items-center">
               <Loader2 className="mr-1 h-4 w-4 animate-spin" />
               Saving...
             </span>
-          )}
-        </PageHeaderDescription>
-      </PageHeader>
+          ) : null
+        }
+      />
       <div className="flex flex-col md:flex-row md:space-x-6 space-y-6 md:space-y-0">
         <nav className="md:w-1/4 lg:w-1/5 space-y-1">
           {sections.map((section) => (
