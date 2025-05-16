@@ -32,12 +32,13 @@ except ImportError:
             return time(9, 0)  # Default to 9:00 AM
     
     def get_required_staffing_for_interval(
-        resources: ScheduleResources,
         target_date: date,
-        interval_start: time,
-        interval_end: time
+        interval_start_time: time,
+        resources: ScheduleResources,
+        interval_duration_minutes: int = 15
     ) -> Dict[str, Any]:
         """Fallback implementation returning minimum staffing"""
+        # Parameters are changed, but the fallback logic remains simple.
         return {
             "min_employees": 1,
             "max_employees": 3,
@@ -68,21 +69,21 @@ def import_models():
         from models.employee import AvailabilityType
         from models import Employee, ShiftTemplate, Schedule
         from utils.logger import logger as backend_logger
-        return AvailabilityType, Employee, ShiftTemplate, Schedule, backend_logger
+        return AvailabilityType, Employee, ShiftTemplate, Schedule, backend_logger # type: ignore[return-value]
     except ImportError:
         try:
             # Import when run from project root
             from backend.models.employee import AvailabilityType
             from backend.models import Employee, ShiftTemplate, Schedule
             from backend.utils.logger import logger as backend_logger
-            return AvailabilityType, Employee, ShiftTemplate, Schedule, backend_logger
+            return AvailabilityType, Employee, ShiftTemplate, Schedule, backend_logger # type: ignore[return-value]
         except ImportError:
             try:
                 # Import when run from another location
                 from src.backend.models.employee import AvailabilityType
                 from src.backend.models import Employee, ShiftTemplate, Schedule
                 from src.backend.utils.logger import logger as backend_logger
-                return AvailabilityType, Employee, ShiftTemplate, Schedule, backend_logger
+                return AvailabilityType, Employee, ShiftTemplate, Schedule, backend_logger # type: ignore[return-value]
             except ImportError:
                 import_logger.warning("Could not import model classes, using type hint classes instead")
                 # Create type hint classes for standalone testing
@@ -465,6 +466,16 @@ class DistributionManager:
             self.logger.error(f"Error assigning employees by type {shift_type}: {str(e)}", exc_info=True)
             return []
 
+    def _calculate_history_adjustment_v2(self, employee_id: int, shift_template: Any, shift_date: date) -> float:
+        """Placeholder for calculating history-based score adjustment (v2)."""
+        self.logger.warning(f"_calculate_history_adjustment_v2 not fully implemented for emp {employee_id}, returning 0.0")
+        return 0.0
+
+    def _calculate_preference_adjustment_v2(self, employee_id: int, shift_template: Any, shift_date: date, availability_type_override: Any) -> float:
+        """Placeholder for calculating preference-based score adjustment (v2)."""
+        self.logger.warning(f"_calculate_preference_adjustment_v2 not fully implemented for emp {employee_id}, returning 0.0")
+        return 0.0
+
     def is_shift_assigned(self, shift: Any, assignments: List[Dict]) -> bool:
         """Check if a shift has already been assigned"""
         shift_id = self.get_id(shift, ["id", "shift_id"])
@@ -592,7 +603,7 @@ class DistributionManager:
             }
 
             # Load preferences from employee data if available
-            if hasattr(employee, "preferences") and employee.preferences:
+            if hasattr(employee, "preferences") and employee.preferences: # type: ignore[union-attr]
                 self._load_employee_preferences(employee)
 
     def _load_employee_preferences(self, employee: 'ActualEmployee'):
@@ -769,7 +780,7 @@ class DistributionManager:
     def calculate_assignment_score(
         self,
         employee_id: int,
-        shift_template: Union["ActualShiftTemplate", Dict[str, Any], ShiftTemplate], 
+        shift_template: Union["ActualShiftTemplate", Dict[str, Any]],
         shift_date: date, 
         context: Dict[str, Any],
         availability_type_override: Union["ActualAvailabilityType", str] 
@@ -807,9 +818,14 @@ class DistributionManager:
                 return -float('inf')
 
         # 1. AvailabilityType Scoring
-        avail_type_str = availability_type_override
-        if hasattr(availability_type_override, 'value'): # Handles Enum
+        # Determine availability string, prioritizing enum's .value if it's an enum member
+        if isinstance(availability_type_override, AvailabilityType): # Check if it's an instance of the Enum type
             avail_type_str = availability_type_override.value
+        elif isinstance(availability_type_override, str):
+            avail_type_str = availability_type_override
+        else: # Should not happen based on type hint Union[ActualAvailabilityType, str]
+            self.logger.warning(f"Unexpected type for availability_type_override: {type(availability_type_override)}. Using as is.")
+            avail_type_str = str(availability_type_override) # Fallback to string conversion
         
         if avail_type_str == "FIXED": score += 100.0
         elif avail_type_str == "PREFERRED": score += 50.0
@@ -855,8 +871,8 @@ class DistributionManager:
                 num_assignments_processed +=1
                 duration_for_workload = assignment_dict_for_workload.get('duration_hours') 
                 if duration_for_workload is None:
-                    start_t_for_workload = assignment_dict_for_workload.get('start_time') 
-                    end_t_for_workload = assignment_dict_for_workload.get('end_time') 
+                    start_t_for_workload = assignment_dict_for_workload.get('start_time')
+                    end_t_for_workload = assignment_dict_for_workload.get('end_time')
                     if start_t_for_workload and end_t_for_workload:
                         duration_for_workload = self.calculate_duration(start_t_for_workload, end_t_for_workload)
                     else:
@@ -1001,7 +1017,7 @@ class DistributionManager:
             coverage_date = coverage.date
             if isinstance(coverage_date, str):
                 try:
-                    coverage_date = date.fromisoformat(coverage_date.split('T')[0]) # Handle datetime strings
+                    coverage_date = date.fromisoformat(coverage.date.split('T')[0]) # Handle datetime strings
                 except (ValueError, TypeError):
                     self.logger.warning(f"Coverage {cov_id} has invalid date string: {coverage.date}")
                     return False
