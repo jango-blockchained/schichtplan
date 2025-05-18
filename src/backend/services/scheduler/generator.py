@@ -1058,3 +1058,15 @@ class ScheduleGenerator:
         # except Exception as e:
         #     self.logger.error(f"Error updating ScheduleVersionMeta for version {version}: {str(e)}")
         #     db.session.rollback()
+
+    def generate_schedule(self, start_date, end_date, external_config_dict=None, create_empty_schedules=False, version=None):
+        """
+        Alias for generate(), for backward compatibility with tests/utilities.
+        """
+        return self.generate(
+            start_date=start_date,
+            end_date=end_date,
+            external_config_dict=external_config_dict,
+            create_empty_schedules=create_empty_schedules,
+            version=version,
+        )
