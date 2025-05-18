@@ -11,6 +11,7 @@ from models import Settings
 from typing import List, Dict, Any, Tuple, Optional
 from pydantic import ValidationError
 from src.backend.schemas.availability import AvailabilityCreateRequest, AvailabilityUpdateRequest, AvailabilityCheckRequest, EmployeeAvailabilitiesUpdateRequest, EmployeeStatusByDateRequest, EmployeeShiftsForEmployeeRequest
+import traceback
 
 availability = Blueprint('availability', __name__, url_prefix='/api/availability')
 
@@ -23,20 +24,22 @@ def get_availabilities():
 @availability.route('/', methods=['POST'])
 def create_availability():
     """Create a new availability"""
-    
+    print('[DEBUG] Entered create_availability')
     try:
         data = request.get_json()
         # Validate data using Pydantic schema
         request_data = AvailabilityCreateRequest(**data)
 
         # Create availability using validated data
+        availability_type = request_data.availability_type
+        if isinstance(availability_type, str):
+            availability_type = AvailabilityType(availability_type)
         availability = EmployeeAvailability(
             employee_id=request_data.employee_id,
             day_of_week=request_data.day_of_week,
             hour=request_data.hour,
-            # Explicitly ensure is_available is a boolean
-            is_available=bool(request_data.is_available), 
-            availability_type=AvailabilityType(request_data.availability_type) # Ensure AvailabilityType enum is used
+            is_available=bool(request_data.is_available),
+            availability_type=availability_type
         )
         
         db.session.add(availability)
@@ -48,6 +51,8 @@ def create_availability():
         return jsonify({'status': 'error', 'message': 'Invalid input.', 'details': e.errors()}), HTTPStatus.BAD_REQUEST # Return validation details
     except Exception as e: # Catch any other exceptions
         db.session.rollback()
+        print(f"[ERROR][create_availability] {e}")
+        traceback.print_exc()
         return jsonify({'status': 'error', 'message': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 @availability.route('/<int:availability_id>', methods=['GET'])
@@ -59,6 +64,7 @@ def get_availability(availability_id):
 @availability.route('/<int:availability_id>', methods=['PUT'])
 def update_availability(availability_id):
     """Update an availability"""
+    print('[DEBUG] Entered update_availability')
     availability = EmployeeAvailability.query.get_or_404(availability_id)
     
     try:
@@ -74,11 +80,12 @@ def update_availability(availability_id):
         if request_data.hour is not None:
             availability.hour = request_data.hour
         if request_data.is_available is not None:
-            # Explicitly ensure is_available is a boolean if provided
             availability.is_available = bool(request_data.is_available)
         if request_data.availability_type is not None:
-             # Ensure AvailabilityType enum is used
-            availability.availability_type = AvailabilityType(request_data.availability_type)
+            availability_type = request_data.availability_type
+            if isinstance(availability_type, str):
+                availability_type = AvailabilityType(availability_type)
+            availability.availability_type = availability_type
         
         db.session.commit()
         return jsonify(availability.to_dict())
@@ -87,6 +94,8 @@ def update_availability(availability_id):
         return jsonify({'status': 'error', 'message': 'Invalid input.', 'details': e.errors()}), HTTPStatus.BAD_REQUEST # Return validation details
     except Exception as e: # Catch any other exceptions
         db.session.rollback()
+        print(f"[ERROR][update_availability] {e}")
+        traceback.print_exc()
         return jsonify({'status': 'error', 'message': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 @availability.route('/<int:availability_id>', methods=['DELETE'])
@@ -149,6 +158,8 @@ def check_availability():
     except ValueError as e:
         return jsonify({'error': str(e)}), HTTPStatus.BAD_REQUEST
     except Exception as e:
+        print(f"[ERROR][check_availability] {e}")
+        traceback.print_exc()
         return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 @availability.route('/employees/<int:employee_id>/availabilities', methods=['PUT'])
@@ -173,12 +184,15 @@ def update_employee_availabilities(employee_id):
             
             # Create new availabilities from validated data
             for availability_data in request_data.__root__:
+                availability_type = availability_data.availability_type
+                if isinstance(availability_type, str):
+                    availability_type = AvailabilityType(availability_type)
                 availability = EmployeeAvailability(
                     employee_id=employee_id,
                     day_of_week=availability_data.day_of_week,
                     hour=availability_data.hour,
                     is_available=availability_data.is_available,
-                    availability_type=availability_data.availability_type
+                    availability_type=availability_type
                 )
                 db.session.add(availability)
                 
@@ -341,8 +355,7 @@ def get_shifts_for_employee_on_date():
         return jsonify({'error': str(e)}), HTTPStatus.BAD_REQUEST # Keep existing ValueError catch for employee_id conversion if needed elsewhere
     except Exception as e:
         current_app.logger.error(f"Error processing request in /api/availability/shifts_for_employee: {str(e)} - {type(e)}")
-        import traceback
-        current_app.logger.error(traceback.format_exc())
+        traceback.print_exc()
         return jsonify({'error': f'An unexpected error occurred: {str(e)}'}), HTTPStatus.INTERNAL_SERVER_ERROR
 
     try:
@@ -476,6 +489,5 @@ def get_shifts_for_employee_on_date():
 
     except Exception as e:
         current_app.logger.error(f"Error in /api/availability/shifts_for_employee: {str(e)} - {type(e)}")
-        import traceback
-        current_app.logger.error(traceback.format_exc())
+        traceback.print_exc()
         return jsonify({'error': f'An unexpected error occurred: {str(e)}'}), HTTPStatus.INTERNAL_SERVER_ERROR 

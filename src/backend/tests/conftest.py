@@ -8,13 +8,16 @@ import sys
 from src.backend.app import create_app
 from src.backend.models import db as _db
 from sqlalchemy.orm import scoped_session, sessionmaker
+from src.backend.models.employee import Employee, EmployeeGroup, EmployeeAvailability, AvailabilityType
+from datetime import date
 
 
 @pytest.fixture(scope="session")
 def app():
     """Create application for the tests."""
     _app = create_app()
-    _app.config["TESTING"] = True
+    _app.config["TESTING"] = False
+    _app.config["PROPAGATE_EXCEPTIONS"] = True
     _app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
 
     # Other test config setup here
@@ -61,3 +64,37 @@ def client(app):
 def runner(app):
     """Create a test runner for the app's CLI commands."""
     return app.test_cli_runner()
+
+
+@pytest.fixture
+def new_employee(session):
+    """Create and return a new Employee object for testing."""
+    employee = Employee(
+        first_name="Test",
+        last_name="User",
+        employee_group=EmployeeGroup.VZ,
+        contracted_hours=40.0,
+        is_keyholder=False,
+        is_active=True,
+        birthday=date(1990, 1, 1),
+        email="testuser@example.com",
+        phone="1234567890"
+    )
+    session.add(employee)
+    session.commit()
+    return employee
+
+
+@pytest.fixture
+def new_availability(session, new_employee):
+    """Create and return a new EmployeeAvailability object for testing."""
+    availability = EmployeeAvailability(
+        employee_id=new_employee.id,
+        day_of_week=0,  # Monday
+        hour=8,
+        is_available=True,
+        availability_type=AvailabilityType.AVAILABLE
+    )
+    session.add(availability)
+    session.commit()
+    return availability
