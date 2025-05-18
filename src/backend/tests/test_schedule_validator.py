@@ -34,7 +34,7 @@ class TestScheduleValidator(unittest.TestCase):
         self.mock_resources = MagicMock(spec=ScheduleResources)
 
         # Create validator
-        self.validator = ScheduleValidator(self.mock_resources)
+        self.validator = ScheduleValidator(self.mock_resources, test_mode=True)
 
         # Set up mock schedules
         self.mock_schedules = []

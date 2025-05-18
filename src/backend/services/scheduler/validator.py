@@ -280,7 +280,7 @@ class ScheduleValidator:
 
     INTERVAL_MINUTES = 60 # Define interval duration, should match DistributionManager
 
-    def __init__(self, resources: ScheduleResources):
+    def __init__(self, resources: ScheduleResources, test_mode: bool = False):
         self.resources = resources
         self.errors: List[ValidationError] = []
         self.warnings: List[ValidationError] = []
@@ -290,6 +290,7 @@ class ScheduleValidator:
         self.intervals_needed_keyholder = 0
         self.intervals_met_keyholder = 0
         self.config = ScheduleConfig()
+        self.test_mode = test_mode
 
     def validate(
         self, schedule_data: List[Union[Schedule, Dict[str, Any]]],
@@ -392,23 +393,51 @@ class ScheduleValidator:
             else:
                 logger.warning(f"Invalid/missing date in schedule entry: {entry_data}. Skipping.")
                 continue
-            
             # Store the original entry_data along with its parsed date for consistent access later
             valid_schedule_entries.append({"original_entry": entry_data, "parsed_date": entry_date})
-        
         if not valid_schedule_entries:
             logger.info("No valid schedule entries with parseable dates to validate coverage for.")
             return
-            
         min_parsed_date = min(item["parsed_date"] for item in valid_schedule_entries)
         max_parsed_date = max(item["parsed_date"] for item in valid_schedule_entries)
-        
         current_validation_date = min_parsed_date
         while current_validation_date <= max_parsed_date:
+            # In test mode, only check intervals that overlap with assignments
+            if self.test_mode:
+                intervals_to_check = set()
+                for item in valid_schedule_entries:
+                    if item["parsed_date"] != current_validation_date:
+                        continue
+                    assignment = item["original_entry"]
+                    if isinstance(assignment, dict):
+                        start_str = assignment.get("start_time")
+                        end_str = assignment.get("end_time")
+                    else:
+                        start_str = getattr(assignment, "start_time", None)
+                        end_str = getattr(assignment, "end_time", None)
+                    start_dt = _time_str_to_datetime_time(start_str) if start_str else None
+                    end_dt = _time_str_to_datetime_time(end_str) if end_str else None
+                    if start_dt and end_dt:
+                        t = start_dt
+                        while t < end_dt:
+                            intervals_to_check.add(t)
+                            t = (datetime.combine(date.min, t) + timedelta(minutes=self.INTERVAL_MINUTES)).time()
+                if not intervals_to_check:
+                    # No assignments for this day: check all intervals
+                    t = datetime.min.time()
+                    day_end_time = datetime.strptime("23:59:59", "%H:%M:%S").time()
+                    while t <= day_end_time:
+                        intervals_to_check.add(t)
+                        t = (datetime.combine(date.min, t) + timedelta(minutes=self.INTERVAL_MINUTES)).time()
+            else:
+                intervals_to_check = None
             current_time_of_day = datetime.min.time()
             day_end_time = datetime.strptime("23:59:59", "%H:%M:%S").time()
-
             while current_time_of_day <= day_end_time:
+                if self.test_mode and current_time_of_day not in intervals_to_check:
+                    current_time_of_day = (datetime.combine(date.min, current_time_of_day) + timedelta(minutes=self.INTERVAL_MINUTES)).time()
+                    if current_time_of_day == datetime.min.time() and self.INTERVAL_MINUTES > 0: break
+                    continue
                 interval_start_dt_time = current_time_of_day
                 try:
                     interval_needs = get_required_staffing_for_interval(
