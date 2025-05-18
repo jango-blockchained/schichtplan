@@ -2,34 +2,36 @@ from datetime import time, date
 from datetime import datetime, timedelta, date
 
 # Standard library imports
-# Define mock Schedule if import fails
-try:
-    from .resources import Schedule
-except (ImportError, NameError):
-    class Schedule:
-        """Fallback Schedule class for when imports fail"""
-        id = 0
-        employee_id = 0
-        shift_id = 0
-        date = None
-        status = "DRAFT"
-        version = 1
-
-# Define mock EmployeeGroup if import fails
-try:
-    from .resources import EmployeeGroup
-except (ImportError, NameError):
-    class EmployeeGroup:
-        """Fallback EmployeeGroup enum for when imports fail"""
-        VZ = "VZ"  # Full-time
-        TZ = "TZ"  # Part-time
-        GFB = "GFB"  # Mini-job
-        TL = "TL"  # Team leader
-
 import logging
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field # Import dataclass
 from typing import List, Dict, Any, Optional, Union, TYPE_CHECKING
+
+# Define mock Schedule if import fails
+try:
+    # Attempt to import actual models first
+    from src.backend.models import Schedule
+    from src.backend.models.employee import EmployeeGroup, Employee, AvailabilityType
+    from src.backend.utils.logger import logger as backend_logger
+    
+    # Define Actual... aliases for consistency with previous code if needed, though direct use is better
+    ActualSchedule = Schedule
+    ActualEmployeeGroup = EmployeeGroup
+    ActualEmployee = Employee
+    ActualAvailabilityType = AvailabilityType
+    logger = backend_logger # Use the backend logger
+
+except ImportError as e:
+    # Log the critical error if actual models cannot be imported
+    logging.basicConfig(level=logging.DEBUG) # Ensure basic logging is configured
+    logger = logging.getLogger(__name__)
+    logger.critical(f"FATAL ERROR: Could not import backend models required for validator: {e}")
+    logger.critical("Please ensure the backend models are accessible in the Python path.")
+    
+    # Re-raise the error or exit if models are strictly required for the validator to function.
+    # For now, we'll re-raise to make the issue clear during development.
+    raise 
+
 
 # --- Sibling module imports ---
 # Ensure these are imported directly for clarity and linter happiness
@@ -81,53 +83,51 @@ if TYPE_CHECKING:
     from backend.models.employee import EmployeeGroup as ActualEmployeeGroup
 
 # --- Define Actual... names for runtime as well ---
-if not TYPE_CHECKING:
-    # These will be overwritten by the try-except block below if imports succeed,
-    # but this ensures the names exist if the try-except fails or for linters.
-    # If the imports in the try-except block fail catastrophically,
-    # other NameErrors for Schedule, Employee, EmployeeGroup would occur anyway.
-    ActualSchedule = None # Placeholder, will be Schedule
-    ActualEmployee = None # Placeholder, will be Employee
-    ActualEmployeeGroup = None # Placeholder, will be EmployeeGroup
+# These are no longer needed as we directly import and use the actual models or their aliases
+# if not TYPE_CHECKING: # Define runtime aliases after successful fallback import
+#     ActualSchedule = None # Placeholder, will be Schedule
+#     ActualEmployee = None # Placeholder, will be Employee
+#     ActualEmployeeGroup = None # Placeholder, will be EmployeeGroup
 
 
 # --- Model imports (with fallback for different execution contexts) ---
-ModelImportError_Primary = None
-ModelImportError_Fallback = None
-try:
-    # Primary import path for models when run as part of the backend package
-    from backend.models import Schedule
-    from backend.models.employee import EmployeeGroup
-    # If Employee itself is used directly (not just EmployeeGroup):
-    from backend.models.employee import Employee
-except ImportError as e_pkg:
-    ModelImportError_Primary = e_pkg
-    try:
-        # Fallback for models if sys.path is set up for direct execution
-        from models import Schedule
-        from models.employee import EmployeeGroup
-        from models.employee import Employee # Fallback for Employee too
-        if not TYPE_CHECKING: # Define runtime aliases after successful fallback import
-            ActualSchedule = Schedule
-            ActualEmployee = Employee
-            ActualEmployeeGroup = EmployeeGroup
-    except ImportError as e_direct:
-        ModelImportError_Fallback = e_direct # Store the more specific error
-        # Critical: All model imports failed. Log this.
-        logging.getLogger(__name__).critical(
-            f"All model imports failed. Primary error: {ModelImportError_Primary}, Fallback error: {ModelImportError_Fallback}. Validator may not function correctly."
-        )
-        # Placeholder classes REMOVED.
-        # If EmployeeGroup and Schedule are not available from imports, runtime errors will occur later,
-        # which is better than type conflicts from stubs.
+# This block is replaced by the single try...except block at the top
+# ModelImportError_Primary = None
+# ModelImportError_Fallback = None
+# try:
+#     # Primary import path for models when run as part of the backend package
+#     from backend.models import Schedule
+#     from backend.models.employee import EmployeeGroup
+#     # If Employee itself is used directly (not just EmployeeGroup):
+#     from backend.models.employee import Employee
+# except ImportError as e_pkg:
+#     ModelImportError_Primary = e_pkg
+#     try:
+#         # Fallback for models if sys.path is set up for direct execution
+#         from models import Schedule
+#         from models.employee import EmployeeGroup
+#         from models.employee import Employee # Fallback for Employee too
+#         if not TYPE_CHECKING: # Define runtime aliases after successful fallback import
+#             ActualSchedule = Schedule
+#             ActualEmployee = Employee
+#             ActualEmployeeGroup = EmployeeGroup
+#     except ImportError as e_direct:
+#         ModelImportError_Fallback = e_direct # Store the more specific error
+#         # Critical: All model imports failed. Log this.
+#         logging.getLogger(__name__).critical(
+#             f"All model imports failed. Primary error: {ModelImportError_Primary}, Fallback error: {ModelImportError_Fallback}. Validator may not function correctly."
+#         )
+#         # Placeholder classes REMOVED.
+#         # If EmployeeGroup and Schedule are not available from imports, runtime errors will occur later,
+#         # which is better than type conflicts from stubs.
 
-if not TYPE_CHECKING: # Define runtime aliases after successful primary import or if already defined
-    # This ensures ActualSchedule etc. are correctly aliased to the imported models
-    if 'Schedule' in globals(): ActualSchedule = Schedule
-    if 'Employee' in globals(): ActualEmployee = Employee
-    if 'EmployeeGroup' in globals(): ActualEmployeeGroup = EmployeeGroup
+# if not TYPE_CHECKING: # Define runtime aliases after successful primary import or if already defined
+#     # This ensures ActualSchedule etc. are correctly aliased to the imported models
+#     if 'Schedule' in globals(): ActualSchedule = Schedule
+#     if 'Employee' in globals(): ActualEmployee = Employee
+#     if 'EmployeeGroup' in globals(): ActualEmployeeGroup = EmployeeGroup
 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
 
 # Frontend -> Backend field mapping
 FRONTEND_TO_BACKEND_MAP = {
@@ -162,27 +162,32 @@ class ScheduleConfig:
     # Use field for mutable defaults and Optional
     max_hours_per_group: Optional[Dict[EmployeeGroup, int]] = field(
         default_factory=lambda: {
-            (ActualEmployeeGroup.TZ if TYPE_CHECKING else EmployeeGroup.TZ): 30, 
-            (ActualEmployeeGroup.GFB if TYPE_CHECKING else EmployeeGroup.GFB): 15,
-            (ActualEmployeeGroup.VZ if TYPE_CHECKING else EmployeeGroup.VZ): 40,
-            (ActualEmployeeGroup.TL if TYPE_CHECKING else EmployeeGroup.TL): 40
-        } if ('ActualEmployeeGroup' if TYPE_CHECKING else 'EmployeeGroup') in globals() and hasattr((ActualEmployeeGroup if TYPE_CHECKING else EmployeeGroup), 'TZ') else {}
+            # Use actual imported EmployeeGroup members
+            EmployeeGroup.TZ: 30, 
+            EmployeeGroup.GFB: 15,
+            EmployeeGroup.VZ: 40,
+            EmployeeGroup.TL: 40
+        } if 'EmployeeGroup' in globals() and hasattr(EmployeeGroup, 'TZ') else {}
     )
     max_shifts_per_group: Optional[Dict[EmployeeGroup, int]] = field(
         default_factory=lambda: {
-            (ActualEmployeeGroup.TZ if TYPE_CHECKING else EmployeeGroup.TZ): 4,
-            (ActualEmployeeGroup.GFB if TYPE_CHECKING else EmployeeGroup.GFB): 3,
-            (ActualEmployeeGroup.VZ if TYPE_CHECKING else EmployeeGroup.VZ): 5,
-            (ActualEmployeeGroup.TL if TYPE_CHECKING else EmployeeGroup.TL): 5
-        } if ('ActualEmployeeGroup' if TYPE_CHECKING else 'EmployeeGroup') in globals() and hasattr((ActualEmployeeGroup if TYPE_CHECKING else EmployeeGroup), 'TZ') else {}
+            # Use actual imported EmployeeGroup members
+            EmployeeGroup.TZ: 4,
+            EmployeeGroup.GFB: 3,
+            EmployeeGroup.VZ: 5,
+            EmployeeGroup.TL: 5
+        } if 'EmployeeGroup' in globals() and hasattr(EmployeeGroup, 'TZ') else {}
     )
 
-    # New configuration options from frontend
-    enforce_minimum_coverage: bool = True  # Same as enforce_min_coverage
-    enforce_keyholder_coverage: bool = True  # Same as enforce_keyholder
+    # New configuration options from frontend (ensure these match GenerationRequirements schema)
+    enforce_minimum_coverage: bool = True
+    enforce_contracted_hours: bool = True
+    enforce_keyholder_coverage: bool = True
+    enforce_rest_periods: bool = True
     enforce_early_late_rules: bool = True
     enforce_employee_group_rules: bool = True
     enforce_break_rules: bool = True
+    enforce_max_hours: bool = True
     enforce_consecutive_days: bool = True
     enforce_weekend_distribution: bool = True
     enforce_shift_distribution: bool = True
@@ -287,7 +292,7 @@ class ScheduleValidator:
         self.config = ScheduleConfig()
 
     def validate(
-        self, schedule_data: List[Union[ActualSchedule, Schedule, Dict]], # Allow dicts if processed_for_downstream is List[Dict]
+        self, schedule_data: List[Union[Schedule, Dict[str, Any]]],
         config: Optional[ScheduleConfig] = None
     ) -> List[ValidationError]:
         """Validate a schedule against various constraints"""
@@ -355,7 +360,7 @@ class ScheduleValidator:
         # Return all errors
         return self.errors + self.warnings + self.info
 
-    def _validate_coverage(self, schedule_data: List[Union[ActualSchedule, Schedule, Dict]]) -> None:
+    def _validate_coverage(self, schedule_data: List[Union[Schedule, Dict[str, Any]]]) -> None:
         if not schedule_data:
             self.info.append(
                 ValidationError(
@@ -445,7 +450,7 @@ class ScheduleValidator:
                     if parsed_assignment_date == current_validation_date:
                         assignment_start_time_str: Optional[str] = None
                         assignment_end_time_str: Optional[str] = None
-                        employee_id_val: Optional[int] = None
+                        employee_id_val: Optional[Any] = None
                         assignment_id_val: Optional[Any] = None # For logging
 
                         if isinstance(assignment, dict):
@@ -590,7 +595,7 @@ class ScheduleValidator:
             processed['allowed_employee_groups'] = sorted(list(processed['allowed_employee_groups'])) # sorted
         return processed
 
-    def _validate_contracted_hours(self, schedule_data: List[Union[ActualSchedule, Schedule, Dict]]) -> None:
+    def _validate_contracted_hours(self, schedule_data: List[Union[Schedule, Dict[str, Any]]]) -> None:
         hours_by_employee = defaultdict(float)
         for entry_data in schedule_data:
             employee_id_val: Optional[int] = None
@@ -652,7 +657,7 @@ class ScheduleValidator:
                 logger.warning(f"Could not compare hours for employee {emp_id}")
                 continue
 
-    def _validate_keyholders(self, schedule_data: List[Union[ActualSchedule, Schedule, Dict]]) -> None:
+    def _validate_keyholders(self, schedule_data: List[Union[Schedule, Dict[str, Any]]]) -> None:
         shifts_by_date_shift = defaultdict(list)
         for entry_data in schedule_data:
             date_val: Optional[date] = None
@@ -707,7 +712,7 @@ class ScheduleValidator:
                 # ... (append ValidationError) ...
                 pass # Placeholder
 
-    def _validate_rest_periods(self, schedule_data: List[Union[ActualSchedule, Schedule, Dict]]) -> None:
+    def _validate_rest_periods(self, schedule_data: List[Union[Schedule, Dict[str, Any]]]) -> None:
         """Validate rest periods between shifts"""
         # Special case for tests: check if schedule is a list of MagicMock objects
         mock_entries = [entry for entry in schedule_data if hasattr(entry, "_mock_name")]
@@ -844,7 +849,7 @@ class ScheduleValidator:
                      logger.warning(f"Could not calculate rest hours between {first_entry} and {second_entry}")
                      continue
 
-    def _validate_max_shifts(self, schedule_data: List[Union[ActualSchedule, Schedule, Dict]]) -> None:
+    def _validate_max_shifts(self, schedule_data: List[Union[Schedule, Dict[str, Any]]]) -> None:
         shifts_by_employee_week = defaultdict(list)
         for entry_data in schedule_data:
             emp_id: Optional[int] = None
@@ -917,7 +922,7 @@ class ScheduleValidator:
                     )
                 )
 
-    def _validate_max_hours(self, schedule_data: List[Union[ActualSchedule, Schedule, Dict]]) -> None:
+    def _validate_max_hours(self, schedule_data: List[Union[Schedule, Dict[str, Any]]]) -> None:
         hours_by_employee_week = defaultdict(float)
         for entry_data in schedule_data:
             emp_id: Optional[int] = None
@@ -1001,7 +1006,7 @@ class ScheduleValidator:
                 )
 
     def _calculate_rest_hours(
-        self, first_entry: Union[ActualSchedule, Schedule, Dict], second_entry: Union[ActualSchedule, Schedule, Dict]
+        self, first_entry: Union[Schedule, Dict[str, Any]], second_entry: Union[Schedule, Dict[str, Any]]
     ) -> float:
         """Calculate the rest hours between two schedule entries"""
         # Safely extract end time from first entry
@@ -1063,7 +1068,7 @@ class ScheduleValidator:
             "details": error.details or {},
         }
 
-    def _validate_consecutive_days(self, schedule_data: List[Union[ActualSchedule, Schedule, Dict]]) -> None:
+    def _validate_consecutive_days(self, schedule_data: List[Union[Schedule, Dict[str, Any]]]) -> None:
         """Validate maximum consecutive working days"""
         employees_schedules = defaultdict(list)
         for entry_data in schedule_data:
@@ -1130,7 +1135,7 @@ class ScheduleValidator:
                     )
                 )
 
-    def _validate_weekend_distribution(self, schedule_data: List[Union[ActualSchedule, Schedule, Dict]]) -> None:
+    def _validate_weekend_distribution(self, schedule_data: List[Union[Schedule, Dict[str, Any]]]) -> None:
         """Validate fair distribution of weekend shifts"""
         weekend_shifts = defaultdict(int)
         for entry_data in schedule_data:
@@ -1190,12 +1195,12 @@ class ScheduleValidator:
                         )
                     )
 
-    def _validate_early_late_rules(self, schedule_data: List[Union[ActualSchedule, Schedule, Dict]]) -> None:
+    def _validate_early_late_rules(self, schedule_data: List[Union[Schedule, Dict[str, Any]]]) -> None:
         employees_schedules = defaultdict(list)
         for entry_data in schedule_data:
             emp_id: Optional[int] = None
             date_val: Optional[Union[date, str]] = None
-            shift_id: Optional[int] = None 
+            shift_id: Optional[int] = None
             start_time_str: Optional[str] = None
             end_time_str: Optional[str] = None
 
@@ -1212,15 +1217,15 @@ class ScheduleValidator:
                 start_time_str = getattr(entry_data, "start_time", None)
                 end_time_str = getattr(entry_data, "end_time", None)
                 shift_obj = getattr(entry_data, "shift", None)
-                if shift_obj: 
+                if shift_obj:
                     if shift_id is None: shift_id = getattr(shift_obj, "id", None)
                     if start_time_str is None: start_time_str = getattr(shift_obj, "start_time", None)
                     if end_time_str is None: end_time_str = getattr(shift_obj, "end_time", None)
 
             if shift_id is not None and emp_id is not None and date_val is not None:
                 entry_date_obj: Optional[date] = None
-                if isinstance(date_val, str): 
-                    try: entry_date_obj = datetime.fromisoformat(date_val).date() 
+                if isinstance(date_val, str):
+                    try: entry_date_obj = datetime.fromisoformat(date_val).date()
                     except ValueError: continue
                 elif isinstance(date_val, date):
                     entry_date_obj = date_val
@@ -1246,38 +1251,40 @@ class ScheduleValidator:
                     curr_start_str = curr_entry.get("start_time")
 
                     if prev_end_str and curr_start_str:
-                        is_prev_late = "17:00" <= prev_end_str <= "23:59" # Adjusted range slightly
-                        is_curr_early = "00:00" <= curr_start_str <= "09:00"
+                        # Ensure both are strings before comparison, handle None
+                        if isinstance(prev_end_str, str) and isinstance(curr_start_str, str):
+                            is_prev_late = "17:00" <= prev_end_str <= "23:59"
+                            is_curr_early = "00:00" <= curr_start_str <= "09:00"
 
-                        if is_prev_late and is_curr_early:
-                            employee = self.resources.get_employee(employee_id)
-                            employee_name = (
-                                f"{employee.first_name} {employee.last_name}"
-                                if employee
-                                else f"Employee {employee_id}"
-                            )
-
-                            self.warnings.append(
-                                ValidationError(
-                                    error_type="early_late_sequence",
-                                    message=f"Employee {employee_name} has a late shift on {prev_entry['date']} followed by an early shift on {curr_entry['date']}",
-                                    severity="warning",
-                                    details={
-                                        "employee_id": employee_id,
-                                        "employee_name": employee_name,
-                                        "dates": [
-                                            prev_entry['date'].strftime("%Y-%m-%d"),
-                                            curr_entry['date'].strftime("%Y-%m-%d"),
-                                        ],
-                                        "shifts": [
-                                            f"{prev_entry['start_time']}-{prev_entry['end_time']}",
-                                            f"{curr_entry['start_time']}-{curr_entry['end_time']}",
-                                        ],
-                                    },
+                            if is_prev_late and is_curr_early:
+                                employee = self.resources.get_employee(employee_id)
+                                employee_name = (
+                                    f"{employee.first_name} {employee.last_name}"
+                                    if employee
+                                    else f"Employee {employee_id}"
                                 )
-                            )
 
-    def _validate_break_rules(self, schedule_data: List[Union[ActualSchedule, Schedule, Dict]]) -> None:
+                                self.warnings.append(
+                                    ValidationError(
+                                        error_type="early_late_sequence",
+                                        message=f"Employee {employee_name} has a late shift on {prev_entry['date']} followed by an early shift on {curr_entry['date']}",
+                                        severity="warning",
+                                        details={
+                                            "employee_id": employee_id,
+                                            "employee_name": employee_name,
+                                            "dates": [
+                                                prev_entry['date'].strftime("%Y-%m-%d"),
+                                                curr_entry['date'].strftime("%Y-%m-%d"),
+                                            ],
+                                            "shifts": [
+                                                f"{prev_entry['start_time']}-{prev_entry['end_time']}",
+                                                f"{curr_entry['start_time']}-{curr_entry['end_time']}",
+                                            ],
+                                        },
+                                    )
+                                )
+
+    def _validate_break_rules(self, schedule_data: List[Union[Schedule, Dict[str, Any]]]) -> None:
         for entry_data in schedule_data:
             shift_id: Optional[int] = None
             employee_id: Optional[int] = None
@@ -1366,7 +1373,7 @@ class ScheduleValidator:
                         )
                     )
 
-    def _validate_qualifications(self, schedule_data: List[Union[ActualSchedule, Schedule, Dict]]) -> None:
+    def _validate_qualifications(self, schedule_data: List[Union[Schedule, Dict[str, Any]]]) -> None:
         """Validate employee qualifications for shifts"""
         # This would require a qualifications model, which isn't implemented yet
         # Placeholder for future implementation

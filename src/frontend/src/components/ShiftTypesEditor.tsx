@@ -26,17 +26,19 @@ export interface ShiftType {
   id: "EARLY" | "MIDDLE" | "LATE" | "NO_WORK";
   name: string;
   color: string;
+  type: "shift_type";
   autoAssignOnly?: boolean;
 }
 
 const defaultShiftTypes: ShiftType[] = [
-  { id: "EARLY", name: "Früh", color: "#22c55e" },
-  { id: "MIDDLE", name: "Mitte", color: "#3b82f6" },
-  { id: "LATE", name: "Spät", color: "#f59e0b" },
+  { id: "EARLY", name: "Früh", color: "#22c55e", type: "shift_type" },
+  { id: "MIDDLE", name: "Mitte", color: "#3b82f6", type: "shift_type" },
+  { id: "LATE", name: "Spät", color: "#f59e0b", type: "shift_type" },
   {
     id: "NO_WORK",
     name: "Kein Dienst",
     color: "#9E9E9E",
+    type: "shift_type",
     autoAssignOnly: true,
   },
 ];
@@ -117,7 +119,7 @@ export default function ShiftTypesEditor({
         <h3 className="text-lg font-medium">Schichttypen</h3>
         <Button
           onClick={() => {
-            setEditingType({ id: "EARLY", name: "", color: "#000000" });
+            setEditingType({ id: "EARLY", name: "", color: "#000000", type: "shift_type" });
             setShowDialog(true);
           }}
         >
@@ -127,6 +129,7 @@ export default function ShiftTypesEditor({
       </div>
 
       <Table>
+        <caption className="sr-only">Table of Shift Types</caption>
         <TableHeader>
           <TableRow>
             <TableHead>ID</TableHead>
@@ -172,7 +175,7 @@ export default function ShiftTypesEditor({
                     <Pencil className="h-4 w-4" />
                   </Button>
                   <Button
-                    variant="ghost"
+                    variant="destructive"
                     size="sm"
                     onClick={() => handleDeleteType(type.id)}
                     disabled={!!type.autoAssignOnly}

@@ -817,11 +817,41 @@ export const updateEmployeeAvailability = async (
     "id" | "created_at" | "updated_at"
   >[],
 ) => {
-  const response = await api.put(
-    `/employees/${employeeId}/availabilities`,
-    availabilities,
-  );
-  return response.data;
+  try {
+    console.log(`Sending ${availabilities.length} records to backend for employee ${employeeId}`);
+    
+    // Calculate stats of what we're sending
+    const availableCount = availabilities.filter(a => a.is_available).length;
+    const unavailableCount = availabilities.filter(a => !a.is_available).length;
+    
+    console.log(`Available: ${availableCount}, Unavailable: ${unavailableCount}`);
+    
+    const response = await api.put(
+      `/employees/${employeeId}/availabilities`,
+      availabilities,
+    );
+    
+    console.log("Availability update successful:", response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error("Error updating employee availability:", error);
+    
+    // Log more detailed error information
+    if (error.response) {
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx
+      console.error("Response data:", error.response.data);
+      console.error("Status code:", error.response.status);
+    } else if (error.request) {
+      // The request was made but no response was received
+      console.error("No response received from server");
+    } else {
+      // Something happened in setting up the request that triggered an Error
+      console.error("Error setting up request:", error.message);
+    }
+    
+    throw new Error(`Failed to update availability: ${error.message || "Unknown error"}`);
+  }
 };
 
 export const updateSchedule = async (

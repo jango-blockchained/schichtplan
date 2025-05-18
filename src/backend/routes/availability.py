@@ -156,30 +156,45 @@ def update_employee_availabilities(employee_id):
     """Update employee availabilities"""
     
     try:
+        # Check if employee exists first
+        employee = Employee.query.get_or_404(employee_id)
+        
         data = request.get_json()
+        current_app.logger.debug(f"Received availability data for employee {employee_id}: {data}")
+        
         # Validate data using Pydantic schema
-        request_data = EmployeeAvailabilitiesUpdateRequest(**data)
+        request_data = EmployeeAvailabilitiesUpdateRequest(__root__=data)
 
-        # Delete existing availabilities
-        EmployeeAvailability.query.filter_by(employee_id=employee_id).delete()
-        
-        # Create new availabilities from validated data
-        for availability_data in request_data.__root__:
-            availability = EmployeeAvailability(
-                employee_id=employee_id,
-                day_of_week=availability_data.day_of_week,
-                hour=availability_data.hour,
-                is_available=availability_data.is_available,
-                availability_type=availability_data.availability_type
-            )
-            db.session.add(availability)
+        # Begin transaction
+        try:
+            # Delete existing availabilities
+            deleted_count = EmployeeAvailability.query.filter_by(employee_id=employee_id).delete()
+            current_app.logger.debug(f"Deleted {deleted_count} existing availabilities for employee {employee_id}")
             
-        db.session.commit()
-        return jsonify({'message': 'Availabilities updated successfully'}), HTTPStatus.OK
-        
+            # Create new availabilities from validated data
+            for availability_data in request_data.__root__:
+                availability = EmployeeAvailability(
+                    employee_id=employee_id,
+                    day_of_week=availability_data.day_of_week,
+                    hour=availability_data.hour,
+                    is_available=availability_data.is_available,
+                    availability_type=availability_data.availability_type
+                )
+                db.session.add(availability)
+                
+            db.session.commit()
+            return jsonify({'message': 'Availabilities updated successfully', 'count': len(request_data.__root__)}), HTTPStatus.OK
+            
+        except Exception as transaction_error:
+            db.session.rollback()
+            current_app.logger.error(f"Transaction error when updating availabilities: {str(transaction_error)}")
+            return jsonify({'error': f'Transaction error: {str(transaction_error)}'}), HTTPStatus.INTERNAL_SERVER_ERROR
+            
     except ValidationError as e:
-        return jsonify({'status': 'error', 'message': 'Invalid input.', 'details': e.errors()}), HTTPStatus.BAD_REQUEST # Return validation details
+        current_app.logger.error(f"Validation error when updating availabilities: {e.errors()}")
+        return jsonify({'status': 'error', 'message': 'Invalid input.', 'details': e.errors()}), HTTPStatus.BAD_REQUEST
     except Exception as e:
+        current_app.logger.error(f"Error updating availabilities: {str(e)}")
         db.session.rollback()
         return jsonify({'error': str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
@@ -202,111 +217,113 @@ def get_employee_availabilities(employee_id):
 def get_employee_status_by_date():
     """Get availability status for all active employees for a given date."""
     
-    try:
-        # Validate query parameters using Pydantic schema
-        request_data = EmployeeStatusByDateRequest(**request.args)
-        target_date = request_data.date
+    # Wrap the core logic in an application context
+    with current_app.app_context():
+        try:
+            # Validate query parameters using Pydantic schema
+            request_data = EmployeeStatusByDateRequest(**request.args)
+            target_date = request_data.date
 
-    except ValidationError as e:
-        return jsonify({'status': 'error', 'message': 'Invalid input.', 'details': e.errors()}), HTTPStatus.BAD_REQUEST # Return validation details
-    except Exception as e:
-        # Log the exception e
-        current_app.logger.error(f"Error parsing date in /api/availability/by_date: {str(e)}")
-        return jsonify({'error': f'An unexpected error occurred during date parsing: {str(e)}'}), HTTPStatus.INTERNAL_SERVER_ERROR
+        except ValidationError as e:
+            return jsonify({'status': 'error', 'message': 'Invalid input.', 'details': e.errors()}), HTTPStatus.BAD_REQUEST # Return validation details
+        except Exception as e:
+            # Log the exception e
+            current_app.logger.error(f"Error parsing date in /api/availability/by_date: {str(e)}")
+            return jsonify({'error': f'An unexpected error occurred during date parsing: {str(e)}'}), HTTPStatus.INTERNAL_SERVER_ERROR
 
-    results = []
-    
-    try:
-        # Determine the version_id to check against for schedules
-        # Prioritize Published, then latest Draft, then latest overall.
-        version_to_check = ScheduleVersionMeta.query.filter(
-            ScheduleVersionMeta.date_range_start.isnot(None),
-            ScheduleVersionMeta.date_range_end.isnot(None),
-            ScheduleVersionMeta.date_range_start <= target_date,
-            ScheduleVersionMeta.date_range_end >= target_date,
-            ScheduleVersionMeta.status == ScheduleStatus.PUBLISHED
-        ).order_by(desc(ScheduleVersionMeta.version)).first()
-
-        if not version_to_check:
+        results = []
+        
+        try:
+            # Determine the version_id to check against for schedules
+            # Prioritize Published, then latest Draft, then latest overall.
             version_to_check = ScheduleVersionMeta.query.filter(
                 ScheduleVersionMeta.date_range_start.isnot(None),
                 ScheduleVersionMeta.date_range_end.isnot(None),
                 ScheduleVersionMeta.date_range_start <= target_date,
                 ScheduleVersionMeta.date_range_end >= target_date,
-                ScheduleVersionMeta.status == ScheduleStatus.DRAFT
+                ScheduleVersionMeta.status == ScheduleStatus.PUBLISHED
             ).order_by(desc(ScheduleVersionMeta.version)).first()
-        
-        if not version_to_check:
-            # Fallback to the absolute latest version if no specific one covers the date well
-            # This fallback doesn't need date range checks as it's the *latest* regardless of range
-            version_to_check = ScheduleVersionMeta.query.order_by(desc(ScheduleVersionMeta.version)).first()
 
-        version_id_to_check = version_to_check.version if version_to_check else None
-
-        active_employees = Employee.query.filter_by(is_active=True).all()
-
-        # Fetch all relevant absences and schedules in bulk to avoid N+1 queries
-        absences_on_date = {}
-        if active_employees:
-            employee_ids = [emp.id for emp in active_employees]
-            abs_records = Absence.query.filter(
-                Absence.employee_id.in_(employee_ids),
-                Absence.start_date <= target_date,
-                Absence.end_date >= target_date
-            ).all()
-            for ab_rec in abs_records:
-                absences_on_date[ab_rec.employee_id] = ab_rec
-
-        schedules_on_date = {}
-        if active_employees and version_id_to_check is not None:
-            sched_records = db.session.query(Schedule, ShiftTemplate).join(
-                ShiftTemplate, Schedule.shift_id == ShiftTemplate.id
-            ).filter(
-                Schedule.employee_id.in_(employee_ids),
-                Schedule.date == target_date,
-                Schedule.version == version_id_to_check
-            ).all()
-            for sched_rec, shift_tpl in sched_records:
-                schedules_on_date[sched_rec.employee_id] = (sched_rec, shift_tpl)
-
-        for emp in active_employees:
-            status = "Available"
-            details = None
-
-            if emp.id in absences_on_date:
-                absence = absences_on_date[emp.id]
-                
-                # Get settings for absence type lookup
-                settings = Settings.query.first()
-                absence_type_name = absence.absence_type_id  # Default fallback to the ID
-                
-                # Try to find the human-readable name from settings.absence_types
-                if settings and settings.absence_types:
-                    for absence_type in settings.absence_types:
-                        if absence_type.get('id') == absence.absence_type_id:
-                            absence_type_name = absence_type.get('name', absence.absence_type_id)
-                            break
-                
-                status = f"Absence: {absence_type_name}"
-                details = absence.to_dict() if hasattr(absence, 'to_dict') else {'reason': absence.note or status}
-            elif emp.id in schedules_on_date:
-                schedule, shift_template = schedules_on_date[emp.id]
-                status = f"Shift: {shift_template.name if hasattr(shift_template, 'name') else shift_template.shift_type_id} ({shift_template.start_time.strftime('%H:%M')} - {shift_template.end_time.strftime('%H:%M')})"
-                details = schedule.to_dict() if hasattr(schedule, 'to_dict') else {'shift_id': schedule.shift_id}
+            if not version_to_check:
+                version_to_check = ScheduleVersionMeta.query.filter(
+                    ScheduleVersionMeta.date_range_start.isnot(None),
+                    ScheduleVersionMeta.date_range_end.isnot(None),
+                    ScheduleVersionMeta.date_range_start <= target_date,
+                    ScheduleVersionMeta.date_range_end >= target_date,
+                    ScheduleVersionMeta.status == ScheduleStatus.DRAFT
+                ).order_by(desc(ScheduleVersionMeta.version)).first()
             
-            results.append({
-                'employee_id': emp.id,
-                'employee_name': f"{emp.first_name} {emp.last_name}",
-                'status': status,
-                'details': details # Adding a details field for richer info on frontend
-            })
-            
-        return jsonify(results), HTTPStatus.OK
+            if not version_to_check:
+                # Fallback to the absolute latest version if no specific one covers the date well
+                # This fallback doesn't need date range checks as it's the *latest* regardless of range
+                version_to_check = ScheduleVersionMeta.query.order_by(desc(ScheduleVersionMeta.version)).first()
 
-    except Exception as e:
-        # Log the exception e
-        current_app.logger.error(f"Error in /api/availability/by_date: {str(e)}") # Corrected logging
-        return jsonify({'error': f'An unexpected error occurred: {str(e)}'}), HTTPStatus.INTERNAL_SERVER_ERROR
+            version_id_to_check = version_to_check.version if version_to_check else None
+
+            active_employees = Employee.query.filter_by(is_active=True).all()
+
+            # Fetch all relevant absences and schedules in bulk to avoid N+1 queries
+            absences_on_date = {}
+            if active_employees:
+                employee_ids = [emp.id for emp in active_employees]
+                abs_records = Absence.query.filter(
+                    Absence.employee_id.in_(employee_ids),
+                    Absence.start_date <= target_date,
+                    Absence.end_date >= target_date
+                ).all()
+                for ab_rec in abs_records:
+                    absences_on_date[ab_rec.employee_id] = ab_rec
+
+            schedules_on_date = {}
+            if active_employees and version_id_to_check is not None:
+                sched_records = db.session.query(Schedule, ShiftTemplate).join(
+                    ShiftTemplate, Schedule.shift_id == ShiftTemplate.id
+                ).filter(
+                    Schedule.employee_id.in_(employee_ids),
+                    Schedule.date == target_date,
+                    Schedule.version == version_id_to_check
+                ).all()
+                for sched_rec, shift_tpl in sched_records:
+                    schedules_on_date[sched_rec.employee_id] = (sched_rec, shift_tpl)
+
+            for emp in active_employees:
+                status = "Available"
+                details = None
+
+                if emp.id in absences_on_date:
+                    absence = absences_on_date[emp.id]
+                    
+                    # Get settings for absence type lookup
+                    settings = Settings.query.first()
+                    absence_type_name = absence.absence_type_id  # Default fallback to the ID
+                    
+                    # Try to find the human-readable name from settings.absence_types
+                    if settings and settings.absence_types:
+                        for absence_type in settings.absence_types:
+                            if absence_type.get('id') == absence.absence_type_id:
+                                absence_type_name = absence_type.get('name', absence.absence_type_id)
+                                break
+                    
+                    status = f"Absence: {absence_type_name}"
+                    details = absence.to_dict() if hasattr(absence, 'to_dict') else {'reason': absence.note or status}
+                elif emp.id in schedules_on_date:
+                    schedule, shift_template = schedules_on_date[emp.id]
+                    status = f"Shift: {shift_template.name if hasattr(shift_template, 'name') else shift_template.shift_type_id} ({shift_template.start_time.strftime('%H:%M')} - {shift_template.end_time.strftime('%H:%M')})"
+                    details = schedule.to_dict() if hasattr(schedule, 'to_dict') else {'shift_id': schedule.shift_id}
+                
+                results.append({
+                    'employee_id': emp.id,
+                    'employee_name': f"{emp.first_name} {emp.last_name}",
+                    'status': status,
+                    'details': details # Adding a details field for richer info on frontend
+                })
+                
+            return jsonify(results), HTTPStatus.OK
+
+        except Exception as e:
+            # Log the exception e
+            current_app.logger.error(f"Error in /api/availability/by_date: {str(e)}") # Corrected logging
+            return jsonify({'error': f'An unexpected error occurred: {str(e)}'}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 @availability.route('/shifts_for_employee', methods=['GET'])
 def get_shifts_for_employee_on_date():

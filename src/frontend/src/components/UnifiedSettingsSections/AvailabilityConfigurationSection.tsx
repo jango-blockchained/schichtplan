@@ -81,6 +81,7 @@ const mapToBackend = (
             ? 2
             : 3),
     is_available: ft.originalIsAvailable ?? ft.id !== "UNAVAILABLE",
+    type: "availability_type",
   }));
 };
 

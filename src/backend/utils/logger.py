@@ -5,6 +5,7 @@ from pathlib import Path
 import os
 import sys # Import sys for stderr
 import traceback # Import traceback
+from datetime import datetime
 
 # Get the root directory (two levels up from this file)
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
@@ -78,7 +79,21 @@ diagnostic_formatter = logging.Formatter(
 
 
 class Logger:
+    # Default status mapping for different log levels
+    _default_status = {
+        logging.DEBUG: "Debug",
+        logging.INFO: "Info",
+        logging.WARNING: "Warning",
+        logging.ERROR: "Error",
+        logging.CRITICAL: "Critical",
+    }
+    
     def __init__(self):
+        self.initialized = False  # Add initialized flag
+        self.console_handler = None  # Initialize handler attributes
+        self.file_handler = None
+        self.logger_name = "app"  # Default logger name
+        
         print("!!! Logger __init__ started !!!", file=sys.stderr) # DEBUG PRINT
         try:
             # Create logs directory in the project root if it doesn't exist
@@ -170,16 +185,22 @@ class Logger:
             print("!!! app_logger setup done.", file=sys.stderr) # DEBUG PRINT
 
             # --- Add Console Handler for General Debugging ---
-            console_handler = logging.StreamHandler()
-            console_handler.setLevel(logging.INFO)
+            self.console_handler = logging.StreamHandler()
+            self.console_handler.setLevel(logging.DEBUG)  # Change from INFO to DEBUG
             console_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-            console_handler.setFormatter(console_formatter)
+            self.console_handler.setFormatter(console_formatter)
 
-            # Add console handler to relevant loggers if needed (optional)
-            # self.app_logger.addHandler(console_handler)
-            # self.schedule_logger.addHandler(console_handler)
-            # self.error_logger.addHandler(console_handler)
-
+            # Add console handler to relevant loggers
+            self.app_logger.addHandler(self.console_handler)
+            self.schedule_logger.addHandler(self.console_handler)
+            self.error_logger.addHandler(self.console_handler)
+            
+            # Save reference to file handler for use in log_message
+            self.file_handler = app_handler
+            
+            # Mark as initialized
+            self.initialized = True
+            
             print("!!! Logger __init__ finished successfully !!!", file=sys.stderr) # DEBUG PRINT
 
         except Exception as e:
@@ -262,6 +283,15 @@ class Logger:
     def error(self, message, event_type=None, details=None, status="Error", exc_info=None, stack_info=False):
         self.log_message(logging.ERROR, message, event_type, details, status, exc_info=exc_info, stack_info=stack_info)
 
+    # Helper method to format time like logging.Formatter does
+    def formatTime(self, datefmt=None):
+        """Format current time similar to logging.Formatter.formatTime"""
+        now = datetime.now()
+        if datefmt:
+            return now.strftime(datefmt)
+        else:
+            return now.strftime("%Y-%m-%d %H:%M:%S")
+
     def log_message(
         self,
         level,
@@ -270,23 +300,27 @@ class Logger:
         details=None,
         status=None,
         exc_info=None,
-        stack_info=False,
+        stack_info=None,
     ):
         if not self.initialized:
             print("Logger not initialized, skipping log message.")
+            return
+            
+        # Construct a log entry dictionary
         log_entry = {
-            "timestamp": self.formatTime(record, self.datefmt),
-            "level": record.levelname,
-            "module": record.module,
-            "function": record.funcName,
-            "line": record.lineno,
-            "message": record.message,
-            "user": getattr(record, "user", "anonymous"),
-            "page": getattr(record, "page", "unknown"),
-            "action": getattr(record, "action", "unknown"),
-            "extra": getattr(record, "extra_data", {}),
+            "timestamp": self.formatTime("%Y-%m-%d %H:%M:%S"),
+            "level": logging.getLevelName(level),
+            "module": "unknown",  # These would come from an actual LogRecord
+            "function": "unknown",
+            "line": 0,
+            "message": str(message),
+            "user": "anonymous",
+            "page": "unknown",
+            "action": "unknown",
         }
-        log_entry["status"] = status if status else self.default_status.get(level, "")
+        
+        # Use provided status or get default for this level
+        log_entry["status"] = status if status else self._default_status.get(level, "")
 
         try:
             # Ensure details are JSON serializable if they are complex objects
@@ -321,7 +355,12 @@ class Logger:
                     exc_info=exc_info, # Pass exc_info
                     func="",
                 )
-                record.stack_info = stack_info # Pass stack_info
+                # Assign stack_info - it must be a string or None, not bool
+                if stack_info:
+                    record.stack_info = ''.join(traceback.format_stack())
+                else:
+                    record.stack_info = None
+                
                 # Add other fields from log_entry if formatter expects them
                 for key, value in log_entry.items():
                     if not hasattr(record, key):
@@ -337,12 +376,17 @@ class Logger:
                     level=level,
                     pathname="",
                     lineno=0,
-                    msg=log_entry,  # Pass the whole dict for JSON
+                    msg=str(log_entry),  # Pass the whole dict for JSON
                     args=(),
                     exc_info=exc_info, # Pass exc_info
                     func="",
                 )
-                record.stack_info = stack_info # Pass stack_info
+                # Assign stack_info - it must be a string or None, not bool
+                if stack_info:
+                    record.stack_info = ''.join(traceback.format_stack())
+                else:
+                    record.stack_info = None
+                    
                 self.file_handler.handle(record)
 
         except Exception as e:

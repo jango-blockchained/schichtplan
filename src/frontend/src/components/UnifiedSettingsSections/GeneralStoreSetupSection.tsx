@@ -26,6 +26,7 @@ interface GeneralStoreSetupSectionProps {
   timeStringToDate: (timeStr: string | null | undefined) => Date;
   dateToTimeString: (date: Date | null | undefined) => string;
   onImmediateUpdate: () => void;
+  isLoading: boolean; // Add isLoading prop
 }
 
 export const GeneralStoreSetupSection: React.FC<
@@ -38,6 +39,7 @@ export const GeneralStoreSetupSection: React.FC<
   timeStringToDate,
   dateToTimeString,
   onImmediateUpdate,
+  isLoading, // Accept isLoading prop
 }) => {
   // Ensure settings is never undefined by providing default empty object
   const generalSettings = settings || {};
@@ -85,6 +87,12 @@ export const GeneralStoreSetupSection: React.FC<
             </div>
           </div>
         </CardContent>
+        <CardFooter className="flex justify-end">
+          <Button onClick={onImmediateUpdate} disabled={isLoading}>
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Save General Settings
+          </Button>
+        </CardFooter>
       </Card>
 
       {/* Store Hours & Opening Days Card */}
@@ -135,7 +143,7 @@ export const GeneralStoreSetupSection: React.FC<
                         id={`opening-day-${day}`}
                         checked={
                           (generalSettings.opening_days || {})[
-                            index.toString()
+                            ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"][index]
                           ] || false
                         }
                         onCheckedChange={(checked) =>
@@ -185,14 +193,36 @@ export const GeneralStoreSetupSection: React.FC<
             </div>
           </div>
         </CardContent>
+        <CardFooter className="flex justify-end">
+          <Button onClick={onImmediateUpdate} disabled={isLoading}>
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Save Hours & Keyholder Settings
+          </Button>
+        </CardFooter>
       </Card>
 
       {/* Special Days & Holidays Card */}
       {onSpecialDaysChange && (
-        <SpecialDaysManagement
-          specialDays={generalSettings.special_days || {}}
-          onUpdate={handleSpecialDaysUpdate}
-        />
+        <Card>
+          <CardHeader>
+            <CardTitle>Special Days & Holidays</CardTitle>
+            <CardDescription>
+              Configure special days with different opening hours or closures
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SpecialDaysManagement
+              specialDays={generalSettings.special_days || {}}
+              onUpdate={handleSpecialDaysUpdate}
+            />
+          </CardContent>
+          <CardFooter className="flex justify-end">
+            <Button onClick={onImmediateUpdate} disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Special Days
+            </Button>
+          </CardFooter>
+        </Card>
       )}
     </div>
   );

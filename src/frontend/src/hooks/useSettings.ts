@@ -16,7 +16,15 @@ export const DEFAULT_SETTINGS: Settings = {
   store_closing: "20:00",
   keyholder_before_minutes: 30,
   keyholder_after_minutes: 30,
-  opening_days: {},
+  opening_days: {
+    monday: false,
+    tuesday: false,
+    wednesday: false,
+    thursday: false,
+    friday: false,
+    saturday: false,
+    sunday: false
+  },
   special_hours: {},
   special_days: {},
   availability_types: { types: [] },
@@ -33,7 +41,15 @@ export const DEFAULT_SETTINGS: Settings = {
     store_closing: "20:00",
     keyholder_before_minutes: 30,
     keyholder_after_minutes: 30,
-    opening_days: {},
+    opening_days: {
+      monday: false,
+      tuesday: false,
+      wednesday: false,
+      thursday: false,
+      friday: false,
+      saturday: false,
+      sunday: false
+    },
     special_hours: {},
     special_days: {},
   },
@@ -122,7 +138,7 @@ export const DEFAULT_SETTINGS: Settings = {
         name: "Vollzeit",
         min_hours: 35,
         max_hours: 40,
-        type: "employee",
+        type: "employee_type",
       },
     ],
     shift_types: [
@@ -130,7 +146,7 @@ export const DEFAULT_SETTINGS: Settings = {
         id: "EARLY",
         name: "Frühschicht",
         color: "#4CAF50",
-        type: "shift",
+        type: "shift_type",
       },
     ],
     absence_types: [
@@ -138,7 +154,7 @@ export const DEFAULT_SETTINGS: Settings = {
         id: "URL",
         name: "Urlaub",
         color: "#FF9800",
-        type: "absence",
+        type: "absence_type",
       },
     ],
   },
@@ -154,6 +170,28 @@ export const DEFAULT_SETTINGS: Settings = {
   },
 };
 
+// Add this mapping
+const NUM_KEY_TO_DAY_NAME: { [key: string]: string } = {
+  "0": "monday",
+  "1": "tuesday",
+  "2": "wednesday",
+  "3": "thursday",
+  "4": "friday",
+  "5": "saturday",
+  "6": "sunday",
+};
+
+// Add the reverse mapping
+const DAY_NAME_TO_NUM_KEY: { [key: string]: string } = {
+  "monday": "0",
+  "tuesday": "1", 
+  "wednesday": "2", 
+  "thursday": "3",
+  "friday": "4", 
+  "saturday": "5", 
+  "sunday": "6"
+};
+
 export function useSettings() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -167,7 +205,40 @@ export function useSettings() {
     try {
       setIsLoading(true);
       const response = await axios.get<Settings>("/api/settings");
-      setSettings(response.data);
+      
+      // Transform numeric opening_days keys to day names if needed
+      const data = response.data;
+      if (data.general && data.general.opening_days) {
+        const currentOpeningDays = data.general.opening_days as Record<string, boolean>;
+        const transformedOpeningDays: Record<string, boolean> = {};
+        
+        // Check if we need to transform
+        let needsTransformation = false;
+        for (const key in currentOpeningDays) {
+          if (Object.prototype.hasOwnProperty.call(currentOpeningDays, key)) {
+            if (NUM_KEY_TO_DAY_NAME.hasOwnProperty(key)) {
+              needsTransformation = true;
+              break;
+            }
+          }
+        }
+        
+        if (needsTransformation) {
+          for (const key in currentOpeningDays) {
+            if (Object.prototype.hasOwnProperty.call(currentOpeningDays, key)) {
+              const dayValue = currentOpeningDays[key];
+              if (NUM_KEY_TO_DAY_NAME.hasOwnProperty(key)) {
+                transformedOpeningDays[NUM_KEY_TO_DAY_NAME[key]] = dayValue;
+              } else {
+                transformedOpeningDays[key] = dayValue;
+              }
+            }
+          }
+          data.general.opening_days = transformedOpeningDays;
+        }
+      }
+      
+      setSettings(data);
       setError(null);
     } catch (err) {
       setError(
@@ -178,95 +249,71 @@ export function useSettings() {
     }
   };
 
-  const formatSettingsUpdate = (newSettings: Partial<Settings>) => {
-    const formattedData: Record<string, any> = {};
+  const formatSettingsUpdate = (currentFullSettings: Settings, changes: Partial<Settings>) => {
+    const payload = JSON.parse(JSON.stringify(currentFullSettings));
 
-    // Format general settings
-    if (
-      Object.keys(newSettings).some((key) =>
-        [
-          "store_name",
-          "store_address",
-          "store_contact",
-          "timezone",
-          "language",
-          "date_format",
-          "time_format",
-          "store_opening",
-          "store_closing",
-          "keyholder_before_minutes",
-          "keyholder_after_minutes",
-          "opening_days",
-          "special_hours",
-          "special_days",
-        ].includes(key),
-      )
-    ) {
-      formattedData.general = {};
-      [
-        "store_name",
-        "store_address",
-        "store_contact",
-        "timezone",
-        "language",
-        "date_format",
-        "time_format",
-        "store_opening",
-        "store_closing",
-        "keyholder_before_minutes",
-        "keyholder_after_minutes",
-        "opening_days",
-        "special_hours",
-        "special_days",
-      ].forEach((key) => {
-        if (key in newSettings) {
-          formattedData.general[key] = newSettings[key as keyof Settings];
+    (Object.keys(changes) as Array<keyof Settings>).forEach(categoryKey => {
+      if (changes[categoryKey] && typeof changes[categoryKey] === 'object') {
+        if (payload[categoryKey] && typeof payload[categoryKey] === 'object') {
+          payload[categoryKey] = { ...payload[categoryKey], ...changes[categoryKey] };
+        } else {
+          payload[categoryKey] = changes[categoryKey];
         }
-      });
-    }
+      } else if (changes[categoryKey] !== undefined) {
+        payload[categoryKey] = changes[categoryKey];
+      }
+    });
 
-    // Format scheduling settings
-    if ("scheduling" in newSettings) {
-      formattedData.scheduling = newSettings.scheduling;
-    }
+    // Transform day-name keys back to numeric keys for the backend
+    if (payload.general && payload.general.opening_days && typeof payload.general.opening_days === 'object') {
+      const currentOpeningDays = payload.general.opening_days as Record<string, boolean>;
+      
+      // First check if we need to transform
+      let needsTransformation = false;
+      for (const key in currentOpeningDays) {
+        if (Object.prototype.hasOwnProperty.call(currentOpeningDays, key)) {
+          if (DAY_NAME_TO_NUM_KEY.hasOwnProperty(key)) {
+            needsTransformation = true;
+            break;
+          }
+        }
+      }
 
-    // Format display settings
-    if ("display" in newSettings) {
-      formattedData.display = newSettings.display;
+      if (needsTransformation) {
+        const transformedOpeningDays: Record<string, boolean> = {};
+        for (const key in currentOpeningDays) {
+          if (Object.prototype.hasOwnProperty.call(currentOpeningDays, key)) {
+            const dayValue = currentOpeningDays[key];
+            if (DAY_NAME_TO_NUM_KEY.hasOwnProperty(key)) {
+              transformedOpeningDays[DAY_NAME_TO_NUM_KEY[key]] = dayValue;
+            } else {
+              transformedOpeningDays[key] = dayValue;
+            }
+          }
+        }
+        // Update the payload with the transformed opening_days
+        payload.general.opening_days = transformedOpeningDays;
+      }
     }
-
-    // Format PDF layout settings
-    if ("pdf_layout" in newSettings) {
-      formattedData.pdf_layout = newSettings.pdf_layout;
-    }
-
-    // Format employee groups settings
-    if ("employee_groups" in newSettings) {
-      formattedData.employee_groups = newSettings.employee_groups;
-    }
-
-    // Format availability types
-    if ("availability_types" in newSettings) {
-      formattedData.availability_types = newSettings.availability_types;
-    }
-
-    // Format actions settings
-    if ("actions" in newSettings) {
-      formattedData.actions = newSettings.actions;
-    }
-
-    return formattedData;
+    
+    return payload; 
   };
 
-  const updateSettings = async (newSettings: Partial<Settings>) => {
+  const updateSettings = async (updatedFields: Partial<Settings>) => {
+    if (!settings) {
+      setError(new Error("Settings not loaded yet, cannot update."));
+      throw new Error("Settings not loaded yet, cannot update.");
+    }
     try {
       setIsLoading(true);
-      const formattedData = formatSettingsUpdate(newSettings);
+      // Merge updatedFields into the current settings to form the complete payload
+      const payload = formatSettingsUpdate(settings, updatedFields);
+      
       const response = await axios.put<Settings>(
         "/api/settings",
-        formattedData,
+        payload, // Send the merged, complete settings object
       );
-      setSettings(response.data);
+      setSettings(response.data); // Backend returns the full updated settings
       setError(null);
       return response.data;
     } catch (err) {
