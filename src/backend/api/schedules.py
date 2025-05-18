@@ -401,7 +401,7 @@ def _can_work_shift(
         employee_id=employee.id, date=yesterday
     ).first()
     if yesterday_schedule:
-        yesterday_shift = ShiftTemplate.query.get(yesterday_schedule.shift_id)
+        yesterday_shift = db.session.get(ShiftTemplate, yesterday_schedule.shift_id)
         if yesterday_shift and int(yesterday_shift.end_time.split(":")[0]) >= 18:
             # Don't schedule for early shift after late shift
             if int(shift.start_time.split(":")[0]) <= 9:
@@ -419,7 +419,7 @@ def _can_work_shift(
                            )
     week_schedules = week_schedules_query.all()
     for schedule in week_schedules:
-        schedule_shift = ShiftTemplate.query.get(schedule.shift_id)  # type: ignore
+        schedule_shift = db.session.get(ShiftTemplate, schedule.shift_id)  # type: ignore
         if schedule_shift:
             week_hours += schedule_shift.duration_hours
 
@@ -897,7 +897,7 @@ def update_version_status(version):
             ), HTTPStatus.NOT_FOUND
 
         # Get version metadata
-        version_meta = ScheduleVersionMeta.query.filter_by(version=version).first()  # type: ignore
+        version_meta = db.session.get(ScheduleVersionMeta, version)  # type: ignore
 
         if not version_meta:
             return jsonify(
@@ -958,7 +958,7 @@ def get_version_details(version):
         schedules = Schedule.query.filter_by(version=version).all()  # type: ignore
 
         # Get version metadata
-        version_meta = ScheduleVersionMeta.query.filter_by(version=version).first()  # type: ignore
+        version_meta = db.session.get(ScheduleVersionMeta, version)  # type: ignore
 
         if not version_meta:
             return jsonify(
@@ -1037,7 +1037,7 @@ def duplicate_version():
             ), HTTPStatus.NOT_FOUND
 
         # Get source metadata
-        source_meta = ScheduleVersionMeta.query.filter_by(version=source_version).first() # type: ignore
+        source_meta = db.session.get(ScheduleVersionMeta, source_version)  # type: ignore
 
         # Get next version number
         max_schedule_version_query = (db.session.query(db.func.max(Schedule.version)))  # type: ignore
@@ -1113,7 +1113,7 @@ def delete_version(version):
     try:
         # Check if version exists
         schedules = Schedule.query.filter_by(version=version).all()  # type: ignore
-        version_meta = ScheduleVersionMeta.query.get(version)  # type: ignore
+        version_meta = db.session.get(ScheduleVersionMeta, version)  # type: ignore
 
         if not schedules and not version_meta:
             return jsonify(

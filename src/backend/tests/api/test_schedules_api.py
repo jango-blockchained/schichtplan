@@ -107,7 +107,7 @@ def test_create_schedule(client, setup_db, new_version_meta):
     assert 'id' in data
 
     # Verify in database
-    created_schedule = Schedule.query.get(data['id'])
+    created_schedule = db.session.get(Schedule, data['id'])
     assert created_schedule is not None
     assert created_schedule.version == new_version_meta.version
 
@@ -134,7 +134,7 @@ def test_update_schedule(client, setup_db, new_version_meta):
     assert data['notes'] == 'Updated Notes'
 
     # Verify in database
-    updated_schedule = Schedule.query.get(schedule.id)
+    updated_schedule = db.session.get(Schedule, schedule.id)
     assert updated_schedule is not None
     assert updated_schedule.shift_id == 2
     assert updated_schedule.notes == 'Updated Notes'
@@ -156,7 +156,7 @@ def test_delete_schedule(client, setup_db, new_version_meta):
     assert response.status_code == HTTPStatus.NO_CONTENT
 
     # Verify in database
-    deleted_schedule = Schedule.query.get(schedule_id)
+    deleted_schedule = db.session.get(Schedule, schedule_id)
     assert deleted_schedule is None
 
 # Note: Tests for /api/schedules/generate, /api/schedules/versions, /api/schedules/version/* endpoints still need to be added.

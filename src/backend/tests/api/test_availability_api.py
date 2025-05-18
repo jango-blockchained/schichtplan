@@ -3,6 +3,7 @@ from http import HTTPStatus
 from src.backend.models import EmployeeAvailability, db
 from src.backend.models.employee import AvailabilityType
 from datetime import datetime
+from src.backend.models import db as _db
 
 def test_create_availability_valid(client, new_employee):
     """Test creating a valid availability record."""
@@ -56,7 +57,7 @@ def test_update_availability_valid(client, new_employee, new_availability):
     assert data['availability_type'] == 'FIXED'
 
     # Verify in database
-    updated_availability = EmployeeAvailability.query.get(new_availability.id)
+    updated_availability = db.session.get(EmployeeAvailability, new_availability.id)
     assert updated_availability is not None # Ensure the availability was found
     assert updated_availability.is_available is False
     assert updated_availability.availability_type == AvailabilityType.FIXED
@@ -143,7 +144,7 @@ def test_update_employee_availabilities_valid(client, new_employee, setup_db):
             'day_of_week': 1, # Tuesday
             'hour': 10,
             'is_available': True,
-            'availability_type': 'PREF'
+            'availability_type': 'PREFERRED'
         }
     ]
 
@@ -258,6 +259,17 @@ def test_get_shifts_for_employee_missing_params(client):
     assert 'Invalid input' in data['message']
     assert 'details' in data
     assert 'employee_id' in data['details'][0]['loc']
+
+@pytest.fixture
+def setup_db():
+    """Fixture to set up and tear down the database for each test function."""
+    _db.create_all()
+    yield _db
+    _db.session.close()
+    _db.session.remove()
+    _db.session.rollback()   # Rollback any open transaction
+    _db.drop_all()
+    _db.engine.dispose()     # Dispose engine to close all connections
 
 # Fixtures (assuming these exist or will be created elsewhere)
 # @pytest.fixture

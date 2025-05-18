@@ -4,7 +4,7 @@ Script to check if schedule entries are being saved to the database.
 """
 
 from src.backend.app import create_app
-from src.backend.models import Schedule, Employee, ShiftTemplate
+from src.backend.models import Schedule, Employee, ShiftTemplate, db
 from src.backend.services.scheduler import ScheduleGenerator
 from datetime import date, timedelta
 
@@ -29,13 +29,13 @@ def check_schedule_entries():
                 print(f"  Status: {entry.status}")
 
                 # Try to get employee name
-                employee = Employee.query.get(entry.employee_id)
+                employee = db.session.get(Employee, entry.employee_id)
                 if employee:
                     print(f"  Employee: {employee.first_name} {employee.last_name}")
 
                 # Try to get shift info
                 if entry.shift_id:
-                    shift = ShiftTemplate.query.get(entry.shift_id)
+                    shift = db.session.get(ShiftTemplate, entry.shift_id)
                     if shift:
                         print(f"  Shift: {shift.start_time} - {shift.end_time}")
 
@@ -73,7 +73,7 @@ def check_schedule_entries():
 
         print(f"\nEmployees with assigned shifts: {len(employee_counts)}")
         for emp_id, count in employee_counts.items():
-            employee = Employee.query.get(emp_id)
+            employee = db.session.get(Employee, emp_id)
             if employee:
                 print(f"  {employee.first_name} {employee.last_name}: {count} shifts")
             else:

@@ -104,7 +104,7 @@ def test_create_coverage(client, setup_db):
     assert 'id' in data
 
     # Verify in database
-    created_coverage = Coverage.query.get(data['id'])
+    created_coverage = db.session.get(Coverage, data['id'])
     assert created_coverage is not None
     assert created_coverage.min_employees == 3
 
@@ -123,7 +123,7 @@ def test_update_coverage(client, setup_db, new_coverage_item):
     assert data['employee_types'] == ["VZ", "TL"]
 
     # Verify in database
-    updated_coverage = Coverage.query.get(new_coverage_item.id)
+    updated_coverage = db.session.get(Coverage, new_coverage_item.id)
     assert updated_coverage is not None
     assert updated_coverage.min_employees == 3
 
@@ -134,7 +134,7 @@ def test_delete_coverage(client, setup_db, new_coverage_item):
     assert response.status_code == HTTPStatus.NO_CONTENT
 
     # Verify in database
-    deleted_coverage = Coverage.query.get(coverage_id)
+    deleted_coverage = db.session.get(Coverage, coverage_id)
     assert deleted_coverage is None
 
 def test_bulk_update_coverage(client, setup_db, new_coverage_item):

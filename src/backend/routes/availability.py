@@ -1,17 +1,16 @@
 from flask import Blueprint, request, jsonify
-from models import db, EmployeeAvailability, Employee
-from models.employee import AvailabilityType
+from src.backend.models import db, EmployeeAvailability, Employee, Absence, Schedule, ShiftTemplate, Settings
+from src.backend.models.employee import AvailabilityType
+from src.backend.models.schedule import ScheduleStatus, ScheduleVersionMeta
 from datetime import datetime, time, timedelta
 from http import HTTPStatus
-from models import Absence, Schedule, ShiftTemplate
-from models.schedule import ScheduleStatus, ScheduleVersionMeta
 from sqlalchemy import desc, or_, and_
 from flask import current_app
-from models import Settings
 from typing import List, Dict, Any, Tuple, Optional
 from pydantic import ValidationError
 from src.backend.schemas.availability import AvailabilityCreateRequest, AvailabilityUpdateRequest, AvailabilityCheckRequest, EmployeeAvailabilitiesUpdateRequest, EmployeeStatusByDateRequest, EmployeeShiftsForEmployeeRequest
 import traceback
+from sqlalchemy.exc import IntegrityError, DataError
 
 availability = Blueprint('availability', __name__, url_prefix='/api/availability')
 
@@ -33,7 +32,10 @@ def create_availability():
         # Create availability using validated data
         availability_type = request_data.availability_type
         if isinstance(availability_type, str):
-            availability_type = AvailabilityType(availability_type)
+            try:
+                availability_type = AvailabilityType(availability_type)
+            except (ValueError, TypeError) as e:
+                return jsonify({'status': 'error', 'message': f'Invalid availability_type: {availability_type}', 'details': str(e)}), HTTPStatus.BAD_REQUEST
         availability = EmployeeAvailability(
             employee_id=request_data.employee_id,
             day_of_week=request_data.day_of_week,
@@ -41,14 +43,15 @@ def create_availability():
             is_available=bool(request_data.is_available),
             availability_type=availability_type
         )
-        
         db.session.add(availability)
         db.session.commit()
-        
         return jsonify(availability.to_dict()), HTTPStatus.CREATED
-        
     except ValidationError as e: # Catch Pydantic validation errors
         return jsonify({'status': 'error', 'message': 'Invalid input.', 'details': e.errors()}), HTTPStatus.BAD_REQUEST # Return validation details
+    except (IntegrityError, DataError) as e:
+        db.session.rollback()
+        print(f"[ERROR][create_availability][Integrity/Data] {e}")
+        return jsonify({'status': 'error', 'message': 'Database integrity or type error.', 'details': str(e)}), HTTPStatus.BAD_REQUEST
     except Exception as e: # Catch any other exceptions
         db.session.rollback()
         print(f"[ERROR][create_availability] {e}")
@@ -66,12 +69,10 @@ def update_availability(availability_id):
     """Update an availability"""
     print('[DEBUG] Entered update_availability')
     availability = EmployeeAvailability.query.get_or_404(availability_id)
-    
     try:
         data = request.get_json()
         # Validate data using Pydantic schema
         request_data = AvailabilityUpdateRequest(**data)
-
         # Update availability attributes from validated data if provided
         if request_data.employee_id is not None:
             availability.employee_id = request_data.employee_id
@@ -84,14 +85,19 @@ def update_availability(availability_id):
         if request_data.availability_type is not None:
             availability_type = request_data.availability_type
             if isinstance(availability_type, str):
-                availability_type = AvailabilityType(availability_type)
+                try:
+                    availability_type = AvailabilityType(availability_type)
+                except (ValueError, TypeError) as e:
+                    return jsonify({'status': 'error', 'message': f'Invalid availability_type: {availability_type}', 'details': str(e)}), HTTPStatus.BAD_REQUEST
             availability.availability_type = availability_type
-        
         db.session.commit()
         return jsonify(availability.to_dict())
-        
     except ValidationError as e: # Catch Pydantic validation errors
         return jsonify({'status': 'error', 'message': 'Invalid input.', 'details': e.errors()}), HTTPStatus.BAD_REQUEST # Return validation details
+    except (IntegrityError, DataError) as e:
+        db.session.rollback()
+        print(f"[ERROR][update_availability][Integrity/Data] {e}")
+        return jsonify({'status': 'error', 'message': 'Database integrity or type error.', 'details': str(e)}), HTTPStatus.BAD_REQUEST
     except Exception as e: # Catch any other exceptions
         db.session.rollback()
         print(f"[ERROR][update_availability] {e}")
@@ -165,28 +171,27 @@ def check_availability():
 @availability.route('/employees/<int:employee_id>/availabilities', methods=['PUT'])
 def update_employee_availabilities(employee_id):
     """Update employee availabilities"""
-    
     try:
         # Check if employee exists first
         employee = Employee.query.get_or_404(employee_id)
-        
         data = request.get_json()
         current_app.logger.debug(f"Received availability data for employee {employee_id}: {data}")
-        
         # Validate data using Pydantic schema
         request_data = EmployeeAvailabilitiesUpdateRequest(__root__=data)
-
         # Begin transaction
         try:
             # Delete existing availabilities
             deleted_count = EmployeeAvailability.query.filter_by(employee_id=employee_id).delete()
             current_app.logger.debug(f"Deleted {deleted_count} existing availabilities for employee {employee_id}")
-            
             # Create new availabilities from validated data
             for availability_data in request_data.__root__:
                 availability_type = availability_data.availability_type
                 if isinstance(availability_type, str):
-                    availability_type = AvailabilityType(availability_type)
+                    try:
+                        availability_type = AvailabilityType(availability_type)
+                    except (ValueError, TypeError) as e:
+                        db.session.rollback()
+                        return jsonify({'status': 'error', 'message': f'Invalid availability_type: {availability_type}', 'details': str(e)}), HTTPStatus.BAD_REQUEST
                 availability = EmployeeAvailability(
                     employee_id=employee_id,
                     day_of_week=availability_data.day_of_week,
@@ -195,15 +200,12 @@ def update_employee_availabilities(employee_id):
                     availability_type=availability_type
                 )
                 db.session.add(availability)
-                
             db.session.commit()
             return jsonify({'message': 'Availabilities updated successfully', 'count': len(request_data.__root__)}), HTTPStatus.OK
-            
         except Exception as transaction_error:
             db.session.rollback()
             current_app.logger.error(f"Transaction error when updating availabilities: {str(transaction_error)}")
             return jsonify({'error': f'Transaction error: {str(transaction_error)}'}), HTTPStatus.INTERNAL_SERVER_ERROR
-            
     except ValidationError as e:
         current_app.logger.error(f"Validation error when updating availabilities: {e.errors()}")
         return jsonify({'status': 'error', 'message': 'Invalid input.', 'details': e.errors()}), HTTPStatus.BAD_REQUEST

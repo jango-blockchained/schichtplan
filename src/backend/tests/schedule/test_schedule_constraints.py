@@ -105,7 +105,7 @@ def test_keyholder_constraint():
 
                     # Check if this is a keyholder
                     employee_id = schedule.get("employee_id")
-                    employee = Employee.query.get(employee_id)
+                    employee = db.session.get(Employee, employee_id)
 
                     if employee and employee.is_keyholder:
                         days_with_keyholders.add(schedule_date)
@@ -190,7 +190,7 @@ def test_weekly_hours_constraint():
 
                     # Get shift duration
                     shift_id = schedule.get("shift_id")
-                    shift = ShiftTemplate.query.get(shift_id)
+                    shift = db.session.get(ShiftTemplate, shift_id)
 
                     if shift:
                         if employee_id not in employee_hours:
@@ -201,7 +201,7 @@ def test_weekly_hours_constraint():
             # Log results
             logger.info("Employee weekly hours:")
             for emp_id, hours in employee_hours.items():
-                employee = Employee.query.get(emp_id)
+                employee = db.session.get(Employee, emp_id)
                 employee_name = (
                     f"{employee.first_name} {employee.last_name}"
                     if employee
@@ -292,8 +292,8 @@ def test_rest_time_constraint():
                     next_schedule = emp_schedules[i + 1]
 
                     # Get shift end time for current schedule
-                    current_shift = ShiftTemplate.query.get(current.get("shift_id"))
-                    next_shift = ShiftTemplate.query.get(next_schedule.get("shift_id"))
+                    current_shift = db.session.get(ShiftTemplate, current.get("shift_id"))
+                    next_shift = db.session.get(ShiftTemplate, next_schedule.get("shift_id"))
 
                     if current_shift and next_shift:
                         # Calculate end time of current shift
@@ -316,7 +316,7 @@ def test_rest_time_constraint():
                         rest_time = (next_start - current_end).total_seconds() / 3600
 
                         if rest_time < settings.min_rest_hours:
-                            employee = Employee.query.get(emp_id)
+                            employee = db.session.get(Employee, emp_id)
                             employee_name = (
                                 f"{employee.first_name} {employee.last_name}"
                                 if employee

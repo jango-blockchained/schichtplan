@@ -11,7 +11,7 @@ from src.backend.models import (
 from src.backend.models.employee import AvailabilityType, EmployeeGroup
 from src.backend.models.fixed_shift import ShiftType
 from http import HTTPStatus
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, UTC
 import random
 import logging
 import math
@@ -621,7 +621,7 @@ def generate_demo_data():
         if settings:
             settings.actions_demo_data = {
                 "selected_module": module,
-                "last_execution": datetime.utcnow().isoformat(),
+                "last_execution": datetime.now(UTC).isoformat(),
             }
             try:
                 db.session.commit()
@@ -634,7 +634,7 @@ def generate_demo_data():
         return jsonify(
             {
                 "message": f"Successfully generated demo data for module: {module}",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
         ), HTTPStatus.OK
 
@@ -1701,7 +1701,7 @@ def generate_optimized_demo_data():
         # Update settings to record the execution
         settings.actions_demo_data = {
             "selected_module": "optimized",
-            "last_execution": datetime.utcnow().isoformat(),
+            "last_execution": datetime.now(UTC).isoformat(),
         }
         db.session.commit()
         logging.info("Successfully updated settings")
@@ -1709,7 +1709,7 @@ def generate_optimized_demo_data():
         return jsonify(
             {
                 "message": "Successfully generated optimized demo data with realistic schedules",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
         ), HTTPStatus.OK
 

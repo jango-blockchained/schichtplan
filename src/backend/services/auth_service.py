@@ -1,10 +1,11 @@
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from flask import current_app, request
 from functools import wraps
 from typing import Dict, Optional, Callable, Any, List, Union
 from models import User, UserRole
 import logging
+from src.backend.models import db
 
 logger = logging.getLogger(__name__)
 
@@ -21,11 +22,11 @@ def generate_token(user_id: int, username: str, role: str, expiration_hours: int
     Returns:
         JWT token string
     """
-    expiration = datetime.utcnow() + timedelta(hours=expiration_hours)
+    expiration = datetime.now(UTC) + timedelta(hours=expiration_hours)
     
     payload = {
         'exp': expiration,
-        'iat': datetime.utcnow(),
+        'iat': datetime.now(UTC),
         'sub': user_id,
         'username': username,
         'role': role
@@ -99,8 +100,7 @@ def get_current_user() -> Optional[User]:
             return None
         
         # Get user from database
-        from models import db
-        user = User.query.get(user_id)
+        user = db.session.get(User, user_id)
         if not user or not user.is_active:
             return None
         
@@ -197,7 +197,6 @@ def verify_api_key(f: Callable) -> Callable:
             return {'error': 'API key required'}, 401
         
         # Get user from database
-        from models import db
         user = User.query.filter_by(api_key=api_key, is_active=True).first()
         if not user:
             return {'error': 'Invalid API key'}, 401
