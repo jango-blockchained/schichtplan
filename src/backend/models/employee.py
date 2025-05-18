@@ -1,6 +1,6 @@
 from . import db
 from enum import Enum
-from datetime import datetime, date
+from datetime import datetime, date, UTC
 from sqlalchemy import (
     Column,
     Integer,
@@ -59,9 +59,9 @@ class Employee(db.Model):
     birthday = Column(Date, nullable=True)
     email = Column(String(120), unique=True, nullable=True)
     phone = Column(String(20), nullable=True)
-    created_at = Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(db.DateTime, nullable=False, default=datetime.now(UTC))
     updated_at = Column(
-        db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+        db.DateTime, nullable=False, default=datetime.now(UTC), onupdate=datetime.now(UTC)
     )
 
     # Relationships
@@ -172,12 +172,12 @@ class Employee(db.Model):
     def activate(self):
         """Activate the employee"""
         self.is_active = True
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(UTC)
 
     def deactivate(self):
         """Deactivate the employee"""
         self.is_active = False
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(UTC)
 
     def to_dict(self):
         """Convert employee object to dictionary for JSON serialization"""
@@ -219,9 +219,9 @@ class EmployeeAvailability(db.Model):
     availability_type = Column(
         SQLEnum(AvailabilityType), nullable=False, default=AvailabilityType.AVAILABLE
     )
-    created_at = Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(db.DateTime, nullable=False, default=datetime.now(UTC))
     updated_at = Column(
-        db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+        db.DateTime, nullable=False, default=datetime.now(UTC), onupdate=datetime.now(UTC)
     )
 
     employee = relationship("Employee", back_populates="availabilities")

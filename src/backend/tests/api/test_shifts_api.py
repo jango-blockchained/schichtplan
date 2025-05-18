@@ -91,7 +91,7 @@ def test_create_shift(client, setup_db):
     assert 'id' in data
 
     # Verify in database
-    created_shift = ShiftTemplate.query.get(data['id'])
+    created_shift = db.session.get(ShiftTemplate, data['id'])
     assert created_shift is not None
     assert created_shift.start_time == time(10, 0)
     assert created_shift.active_days == [1, 2, 3, 4]
@@ -110,7 +110,7 @@ def test_update_shift(client, setup_db, new_shift):
     assert data['requires_break'] is False
 
     # Verify in database
-    updated_shift = ShiftTemplate.query.get(new_shift.id)
+    updated_shift = db.session.get(ShiftTemplate, new_shift.id)
     assert updated_shift is not None
     assert updated_shift.end_time == time(17, 0)
     assert updated_shift.requires_break is False
@@ -123,7 +123,7 @@ def test_delete_shift(client, setup_db, new_shift):
     assert response.status_code == HTTPStatus.NO_CONTENT
 
     # Verify in database
-    deleted_shift = ShiftTemplate.query.get(shift_id)
+    deleted_shift = db.session.get(ShiftTemplate, shift_id)
     assert deleted_shift is None
 
 # Note: Additional tests for invalid input, edge cases, etc., should be added for full coverage. 

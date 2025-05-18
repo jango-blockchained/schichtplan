@@ -98,7 +98,7 @@ def fix_shift_types():
             # Fix inconsistencies
             print("\nFixing inconsistent shift types...")
             for shift_info in inconsistent_shifts:
-                shift = ShiftTemplate.query.get(shift_info["id"])
+                shift = db.session.get(ShiftTemplate, shift_info["id"])
                 old_type = shift.shift_type_id
                 shift.shift_type_id = shift_info["correct_type"]
                 print(f"  Updated Shift ID {shift.id} from {old_type} to {shift.shift_type_id}")

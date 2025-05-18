@@ -543,13 +543,13 @@ def test_break_time_requirements(client, session):
     # Check long schedule - should have break times if break calculation is part of save/update
     # Note: Break calculation might happen in generator, not directly on Schedule model save.
     # This test might need adjustment based on where break logic resides.
-    db_schedule_long = Schedule.query.get(schedule_long.id)
+    db_schedule_long = db.session.get(Schedule, schedule_long.id)
     # Assertions about break times depend on implementation details. Let's skip them for now.
     # assert db_schedule_long.break_start is not None
     # assert db_schedule_long.break_end is not None
 
     # Check short schedule - should not have break times
-    db_schedule_short = Schedule.query.get(schedule_short.id)
+    db_schedule_short = db.session.get(Schedule, schedule_short.id)
     # assert not hasattr(db_schedule_short, 'break_start')
     # assert not hasattr(db_schedule_short, 'break_end')
 

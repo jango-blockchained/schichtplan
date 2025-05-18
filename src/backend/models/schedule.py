@@ -1,5 +1,5 @@
 from . import db
-from datetime import datetime
+from datetime import datetime, UTC
 from sqlalchemy import Column, Integer, ForeignKey, DateTime, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from enum import Enum
@@ -107,7 +107,7 @@ class Schedule(db.Model):
         elif self.shift_id is not None:
             try:
                 # Try to get the shift directly from the database
-                shift = ShiftTemplate.query.get(self.shift_id)
+                shift = db.session.get(ShiftTemplate, self.shift_id)
                 if shift:
                     data.update(
                         {
@@ -176,7 +176,7 @@ class ScheduleVersionMeta(db.Model):
         notes=None,
     ):
         self.version = version
-        self.created_at = created_at or datetime.utcnow()
+        self.created_at = created_at or datetime.now(UTC)
         self.created_by = created_by
         self.updated_at = updated_at
         self.updated_by = updated_by

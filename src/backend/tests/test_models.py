@@ -398,7 +398,7 @@ def test_settings_update_from_dict(session):
 
     settings.update_from_dict(update_data)
     db.session.commit() # Commit changes to fetch fresh from DB
-    updated_settings = Settings.query.get(settings.id)
+    updated_settings = db.session.get(Settings, settings.id)
 
     # --- Verify General ---
     assert updated_settings.store_name == "Updated Store Name"
@@ -459,7 +459,7 @@ def test_settings_update_from_dict(session):
     }
     settings.update_from_dict(minimal_update)
     db.session.commit()
-    re_updated_settings = Settings.query.get(settings.id)
+    re_updated_settings = db.session.get(Settings, settings.id)
     assert re_updated_settings.store_name == "Minimal Update Store"
     assert re_updated_settings.timezone == "America/New_York" # Should retain previous update
 
@@ -491,7 +491,7 @@ def test_settings_opening_days_mapping(session):
     }
     settings.update_from_dict(update_data_days)
     db.session.commit()
-    updated_settings = Settings.query.get(settings.id)
+    updated_settings = db.session.get(Settings, settings.id)
     
     assert updated_settings.opening_days.get("0") is False # Monday
     assert updated_settings.opening_days.get("1") is False # Tuesday
