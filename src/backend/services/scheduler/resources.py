@@ -256,8 +256,6 @@ class ScheduleResources:
     def load(self):
         """Load all necessary resources for scheduling."""
         self.logger.info("Loading scheduler resources...")
-        
-        # Ensure we are within a Flask application context
         from flask import current_app
         with current_app.app_context():
             try:
@@ -267,8 +265,8 @@ class ScheduleResources:
                 self.employees = self._load_employees()
                 self.absences = self._load_absences()
                 self.availabilities = self._load_availabilities()
-                # schedule_data is loaded separately if needed for existing assignments
                 self.logger.info("Scheduler resources loaded successfully.")
+                return True  # Explicitly return True on success
             except Exception as e:
                 self.logger.error(f"Failed to load resources: {str(e)}")
                 raise ScheduleResourceError(f"Failed to load resources: {str(e)}") from e
@@ -479,67 +477,50 @@ class ScheduleResources:
         """Check if an employee is available for a time slot"""
         # First, check if this is a special day when the store is closed
         if self.settings:
-            # Convert date to string
             date_str = day.strftime('%Y-%m-%d')
-            
-            # Check special_days first
             if hasattr(self.settings, 'special_days') and self.settings.special_days:
                 if date_str in self.settings.special_days and self.settings.special_days[date_str].get('is_closed', False):
                     logger.info(f"Date {date_str} is a closed special day. No employee is available.")
                     return False
-            
-            # As fallback, check legacy special_hours
             elif hasattr(self.settings, 'special_hours') and self.settings.special_hours:
                 if date_str in self.settings.special_hours and self.settings.special_hours[date_str].get('is_closed', False):
                     logger.info(f"Date {date_str} is closed via special_hours. No employee is available.")
                     return False
-        
         # Check for absences first
         if self.is_employee_on_leave(employee_id, day):
             logger.info(f"Employee {employee_id} is absent on {day}")
             return False
-
         # Check if employee exists
         if self.get_employee(employee_id) is None:
             logger.info(f"Employee {employee_id} not found")
             return False
-
         # Check availability
         day_of_week = day.weekday()
         availabilities = self.get_employee_availability(employee_id, day_of_week)
-
         if not availabilities:
             logger.info(
                 f"Employee {employee_id} has no availability records for day {day_of_week}"
             )
             return False
-
         # Check if employee is available for all hours in the range
         for hour in range(start_hour, end_hour):
             hour_available = False
             for avail in availabilities:
                 if getattr(avail, 'hour', None) == hour:
-                    # Explicit boolean check for is_available
-                    is_avail_flag = getattr(avail, 'is_available', False) is True 
                     avail_type = getattr(avail, 'availability_type', None)
-                    # Check type comparison
-                    is_not_unavailable = avail_type is not None and avail_type != AvailabilityType.UNAVAILABLE
-                    
-                    if is_avail_flag or is_not_unavailable:
+                    # Accept AVAILABLE or PREFERRED as available
+                    if avail_type in (AvailabilityType.AVAILABLE, AvailabilityType.PREFERRED):
                         hour_available = True
                         break
-                    else:
-                        logger.info(
-                            f"Employee {employee_id} is unavailable at hour {hour}. "
-                            f"is_available={avail.is_available}, "
-                            f"type={avail_type.value if avail_type is not None else 'None'}"
-                        )
+                    # Fallback: if is_available is True, also accept
+                    if getattr(avail, 'is_available', False) is True:
+                        hour_available = True
+                        break
             if not hour_available:
                 logger.info(
                     f"Employee {employee_id} is not available at hour {hour} on day {day}"
                 )
                 return False
-
         logger.info(
             f"Employee {employee_id} is available on {day} from {start_hour} to {end_hour}"
         )
@@ -572,12 +553,13 @@ class ScheduleResources:
 
     def get_employee(self, employee_id: int) -> Optional[Employee]:
         """Get an employee by ID (cached)"""
-        if employee_id in self._employee_cache:
-            return self._employee_cache[employee_id]
-        for emp in self.employees:
+        # Always check self.employees if set, to support test mocks
+        for emp in getattr(self, 'employees', []):
             if hasattr(emp, 'id') and emp.id == employee_id:
                 self._employee_cache[employee_id] = emp
                 return emp
+        if employee_id in self._employee_cache:
+            return self._employee_cache[employee_id]
         return None
 
     def get_employee_availabilities(

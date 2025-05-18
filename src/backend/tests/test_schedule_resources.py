@@ -142,6 +142,11 @@ class TestScheduleResources(unittest.TestCase):
         # Set up resources
         self.resources.absences = []
 
+        # Add a mock employee with id=1
+        mock_employee = MagicMock()
+        mock_employee.id = 1
+        self.resources.employees = [mock_employee]
+
         # Create mock availabilities
         mock_avail1 = MagicMock()
         mock_avail1.employee_id = 1
