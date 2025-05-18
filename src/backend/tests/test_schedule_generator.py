@@ -1,10 +1,11 @@
 import unittest
 from unittest.mock import patch, MagicMock
 from datetime import date, timedelta
-from services.scheduler.generator import ScheduleGenerator, ScheduleGenerationError
+from services.scheduler.generator import ScheduleGenerator, ScheduleGenerationError, ScheduleContainer, ScheduleAssignment
 from services.scheduler.resources import ScheduleResources
 from models.employee import EmployeeGroup
 from models.schedule import ScheduleStatus
+from src.backend.app import create_app
 
 
 class TestScheduleGenerator(unittest.TestCase):
@@ -97,52 +98,58 @@ class TestScheduleGenerator(unittest.TestCase):
         self.generator.resources.is_employee_available.return_value = (
             True  # All employees available by default
         )
+        # Add mock availabilities attribute to prevent AttributeError
+        self.generator.resources.availabilities = []
 
     def test_generate_basic_schedule(self):
         """Test generating a basic schedule, focusing on orchestration."""
-        
-        # Mock the core daily assignment generation method
-        # It should return a list of assignment dicts (or ScheduleAssignment instances)
+        app = create_app()
         mock_daily_assignments = [
-            {'employee_id': 1, 'shift_id': 101, 'date': self.start_date, 'status': 'PENDING', 'version': 1, 'start_time': '09:00', 'end_time': '17:00'},
-            {'employee_id': 2, 'shift_id': 102, 'date': self.start_date, 'status': 'PENDING', 'version': 1, 'start_time': '10:00', 'end_time': '18:00'}
+            ScheduleAssignment(
+                employee_id=1,
+                shift_id=101,
+                date_val=self.start_date,
+                status='PENDING',
+                version=1,
+                shift_template=None,
+                availability_type='AVAILABLE',
+                break_start=None,
+                break_end=None,
+                notes=None
+            ),
+            ScheduleAssignment(
+                employee_id=2,
+                shift_id=102,
+                date_val=self.start_date,
+                status='PENDING',
+                version=1,
+                shift_template=None,
+                availability_type='AVAILABLE',
+                break_start=None,
+                break_end=None,
+                notes=None
+            )
         ]
-
-        with patch.object(self.generator, '_generate_assignments_for_date', return_value=mock_daily_assignments) as mock_gen_assignments_for_date:
-            # Call the generate method
-            result = self.generator.generate(self.start_date, self.end_date)
-
-            # Verify the result has the expected structure
-            self.assertIn("schedule", result) # From serializer
-            # self.assertIn("warnings", result) # Warnings are now part of validation_results if implemented that way
+        with patch.object(self.generator, '_generate_assignments_for_date', return_value=mock_daily_assignments) as mock_gen_assignments_for_date, \
+             patch('services.scheduler.generator.ScheduleContainer.get_assignments', return_value=mock_daily_assignments):
+            with app.app_context():
+                result = self.generator.generate(self.start_date, self.end_date)
+            self.assertIn("schedule", result)
             self.assertIn("validation", result)
             self.assertIn("schedule_info", result)
             self.assertIn("session_id", result["schedule_info"])
-
-            # Verify resources were loaded
             self.generator.resources.load.assert_called_once()
-
-            # Verify _generate_assignments_for_date was called for each day in the range
             num_days = (self.end_date - self.start_date).days + 1
             self.assertEqual(mock_gen_assignments_for_date.call_count, num_days)
             for i in range(num_days):
                 expected_date = self.start_date + timedelta(days=i)
                 mock_gen_assignments_for_date.assert_any_call(expected_date)
-
-            # Verify serializer was called (with data derived from mock_daily_assignments)
-            # The actual argument to serialize_schedule would be a list of dicts based on ScheduleAssignment objects
-            # For simplicity, we check it was called. Exact argument matching can be complex here.
             self.mock_serializer_instance.serialize_schedule.assert_called_once()
-
-            # Verify validator was called
-            # The validator is called with a list of dicts (processed_for_downstream)
             self.mock_validator_instance.validate.assert_called_once()
-            # self.mock_validator_instance.get_coverage_summary.assert_called()
-            # self.mock_validator_instance.get_error_report.assert_called()
 
     def test_with_validation_errors(self):
         """Test generation when the validator returns errors."""
-        # Set up mock validation errors to be returned by the patched ScheduleValidator instance
+        app = create_app()
         mock_validation_error = MagicMock()
         mock_validation_error.error_type = "coverage"
         mock_validation_error.message = "Insufficient staff"
@@ -152,42 +159,48 @@ class TestScheduleGenerator(unittest.TestCase):
             "required": 2,
             "assigned": 1,
         }
-        # Configure the mock instance set up in self.setUp()
         self.mock_validator_instance.validate.return_value = [mock_validation_error]
-        self.mock_validator_instance.get_error_report.return_value = {"errors": [mock_validation_error]} # Ensure get_error_report also returns it
-
-        # Mock _generate_assignments_for_date to allow the generation process to proceed to validation
+        self.mock_validator_instance.get_error_report.return_value = {"errors": [mock_validation_error]}
         mock_daily_assignments = [
-            {'employee_id': 1, 'shift_id': 101, 'date': self.start_date, 'status': 'PENDING', 'version': 1, 'start_time': '09:00', 'end_time': '17:00'}
+            ScheduleAssignment(
+                employee_id=1,
+                shift_id=101,
+                date_val=self.start_date,
+                status='PENDING',
+                version=1,
+                shift_template=None,
+                availability_type='AVAILABLE',
+                break_start=None,
+                break_end=None,
+                notes=None
+            )
         ]
-        with patch.object(self.generator, '_generate_assignments_for_date', return_value=mock_daily_assignments) as mock_gen_assignments:
-            # Generate schedule
-            result = self.generator.generate(self.start_date, self.end_date)
-
-            # Check that the result has the expected structure
+        with patch.object(self.generator, '_generate_assignments_for_date', return_value=mock_daily_assignments) as mock_gen_assignments, \
+             patch('services.scheduler.generator.ScheduleContainer.get_assignments', return_value=mock_daily_assignments):
+            with app.app_context():
+                result = self.generator.generate(self.start_date, self.end_date)
             self.assertIn("schedule", result)
             self.assertIn("validation", result)
             self.assertIn("schedule_info", result)
-
-            # Check that the validation errors from the mock are present in the result
             self.assertIn("constraint_errors_count", result["validation"])
             self.assertEqual(result["validation"]["constraint_errors_count"], 1)
             self.assertIn("constraint_details", result["validation"])
             self.assertEqual(len(result["validation"]["constraint_details"]), 1)
-            self.assertIs(result["validation"]["constraint_details"][0], mock_validation_error) # Check it's the same object
-            
+            self.assertIs(result["validation"]["constraint_details"][0], mock_validation_error)
             mock_gen_assignments.assert_called()
             self.mock_validator_instance.validate.assert_called_once()
             self.mock_serializer_instance.serialize_schedule.assert_called_once()
 
     def test_error_handling(self):
         """Test error handling during generation"""
+        app = create_app()
         # Make resources.load raise an exception
         self.generator.resources.load.side_effect = Exception("Test error")
 
         # Verify exception gets wrapped in ScheduleGenerationError
-        with self.assertRaises(ScheduleGenerationError):
-            self.generator.generate(self.start_date, self.end_date)
+        with app.app_context():
+            with self.assertRaises(ScheduleGenerationError):
+                self.generator.generate(self.start_date, self.end_date)
 
     # --- Tests for _create_date_shifts ---
     def test_create_date_shifts_active_days_list_match(self):

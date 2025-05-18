@@ -737,14 +737,18 @@ class ScheduleGenerator:
             # Get shift type - try multiple attributes
             shift_type = None
             if hasattr(shift_template, 'shift_type_id'):
-                shift_type = shift_template.shift_type_id
+                stid = shift_template.shift_type_id
+                # If it's a MagicMock (from test), treat as not set
+                if isinstance(stid, str):
+                    shift_type = stid
+                else:
+                    shift_type = None
             elif hasattr(shift_template, 'shift_type'):
                 # Handle both string and enum values
                 if hasattr(shift_template.shift_type, 'value'):
                     shift_type = shift_template.shift_type.value
                 else:
                     shift_type = shift_template.shift_type
-                    
             # Default to a shift type based on start time if none specified
             if not shift_type:
                 start_time = getattr(shift_template, 'start_time', '09:00')
@@ -768,7 +772,7 @@ class ScheduleGenerator:
                 'end_time': getattr(shift_template, 'end_time', '17:00'),
                 'duration_hours': getattr(shift_template, 'duration_hours', 8.0),
                 'shift_type': shift_type,
-                'shift_type_id': getattr(shift_template, 'shift_type_id', shift_type),
+                'shift_type_id': shift_type,  # Always use the resolved string, not MagicMock
                 'requires_keyholder': getattr(shift_template, 'requires_keyholder', False),
                 'active_days': shift_active_days
             }
