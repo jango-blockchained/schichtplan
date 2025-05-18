@@ -342,17 +342,11 @@ class Settings(db.Model):
                             if hasattr(self, attr_name): setattr(self, attr_name, theme_value)
                     elif hasattr(self, key):
                         setattr(self, key, value)
-            # For JSON blob fields, direct assignment is often okay if Pydantic schema matches expected blob structure
+            # For JSON blob fields (lists of objects or specific dict structures), direct assignment is appropriate
             elif category in ["employee_groups", "availability_types", "actions", "ai_scheduling"]:
-                 if hasattr(self, category) and isinstance(values, dict): # Ensure values is a dict
-                    # For fields like 'availability_types' which might have a specific structure like {"types": []}
-                    # The Pydantic schema should match this. Direct assignment is fine here.
-                    current_val = getattr(self, category)
-                    if isinstance(current_val, dict) and isinstance(values, dict):
-                         current_val.update(values) # Merge if both are dicts
-                         setattr(self, category, current_val)
-                    else:
-                         setattr(self, category, values)
+                 # Assuming the Pydantic schema has validated the structure, directly assign
+                 if hasattr(self, category) and values is not None:
+                    setattr(self, category, values)
 
             elif category == "pdf_layout": # pdf_layout needs careful handling of nested structures
                 for pdf_key, pdf_value in values.items():

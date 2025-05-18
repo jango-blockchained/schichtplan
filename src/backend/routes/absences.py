@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from models import db, Absence, Employee
+from src.backend.models import db, Absence, Employee
 from datetime import datetime
 from pydantic import ValidationError
 from src.backend.schemas.absences import AbsenceCreateRequest, AbsenceUpdateRequest
@@ -26,7 +26,7 @@ def create_absence(employee_id):
             return jsonify({'error': 'End date must be after start date'}), 400
 
         # Create new absence using validated data
-        absence = Absence.from_dict(request_data.model_dump())
+        absence = Absence.from_dict(request_data.dict())
         absence.employee_id = employee_id # Set employee_id from URL
         db.session.add(absence)
     

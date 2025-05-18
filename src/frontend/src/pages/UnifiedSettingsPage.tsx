@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, type UseQueryResult, type UseMutationResult, type QueryClient } from "@tanstack/react-query";
 import { useDebouncedCallback } from "use-debounce";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -85,184 +85,87 @@ export default function UnifiedSettingsPage() {
     "general_store_setup",
   );
 
-  // Initialize with the new nested Settings structure
-  const [localSettings, setLocalSettings] = useState<Settings>({
-    id: 0, // ID remains top-level
-    general: {
-      store_name: "Store",
-      store_address: "",
-      // store_contact: "", // Removed, use phone/email
-      store_phone: null,
-      store_email: null,
-      timezone: "Europe/Berlin",
-      language: "de",
-      date_format: "DD.MM.YYYY",
-      time_format: "24h",
-      store_opening: "09:00",
-      store_closing: "20:00",
-      keyholder_before_minutes: 30,
-      keyholder_after_minutes: 30,
-      opening_days: { // Default to all closed
-        "0": false, "1": false, "2": false, "3": false, "4": false, "5": false, "6": false
-      },
-      special_hours: {}, // Assuming this structure, confirm if used
-      special_days: {},
-    },
-    scheduling: {
-      scheduling_resource_type: "shifts",
-      default_shift_duration: 8,
-      min_break_duration: 30,
-      max_daily_hours: 10,
-      max_weekly_hours: 40,
-      min_rest_between_shifts: 11,
-      scheduling_period_weeks: 1,
-      auto_schedule_preferences: true,
-      enable_diagnostics: false,
-      scheduling_algorithm: "standard",
-      max_generation_attempts: 100,
-      generation_requirements: {
-        enforce_minimum_coverage: true,
-        enforce_contracted_hours: true,
-        enforce_keyholder_coverage: true,
-        enforce_rest_periods: true,
-        enforce_early_late_rules: true,
-        enforce_employee_group_rules: true,
-        enforce_break_rules: true,
-        enforce_max_hours: true,
-        enforce_consecutive_days: true,
-        enforce_weekend_distribution: true,
-        enforce_shift_distribution: true,
-        enforce_availability: true,
-        enforce_qualifications: true,
-        enforce_opening_hours: true,
-      },
-    },
-    display: {
-      theme: "light",
-      primary_color: "#000000",
-      secondary_color: "#000000",
-      accent_color: "#000000",
-      background_color: "#ffffff",
-      surface_color: "#ffffff",
-      text_color: "#000000",
-      dark_theme: {
-        primary_color: "#ffffff",
-        secondary_color: "#ffffff",
-        accent_color: "#ffffff",
-        background_color: "#000000",
-        surface_color: "#000000",
-        text_color: "#ffffff",
-      },
-      show_sunday: false,
-      show_weekdays: true,
-      start_of_week: 1, // Monday
-      email_notifications: false,
-      schedule_published: false,
-      shift_changes: false,
-      time_off_requests: false,
-    },
-    pdf_layout: {
-      page_size: "A4",
-      orientation: "portrait",
-      margins: { top: 1, right: 1, bottom: 1, left: 1 }, // Assuming cm or similar unit
-      table_style: {
-        header_bg_color: "#F0F0F0",
-        border_color: "#CCCCCC",
-        text_color: "#333333",
-        header_text_color: "#000000",
-      },
-      fonts: {
-        family: "Arial",
-        size: 10,
-        header_size: 12,
-      },
-      content: {
-        show_employee_id: false,
-        show_position: true,
-        show_breaks: true,
-        show_total_hours: true,
-      },
-    },
-    employee_groups: {
-      employee_types: [],
-      shift_types: [],
-      absence_types: [],
-    },
-    availability_types: {
-      types: [],
-    },
-    actions: {
-      demo_data: {
-        selected_module: "",
-        last_execution: null,
-      },
-    },
-    ai_scheduling: {
-      enabled: false,
-      api_key: null,
-    },
-  });
-
-  const { data: settingsData, isLoading: isLoadingSettings, error: settingsError } = useQuery<Settings, Error>(
-    ["settings"],
-    getSettings,
-    {
-      onSuccess: (data) => {
+  const { data: localSettings, isLoading: isLoadingSettings, error: settingsError } = useQuery<Settings, Error, Settings>({
+    queryKey: ["settings"],
+    queryFn: getSettings,
+    select: (fetchedData: Settings): Settings => {
         // Deep merge with DEFAULT_SETTINGS to ensure all keys are present
-        // This is a simple merge, for more complex scenarios, a deep merge utility might be needed
-        const mergedSettings = { 
-            ...DEFAULT_SETTINGS, 
-            ...data, 
-            // Ensure nested objects are also merged, example for general and scheduling
-            general: { ...DEFAULT_SETTINGS.general, ...(data.general || {}) },
-            scheduling: { ...DEFAULT_SETTINGS.scheduling, ...(data.scheduling || {}), 
-                generation_requirements: { 
-                    ...(DEFAULT_SETTINGS.scheduling?.generation_requirements || {}), 
-                    ...(data.scheduling?.generation_requirements || {}) 
+        const mergedSettings = {
+            ...DEFAULT_SETTINGS,
+            ...fetchedData,
+            general: { 
+                ...DEFAULT_SETTINGS.general, 
+                ...(fetchedData.general || {}),
+                opening_days: {
+                    ...DEFAULT_SETTINGS.general.opening_days,
+                    ...(fetchedData.general?.opening_days || {})
                 }
             },
-            display: { ...DEFAULT_SETTINGS.display, ...(data.display || {}),
-                dark_theme: { 
-                    ...(DEFAULT_SETTINGS.display?.dark_theme || {}), 
-                    ...(data.display?.dark_theme || {}) 
+            scheduling: { ...DEFAULT_SETTINGS.scheduling, ...(fetchedData.scheduling || {}),
+                generation_requirements: {
+                    ...(DEFAULT_SETTINGS.scheduling?.generation_requirements || {}),
+                    ...(fetchedData.scheduling?.generation_requirements || {})
                 }
             },
-            pdf_layout: { ...DEFAULT_SETTINGS.pdf_layout, ...(data.pdf_layout || {}),
-                margins: { ...(DEFAULT_SETTINGS.pdf_layout?.margins || {}), ...(data.pdf_layout?.margins || {}) },
-                table_style: { ...(DEFAULT_SETTINGS.pdf_layout?.table_style || {}), ...(data.pdf_layout?.table_style || {}) },
-                fonts: { ...(DEFAULT_SETTINGS.pdf_layout?.fonts || {}), ...(data.pdf_layout?.fonts || {}) },
-                content: { ...(DEFAULT_SETTINGS.pdf_layout?.content || {}), ...(data.pdf_layout?.content || {}) },
+            display: { ...DEFAULT_SETTINGS.display, ...(fetchedData.display || {}),
+                dark_theme: {
+                    ...(DEFAULT_SETTINGS.display?.dark_theme || {}),
+                    ...(fetchedData.display?.dark_theme || {})
+                }
             },
-            employee_groups: { ...DEFAULT_SETTINGS.employee_groups, ...(data.employee_groups || {}),
-                employee_types: [ ...(DEFAULT_SETTINGS.employee_groups?.employee_types || []), ...(data.employee_groups?.employee_types || []) ],
-                shift_types: [ ...(DEFAULT_SETTINGS.employee_groups?.shift_types || []), ...(data.employee_groups?.shift_types || []) ],
-                absence_types: [ ...(DEFAULT_SETTINGS.employee_groups?.absence_types || []), ...(data.employee_groups?.absence_types || []) ],
+            pdf_layout: { ...DEFAULT_SETTINGS.pdf_layout, ...(fetchedData.pdf_layout || {}),
+                margins: { ...(DEFAULT_SETTINGS.pdf_layout?.margins || {}), ...(fetchedData.pdf_layout?.margins || {}) },
+                table_style: { ...(DEFAULT_SETTINGS.pdf_layout?.table_style || {}), ...(fetchedData.pdf_layout?.table_style || {}) },
+                fonts: { ...(DEFAULT_SETTINGS.pdf_layout?.fonts || {}), ...(fetchedData.pdf_layout?.fonts || {}) },
+                content: { ...(DEFAULT_SETTINGS.pdf_layout?.content || {}), ...(fetchedData.pdf_layout?.content || {}) },
             },
-            availability_types: { ...DEFAULT_SETTINGS.availability_types, ...(data.availability_types || {}),
-                types: [ ...(DEFAULT_SETTINGS.availability_types?.types || []), ...(data.availability_types?.types || []) ],
+            employee_groups: { ...DEFAULT_SETTINGS.employee_groups, ...(fetchedData.employee_groups || {}),
+                employee_types: [ ...(DEFAULT_SETTINGS.employee_groups?.employee_types || []), ...(fetchedData.employee_groups?.employee_types || []) ],
+                shift_types: [ ...(DEFAULT_SETTINGS.employee_groups?.shift_types || []), ...(fetchedData.employee_groups?.shift_types || []) ],
+                absence_types: [ ...(DEFAULT_SETTINGS.employee_groups?.absence_types || []), ...(fetchedData.employee_groups?.absence_types || []) ],
             },
-            actions: { ...DEFAULT_SETTINGS.actions, ...(data.actions || {}),
-                demo_data: { ...(DEFAULT_SETTINGS.actions?.demo_data || {}), ...(data.actions?.demo_data || {}) },
+            availability_types: { 
+                ...DEFAULT_SETTINGS.availability_types,
+                ...(fetchedData.availability_types || {}),
+                types: (
+                  fetchedData.availability_types?.types && fetchedData.availability_types.types.length > 0
+                    ? fetchedData.availability_types.types
+                    : DEFAULT_SETTINGS.availability_types?.types || []
+                ),
             },
-            ai_scheduling: { ...DEFAULT_SETTINGS.ai_scheduling, ...(data.ai_scheduling || {}) },
+            actions: { ...DEFAULT_SETTINGS.actions, ...(fetchedData.actions || {}),
+              demo_data: { ...DEFAULT_SETTINGS.actions.demo_data, ...(fetchedData.actions?.demo_data || {}) }
+            },
+            ai_scheduling: { ...DEFAULT_SETTINGS.ai_scheduling, ...(fetchedData.ai_scheduling || {})}
         };
-        setLocalSettings(mergedSettings);
+        return mergedSettings as Settings;
       },
       staleTime: 1000 * 60 * 5, // 5 minutes
       refetchOnWindowFocus: false,
-    }
-  );
+    });
 
-  const mutation = useMutation<Settings, Error, Settings>(updateSettings, {
+  // State to manage local edits before debounced save
+  const [editableSettings, setEditableSettings] = useState<Settings>(DEFAULT_SETTINGS);
+
+  useEffect(() => {
+    if (localSettings) {
+      setEditableSettings(localSettings);
+    }
+  }, [localSettings]);
+
+  const mutation: UseMutationResult<Settings, Error, Settings, unknown> = useMutation<Settings, Error, Settings>({
+    mutationFn: updateSettings,
     onSuccess: (data) => {
-      queryClient.invalidateQueries(["settings"]);
-      // setLocalSettings(data); // Optimistic update can be tricky with debouncing, rely on refetch for now
+      queryClient.invalidateQueries({ queryKey: ["settings"] });
       toast({
         title: "Settings Saved",
         description: "Your changes have been saved successfully.",
+        variant: "default",
       });
+      // Optionally, update editableSettings directly from server response
+      // setEditableSettings(data); 
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
         title: "Error Saving Settings",
         description: error.message || "An unexpected error occurred.",
@@ -276,31 +179,33 @@ export default function UnifiedSettingsPage() {
   }, 2000);
 
   const handleSave = (
-    category: keyof Settings, // Simplified category to be any key of Settings
+    category: keyof Settings,
     updates: Partial<Settings[typeof category]>,
   ) => {
-    // localSettings is always defined now, no need for null check
-    const currentCategoryState = localSettings[category];
-    let newCategoryState;
+    setEditableSettings(prevSettings => {
+      const currentCategoryState = prevSettings[category];
+      let newCategoryState;
 
-    if (
-      typeof currentCategoryState === "object" &&
-      currentCategoryState !== null
-    ) {
-      newCategoryState = { ...currentCategoryState, ...updates };
-    } else {
-      // If the category is not an object (e.g. a primitive type directy under settings, though unlikely for most of our structure)
-      // or if it's null, we just take the updates. This part might need refinement based on Settings structure.
-      newCategoryState = updates;
-    }
+      if (
+        typeof currentCategoryState === "object" &&
+        currentCategoryState !== null &&
+        typeof updates === 'object' && // Ensure updates is also an object
+        updates !== null
+      ) {
+        newCategoryState = { ...currentCategoryState, ...updates };
+      } else {
+        // If currentCategoryState is not an object, or updates is not, directly assign updates.
+        // This path might need careful consideration based on how non-object categories are handled.
+        newCategoryState = updates;
+      }
 
-    const updatedSettings: Settings = {
-      ...localSettings,
-      [category]: newCategoryState,
-    };
-
-    setLocalSettings(updatedSettings);
-    debouncedUpdateSettings(updatedSettings);
+      const updatedSettings: Settings = {
+        ...prevSettings,
+        [category]: newCategoryState,
+      };
+      debouncedUpdateSettings(updatedSettings);
+      return updatedSettings;
+    });
   };
 
   const handleSettingChange = (
@@ -309,23 +214,29 @@ export default function UnifiedSettingsPage() {
     value: any,
     isNumeric: boolean = false,
   ) => {
-    // localSettings is always defined now, no need for null check
     const parsedValue = isNumeric ? parseFloat(value) : value;
-    const currentCategoryState = localSettings[category] || {};
-
-    handleSave(category, {
-      ...currentCategoryState,
-      [key]: parsedValue,
+    
+    setEditableSettings(prevSettings => {
+      const currentCategoryState = prevSettings[category] || {};
+      const newCategoryState = {
+        ...(typeof currentCategoryState === 'object' && currentCategoryState !== null ? currentCategoryState : {}),
+        [key]: parsedValue,
+      };
+      const updatedSettings = {
+        ...prevSettings,
+        [category]: newCategoryState,
+      };
+      debouncedUpdateSettings(updatedSettings);
+      return updatedSettings;
     });
   };
 
   const handleImmediateUpdate = () => {
-    // localSettings is always defined now, no need for null check
-    debouncedUpdateSettings.cancel(); // Cancel any pending debounced updates
-    mutation.mutate(localSettings, {
+    debouncedUpdateSettings.cancel();
+    mutation.mutate(editableSettings, { // Use editableSettings
       onSuccess: (updatedData) => {
         queryClient.setQueryData(["settings"], updatedData);
-        setLocalSettings(updatedData);
+        setEditableSettings(updatedData); // Update editable state
         toast({
           title: "Settings Saved",
           description:
@@ -352,54 +263,37 @@ export default function UnifiedSettingsPage() {
   };
 
   const handleDiagnosticsChange = (checked: boolean) => {
-    // localSettings is always defined now, no need for null check
-    const scheduling = localSettings.scheduling || {};
+    const scheduling = editableSettings.scheduling || {};
 
     const updatedSchedSettings = {
       ...scheduling,
       enable_diagnostics: checked,
     };
-    // Directly call handleSave for the 'scheduling' category
-    handleSave("scheduling" as any, updatedSchedSettings); // Cast as any for now, or refine handleSave type
-    // Potentially call handleImmediateUpdate() if this change should be saved instantly
-    // handleImmediateUpdate();
+    handleSave("scheduling", updatedSchedSettings);
   };
 
   const handleDisplaySettingChange = (
     key: keyof Settings["display"],
     value: any,
   ) => {
-    // localSettings is always defined now, no need for null check
     const updatedDisplaySettings = {
-      ...(localSettings.display || DEFAULT_SETTINGS.display),
+      ...(editableSettings.display || DEFAULT_SETTINGS.display),
       [key]: value,
     };
 
-    // Update local state and debounce the save for general persistence
     handleSave("display", updatedDisplaySettings);
-
-    // For display changes, especially theme, an immediate effect and save is often desired.
-    // We can call handleImmediateUpdate here if all display changes should be instant.
-    // Alternatively, make it conditional based on the 'key' if only some are instant.
-    // For simplicity now, let's make all display changes attempt an immediate save.
     handleImmediateUpdate();
   };
 
-  // Handler for AI Scheduling settings changes
   const handleAiSchedulingChange = (
-    key: keyof NonNullable<Settings["ai_scheduling"]>, // 'enabled' | 'api_key'
+    key: keyof NonNullable<Settings["ai_scheduling"]>,
     value: any,
   ) => {
-    // localSettings is always defined now, no need for null check
     const updatedAiSettings = {
-      ...(localSettings.ai_scheduling || DEFAULT_SETTINGS.ai_scheduling),
+      ...(editableSettings.ai_scheduling || DEFAULT_SETTINGS.ai_scheduling),
       [key]: value,
     };
     handleSave("ai_scheduling", updatedAiSettings);
-    // API key changes might benefit from immediate update on blur, which is handled by passing handleImmediateUpdate
-    // The switch for 'enabled' will also trigger handleSave, and if an immediate save is desired for that too,
-    // handleImmediateUpdate() could be called here unconditionally or passed to the component to decide.
-    // For now, pass handleImmediateUpdate for the onBlur of the API key input.
   };
 
   const renderSectionContent = () => {
@@ -408,8 +302,7 @@ export default function UnifiedSettingsPage() {
       return <PlaceholderContent title="Section not found" />;
     }
 
-    // Only show loading indicator if explicitly loading from API and we have no settings data yet
-    if (isLoadingSettings && !settingsData) {
+    if (isLoadingSettings && !localSettings) {
       return (
         <div className="flex justify-center items-center h-64">
           <Loader2 className="h-8 w-4 animate-spin" />
@@ -418,7 +311,6 @@ export default function UnifiedSettingsPage() {
       );
     }
 
-    // Explicit error check
     if (settingsError) {
       return (
         <Alert variant="destructive">
@@ -431,44 +323,48 @@ export default function UnifiedSettingsPage() {
       );
     }
 
-    // localSettings is always defined now due to useState initialization
-
-    // If we've reached this point, localSettings should be a valid Settings object.
     switch (activeSection) {
       case "general_store_setup":
         return (
           <GeneralStoreSetupSection
-            settings={localSettings.general || {}}
+            settings={editableSettings.general}
             onInputChange={(key, value, isNumeric) =>
               handleSettingChange("general", key, value, isNumeric)
             }
             onOpeningDaysChange={(dayIndex, checked) => {
-              const currentOpeningDays =
-                localSettings.general?.opening_days ||
-                DEFAULT_SETTINGS.general.opening_days;
-              const updatedOpeningDays = {
-                ...currentOpeningDays,
-                [dayIndex.toString()]: checked,
-              };
-              handleSave("general", { opening_days: updatedOpeningDays });
+              const days = editableSettings.general?.opening_days || {};
+              const dayName = [
+                "monday",
+                "tuesday",
+                "wednesday",
+                "thursday",
+                "friday",
+                "saturday",
+                "sunday",
+              ][dayIndex];
+              handleSettingChange("general", "opening_days", {
+                ...days,
+                [dayName]: checked,
+              });
             }}
-            onSpecialDaysChange={(specialDays) => {
-              handleSave("general", { special_days: specialDays });
-            }}
+            onSpecialDaysChange={(specialDays) =>
+              handleSettingChange("general", "special_days", specialDays)
+            }
             timeStringToDate={timeStringToDate}
             dateToTimeString={dateToTimeString}
             onImmediateUpdate={handleImmediateUpdate}
+            isLoading={mutation.isLoading}
           />
         );
       case "scheduling_engine":
         return (
           <SchedulingEngineSection
-            settings={localSettings.scheduling || {}}
+            settings={editableSettings.scheduling || DEFAULT_SETTINGS.scheduling}
             onInputChange={(key, value, isNumeric) =>
               handleSettingChange("scheduling", key, value, isNumeric)
             }
             onDiagnosticsChange={(checked) => {
-              const scheduling = localSettings.scheduling || {};
+              const scheduling = editableSettings.scheduling || DEFAULT_SETTINGS.scheduling;
               const updatedSchedSettings = {
                 ...scheduling,
                 enable_diagnostics: checked,
@@ -476,7 +372,7 @@ export default function UnifiedSettingsPage() {
               handleSave("scheduling", updatedSchedSettings);
             }}
             onGenerationSettingsUpdate={(genUpdates) => {
-              const scheduling = localSettings.scheduling || {};
+              const scheduling = editableSettings.scheduling || DEFAULT_SETTINGS.scheduling;
               const currentGenReqs =
                 scheduling.generation_requirements ||
                 DEFAULT_SETTINGS.scheduling.generation_requirements;
@@ -492,15 +388,16 @@ export default function UnifiedSettingsPage() {
       case "employee_shift_definitions":
         return (
           <EmployeeShiftDefinitionsSection
-            settings={localSettings.employee_groups || {}}
-            onUpdate={(category, updates) => handleSave(category, updates)}
+            settings={editableSettings.employee_groups}
+            onUpdate={handleSave}
             onImmediateUpdate={handleImmediateUpdate}
+            isLoading={mutation.isLoading}
           />
         );
       case "availability_configuration":
         return (
           <AvailabilityConfigurationSection
-            settings={localSettings.availability_types || { types: [] }}
+            settings={editableSettings.availability_types || { types: [] }}
             onUpdate={(updatedTypes) =>
               handleSave("availability_types", { types: updatedTypes })
             }
@@ -510,7 +407,7 @@ export default function UnifiedSettingsPage() {
       case "appearance_display":
         return (
           <AppearanceDisplaySection
-            settings={localSettings.display || {}}
+            settings={editableSettings.display || DEFAULT_SETTINGS.display}
             onDisplaySettingChange={handleDisplaySettingChange}
           />
         );
@@ -518,19 +415,18 @@ export default function UnifiedSettingsPage() {
         return (
           <IntegrationsAISection
             settings={
-              localSettings.ai_scheduling || { enabled: false, api_key: "" }
+              editableSettings.ai_scheduling || DEFAULT_SETTINGS.ai_scheduling
             }
             onSettingChange={handleAiSchedulingChange}
             onImmediateUpdate={handleImmediateUpdate}
           />
         );
       case "data_management":
-        // DataManagementSection doesn't seem to directly use nested settings
         return <DataManagementSection />;
       case "notifications":
         return (
           <NotificationsSection
-            settings={localSettings.display || {}}
+            settings={editableSettings.display || DEFAULT_SETTINGS.display}
             onDisplaySettingChange={handleDisplaySettingChange}
           />
         );
@@ -541,12 +437,12 @@ export default function UnifiedSettingsPage() {
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8">
-      <PageHeader 
+      <PageHeader
         className="mb-6"
         title="Application Settings"
         description="Manage your application settings across various modules. Select a category from the sidebar to view and edit specific settings. All changes are auto-saved with a short delay. You can monitor the save status at the top right."
         actions={
-          mutation.isLoading ? (
+          mutation.isPending ? (
             <span className="ml-2 text-sm text-muted-foreground flex items-center">
               <Loader2 className="mr-1 h-4 w-4 animate-spin" />
               Saving...

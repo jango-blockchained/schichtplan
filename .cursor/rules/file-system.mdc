@@ -1,0 +1,213 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+<rules id="1qay2wsx" ref="1ay2wsx">
+<protocol>
+  <meta>
+    <version>1.6</version>
+    <targetAIModels>
+      <model>gemini-2.5-pro</model>
+      <model>gemini-2.5-pro-exp-03-25</model>
+      <model>gemini-2.5-pro-preview-05-06</model>
+      <model>gemini-2.5-flash-preview-04-17</model>
+      <model>gemini-2.5-pro-preview-05-06</model>
+      <model>claude-3.7-sonnet</model>
+      <model>gpt-4.1</model>
+    </targetAIModels>
+    <targetEnvironment>Cursor IDE 0.5.0+</targetEnvironment>
+    <primaryToolsetFocus><tool_mention name="mcp_desktop-commander"/><tool_mention name="mcp_sequential-thinking"/><tool_mention name="mcp_shadcn-mcp"/><tool_mention name="mcp_memory-mcp"/></primaryToolsetFocus>
+    <important_note id="workspace_path_definition">'$WORKSPACE' is project root. Paths for project files (incl. `.cursor/tasks/`) MUST be $WORKSPACE-relative (e.g., '$WORKSPACE/.cursor/tasks/my_task.md').</important_note>
+    <important_note id="autonomy_goal">Goal: Maximize autonomous operation, minimize user interaction. AI MUST complete tasks independently using protocol/tools.</important_note>
+  </meta>
+
+  <section id="introduction" title="1. Introduction">
+    <paragraph>Protocol for AI autonomous task management in Cursor IDE using file-based tasks in <code>$WORKSPACE/.cursor/tasks/</code>. Mandates proactive tool use (<tool_mention name="mcp_desktop-commander"/>, <tool_mention name="mcp_sequential-thinking"/>, <tool_mention name="mcp_shadcn-mcp"/>, <tool_mention name="mcp_memory-mcp"/>) and correct $WORKSPACE pathing.</paragraph>
+  </section>
+
+  <section id="core_principles" title="2. Core Principles">
+    <list type="bulleted">
+      <item><strong>Maximize Autonomy:</strong> Operate independently based on rules/task files. Limited user interaction (Sec 6).</item>
+      <item><strong>Task-Centricity & Proactive Execution:</strong> Identify, plan, execute tasks from <code>$WORKSPACE/.cursor/tasks/</code> or prompts without delay/questions.</item>
+      <item><strong>Systematic Process:</strong> Strict adherence to task processing cycle (Sec 3), managing state via file ops in <code>$WORKSPACE/.cursor/tasks/</code>.</item>
+      <item><strong>Mandatory Tool Usage:</strong> MUST use <tool_mention name="mcp_sequential-thinking"/> for planning & appropriate MCP tools for info gathering/execution BEFORE user interaction.</item>
+      <item><strong>Robust Self-Correction:</strong> Diagnose/resolve execution errors (2-3 attempts/error). Log attempts/outcomes in task file.</item>
+      <item><strong>Asynchronous Reporting:</strong> Report outcomes concisely, often batched. Status primarily by filename.</item>
+    </list>
+  </section>
+
+  <section id="task_processing_cycle" title="3. Autonomous Task Processing Cycle (File-Based)">
+    <paragraph>Identify, interpret, plan, execute, manage task state in <code>$WORKSPACE/.cursor/tasks/</code> using <tool_mention name="mcp_desktop-commander"/>.</paragraph>
+    <subsection id="phase1_ingestion" title="Phase 1: Ingestion & Understanding">
+      <list type="numbered">
+        <item><strong>Discover:</strong> Scan <code>$WORKSPACE/.cursor/tasks/</code> for `TASK_ID_desc_status.md`. Prioritize `_pending`. Instantiate due recurring templates.</item>
+        <item><strong>Interpret:</strong> Read task file (<tool_mention name="mcp_desktop-commander_read_file"/>, full $WORKSPACE path). Extract objectives, params, constraints. Infer missing details.</item>
+        <item><strong>Dependencies:</strong> If task depends on others (check by filename `_completed.md`), rename current to `_on_hold.md` & log. Proceed to next task.</item>
+        <item><strong>Ambiguities:</strong> If unclear after inference: NO user query. Rename to `_needs_clarification.md`, log ambiguity in file. Proceed to next task. For prompts, create `_needs_clarification.md` task file if undefinable.</item>
+      </list>
+    </subsection>
+    <subsection id="phase2_planning" title="Phase 2: Planning & Resource Gathering">
+      <list type="numbered">
+        <item><strong>Decompose & Plan:</strong> For non-trivial file task (now `_pending` post-dependency check), MUST use <tool_mention name="mcp_sequential-thinking_sequentialthinking"/> for step-by-step plan (tool calls, $WORKSPACE paths). Rename task to `_in_progress` before planning.</item>
+        <item><strong>Store Plan:</strong> Update task file with plan.</item>
+        <item><strong>Gather Info Proactively:</strong> If plan needs info, MUST first use tools: <tool_mention name="mcp_desktop-commander"/> (read_file, search_code), <tool_mention name="mcp_memory-mcp"/>, <tool_mention name="mcp_shadcn-mcp"/>. Infer standard locations. Update task file.</item>
+        <item><strong>Proceed Autonomously:</strong> NO plan approval. Proceed to Phase 3.</item>
+      </list>
+    </subsection>
+    <subsection id="phase3_execution" title="Phase 3: Execution & Monitoring">
+      <list type="numbered">
+        <item><strong>Perform Actions:</strong> Execute plan with tools, correct $WORKSPACE paths. Log progress in task file if useful.</item>
+        <item><strong>Background Processes:</strong> Use <tool_mention name="mcp_desktop-commander_execute_command"/> `is_background` & `read_output`. Manage sessions, log PIDs/status in task file.</item>
+      </list>
+    </subsection>
+    <subsection id="phase4_verification" title="Phase 4: Verification, Self-Correction & Updates">
+      <list type="numbered">
+        <item><strong>Validate:</strong> Compare outcomes to criteria (inspect files, cmd output, memory).</item>
+        <item><strong>Diagnose & Self-Correct:</strong> On issues, analyze & self-correct (fix paths, retry cmd). Limit retries (2-3). Log attempts/errors/outcomes in task file.</item>
+        <item><strong>Update Status (Final):</strong> Success: rename to `_completed.md`. Failure: rename to `_failed.md`. Log final status/diagnostics in file. NO user query on failure.</item>
+        <item><strong>Proceed Immediately:</strong> After finalizing status, process next task.</item>
+      </list>
+    </subsection>
+    <subsection id="phase5_reporting" title="Phase 5: Completion & Reporting (Asynchronous)">
+        <list type="numbered">
+            <item><strong>Store Artifacts:</strong> Save outputs (full $WORKSPACE paths, <tool_mention name="mcp_desktop-commander_write_file"/> or <tool_mention name="mcp_memory-mcp_memory_bank_write"/>). Link in task file.</item>
+            <item><strong>Report Outcome (Deferred):</strong> Primary report is filename status. Summarize when prompted or after batch. Failed tasks MUST include diagnostics from file.</item>
+        </list>
+    </subsection>
+  </section>
+
+  <section id="tool_usage" title="4. Tool Usage Specifics (MCP Focus)">
+      <paragraph>Mandatory MCP tool use. Strict $WORKSPACE pathing for <tool_mention name="mcp_desktop-commander"/>.</paragraph>
+      <list type="bulleted">
+        <item><strong><tool_mention name="mcp_desktop-commander"/> CRITICAL PATH RULE:</strong> Project paths MUST be $WORKSPACE-relative (e.g., `$WORKSPACE/.cursor/tasks/my_task.md`).</item>
+        <item><strong><tool_mention name="mcp_sequential-thinking_sequentialthinking"/>:</strong> MUST use for planning (Phase 2) non-trivial file tasks.</item>
+        <item><strong><tool_mention name="mcp_shadcn-mcp"/>:</strong> For tasks with shadcn/ui components.</item>
+        <item><strong><tool_mention name="mcp_memory-mcp"/>:</strong> Store/retrieve persistent info, project context.</item>
+      </list>
+  </section>
+
+  <section id="prompt_task_management" title="5. Prompt-Driven Project & Task Management (File-Based)">
+      <paragraph>Interpret prompts to manage tasks via files in <code>$WORKSPACE/.cursor/tasks/</code> using <tool_mention name="mcp_desktop-commander"/>. Apply autonomy.</paragraph>
+      <subsection id="task_attributes" title="Task Attributes (File-Based)">
+           <paragraph>Stored in filename <code>$WORKSPACE/.cursor/tasks/TASK_ID_description_status.md</code> and content. AI parses/updates.</paragraph>
+           <list type="bulleted">
+               <item><strong>ID:</strong> Unique (filename/content).</item>
+               <item><strong>Description:</strong> Summary (filename/content).</item>
+               <item><strong>Status:</strong> `pending`, `in_progress`, etc. (renaming file).</item>
+               <item><strong>Priority:</strong> `high`, `medium`, `low` (filename/content).</item>
+               <item><strong>Project Context:</strong> Optional (content/memory bank).</item>
+               <item><strong>Steps/Plan:</strong> From seq. thinking (content).</item>
+               <item><strong>Dependencies:</strong> Task IDs/filenames (content). Check `_completed.md` status.</item>
+               <item><strong>Recurrence:</strong> Pattern for templates (content).</item>
+               <item><strong>OutputFile:</strong> $WORKSPACE-relative path (content).</item>
+               <item><strong>Logs/Errors:</strong> Diagnostics, self-correction (content).</item>
+           </list>
+           <paragraph>Prompted task creation: infer attributes, gen ID, create `_pending.md` file, check for next task.</paragraph>
+       </subsection>
+       <subsection id="prompt_commands" title="Prompt Keywords/Commands (File-Based)">
+           <paragraph>Interpret natural language to act on task files via <tool_mention name="mcp_desktop-commander"/>.</paragraph>
+            <list type="bulleted">
+                <item><strong>Create Task:</strong> "New task: [desc]" -> Gen ID, create `$WORKSPACE/.cursor/tasks/TASK_ID_desc_pending.md`.</item>
+                <item><strong>List Tasks:</strong> "Show tasks" -> `list_directory` on `$WORKSPACE/.cursor/tasks/`, interpret filenames.</item>
+                <item><strong>View Task:</strong> "Show task [ID/file]" -> `read_file` path `$WORKSPACE/.cursor/tasks/[ID/file]`.</item>
+                <item><strong>Update Task:</strong> "Update task [ID/file]: [changes]" -> `edit_block`/`write_file` or `move_file` (for status/priority).</item>
+                <item><strong>Start Task:</strong> "Start task [ID/file]" -> `move_file` to `_in_progress.md`. Start Phase 2.</item>
+                <item><strong>Complete Task:</strong> "Mark task [ID/file] completed" -> `move_file` to `_completed.md`. Add final details.</item>
+                <item><strong>Delete Task:</strong> "Delete task [ID/file]" -> Confirm if `in_progress`. Else `move_file` to `$WORKSPACE/.cursor/tasks/.deleted/` (safer default).</item>
+                <item><strong>Check Dependencies:</strong> "Check deps for [ID/file]" -> Read file, check dep status via `list_directory`. Update task status (`_on_hold.md` or `_pending.md`).</item>
+                <item><strong>Check Recurring Tasks:</strong> "Check recurring" -> `list_directory` for `_template.md`. Read, check schedule. Instantiate new `_pending.md` tasks if due.</item>
+           </list>
+       </subsection>
+       <subsection id="file_based_workflows" title="File-Based Workflows (Dependencies & Recurrence)">
+           <paragraph>Managed via task file content & <tool_mention name="mcp_desktop-commander"/>.</paragraph>
+           <list type="bulleted">
+               <item><strong>Dependencies:</strong> Specified in task file. Check status by filename (`_completed.md`). Use `move_file` for `_on_hold.md`.</item>
+               <item><strong>Recurrence:</strong> Templates (`_template.md`) with patterns. AI uses read/write/copy to instantiate `_pending.md` files.</item>
+           </list>
+       </subsection>
+  </section>
+
+  <section id="user_interaction_final" title="6. User Interaction (Minimize & Define Scope)">
+    <paragraph><strong>Principle: Maximum Autonomy.</strong> User interaction minimized/scoped. NO confirmation/clarification outside boundaries.</paragraph>
+    <subsection id="confirmation_required" title="Confirmation Required ONLY For:">
+        <list type="bulleted">
+             <item>Delete 3+ files/dirs *outside* <code>$WORKSPACE/.cursor/tasks/</code> (unless task-listed).</item>
+             <item>Overwrite critical project config (e.g., `package.json`) UNLESS task's explicit goal.</item>
+             <item>Highly destructive cmds (e.g., `rm -rf /`) not in explicit task script.</item>
+             <item>Ambiguous task prompts if details uninferable (then create `_needs_clarification.md` task).</item>
+        </list>
+    </subsection>
+    <subsection id="no_confirmation_needed" title="NO Confirmation Needed For (Proceed Autonomously):">
+        <list type="bulleted">
+             <item>All file/dir ops *within* <code>$WORKSPACE/.cursor/tasks/</code>.</item>
+             <item>Create/modify/delete files specified as targets/outputs in task, within <code>$WORKSPACE</code>.</item>
+             <item>Execute commands defined in task files/scripts.</item>
+             <item>Using read/list/search tools for info gathering.</item>
+             <item>Using <tool_mention name="mcp_shadcn-mcp"/>, <tool_mention name="mcp_memory-mcp"/> tools.</item>
+             <item>Generating plans (<tool_mention name="mcp_sequential-thinking_sequentialthinking"/>).</item>
+             <item>Marking tasks `completed`, `failed`, `needs_clarification`, `on_hold` by renaming.</item>
+             <item>Checking dependencies & changing status.</item>
+             <item>Instantiating recurring tasks.</item>
+        </list>
+    </subsection>
+    <subsection id="reporting_style" title="Reporting">
+        <list type="bulleted">
+             <item>Asynchronous, concise. Primary indicator: task file status.</item>
+             <item>Summarize on request or after batch. Failed reports MUST include diagnostics from `_failed.md` file.</item>
+        </list>
+    </subsection>
+     <subsection id="clarification_requests" title="Clarification Requests">
+        <list type="bulleted">
+             <item>Highly discouraged. Only if task uninterpretable after all autonomous steps or for specific confirmation triggers.</item>
+             <item>If needed for existing file task, it's already `_needs_clarification.md`; AI proceeds to other tasks.</item>
+        </list>
+    </subsection>
+  </section>
+
+  <section id="context_learning" title="7. Contextual Adherence & Learning">
+      <paragraph>Prioritize project-specific instructions. Adapt strategies. Use <tool_mention name="mcp_memory-mcp"/> to store learned specifics, patterns, recurring task notes, organized by project.</paragraph>
+  </section>
+</protocol>
+
+<agent_instructions provider="desktop-commander">
+  <available_tools tool_provider="desktop-commander">
+      <tool_category name="Configuration"><tool name="get_config"/><tool name="set_config_value"/></tool_category>
+      <tool_category name="Terminal"><tool name="execute_command"/><tool name="read_output"/><tool name="force_terminate"/><tool name="list_sessions"/><tool name="list_processes"/><tool name="kill_process"/></tool_category>
+      <tool_category name="Filesystem"><tool name="read_file"/><tool name="read_multiple_files"/><tool name="write_file"/><tool name="create_directory"/><tool name="list_directory"/><tool name="move_file"/><tool name="search_files"/><tool name="search_code"/><tool name="get_file_info"/></tool_category>
+      <tool_category name="Text Editing"><tool name="edit_block"/></tool_category>
+  </available_tools>
+  <usage_guidelines>
+      <guideline name="Autonomy First" description="Operate per main protocol. Proactive tool use for task fulfillment."/>
+      <guideline name="CRITICAL: $WORKSPACE Path Resolution" description="ALWAYS use $WORKSPACE-relative paths for project files, esp. in .cursor/tasks/."/>
+      <guideline name="Task File Management" description="Primary interaction: file ops in $WORKSPACE/.cursor/tasks/. `list_directory` (find), `read_file` (understand), `write_file`/`edit_block` (update content), `move_file` (change status). Essential for Task Cycle."/>
+      <guideline name="Terminal Interaction (`execute_command`)" description="Use 'cd $WORKSPACE &amp;&amp; command' or full paths. Execute autonomously unless confirmation needed. Log output/errors to task file."/>
+      <guideline name="Searching" description="Proactive use for info gathering (Phase 2). Paths relative to $WORKSPACE. Log to task file."/>
+      <guideline name="Editing" description="Use `edit_block` or read/write autonomously. Confirm critical files per Sec 6."/>
+      <guideline name="Error Logging" description="Log diagnostics to task file during self-correction/failure."/>
+  </usage_guidelines>
+</agent_instructions>
+
+<agent_instructions provider="shadcn-mcp">
+  <available_tools tool_provider="shadcn-mcp">
+      <tool_category name="Component Information"><tool name="mcp_shadcn-mcp_list_shadcn_components"/><tool name="mcp_shadcn-mcp_get_component_details"/><tool name="mcp_shadcn-mcp_get_component_examples"/><tool name="mcp_shadcn-mcp_search_components"/></tool_category>
+  </available_tools>
+  <usage_guidelines>
+      <guideline name="Autonomy First" description="Operate per main protocol. Proactive use for UI component tasks."/>
+      <guideline name="Information Gathering" description="Use in Phase 2/3 to understand components before code gen/mod. Log findings to task file."/>
+  </usage_guidelines>
+</agent_instructions>
+
+<agent_instructions provider="memory-mcp">
+  <available_tools tool_provider="memory-mcp">
+      <tool_category name="Memory Bank Operations"><tool name="mcp_memory-mcp_list_projects"/><tool name="mcp_memory-mcp_list_project_files"/><tool name="mcp_memory-mcp_memory_bank_read"/><tool name="mcp_memory-mcp_memory_bank_write"/><tool name="mcp_memory-mcp_memory_bank_update"/></tool_category>
+  </available_tools>
+  <usage_guidelines>
+      <guideline name="Persistent Storage" description="Save/recall info persistent across sessions or vital for project context (decisions, configs, preferences, summaries, recurring task schedules). Organize by project name."/>
+      <guideline name="Project-Specific Memory" description="Organize by `projectName` if known/inferable."/>
+      <guideline name="File Naming" description="Use descriptive `fileName` (e.g., 'db_schema.json')."/>
+      <guideline name="Information Retrieval" description="Before complex tasks, check memory bank for relevant info (Phase 2; Sec 7)."/>
+      <guideline name="Learning and Adaptation" description="Store outcomes, insights, refined procedures to improve future performance. Store recurring task state (Sec 7, 5.3)."/>
+  </usage_guidelines>
+</agent_instructions>
+</rules>

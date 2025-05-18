@@ -77,44 +77,42 @@ def test_create_shift(client):
     assert response.json["end_time"] == "16:00"
 
 
-def test_get_shifts(client, app):
+def test_get_shifts(client, session):
     """Test getting all shifts"""
-    with app.app_context():
-        # Create test shifts
-        shift1 = ShiftTemplate(
-            start_time="08:00",
-            end_time="16:00",
-            requires_break=True,
-            active_days=[0, 1, 2, 3, 4],
-        )
-        shift2 = ShiftTemplate(
-            start_time="12:00",
-            end_time="20:00",
-            requires_break=True,
-            active_days=[0, 1, 2, 3, 4],
-        )
-        db.session.add(shift1)
-        db.session.add(shift2)
-        db.session.commit()
+    # Create test shifts
+    shift1 = ShiftTemplate(
+        start_time="08:00",
+        end_time="16:00",
+        requires_break=True,
+        active_days=[0, 1, 2, 3, 4],
+    )
+    shift2 = ShiftTemplate(
+        start_time="12:00",
+        end_time="20:00",
+        requires_break=True,
+        active_days=[0, 1, 2, 3, 4],
+    )
+    session.add(shift1)
+    session.add(shift2)
+    session.commit()
 
     response = client.get("/api/shifts/")
     assert response.status_code == 200
     assert len(response.json) == 2
 
 
-def test_update_shift(client, app):
+def test_update_shift(client, session):
     """Test updating a shift"""
-    with app.app_context():
-        # Create test shift
-        shift = ShiftTemplate(
-            start_time="08:00",
-            end_time="16:00",
-            requires_break=True,
-            active_days=[0, 1, 2, 3, 4],
-        )
-        db.session.add(shift)
-        db.session.commit()
-        shift_id = shift.id
+    # Create test shift
+    shift = ShiftTemplate(
+        start_time="08:00",
+        end_time="16:00",
+        requires_break=True,
+        active_days=[0, 1, 2, 3, 4],
+    )
+    session.add(shift)
+    session.commit()
+    shift_id = shift.id
 
     # Update the shift
     update_data = {
@@ -129,25 +127,23 @@ def test_update_shift(client, app):
     assert response.json["requires_break"] is False
 
 
-def test_delete_shift(client, app):
+def test_delete_shift(client, session):
     """Test deleting a shift"""
-    with app.app_context():
-        # Use current ShiftTemplate constructor
-        shift = ShiftTemplate(
-            start_time="08:00", 
-            end_time="16:00",
-            # min_employees and max_employees removed from model
-            requires_break=True
-        )
-        db.session.add(shift)
-        db.session.commit()
-        shift_id = shift.id
+    # Use current ShiftTemplate constructor
+    shift = ShiftTemplate(
+        start_time="08:00", 
+        end_time="16:00",
+        # min_employees and max_employees removed from model
+        requires_break=True
+    )
+    session.add(shift)
+    session.commit()
+    shift_id = shift.id
 
     response = client.delete(f"/api/shifts/{shift_id}/") # Ensure trailing slash if needed by routes
     assert response.status_code == 204
 
-    with app.app_context():
-        assert ShiftTemplate.query.get(shift_id) is None
+    assert session.get(ShiftTemplate, shift_id) is None
 
 
 def test_create_default_shifts(client, session):
@@ -187,103 +183,102 @@ def test_update_store_config(client, session):
     assert response.json["closing_time"] == "20:00"
 
 
-def test_schedule_generation(client, app):
+def test_schedule_generation(client, session):
     """Test schedule generation"""
     # Create test data
-    with app.app_context():
-        # Ensure settings exist (use helper)
-        settings = ensure_settings(db.session)
-        # Update specific settings using update_from_dict
-        settings_update = {
-            "general": {
-                 "store_opening":"08:00",
-                 "store_closing":"20:00"
-            }
-            # Add other categories like 'scheduling' if needed, e.g.:
-            # "scheduling": { "min_break_duration": 60 } 
+    # Ensure settings exist (use helper)
+    settings = ensure_settings(session)
+    # Update specific settings using update_from_dict
+    settings_update = {
+        "general": {
+             "store_opening":"08:00",
+             "store_closing":"20:00"
         }
-        settings.update_from_dict(settings_update)
-        db.session.add(settings) # Add again to save updates
+        # Add other categories like 'scheduling' if needed, e.g.:
+        # "scheduling": { "min_break_duration": 60 } 
+    }
+    settings.update_from_dict(settings_update)
+    session.add(settings) # Use session fixture
 
-        # Create shifts (using current constructor)
-        opening_shift = ShiftTemplate(
-            start_time="08:00",
-            end_time="16:00",
-            requires_break=True,
-            active_days={"0": True, "1": True, "2": True, "3": True, "4": True}, # Use JSON format for active_days
-            shift_type_id="EARLY" # Use shift_type_id
-        )
-        db.session.add(opening_shift)
+    # Create shifts (using current constructor)
+    opening_shift = ShiftTemplate(
+        start_time="08:00",
+        end_time="16:00",
+        requires_break=True,
+        active_days={"0": True, "1": True, "2": True, "3": True, "4": True}, # Use JSON format for active_days
+        shift_type_id="EARLY" # Use shift_type_id
+    )
+    session.add(opening_shift) # Use session fixture
 
-        middle_shift = ShiftTemplate(
-            start_time="10:00",
-            end_time="18:00",
-            requires_break=True,
-            active_days={"0": True, "1": True, "2": True, "3": True, "4": True},
-            shift_type_id="MIDDLE"
-        )
-        db.session.add(middle_shift)
+    middle_shift = ShiftTemplate(
+        start_time="10:00",
+        end_time="18:00",
+        requires_break=True,
+        active_days={"0": True, "1": True, "2": True, "3": True, "4": True},
+        shift_type_id="MIDDLE"
+    )
+    session.add(middle_shift) # Use session fixture
 
-        closing_shift = ShiftTemplate(
-            start_time="12:00",
-            end_time="20:00",
-            requires_break=True,
-            active_days={"0": True, "1": True, "2": True, "3": True, "4": True},
-            shift_type_id="LATE"
-        )
-        db.session.add(closing_shift)
+    closing_shift = ShiftTemplate(
+        start_time="12:00",
+        end_time="20:00",
+        requires_break=True,
+        active_days={"0": True, "1": True, "2": True, "3": True, "4": True},
+        shift_type_id="LATE"
+    )
+    session.add(closing_shift) # Use session fixture
 
-        # Create employees (using current constructor)
-        keyholder1 = Employee(
-            first_name="Key", 
-            last_name="Holder1", 
-            employee_group=EmployeeGroup.VZ, 
-            contracted_hours=40, 
-            is_keyholder=True
-        )
+    # Create employees (using current constructor)
+    keyholder1 = Employee(
+        first_name="Key", 
+        last_name="Holder1", 
+        employee_group=EmployeeGroup.VZ, 
+        contracted_hours=40, 
+        is_keyholder=True
+    )
 
-        keyholder2 = Employee(
-            first_name="Key", 
-            last_name="Holder2", 
-            employee_group=EmployeeGroup.VZ, 
-            contracted_hours=40, 
-            is_keyholder=True
-        )
+    keyholder2 = Employee(
+        first_name="Key", 
+        last_name="Holder2", 
+        employee_group=EmployeeGroup.VZ, 
+        contracted_hours=40, 
+        is_keyholder=True
+    )
 
-        employee1 = Employee(
-            first_name="Employee", 
-            last_name="One", 
-            employee_group=EmployeeGroup.TZ, 
-            contracted_hours=30, 
-            is_keyholder=False
-        )
+    employee1 = Employee(
+        first_name="Employee", 
+        last_name="One", 
+        employee_group=EmployeeGroup.TZ, 
+        contracted_hours=30, 
+        is_keyholder=False
+    )
 
-        employee2 = Employee(
-            first_name="Employee", 
-            last_name="Two", 
-            employee_group=EmployeeGroup.TZ, 
-            contracted_hours=30, 
-            is_keyholder=False
-        )
+    employee2 = Employee(
+        first_name="Employee", 
+        last_name="Two", 
+        employee_group=EmployeeGroup.TZ, 
+        contracted_hours=30, 
+        is_keyholder=False
+    )
 
-        db.session.add_all([keyholder1, keyholder2, employee1, employee2])
-        db.session.commit()
+    session.add_all([keyholder1, keyholder2, employee1, employee2]) # Use session fixture
+    session.commit()
 
-        # Define request payload
-        start_date = date.today() - timedelta(days=date.today().weekday()) # Start of current week (Monday)
-        end_date = start_date + timedelta(days=6) # End of current week (Sunday)
-        data = {
-            "start_date": start_date.strftime("%Y-%m-%d"),
-            "end_date": end_date.strftime("%Y-%m-%d"),
-            "version": 1
-        }
+    # Define request payload
+    start_date = date.today() - timedelta(days=date.today().weekday()) # Start of current week (Monday)
+    end_date = start_date + timedelta(days=6) # End of current week (Sunday)
+    data = {
+        "start_date": start_date.strftime("%Y-%m-%d"),
+        "end_date": end_date.strftime("%Y-%m-%d"),
+        "version": 1
+    }
 
-        # Trigger schedule generation
-        response = client.post("/api/schedules/generate", json=data)
-        assert response.status_code == 200
-        assert "schedules" in response.json
-        # Add more specific assertions about the generated schedule if needed
-        assert len(response.json["schedules"]) > 0
+    # Trigger schedule generation
+    response = client.post("/api/schedules/generate", json=data)
+    assert response.status_code == 200
+    assert "schedules" in response.json
+    # Add more specific assertions about the generated schedule if needed
+    assert len(response.json["schedules"]) > 0
 
 
 def test_get_schedule(client, session):
@@ -332,14 +327,12 @@ def test_schedule_respects_weekly_limits(client, session):
             shift_type=ShiftType.EARLY,
             start_time=time(9, 0),
             end_time=time(18, 0),  # 9 hours
-            min_employees=1,
-            max_employees=1,
+            active_days={"0":True} # Example for active_days, adjust as needed
         )
         shifts.append(shift)
         session.add(shift)
 
-    config = Settings.get_default_config()
-    session.add(config)
+    ensure_settings(session)
 
     session.commit()
 
@@ -356,13 +349,13 @@ def test_schedule_respects_weekly_limits(client, session):
     assert response.status_code == 201
 
     # Check that the generated schedules don't exceed 48 hours
-    schedules = Schedule.query.filter(
+    schedules_query_result = session.query(Schedule).filter(
         Schedule.employee_id == vl_employee.id,
         Schedule.date >= start_date,
         Schedule.date <= end_date,
     ).all()
 
-    total_hours = sum(s.shift.duration_hours for s in schedules)
+    total_hours = sum(s.shift.duration_hours for s in schedules_query_result if s.shift)
     assert total_hours <= 48, (
         f"Weekly hours ({total_hours}) exceed limit of 48 for VZ employee"
     )
@@ -561,32 +554,31 @@ def test_break_time_requirements(client, session):
     # assert not hasattr(db_schedule_short, 'break_end')
 
 
-def test_schedule_shift(client, app):
+def test_schedule_shift(client, session):
     """Test scheduling a specific shift for an employee"""
-    with app.app_context():
-        # Create employee
-        employee = Employee(
-            first_name="Shift", 
-            last_name="Tester", 
-            employee_group=EmployeeGroup.VZ, 
-            contracted_hours=40,
-            is_keyholder=False
-        )
-        db.session.add(employee)
-        
-        # Create shift
-        shift = ShiftTemplate(
-            start_time="09:00", 
-            end_time="17:00", 
-            requires_break=True, 
-            active_days={"0": True}, # Monday
-            shift_type_id="MIDDLE"
-        )
-        db.session.add(shift)
-        db.session.commit()
+    # Create employee
+    employee = Employee(
+        first_name="Shift", 
+        last_name="Tester", 
+        employee_group=EmployeeGroup.VZ, 
+        contracted_hours=40,
+        is_keyholder=False
+    )
+    session.add(employee)
+    
+    # Create shift
+    shift = ShiftTemplate(
+        start_time="09:00", 
+        end_time="17:00", 
+        requires_break=True, 
+        active_days={"0": True}, # Monday
+        shift_type_id="MIDDLE"
+    )
+    session.add(shift)
+    session.commit()
 
-        emp_id = employee.id
-        shift_id = shift.id
+    emp_id = employee.id
+    shift_id = shift.id
 
     # Test API call to create schedule entry (assuming /api/schedules/update/0)
     test_date = date(2024, 1, 1).strftime("%Y-%m-%d") # Example Monday
@@ -606,32 +598,31 @@ def test_schedule_shift(client, app):
     assert response.json["date"] == test_date
 
 
-def test_update_schedule(client, app):
+def test_update_schedule(client, session):
     """Test updating a schedule, including availability_type"""
-    with app.app_context():
-        # Create employee and shift using current constructors
-        employee = Employee(
-            first_name="Update", last_name="Test", 
-            employee_group=EmployeeGroup.VZ, contracted_hours=40, is_keyholder=False
-        )
-        shift = ShiftTemplate(
-            start_time="08:00", end_time="16:00", requires_break=True, 
-            active_days={"0": True}, shift_type_id="MIDDLE"
-        )
-        db.session.add_all([employee, shift]) # Add employee and shift first
-        db.session.commit() # Commit to get IDs
-        
-        # Create an initial schedule entry using correct constructor parameters
-        schedule = Schedule(
-            employee_id=employee.id, 
-            shift_id=shift.id, 
-            date=date(2024, 3, 1),
-            version=1,
-            availability_type="AVAILABLE" # Initial type
-        )
-        db.session.add(schedule)
-        db.session.commit()
-        schedule_id = schedule.id
+    # Create employee and shift using current constructors
+    employee = Employee(
+        first_name="Update", last_name="Test", 
+        employee_group=EmployeeGroup.VZ, contracted_hours=40, is_keyholder=False
+    )
+    shift = ShiftTemplate(
+        start_time="08:00", end_time="16:00", requires_break=True, 
+        active_days={"0": True}, shift_type_id="MIDDLE"
+    )
+    session.add_all([employee, shift]) # Add employee and shift first
+    session.commit() # Commit to get IDs
+    
+    # Create an initial schedule entry using correct constructor parameters
+    schedule = Schedule(
+        employee_id=employee.id, 
+        shift_id=shift.id, 
+        date=date(2024, 3, 1),
+        version=1,
+        availability_type="AVAILABLE" # Initial type
+    )
+    session.add(schedule)
+    session.commit()
+    schedule_id = schedule.id
 
     # Data for update, including new availability type
     update_data = {
@@ -650,39 +641,37 @@ def test_update_schedule(client, app):
     assert response_json["availability_type"] == "PREFERRED" # Verify availability_type updated in response
 
     # Optional: Verify in DB directly
-    with app.app_context():
-        updated_schedule_db = Schedule.query.get(schedule_id)
-        assert updated_schedule_db is not None
-        assert updated_schedule_db.notes == "Updated Note"
-        assert updated_schedule_db.availability_type == "PREFERRED" # Verify DB save
+    updated_schedule = session.get(Schedule, schedule_id)
+    assert updated_schedule is not None
+    assert updated_schedule.notes == "Updated Note"
+    assert updated_schedule.availability_type == "PREFERRED" # Verify DB save
 
 
-def test_update_schedule_invalid_input(client, app):
+def test_update_schedule_invalid_input(client, session):
     """Test PUT /api/schedules/<id> with invalid input"""
-    with app.app_context():
-        # Create employee and shift
-        employee = Employee(
-            first_name="InvalidUpdate", last_name="Test",
-            employee_group=EmployeeGroup.VZ, contracted_hours=40, is_keyholder=False
-        )
-        shift = ShiftTemplate(
-            start_time="08:00", end_time="16:00", requires_break=True,
-            active_days={ "0": True }, shift_type_id="MIDDLE"
-        )
-        db.session.add_all([employee, shift])
-        db.session.commit()
+    # Create employee and shift
+    employee = Employee(
+        first_name="InvalidUpdate", last_name="Test",
+        employee_group=EmployeeGroup.VZ, contracted_hours=40, is_keyholder=False
+    )
+    shift = ShiftTemplate(
+        start_time="08:00", end_time="16:00", requires_break=True,
+        active_days={ "0": True }, shift_type_id="MIDDLE"
+    )
+    session.add_all([employee, shift])
+    session.commit()
 
-        # Create an initial schedule entry
-        schedule = Schedule(
-            employee_id=employee.id,
-            shift_id=shift.id,
-            date=date(2024, 3, 15), # Use a different date
-            version=1,
-            availability_type="AVAILABLE"
-        )
-        db.session.add(schedule)
-        db.session.commit()
-        schedule_id = schedule.id
+    # Create an initial schedule entry
+    schedule = Schedule(
+        employee_id=employee.id,
+        shift_id=shift.id,
+        date=date(2024, 3, 15), # Use a different date
+        version=1,
+        availability_type="AVAILABLE"
+    )
+    session.add(schedule)
+    session.commit()
+    schedule_id = schedule.id
 
     # Data for update with invalid type for shift_id (should be int, using string)
     invalid_update_data = {
@@ -804,16 +793,16 @@ def test_get_applicable_shifts_for_employee(client, session):
 
 # Helper to ensure default settings exist
 def ensure_settings(session):
-    settings = Settings.query.first()
+    settings = session.query(Settings).first()
     if not settings:
-        settings = Settings.get_default_settings() # Use class method
+        settings = Settings.get_default_config()
         session.add(settings)
         session.commit()
     return settings
 
 def test_get_settings_api(client, session):
     """Test GET /api/settings/ endpoint."""
-    ensure_settings(session) # Ensure settings exist
+    ensure_settings(session)
     response = client.get("/api/settings/")
     assert response.status_code == 200
     settings_data = response.json

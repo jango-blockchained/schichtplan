@@ -254,41 +254,24 @@ class ScheduleResources:
         return len(self.employees) > 0
 
     def load(self):
-        """Load all required resources"""
-        try:
-            self.logger.info("Loading scheduler resources...")
-
-            # Load employees
-            self.employees = self._load_employees()
-            self.logger.debug(f"Loaded {len(self.employees)} employees")
-
-            # Load shifts
-            self.shifts = self._load_shifts()
-            self.logger.debug(f"Loaded {len(self.shifts)} shifts")
-
-            # Load coverage
-            self.coverage = self._load_coverage()
-            self.logger.debug(f"Loaded {len(self.coverage)} coverage records")
-
-            # Load settings
-            self.settings = self._load_settings()
-            self.logger.debug(f"Loaded settings: {self.settings}")
-
-            # Load absences
-            self.absences = self._load_absences()
-            self.logger.debug(f"Loaded {len(self.absences)} absences")
-
-            # Load availabilities
-            self.availabilities = self._load_availabilities()
-            self.logger.debug(f"Loaded {len(self.availabilities)} availabilities")
-
-            # Mark as loaded
-            self._loaded = True
-            self.logger.info("Resource loading complete")
-
-        except Exception as e:
-            self.logger.error(f"Error loading resources: {str(e)}")
-            raise ScheduleResourceError(f"Failed to load resources: {str(e)}") from e
+        """Load all necessary resources for scheduling."""
+        self.logger.info("Loading scheduler resources...")
+        
+        # Ensure we are within a Flask application context
+        from flask import current_app
+        with current_app.app_context():
+            try:
+                self.settings = self._load_settings()
+                self.coverage = self._load_coverage()
+                self.shifts = self._load_shifts()
+                self.employees = self._load_employees()
+                self.absences = self._load_absences()
+                self.availabilities = self._load_availabilities()
+                # schedule_data is loaded separately if needed for existing assignments
+                self.logger.info("Scheduler resources loaded successfully.")
+            except Exception as e:
+                self.logger.error(f"Failed to load resources: {str(e)}")
+                raise ScheduleResourceError(f"Failed to load resources: {str(e)}") from e
 
     def _load_settings(self) -> Settings:
         """Load settings with error handling"""

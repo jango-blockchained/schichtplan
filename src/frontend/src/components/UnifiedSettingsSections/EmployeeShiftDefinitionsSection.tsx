@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -30,11 +30,17 @@ interface EmployeeShiftDefinitionsSectionProps {
     updates: Partial<Settings[keyof Settings]>,
   ) => void;
   onImmediateUpdate: () => void;
+  isLoading: boolean; // Add isLoading prop
 }
 
 export const EmployeeShiftDefinitionsSection: React.FC<
   EmployeeShiftDefinitionsSectionProps
-> = ({ settings, onUpdate, onImmediateUpdate }) => {
+> = ({
+  settings,
+  onUpdate,
+  onImmediateUpdate,
+  isLoading, // Accept isLoading prop
+}) => {
   // Ensure settings is never undefined by providing default empty object
   const employeeGroups = settings || {
     employee_types: [],
@@ -42,38 +48,44 @@ export const EmployeeShiftDefinitionsSection: React.FC<
     shift_types: [],
   };
 
+  // Pass the data directly without modifying the 'type' field
+  const memoizedEmployeeTypes = useMemo(() => {
+    return employeeGroups.employee_types || [];
+  }, [employeeGroups.employee_types]);
+
+  const memoizedAbsenceTypes = useMemo(() => {
+    return employeeGroups.absence_types || [];
+  }, [employeeGroups.absence_types]);
+
+  const memoizedShiftTypes = useMemo(() => {
+    return employeeGroups.shift_types || [];
+  }, [employeeGroups.shift_types]);
+
   const handleEmployeeTypesChange = (
-    updatedEmployeeTypes: EditorEmployeeType[],
+    updatedEmployeeTypes: EmployeeType[], // Expecting correct types from editor
   ) => {
-    // Remove the 'type' field added by the editor if it exists, ensure it matches backend model
-    const formattedEmployeeTypes: EmployeeType[] = updatedEmployeeTypes.map(
-      ({ type, ...rest }) => rest as EmployeeType,
-    );
+    // Assume updatedEmployeeTypes already has the correct 'type' field value ("employee_type")
     onUpdate("employee_groups", {
       ...employeeGroups,
-      employee_types: formattedEmployeeTypes,
+      employee_types: updatedEmployeeTypes,
     });
   };
 
   const handleAbsenceTypesChange = (
-    updatedAbsenceTypes: EditorAbsenceType[],
+    updatedAbsenceTypes: AbsenceType[], // Expecting correct types from editor
   ) => {
-    const formattedAbsenceTypes: AbsenceType[] = updatedAbsenceTypes.map(
-      ({ type, ...rest }) => rest as AbsenceType,
-    );
+    // Assume updatedAbsenceTypes already has the correct 'type' field value ("absence_type")
     onUpdate("employee_groups", {
       ...employeeGroups,
-      absence_types: formattedAbsenceTypes,
+      absence_types: updatedAbsenceTypes,
     });
   };
 
-  const handleShiftTypesChange = (updatedShiftTypes: EditorShiftType[]) => {
-    const formattedShiftTypes: ShiftType[] = updatedShiftTypes.map(
-      ({ type, ...rest }) => rest as ShiftType,
-    );
+  const handleShiftTypesChange = (updatedShiftTypes: ShiftType[]) => {
+    // Assume updatedShiftTypes already has the correct 'type' field value ("shift_type")
     onUpdate("employee_groups", {
       ...employeeGroups,
-      shift_types: formattedShiftTypes,
+      shift_types: updatedShiftTypes,
     });
   };
 
@@ -87,15 +99,11 @@ export const EmployeeShiftDefinitionsSection: React.FC<
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Ensure EmployeeSettingsEditor can handle the correct EmployeeType structure */}
           <EmployeeSettingsEditor
-            type="employee"
-            groups={(employeeGroups.employee_types || []).map((et) => ({
-              ...et,
-              type: "employee" as const,
-            }))}
-            onChange={(groups) =>
-              handleEmployeeTypesChange(groups as EditorEmployeeType[])
-            }
+            type="employee" // This prop might still be needed for internal logic/display within the editor
+            groups={memoizedEmployeeTypes as unknown as EditorEmployeeType[]} // Cast if needed, but ideally editor should accept EmployeeType[]
+            onChange={handleEmployeeTypesChange}
           />
         </CardContent>
       </Card>
@@ -108,15 +116,11 @@ export const EmployeeShiftDefinitionsSection: React.FC<
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Ensure EmployeeSettingsEditor can handle the correct AbsenceType structure */}
           <EmployeeSettingsEditor
-            type="absence"
-            groups={(employeeGroups.absence_types || []).map((at) => ({
-              ...at,
-              type: "absence" as const,
-            }))}
-            onChange={(groups) =>
-              handleAbsenceTypesChange(groups as EditorAbsenceType[])
-            }
+            type="absence" // This prop might still be needed for internal logic/display within the editor
+            groups={memoizedAbsenceTypes as unknown as EditorAbsenceType[]} // Cast if needed, but ideally editor should accept AbsenceType[]
+            onChange={handleAbsenceTypesChange}
           />
         </CardContent>
       </Card>
@@ -129,18 +133,17 @@ export const EmployeeShiftDefinitionsSection: React.FC<
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Ensure ShiftTypesEditor can handle the correct ShiftType structure */}
           <ShiftTypesEditor
-            shiftTypes={(employeeGroups.shift_types || []).map((st) => ({
-              ...st,
-              type: "shift" as const,
-            }))}
+            shiftTypes={memoizedShiftTypes as unknown as EditorShiftType[]} // Cast if needed, but ideally editor should accept ShiftType[]
             onChange={handleShiftTypesChange}
           />
         </CardContent>
       </Card>
 
       <div className="flex justify-end mt-6">
-        <Button onClick={onImmediateUpdate}>
+        <Button onClick={onImmediateUpdate} disabled={isLoading}>
+          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Save Employee & Shift Definitions
         </Button>
       </div>

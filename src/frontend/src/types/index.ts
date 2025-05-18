@@ -284,19 +284,19 @@ export interface Settings {
       abbr?: string;
       min_hours?: number;
       max_hours?: number;
-      type: "employee";
+      type: "employee_type";
     }>;
     shift_types: Array<{
       id: string;
       name: string;
       color: string;
-      type: "shift";
+      type: "shift_type";
     }>;
     absence_types: Array<{
       id: string;
       name: string;
       color: string;
-      type: "absence";
+      type: "absence_type";
     }>;
   };
   availability_types: {
@@ -374,7 +374,7 @@ export interface StoreConfigProps extends StoreConfig {
     abbr?: string;
     min_hours: number;
     max_hours: number;
-    type: "employee";
+    type: "employee_type";
   }>;
 }
 
@@ -383,14 +383,14 @@ export interface EmployeeType {
   name: string;
   min_hours: number;
   max_hours: number;
-  type: "employee";
+  type: "employee_type";
 }
 
 export interface AbsenceType {
   id: string;
   name: string;
   color: string;
-  type: "absence";
+  type: "absence_type";
 }
 
 export type GroupType = EmployeeType | AbsenceType;

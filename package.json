@@ -18,6 +18,7 @@
     "test": "npm run test:backend && npm run test:frontend"
   },
   "dependencies": {
+    "react-hook-form": "^7.56.4",
     "zod": "^3.24.2"
   }
 }

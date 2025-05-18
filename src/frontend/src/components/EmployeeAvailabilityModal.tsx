@@ -61,6 +61,20 @@ const ALL_DAYS = [
 ];
 const TIME_FORMAT = "HH:mm";
 
+// Helper function to map frontend index (0=Montag) to English lowercase day name key
+const indexToDayNameKey = (index: number): string | undefined => {
+  const dayMap: { [key: number]: string } = {
+    0: "monday",
+    1: "tuesday",
+    2: "wednesday",
+    3: "thursday",
+    4: "friday",
+    5: "saturday",
+    6: "sunday",
+  };
+  return dayMap[index];
+};
+
 export const EmployeeAvailabilityModal: React.FC<
   EmployeeAvailabilityModalProps
 > = ({
@@ -112,10 +126,17 @@ export const EmployeeAvailabilityModal: React.FC<
 
     if (!settings) return; // Add this check
 
-    // Filter active days based on opening_days (using Mon=0 index)
-    const activeWeekDays = ALL_DAYS.filter((_, frontendIndex) => {
-      // Directly use frontendIndex (Mon=0) as it matches backend convention now
-      return settings.general.opening_days[frontendIndex.toString()];
+    // Filter active days based on opening_days
+    // ALL_DAYS uses German day names ["Montag", "Dienstag", ...]
+    // settings.general.opening_days uses English lowercase keys like "monday", "tuesday"
+    const activeWeekDays = ALL_DAYS.filter((_germanDayName, frontendIndex) => {
+      const englishDayNameKey = indexToDayNameKey(frontendIndex);
+      if (!englishDayNameKey) {
+        // This case should ideally not be reached if ALL_DAYS is correct
+        console.warn(`No English day name key found for index: ${frontendIndex}`);
+        return false; 
+      }
+      return settings.general.opening_days[englishDayNameKey];
     });
 
     setActiveDays(activeWeekDays);
@@ -275,65 +296,60 @@ export const EmployeeAvailabilityModal: React.FC<
   };
 
   const handleSave = async () => {
-    // Create a Set of all possible cell IDs for quick lookup
-    const allPossibleCellIds = new Set<string>();
-    timeSlots.forEach(({ time }) => {
-      activeDays.forEach((day) => {
-        allPossibleCellIds.add(`${day}-${time}`);
-      });
-    });
-
-    const availabilityPayload: EmployeeAvailability[] = [];
-
-    // Add entries for selected cells
-    selectedCells.forEach((type, cellId) => {
-      const [day, timeRange] = cellId.split("-");
-      const hourStr = timeRange.split(" ")[0]; // Get the start hour like "09:00"
-      const hour = parseInt(hourStr.split(":")[0], 10);
-      const frontendDayIndex = ALL_DAYS.indexOf(day);
-      // Use frontendDayIndex (Mon=0) directly as backend expects Mon=0
-      const backendDayIndex = frontendDayIndex;
-
-      if (backendDayIndex !== -1 && !isNaN(hour)) {
-        availabilityPayload.push({
-          employee_id: employeeId,
-          day_of_week: backendDayIndex,
-          hour: hour,
-          is_available: true,
-          availability_type: type,
-        } as EmployeeAvailability);
-      }
-    });
-
-    // Add entries for non-selected cells (implicitly unavailable)
-    allPossibleCellIds.forEach((cellId) => {
-      if (!selectedCells.has(cellId)) {
-        const [day, timeRange] = cellId.split("-");
-        const hourStr = timeRange.split(" ")[0];
-        const hour = parseInt(hourStr.split(":")[0], 10);
-        const frontendDayIndex = ALL_DAYS.indexOf(day);
-        // Use frontendDayIndex (Mon=0) directly as backend expects Mon=0
-        const backendDayIndex = frontendDayIndex;
-
-        if (backendDayIndex !== -1 && !isNaN(hour)) {
-          availabilityPayload.push({
-            employee_id: employeeId,
-            day_of_week: backendDayIndex,
-            hour: hour,
-            is_available: false, // Mark as unavailable
-            availability_type: "UNAVAILABLE", // Or a default unavailable type
-          } as EmployeeAvailability);
-        }
-      }
-    });
-
     try {
+      // Create a Set of all possible cell IDs for quick lookup
+      const allPossibleCellIds = new Set<string>();
+      timeSlots.forEach(({ time }) => {
+        activeDays.forEach((day) => {
+          allPossibleCellIds.add(`${day}-${time}`);
+        });
+      });
+
+      // Prepare array for the payload
+      const availabilityPayload: EmployeeAvailability[] = [];
+
+      // Process each time slot for each active day
+      timeSlots.forEach(({ time, hour }) => {
+        activeDays.forEach((day) => {
+          const cellId = `${day}-${time}`;
+          const frontendDayIndex = ALL_DAYS.indexOf(day);
+          
+          // Skip invalid days
+          if (frontendDayIndex === -1) return;
+
+          // Add entry with appropriate availability status
+          if (selectedCells.has(cellId)) {
+            const type = selectedCells.get(cellId) || "AVAILABLE";
+            availabilityPayload.push({
+              employee_id: employeeId,
+              day_of_week: frontendDayIndex,
+              hour: hour,
+              is_available: true,
+              availability_type: type
+            });
+          } else {
+            // For unselected cells, mark as unavailable
+            availabilityPayload.push({
+              employee_id: employeeId,
+              day_of_week: frontendDayIndex,
+              hour: hour,
+              is_available: false,
+              availability_type: "UNAVAILABLE"
+            });
+          }
+        });
+      });
+
+      // Log the payload for debugging
+      console.log(`Sending ${availabilityPayload.length} availability records for employee ${employeeId}`);
+      
+      // Make the API call
       await updateEmployeeAvailability(employeeId, availabilityPayload);
-      refetchAvailabilities();
+      await refetchAvailabilities();
       onClose();
     } catch (error) {
       console.error("Failed to save availability:", error);
-      // TODO: Show error message to user
+      // TODO: Show error message to user via toast or alert
     }
   };
 
