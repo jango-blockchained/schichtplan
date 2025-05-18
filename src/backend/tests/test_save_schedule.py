@@ -3,7 +3,7 @@
 Script to test schedule generation and saving to the database.
 """
 
-from app import create_app
+from src.backend.app import create_app
 from datetime import date, timedelta
 import sys
 
@@ -16,7 +16,7 @@ def test_save_schedule():
     app = create_app()
     with app.app_context():
         # Import models and services within the app context
-        from services.scheduler import ScheduleGenerator
+        from src.backend.services.scheduler import ScheduleGenerator
         from models import Schedule
 
         # Check for existing schedule entries

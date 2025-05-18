@@ -1,11 +1,11 @@
 import sys
 import logging
 from datetime import datetime, timedelta
-from app import create_app
+from src.backend.app import create_app
 from models.fixed_shift import ShiftTemplate
 from models.employee import Employee
 from models.schedule import Schedule
-from services.scheduler import ScheduleGenerator
+from src.backend.services.scheduler import ScheduleGenerator
 from models import db
 
 # Set up logging

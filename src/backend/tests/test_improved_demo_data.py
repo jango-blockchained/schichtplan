@@ -5,7 +5,7 @@ This version directly implements the data generation functions in the script
 to avoid conflicts with the demo_data blueprint in the app.
 """
 
-from app import create_app
+from src.backend.app import create_app
 from datetime import date, timedelta
 import sys
 import logging
@@ -20,6 +20,7 @@ from src.backend.models import (
 )
 from src.backend.models.employee import AvailabilityType
 from src.backend.models.fixed_shift import ShiftType
+from src.backend.services.scheduler import ScheduleGenerator
 
 # Configure logging
 logging.basicConfig(
@@ -576,15 +577,12 @@ def test_improved_demo_data():
 
             # Step 3: Test schedule generation
             logger.info("Testing schedule generation...")
-            from src.backend.services.scheduler import ScheduleGenerator
-
-            generator = ScheduleGenerator()
 
             today = date.today()
             start_date = today
             end_date = today + timedelta(days=6)
 
-            result = generator.generate_schedule(
+            result = ScheduleGenerator().generate_schedule(
                 start_date=start_date, end_date=end_date, create_empty_schedules=True
             )
 

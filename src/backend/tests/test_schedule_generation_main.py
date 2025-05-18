@@ -4,7 +4,7 @@ Script to test schedule generation with the newly created shift templates.
 """
 
 from src.backend.app import create_app
-from services.scheduler import ScheduleGenerator
+from src.backend.services.scheduler import ScheduleGenerator
 from datetime import date, timedelta
 
 
