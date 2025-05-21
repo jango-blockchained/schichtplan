@@ -177,21 +177,25 @@ def update_employee_availabilities(employee_id):
         data = request.get_json()
         current_app.logger.debug(f"Received availability data for employee {employee_id}: {data}")
         # Validate data using Pydantic schema
-        request_data = EmployeeAvailabilitiesUpdateRequest(__root__=data)
+        request_data = EmployeeAvailabilitiesUpdateRequest(availabilities=data["availabilities"])
         # Begin transaction
         try:
             # Delete existing availabilities
             deleted_count = EmployeeAvailability.query.filter_by(employee_id=employee_id).delete()
             current_app.logger.debug(f"Deleted {deleted_count} existing availabilities for employee {employee_id}")
             # Create new availabilities from validated data
-            for availability_data in request_data.__root__:
+            for availability_data in request_data.availabilities:
                 availability_type = availability_data.availability_type
                 if isinstance(availability_type, str):
                     try:
                         availability_type = AvailabilityType(availability_type)
                     except (ValueError, TypeError) as e:
                         db.session.rollback()
-                        return jsonify({'status': 'error', 'message': f'Invalid availability_type: {availability_type}', 'details': str(e)}), HTTPStatus.BAD_REQUEST
+                        return jsonify({
+                            'status': 'error',
+                            'message': f'Invalid availability_type: {availability_type}',
+                            'details': str(e)
+                        }), HTTPStatus.BAD_REQUEST
                 availability = EmployeeAvailability(
                     employee_id=employee_id,
                     day_of_week=availability_data.day_of_week,
@@ -201,7 +205,10 @@ def update_employee_availabilities(employee_id):
                 )
                 db.session.add(availability)
             db.session.commit()
-            return jsonify({'message': 'Availabilities updated successfully', 'count': len(request_data.__root__)}), HTTPStatus.OK
+            return jsonify({
+                'message': 'Availabilities updated successfully',
+                'count': len(request_data.availabilities)
+            }), HTTPStatus.OK
         except Exception as transaction_error:
             db.session.rollback()
             current_app.logger.error(f"Transaction error when updating availabilities: {str(transaction_error)}")
@@ -492,4 +499,4 @@ def get_shifts_for_employee_on_date():
     except Exception as e:
         current_app.logger.error(f"Error in /api/availability/shifts_for_employee: {str(e)} - {type(e)}")
         traceback.print_exc()
-        return jsonify({'error': f'An unexpected error occurred: {str(e)}'}), HTTPStatus.INTERNAL_SERVER_ERROR 
+        return jsonify({'error': f'An unexpected error occurred: {str(e)}'}), HTTPStatus.INTERNAL_SERVER_ERROR

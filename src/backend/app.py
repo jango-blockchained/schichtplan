@@ -8,6 +8,7 @@ from datetime import date, datetime, timedelta
 import uuid
 import click
 import json
+from flask_sse import sse
 
 # Add the parent directory to Python path
 # current_dir = Path(__file__).resolve().parent
@@ -136,6 +137,10 @@ def create_app(config_class=Config):
     app.register_blueprint(
         api_schedules_bp, name="api_schedules"
     )  # Register with unique name to avoid conflict
+
+    # Register SSE blueprint for /sse endpoint
+    app.config["REDIS_URL"] = "redis://localhost:6379/0"  # Adjust if needed
+    app.register_blueprint(sse, url_prefix="/sse")
 
     # Register diagnostic commands if available
     if register_diagnostic_commands:

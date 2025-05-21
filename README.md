@@ -2,11 +2,31 @@
 
 A full-stack employee scheduling system for creating, managing, and optimizing shift plans.
 
-## Project Structure
+## Table of Contents
 
-- **Frontend**: TypeScript, React, Vite, Shadcn UI
-- **Backend**: Python, Flask, SQLAlchemy
-- **Database**: SQLite
+- [Project Overview](#project-overview)
+- [Architecture](#architecture)
+- [Directory Structure](#directory-structure)
+- [Key Features](#key-features)
+- [Setup & Development](#setup--development)
+- [Running the Application](#running-the-application)
+- [Database & Migrations](#database--migrations)
+- [Testing](#testing)
+- [Logging & Diagnostics](#logging--diagnostics)
+- [Contributing](#contributing)
+- [Additional Documentation](#additional-documentation)
+
+## Project Overview
+
+Schichtplan is a modern, full-stack employee scheduling system. It enables organizations to create, manage, and optimize shift plans with advanced features like automated assignment, employee group management, and customizable PDF exports.
+
+## Architecture
+
+- **Frontend:** TypeScript, React, Vite, Shadcn UI
+- **Backend:** Python, Flask, SQLAlchemy, Alembic
+- **Database:** SQLite
+
+The frontend communicates with the backend via RESTful APIs. The backend handles business logic, scheduling algorithms, and database operations.
 
 ## Directory Structure
 
@@ -14,24 +34,19 @@ A full-stack employee scheduling system for creating, managing, and optimizing s
 - `/src/backend/` - Flask backend application
 - `/src/instance/` - Application instance (database, migrations)
 - `/docs/` - Project documentation
+- `/logs/` - Application and scheduler logs
 
-## Migrations
+## Key Features
 
-This project uses Flask-Migrate (Alembic) for database migrations. The migrations are stored in:
+- Shift plan creation and management with versioning
+- Define shifts and coverage needs
+- Employee group management (VZ, TZ, GFB, TL)
+- Automated shift assignment based on rules and preferences
+- PDF export with customizable layouts
+- Diagnostic tools for schedule generation
+- Comprehensive test suite
 
-```
-/src/instance/migrations/
-```
-
-For custom migration tools and utilities, see:
-
-```
-/src/instance/tools/migrations/
-```
-
-For detailed information on working with migrations, see [Migrations Documentation](/src/instance/migrations/README.md).
-
-## Development
+## Setup & Development
 
 ### Prerequisites
 
@@ -43,35 +58,71 @@ For detailed information on working with migrations, see [Migrations Documentati
 
 1. Clone the repository
 2. Set up Python environment:
+
    ```bash
    python -m venv .venv
    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
    pip install -r requirements.txt
    ```
+
 3. Install frontend dependencies:
+
    ```bash
    npm install
    ```
 
-### Running the application
+## Running the Application
 
 1. Start the backend:
+
    ```bash
    python src/backend/run.py
    ```
+
 2. Start the frontend:
+
    ```bash
    npm run dev
    ```
 
-## Database
+## Database & Migrations
 
-The application uses SQLite database stored at `/src/instance/app.db`. To apply migrations:
+- The application uses an SQLite database at `/src/instance/app.db`.
+- To apply migrations:
 
-```bash
-flask db upgrade
-```
+  ```bash
+  flask db upgrade
+  ```
 
-## Documentation
+- For migration details, see [`/src/instance/migrations/README.md`](src/instance/migrations/README.md).
 
-Additional documentation can be found in the `/docs` directory.
+## Testing
+
+- Backend: Use pytest or run provided test scripts.
+- Frontend: Run tests with:
+
+  ```bash
+  npm test
+  ```
+
+## Logging & Diagnostics
+
+- Scheduler and application logs are stored in `/logs/`.
+- For details, see [`docs/README_LOGGING.md`](docs/README_LOGGING.md).
+- Diagnostic tools for schedule generation are in `src/backend/tools/debug/`.
+
+## Contributing
+
+1. Fork the repository and create a feature branch.
+2. Follow code style guidelines (Black/Ruff for Python, ESLint/Prettier for JS/TS).
+3. Write or update tests for your changes.
+4. Submit a pull request with a clear description.
+
+## Additional Documentation
+
+- [Logging System](docs/README_LOGGING.md)
+- [Migrations Guide](src/instance/migrations/README.md)
+- [Frontend Features](src/frontend/README.md)
+- [Backend Scheduler Tests](src/backend/tests/schedule/README.md)
+
+For further questions, see the `/docs` directory or open an issue.
