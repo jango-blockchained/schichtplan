@@ -55,8 +55,8 @@ def session(db, app):
 
 
 @pytest.fixture
-def client(app):
-    """Create a test client for the app."""
+def client(session, app):
+    """Create a test client for the app, ensuring session is active."""
     return app.test_client()
 
 

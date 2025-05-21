@@ -86,14 +86,16 @@ class SchedulingSettingsSchema(BaseModel):
     """Schema for scheduling-specific settings."""
     scheduling_resource_type: Optional[Literal["shifts", "coverage"]] = Field(None, description="Primary resource type for scheduling.")
     default_shift_duration: Optional[float] = Field(None, description="Default duration for shifts in hours.")
-    min_break_duration: Optional[int] = Field(None, description="Minimum break duration in minutes.") # Moved here
+    min_break_duration: Optional[int] = Field(None, description="Minimum break duration in minutes.")
     max_daily_hours: Optional[float] = Field(None, description="Maximum daily working hours for an employee.")
     max_weekly_hours: Optional[float] = Field(None, description="Maximum weekly working hours for an employee.")
     min_rest_between_shifts: Optional[float] = Field(None, description="Minimum rest period between shifts in hours.")
     scheduling_period_weeks: Optional[int] = Field(None, description="Number of weeks for a standard scheduling period.")
     auto_schedule_preferences: Optional[bool] = Field(None, description="Whether to automatically consider employee preferences.")
-    enable_diagnostics: Optional[bool] = Field(None, description="Enable diagnostic logging for the scheduler.") # Key missing field
+    enable_diagnostics: Optional[bool] = Field(None, description="Enable diagnostic logging for the scheduler.")
     generation_requirements: Optional[GenerationRequirements] = Field(None, description="Detailed constraints for schedule generation.")
+    scheduling_algorithm: Optional[Literal["standard", "optimized"]] = Field(None, description="Algorithm to use for scheduling.")
+    max_generation_attempts: Optional[int] = Field(None, description="Maximum number of attempts for schedule generation.")
 
 class DisplaySettingsDarkThemeSchema(BaseModel):
     """Schema for dark theme specific display settings."""

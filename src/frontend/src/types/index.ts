@@ -225,6 +225,7 @@ export interface Settings {
     };
     scheduling_algorithm?: "standard" | "optimized";
     max_generation_attempts?: number;
+    // Ensure all backend fields are present and documented here for full round-trip support
   };
   display: {
     theme: string;
