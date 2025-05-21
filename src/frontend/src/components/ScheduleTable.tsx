@@ -74,6 +74,7 @@ interface ScheduleTableProps {
     type: "absence";
   }>;
   currentVersion?: number;
+  openingDays: number[];
 }
 
 interface DragItem {
@@ -687,6 +688,7 @@ export function ScheduleTable({
   employeeAbsences,
   absenceTypes,
   currentVersion,
+  openingDays,
 }: ScheduleTableProps) {
   // Enhanced debugging for schedule data
   console.log("🔴 DEBUG: RENDERING ScheduleTable with:", {
@@ -787,56 +789,26 @@ export function ScheduleTable({
     );
   };
 
-  const days = useMemo(() => {
-    if (!dateRange?.from || !dateRange?.to || !settings) return [];
-    const days = [];
-    let currentDate = dateRange.from;
-
-    while (currentDate <= dateRange.to) {
-      // Determine if the day should be displayed based on settings
-      const jsDayIndex = currentDate.getDay(); // 0=Sun, 6=Sat
-      const backendDayIndex = (jsDayIndex + 6) % 7; // Convert to Mon=0, Sun=6
-
-      const isSunday = jsDayIndex === 0;
-      // const isWeekday = dayIndex !== '0'; // Monday-Saturday -- This comment/logic seems redundant now
-      const isOpeningDay =
-        settings.general.opening_days[backendDayIndex.toString()];
-
-      // Decide whether to render the column based on settings
-      const showSundaySetting = settings.display.show_sunday;
-
-      // Include the day if:
-      // 1. It's marked as an opening day, OR
-      // 2. It's Sunday and show_sunday is true, OR
-      // 3. It's a weekday and show_weekdays is true
-      if (
-        isOpeningDay ||
-        (isSunday && showSundaySetting) ||
-        (!isSunday && settings.display.show_weekdays)
-      ) {
-        days.push(currentDate);
+  const daysToDisplay = useMemo(() => {
+    if (!dateRange?.from || !dateRange?.to) {
+      return [];
+    }
+    const start = dateRange.from;
+    const end = dateRange.to;
+    const days: Date[] = [];
+    let currentDate = new Date(start);
+    while (currentDate <= end) {
+      // Check if the current day's index is in the openingDays array
+      const dayIndex = currentDate.getDay(); // Sunday=0, Monday=1, ..., Saturday=6
+      // Convert Sunday=0 to 6, Monday=1 to 0, ..., Saturday=6 to 5 to match openingDays
+      const adjustedDayIndex = dayIndex === 0 ? 6 : dayIndex - 1;
+      if (openingDays.includes(adjustedDayIndex)) {
+        days.push(new Date(currentDate));
       }
       currentDate = addDays(currentDate, 1);
     }
-
-    // Sort days based on start_of_week setting
-    return days.sort((a, b) => {
-      // Convert settings.display.start_of_week to 0 | 1 | 2 | 3 | 4 | 5 | 6
-      const weekStart = (settings.display.start_of_week % 7) as
-        | 0
-        | 1
-        | 2
-        | 3
-        | 4
-        | 5
-        | 6;
-      const startOfWeekA = startOfWeek(a, { weekStartsOn: weekStart });
-      const startOfWeekB = startOfWeek(b, { weekStartsOn: weekStart });
-      const dayDiffA = a.getTime() - startOfWeekA.getTime();
-      const dayDiffB = b.getTime() - startOfWeekB.getTime();
-      return dayDiffA - dayDiffB;
-    });
-  }, [dateRange, settings]);
+    return days;
+  }, [dateRange, openingDays]);
 
   // Map for German weekday abbreviations
   const weekdayAbbr: { [key: string]: string } = {
@@ -1103,16 +1075,16 @@ export function ScheduleTable({
                 <th className="w-[220px] sticky left-0 z-20 bg-background text-left p-4 font-medium text-muted-foreground">
                   Mitarbeiter
                 </th>
-                {days.map((day) => (
+                {daysToDisplay.map((date) => (
                   <th
-                    key={day.toISOString()}
+                    key={date.toISOString()}
                     className="w-[160px] text-center p-4 font-medium text-muted-foreground"
                   >
                     <div className="font-semibold text-base">
-                      {weekdayAbbr[format(day, "EEEE")]}
+                      {weekdayAbbr[format(date, "EEEE")]}
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      {format(day, "dd.MM")}
+                      {format(date, "dd.MM")}
                     </div>
                   </th>
                 ))}
@@ -1147,35 +1119,24 @@ export function ScheduleTable({
                           </span>
                         </div>
                       </td>
-                      {days.map((day) => {
-                        const dateString = format(day, "yyyy-MM-dd");
-                        // Try to get the schedule from our map - prioritize scheduleMap which has better logic for handling multiple entries
-                        const scheduleMapEntry =
-                          scheduleMap[employeeId]?.[dateString];
-                        const daySchedule =
-                          scheduleMapEntry || employeeSchedules[dateString];
+                      {daysToDisplay.map((date) => {
+                        const dateString = format(date, "yyyy-MM-dd");
+                        // Find the schedule entry for this employee and date
+                        const schedule = employeeSchedules[employeeId]?.find(
+                          (sch) => sch.date === dateString,
+                        );
 
-                        // Debug log shifts with ID to verify proper data is being used
-                        if (
-                          daySchedule?.shift_id !== null &&
-                          daySchedule?.shift_id !== undefined
-                        ) {
-                          console.log(
-                            `Using shift for employee ${employeeId} on ${dateString}: ID=${daySchedule.shift_id}, start=${daySchedule.shift_start}, end=${daySchedule.shift_end}`,
-                          );
-                        }
-
-                        // Check for absence
-                        const absenceInfo = checkForAbsence(
+                        // Check for absence on this specific date
+                        const hasAbsence = checkForAbsence(
                           employeeId,
                           dateString,
                           employeeAbsences,
                           absenceTypes,
                         );
 
-                        const cellStyle = absenceInfo
+                        const cellStyle = hasAbsence
                           ? {
-                              backgroundColor: `${absenceInfo.type.color}15`, // 15 is hex for 10% opacity
+                              backgroundColor: `${hasAbsence.type.color}15`, // 15 is hex for 10% opacity
                               position: "relative" as const,
                             }
                           : {};
@@ -1185,32 +1146,32 @@ export function ScheduleTable({
                             key={`${employeeId}-${dateString}`}
                             className={cn(
                               "text-center p-0 w-[160px] h-[130px]", // Fixed height for consistency
-                              absenceInfo ? "relative" : "",
+                              hasAbsence ? "relative" : "",
                             )}
                             style={{
                               ...cellStyle,
-                              borderColor: absenceInfo
-                                ? `${absenceInfo.type.color}`
+                              borderColor: hasAbsence
+                                ? `${hasAbsence.type.color}`
                                 : undefined,
                             }}
                             title={
-                              absenceInfo
-                                ? `${absenceInfo.type.name}`
+                              hasAbsence
+                                ? `${hasAbsence.type.name}`
                                 : undefined
                             }
                           >
-                            {absenceInfo && (
+                            {hasAbsence && (
                               <>
                                 <div
                                   className="absolute top-0 left-0 right-0 px-2 py-1 text-base font-semibold z-10 text-center"
                                   style={{
-                                    backgroundColor: absenceInfo.type.color,
+                                    backgroundColor: hasAbsence.type.color,
                                     color: "#fff",
                                     borderTopLeftRadius: "0.25rem",
                                     borderTopRightRadius: "0.25rem",
                                   }}
                                 >
-                                  {absenceInfo.type.name}
+                                  {hasAbsence.type.name}
                                 </div>
                                 <div className="absolute inset-0 mt-8 flex flex-col items-center justify-center space-y-2 pt-4">
                                   <AlertTriangle className="h-5 w-5 text-amber-500" />
@@ -1223,12 +1184,16 @@ export function ScheduleTable({
                               </>
                             )}
                             <ScheduleCell
-                              schedule={daySchedule}
-                              onDrop={onDrop}
-                              onUpdate={onUpdate}
-                              hasAbsence={!!absenceInfo}
+                              schedule={schedule}
+                              onDrop={(scheduleId, newEmployeeId, newDate, newShiftId) =>
+                                onDrop(scheduleId, newEmployeeId, newDate, newShiftId)
+                              }
+                              onUpdate={(scheduleId, updates) =>
+                                onUpdate(scheduleId, updates)
+                              }
+                              hasAbsence={!!hasAbsence}
                               employeeId={employeeId}
-                              date={day}
+                              date={date}
                               currentVersion={currentVersion}
                             />
                           </td>
@@ -1238,7 +1203,7 @@ export function ScheduleTable({
                     {isExpanded && (
                       <tr>
                         <td
-                          colSpan={days.length + 1}
+                          colSpan={daysToDisplay.length + 1}
                           className="bg-slate-50 p-4"
                         >
                           <EmployeeStatistics

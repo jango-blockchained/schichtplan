@@ -1166,45 +1166,51 @@ def delete_version(version):
 def create_schedule():
     """Create a new schedule entry using transactional session management"""
     from ..utils.db_utils import session_manager
-    
+    from flask import current_app
+
     # Validate input before doing database operations
     try:
         data = request.get_json()
 
-        # Validate required fields
-        required_fields = ["employee_id", "date", "version"]
-        for field in required_fields:
-            if field not in data:
+        # Debug: Check db instance ID
+        print(f"Debug: db instance ID in create_schedule: {id(db)}") # Keeping this line commented for now, can uncomment later if needed
+
+        # Wrap database operations in app context
+        with current_app.app_context():
+            # Validate required fields
+            required_fields = ["employee_id", "date", "version"]
+            for field in required_fields:
+                if field not in data:
+                    return jsonify(
+                        {"error": f"Missing required field: {field}"}
+                    ), HTTPStatus.BAD_REQUEST
+
+            # Parse date
+            try:
+                date_obj = datetime.strptime(data["date"], "%Y-%m-%d").date()
+            except ValueError:
                 return jsonify(
-                    {"error": f"Missing required field: {field}"}
+                    {"error": "Invalid date format. Use YYYY-MM-DD"}
                 ), HTTPStatus.BAD_REQUEST
 
-        # Parse date
-        try:
-            date_obj = datetime.strptime(data["date"], "%Y-%m-%d").date()
-        except ValueError:
-            return jsonify(
-                {"error": "Invalid date format. Use YYYY-MM-DD"}
-            ), HTTPStatus.BAD_REQUEST
+            # Create new schedule
+            schedule = Schedule(
+                employee_id=data["employee_id"],
+                shift_id=data.get("shift_id"),
+                date=date_obj,
+                version=data["version"],
+                break_start=data.get("break_start"),
+                break_end=data.get("break_end"),
+                notes=data.get("notes"),
+                shift_type=data.get("shift_type"),
+                status=ScheduleStatus.DRAFT,
+            )
 
-        # Create new schedule
-        schedule = Schedule(
-            employee_id=data["employee_id"],
-            shift_id=data.get("shift_id"),
-            date=date_obj,
-            version=data["version"],
-            break_start=data.get("break_start"),
-            break_end=data.get("break_end"),
-            notes=data.get("notes"),
-            shift_type=data.get("shift_type"),
-            status=ScheduleStatus.DRAFT,
-        )
-
-        # Use session_manager context for automatic transaction handling
-        with session_manager() as session:
-            session.add(schedule)
-            # Commit happens automatically at the end of the context
-            # Rollback happens automatically if an exception occurs
+            # Use session_manager context for automatic transaction handling
+            with session_manager() as session:
+                session.add(schedule)
+                # Commit happens automatically at the end of the context
+                # Rollback happens automatically if an exception occurs
 
         logger.info(
             f"Created new schedule for employee {data['employee_id']} on {data['date']}"

@@ -342,11 +342,6 @@ export const SpecialDaysManagement: React.FC<SpecialDaysManagementProps> = ({
             </div>
           )}
         </CardContent>
-        <CardFooter className="flex justify-end">
-          <Button onClick={onImmediateUpdate}>
-            Save Special Days Configuration
-          </Button>
-        </CardFooter>
       </Card>
 
       {/* Add/Edit Special Day Modal */}

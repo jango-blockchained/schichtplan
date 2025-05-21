@@ -28,6 +28,7 @@ interface ScheduleManagerProps {
   isGenerating?: boolean;
   onEmptyStateCreateVersion: () => void;
   onEmptyStateGenerateSchedule: () => void;
+  openingDays: number[]; // Add openingDays prop
 }
 
 export function ScheduleManager({
@@ -45,6 +46,7 @@ export function ScheduleManager({
   isGenerating,
   onEmptyStateCreateVersion,
   onEmptyStateGenerateSchedule,
+  openingDays, // Destructure openingDays prop
 }: ScheduleManagerProps) {
   // Log detailed debug info about received schedules
   useEffect(() => {
@@ -168,6 +170,7 @@ export function ScheduleManager({
           employeeAbsences={employeeAbsences}
           absenceTypes={absenceTypes}
           currentVersion={currentVersion}
+          openingDays={openingDays} // Pass openingDays to ScheduleTable
         />
       </CardContent>
     </Card>

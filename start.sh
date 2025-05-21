@@ -213,8 +213,7 @@ setup_tmux_session() {
     tmux send-keys -t "$TMUX_SESSION" "export FLASK_ENV=development" C-m
     tmux send-keys -t "$TMUX_SESSION" "export DEBUG_MODE=1" C-m
     tmux send-keys -t "$TMUX_SESSION" "echo 'Starting Backend...'" C-m
-    tmux send-keys -t "$TMUX_SESSION" "python3 -m src.backend.run --auto-port --kill" C-m
-    tmux split-window -h
+    tmux send-keys -t "$TMUX_SESSION" "python3 -m src.backend.run runserver > src/logs/tmux_backend_output.log 2>&1" C-m
     
     # Split window for frontend
     tmux split-window -h

@@ -34,10 +34,11 @@ class EmployeeAvailabilityBase(BaseModel):
     is_available: bool
     availability_type: AvailabilityType = Field(default=AvailabilityType.AVAILABLE)
 
-# Use __root__ for Pydantic v1.x compatibility
-class EmployeeAvailabilitiesUpdateRequest(BaseModel):
+# EmployeeAvailabilitiesUpdateRequest: RootModel if available, else BaseModel fallback
+from pydantic import RootModel
+
+class EmployeeAvailabilitiesUpdateRequest(RootModel[List[EmployeeAvailabilityBase]]):
     """Schema for the employee availabilities update request."""
-    __root__: List[EmployeeAvailabilityBase]
 
 class EmployeeStatusByDateRequest(BaseModel):
     """Schema for the employee status by date request."""

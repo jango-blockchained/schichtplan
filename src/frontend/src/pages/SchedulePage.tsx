@@ -190,6 +190,31 @@ export function SchedulePage() {
   });
   const effectiveSettingsData = settingsDataFromHook || settingsQuery.data;
 
+  // Extract openingDays from settings
+  const openingDays = React.useMemo(() => {
+    if (!effectiveSettingsData?.general?.opening_days) {
+      return [];
+    }
+    // Assuming the structure is { "monday": true, "tuesday": true, ... }
+    return Object.entries(effectiveSettingsData.general.opening_days)
+      .filter(([dayName, isOpen]) => isOpen) // Filter for days that are open
+      .map(([dayName]) => {
+        const lowerDayName = dayName.toLowerCase();
+        switch (lowerDayName) {
+          case 'monday': return 0; // Monday=0
+          case 'tuesday': return 1;
+          case 'wednesday': return 2;
+          case 'thursday': return 3;
+          case 'friday': return 4;
+          case 'saturday': return 5;
+          case 'sunday': return 6; // Sunday=6
+          default: return -1; // Should not happen with valid data
+        }
+      })
+      .filter(dayIndex => dayIndex !== -1) // Remove any invalid entries
+      .sort((a, b) => a - b);
+  }, [effectiveSettingsData]);
+
   // 4. Custom Hooks
   const {
     selectedVersion: versionControlSelectedVersion,
@@ -1091,6 +1116,7 @@ export function SchedulePage() {
       )}
 
       <DndProvider backend={HTML5Backend}>
+
         {isLoadingSchedule ? (
           <div className="space-y-4">
             {/* Skeleton already defined earlier in this block */}
@@ -1110,6 +1136,7 @@ export function SchedulePage() {
                   effectiveSettingsData?.employee_groups?.absence_types || []
                 }
                 currentVersion={versionControlSelectedVersion}
+                openingDays={openingDays}
                 isEmptyState={
                   !scheduleData ||
                   (scheduleData.length === 0 && !isLoadingSchedule)

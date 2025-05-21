@@ -28,9 +28,6 @@ def test_ai_schedule_generation():
     # Create Flask app and configure it
     app = create_app()
     
-    # Initialize the AI scheduler service
-    ai_scheduler = AISchedulerService()
-    
     # Define the date range for the test
     today = datetime.date.today()
     start_date = today.strftime("%Y-%m-%d")
@@ -40,6 +37,8 @@ def test_ai_schedule_generation():
     
     # Use the app context
     with app.app_context():
+        # Initialize the AI scheduler service inside the context
+        ai_scheduler = AISchedulerService()
         # Run the AI schedule generation
         try:
             result = ai_scheduler.generate_schedule_via_ai(

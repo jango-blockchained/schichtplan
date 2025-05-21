@@ -27,7 +27,42 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   special_hours: {},
   special_days: {},
-  availability_types: { types: [] },
+  availability_types: { 
+    types: [
+      {
+        id: "UNAVAILABLE",
+        name: "Unavailable",
+        description: "Employee is not available for this shift",
+        color: "#FF5252",
+        priority: 4,
+        is_available: false
+      },
+      {
+        id: "AVAILABLE",
+        name: "Available",
+        description: "Employee is available for this shift",
+        color: "#4CAF50",
+        priority: 2,
+        is_available: true
+      },
+      {
+        id: "PREFERRED",
+        name: "Preferred",
+        description: "Employee prefers to work this shift",
+        color: "#2196F3",
+        priority: 3,
+        is_available: true
+      },
+      {
+        id: "FIXED",
+        name: "Fixed",
+        description: "Employee must work this shift",
+        color: "#FFC107",
+        priority: 1,
+        is_available: true
+      }
+    ] 
+  },
   shift_types: [],
   general: {
     store_name: "",

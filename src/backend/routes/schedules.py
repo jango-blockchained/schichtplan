@@ -1,5 +1,5 @@
 from datetime import datetime, date, timedelta
-from flask import Blueprint, request, jsonify, current_app, send_file
+from flask import Blueprint, request, jsonify, current_app, send_file, abort
 from src.backend.models import db, Schedule, ShiftTemplate, Employee
 from src.backend.models.schedule import ScheduleStatus, ScheduleVersionMeta
 from sqlalchemy import desc, text
@@ -23,7 +23,7 @@ def get_or_create_initial_version(start_date, end_date):
     """Helper function to get or create the initial version metadata"""
     try:
         # Check if any version exists first
-        existing_version = ScheduleVersionMeta.query.first()
+        existing_version = db.session.query(ScheduleVersionMeta).first()
         if existing_version:
             return existing_version
 
@@ -94,7 +94,7 @@ def get_versions_for_date_range(start_date, end_date):
         for (version,) in version_numbers:
             try:
                 # Check if metadata exists
-                meta = ScheduleVersionMeta.query.get(version)
+                meta = db.session.query(ScheduleVersionMeta).get(version)
                 if not meta:
                     logger.schedule_logger.info(
                         f"Creating metadata for version {version}"
@@ -195,7 +195,7 @@ def get_schedules():
             )
 
         # Build query for schedules with eager loading of shift relationships
-        query = Schedule.query.options(
+        query = db.session.query(Schedule).options(
             db.joinedload(Schedule.shift)  # Ensure shift relationship is loaded
         ).filter(
             Schedule.date >= start_date,
@@ -207,7 +207,7 @@ def get_schedules():
         all_schedules = query.all()
 
         # Get the placeholder shift (00:00 - 00:00)
-        placeholder_shift = FixedShiftShiftTemplate.query.filter_by(
+        placeholder_shift = db.session.query(FixedShiftShiftTemplate).filter_by(
             start_time="00:00", end_time="00:00"
         ).first()
 
@@ -218,7 +218,7 @@ def get_schedules():
             schedules = all_schedules
 
         # Create a lookup of all shifts for data enrichment
-        all_shifts = FixedShiftShiftTemplate.query.all()
+        all_shifts = db.session.query(FixedShiftShiftTemplate).all()
         shift_lookup = {shift.id: shift for shift in all_shifts}
         
         # Enrich schedule data
@@ -298,253 +298,64 @@ def get_schedules():
 @schedules.route("/schedules/generate", methods=["POST"])
 @schedules.route("/schedules/generate/", methods=["POST"])
 def generate_schedule():
-    """Generate a new schedule for the given date range"""
-    # Initialize logs list
-    logs = []
-    diagnostic_logs = []
+    """Generate a schedule"""
+    logger.schedule_logger.info("Received request to generate schedule")
 
     try:
-        # Use Pydantic for validation
-        data = request.get_json()
-        # Validate data using Pydantic schema
-        request_data = ScheduleGenerateRequest(**data)
+        # Use Pydantic for request validation
+        request_data = request.get_json()
+        schedule_request = ScheduleGenerateRequest(**request_data)
+        
+        # The request might include other config like version, create_empty_schedules etc.
+        external_config_dict = schedule_request.dict(exclude_unset=True) # Get all passed params as dict
+        
+        logger.schedule_logger.info(f"Generating schedule for date range: {schedule_request.start_date} to {schedule_request.end_date}")
 
-        # Access validated data from the model
-        start_date = request_data.start_date
-        end_date = request_data.end_date
-        # Ensure create_empty_schedules is a boolean
-        create_empty_schedules = bool(request_data.create_empty_schedules)
-        version = request_data.version
-        enable_diagnostics = request_data.enable_diagnostics
+        # --- FIX: Use dates directly from Pydantic validation ---
+        start_date = schedule_request.start_date
+        end_date = schedule_request.end_date
 
-        # Remove manual date validation, Pydantic handles format
-        # if not start_date or not end_date:
-        #     error_msg = "Missing required parameters: start_date and end_date"
-        #     logger.error_logger.error(error_msg)
-        #     return jsonify({"status": "error", "message": error_msg}), HTTPStatus.BAD_REQUEST
-
-        # Remove manual date conversion, Pydantic returns date objects
-        # try:
-        #     start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
-        #     end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
-        # except ValueError as e:
-        #     error_msg = f"Invalid date format: {str(e)}"
-        #     logger.error_logger.error(error_msg)
-        #     return jsonify({"status": "error", "message": error_msg}), HTTPStatus.BAD_REQUEST
-
-        # Keep check if end date is after start date (logical validation)
-        if end_date < start_date:
-            error_msg = "End date must be after start date"
-            logger.error_logger.error(error_msg)
-            return jsonify({"status": "error", "message": error_msg}), HTTPStatus.BAD_REQUEST
-
-        # Get all shifts and validate their durations
-        shifts = FixedShiftShiftTemplate.query.all()
-        invalid_shifts = []
-
-        # First pass: Check all shifts for invalid durations
-        for shift in shifts:
-            try:
-                # Always recalculate duration to ensure it's up to date
-                shift._calculate_duration()
-                if shift.duration_hours is None or shift.duration_hours <= 0:
-                    logger.error_logger.error(
-                        f"Invalid duration for shift {shift.id}: {shift.duration_hours}h"
-                    )
-                    invalid_shifts.append(shift)
-                else:
-                    logger.schedule_logger.debug(
-                        f"Validated shift {shift.id}: {shift.duration_hours}h ({shift.start_time}-{shift.end_time})"
-                    )
-            except Exception as e:
-                logger.error_logger.error(
-                    f"Error validating shift {shift.id}: {str(e)}"
-                )
-                invalid_shifts.append(shift)
-
-        # If we found invalid shifts, try to fix them
-        if invalid_shifts:
-            logger.schedule_logger.warning(
-                f"Found {len(invalid_shifts)} shifts with invalid duration_hours, fixing them"
-            )
-            logs.append(
-                f"Found {len(invalid_shifts)} shifts with invalid duration_hours, fixing them"
-            )
-
-            # Fix each invalid shift
-            fixed_shifts = []
-            for shift in invalid_shifts:
-                try:
-                    shift._calculate_duration()
-                    shift.validate()
-                    fixed_shifts.append(shift)
-                    logger.schedule_logger.info(
-                        f"Fixed shift {shift.id}: {shift.start_time}-{shift.end_time}, duration: {shift.duration_hours}h"
-                    )
-                    logs.append(
-                        f"Fixed shift {shift.id}: {shift.start_time}-{shift.end_time}, duration: {shift.duration_hours}h"
-                    )
-                except Exception as e:
-                    logger.error_logger.error(
-                        f"Could not fix shift {shift.id}: {str(e)}"
-                    )
-                    logs.append(f"Could not fix shift {shift.id}: {str(e)}")
-
-            # Commit the changes for fixed shifts
-            if fixed_shifts:
-                try:
-                    db.session.commit()
-                    logger.schedule_logger.info(
-                        f"Fixed {len(fixed_shifts)} shifts with invalid duration_hours"
-                    )
-                    logs.append(
-                        f"Fixed {len(fixed_shifts)} shifts with invalid duration_hours"
-                    )
-                except Exception as e:
-                    db.session.rollback()
-                    error_msg = f"Error saving fixed shifts: {str(e)}"
-                    logger.error_logger.error(error_msg)
-                    logs.append(error_msg)
-                    return jsonify({"status": "error", "message": error_msg, "logs": logs}), HTTPStatus.INTERNAL_SERVER_ERROR
-
-            # Check if we still have any invalid shifts
-            remaining_invalid = [
-                s for s in shifts if s.duration_hours is None or s.duration_hours <= 0
-            ]
-            if remaining_invalid:
-                error_msg = f"Still have {len(remaining_invalid)} shifts with invalid durations after fixing attempt"
-                logger.error_logger.error(error_msg)
-                logs.append(error_msg)
-                return jsonify({"status": "error", "message": error_msg, "logs": logs}), HTTPStatus.INTERNAL_SERVER_ERROR
-
-        # Create a new schedule version
-        logger.schedule_logger.info(f"Creating new schedule version {version}")
-        logs.append(f"Creating new schedule version {version}")
-
-        # Set up diagnostics capture if enabled
-        if enable_diagnostics:
-            # Create a custom handler to capture diagnostic logs
-            from logging import StreamHandler
-            import io
-
-            log_capture = io.StringIO()
-            log_handler = StreamHandler(log_capture)
-            log_handler.setLevel(logging.DEBUG)
-
-            # Add formatter to match our needs
-            formatter = logging.Formatter('%(levelname)s - %(message)s')
-            log_handler.setFormatter(formatter)
-
-            # Add handler to the scheduler logger
-            scheduler_logger = logging.getLogger('scheduler')
-            scheduler_logger.addHandler(log_handler)
-
-            # Make sure the scheduler logger is set to DEBUG level for maximum info
-            original_level = scheduler_logger.level
-            scheduler_logger.setLevel(logging.DEBUG)
-
-            diagnostic_logs.append("DIAGNOSTIC MODE ENABLED - Capturing detailed logs")
-
-        try:
-            # Initialize the schedule generator
-            generator = ScheduleGenerator()
-
-            # Generate the schedule
+        # Initialize the ScheduleGenerator
+        # Pass the app context to the generator if necessary, or ensure it's used within a context
+        generator = ScheduleGenerator() # Assuming the generator is designed to work within a Flask app context
+        
+        # --- FIX: Ensure Flask app context is active for SQLAlchemy operations ---
+        with current_app.app_context():
             result = generator.generate_schedule(
                 start_date=start_date,
                 end_date=end_date,
-                create_empty_schedules=create_empty_schedules,
-                version=version,  # Pass the version to the generator
+                external_config_dict=external_config_dict, # Pass the full config
+                # version=schedule_request.version, # Version and create_empty_schedules should be handled by generator via config
+                # create_empty_schedules=schedule_request.create_empty_schedules,
             )
-            
-            # Explicitly call _save_to_database method to ensure schedules are saved to the database
-            logger.schedule_logger.info("Explicitly calling _save_to_database to persist schedules...")
-            generator._save_to_database()
-            
-            # Create a lookup of all shifts to ensure we have complete shift data
-            shift_lookup = {shift.id: shift for shift in shifts}
 
-            # Enrich schedules with complete shift data
-            if result.get('schedules'):
-                # Create a list to store updated schedule dictionaries
-                enriched_schedules = []
+        # Check the status from the result returned by the generator
+        if result and result.get('status') == 'failed':
+             # Log the failure reason which should be included in the result
+             failure_reason = result.get('reason', 'Unknown scheduling error')
+             logger.error_logger.error(f"Schedule generation failed: {failure_reason}")
+             # Return a 500 Internal Server Error with the failure reason
+             return jsonify({
+                 "status": "error",
+                 "message": f"Schedule generation failed: {failure_reason}"
+             }), HTTPStatus.INTERNAL_SERVER_ERROR
 
-                for schedule in result['schedules']:
-                    # Start with the original schedule data
-                    schedule_dict = schedule
 
-                    # If the schedule has a shift_id but missing shift data, add it from the lookup
-                    if schedule.get('shift_id') and (not schedule.get('shift_start') or not schedule.get('shift_end')):
-                        shift_id = schedule.get('shift_id')
-                        if shift_id in shift_lookup:
-                            shift = shift_lookup[shift_id]
+        logger.schedule_logger.info("Schedule generation successful")
+        # Assuming generate_schedule returns a dict suitable for jsonify
+        return jsonify(result), HTTPStatus.OK
 
-                            # Add shift details to the schedule dict if missing
-                            if not schedule.get('shift_start'):
-                                schedule_dict['shift_start'] = shift.start_time
-
-                            if not schedule.get('shift_end'):
-                                schedule_dict['shift_end'] = shift.end_time
-
-                            if not schedule.get('shift_type_id') and hasattr(shift, 'shift_type_id'):
-                                schedule_dict['shift_type_id'] = shift.shift_type_id
-
-                            if not schedule.get('shift_type_name') and hasattr(shift, 'shift_type'):
-                                schedule_dict['shift_type_name'] = shift.shift_type.value if shift.shift_type else None
-
-                            logs.append(f"Enriched schedule (ID: {schedule.get('id')}) with complete shift data")
-
-                    enriched_schedules.append(schedule_dict)
-
-                # Replace the schedules in the result with our enriched versions
-                result['schedules'] = enriched_schedules
-
-                # Log enrichment summary
-                schedules_with_shifts = [s for s in enriched_schedules if s.get('shift_id') is not None]
-                schedules_with_complete_data = [s for s in schedules_with_shifts if s.get('shift_start') and s.get('shift_end')]
-
-                logs.append(f"Schedule enrichment: {len(schedules_with_shifts)} schedules with shifts, {len(schedules_with_complete_data)} with complete data")
-
-            # Capture diagnostic logs if enabled
-            if enable_diagnostics:
-                # Get captured logs
-                log_content = log_capture.getvalue()
-
-                # Split into lines and add to diagnostic_logs
-                if log_content:
-                    diagnostic_logs.extend([line.strip() for line in log_content.splitlines() if line.strip()])
-
-                # Reset logger level and remove the handler
-                scheduler_logger.setLevel(original_level)
-                scheduler_logger.removeHandler(log_handler)
-
-                # Add diagnostic logs to the result
-                result['diagnostic_logs'] = diagnostic_logs
-
-            # Add general logs to the result
-            result['logs'] = logs
-
-            return jsonify(result)
-
-        except Exception as e:
-            error_msg = f"Error generating schedule: {str(e)}"
-            logger.error_logger.error(error_msg, exc_info=True)
-            logs.append(error_msg)
-            return jsonify({
-                "status": "error",
-                "message": error_msg,
-                "logs": logs,
-                "diagnostic_logs": diagnostic_logs if enable_diagnostics else []
-            }), HTTPStatus.INTERNAL_SERVER_ERROR
-
-    except ValidationError as e: # Catch Pydantic validation errors
-        error_msg = f"Validation error: {e.errors()}"
-        logger.error_logger.error(error_msg)
-        return jsonify({"status": "error", "message": "Invalid input.", "details": e.errors()}), HTTPStatus.BAD_REQUEST # Return validation details
-
-    except Exception as e: # Catch any other exceptions
-        logger.error_logger.error(f"Error in generate_schedule: {str(e)}", exc_info=True)
-        return jsonify({"status": "error", "message": "An internal server error occurred."}), HTTPStatus.INTERNAL_SERVER_ERROR
+    except ValidationError as e:
+        logger.error_logger.error(f"Validation error in schedule generation request: {e.errors()}")
+        return jsonify({"status": "error", "message": "Validation failed", "errors": e.errors()}), HTTPStatus.BAD_REQUEST
+    except ScheduleResourceError as e:
+        logger.error_logger.error(f"Schedule resource error during generation: {str(e)}", exc_info=True)
+        return jsonify({"status": "error", "message": f"Failed during resource loading: {str(e)}"}), HTTPStatus.INTERNAL_SERVER_ERROR
+    except Exception as e:
+        logger.error_logger.error(f"An unexpected error occurred during schedule generation: {str(e)}", exc_info=True)
+        # More specific error handling based on the type of exception might be needed
+        db.session.rollback() # Rollback session on error
+        return jsonify({"status": "error", "message": f"An unexpected error occurred: {str(e)}"}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 @schedules.route("/schedules/pdf", methods=["GET"])

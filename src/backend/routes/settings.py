@@ -98,11 +98,11 @@ def restore_database():
         return jsonify({"error": "No file provided"}), HTTPStatus.BAD_REQUEST
 
     file = request.files["file"]
-    if not file.filename.endswith(".json"):
-        return jsonify({"error": "Invalid file format"}), HTTPStatus.BAD_REQUEST
+    if file.filename is None or not file.filename.endswith(".json"):
+        return jsonify({"error": "Invalid file format or missing filename"}), HTTPStatus.BAD_REQUEST
 
     try:
-        data = json.load(file)
+        data = json.load(file.stream)
 
         # Start a transaction
         with db.session.begin():
@@ -110,12 +110,12 @@ def restore_database():
             inspector = inspect(db.engine)
             for table_name in reversed(inspector.get_table_names()):
                 if table_name != "alembic_version":  # Skip migration table
-                    db.session.execute(f"TRUNCATE TABLE {table_name} CASCADE")
+                    db.session.execute(text(f"TRUNCATE TABLE {table_name} CASCADE"))
 
             # Restore data
             for table_name, records in data.items():
                 table = db.metadata.tables.get(table_name)
-                if table and records:
+                if table is not None and records:
                     db.session.execute(table.insert(), records)
 
         return jsonify({"message": "Database restored successfully"}), HTTPStatus.OK
@@ -262,6 +262,7 @@ def update_settings():
         db.session.commit()
         return jsonify(settings.to_dict())
     except Exception as e:
+        logging.error(f"Error updating settings: {str(e)}", exc_info=True)
         db.session.rollback()
         return jsonify({"error": str(e)}), HTTPStatus.BAD_REQUEST
 

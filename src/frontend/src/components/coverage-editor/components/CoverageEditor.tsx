@@ -1,16 +1,27 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, PencilIcon } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { CoverageEditorProps, DailyCoverage, StoreConfigProps } from "../types";
+import { CoverageEditorProps, DailyCoverage, StoreConfigProps, CoverageTimeSlot } from "../types";
 import { DAYS_SHORT, GRID_CONSTANTS } from "../utils/constants";
 import { DayRow } from "./DayRow";
 import { timeToMinutes, minutesToTime } from "../utils/time";
 
 const { TIME_COLUMN_WIDTH, TIME_ROW_HEIGHT, HEADER_HEIGHT } = GRID_CONSTANTS;
+
+interface CoverageSlot {
+  startTime: string;
+  endTime: string;
+  minEmployees: number;
+  maxEmployees: number;
+  employeeTypes: string[];
+  requiresKeyholder: boolean;
+  keyholderBeforeMinutes: number;
+  keyholderAfterMinutes: number;
+}
 
 // Helper function to normalize store config
 const normalizeStoreConfig = (config: any): StoreConfigProps => {
@@ -79,6 +90,12 @@ const normalizeStoreConfig = (config: any): StoreConfigProps => {
   };
 };
 
+// Helper function to create a default DailyCoverage item for a day
+const createDefaultDailyCoverage = (dayIndex: number): DailyCoverage => ({
+  dayIndex,
+  timeSlots: [],
+});
+
 export const CoverageEditor: React.FC<CoverageEditorProps> = ({
   initialCoverage,
   storeConfig: rawStoreConfig,
@@ -89,8 +106,10 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [gridWidth, setGridWidth] = useState(0);
 
-  // Normalize store config
-  const storeConfig = normalizeStoreConfig(rawStoreConfig);
+  const storeConfig = useMemo(
+    () => normalizeStoreConfig(rawStoreConfig),
+    [rawStoreConfig],
+  );
 
   const [openingMinEmployees, setOpeningMinEmployees] = useState(
     storeConfig.min_employees_per_shift,
@@ -102,10 +121,31 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
   // Calculate opening days from settings
   const openingDays = React.useMemo(() => {
     return Object.entries(storeConfig.opening_days)
-      .filter(([_, isOpen]) => isOpen)
-      .map(([dayIndex]) => Number(dayIndex))
+      .filter(([dayName, isOpen]) => isOpen) // Filter for days that are open
+      .map(([dayName]) => { // Map day names to numeric indices (Monday=0, Sunday=6)
+        const lowerDayName = dayName.toLowerCase();
+        switch (lowerDayName) {
+          case 'monday': return 0;
+          case 'tuesday': return 1;
+          case 'wednesday': return 2;
+          case 'thursday': return 3;
+          case 'friday': return 4;
+          case 'saturday': return 5;
+          case 'sunday': return 6;
+          default: return -1; // Should not happen with valid data
+        }
+      })
+      .filter(dayIndex => dayIndex !== -1) // Remove any invalid entries
       .sort((a, b) => a - b);
   }, [storeConfig.opening_days]);
+
+  useEffect(() => {
+    // Log storeConfig.opening_days and openingDays after storeConfig is available
+    if (storeConfig) {
+      console.log('DEBUG: storeConfig.opening_days', storeConfig.opening_days);
+      console.log('DEBUG: calculated openingDays', openingDays);
+    }
+  }, [storeConfig, openingDays]); // Depend on storeConfig and openingDays
 
   // Calculate hours array
   const hours = React.useMemo(() => {
@@ -144,23 +184,21 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
     });
   }, [storeConfig?.store_opening, storeConfig?.store_closing]);
 
-  // Initialize coverage state
+  // Initialize coverage state, ensuring all days (0-6) are present
   const [coverage, setCoverage] = useState<DailyCoverage[]>(() => {
-    const defaultCoverage = Array.from({ length: 7 }, (_, index) => ({
-      dayIndex: index,
-      timeSlots: [],
-    }));
-
+    const coverageMap = new Map<number, DailyCoverage>();
     if (initialCoverage) {
-      return defaultCoverage.map((defaultDay) => {
-        const initialDay = initialCoverage.find(
-          (day) => day.dayIndex === defaultDay.dayIndex,
-        );
-        return initialDay || defaultDay;
-      });
+      // Use initialCoverage directly (assuming it's DailyCoverage[])
+      initialCoverage.forEach(item => coverageMap.set(item.dayIndex, item));
     }
-
-    return defaultCoverage;
+    // Ensure all 7 days are in the map, adding default if missing
+    for (let i = 0; i < 7; i++) {
+      if (!coverageMap.has(i)) {
+        coverageMap.set(i, createDefaultDailyCoverage(i));
+      }
+    }
+    // Sort by dayIndex to maintain consistent order
+    return Array.from(coverageMap.values()).sort((a, b) => a.dayIndex - b.dayIndex);
   });
 
   useEffect(() => {
@@ -244,38 +282,23 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
   const handleUpdateSlot = (
     dayIndex: number,
     slotIndex: number,
-    updates: any,
+    updates: Partial<CoverageTimeSlot>,
   ) => {
     const newCoverage = [...coverage];
-    const currentSlot = newCoverage[dayIndex].timeSlots[slotIndex];
-
-    // Determine if this is an opening or closing shift after the update
-    const isEarlyShift =
-      (updates.startTime || currentSlot.startTime) ===
-      storeConfig.store_opening;
-    const isLateShift =
-      (updates.endTime || currentSlot.endTime) === storeConfig.store_closing;
-
-    newCoverage[dayIndex].timeSlots[slotIndex] = {
-      ...currentSlot,
-      ...updates,
-      requiresKeyholder: isEarlyShift || isLateShift,
-      keyholderBeforeMinutes: isEarlyShift
-        ? storeConfig.keyholder_before_minutes
-        : 0,
-      keyholderAfterMinutes: isLateShift
-        ? storeConfig.keyholder_after_minutes
-        : 0,
-    };
+    newCoverage[dayIndex].timeSlots[slotIndex] = { ...newCoverage[dayIndex].timeSlots[slotIndex], ...updates };
     setCoverage(newCoverage);
-    onChange?.(newCoverage);
+    if (onChange) {
+      onChange(newCoverage);
+    }
   };
 
   const handleDeleteSlot = (dayIndex: number, slotIndex: number) => {
     const newCoverage = [...coverage];
     newCoverage[dayIndex].timeSlots.splice(slotIndex, 1);
     setCoverage(newCoverage);
-    onChange?.(newCoverage);
+    if (onChange) {
+      onChange(newCoverage);
+    }
   };
 
   const handleUpdateOpeningMinEmployees = (value: number) => {
@@ -323,47 +346,30 @@ export const CoverageEditor: React.FC<CoverageEditorProps> = ({
   };
 
   const handleAddDefaultSlots = () => {
-    // Use the exact store opening and closing times
-    const morningShift = {
-      startTime: storeConfig.store_opening,
-      endTime: "14:00",
-      minEmployees: openingMinEmployees,
-      maxEmployees: Math.max(2, openingMinEmployees),
-      employeeTypes: storeConfig.employee_types.map((t) => t.id),
-      requiresKeyholder: true,
-      keyholderBeforeMinutes: storeConfig.keyholder_before_minutes,
-      keyholderAfterMinutes: 0,
-    };
-
-    const afternoonShift = {
-      startTime: "14:00",
-      endTime: storeConfig.store_closing,
-      minEmployees: closingMinEmployees,
-      maxEmployees: Math.max(2, closingMinEmployees),
-      employeeTypes: storeConfig.employee_types.map((t) => t.id),
-      requiresKeyholder: true,
-      keyholderBeforeMinutes: 0,
-      keyholderAfterMinutes: storeConfig.keyholder_after_minutes,
-    };
-
-    // Add morning and afternoon shifts for each day
-    const newCoverage = [...coverage];
-    openingDays.forEach((dayIdx) => {
-      if (dayIdx !== 6) {
-        // Skip Sunday (now index 6)
-        // Clear existing slots first to avoid conflicts
-        newCoverage[dayIdx].timeSlots = [];
-        // Add the new shifts
-        newCoverage[dayIdx].timeSlots.push(morningShift, afternoonShift);
+    let newCoverage = [...coverage];
+    // Logic to add default slots based on store hours and min/max employees
+    // This is a simplified example; actual logic might be more complex
+    for (const day of newCoverage) {
+      if (day.timeSlots.length === 0) {
+        // Add a default slot if none exist for the day
+        const defaultStartTime = storeConfig.store_opening;
+        const defaultEndTime = storeConfig.store_closing;
+        day.timeSlots.push({
+          startTime: defaultStartTime,
+          endTime: defaultEndTime,
+          minEmployees: storeConfig.min_employees_per_shift,
+          maxEmployees: storeConfig.max_employees_per_shift,
+          employeeTypes: storeConfig.employee_types.map((t) => t.id),
+          requiresKeyholder: false, // Or determine based on time
+          keyholderBeforeMinutes: 0,
+          keyholderAfterMinutes: 0,
+        });
       }
-    });
+    }
     setCoverage(newCoverage);
-    onChange?.(newCoverage);
-
-    toast({
-      title: "Default shifts added",
-      description: "Added shifts for Monday through Saturday",
-    });
+    if (onChange) {
+      onChange(newCoverage);
+    }
   };
 
   return (

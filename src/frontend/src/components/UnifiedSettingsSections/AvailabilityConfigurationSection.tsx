@@ -31,15 +31,22 @@ import type { Settings } from "@/types/index";
 
 // Correct type for an item in settings.availability_types.types
 // This is the structure defined in Settings type in @/types/index.ts
-type AvailabilityTypeFromSettings =
-  Settings["availability_types"]["types"][number];
+type AvailabilityTypeFromSettings = {
+  id: string;
+  name: string;
+  description?: string;
+  color: string;
+  priority?: number;
+  is_available: boolean;
+  type?: 'availability_type';
+};
 
 // Frontend representation, similar to OptionsPage
 interface FrontendAvailabilityType {
   id: string;
   name: string;
   color: string;
-  description: string;
+  description?: string;
   originalPriority?: number;
   originalIsAvailable?: boolean;
 }
@@ -48,6 +55,7 @@ interface AvailabilityConfigurationSectionProps {
   settings?: Settings["availability_types"]; // Match the prop name being passed from UnifiedSettingsPage
   onUpdate: (updatedTypes: AvailabilityTypeFromSettings[]) => void;
   onImmediateUpdate: () => void;
+  isLoading?: boolean;
 }
 
 const mapToFrontend = (
@@ -87,7 +95,7 @@ const mapToBackend = (
 
 export const AvailabilityConfigurationSection: React.FC<
   AvailabilityConfigurationSectionProps
-> = ({ settings, onUpdate, onImmediateUpdate }) => {
+> = ({ settings, onUpdate, onImmediateUpdate, isLoading = false }) => {
   const [displayableTypes, setDisplayableTypes] = useState<
     FrontendAvailabilityType[]
   >([]);
@@ -127,8 +135,18 @@ export const AvailabilityConfigurationSection: React.FC<
 
     const backendFormattedTypes = mapToBackend(updatedDisplayableTypes);
     onUpdate(backendFormattedTypes);
+    onImmediateUpdate();
     handleCloseModal();
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin mr-2" />
+        <span>Loading availability types...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -143,53 +161,57 @@ export const AvailabilityConfigurationSection: React.FC<
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[100px]">ID</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Color</TableHead>
-                <TableHead className="hidden md:table-cell">
-                  Description
-                </TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(displayableTypes || []).map((type) => (
-                <TableRow key={type.id}>
-                  <TableCell className="font-medium">{type.id}</TableCell>
-                  <TableCell>{type.name}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-6 h-6 rounded border"
-                        style={{ backgroundColor: type.color }}
-                      />
-                      {type.color}
-                    </div>
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    {type.description}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleOpenModal(type)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
+          {displayableTypes.length === 0 ? (
+            <div className="text-center py-6 text-muted-foreground">
+              No availability types found. Default types will be created automatically.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[100px]">ID</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Color</TableHead>
+                  <TableHead className="hidden md:table-cell">
+                    Description
+                  </TableHead>
+                  <TableHead className="w-[100px]">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {displayableTypes.map((type) => (
+                  <TableRow key={type.id}>
+                    <TableCell className="font-medium">{type.id}</TableCell>
+                    <TableCell>{type.name}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-6 h-6 rounded border"
+                          style={{ backgroundColor: type.color }}
+                        />
+                        {type.color}
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      {type.description || "-"}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenModal(type)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
         <CardFooter className="flex justify-end">
-          <Button onClick={onImmediateUpdate}>
-            Save Availability Configuration
-          </Button>
+          {/* Auto-save: Save button removed */}
         </CardFooter>
       </Card>
 
@@ -210,6 +232,7 @@ export const AvailabilityConfigurationSection: React.FC<
                   id={`availability-color-${editingType.id}`}
                   color={editingType.color}
                   onChange={handleColorChangeInModal}
+                  onBlur={onImmediateUpdate}
                 />
                 <Input
                   value={editingType.color}
