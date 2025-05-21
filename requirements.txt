@@ -35,3 +35,6 @@ harlequin==2.1.2
 # were listed as outdated but are not directly in requirements.txt. 
 # They are likely sub-dependencies and will be updated when their parent packages (e.g., flake8, other google libs) are updated.
 # I am only explicitly updating packages that are directly listed in requirements.txt for this step.
+pydantic==2.11.4
+pydantic_core==2.33.2
+email_validator==2.2.0

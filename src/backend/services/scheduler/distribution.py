@@ -1060,7 +1060,7 @@ class DistributionManager:
         return False
 
     def is_interval_covered(
-        self, 
+        self,
         interval_start_time: time, # Use time
         interval_needs: Dict[str, Any], 
         current_staffing_for_interval_entry: Dict[str, Any],

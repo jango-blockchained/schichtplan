@@ -119,17 +119,32 @@ export default function UnifiedSettingsPage() {
                 fonts: { ...(DEFAULT_SETTINGS.pdf_layout?.fonts || {}), ...(fetchedData.pdf_layout?.fonts || {}) },
                 content: { ...(DEFAULT_SETTINGS.pdf_layout?.content || {}), ...(fetchedData.pdf_layout?.content || {}) },
             },
-            employee_groups: { ...DEFAULT_SETTINGS.employee_groups, ...(fetchedData.employee_groups || {}),
-                employee_types: [ ...(DEFAULT_SETTINGS.employee_groups?.employee_types || []), ...(fetchedData.employee_groups?.employee_types || []) ],
-                shift_types: [ ...(DEFAULT_SETTINGS.employee_groups?.shift_types || []), ...(fetchedData.employee_groups?.shift_types || []) ],
-                absence_types: [ ...(DEFAULT_SETTINGS.employee_groups?.absence_types || []), ...(fetchedData.employee_groups?.absence_types || []) ],
+            employee_groups: {
+                ...DEFAULT_SETTINGS.employee_groups,
+                ...(fetchedData.employee_groups || {}),
+                // Explicitly map type values for employee_types and absence_types
+                employee_types: (fetchedData.employee_groups?.employee_types || []).map(et => ({
+                    ...et,
+                    type: "employee_type" // Ensure correct type
+                })),
+                shift_types: (fetchedData.employee_groups?.shift_types || []).map(st => ({
+                    ...st,
+                    type: "shift_type" // Ensure correct type
+                })),
+                 absence_types: (fetchedData.employee_groups?.absence_types || []).map(at => ({
+                    ...at,
+                    type: "absence_type" // Ensure correct type
+                })),
             },
-            availability_types: { 
+            availability_types: {
                 ...DEFAULT_SETTINGS.availability_types,
                 ...(fetchedData.availability_types || {}),
                 types: (
                   fetchedData.availability_types?.types && fetchedData.availability_types.types.length > 0
-                    ? fetchedData.availability_types.types
+                    ? fetchedData.availability_types.types.map(avail => ({ // Also map availability types if needed, though error wasn't for this
+                        ...avail,
+                         type: avail.type || 'availability_type' // Ensure type exists
+                    }))
                     : DEFAULT_SETTINGS.availability_types?.types || []
                 ),
             },
@@ -402,6 +417,7 @@ export default function UnifiedSettingsPage() {
               handleSave("availability_types", { types: updatedTypes })
             }
             onImmediateUpdate={handleImmediateUpdate}
+            isLoading={isLoadingSettings || mutation.isLoading}
           />
         );
       case "appearance_display":

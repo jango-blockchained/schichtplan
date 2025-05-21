@@ -1,6 +1,6 @@
-from pydantic import BaseModel, Field, validator # Removed RootModel
+from pydantic import BaseModel, Field, validator, ValidationError, RootModel
 from typing import Dict, List, Optional, Any, Union, Literal
-from datetime import datetime
+from datetime import datetime, date
 
 # --- Existing/Verified Models (with minor adjustments if needed) ---
 
@@ -247,10 +247,9 @@ class SettingValue(BaseModel): # This might be used for a generic single setting
     """Schema for updating a single setting value, if a generic endpoint exists."""
     value: Any = Field(..., description="The new value for the setting.")
 
-class CategorySettings(BaseModel):
-    """Schema for updating settings for a specific category (Pydantic V1 style)."""
-    __root__: Dict[str, Any]
-
+# CategorySettings: RootModel if available, else BaseModel fallback
+class CategorySettings(RootModel[Dict[str, Any]]):
+    """Settings for a specific category, represented as a dictionary."""
     class Config:
         schema_extra = {
             "description": "Settings for a specific category, represented as a dictionary.",

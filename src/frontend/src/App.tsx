@@ -39,25 +39,27 @@ const queryClient = new QueryClient({
 
 const App: React.FC = () => {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<MainLayout />}>
-              <Route index element={<SchedulePage />} />
-              <Route path="shifts" element={<ShiftsPage />} />
-              <Route path="coverage" element={<CoveragePage />} />
-              <Route path="employees" element={<EmployeesPage />} />
-              <Route path="settings" element={<UnifiedSettingsPage />} />
-              <Route path="formulars" element={<FormularsPage />} />
-              <Route path="logs" element={<LogsPage />} />
-              <Route path="layout" element={<LayoutCustomizerPage />} />
-            </Route>
-          </Routes>
-          <Toaster />
-        </BrowserRouter>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <div>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<MainLayout />}>
+                <Route index element={<SchedulePage />} />
+                <Route path="shifts" element={<ShiftsPage />} />
+                <Route path="coverage" element={<CoveragePage />} />
+                <Route path="employees" element={<EmployeesPage />} />
+                <Route path="settings" element={<UnifiedSettingsPage />} />
+                <Route path="formulars" element={<FormularsPage />} />
+                <Route path="logs" element={<LogsPage />} />
+                <Route path="layout" element={<LayoutCustomizerPage />} />
+              </Route>
+            </Routes>
+            <Toaster />
+          </BrowserRouter>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </div>
   );
 };
 

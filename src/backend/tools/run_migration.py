@@ -24,7 +24,7 @@ def fix_enum_values():
     """Update database records to use correct enum values"""
     try:
         # Find the database file
-        db_path = os.path.join(current_dir, "..", "instance", "app.db")
+        db_path = os.path.join(current_dir, "..", "..", "src", "instance", "app.db")
 
         if not os.path.exists(db_path):
             logger.error(f"Database file not found at {db_path}")

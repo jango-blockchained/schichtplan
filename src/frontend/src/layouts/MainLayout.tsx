@@ -124,31 +124,28 @@ export const MainLayout = () => {
       </div>
 
       {/* Main navigation items */}
-      <nav className="flex-1 p-2">
-        {" "}
-        {/* Adjusted padding for minimized state */}
+      <div className="flex-1 p-2">
         {mainNavItems.map((item) => {
           const isActive = location.pathname === item.path;
           return (
             <NavItem
-              key={item.path}
+              key={item.label}
               item={item}
               isActive={isActive}
               minimized={minimized}
             />
           );
         })}
-      </nav>
+      </div>
 
       {/* Footer navigation items */}
       <div className="p-2 border-t">
         {" "}
-        {/* Adjusted padding */}
         {footerNavItems.map((item) => {
           const isActive = location.pathname === item.path;
           return (
             <NavItem
-              key={item.path}
+              key={item.label}
               item={item}
               isActive={isActive}
               minimized={minimized}
@@ -177,7 +174,7 @@ export const MainLayout = () => {
       {/* Desktop sidebar */}
       <div
         className={cn(
-          "hidden lg:block fixed inset-y-0 left-0 border-r bg-background z-30",
+          "fixed inset-y-0 left-0 border-r bg-background z-30",
           "transition-all duration-300 ease-in-out", // Smooth transitions
         )}
         style={{ width: `${currentSidebarWidth}px` }}

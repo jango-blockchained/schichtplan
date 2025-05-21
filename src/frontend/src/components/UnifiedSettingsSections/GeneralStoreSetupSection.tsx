@@ -48,6 +48,7 @@ export const GeneralStoreSetupSection: React.FC<
   const handleSpecialDaysUpdate = (specialDays: SpecialDaysMap) => {
     if (onSpecialDaysChange) {
       onSpecialDaysChange(specialDays);
+      onImmediateUpdate();
     }
   };
 
@@ -88,10 +89,7 @@ export const GeneralStoreSetupSection: React.FC<
           </div>
         </CardContent>
         <CardFooter className="flex justify-end">
-          <Button onClick={onImmediateUpdate} disabled={isLoading}>
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save General Settings
-          </Button>
+          {/* Auto-save: Save button removed */}
         </CardFooter>
       </Card>
 
@@ -194,10 +192,7 @@ export const GeneralStoreSetupSection: React.FC<
           </div>
         </CardContent>
         <CardFooter className="flex justify-end">
-          <Button onClick={onImmediateUpdate} disabled={isLoading}>
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save Hours & Keyholder Settings
-          </Button>
+          {/* Auto-save: Save button removed */}
         </CardFooter>
       </Card>
 
@@ -217,10 +212,7 @@ export const GeneralStoreSetupSection: React.FC<
             />
           </CardContent>
           <CardFooter className="flex justify-end">
-            <Button onClick={onImmediateUpdate} disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save Special Days
-            </Button>
+            {/* Auto-save: Save button removed */}
           </CardFooter>
         </Card>
       )}

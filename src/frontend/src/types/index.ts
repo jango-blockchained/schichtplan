@@ -245,10 +245,12 @@ export interface Settings {
     show_sunday: boolean;
     show_weekdays: boolean;
     start_of_week: number;
+    calendar_start_day?: "sunday" | "monday";
+    calendar_default_view?: "month" | "week" | "day";
     email_notifications: boolean;
     schedule_published: boolean;
     shift_changes: boolean;
-    time_off_requests: boolean;
+    time_off_requests?: boolean;
   };
   pdf_layout: {
     page_size: string;
@@ -291,6 +293,7 @@ export interface Settings {
       name: string;
       color: string;
       type: "shift_type";
+      autoAssignOnly?: boolean;
     }>;
     absence_types: Array<{
       id: string;

@@ -6,6 +6,7 @@ import logging
 import functools
 import sys
 import os
+from flask import current_app
 
 # Add parent directories to path if needed
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -250,46 +251,61 @@ class ScheduleResources:
         self.logger = logger
 
     def is_loaded(self):
-        """Check if resources have already been loaded"""
-        return len(self.employees) > 0
+        """Check if resources have been loaded"""
+        return all([
+            self.settings is not None,
+            self.coverage is not None,
+            self.shifts is not None,
+            self.employees is not None,
+            self.absences is not None,
+            self.availabilities is not None,
+        ])
 
     def load(self):
-        """Load all necessary resources for scheduling."""
-        self.logger.info("Loading scheduler resources...")
-        from flask import current_app
-        with current_app.app_context():
-            try:
+        """Load all necessary resources from the database"""
+        self.logger.info("Starting to load resources...")
+        try:
+            # Wrap resource loading in app context
+            with current_app.app_context():
                 self.settings = self._load_settings()
+                self.logger.info("Starting to load coverage data...")
                 self.coverage = self._load_coverage()
+                self.logger.info("Starting to load shifts...")
                 self.shifts = self._load_shifts()
+                self.logger.info("Starting to load employees...")
                 self.employees = self._load_employees()
+                self.logger.info("Starting to load absences...")
                 self.absences = self._load_absences()
+                self.logger.info("Starting to load availabilities...")
                 self.availabilities = self._load_availabilities()
-                self.logger.info("Scheduler resources loaded successfully.")
-                return True  # Explicitly return True on success
-            except Exception as e:
-                self.logger.error(f"Failed to load resources: {str(e)}")
-                raise ScheduleResourceError(f"Failed to load resources: {str(e)}") from e
+                self._date_caches_cleared = False # Ensure caches are cleared after loading
+            self.logger.info("Resource loading completed successfully.")
+            self.verify_loaded_resources()
+        except Exception as e:
+            self.logger.error(f"Error during resource loading: {str(e)}", exc_info=True)
+            raise ScheduleResourceError(f"Failed to load resources: {str(e)}") from e
 
     def _load_settings(self) -> Settings:
         """Load settings with error handling"""
         try:
-            settings = Settings.query.first()
+            with current_app.app_context(): # Wrap query in app context
+                settings = Settings.query.first()
             if not settings:
-                logger.warning("No settings found, creating default settings")
-                settings = Settings()
-                db.session.add(settings)
-                db.session.commit()
+                self.logger.warning("No settings found, creating default settings")
+                with current_app.app_context(): # Wrap session add/commit
+                    db.session.add(settings)
+                    db.session.commit()
             return settings
         except Exception as e:
-            self.logger.error(f"Error loading settings: {str(e)}")
+            self.logger.error(f"Error loading settings: {str(e)}", exc_info=True) # Added exc_info
             return None
 
     def _load_coverage(self) -> List[Coverage]:
         """Load coverage with error handling"""
         try:
             self.logger.info("Starting to load coverage data...")
-            coverage = Coverage.query.all()
+            with current_app.app_context(): # Wrap query in app context
+                coverage = Coverage.query.all()
 
             if not coverage:
                 self.logger.warning("No coverage requirements found in database")
@@ -299,17 +315,19 @@ class ScheduleResources:
                     from api.demo_data import generate_coverage_data
 
                     coverage_slots = generate_coverage_data()
-                    for slot in coverage_slots:
-                        db.session.add(slot)
-                    db.session.commit()
+                    with current_app.app_context(): # Wrap session add/commit
+                        for slot in coverage_slots:
+                            db.session.add(slot)
+                        db.session.commit()
                     self.logger.info(
                         f"Successfully generated {len(coverage_slots)} demo coverage slots"
                     )
-                    coverage = Coverage.query.all() # Re-query after generating
+                    with current_app.app_context(): # Wrap re-query
+                         coverage = Coverage.query.all() # Re-query after generating
                     if not coverage: # Check again if demo data actually populated
                         self.logger.error("Failed to load any coverage even after attempting to generate demo data.")
-                        return [] 
-                except Exception as e:
+                        return []
+                except Exception as e: # Keep original exception handling for demo data generation
                     self.logger.error(
                         f"Failed to generate demo coverage data: {str(e)}"
                     )
@@ -348,7 +366,8 @@ class ScheduleResources:
     def _load_shifts(self) -> List[ShiftTemplate]:
         """Load shifts with error handling"""
         try:
-            shifts = ShiftTemplate.query.all()
+            with current_app.app_context(): # Wrap query in app context
+                shifts = ShiftTemplate.query.all()
             if not shifts:
                 self.logger.error("No shift templates found in database")
                 return []
@@ -384,38 +403,49 @@ class ScheduleResources:
     def _load_employees(self) -> List[Employee]:
         """Load employees from database"""
         try:
-            employees = Employee.query.filter_by(is_active=True).all()
+            with current_app.app_context(): # Wrap query in app context
+                employees = Employee.query.filter_by(is_active=True).all()
             self.logger.debug(f"Loaded {len(employees)} active employees from database")
             return employees
         except Exception as e:
-            self.logger.error(f"Error loading employees: {str(e)}")
+            self.logger.error(f"Error loading employees: {str(e)}", exc_info=True) # Added exc_info
             return []
 
     def _load_absences(self) -> List[Absence]:
         """Load absences with error handling"""
-        return Absence.query.all()
+        try:
+            with current_app.app_context(): # Wrap query in app context
+                return Absence.query.all()
+        except Exception as e:
+            self.logger.error(f"Error loading absences: {str(e)}", exc_info=True) # Added exc_info
+            return []
 
     def _load_availabilities(self) -> List[EmployeeAvailability]:
         """Load availabilities with error handling"""
-        availabilities = EmployeeAvailability.query.all()
+        try:
+            with current_app.app_context(): # Wrap query in app context
+                availabilities = EmployeeAvailability.query.all()
 
-        # Group availabilities by employee for better logging
-        by_employee = {}
-        for avail in availabilities:
-            if avail.employee_id not in by_employee:
-                by_employee[avail.employee_id] = []
-            by_employee[avail.employee_id].append(avail)
+            # Group availabilities by employee for better logging
+            by_employee = {}
+            for avail in availabilities:
+                if avail.employee_id not in by_employee:
+                    by_employee[avail.employee_id] = []
+                by_employee[avail.employee_id].append(avail)
 
-        # Log availability summary for each employee
-        for emp_id, emp_avails in by_employee.items():
-            available_hours = sum(1 for a in emp_avails if a.is_available)
-            total_hours = len(emp_avails)
-            logger.info(
-                f"Employee {emp_id} availability: "
-                f"{available_hours}/{total_hours} hours available"
-            )
+            # Log availability summary for each employee
+            for emp_id, emp_avails in by_employee.items():
+                available_hours = sum(1 for a in emp_avails if a.is_available) # Assuming is_available is boolean/truthy
+                total_hours = len(emp_avails)
+                logger.info(
+                    f"Employee {emp_id} availability: "
+                    f"{available_hours}/{total_hours} hours available"
+                )
 
-        return availabilities
+            return availabilities
+        except Exception as e:
+            self.logger.error(f"Error loading availabilities: {str(e)}", exc_info=True) # Added exc_info
+            return []
 
     def get_keyholders(self) -> List[Employee]:
         """Return a list of keyholder employees"""

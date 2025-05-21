@@ -62,30 +62,30 @@ export const EmployeeShiftDefinitionsSection: React.FC<
   }, [employeeGroups.shift_types]);
 
   const handleEmployeeTypesChange = (
-    updatedEmployeeTypes: EmployeeType[], // Expecting correct types from editor
+    updatedEmployeeTypes: EmployeeType[],
   ) => {
-    // Assume updatedEmployeeTypes already has the correct 'type' field value ("employee_type")
+    const patched = updatedEmployeeTypes.map((et) => ({ ...et, type: "employee_type" }));
     onUpdate("employee_groups", {
       ...employeeGroups,
-      employee_types: updatedEmployeeTypes,
+      employee_types: patched,
     });
   };
 
   const handleAbsenceTypesChange = (
-    updatedAbsenceTypes: AbsenceType[], // Expecting correct types from editor
+    updatedAbsenceTypes: AbsenceType[],
   ) => {
-    // Assume updatedAbsenceTypes already has the correct 'type' field value ("absence_type")
+    const patched = updatedAbsenceTypes.map((at) => ({ ...at, type: "absence_type" }));
     onUpdate("employee_groups", {
       ...employeeGroups,
-      absence_types: updatedAbsenceTypes,
+      absence_types: patched,
     });
   };
 
   const handleShiftTypesChange = (updatedShiftTypes: ShiftType[]) => {
-    // Assume updatedShiftTypes already has the correct 'type' field value ("shift_type")
+    const patched = updatedShiftTypes.map((st) => ({ ...st, type: "shift_type" }));
     onUpdate("employee_groups", {
       ...employeeGroups,
-      shift_types: updatedShiftTypes,
+      shift_types: patched,
     });
   };
 
@@ -142,10 +142,7 @@ export const EmployeeShiftDefinitionsSection: React.FC<
       </Card>
 
       <div className="flex justify-end mt-6">
-        <Button onClick={onImmediateUpdate} disabled={isLoading}>
-          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Save Employee & Shift Definitions
-        </Button>
+        {/* Auto-save: Save button removed */}
       </div>
     </div>
   );

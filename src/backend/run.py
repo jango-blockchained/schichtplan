@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import os
 import socket
 import time
@@ -7,15 +8,101 @@ import argparse
 import random
 import subprocess
 from pathlib import Path
+import click
+from .app import create_app
+from .config import Config
 
 # Add the current directory to the Python path
 current_dir = Path(__file__).resolve().parent
 if str(current_dir) not in sys.path:
     sys.path.append(str(current_dir))
 
-from app import create_app
+# Add the parent directory (src/backend) to Python path
+src_backend_dir = os.path.abspath(os.path.join(current_dir, ".."))
+if str(src_backend_dir) not in sys.path:
+    sys.path.append(str(src_backend_dir))
+
 from werkzeug.serving import is_running_from_reloader
 
+# Attempt to load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
+
+# Determine the environment
+env = os.environ.get('FLASK_ENV', 'development')
+
+# Configure the app based on the environment
+if env == 'production':
+    # Use a ProductionConfig class if defined, or just the base Config
+    # from src.backend.config import ProductionConfig as CurrentConfig
+    CurrentConfig = Config # Using base Config for now
+elif env == 'testing':
+    # from src.backend.config import TestingConfig as CurrentConfig
+    CurrentConfig = Config # Using base Config for now
+else: # development or other
+    CurrentConfig = Config
+
+app = create_app(CurrentConfig)
+
+# Explicitly push an application context for startup tasks
+with app.app_context():
+    # Any startup code that requires app context (like resource loading)
+    # can be placed or triggered here.
+    # For now, just ensuring the context is pushed before running the app.
+    print(f"Debug: App context pushed in run.py for app ID {id(app)}")
+
+# Use Click to define a command group for the app
+@click.group()
+def cli():
+    "A command line interface for the Schichtplan application."
+    pass
+
+# Integrate Flask-Migrate commands
+# No need to manually add migrate commands if using Migrate(app, db) directly
+
+# Example custom command (optional)
+@cli.command()
+@click.option('--port', default=5000, type=int, help='Port to listen on.')
+@click.option('--debug', is_flag=True, help='Enable debug mode.')
+def runserver(port, debug):
+    "Run the Flask development server."
+    app.run(debug=debug, port=port)
+
+# Add the default runserver command if __name__ == '__main__'
+if __name__ == '__main__':
+    # The app context is already pushed above, 
+    # so startup code requiring context will run before cli().
+    # We can still call cli() to enable command line interface, 
+    # but the main startup logic for resource loading etc. 
+    # benefits from the context pushed before cli().
+    
+    # If you prefer running with 'flask run', remove this __main__ block 
+    # and use 'export FLASK_APP=run.py && flask run'.
+    # If you use 'flask run', Flask handles context pushing.
+    # Since we are running run.py directly, we push context manually.
+    
+    # Check if we are running with gunicorn or similar production server
+    # This check might be needed if resource loading during startup is only problematic 
+    # in development server scenarios run directly via run.py
+    # import sys
+    # if 'gunicorn' not in sys.argv[0]:
+    #     with app.app_context():
+    #         # Startup tasks for development server run
+    #         pass # Resource loading should happen naturally during imports/init
+
+    # Running via click's cli() will handle command parsing, 
+    # including the runserver command defined above.
+    # The app context pushed above is available for any code that runs 
+    # as a result of imports before cli() or within commands if they don't manage their own context.
+    
+    # For typical Flask development server run via 'python run.py', 
+    # resource loading might happen when modules are imported. 
+    # Pushing the context here should cover that.
+    cli() # This will run the click CLI, including the runserver command
+
+# If running with gunicorn or other WSGI server, they will import 'app'
+# and should handle the application context for requests.
+# The explicit push above handles context for code running at import time of run.py
 
 def get_process_on_port(port):
     """Return process ID using the given port."""
@@ -30,18 +117,21 @@ def get_process_on_port(port):
     return None
 
 
-def kill_process_on_port(port):
-    """Kill the process using the given port."""
-    pid = get_process_on_port(port)
-    if pid:
-        try:
-            print(f"Killing process {pid} using port {port}")
-            os.kill(pid, signal.SIGKILL)
-            time.sleep(1)  # Give it time to die
+def kill_port_with_npx(port):
+    """Kill the process using the given port with npx kill-port."""
+    try:
+        print(f"Killing port {port} with npx kill-port...")
+        result = subprocess.run(["npx", "-y", "kill-port", str(port)], capture_output=True, text=True, timeout=30)
+        print(result.stdout)
+        if result.returncode == 0:
+            time.sleep(1)
             return True
-        except OSError as e:
-            print(f"Error killing process {pid}: {e}")
-    return False
+        else:
+            print(f"npx kill-port failed: {result.stderr}")
+            return False
+    except Exception as e:
+        print(f"Error running npx kill-port: {e}")
+        return False
 
 
 def find_free_port(start_port, max_attempts=10):
@@ -114,45 +204,20 @@ if __name__ == "__main__":
     # Only try to clean up port if we're not the reloader
     if not is_running_from_reloader():
         try:
-            # Check if port is in use
-            if get_process_on_port(port):
-                if args.kill:
-                    # Try to kill the process
-                    if not kill_process_on_port(port):
-                        print(f"Failed to kill process on port {port}")
-                        if not args.auto_port:
-                            exit(1)
-                elif args.auto_port:
-                    # Try to find a free port
-                    try:
-                        new_port = find_free_port(port)
-                        if new_port != port:
-                            print(
-                                f"Port {port} is in use, using port {new_port} instead"
-                            )
-                            port = new_port
-                    except RuntimeError as e:
-                        print(e)
+            # Check if port is in use (skip lsof, just kill if --kill)
+            if args.kill:
+                if not kill_port_with_npx(port):
+                    print(f"Failed to kill process on port {port} with npx kill-port")
+                    if not args.auto_port:
                         exit(1)
-                else:
-                    # Wait for port to become available
-                    try:
-                        wait_for_port(port, host)
-                    except TimeoutError as e:
-                        print(e)
-                        print("\nTry one of the following options:")
-                        print(
-                            f"1. Kill the process using port {port}: python run.py --kill"
-                        )
-                        print("2. Use a different port: python run.py --port 5001")
-                        print(
-                            "3. Automatically find a free port: python run.py --auto-port"
-                        )
-                        exit(1)
+            # Optionally, add auto-port logic here if needed
         except Exception as e:
             print(f"Error checking port: {e}")
             exit(1)
 
+    print(">>> Before create_app()")
     app = create_app()
+    print(">>> After create_app()")
     print(f"Starting server on {host}:{port}")
     app.run(debug=True, host=host, port=port)
+    print(">>> After app.run()")

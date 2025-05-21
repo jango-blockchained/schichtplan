@@ -94,6 +94,7 @@ def create_app(config_class=Config):
 
     # Initialize extensions
     db.init_app(app)
+    print(f"Debug: db instance ID after init_app in create_app: {id(db)}")
     # Use the consolidated migrations directory
     migrations_dir = os.path.join(
         os.path.dirname(os.path.dirname(__file__)), "instance", "migrations"

@@ -118,9 +118,9 @@ class AISchedulerService:
                 emp_dict = {
                     'id': emp.id,
                     'name': f"{emp.first_name} {emp.last_name}",
-                    'role': emp.role,
+                    'role': emp.employee_group.value,
                     'is_keyholder': emp.is_keyholder,
-                    'max_weekly_hours': emp.max_weekly_hours or 40,  # Default to 40
+                    'max_weekly_hours': emp.get_max_weekly_hours() or 40,  # Default to 40
                     'default_availability': emp.default_availability or 'Flexible',
                     'seniority': emp.seniority or 1
                 }
