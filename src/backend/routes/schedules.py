@@ -1,5 +1,5 @@
 from datetime import datetime, date, timedelta
-from flask import Blueprint, request, jsonify, current_app, send_file, abort
+from flask import Blueprint, request, jsonify, current_app, send_file
 from src.backend.models import db, Schedule, ShiftTemplate, Employee
 from src.backend.models.schedule import ScheduleStatus, ScheduleVersionMeta
 from sqlalchemy import desc, text
@@ -400,7 +400,9 @@ def get_schedule_pdf():
 @schedules.route("/schedules/<int:schedule_id>/", methods=["GET"])
 def get_schedule(schedule_id):
     """Get a specific schedule"""
-    schedule = Schedule.query.get_or_404(schedule_id)
+    schedule = db.session.get(Schedule, schedule_id)
+    if not schedule:
+        return jsonify({"status": "error", "message": "Schedule not found"}), HTTPStatus.NOT_FOUND
     return jsonify(schedule.to_dict())
 
 

@@ -5,28 +5,31 @@ import axios from "axios";
 // Default settings object to use as fallback
 export const DEFAULT_SETTINGS: Settings = {
   id: 0,
-  store_name: "Store",
-  store_address: null,
-  store_contact: null,
-  timezone: "Europe/Berlin",
-  language: "de",
-  date_format: "DD.MM.YYYY",
-  time_format: "24h",
-  store_opening: "09:00",
-  store_closing: "20:00",
-  keyholder_before_minutes: 30,
-  keyholder_after_minutes: 30,
-  opening_days: {
-    monday: false,
-    tuesday: false,
-    wednesday: false,
-    thursday: false,
-    friday: false,
-    saturday: false,
-    sunday: false
+  general: {
+    store_name: "Store",
+    store_address: null,
+    store_phone: null,
+    store_email: null,
+    timezone: "Europe/Berlin",
+    language: "de",
+    date_format: "DD.MM.YYYY",
+    time_format: "24h",
+    store_opening: "09:00",
+    store_closing: "20:00",
+    keyholder_before_minutes: 30,
+    keyholder_after_minutes: 30,
+    opening_days: {
+      monday: false,
+      tuesday: false,
+      wednesday: false,
+      thursday: false,
+      friday: false,
+      saturday: false,
+      sunday: false
+    },
+    special_hours: {},
+    special_days: {},
   },
-  special_hours: {},
-  special_days: {},
   availability_types: { 
     types: [
       {
@@ -63,31 +66,6 @@ export const DEFAULT_SETTINGS: Settings = {
       }
     ] 
   },
-  shift_types: [],
-  general: {
-    store_name: "",
-    store_address: "",
-    store_contact: "",
-    timezone: "Europe/Berlin",
-    language: "de",
-    date_format: "DD.MM.YYYY",
-    time_format: "24h",
-    store_opening: "09:00",
-    store_closing: "20:00",
-    keyholder_before_minutes: 30,
-    keyholder_after_minutes: 30,
-    opening_days: {
-      monday: false,
-      tuesday: false,
-      wednesday: false,
-      thursday: false,
-      friday: false,
-      saturday: false,
-      sunday: false
-    },
-    special_hours: {},
-    special_days: {},
-  },
   scheduling: {
     scheduling_resource_type: "shifts",
     default_shift_duration: 8,
@@ -114,6 +92,7 @@ export const DEFAULT_SETTINGS: Settings = {
       enforce_qualifications: true,
       enforce_opening_hours: true,
     },
+    scheduling_algorithm: "standard",
   },
   display: {
     theme: "light",
@@ -328,6 +307,16 @@ export function useSettings() {
         }
         // Update the payload with the transformed opening_days
         payload.general.opening_days = transformedOpeningDays;
+      }
+    }
+
+    // Ensure scheduling_algorithm is always valid before sending to backend
+    if (payload.scheduling) {
+      if (
+        !payload.scheduling.scheduling_algorithm ||
+        payload.scheduling.scheduling_algorithm === "default"
+      ) {
+        payload.scheduling.scheduling_algorithm = "standard";
       }
     }
     
