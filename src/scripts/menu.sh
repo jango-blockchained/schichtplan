@@ -19,7 +19,7 @@ restart_backend() {
     echo "Restarting backend..."
     tmux send-keys -t schichtplan:0.0 C-c
     sleep 1
-    tmux send-keys -t schichtplan:0.0 "python3 -m src.backend.run --auto-port --kill" C-m
+    tmux send-keys -t schichtplan:0.0 "python3 -m src.backend.run runserver --auto-port --kill" C-m
     echo "Backend restart initiated!"
 }
 
@@ -196,4 +196,4 @@ while true; do
     
     echo ""
     read -n 1 -p "Press any key to continue..."
-done 
+done

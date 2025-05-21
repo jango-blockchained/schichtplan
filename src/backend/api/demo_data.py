@@ -276,122 +276,76 @@ def validate_availability_vs_contracted(employee, blocks, days_available):
     return weekly_availability >= min_required_hours
 
 
-def generate_availability_data(employees):
-    """Generate demo availability data with continuous blocks without gaps"""
+def generate_improved_availability_data(employees):
+    """
+    Generate optimized availability data using hourly slots.
+    - All employees with >35 hours get only FIXED slots.
+    - All employees get 50% more availability overall.
+    """
     availabilities = []
+    daily_employee_day_type = {}
+    employee_weekly_hours = {emp.id: 0.0 for emp in employees}
+    working_days_indices = list(range(0, 6))
+    today = date.today()
+    start_of_week_date = today - timedelta(days=today.weekday())
 
-    # Randomly select 30% of employees to have random availability patterns
-    random_pattern_employees = set(
-        random.sample(employees, k=max(1, len(employees) // 3))
-    )
-
-    # Select some full-time employees (VZ and TL) to have fixed schedules
-    fixed_schedule_employees = set(
-        employee
-        for employee in employees
-        if employee.employee_group in ["VZ", "TL"]
-        and employee not in random_pattern_employees
-        and random.random() < 0.4
-    )
-
-    for employee in employees:
-        valid_blocks = False
-        while not valid_blocks:
-            temp_availabilities = []
-            blocks = []
-            days_available = 0
-
-            # Generate recurring availability for each employee
-            for day_of_week in range(7):  # 0-6 (Sunday-Saturday)
-                if day_of_week != 0:  # Skip Sunday
-                    days_available += 1
-                    # Determine the daily schedule pattern
-                    if employee in fixed_schedule_employees:
-                        # Fixed schedule employees have set blocks
-                        if employee.employee_group == "TL":
-                            # Team leaders work one solid block morning to mid-afternoon
-                            blocks = [(8, 16, AvailabilityType.FIXED)]
-                        else:  # VZ with fixed schedule
-                            # Alternate between morning and afternoon blocks
-                            if day_of_week % 2 == 0:
-                                blocks = [
-                                    (9, 15, AvailabilityType.FIXED)
-                                ]  # Morning block
-                            else:
-                                blocks = [
-                                    (14, 20, AvailabilityType.FIXED)
-                                ]  # Afternoon block
-
-                    elif employee in random_pattern_employees:
-                        # Create 2-3 continuous blocks with different types, NO GAPS
-                        blocks = []
-                        if (
-                            random.random() < 0.7
-                        ):  # 70% chance of starting in the morning
-                            current_hour = 9
-                        else:
-                            current_hour = 14  # Start in the afternoon
-
-                        end_hour = 20  # Latest possible end time
-
-                        while current_hour < end_hour:
-                            remaining_hours = end_hour - current_hour
-                            if remaining_hours <= 4:
-                                block_length = remaining_hours
-                            else:
-                                block_length = random.randint(
-                                    2, min(4, remaining_hours)
-                                )
-
-                            block_end = current_hour + block_length
-                            block_type = (
-                                AvailabilityType.PREFERRED
-                                if random.random() < 0.3
-                                else AvailabilityType.AVAILABLE
-                            )
-                            blocks.append((current_hour, block_end, block_type))
-                            current_hour = block_end
-
-                    else:
-                        # Regular employees get one continuous block
-                        if (
-                            random.random() < 0.8
-                        ):  # Increased chance of full day for sufficient hours
-                            blocks = [(9, 20, AvailabilityType.AVAILABLE)]
-                        else:  # Morning or afternoon block, but not both
-                            if random.random() < 0.5:
-                                blocks = [
-                                    (9, 15, AvailabilityType.AVAILABLE)
-                                ]  # Extended morning
-                            else:
-                                blocks = [
-                                    (14, 20, AvailabilityType.AVAILABLE)
-                                ]  # Afternoon
-
-                    # Create availability records for each block
-                    for start_hour, end_hour, availability_type in blocks:
-                        for hour in range(start_hour, end_hour):
-                            availability = EmployeeAvailability(
-                                employee_id=employee.id,
-                                is_recurring=True,
-                                day_of_week=day_of_week,
-                                hour=hour,
-                                is_available=True,
-                                availability_type=availability_type,
-                            )
-                            temp_availabilities.append(availability)
-
-            # Validate that the generated availability is sufficient
-            if validate_availability_vs_contracted(employee, blocks, days_available):
-                valid_blocks = True
-                availabilities.extend(temp_availabilities)
-            else:
-                logging.warning(
-                    f"Regenerating availability for {employee.employee_id} - "
-                    f"insufficient hours"
+    # Employees with >35 hours: assign only FIXED slots
+    high_hour_employees = [e for e in employees if e.contracted_hours > 35]
+    for emp in high_hour_employees:
+        total_hours = int(emp.contracted_hours * 1.5)
+        hours_per_day = total_hours // len(working_days_indices)
+        extra_hours = total_hours % len(working_days_indices)
+        for i, day_idx in enumerate(working_days_indices):
+            day_date_obj = start_of_week_date + timedelta(days=day_idx)
+            daily_employee_day_type[(emp.id, day_idx)] = AvailabilityType.FIXED
+            hours_today = hours_per_day + (1 if i < extra_hours else 0)
+            start_hour = 9
+            for h in range(start_hour, start_hour + hours_today):
+                avail_slot = EmployeeAvailability(
+                    employee_id=emp.id,
+                    day_of_week=day_idx,
+                    hour=h,
+                    is_available=True,
+                    availability_type=AvailabilityType.FIXED,
+                    start_date=day_date_obj,
+                    end_date=day_date_obj,
+                    is_recurring=False
                 )
+                availabilities.append(avail_slot)
+        employee_weekly_hours[emp.id] = total_hours
 
-    return availabilities
+    # All other employees (<=35 hours)
+    other_employees = [e for e in employees if e.contracted_hours <= 35]
+    for employee in other_employees:
+        target_weekly_hours = int(employee.contracted_hours * 1.5)
+        num_available_days = random.randint(4, 6)
+        chosen_days_indices = random.sample(
+            working_days_indices, num_available_days)
+        chosen_days_indices.sort()
+        remaining_target_hours = target_weekly_hours
+        for day_idx in chosen_days_indices:
+            if remaining_target_hours <= 0:
+                break
+            day_date_obj = start_of_week_date + timedelta(days=day_idx)
+            days_left = len(chosen_days_indices) - chosen_days_indices.index(day_idx)
+            hours_for_this_day_total = min(
+                8, max(4, remaining_target_hours // days_left))
+            for h in range(9, 9 + hours_for_this_day_total):
+                avail_slot = EmployeeAvailability(
+                    employee_id=employee.id,
+                    day_of_week=day_idx,
+                    hour=h,
+                    is_available=True,
+                    availability_type=AvailabilityType.AVAILABLE,
+                    start_date=day_date_obj,
+                    end_date=day_date_obj,
+                    is_recurring=False
+                )
+                availabilities.append(avail_slot)
+            remaining_target_hours -= hours_for_this_day_total
+        employee_weekly_hours[employee.id] = target_weekly_hours
+
+    return availabilities, daily_employee_day_type, employee_weekly_hours
 
 
 def generate_shift_templates():
@@ -548,7 +502,7 @@ def generate_demo_data():
             if module == "all":
                 # Generate availability for new employees
                 logging.info("Generating availabilities...")
-                availabilities = generate_availability_data(employees)
+                availabilities = generate_improved_availability_data(employees)
                 db.session.add_all(availabilities)
                 try:
                     db.session.commit()
@@ -584,7 +538,7 @@ def generate_demo_data():
             # Generate new availabilities for existing employees
             logging.info("Generating availabilities for existing employees...")
             employees = Employee.query.all()
-            availabilities = generate_availability_data(employees)
+            availabilities, _, _ = generate_improved_availability_data(employees)
             db.session.add_all(availabilities)
             try:
                 db.session.commit()
@@ -905,315 +859,6 @@ def generate_improved_coverage_data():
         )
 
     return coverage_slots
-
-
-def generate_improved_availability_data(employees):
-    """Generate optimized availability data using hourly slots, ensuring most employees
-    are available most of the time, and keyholders follow a clopen pattern.
-    FIXED AT only for >= 30 contracted hours. FIXED is a portion. All get AVAILABLE.
-    """
-    availabilities = []
-    # Tracks the dominant AvailabilityType for an employee on a given day_idx (0-5 for Mon-Sat)
-    # Used to prevent mixing FIXED with AVAILABLE/PREFERRED on the same day if not intended.
-    # Value can be FIXED if any fixed block exists, otherwise AVAILABLE/PREFERRED.
-    daily_employee_day_type = {}
-    employee_weekly_hours = {emp.id: 0.0 for emp in employees}
-
-    working_days_indices = list(range(0, 6))  # 0=Monday, 1=Tuesday, ..., 5=Saturday
-
-    today = date.today()
-    start_of_week_date = today - timedelta(days=today.weekday())
-
-    # --- Step 1: Core Keyholders (e.g., first 2 keyholders, if they meet criteria) ---
-    all_keyholders = [e for e in employees if e.is_keyholder]
-    num_core_keyholders = min(2, len(all_keyholders))
-    core_keyholders = random.sample(all_keyholders, num_core_keyholders) if all_keyholders else []
-    
-    logging.info(f"Processing Core Keyholders: {[e.employee_id for e in core_keyholders]}")
-
-    for emp in core_keyholders:
-        current_emp_weekly_hours_fixed = 0
-        current_emp_weekly_hours_available = 0
-        
-        # Core keyholders get some FIXED time ONLY IF their contracted hours are >= 30
-        if emp.contracted_hours >= 30:
-            fixed_block_start_hour = 10  # e.g., 10:00
-            fixed_block_duration = 6     # e.g., 6 hours fixed
-            fixed_block_end_hour = fixed_block_start_hour + fixed_block_duration # 16:00
-            
-            logging.info(f"  Core Keyholder {emp.employee_id} (contracted: {emp.contracted_hours}h) eligible for FIXED block {fixed_block_start_hour}-{fixed_block_end_hour}.")
-
-            for day_idx in working_days_indices: # Assign fixed block on all working days
-                day_date_obj = start_of_week_date + timedelta(days=day_idx)
-                daily_employee_day_type[(emp.id, day_idx)] = AvailabilityType.FIXED # Mark day as having FIXED
-                for hour_of_day in range(fixed_block_start_hour, fixed_block_end_hour):
-                    avail_slot = EmployeeAvailability(
-                        employee_id=emp.id, day_of_week=day_idx, hour=hour_of_day,
-                        is_available=True, availability_type=AvailabilityType.FIXED,
-                        start_date=day_date_obj, end_date=day_date_obj, is_recurring=False
-                    )
-                    availabilities.append(avail_slot)
-                    current_emp_weekly_hours_fixed += 1
-            logging.info(f"  Core Keyholder {emp.employee_id} assigned {current_emp_weekly_hours_fixed}h total FIXED.")
-
-        # All core keyholders (even those not getting FIXED) should also have AVAILABLE time.
-        # Target roughly their contracted hours as total availability for simplicity here.
-        # This available time will be outside their fixed block if they have one.
-        target_available_hours_for_core = emp.contracted_hours * 1.1 - current_emp_weekly_hours_fixed
-        num_available_days_for_core = random.randint(4, 6) # Spread available time
-        
-        if target_available_hours_for_core > 0:
-            chosen_days_for_available = random.sample(working_days_indices, num_available_days_for_core)
-            remaining_available_target = target_available_hours_for_core
-
-            for day_idx in chosen_days_for_available:
-                if remaining_available_target <= 0: break
-                day_date_obj = start_of_week_date + timedelta(days=day_idx)
-                
-                # Determine hours for this day from remaining target
-                avg_avail_hrs_per_day = remaining_available_target / len([d for d in chosen_days_for_available if d >= day_idx])
-                avail_hours_this_day = math.floor(random.uniform(max(2.0, avg_avail_hrs_per_day - 1), min(8.0, avg_avail_hrs_per_day + 1, remaining_available_target)))
-                avail_hours_this_day = max(0, avail_hours_this_day)
-
-                if avail_hours_this_day == 0: continue
-
-                # Assign available slots, avoiding the fixed block if one exists on this day
-                # For simplicity, let's try to add available slots in morning (09-fixed_start) or evening (fixed_end-20)
-                
-                possible_avail_slots = []
-                if daily_employee_day_type.get((emp.id, day_idx)) == AvailabilityType.FIXED:
-                    # Morning part
-                    for h in range(9, fixed_block_start_hour): possible_avail_slots.append(h)
-                    # Evening part
-                    for h in range(fixed_block_end_hour, 20): possible_avail_slots.append(h)
-                else: # No fixed block on this day, can use 09-20
-                    for h in range(9, 20): possible_avail_slots.append(h)
-                
-                random.shuffle(possible_avail_slots) # Randomize order of filling
-                
-                hours_added_as_available_today = 0
-                for hour_val in possible_avail_slots:
-                    if hours_added_as_available_today >= avail_hours_this_day: break
-                    
-                    # Check if this slot is already taken by fixed
-                    is_slot_taken_by_fixed = False
-                    if daily_employee_day_type.get((emp.id, day_idx)) == AvailabilityType.FIXED:
-                        if fixed_block_start_hour <= hour_val < fixed_block_end_hour:
-                           is_slot_taken_by_fixed = True
-                    
-                    if not is_slot_taken_by_fixed:
-                        avail_slot = EmployeeAvailability(
-                            employee_id=emp.id, day_of_week=day_idx, hour=hour_val,
-                            is_available=True, availability_type=AvailabilityType.AVAILABLE,
-                            start_date=day_date_obj, end_date=day_date_obj, is_recurring=False
-                        )
-                        availabilities.append(avail_slot)
-                        current_emp_weekly_hours_available += 1
-                        hours_added_as_available_today +=1
-                        # If this day previously wasn't marked as having FIXED, mark it as AVAILABLE
-                        if daily_employee_day_type.get((emp.id, day_idx)) != AvailabilityType.FIXED:
-                             daily_employee_day_type[(emp.id, day_idx)] = AvailabilityType.AVAILABLE
-                remaining_available_target -= hours_added_as_available_today
-            logging.info(f"  Core Keyholder {emp.employee_id} assigned {current_emp_weekly_hours_available}h additional AVAILABLE time.")
-        employee_weekly_hours[emp.id] = current_emp_weekly_hours_fixed + current_emp_weekly_hours_available
-
-    # --- Step 2: Other Employees (Non-Core Keyholders & Regular Staff) ---
-    other_employees = [e for e in employees if e not in core_keyholders]
-    logging.info(f"Processing Other Employees: {len(other_employees)} staff members.")
-    
-    for employee in other_employees:
-        target_weekly_hours = 0
-        num_available_days = 0
-
-        # Define target weekly hours based on contracted hours (aim for more than contracted)
-        if employee.employee_group in [EmployeeGroup.VZ, EmployeeGroup.TL]:
-            target_weekly_hours = random.uniform(employee.contracted_hours * 1.1, employee.contracted_hours * 1.3)
-            num_available_days = random.randint(5, 6)
-        elif employee.employee_group == EmployeeGroup.TZ:
-            target_weekly_hours = random.uniform(employee.contracted_hours * 1.2, min(40.0, employee.contracted_hours * 1.5))
-            num_available_days = random.randint(4, 5)
-        else:  # GFB
-            target_weekly_hours = random.uniform(employee.contracted_hours * 1.2, min(15.0, employee.contracted_hours * 1.8))
-            min_days_for_gfb = max(1, math.ceil(target_weekly_hours / 10.0)) 
-            num_available_days = random.randint(min_days_for_gfb, 4)
-        target_weekly_hours = round(target_weekly_hours,1)
-
-        logging.info(f"  Emp {employee.employee_id} ({employee.employee_group.value}, contracted: {employee.contracted_hours}h): Target avail. {target_weekly_hours:.1f}h over {num_available_days} days.")
-
-        potential_days_for_av = [d_idx for d_idx in working_days_indices if daily_employee_day_type.get((employee.id, d_idx)) != AvailabilityType.FIXED]
-        
-        if len(potential_days_for_av) < num_available_days:
-            chosen_days_indices = random.sample(potential_days_for_av if potential_days_for_av else working_days_indices, 
-                                                min(num_available_days, len(potential_days_for_av if potential_days_for_av else working_days_indices)))
-        else:
-            chosen_days_indices = random.sample(potential_days_for_av, num_available_days)
-        chosen_days_indices.sort()
-
-        if not chosen_days_indices and target_weekly_hours > 0:
-            logging.warning(f"  No assignable days for {employee.employee_id} to meet {target_weekly_hours}h. Skipping.")
-            continue
-
-        current_emp_weekly_hours_fixed_local = 0
-        current_emp_weekly_hours_available_local = 0
-        remaining_target_hours = target_weekly_hours
-
-        for day_idx in chosen_days_indices:
-            if remaining_target_hours <= 0: break
-            day_date_obj = start_of_week_date + timedelta(days=day_idx)
-            
-            num_remaining_chosen_days = len([d for d in chosen_days_indices if d >= day_idx])
-            hours_for_this_day_total = 0
-            if num_remaining_chosen_days > 0:
-                avg_hours_per_rem_day = remaining_target_hours / num_remaining_chosen_days
-                hours_for_this_day_total = random.uniform(max(4.0, avg_hours_per_rem_day - 2), 
-                                                       min(10.0, avg_hours_per_rem_day + 2, remaining_target_hours))
-            hours_for_this_day_total = max(4.0, min(hours_for_this_day_total, 10.0, remaining_target_hours))
-            hours_for_this_day_total = math.floor(hours_for_this_day_total)
-
-            if hours_for_this_day_total < 1: continue
-
-            day_block_start_hour = random.randint(9, max(9, 20 - int(hours_for_this_day_total)))
-            day_block_end_hour = day_block_start_hour + int(hours_for_this_day_total)
-
-            # Determine if this employee gets FIXED time on this block
-            fixed_hours_on_block = 0
-            available_hours_on_block = hours_for_this_day_total
-            current_day_primary_type = AvailabilityType.AVAILABLE # Default for the block
-
-            if employee.is_keyholder and employee.contracted_hours >= 30:
-                # Non-core KH with enough contracted hours: assign a portion as FIXED
-                fixed_hours_on_block = math.floor(hours_for_this_day_total * 0.6) # e.g., 60% fixed
-                fixed_hours_on_block = min(fixed_hours_on_block, 5) # Cap fixed portion to, say, 5 hours
-                available_hours_on_block = hours_for_this_day_total - fixed_hours_on_block
-                current_day_primary_type = AvailabilityType.FIXED # Day contains fixed
-            
-            # If not a KH eligible for fixed, the whole block is AVAILABLE (or PREFERRED by some minor chance)
-            if current_day_primary_type == AvailabilityType.AVAILABLE and random.random() < 0.15: # Small chance for PREFERRED
-                current_day_primary_type = AvailabilityType.PREFERRED
-
-            daily_employee_day_type[(employee.id, day_idx)] = current_day_primary_type
-            
-            # Assign FIXED slots if any
-            for h_offset in range(fixed_hours_on_block):
-                hour_val = day_block_start_hour + h_offset
-                avail_slot = EmployeeAvailability(
-                    employee_id=employee.id, day_of_week=day_idx, hour=hour_val,
-                    is_available=True, availability_type=AvailabilityType.FIXED,
-                    start_date=day_date_obj, end_date=day_date_obj, is_recurring=False
-                )
-                availabilities.append(avail_slot)
-                current_emp_weekly_hours_fixed_local += 1
-
-            # Assign AVAILABLE/PREFERRED slots
-            # Start after fixed slots end, or from block start if no fixed slots
-            start_hour_for_available = day_block_start_hour + fixed_hours_on_block 
-            for h_offset in range(available_hours_on_block):
-                hour_val = start_hour_for_available + h_offset
-                avail_slot = EmployeeAvailability(
-                    employee_id=employee.id, day_of_week=day_idx, hour=hour_val,
-                    is_available=True, availability_type= current_day_primary_type if fixed_hours_on_block == 0 else AvailabilityType.AVAILABLE, # If fixed was present, remainder is AVAILABLE
-                    start_date=day_date_obj, end_date=day_date_obj, is_recurring=False
-                )
-                availabilities.append(avail_slot)
-                current_emp_weekly_hours_available_local += 1
-            
-            remaining_target_hours -= hours_for_this_day_total
-            logging.debug(f"    Emp {employee.employee_id} Day {day_idx}: Block {day_block_start_hour:02d}-{day_block_end_hour:02d} ({hours_for_this_day_total}h total). "
-                          f"Fixed: {fixed_hours_on_block}h, Avail/Pref: {available_hours_on_block}h ({current_day_primary_type.value}). RemTarget: {remaining_target_hours:.1f}h")
-
-        employee_weekly_hours[employee.id] = current_emp_weekly_hours_fixed_local + current_emp_weekly_hours_available_local
-        logging.info(f"  Emp {employee.employee_id} assigned total {employee_weekly_hours[employee.id]:.1f}h (Fixed: {current_emp_weekly_hours_fixed_local}h, Avail/Pref: {current_emp_weekly_hours_available_local}h) for week (target was ~{target_weekly_hours:.1f}h).")
-
-    # --- Step 3: "Clopen" Logic for Non-Core Keyholders ---
-    # This logic remains largely the same: if a keyholder (who is not a core_keyholder and thus subject to Step 2)
-    # had a FIXED block ending late, they get PREFERRED opening the next day.
-    non_core_keyholders_for_clopen = [e for e in employees if e.is_keyholder and e not in core_keyholders]
-    opening_hours_clopen = list(range(9, 14)) 
-    closing_check_hours = [18, 19] 
-
-    logging.info(f"Processing Clopen Logic for {len(non_core_keyholders_for_clopen)} non-core keyholders.")
-    for kh_emp in non_core_keyholders_for_clopen:
-        for day_idx in working_days_indices:
-            is_closing_keyholder_today = False
-            # Check if the day was marked as having FIXED and if specific late hours were indeed FIXED
-            if daily_employee_day_type.get((kh_emp.id, day_idx)) == AvailabilityType.FIXED:
-                fixed_late_hours_found = 0
-                for chk_hour in closing_check_hours:
-                    for av in availabilities:
-                        if av.employee_id == kh_emp.id and av.day_of_week == day_idx and \
-                           av.hour == chk_hour and av.availability_type == AvailabilityType.FIXED:
-                            fixed_late_hours_found +=1
-                            break 
-                if fixed_late_hours_found == len(closing_check_hours): # Must have all closing hours as fixed
-                    is_closing_keyholder_today = True
-            
-            if is_closing_keyholder_today:
-                actual_next_working_day_idx = (day_idx + 1) if day_idx < 5 else 0 
-                next_day_date_obj = start_of_week_date + timedelta(days=actual_next_working_day_idx)
-                
-                type_for_next_day_overall = daily_employee_day_type.get((kh_emp.id, actual_next_working_day_idx))
-                
-                if type_for_next_day_overall == AvailabilityType.FIXED:
-                    logging.debug(f"  KH {kh_emp.employee_id} already primarily FIXED on next working day {actual_next_working_day_idx}. Skipping PREFERRED clopen addition.")
-                    continue
-
-                logging.info(f"  Adding PREFERRED clopen (09-14) for KH {kh_emp.employee_id} on day {actual_next_working_day_idx} due to closing FIXED on day {day_idx}")
-                
-                clopen_hours_added_count = 0
-                for h_open in opening_hours_clopen:
-                    # Remove any existing AVAILABLE slots for these hours on this day before adding PREFERRED
-                    # And ensure we don't overwrite an existing FIXED slot from core assignment (though unlikely for non-core)
-                    
-                    # Check if a FIXED slot already exists from another part of logic
-                    existing_fixed_for_clopen_hour = any(
-                        av.employee_id == kh_emp.id and 
-                        av.day_of_week == actual_next_working_day_idx and 
-                        av.hour == h_open and
-                        av.availability_type == AvailabilityType.FIXED 
-                        for av in availabilities
-                    )
-                    if existing_fixed_for_clopen_hour:
-                        logging.debug(f"    Skipping PREFERRED for {h_open} on day {actual_next_working_day_idx} for KH {kh_emp.employee_id}, already FIXED.")
-                        continue
-
-                    # Remove existing non-FIXED (AVAILABLE or PREFERRED) for this hour to replace with this clopen PREFERRED
-                    availabilities = [
-                        av for av in availabilities 
-                        if not (av.employee_id == kh_emp.id and 
-                                av.day_of_week == actual_next_working_day_idx and 
-                                av.hour == h_open and
-                                av.availability_type != AvailabilityType.FIXED) # Keep any fixed
-                    ]
-
-                    clopen_slot = EmployeeAvailability(
-                        employee_id=kh_emp.id, day_of_week=actual_next_working_day_idx, hour=h_open,
-                        is_available=True, availability_type=AvailabilityType.PREFERRED,
-                        start_date=next_day_date_obj, end_date=next_day_date_obj, is_recurring=False
-                    )
-                    availabilities.append(clopen_slot)
-                    clopen_hours_added_count +=1
-                
-                # Update the overall day type if it wasn't FIXED
-                if type_for_next_day_overall != AvailabilityType.FIXED:
-                    daily_employee_day_type[(kh_emp.id, actual_next_working_day_idx)] = AvailabilityType.PREFERRED
-                
-                employee_weekly_hours[kh_emp.id] = employee_weekly_hours.get(kh_emp.id, 0.0) + clopen_hours_added_count
-                if clopen_hours_added_count > 0:
-                    logging.debug(f"    KH {kh_emp.employee_id} weekly hours updated to {employee_weekly_hours[kh_emp.id]:.1f} after {clopen_hours_added_count}h PREFERRED clopen add.")
-    
-    # Final summary log (optional, can be extensive)
-    for emp_id_log, total_hrs_log in employee_weekly_hours.items():
-        emp_obj_log = next((e for e in employees if e.id == emp_id_log), None)
-        if emp_obj_log:
-            fixed_count = sum(1 for av in availabilities if av.employee_id == emp_id_log and av.availability_type == AvailabilityType.FIXED)
-            avail_count = sum(1 for av in availabilities if av.employee_id == emp_id_log and av.availability_type == AvailabilityType.AVAILABLE)
-            pref_count = sum(1 for av in availabilities if av.employee_id == emp_id_log and av.availability_type == AvailabilityType.PREFERRED)
-            logging.info(
-                f"Final Availability Summary for Emp {emp_obj_log.employee_id} ({emp_obj_log.employee_group.value}, contracted: {emp_obj_log.contracted_hours}h): "
-                f"Total Generated: {total_hrs_log:.1f}h. Counts - FIXED: {fixed_count}, AVAILABLE: {avail_count}, PREFERRED: {pref_count}"
-            )
-    
-    return availabilities, daily_employee_day_type, employee_weekly_hours
 
 
 def generate_improved_shift_templates():
