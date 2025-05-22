@@ -88,8 +88,8 @@ class Settings(db.Model):
             "enforce_qualifications": True, "enforce_opening_hours": True
         }
     )
-    scheduling_algorithm = Column(String(50), nullable=True, default='default') # Added
-    max_generation_attempts = Column(Integer, nullable=True, default=10) # Added
+    scheduling_algorithm = Column(String(50), nullable=True, default='standard') # Must be 'standard' or 'optimized'
+    max_generation_attempts = Column(Integer, nullable=True, default=10) # Maximum attempts for schedule generation
     # scheduling_advanced = Column(JSON, nullable=True, default=dict) # Removed
 
     # Display and Notification Settings
@@ -302,8 +302,8 @@ class Settings(db.Model):
             "enforce_weekend_distribution": True, "enforce_shift_distribution": True, "enforce_availability": True,
             "enforce_qualifications": True, "enforce_opening_hours": True
         }
-        settings.scheduling_algorithm = "default" # Added
-        settings.max_generation_attempts = 10 # Added
+        settings.scheduling_algorithm = "standard" # Default to standard algorithm
+        settings.max_generation_attempts = 10 # Maximum attempts for schedule generation
         settings.theme = "light"
         # ... (other defaults from original method for display, pdf, groups etc.)
         settings.employee_types = []

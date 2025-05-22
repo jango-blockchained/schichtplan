@@ -16,6 +16,7 @@ SQLAlchemy==2.0.40
 gunicorn==23.0.0
 ruff==0.11.9
 cloc==0.2.5
+flask-sse==1.0.0
 
 # For SQL
 harlequin==2.1.2

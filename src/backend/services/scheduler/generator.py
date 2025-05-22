@@ -297,7 +297,7 @@ class ScheduleGenerator:
     Coordinates the scheduling process using the specialized modules.
     """
 
-    def __init__(self, resources: Optional[RuntimeScheduleResources] = None, passed_config: Optional[SchedulerConfig] = None):
+    def __init__(self, resources: Optional[RuntimeScheduleResources] = None, passed_config: Optional[SchedulerConfig] = None, app_instance: Optional[Any] = None):
         # Use the centrally configured logger
         self.logger = central_logger.schedule_logger # Use the specific schedule logger
         self.app_logger = central_logger.app_logger # Use app logger for general info/debug
@@ -317,10 +317,10 @@ class ScheduleGenerator:
 
         # Initialize resources and config
         if TYPE_CHECKING:
-            self.resources: ActualScheduleResources = resources if resources is not None else ActualScheduleResources()
+            self.resources: ActualScheduleResources = resources if resources is not None else ActualScheduleResources(app_instance=app_instance)
             self.config: ActualSchedulerConfig = passed_config if passed_config is not None else ActualSchedulerConfig()
         else:
-            self.resources = resources if resources is not None else RuntimeScheduleResources()
+            self.resources = resources if resources is not None else RuntimeScheduleResources(app_instance=app_instance)
             self.config = passed_config if passed_config is not None else SchedulerConfig() # This is generator's .config.SchedulerConfig
         
         self.logger.debug(f"ScheduleGenerator initialized (Session: {self.session_id})")
@@ -379,8 +379,18 @@ class ScheduleGenerator:
             version: Optional version of the schedule
         """
         # Ensure the entire generation process runs within a Flask application context
-        from flask import current_app
-        with current_app.app_context():
+        try:
+            # Try to get the current app context
+            from flask import current_app
+            ctx = current_app.app_context()
+        except RuntimeError:
+            # If no current app is available, create one
+            from src.backend.app import create_app
+            app = create_app()
+            ctx = app.app_context()
+            
+        # Use the context manager properly
+        with ctx:
             self.logger.info(f"Generating schedule from {start_date} to {end_date} (Session: {self.session_id})")
             self.diagnostic_logger.info(f"Generation parameters: start={start_date}, end={end_date}, config={external_config_dict}, create_empty={create_empty_schedules}, version={version}")
 
@@ -483,7 +493,7 @@ class ScheduleGenerator:
                 
                 # CONVERSION STEP: ScheduleAssignment to dict or ActualScheduleModel for serializer/validator
                 # This is a placeholder; actual mapping fields would be needed.
-                processed_for_downstream: List[Dict[str, Any]] = []
+                processed_for_downstream: List[Union[ActualScheduleModel, Dict[str, Any]]] = []
                 if TYPE_CHECKING:
                      # For type hinting, this would be List[ActualScheduleModel]
                      # but the conversion logic to ActualScheduleModel instances is complex here.
@@ -561,7 +571,7 @@ class ScheduleGenerator:
                 validator = ScheduleValidator(self.resources)
                 # validator.validate expects List[ActualScheduleModel] or List[Dict] that maps to it.
                 # Cast to List[Dict[str, Any]] to satisfy Mypy due to List invariance with Union types.
-                validation_errors = validator.validate(cast(List[Dict[str, Any]], processed_for_downstream), config=validator_config_arg)
+                validation_errors = validator.validate(processed_for_downstream, config=validator_config_arg)
                 
 
                 # Append validation errors to generation_errors
@@ -588,7 +598,9 @@ class ScheduleGenerator:
             self.process_tracker.start_step("Saving Schedule to Database")
             try:
                  if self.schedule and self.schedule.get_assignments(): # Only save if there are assignments
+                    self.logger.info("Calling _save_to_database within app context.") # ADDED logging
                     saved_count = self._save_to_database() # This method needs to handle bulk saving
+                    self.logger.info("Finished calling _save_to_database within app context.") # ADDED logging
                     self.logger.info(f"Saved {saved_count} assignments to database for version {self.schedule.version}")
                     self.process_tracker.log_step_data("Assignments Saved", saved_count, level=logging.INFO)
 
@@ -607,7 +619,7 @@ class ScheduleGenerator:
                      self.logger.info("No assignments to save. Skipping database save.")
                      self.process_tracker.log_step_data("Assignments Saved", 0, level=logging.INFO)
 
-                 self.process_tracker.end_step({"status": "success"})
+                 self.process_tracker.end_step({"status": "success" if not self.generation_errors else "partial_success"})
 
             except Exception as e:
                 error_msg = f"Error saving schedule to database: {str(e)}"
@@ -964,19 +976,20 @@ class ScheduleGenerator:
                         # Use the .value of the correct enum
                         resolved_availability_type = entry.availability_type
                         if isinstance(entry.availability_type, AvailabilityType): # If it's an enum member
-                            resolved_availability_type = entry.availability_type.value
+                            # Use the enum member directly for the DB model
+                            availability_type_for_db = entry.availability_type
                         elif isinstance(entry.availability_type, str):
                             # Attempt to cast to ensure it's a valid value, if not, default or log warning
                             try:
-                                resolved_availability_type = AvailabilityType(entry.availability_type).value
+                                availability_type_for_db = AvailabilityType(entry.availability_type)
                             except ValueError:
                                 central_logger.error_logger.error(f"Invalid availability_type string '{entry.availability_type}' found during DB save. Defaulting to AVAILABLE. This should not happen if Schedule.availability_type is an Enum column.")
-                                resolved_availability_type = AvailabilityType.AVAILABLE.value
+                                availability_type_for_db = AvailabilityType.AVAILABLE
                         else: # Should not happen
                             central_logger.error_logger.error(f"Unexpected availability_type type '{type(entry.availability_type)}' found during DB save. Defaulting to AVAILABLE.")
-                            resolved_availability_type = AvailabilityType.AVAILABLE.value
+                            availability_type_for_db = AvailabilityType.AVAILABLE
                         
-                        availability_type_to_save = resolved_availability_type or AvailabilityType.AVAILABLE.value
+                        availability_type_to_save = availability_type_for_db
                         shift_type_to_save = entry.shift_type_str or "UNKNOWN" # Assuming UNKNOWN is a safe default string
 
                         # Add structured notes if missing

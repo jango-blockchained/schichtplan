@@ -167,7 +167,7 @@ class AISchedulerService:
                             'id': coverage.id,
                             'date': current_date.strftime('%Y-%m-%d'),
                             'day_index': coverage.day_index,
-                            'shift_id': coverage.id,  # Using coverage ID as shift ID for now
+                            'coverage_id': coverage.id, # Use coverage ID for clarity
                             'start_time': coverage.start_time,
                             'end_time': coverage.end_time,
                             'min_employees': coverage.min_employees,
@@ -279,7 +279,7 @@ class AISchedulerService:
         Example CSV Row:
         101,2024-07-15,3,Morning Shift,08:00,16:00
         Instructions and Data:
-        1. Adhere to all specified coverage needs for each shift and day.
+        1. Adhere to all specified coverage needs for each shift and day. Coverage blocks in the provided data define the minimum and maximum number of employees required during that specific time period.
         2. Respect all employee availability (fixed, preferred, unavailable) and absences.
         3. Consider general scheduling rules provided.
         4. Aim for a fair distribution of shifts among employees.
@@ -791,6 +791,82 @@ class AISchedulerService:
         logger.app_logger.info(message)
 
         return {"status": "received", "message": message, "processed_count": processed_count}
+
+    # New method to import schedule from CSV
+    def import_schedule_from_csv(self, csv_content, version_id, start_date, end_date):
+        """
+        Imports schedule assignments from CSV content and stores them in the database.
+        
+        Args:
+            csv_content (str): The CSV data as a string.
+            version_id (int): The version ID to associate assignments with.
+            start_date (date): The start date of the schedule period.
+            end_date (date): The end date of the schedule period.
+            
+        Returns:
+            dict: Result of the import process.
+        """
+        tracker = self._initialize_process_tracker("AI Schedule Import") # Use a new tracker for import
+        tracker.log_info(f"Initiating AI schedule import for version {version_id} from {start_date} to {end_date}")
+
+        import_metrics = {
+            "version_id": version_id,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "csv_length": len(csv_content),
+        }
+
+        try:
+            # 1. Parse the CSV content
+            # Reuse the existing parsing logic, ensuring it validates dates against the provided range
+            parsed_assignments = self._parse_csv_response(csv_content, start_date, end_date, tracker) # Pass start_date, end_date for validation
+            import_metrics["assignments_parsed"] = len(parsed_assignments)
+            
+            if not parsed_assignments:
+                tracker.log_warning("Parsed assignments list is empty or parsing failed.")
+                tracker.end_process({"status": "warning", "reason": "no_valid_assignments_parsed"})
+                return {"status": "warning", "message": "No valid schedule assignments were parsed from the CSV.", "imported_count": 0}
+
+            # 2. Store the assignments
+            # Reuse the existing storage logic
+            store_result = self._store_assignments(parsed_assignments, version_id, start_date, end_date, tracker) # Pass date range to clear old data correctly
+            import_metrics["assignments_stored"] = store_result.get('count', 0)
+
+            # Complete the process tracking
+            tracker.end_process(import_metrics)
+
+            # Use the directly stored diagnostic log path (from the tracker instance)
+            diagnostic_log_path = self.diagnostic_log_path # Access from self
+
+            # Log the diagnostic log path for reference
+            logger.app_logger.info(f"AI Schedule Import completed. Diagnostic log: {diagnostic_log_path}")
+
+            return {
+                "status": "success",
+                "message": f"Schedule imported and stored successfully. {store_result.get('count', 0)} assignments created/updated.",
+                "imported_count": store_result.get('count', 0),
+                "session_id": self.session_id, # Access from self
+                "diagnostic_log": diagnostic_log_path
+            }
+            
+        except ValueError as e:
+            db.session.rollback()
+            error_message = f"Data validation error during import: {str(e)}"
+            tracker.log_error(error_message)
+            tracker.end_process({"status": "failed", "reason": "data_validation_failed"})
+            raise ValueError(error_message) from e
+        except RuntimeError as e:
+            db.session.rollback()
+            error_message = f"Runtime error during import: {str(e)}"
+            tracker.log_error(error_message)
+            tracker.end_process({"status": "failed", "reason": "runtime_error"})
+            raise RuntimeError(error_message) from e
+        except Exception as e:
+            db.session.rollback()
+            error_message = f"Unexpected error during AI schedule import: {str(e)}"
+            tracker.log_error(error_message)
+            tracker.end_process({"status": "failed", "reason": "unknown_error"})
+            raise RuntimeError(error_message) from e
 
 
 # Helper function for testing (optional, can be removed or moved)

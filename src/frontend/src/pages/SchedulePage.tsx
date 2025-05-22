@@ -50,6 +50,7 @@ import {
   getAbsences,
   fixScheduleDisplay,
   generateAiSchedule,
+  importAiScheduleResponse,
 } from "@/services/api";
 import {
   Dialog,
@@ -88,8 +89,8 @@ import {
   Schedule,
   ScheduleError,
   ScheduleUpdate,
-  ShiftType,
   Settings,
+  AiImportResponse, // Import the new type
 } from "@/types"; // Added Settings
 // import { Checkbox } from '@/components/ui/checkbox'; // Original, might be unused
 import { PageHeader } from "@/components/PageHeader";
@@ -165,6 +166,8 @@ export function SchedulePage() {
     onConfirm: () => void;
     onCancel: () => void;
   } | null>(null);
+  const [isAiDataPreviewOpen, setIsAiDataPreviewOpen] = useState<boolean>(false);
+  const [aiPreviewData, setAiPreviewData] = useState<any>(null);
 
   // 2. Other React hooks
   const { toast } = useToast();
@@ -215,7 +218,7 @@ export function SchedulePage() {
       .sort((a, b) => a - b);
   }, [effectiveSettingsData]);
 
-  // 4. Custom Hooks
+  // Custom Hook for Version Control
   const {
     selectedVersion: versionControlSelectedVersion,
     handleVersionChange, // This is the function from the hook to change version
@@ -240,6 +243,7 @@ export function SchedulePage() {
     },
   });
 
+  // Custom Hook for Schedule Data Fetching
   const {
     scheduleData,
     errors: scheduleErrorsData,
@@ -253,6 +257,7 @@ export function SchedulePage() {
     includeEmpty,
   );
 
+  // Custom Hook for Schedule Generation Logic
   const {
     generationSteps,
     generationLogs,
@@ -280,26 +285,28 @@ export function SchedulePage() {
     },
   });
 
-  const exportMutation = useMutation({
+  // Mutations
+  const exportMutation = useMutation<Blob, Error>({
     mutationFn: async () => {
       if (!dateRange?.from || !dateRange?.to) {
         throw new Error("Bitte wählen Sie einen Zeitraum aus");
       }
       addGenerationLog("info", "Starting PDF export");
       const response = await exportSchedule(
-        dateRange.from.toISOString().split("T")[0],
-        dateRange.to.toISOString().split("T")[0],
+        format(dateRange.from, "yyyy-MM-dd"),
+        format(dateRange.to, "yyyy-MM-dd"),
       );
       addGenerationLog("info", "PDF export completed");
       const blob = new Blob([response], { type: "application/pdf" });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Schichtplan_${dateRange.from.toISOString().split("T")[0]}_${dateRange.to.toISOString().split("T")[0]}.pdf`;
+      a.download = `Schichtplan_${format(dateRange.from, "yyyy-MM-dd")}_${format(dateRange.to, "yyyy-MM-dd")}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+      return blob; // Return blob on success
     },
     onError: (error) => {
       addGenerationLog("error", "PDF export failed", getErrorMessage(error));
@@ -311,10 +318,77 @@ export function SchedulePage() {
     },
   });
 
+  const importAiResponseMutation = useMutation<AiImportResponse, Error, FormData>({
+    mutationFn: importAiScheduleResponse,
+    onMutate: () => {
+      toast({
+        title: "Import wird verarbeitet",
+        description: "Die KI-Antwort wird importiert...",
+        variant: "default",
+      });
+    },
+    onSuccess: (data) => {
+      refetchScheduleData();
+      queryClient.invalidateQueries({ queryKey: ['versions'] });
+      toast({
+        title: "Import erfolgreich",
+        description: data.message || `Es wurden ${data.imported_count} Zuweisungen importiert.`, // Use message from backend if available
+        variant: "default", // Changed to default
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Import fehlgeschlagen",
+        description: `Fehler: ${getErrorMessage(error)}`,
+        variant: "destructive",
+      });
+    },
+  });
+
   // 5. Helper constants derived from hook results
   const errors = scheduleErrorsData || [];
 
   // 6. Event Handlers and other functions (wrapped in useCallback)
+  const handleImportAiResponse = useCallback(() => {
+    if (!versionControlSelectedVersion || !dateRange?.from || !dateRange?.to) {
+      toast({
+        title: "Import nicht möglich",
+        description: "Bitte Zeitraum und Version wählen.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Create a file input element programmatically
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.csv';
+    fileInput.style.display = 'none'; // Hide the input
+    document.body.appendChild(fileInput); // Append to body temporarily
+
+    fileInput.onchange = async (event) => {
+      const files = (event.target as HTMLInputElement).files;
+      if (files && files.length > 0) {
+        const file = files[0];
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('version_id', versionControlSelectedVersion.toString());
+        formData.append('start_date', format(dateRange.from!, 'yyyy-MM-dd'));
+        formData.append('end_date', format(dateRange.to!, 'yyyy-MM-dd'));
+
+        // Use a mutation hook for the import process
+        importAiResponseMutation.mutate(formData);
+      }
+
+      // Clean up the file input element
+      document.body.removeChild(fileInput);
+    };
+
+    // Trigger the file picker
+    fileInput.click();
+  }, [versionControlSelectedVersion, dateRange, toast, importAiResponseMutation]);
+
   const handleRetryFetch = useCallback(() => {
     console.log("Retrying data fetch...");
     clearGenerationLogs();
@@ -324,6 +398,33 @@ export function SchedulePage() {
   const handleExportSchedule = useCallback(() => {
     exportMutation.mutate();
   }, [exportMutation]);
+
+  const handlePreviewAiData = useCallback(() => {
+    if (!dateRange?.from || !dateRange?.to || !versionControlSelectedVersion) {
+      toast({
+        title: "Vorschau nicht möglich",
+        description: "Bitte Zeitraum und Version wählen.",
+        variant: "destructive",
+      });
+      return;
+    }
+    // Collect the data that would be sent to the AI.
+    // This is a simplified representation based on available data.
+    const dataToPreview = {
+      dateRange: { from: dateRange.from, to: dateRange.to },
+      version: versionControlSelectedVersion,
+      schedules: scheduleData, // Current schedules in the selected range/version
+      employees: employees, // All employees
+      settings: effectiveSettingsData, // All effective settings
+      employeeAbsences: employeeAbsences, // Employee absences
+      // Add other relevant data like coverage, shift templates if available in scope
+      // Note: A real AI integration might require more specific data structures
+    };
+    setAiPreviewData(dataToPreview);
+    setIsAiDataPreviewOpen(true);
+  }, [dateRange, versionControlSelectedVersion, scheduleData, employees, effectiveSettingsData, employeeAbsences]);
+
+  const aiSystemPrompt = `You are an advanced AI scheduling assistant. Your task is to generate an optimal employee shift schedule based on the provided data and rules.\n  Schedule Period: ${dateRange?.from?.toISOString().split('T')[0]} to ${dateRange?.to?.toISOString().split('T')[0]}\n  Output Format:\n  Please provide the schedule STRICTLY in CSV format. The CSV should have the following columns, in this exact order:\n  EmployeeID,Date,ShiftTemplateID,ShiftName,StartTime,EndTime\n  Example CSV Row:\n  101,2024-07-15,3,Morning Shift,08:00,16:00\n  Instructions and Data:\n  1. Adhere to all specified coverage needs for each shift and day. Coverage blocks in the provided data define the minimum and maximum number of employees required during that specific time period.\n  2. Respect all employee availability (fixed, preferred, unavailable) and absences.\n  3. Consider general scheduling rules provided.\n  4. Aim for a fair distribution of shifts among employees.\n  5. Prioritize fulfilling fixed assignments and preferred shifts where possible.\n  6. Ensure assigned shifts match employee qualifications (i.e., keyholder).\n  7. The ShiftTemplateID in the output CSV must correspond to an existing ShiftTemplateID from the input data.\n  8. The Date must be in YYYY-MM-DD format.\n  9. StartTime and EndTime in the output CSV should be in HH:MM format and match the times of the assigned ShiftTemplateID.\n  10. Only output the CSV data. Do not include any explanations, comments, or any text before or after the CSV data block.`;
 
   const checkAndFixMissingTimeData = useCallback(async () => {
     if (
@@ -357,7 +458,7 @@ export function SchedulePage() {
         dismiss();
         toast({
           title: "Schichtdaten repariert",
-          description: `${result.total_schedules || 0} Schichten geprüft, ${problemSchedules.length} Probleme gefunden, ${result.empty_schedules_count || 0} Einträge aktualisiert.`,
+          description: `${result.total_schedules || 0} Schichten geprüft, ${problemSchedules.length} Probleme gefunden, ${result.empty_schedules_count || 0} Einträge aktualisiert.`, // Corrected to use result properties
           variant: "default",
         });
         await refetchScheduleData();
@@ -493,6 +594,47 @@ export function SchedulePage() {
     isAiGenerating,
     checkAndFixMissingTimeData,
   ]);
+
+  const { data: absenceData } = useQuery({
+    queryKey: ["absences"] as const, // Simplified query key
+    queryFn: async () => {
+      // The backend currently only supports fetching absences for a specific employee,
+      // not by date range across all employees.
+      // To avoid a 404, we will not call getAbsences with the date range.
+      // A future task is needed to implement a backend route for fetching absences by date range.
+      console.warn("Fetching all absences by date range is not yet supported by the backend.");
+      return {}; // Return empty object or appropriate default
+      // Original incorrect call:
+      // const data = await getAbsences(
+      //   // @ts-ignore // Temporarily ignore type error until backend API is updated
+      //   dateRange.from,
+      //   // @ts-ignore // Temporarily ignore type error until backend API is updated
+      //   dateRange.to
+      // );
+      // Assuming the backend returns a list of absence objects
+      // We need to transform it into a map by employee ID if that's how employeeAbsences is used
+      // const absencesByEmployee: Record<number, any[]> = {};
+      // if (Array.isArray(data)) {
+      //   data.forEach(absence => {
+      //     if (!absencesByEmployee[absence.employee_id]) {
+      //       absencesByEmployee[absence.employee_id] = [];
+      //     }
+      //     absencesByEmployee[absence.employee_id].push(absence);
+      //   });
+      // }
+      // return absencesByEmployee;
+    },
+    // Removed dependency on dateRange for enabling the query to prevent incorrect calls
+    // The display logic in ScheduleTable will handle the absence data it receives (or doesn't receive)
+    enabled: true, // Always enable the query, but the queryFn will return empty/warn
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+
+  useEffect(() => {
+    if (absenceData) {
+      setEmployeeAbsences(absenceData);
+    }
+  }, [absenceData]);
 
   // Conditional returns are now AFTER all hooks and necessary handler definitions
   if (isLoadingSchedule) {
@@ -816,7 +958,6 @@ export function SchedulePage() {
             updateSchedule(s.id, {
               shift_id: null,
               version: versionControlSelectedVersion,
-              employee_id: s.employee_id,
             }),
           );
           const batchSize = 10;
@@ -834,7 +975,7 @@ export function SchedulePage() {
           await refetchScheduleData();
           toast({
             title: "Schichtpläne gelöscht",
-            description: `${resultsCount} Schichten entfernt.`,
+            description: `${resultsCount} Schichten entfernt.`, // Corrected to use resultsCount
           });
         } catch (error) {
           toast({
@@ -920,7 +1061,7 @@ export function SchedulePage() {
       await refetchScheduleData();
       toast({
         title: "Display Fix Complete",
-        description: `Fixed ${result.empty_schedules_count} schedules.`,
+        description: `Fixed ${result.empty_schedules_count} schedules.`, // Corrected to use result property
       });
     } catch (error) {
       addGenerationLog("error", "Display fix failed", getErrorMessage(error));
@@ -1099,6 +1240,9 @@ export function SchedulePage() {
           onFixDisplay={handleFixDisplay}
           onFixTimeData={checkAndFixMissingTimeData}
           canFix={canFix}
+          isAiEnabled={!!settingsQuery.data?.ai_scheduling?.enabled}
+          onPreviewAiData={handlePreviewAiData}
+          onImportAiResponse={handleImportAiResponse} // Pass the new prop
         />
       </div>
 
@@ -1252,6 +1396,33 @@ export function SchedulePage() {
           </AlertDialogContent>
         </AlertDialog>
       )}
+
+      {/* AI Data Preview Dialog */}
+      <Dialog open={isAiDataPreviewOpen} onOpenChange={setIsAiDataPreviewOpen}>
+        <DialogContent className="sm:max-w-[800px]">
+          <DialogHeader>
+            <DialogTitle>KI Daten Vorschau</DialogTitle>
+            <DialogDescription>Vorschau der Daten, die an die KI gesendet werden</DialogDescription>
+          </DialogHeader>
+          <div className="whitespace-pre-wrap max-h-[60vh] overflow-y-auto p-4 bg-gray-100 dark:bg-gray-800 rounded-md text-sm">
+            <p className="font-semibold mb-2">KI System Prompt:</p>
+            <p className="mb-4">{aiSystemPrompt}</p>
+            <p className="font-semibold mb-2">Daten für KI:</p>
+            {JSON.stringify(aiPreviewData, null, 2)}
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                if (aiPreviewData) {
+                  navigator.clipboard.writeText(JSON.stringify(aiPreviewData, null, 2));
+                }
+              }}
+            >
+              Kopieren
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

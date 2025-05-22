@@ -15,6 +15,7 @@ import {
   Plus,
   Loader2,
   Sparkles,
+  Eye,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -36,12 +37,15 @@ interface ScheduleActionsProps {
   onOpenGenerationSettings: () => void;
   onFixDisplay: () => Promise<void>;
   onFixTimeData: () => Promise<void>;
+  onPreviewAiData: () => void;
+  onImportAiResponse: () => void;
   isLoading: boolean;
   isGenerating: boolean;
   canAdd: boolean;
   canDelete: boolean;
   canGenerate: boolean;
   canFix: boolean;
+  isAiEnabled: boolean;
 }
 
 export function ScheduleActions({
@@ -52,12 +56,15 @@ export function ScheduleActions({
   onOpenGenerationSettings,
   onFixDisplay,
   onFixTimeData,
+  onPreviewAiData,
+  onImportAiResponse,
   isLoading,
   isGenerating,
   canAdd,
   canDelete,
   canGenerate,
   canFix,
+  isAiEnabled,
 }: ScheduleActionsProps) {
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -120,17 +127,36 @@ export function ScheduleActions({
             )}
             <span>Standard Generierung</span>
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={onGenerateAiSchedule}
-            disabled={isGenerating || isLoading}
-          >
-            {isGenerating ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4 mr-2" />
-            )}
-            <span>KI-Generierung</span>
-          </DropdownMenuItem>
+          {isAiEnabled && (
+            <>
+              <DropdownMenuItem
+                onClick={onGenerateAiSchedule}
+                disabled={isGenerating || isLoading}
+              >
+                {isGenerating ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4 mr-2" />
+                )}
+                <span>KI-Generierung</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={onPreviewAiData}
+                disabled={isGenerating || isLoading}
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                <span>KI Daten Vorschau</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={onImportAiResponse}
+                disabled={isGenerating || isLoading}
+              >
+                <CalendarPlus className="h-4 w-4 mr-2" />
+                <span>KI Response Importieren</span>
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
