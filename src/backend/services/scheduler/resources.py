@@ -1,7 +1,7 @@
 """Resource management for the scheduler"""
 
 from datetime import date, datetime, time, timedelta
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple, Union, Any
 import logging
 import functools
 import sys
@@ -236,7 +236,7 @@ class ScheduleResourceError(Exception):
 class ScheduleResources:
     """Centralized container for schedule generation resources"""
 
-    def __init__(self):
+    def __init__(self, app_instance: Optional[Any] = None):
         self.settings: Optional[Settings] = None
         self.coverage: List[Coverage] = []
         self.shifts: List[ShiftTemplate] = []
@@ -249,6 +249,7 @@ class ScheduleResources:
         self._coverage_cache = {}
         self._date_caches_cleared = False
         self.logger = logger
+        self.app_instance = app_instance
 
     def is_loaded(self):
         """Check if resources have been loaded"""
@@ -262,49 +263,88 @@ class ScheduleResources:
         ])
 
     def load(self):
-        """Load all necessary resources from the database"""
+        """Loads all necessary resources from the database."""
         self.logger.info("Starting to load resources...")
         try:
-            # Wrap resource loading in app context
-            with current_app.app_context():
+            # Use the provided app_instance for context if available, otherwise rely on current_app
+            if self.app_instance:
+                ctx = self.app_instance.app_context()
+            else:
+                try:
+                    from flask import current_app
+                    ctx = current_app.app_context()
+                except RuntimeError:
+                    # If no current app is available, try to create one
+                    from src.backend.app import create_app
+                    app = create_app()
+                    ctx = app.app_context()
+            
+            # Properly use the context manager with 'with' statement
+            with ctx:
+                self.logger.debug("Executing resource loading within Flask app context.")
                 self.settings = self._load_settings()
-                self.logger.info("Starting to load coverage data...")
                 self.coverage = self._load_coverage()
-                self.logger.info("Starting to load shifts...")
                 self.shifts = self._load_shifts()
-                self.logger.info("Starting to load employees...")
                 self.employees = self._load_employees()
-                self.logger.info("Starting to load absences...")
                 self.absences = self._load_absences()
-                self.logger.info("Starting to load availabilities...")
                 self.availabilities = self._load_availabilities()
-                self._date_caches_cleared = False # Ensure caches are cleared after loading
-            self.logger.info("Resource loading completed successfully.")
-            self.verify_loaded_resources()
-        except Exception as e:
-            self.logger.error(f"Error during resource loading: {str(e)}", exc_info=True)
-            raise ScheduleResourceError(f"Failed to load resources: {str(e)}") from e
 
-    def _load_settings(self) -> Settings:
+                # Load existing schedule data if needed
+                # This might be heavy, only do if necessary for initialization
+                # self.schedule_data = self._load_schedule_data() # Uncomment if needed
+
+                self.is_loaded = True # Mark as loaded after successful loading
+
+            self.logger.info("Resource loading completed successfully.")
+            # Verify resources *after* they are loaded and is_loaded is set
+            # Ensure the verification logic uses self.is_loaded if it checks loaded status
+            self.verify_loaded_resources()
+
+        except ScheduleResourceError as e:
+            # Catch specific resource errors and re-raise after logging
+            self.logger.error(f"Error during resource loading: {e}", exc_info=True)
+            raise
+        except Exception as e:
+            # Catch any other unexpected exceptions during loading
+            self.logger.error(f"An unexpected error occurred during resource loading: {e}", exc_info=True)
+            raise ScheduleResourceError(f"An unexpected error occurred: {e}") from e
+
+    def _load_settings(self):
         """Load settings with error handling"""
         try:
-            with current_app.app_context(): # Wrap query in app context
+            # Create app context
+            if self.app_instance:
+                ctx = self.app_instance.app_context()
+            else:
+                try:
+                    from flask import current_app
+                    ctx = current_app.app_context()
+                except RuntimeError:
+                    # If no current app is available, try to create one
+                    from src.backend.app import create_app
+                    app = create_app()
+                    ctx = app.app_context()
+            
+            # Properly use the context manager
+            with ctx:
                 settings = Settings.query.first()
+                
             if not settings:
-                self.logger.warning("No settings found, creating default settings")
-                with current_app.app_context(): # Wrap session add/commit
-                    db.session.add(settings)
-                    db.session.commit()
+                self.logger.error("No settings found in database, will use defaults")
+                return None
+                
+            self.logger.info("Settings loaded successfully")
             return settings
         except Exception as e:
-            self.logger.error(f"Error loading settings: {str(e)}", exc_info=True) # Added exc_info
+            self.logger.error(f"Error loading settings: {str(e)}", exc_info=True)
             return None
 
     def _load_coverage(self) -> List[Coverage]:
         """Load coverage with error handling"""
         try:
             self.logger.info("Starting to load coverage data...")
-            with current_app.app_context(): # Wrap query in app context
+            app_context = self.app_instance.app_context() if self.app_instance else current_app.app_context()
+            with app_context: # Wrap query in app context
                 coverage = Coverage.query.all()
 
             if not coverage:
@@ -315,14 +355,16 @@ class ScheduleResources:
                     from api.demo_data import generate_coverage_data
 
                     coverage_slots = generate_coverage_data()
-                    with current_app.app_context(): # Wrap session add/commit
+                    app_context = self.app_instance.app_context() if self.app_instance else current_app.app_context()
+                    with app_context: # Wrap session add/commit
                         for slot in coverage_slots:
                             db.session.add(slot)
                         db.session.commit()
                     self.logger.info(
                         f"Successfully generated {len(coverage_slots)} demo coverage slots"
                     )
-                    with current_app.app_context(): # Wrap re-query
+                    app_context = self.app_instance.app_context() if self.app_instance else current_app.app_context()
+                    with app_context: # Wrap re-query
                          coverage = Coverage.query.all() # Re-query after generating
                     if not coverage: # Check again if demo data actually populated
                         self.logger.error("Failed to load any coverage even after attempting to generate demo data.")
@@ -366,8 +408,23 @@ class ScheduleResources:
     def _load_shifts(self) -> List[ShiftTemplate]:
         """Load shifts with error handling"""
         try:
-            with current_app.app_context(): # Wrap query in app context
+            # Create app context
+            if self.app_instance:
+                ctx = self.app_instance.app_context()
+            else:
+                try:
+                    from flask import current_app
+                    ctx = current_app.app_context()
+                except RuntimeError:
+                    # If no current app is available, try to create one
+                    from src.backend.app import create_app
+                    app = create_app()
+                    ctx = app.app_context()
+            
+            # Properly use the context manager
+            with ctx:
                 shifts = ShiftTemplate.query.all()
+                
             if not shifts:
                 self.logger.error("No shift templates found in database")
                 return []
@@ -403,8 +460,23 @@ class ScheduleResources:
     def _load_employees(self) -> List[Employee]:
         """Load employees from database"""
         try:
-            with current_app.app_context(): # Wrap query in app context
+            # Create app context
+            if self.app_instance:
+                ctx = self.app_instance.app_context()
+            else:
+                try:
+                    from flask import current_app
+                    ctx = current_app.app_context()
+                except RuntimeError:
+                    # If no current app is available, try to create one
+                    from src.backend.app import create_app
+                    app = create_app()
+                    ctx = app.app_context()
+            
+            # Properly use the context manager
+            with ctx:
                 employees = Employee.query.filter_by(is_active=True).all()
+                
             self.logger.debug(f"Loaded {len(employees)} active employees from database")
             return employees
         except Exception as e:
@@ -414,8 +486,23 @@ class ScheduleResources:
     def _load_absences(self) -> List[Absence]:
         """Load absences with error handling"""
         try:
-            with current_app.app_context(): # Wrap query in app context
+            # Create app context
+            if self.app_instance:
+                ctx = self.app_instance.app_context()
+            else:
+                try:
+                    from flask import current_app
+                    ctx = current_app.app_context()
+                except RuntimeError:
+                    # If no current app is available, try to create one
+                    from src.backend.app import create_app
+                    app = create_app()
+                    ctx = app.app_context()
+            
+            # Properly use the context manager
+            with ctx:
                 return Absence.query.all()
+                
         except Exception as e:
             self.logger.error(f"Error loading absences: {str(e)}", exc_info=True) # Added exc_info
             return []
@@ -423,7 +510,21 @@ class ScheduleResources:
     def _load_availabilities(self) -> List[EmployeeAvailability]:
         """Load availabilities with error handling"""
         try:
-            with current_app.app_context(): # Wrap query in app context
+            # Create app context
+            if self.app_instance:
+                ctx = self.app_instance.app_context()
+            else:
+                try:
+                    from flask import current_app
+                    ctx = current_app.app_context()
+                except RuntimeError:
+                    # If no current app is available, try to create one
+                    from src.backend.app import create_app
+                    app = create_app()
+                    ctx = app.app_context()
+            
+            # Properly use the context manager
+            with ctx:
                 availabilities = EmployeeAvailability.query.all()
 
             # Group availabilities by employee for better logging
@@ -432,19 +533,11 @@ class ScheduleResources:
                 if avail.employee_id not in by_employee:
                     by_employee[avail.employee_id] = []
                 by_employee[avail.employee_id].append(avail)
-
-            # Log availability summary for each employee
-            for emp_id, emp_avails in by_employee.items():
-                available_hours = sum(1 for a in emp_avails if a.is_available) # Assuming is_available is boolean/truthy
-                total_hours = len(emp_avails)
-                logger.info(
-                    f"Employee {emp_id} availability: "
-                    f"{available_hours}/{total_hours} hours available"
-                )
-
+                
+            self.logger.info(f"Loaded {len(availabilities)} availability records")
             return availabilities
         except Exception as e:
-            self.logger.error(f"Error loading availabilities: {str(e)}", exc_info=True) # Added exc_info
+            self.logger.error(f"Error loading availabilities: {str(e)}", exc_info=True)
             return []
 
     def get_keyholders(self) -> List[Employee]:
@@ -626,33 +719,17 @@ class ScheduleResources:
         )
 
     def verify_loaded_resources(self):
-        """Verify that all required resources are loaded correctly"""
-        if not self._loaded:
-            self.logger.error("Resources not loaded yet")
+        """
+        Verifies that all necessary resources have been loaded.
+        Returns True if verification passes, False otherwise.
+        """
+        self.logger.info("Verifying loaded resources...")
+        # Basic check: ensure core lists are not None and have some expected data
+        if not self.is_loaded or not self.settings or not self.employees or not self.shifts or not self.coverage or not self.availabilities or not self.absences:
+            self.logger.error("One or more core resource types are missing or not loaded.")
+            # More detailed logging:
+            self.logger.error(f"Load status: is_loaded={self.is_loaded}")
+            self.logger.error(f"Settings loaded: {self.settings is not None}")
             return False
-
-        # Check employees
-        if not self.employees:
-            self.logger.error("No employees loaded")
-            return False
-        self.logger.info(f"Verified {len(self.employees)} employees")
-
-        # Check shifts
-        if not self.shifts:
-            self.logger.error("No shifts loaded")
-            return False
-        self.logger.info(f"Verified {len(self.shifts)} shifts")
-
-        # Check coverage
-        if not self.coverage:
-            self.logger.error("No coverage data loaded")
-            return False
-        self.logger.info(f"Verified {len(self.coverage)} coverage records")
-
-        # Check settings
-        if not self.settings:
-            self.logger.error("No settings loaded")
-            return False
-        self.logger.info("Verified settings")
 
         return True

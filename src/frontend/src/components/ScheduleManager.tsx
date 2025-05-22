@@ -17,7 +17,7 @@ interface ScheduleManagerProps {
     id: string;
     name: string;
     color: string;
-    type: "absence";
+    type: "absence_type";
   }>;
   currentVersion?: number;
   // Removed activeView as we're always using table view

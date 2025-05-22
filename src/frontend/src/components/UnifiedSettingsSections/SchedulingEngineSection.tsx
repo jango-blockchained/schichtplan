@@ -168,6 +168,23 @@ export const SchedulingEngineSection: React.FC<
                   }
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="scheduling_algorithm">Scheduling Algorithm</Label>
+                <Select
+                  value={schedulingSettings.scheduling_algorithm || "standard"}
+                  onValueChange={(value: "standard" | "optimized") =>
+                    onInputChange("scheduling_algorithm", value)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="standard">Standard</SelectItem>
+                    <SelectItem value="optimized">Optimized</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="flex items-center space-x-2 pt-2">
                 <Switch
                   id="auto_schedule_preferences"

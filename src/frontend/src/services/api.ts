@@ -9,6 +9,8 @@ import type {
   EmployeeAvailabilityStatus,
   ApplicableShift,
   AvailabilityTypeStrings,
+  AiImportResponse,
+  Absence, // Import Absence type
 } from "@/types/index";
 import { CreateEmployeeRequest, UpdateEmployeeRequest } from "../types";
 
@@ -376,26 +378,16 @@ export const getSchedules = async (
   includeEmpty: boolean = false,
 ): Promise<ScheduleResponse> => {
   try {
-    console.log("🟩 getSchedules called with:", {
-      startDate,
-      endDate,
-      version,
-      includeEmpty,
-    });
-
-    const response = await api.get("/schedules/", {
+    const response = await api.get<ScheduleResponse>("/schedules/", {
       params: {
         start_date: startDate,
         end_date: endDate,
-        version,
+        version: version,
         include_empty: includeEmpty,
       },
     });
-
-    console.log("🟩 getSchedules response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("🟩 getSchedules error:", error);
     if (error instanceof Error) {
       throw new Error(`Failed to fetch schedules: ${error.message}`);
     }
@@ -410,47 +402,12 @@ export const generateAiSchedule = async (
   // Add any AI-specific parameters here if needed in the future
 ): Promise<ScheduleResponse> => {
   try {
-    console.log("🤖 Generating AI schedule with parameters:", {
-      startDate,
-      endDate,
-      version,
-      timestamp: new Date().toISOString(),
-    });
-
-    const response = await api.post<ScheduleResponse>("/ai-schedule/generate", {
-      start_date: startDate,
-      end_date: endDate,
-      version_id: version, // Ensure key matches backend expectation
-    });
-
-    console.log("✅ AI Schedule generation successful:", {
-      "Total schedules": response.data.schedules?.length || 0,
-      "Error count": response.data.errors?.length || 0,
-      Logs: response.data.logs?.length || 0,
-      "Response data": response.data, // Add full response logging for debugging
-    });
-
-    if (response.data.errors && response.data.errors.length > 0) {
-      console.warn(
-        "⚠️ AI Schedule generation completed with errors:",
-        response.data.errors,
-      );
-    }
-
+    const response = await api.post<ScheduleResponse>(
+      "/schedule/generate-ai",
+      { start_date: startDate, end_date: endDate, version: version }
+    );
     return response.data;
   } catch (error) {
-    console.error("❌ AI Schedule generation error:", error);
-    // More detailed error logging
-    if (error.response) {
-      // The request was made and the server responded with a status code
-      // that falls out of the range of 2xx
-      console.error("Error response data:", error.response.data);
-      console.error("Error response status:", error.response.status);
-      console.error("Error response headers:", error.response.headers);
-    } else if (error.request) {
-      // The request was made but no response was received
-      console.error("Error request:", error.request);
-    }
     if (error instanceof Error) {
       throw new Error(`Failed to generate AI schedule: ${error.message}`);
     }
@@ -466,195 +423,38 @@ export const generateSchedule = async (
   enableDiagnostics: boolean = false,
 ): Promise<ScheduleResponse> => {
   try {
-    if (!version) {
-      throw new Error("Version is required for schedule generation");
-    }
-
-    console.log("📆 Generating schedule with parameters:", {
-      startDate,
-      endDate,
-      createEmptySchedules,
-      version,
-      enableDiagnostics,
-      timestamp: new Date().toISOString(),
-    });
-
-    // Get all shifts to validate they have durations
-    const shiftsResponse = await api.get<Shift[]>("/shifts/");
-    let shifts = shiftsResponse.data;
-
-    console.log(`📊 Loaded ${shifts.length} shifts from the server`);
-
-    // Check for shifts with missing or invalid duration_hours
-    const invalidShifts = shifts.filter(
-      (shift) =>
-        shift.duration_hours === null ||
-        shift.duration_hours === undefined ||
-        isNaN(shift.duration_hours) ||
-        shift.duration_hours <= 0,
+    const response = await api.post<ScheduleResponse>(
+      "/schedules/generate/",
+      {
+        start_date: startDate,
+        end_date: endDate,
+        create_empty_schedules: createEmptySchedules,
+        version: version,
+        enable_diagnostics: enableDiagnostics,
+      },
     );
-
-    if (invalidShifts.length > 0) {
-      console.warn(
-        `⚠️ Found ${invalidShifts.length} shifts with missing or invalid duration_hours:`,
-        invalidShifts.map((s) => ({
-          id: s.id,
-          start: s.start_time,
-          end: s.end_time,
-        })),
-      );
-
-      // Try to fix shifts with missing duration_hours
-      if (invalidShifts.length > 0) {
-        console.warn(
-          "🔧 Attempting to fix shifts with missing duration_hours using dedicated endpoint",
-        );
-
-        try {
-          // Use the dedicated endpoint to fix all shifts at once
-          const fixResult = await fixShiftDurations();
-          console.log("✅ Fixed shift durations:", fixResult);
-        } catch (fixError) {
-          console.error("❌ Error using fix-durations endpoint:", fixError);
-
-          // Fall back to the old method of fixing shifts one by one
-          console.warn("Falling back to fixing shifts one by one");
-
-          // Fix each invalid shift by calculating duration_hours
-          for (const shift of invalidShifts) {
-            try {
-              // Parse start and end times
-              const [startHour, startMinute] = shift.start_time
-                .split(":")
-                .map(Number);
-              const [endHour, endMinute] = shift.end_time
-                .split(":")
-                .map(Number);
-
-              if (
-                isNaN(startHour) ||
-                isNaN(startMinute) ||
-                isNaN(endHour) ||
-                isNaN(endMinute)
-              ) {
-                console.error(
-                  `Invalid time format for shift ${shift.id}: ${shift.start_time} - ${shift.end_time}`,
-                );
-                continue;
-              }
-
-              // Convert times to minutes for easier calculation
-              const startMinutes = startHour * 60 + startMinute;
-              const endMinutes = endHour * 60 + endMinute;
-
-              // Handle overnight shifts
-              let durationMinutes = endMinutes - startMinutes;
-              if (durationMinutes < 0) {
-                durationMinutes += 24 * 60; // Add 24 hours for overnight shifts
-              }
-
-              // Convert to decimal hours
-              const finalDuration = durationMinutes / 60;
-
-              console.log(
-                `Calculated duration for shift ${shift.id}: ${finalDuration} hours (from ${shift.start_time} to ${shift.end_time})`,
-              );
-
-              // Update the shift with the calculated duration
-              await updateShift({
-                id: shift.id,
-                duration_hours: finalDuration,
-              });
-
-              console.log(
-                `Updated shift ${shift.id} with duration_hours = ${finalDuration}`,
-              );
-            } catch (calcError) {
-              console.error(
-                `Failed to calculate duration for shift ${shift.id}:`,
-                calcError,
-              );
-            }
-          }
-        }
-
-        // Fetch shifts again to make sure we have the updated data
-        const updatedShiftsResponse = await api.get<Shift[]>("/shifts/");
-        shifts = updatedShiftsResponse.data;
-        console.log(
-          `📊 Reloaded ${shifts.length} shifts after fixing durations`,
-        );
-
-        // Check if we still have invalid shifts
-        const remainingInvalidShifts = shifts.filter(
-          (shift) =>
-            shift.duration_hours === null ||
-            shift.duration_hours === undefined ||
-            isNaN(shift.duration_hours),
-        );
-
-        if (remainingInvalidShifts.length > 0) {
-          console.error(
-            "❌ Still have invalid shifts after attempting to fix:",
-            remainingInvalidShifts.map((s) => ({
-              id: s.id,
-              start: s.start_time,
-              end: s.end_time,
-            })),
-          );
-          throw new Error(
-            "Einige Schichten haben immer noch keine gültige Dauer. Bitte überprüfen Sie die Schichteinstellungen manuell.",
-          );
-        }
-      }
-    }
-
-    // Now generate the schedule
-    console.log("🚀 Calling backend /schedules/generate endpoint with:", {
-      start_date: startDate,
-      end_date: endDate,
-      create_empty_schedules: createEmptySchedules,
-      version: version,
-      enable_diagnostics: enableDiagnostics,
-    });
-
-    const response = await api.post<ScheduleResponse>("/schedules/generate", {
-      start_date: startDate,
-      end_date: endDate,
-      create_empty_schedules: createEmptySchedules,
-      version: version,
-      enable_diagnostics: enableDiagnostics,
-    });
-
-    // Log generation success details
-    console.log("✅ Schedule generation successful:", {
-      "Total schedules": response.data.schedules?.length || 0,
-      "With shift_id":
-        response.data.schedules?.filter((s) => s.shift_id !== null).length || 0,
-      "Empty schedules":
-        response.data.schedules?.filter((s) => s.shift_id === null).length || 0,
-      "With shift_type":
-        response.data.schedules?.filter((s) => s.availability_type).length || 0,
-      "Unique employee count": new Set(
-        response.data.schedules?.map((s) => s.employee_id),
-      ).size,
-      "Error count": response.data.errors?.length || 0,
-      "Diagnostic logs": response.data.diagnostic_logs?.length || 0,
-    });
-
-    if (response.data.errors && response.data.errors.length > 0) {
-      console.warn(
-        "⚠️ Schedule generation completed with errors:",
-        response.data.errors,
-      );
-    }
-
     return response.data;
   } catch (error) {
-    console.error("❌ Schedule generation error:", error);
-
     if (error instanceof Error) {
       throw new Error(`Failed to generate schedule: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
+export const importAiScheduleResponse = async (formData: FormData): Promise<AiImportResponse> => {
+  try {
+    const response = await api.post<AiImportResponse>(
+      "/schedule/import-ai-response",
+      formData,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+      }
+    );
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to import AI schedule response: ${error.message}`);
     }
     throw error;
   }
@@ -667,15 +467,11 @@ export const exportSchedule = async (
 ): Promise<Blob> => {
   try {
     const response = await api.post(
-      "/schedules/export",
-      {
-        start_date: startDate,
-        end_date: endDate,
-        layout_config: layoutConfig,
-      },
+      "/schedules/export/pdf",
+      { start_date: startDate, end_date: endDate, layout_config: layoutConfig },
       {
         responseType: "blob",
-      },
+      }
     );
     return response.data;
   } catch (error) {
@@ -692,18 +488,16 @@ export const updateBreakNotes = async (
   notes: string,
 ): Promise<ScheduleData> => {
   try {
-    const response = await api.put<{ message: string; schedule: ScheduleData }>(
-      "/schedules/update-break-notes/",
-      {
-        employee_id: employeeId,
-        date,
-        notes,
-      },
+    const response = await api.put<ScheduleData>(
+      `/employees/${employeeId}/schedules/notes`,
+      { date, notes }
     );
-    return response.data.schedule;
+    return response.data;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to update break notes: ${error.message}`);
+      throw new Error(
+        `Failed to update break notes for employee ${employeeId} on ${date}: ${error.message}`
+      );
     }
     throw error;
   }
@@ -715,14 +509,15 @@ export const updateShiftDay = async (
   toDate: string,
 ): Promise<void> => {
   try {
-    await api.put("/schedules/update-day/", {
-      employee_id: employeeId,
+    await api.put(`/employees/${employeeId}/schedules/shift-day`, {
       from_date: fromDate,
       to_date: toDate,
     });
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to update shift: ${error.message}`);
+      throw new Error(
+        `Failed to update shift day for employee ${employeeId} from ${fromDate} to ${toDate}: ${error.message}`
+      );
     }
     throw error;
   }
@@ -767,32 +562,69 @@ export interface EmployeeAvailability {
 export const getEmployeeAvailabilities = async (
   employeeId: number,
 ): Promise<EmployeeAvailability[]> => {
-  const response = await api.get<EmployeeAvailability[]>(
-    `/employees/${employeeId}/availabilities`,
-  );
-  return response.data;
+  try {
+    const response = await api.get<EmployeeAvailability[]>(
+      `/employees/${employeeId}/availability`,
+    );
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to fetch employee availabilities for employee ${employeeId}: ${error.message}`,
+      );
+    }
+    throw error;
+  }
 };
 
 export const createAvailability = async (
   availability: Omit<Availability, "id">,
 ): Promise<Availability> => {
-  const response = await api.post<Availability>("/availability", availability);
-  return response.data;
+  try {
+    const response = await api.post<Availability>(
+      `/employees/${availability.employee_id}/availability`,
+      availability,
+    );
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to create availability: ${error.message}`);
+    }
+    throw error;
+  }
 };
 
 export const updateAvailability = async (
   id: number,
   availability: Partial<Availability>,
 ): Promise<Availability> => {
-  const response = await api.put<Availability>(
-    `/availability/${id}`,
-    availability,
-  );
-  return response.data;
+  try {
+    const response = await api.put<Availability>(
+      `/availabilities/${id}`,
+      availability,
+    );
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to update availability with ID ${id}: ${error.message}`,
+      );
+    }
+    throw error;
+  }
 };
 
 export const deleteAvailability = async (id: number): Promise<void> => {
-  await api.delete(`/availability/${id}`);
+  try {
+    await api.delete(`/availabilities/${id}`);
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to delete availability with ID ${id}: ${error.message}`,
+      );
+    }
+    throw error;
+  }
 };
 
 export const checkAvailability = async (
@@ -801,13 +633,26 @@ export const checkAvailability = async (
   startTime?: string,
   endTime?: string,
 ): Promise<AvailabilityCheck> => {
-  const response = await api.post<AvailabilityCheck>("/availability/check", {
-    employee_id: employeeId,
-    date,
-    start_time: startTime,
-    end_time: endTime,
-  });
-  return response.data;
+  try {
+    const response = await api.get<AvailabilityCheck>(
+      `/employees/${employeeId}/availability/check`,
+      {
+        params: {
+          date,
+          start_time: startTime,
+          end_time: endTime,
+        },
+      },
+    );
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to check availability for employee ${employeeId} on ${date}: ${error.message}`,
+      );
+    }
+    throw error;
+  }
 };
 
 export const updateEmployeeAvailability = async (
@@ -818,282 +663,39 @@ export const updateEmployeeAvailability = async (
   >[],
 ) => {
   try {
-    console.log(`Sending ${availabilities.length} records to backend for employee ${employeeId}`);
-    
-    // Calculate stats of what we're sending
-    const availableCount = availabilities.filter(a => a.is_available).length;
-    const unavailableCount = availabilities.filter(a => !a.is_available).length;
-    
-    console.log(`Available: ${availableCount}, Unavailable: ${unavailableCount}`);
-    
-    const response = await api.put(
-      `/employees/${employeeId}/availabilities`,
-      availabilities,
-    );
-    
-    console.log("Availability update successful:", response.data);
-    return response.data;
-  } catch (error: any) {
-    console.error("Error updating employee availability:", error);
-    
-    // Log more detailed error information
-    if (error.response) {
-      // The request was made and the server responded with a status code
-      // that falls out of the range of 2xx
-      console.error("Response data:", error.response.data);
-      console.error("Status code:", error.response.status);
-    } else if (error.request) {
-      // The request was made but no response was received
-      console.error("No response received from server");
-    } else {
-      // Something happened in setting up the request that triggered an Error
-      console.error("Error setting up request:", error.message);
-    }
-    
-    throw new Error(`Failed to update availability: ${error.message || "Unknown error"}`);
-  }
-};
-
-export const updateSchedule = async (
-  scheduleId: number,
-  updates: ScheduleUpdate,
-): Promise<Schedule> => {
-  try {
-    // Enhanced debugging - log the request in more detail for deletion operations
-    if (updates.shift_id === null) {
-      console.log(
-        "🗑️ DELETE OPERATION - Deleting shift (setting shift_id to null):",
-        {
-          scheduleId,
-          updates,
-          timestamp: new Date().toISOString(),
-        },
-      );
-    } else {
-      console.log("🔄 Updating schedule:", { scheduleId, updates });
-    }
-
-    // If we have a shift_id but no shift times, the backend will handle getting
-    // these from the shift template relationship
-    const response = await api.put(`/schedules/${scheduleId}`, updates);
-
-    if (updates.shift_id === null) {
-      console.log("🗑️ DELETE OPERATION RESULT:", response.data);
-    } else {
-      console.log("🔄 Schedule updated:", response.data);
-    }
-
-    // The response data should contain the complete schedule with shift data
-    return response.data;
-  } catch (error) {
-    console.error("Error updating schedule:", error);
-
-    // Enhanced error logging for deletion operations
-    if (updates.shift_id === null) {
-      console.error("🗑️ DELETE OPERATION FAILED. Additional details:", {
-        scheduleId,
-        version: updates.version,
-        errorMessage: error instanceof Error ? error.message : "Unknown error",
-      });
-
-      // Log network request details if available
-      if (error.request && error.response) {
-        console.error("🗑️ Network details:", {
-          status: error.response.status,
-          statusText: error.response.statusText,
-          responseData: error.response.data,
-          requestUrl: error.request.url,
-        });
-      }
-    }
-
-    if (error instanceof Error) {
-      throw new Error(`Failed to update schedule: ${error.message}`);
-    }
-    throw error;
-  }
-};
-
-// Coverage
-export const getAllCoverage = async (): Promise<DailyCoverage[]> => {
-  try {
-    const response = await api.get<DailyCoverage[]>("/coverage/");
-    return response.data;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Failed to fetch coverage: ${error.message}`);
-    }
-    throw error;
-  }
-};
-
-export const getCoverageByDay = async (
-  dayIndex: number,
-): Promise<DailyCoverage> => {
-  try {
-    const response = await api.get<DailyCoverage>(`/coverage/${dayIndex}`);
+    const response = await api.put<
+      EmployeeAvailability[]
+    >(`/employees/${employeeId}/availability`, availabilities);
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(
-        `Failed to fetch coverage for day ${dayIndex}: ${error.message}`,
+        `Failed to update employee availabilities for employee ${employeeId}: ${error.message}`,
       );
     }
     throw error;
   }
 };
-
-export const updateCoverage = async (
-  coverage: DailyCoverage[],
-): Promise<void> => {
-  try {
-    // Ensure each coverage object has the required fields
-    const formattedCoverage = coverage.map((day) => ({
-      dayIndex: day.dayIndex,
-      timeSlots: day.timeSlots.map((slot) => ({
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        minEmployees: slot.minEmployees,
-        maxEmployees: slot.maxEmployees,
-        employeeTypes: (slot as CoverageTimeSlot).employeeTypes || [],
-      })),
-    }));
-
-    console.log("Sending coverage data:", formattedCoverage);
-    const response = await api.post("/coverage/bulk", formattedCoverage);
-    console.log("Coverage update response:", response.data);
-  } catch (error) {
-    console.error("Error updating coverage:", error);
-    if (error instanceof Error) {
-      throw new Error(`Failed to update coverage: ${error.message}`);
-    }
-    throw error;
-  }
-};
-
-// Demo Data
-export const generateDemoData = async (
-  module: string,
-  numEmployees?: number,
-): Promise<void | Settings> => {
-  try {
-    const payload: { module: string; num_employees?: number } = { module };
-    if (numEmployees !== undefined) {
-      payload.num_employees = numEmployees;
-    }
-    const response = await api.post("/demo-data/", payload);
-
-    // If generating settings data, update the settings in the store
-    if (module === "settings" || module === "all") {
-      const settings = await getSettings();
-      return settings;
-    }
-
-    return;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Failed to generate demo data: ${error.message}`);
-    }
-    throw error;
-  }
-};
-
-// Generate optimized demo data with more diverse shift patterns
-export const generateOptimizedDemoData = async (
-  numEmployees?: number,
-): Promise<void | Settings> => {
-  try {
-    const payload: { num_employees?: number } = {};
-    if (numEmployees !== undefined) {
-      payload.num_employees = numEmployees;
-    }
-    const response = await api.post(
-      "/demo-data/optimized/",
-      payload.num_employees !== undefined ? payload : {},
-    ); // Send empty object if no numEmployees
-
-    // Always refresh settings after optimized data generation
-    const settings = await getSettings();
-    return settings;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(
-        `Failed to generate optimized demo data: ${error.message}`,
-      );
-    }
-    throw error;
-  }
-};
-
-// Store Config
-export interface StoreConfig {
-  settings: Settings;
-  version: string;
-}
-
-export const getStoreConfig = async (): Promise<StoreConfig> => {
-  try {
-    const response = await api.get<StoreConfig>("/store/config");
-    return response.data;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Failed to fetch store config: ${error.message}`);
-    }
-    throw error;
-  }
-};
-
-export const updateStoreConfig = async (
-  config: Partial<StoreConfig>,
-): Promise<StoreConfig> => {
-  try {
-    const response = await api.put<StoreConfig>("/store/config", config);
-    return response.data;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`Failed to update store config: ${error.message}`);
-    }
-    throw error;
-  }
-};
-
-export async function resetStoreConfig(): Promise<void> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/store/config/reset`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to reset store config: ${response.statusText}`);
-    }
-  } catch (error) {
-    console.error("Error resetting store config:", error);
-    throw error;
-  }
-}
 
 // Absences
-export interface Absence {
-  id: number;
-  employee_id: number;
-  absence_type_id: string;
-  start_date: string;
-  end_date: string;
-  note?: string;
-}
-
-export const getAbsences = async (employeeId: number): Promise<Absence[]> => {
+// TODO: Update backend API and this frontend function to support fetching absences by date range.
+export const getAbsences = async (employeeId?: number): Promise<Absence[]> => {
   try {
-    const response = await api.get<Absence[]>(
-      `/employees/${employeeId}/absences`,
-    );
+    // Check if employeeId is provided
+    if (employeeId === undefined) {
+      console.warn("getAbsences called without employeeId. Backend currently only supports fetching absences for a specific employee.");
+      // Return an empty array or throw an error if fetching all absences is not supported
+      return []; // Or throw new Error("Fetching all absences is not supported.");
+    }
+
+    // Use the employee-specific endpoint
+    const response = await api.get<Absence[]>(`/absences/employees/${employeeId}/absences`);
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to fetch absences: ${error.message}`);
+      throw new Error(
+        `Failed to fetch absences for employee ${employeeId}: ${error.message}`,
+      );
     }
     throw error;
   }
@@ -1103,10 +705,7 @@ export const createAbsence = async (
   data: Omit<Absence, "id">,
 ): Promise<Absence> => {
   try {
-    const response = await api.post<Absence>(
-      `/employees/${data.employee_id}/absences`,
-      data,
-    );
+    const response = await api.post<Absence>("/absences/", data);
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -1121,10 +720,12 @@ export const deleteAbsence = async (
   employeeId: number,
 ): Promise<void> => {
   try {
-    await api.delete(`/employees/${employeeId}/absences/${id}`);
+    await api.delete(`/absences/${id}`);
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to delete absence: ${error.message}`);
+      throw new Error(
+        `Failed to delete absence with ID ${id}: ${error.message}`,
+      );
     }
     throw error;
   }
@@ -1133,7 +734,7 @@ export const deleteAbsence = async (
 // Database backup and restore
 export const backupDatabase = async (): Promise<Blob> => {
   try {
-    const response = await api.get("/settings/backup/", {
+    const response = await api.get("/db/backup", {
       responseType: "blob",
     });
     return response.data;
@@ -1149,7 +750,7 @@ export const restoreDatabase = async (file: File): Promise<void> => {
   try {
     const formData = new FormData();
     formData.append("file", file);
-    await api.post("/settings/restore/", formData, {
+    await api.post("/db/restore", formData, {
       headers: {
         "Content-Type": "multipart/form-data",
       },
@@ -1164,7 +765,7 @@ export const restoreDatabase = async (file: File): Promise<void> => {
 
 export const wipeTables = async (tables: string[]): Promise<void> => {
   try {
-    await api.post("/settings/wipe-tables", { tables });
+    await api.post("/db/wipe", { tables });
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to wipe tables: ${error.message}`);
@@ -1173,19 +774,15 @@ export const wipeTables = async (tables: string[]): Promise<void> => {
   }
 };
 
-// New function to get available table names for wiping
 export const getAvailableTables = async (): Promise<string[]> => {
   try {
-    const response = await api.get<{ tables: string[] }>("/settings/tables/");
-    return response.data.tables;
+    const response = await api.get<string[]>("/db/tables");
+    return response.data;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to fetch available tables: ${error.message}`);
+      throw new Error(`Failed to get available tables: ${error.message}`);
     }
-    // Ensure a generic error is thrown if it's not an Error instance
-    throw new Error(
-      "An unknown error occurred while fetching available tables.",
-    );
+    throw error;
   }
 };
 
@@ -1207,16 +804,11 @@ export interface LogContent {
 
 export const getLogs = async (): Promise<LogFile[]> => {
   try {
-    const response = await api.get<{ logs: LogFile[] }>("/logs/", {
-      params: {
-        type: "all",
-        days: 7,
-      },
-    });
-    return response.data.logs;
+    const response = await api.get<LogFile[]>("/logs/");
+    return response.data;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to fetch logs: ${error.message}`);
+      throw new Error(`Failed to get logs: ${error.message}`);
     }
     throw error;
   }
@@ -1228,7 +820,9 @@ export const getLogContent = async (filename: string): Promise<LogContent> => {
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to fetch log content: ${error.message}`);
+      throw new Error(
+        `Failed to get log content for ${filename}: ${error.message}`,
+      );
     }
     throw error;
   }
@@ -1247,7 +841,7 @@ export const deleteLog = async (filename: string): Promise<void> => {
 
 export const clearAllLogs = async (): Promise<void> => {
   try {
-    await api.delete("/logs/clear_all"); // Assuming a DELETE endpoint to clear all logs
+    await api.delete("/logs/");
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to clear all logs: ${error.message}`);
@@ -1258,14 +852,11 @@ export const clearAllLogs = async (): Promise<void> => {
 
 export const publishSchedule = async (version: number) => {
   try {
-    // We'll use the updateVersionStatus endpoint instead
-    const response = await updateVersionStatus(version, {
-      status: "PUBLISHED",
-    });
-    return response;
+    const response = await api.post("/schedules/publish", { version });
+    return response.data;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to publish schedule: ${error.message}`);
+      throw new Error(`Failed to publish schedule version ${version}: ${error.message}`);
     }
     throw error;
   }
@@ -1273,12 +864,11 @@ export const publishSchedule = async (version: number) => {
 
 export const archiveSchedule = async (version: number) => {
   try {
-    // We'll use the updateVersionStatus endpoint instead
-    const response = await updateVersionStatus(version, { status: "ARCHIVED" });
-    return response;
+    const response = await api.post("/schedules/archive", { version });
+    return response.data;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to archive schedule: ${error.message}`);
+      throw new Error(`Failed to archive schedule version ${version}: ${error.message}`);
     }
     throw error;
   }
@@ -1309,17 +899,13 @@ export const getAllVersions = async (
   endDate?: string,
 ): Promise<VersionResponse> => {
   try {
-    const params: Record<string, string> = {};
-    if (startDate) params.start_date = startDate;
-    if (endDate) params.end_date = endDate;
-
     const response = await api.get<VersionResponse>("/schedules/versions", {
-      params,
+      params: { startDate, endDate },
     });
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to fetch versions: ${error.message}`);
+      throw new Error(`Failed to get all versions: ${error.message}`);
     }
     throw error;
   }
@@ -1343,24 +929,9 @@ export const createNewVersion = async (
   data: CreateVersionRequest,
 ): Promise<CreateVersionResponse> => {
   try {
-    console.log("🔵 Creating new version with data:", data);
-    console.log("🔵 API base URL:", API_BASE_URL);
-    const response = await api.post<CreateVersionResponse>(
-      "/schedules/version",
-      data,
-    );
-    console.log("🔵 Create new version response:", response.data);
+    const response = await api.post<CreateVersionResponse>("/versions", data);
     return response.data;
   } catch (error) {
-    console.error("🔴 Create new version error:", error);
-    // Log more details about the error
-    if (error && typeof error === "object" && "response" in error) {
-      console.error("🔴 API error details:", {
-        status: (error as any).response?.status,
-        statusText: (error as any).response?.statusText,
-        data: (error as any).response?.data,
-      });
-    }
     if (error instanceof Error) {
       throw new Error(`Failed to create new version: ${error.message}`);
     }
@@ -1384,13 +955,15 @@ export const updateVersionStatus = async (
 ): Promise<UpdateVersionStatusResponse> => {
   try {
     const response = await api.put<UpdateVersionStatusResponse>(
-      `/schedules/version/${version}/status`,
+      `/versions/${version}/status`,
       data,
     );
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to update version status: ${error.message}`);
+      throw new Error(
+        `Failed to update status for version ${version}: ${error.message}`,
+      );
     }
     throw error;
   }
@@ -1417,7 +990,7 @@ export const duplicateVersion = async (
 ): Promise<DuplicateVersionResponse> => {
   try {
     const response = await api.post<DuplicateVersionResponse>(
-      "/schedules/version/duplicate",
+      "/versions/duplicate",
       data,
     );
     return response.data;
@@ -1450,12 +1023,14 @@ export const getVersionDetails = async (
 ): Promise<VersionDetailsResponse> => {
   try {
     const response = await api.get<VersionDetailsResponse>(
-      `/schedules/version/${version}/details`,
+      `/versions/${version}/details`,
     );
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to get version details: ${error.message}`);
+      throw new Error(
+        `Failed to get details for version ${version}: ${error.message}`,
+      );
     }
     throw error;
   }
@@ -1485,12 +1060,14 @@ export const compareVersions = async (
 ): Promise<CompareVersionsResponse> => {
   try {
     const response = await api.get<CompareVersionsResponse>(
-      `/schedules/versions/compare?base_version=${baseVersion}&compare_version=${compareVersion}`,
+      `/versions/${baseVersion}/compare/${compareVersion}`,
     );
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to compare versions: ${error.message}`);
+      throw new Error(
+        `Failed to compare versions ${baseVersion} and ${compareVersion}: ${error.message}`,
+      );
     }
     throw error;
   }
@@ -1512,25 +1089,29 @@ export const updateVersionNotes = async (
 ): Promise<UpdateVersionNotesResponse> => {
   try {
     const response = await api.put<UpdateVersionNotesResponse>(
-      `/schedules/version/${version}/notes`,
+      `/versions/${version}/notes`,
       data,
     );
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to update version notes: ${error.message}`);
+      throw new Error(
+        `Failed to update notes for version ${version}: ${error.message}`,
+      );
     }
     throw error;
   }
 };
 
-export const fixShiftDurations = async (): Promise<{
+export interface fixShiftDurationsResponse {
   message: string;
   fixed_count: number;
-}> => {
+}
+
+export const fixShiftDurations = async (): Promise<fixShiftDurationsResponse> => {
   try {
-    const response = await api.post<{ message: string; fixed_count: number }>(
-      "/shifts/fix-durations",
+    const response = await api.post<fixShiftDurationsResponse>(
+      "/tools/fix-shift-durations",
     );
     return response.data;
   } catch (error) {
@@ -1551,12 +1132,12 @@ export const deleteVersion = async (
 ): Promise<DeleteVersionResponse> => {
   try {
     const response = await api.delete<DeleteVersionResponse>(
-      `/schedules/version/${version}`,
+      `/versions/${version}`,
     );
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to delete version: ${error.message}`);
+      throw new Error(`Failed to delete version ${version}: ${error.message}`);
     }
     throw error;
   }
@@ -1578,14 +1159,14 @@ export const createSchedule = async (data: {
   date: string;
   shift_id: number | null;
   version: number;
+  break_duration?: number;
+  notes?: string;
+  availability_type?: "AVAILABLE" | "FIXED" | "PREFERRED" | "UNAVAILABLE";
 }): Promise<Schedule> => {
   try {
-    console.log("Creating schedule:", data);
-    const response = await api.post("/schedules", data);
-    console.log("Schedule created:", response.data);
+    const response = await api.post<Schedule>("/schedules/", data);
     return response.data;
   } catch (error) {
-    console.error("Error creating schedule:", error);
     if (error instanceof Error) {
       throw new Error(`Failed to create schedule: ${error.message}`);
     }
@@ -1604,24 +1185,91 @@ export const fixScheduleDisplay = async (
   total_schedules: number;
 }> => {
   try {
-    console.log("🛠️ Fixing schedule display for:", {
-      startDate,
-      endDate,
-      version,
-    });
-
-    const response = await api.post("/schedules/fix-display", {
-      start_date: startDate,
-      end_date: endDate,
-      version,
-    });
-
-    console.log("🛠️ Fixed schedule display:", response.data);
+    const response = await api.post(
+      "/schedules/fix-display",
+      { start_date: startDate, end_date: endDate, version: version }
+    );
     return response.data;
   } catch (error) {
-    console.error("🛠️ Error fixing schedule display:", error);
     if (error instanceof Error) {
       throw new Error(`Failed to fix schedule display: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
+export const updateSchedule = async (
+  id: number,
+  data: Partial<ScheduleUpdate>,
+): Promise<Schedule> => {
+  try {
+    // Assuming a PUT endpoint like /api/schedules/{id} exists on the backend
+    const response = await api.put<Schedule>(`/schedules/${id}`, data);
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to update schedule ${id}: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
+export const generateDemoData = async (
+  module: string,
+  num_employees: number,
+): Promise<void> => {
+  try {
+    // Assuming a POST endpoint like /api/tools/generate-demo-data
+    await api.post("/tools/generate-demo-data", { module, num_employees });
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to generate demo data for module ${module}: ${error.message}`,
+      );
+    }
+    throw error;
+  }
+};
+
+export const generateOptimizedDemoData = async (
+  num_employees: number,
+): Promise<void> => {
+  try {
+    // Assuming a POST endpoint like /api/tools/generate-optimized-demo-data
+    await api.post("/tools/generate-optimized-demo-data", { num_employees });
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to generate optimized demo data: ${error.message}`,
+      );
+    }
+    throw error;
+  }
+};
+
+export const updateCoverage = async (
+  coverageData: DailyCoverage[],
+): Promise<DailyCoverage[]> => {
+  try {
+    // Assuming a PUT endpoint like /api/coverage/
+    const response = await api.put<DailyCoverage[]>("/coverage/", coverageData);
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to update coverage: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
+export const getAllCoverage = async (): Promise<DailyCoverage[]> => {
+  try {
+    // Assuming a GET endpoint like /api/coverage/
+    const response = await api.get<DailyCoverage[]>("/coverage/");
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to get all coverage data: ${error.message}`);
     }
     throw error;
   }

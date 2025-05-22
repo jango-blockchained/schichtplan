@@ -449,6 +449,28 @@ export interface ApplicableShift {
   is_assigned_to_other?: boolean; // Whether this shift is assigned to another employee
 }
 
+export interface AiImportResponse {
+  status: string; // e.g., "success", "warning", "error"
+  message: string; // A human-readable message
+  imported_count?: number; // Number of assignments successfully imported
+  session_id?: string; // Optional session ID for diagnostics
+  diagnostic_log?: string; // Optional path or identifier for the diagnostic log
+}
+
 export interface BaseCoverage {
   // ... existing code ...
+}
+
+export interface DeleteVersionResponse {
+  message: string;
+  deleted_schedules_count: number;
+}
+
+export interface Absence {
+  id: number;
+  employee_id: number;
+  absence_type_id: string;
+  start_date: string;
+  end_date: string;
+  note?: string;
 }
