@@ -224,7 +224,7 @@ setup_tmux_session() {
         tmux send-keys -t "$TMUX_SESSION" "echo 'Installing frontend dependencies...'" C-m
         tmux send-keys -t "$TMUX_SESSION" "bun install" C-m
         tmux send-keys -t "$TMUX_SESSION" "echo 'Starting Frontend...'" C-m
-        tmux send-keys -t "$TMUX_SESSION" "npx vite" C-m
+        tmux send-keys -t "$TMUX_SESSION" "npx vite > src/logs/tmux_frontend_output.log 2>&1" C-m
     else
         log "ERROR" "Frontend package.json not found"
         cleanup

@@ -21,6 +21,7 @@ restart_backend() {
     sleep 1
     tmux send-keys -t schichtplan:0.0 "python3 -m src.backend.run runserver" C-m
     echo "Backend restart initiated!"
+    tail -f src/logs/tmux_backend_output.log
 }
 
 # Function to restart frontend
@@ -32,12 +33,18 @@ restart_frontend() {
     sleep 1
     tmux send-keys -t schichtplan:0.1 "npx vite" C-m
     echo "Frontend restart initiated!"
+    tail -f src/logs/tmux_frontend_output.log
 }
 
 # Function to restart both services
 restart_all() {
     restart_backend
     restart_frontend
+    echo "Displaying combined logs after restarting all services:"
+    tail -f src/logs/tmux_backend_output.log &
+    tail -f src/logs/tmux_frontend_output.log &
+    echo "
+Press Ctrl+C to stop tailing logs."
 }
 
 # Function to stop backend
