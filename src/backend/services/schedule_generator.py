@@ -15,6 +15,9 @@ from .scheduler import (
     ScheduleResources,
 )
 
+# Import central logger
+from ..utils.logger import logger
+
 # Show deprecation warning
 warnings.warn(
     "The schedule_generator module is deprecated and will be removed in a future version. "

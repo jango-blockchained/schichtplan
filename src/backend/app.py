@@ -8,7 +8,14 @@ from datetime import date, datetime, timedelta
 import uuid
 import click
 import json
-from flask_sse import sse
+
+# Try to import flask_sse but don't fail if not available
+try:
+    from flask_sse import sse
+    has_sse = True
+except ImportError:
+    has_sse = False
+    print("Warning: flask_sse not available. SSE functionality will be disabled.")
 
 # Add the parent directory to Python path
 # current_dir = Path(__file__).resolve().parent
@@ -138,9 +145,17 @@ def create_app(config_class=Config):
         api_schedules_bp, name="api_schedules"
     )  # Register with unique name to avoid conflict
 
-    # Register SSE blueprint for /sse endpoint
-    app.config["REDIS_URL"] = "redis://localhost:6379/0"  # Adjust if needed
-    app.register_blueprint(sse, url_prefix="/sse")
+    # Register SSE blueprint for /sse endpoint if available
+    if has_sse:
+        try:
+            app.config["REDIS_URL"] = "redis://localhost:6379/0"  # Adjust if needed
+            app.register_blueprint(sse, url_prefix="/sse")
+            app.logger.info("SSE blueprint registered successfully")
+        except Exception as e:
+            app.logger.warning(f"Failed to register SSE blueprint: {str(e)}")
+            app.logger.warning("SSE functionality will be disabled")
+    else:
+        app.logger.warning("SSE module not available. SSE functionality is disabled.")
 
     # Register diagnostic commands if available
     if register_diagnostic_commands:

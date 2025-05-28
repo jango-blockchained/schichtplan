@@ -1,6 +1,6 @@
 import { describe, expect, it, mock } from "bun:test";
 import { render, screen, fireEvent } from "../../test-utils/test-utils";
-import DateRangeSelector from "../DateRangeSelector";
+import { DateRangeSelector } from "../DateRangeSelector";
 
 describe("DateRangeSelector", () => {
   const defaultProps = {

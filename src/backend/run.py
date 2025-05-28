@@ -9,8 +9,36 @@ import random
 import subprocess
 from pathlib import Path
 import click
-from .app import create_app
-from .config import Config
+
+# Function to check and activate virtualenv
+def ensure_virtualenv():
+    """Make sure we're running in the virtualenv with all dependencies."""
+    venv_path = Path(__file__).resolve().parent / '.venv'
+    if not venv_path.exists():
+        print(f"Virtual environment not found at {venv_path}")
+        return False
+    
+    # Check if we're already in a virtualenv
+    if os.environ.get('VIRTUAL_ENV'):
+        print(f"Already in virtualenv: {os.environ.get('VIRTUAL_ENV')}")
+        return True
+    
+    # Determine the activate script based on shell
+    activate_script = venv_path / 'bin' / 'activate'
+    if not activate_script.exists():
+        print(f"Activate script not found at {activate_script}")
+        return False
+    
+    print(f"Activating virtualenv at {venv_path}")
+    # We can't directly source in Python, so we'll run a new Python process with the virtualenv activated
+    cmd = f"source {activate_script} && exec python3 {' '.join(sys.argv)}"
+    os.execvp('bash', ['bash', '-c', cmd])
+    # If we get here, the exec failed
+    return False
+
+# Check virtualenv first if not running in a virtualenv already
+if not os.environ.get('VIRTUAL_ENV') and __name__ == '__main__':
+    ensure_virtualenv()
 
 # Add the current directory to the Python path
 current_dir = Path(__file__).resolve().parent
@@ -21,6 +49,10 @@ if str(current_dir) not in sys.path:
 src_backend_dir = os.path.abspath(os.path.join(current_dir, ".."))
 if str(src_backend_dir) not in sys.path:
     sys.path.append(str(src_backend_dir))
+
+# Change from relative import to absolute import
+from src.backend.app import create_app
+from src.backend.config import Config
 
 from werkzeug.serving import is_running_from_reloader
 

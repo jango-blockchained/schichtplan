@@ -1,160 +1,32 @@
-import { describe, it, expect, mock, beforeEach } from "bun:test";
+import { describe, it, expect, mock, beforeEach, waitFor } from "bun:test";
 import { render, screen, fireEvent } from "../../test-utils/test-utils";
 import UnifiedSettingsPage from "../UnifiedSettingsPage";
-import * as api from "../../services/api";
 import type { Settings } from "../../types";
-
-// Create a mock settings object that matches the expected structure
-const mockSettings: Settings = {
-  id: 1, // Should be a number
-  general: {
-    store_name: "Test Store",
-    store_address: "123 Test St",
-    store_phone: "123-456-7890",
-    store_email: "test@store.com",
-    store_opening: "09:00",
-    store_closing: "17:00",
-    timezone: "UTC",
-    language: "en",
-    date_format: "DD.MM.YYYY",
-    time_format: "24h",
-    keyholder_before_minutes: 5,
-    keyholder_after_minutes: 10,
-    opening_days: {
-      "monday": true,
-      "tuesday": true,
-      "wednesday": true,
-      "thursday": true,
-      "friday": true,
-      "saturday": true,
-      "sunday": false,
-    },
-    special_days: {
-      "2024-12-25": { date: "2024-12-25", description: "Christmas", is_closed: true }
-    },
-    special_hours: {}, // Add as required by type
-  },
-  scheduling: {
-    scheduling_resource_type: "coverage",
-    default_shift_duration: 8.0,
-    min_break_duration: 30,
-    max_daily_hours: 10.0,
-    max_weekly_hours: 40.0,
-    min_rest_between_shifts: 11.0,
-    scheduling_period_weeks: 4,
-    auto_schedule_preferences: true,
-    enable_diagnostics: false,
-    generation_requirements: {
-      enforce_minimum_coverage: true,
-      enforce_contracted_hours: true,
-      enforce_keyholder_coverage: true,
-      enforce_rest_periods: true,
-      enforce_early_late_rules: true,
-      enforce_employee_group_rules: true,
-      enforce_break_rules: true,
-      enforce_max_hours: true,
-      enforce_consecutive_days: true,
-      enforce_weekend_distribution: true,
-      enforce_shift_distribution: true,
-      enforce_availability: true,
-      enforce_qualifications: true,
-      enforce_opening_hours: true
-    },
-    scheduling_algorithm: "standard",
-    max_generation_attempts: 10,
-  },
-  display: {
-    theme: "light",
-    primary_color: "#1976D2",
-    secondary_color: "#424242",
-    accent_color: "#FF4081",
-    background_color: "#FFFFFF",
-    surface_color: "#F5F5F5",
-    text_color: "#212121",
-    dark_theme: {
-      primary_color: "#90CAF9",
-      secondary_color: "#757575",
-      accent_color: "#FF80AB",
-      background_color: "#121212",
-      surface_color: "#1E1E1E",
-      text_color: "#FFFFFF",
-    },
-    show_sunday: false,
-    show_weekdays: false,
-    start_of_week: 1,
-    email_notifications: true,
-    schedule_published: true, // Correct property name
-    time_off_requests: true,
-    shift_changes: true,
-  },
-  pdf_layout: {
-    page_size: "A4",
-    orientation: "portrait",
-    margins: { top: 20, right: 20, bottom: 20, left: 20 },
-    table_style: {
-      header_bg_color: "#f3f4f6",
-      border_color: "#e5e7eb",
-      text_color: "#111827",
-      header_text_color: "#111827"
-    },
-    fonts: { family: "Helvetica", size: 10, header_size: 12 },
-    content: {
-      show_employee_id: true,
-      show_position: true,
-      show_breaks: true,
-      show_total_hours: true
-    }
-    // Removed presets property
-  },
-  employee_groups: {
-    employee_types: [
-      { id: "FT", name: "Full-time", abbr: "FT", min_hours: 35, max_hours: 40, type: "employee_type" },
-      { id: "PT", name: "Part-time", abbr: "PT", min_hours: 15, max_hours: 25, type: "employee_type" },
-    ],
-    shift_types: [
-        { id: "EARLY", name: "Early Shift", color: "#3498db", type: "shift_type"},
-        { id: "LATE", name: "Late Shift", color: "#e74c3c", type: "shift_type"}
-    ],
-    absence_types: [
-        { id: "SICK", name: "Sick Leave", color: "#f1c40f", type: "absence_type"},
-        { id: "HOLIDAY", name: "Holiday", color: "#2ecc71", type: "absence_type"}
-    ]
-  },
-  availability_types: {
-    types: [
-      { id: "AVAILABLE", name: "Available", description: "Available for work", color: "#22c55e", priority: 2, is_available: true },
-      { id: "FIXED", name: "Fixed", description: "Fixed working hours", color: "#3b82f6", priority: 1, is_available: true },
-      { id: "PREFERRED", name: "Preferred", description: "Preferred hours", color: "#f59e0b", priority: 3, is_available: true },
-      { id: "UNAVAILABLE", name: "Unavailable", description: "Not available for work", color: "#ef4444", priority: 4, is_available: false },
-    ]
-  },
-  actions: {
-    demo_data: {
-      selected_module: "",
-      last_execution: null,
-    },
-  },
-  ai_scheduling: {
-    enabled: false,
-    api_key: "",
-  },
-};
+import { act } from "react-dom/test-utils";
 
 // Mock the API functions
-const mockGetSettings = mock(() => Promise.resolve(mockSettings));
-const mockUpdateSettings = mock((settings: any) => Promise.resolve(settings));
+const mockGetSettings = mock.fn();
+const mockUpdateSettings = mock.fn((settings) => Promise.resolve(settings));
 
-// Replace the original functions with mocks
-mock(() => {
-  (api.getSettings as any) = mockGetSettings;
-  (api.updateSettings as any) = mockUpdateSettings;
-});
+mock.module("../../services/api", () => ({
+  getSettings: mockGetSettings,
+  updateSettings: mockUpdateSettings,
+}));
+
+// Create a mock settings object that matches the expected structure
 
 describe("UnifiedSettingsPage", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    // Add a small delay to ensure DOM is ready
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Reset mocks before each test
     mockGetSettings.mockReset();
     mockUpdateSettings.mockReset();
+
+    // Ensure getSettings mock returns the mock data
     mockGetSettings.mockReturnValue(Promise.resolve(mockSettings));
+    
     render(<UnifiedSettingsPage />);
   });
 
@@ -206,18 +78,16 @@ describe("UnifiedSettingsPage", () => {
     expect(timezoneInput.value).toBe(mockSettings.general.timezone);
   });
 
-  it("handles settings update being called when a setting would change", async () => {
+  it("verifies updateSettings mock is callable", async () => {
     // This test verifies that the mockUpdateSettings is callable and captures arguments correctly.
-    // Actual change simulation and debounced call will be in a new test.
-    // This test can be kept as a simple check of the mock if desired, or expanded/replaced.
     await api.updateSettings({
       display: {
         theme: "dark",
       },
     } as Partial<Settings>);
 
-    expect(mockUpdateSettings.mock.calls.length).toBe(1);
-    expect(mockUpdateSettings.mock.calls[0][0]).toEqual({
+    expect(mockUpdateSettings).toHaveBeenCalledTimes(1);
+    expect(mockUpdateSettings).toHaveBeenCalledWith({
       display: {
         theme: "dark",
       },
@@ -230,26 +100,27 @@ describe("UnifiedSettingsPage", () => {
 
     // Simulate changing the store name
     const newStoreName = "New Test Store Name";
-    fireEvent.change(storeNameInput, { target: { value: newStoreName } });
+    await act(async () => {
+      fireEvent.change(storeNameInput, { target: { value: newStoreName } });
+    });
 
     // Check that updateSettings has not been called immediately
     expect(mockUpdateSettings).not.toHaveBeenCalled();
 
-    // Simulate a delay to mimic debounce behavior
-    setTimeout(() => {
-      // Check that updateSettings has been called once
+    // Use waitFor to wait for the debounced call to happen
+    await waitFor(() => {
       expect(mockUpdateSettings).toHaveBeenCalledTimes(1);
+    }, { timeout: 3000 }); // Use a timeout slightly longer than the debounce delay
 
-      // Check the payload of the updateSettings call
-      const expectedPayload = {
-        ...mockSettings,
-        general: {
-          ...mockSettings.general,
-          store_name: newStoreName,
-        },
-      };
-      expect(mockUpdateSettings.mock.calls[0][0]).toEqual(expectedPayload);
-    }, 2000);
+    // Check the payload of the updateSettings call after waiting
+    const expectedPayload = {
+      ...mockSettings,
+      general: {
+        ...mockSettings.general,
+        store_name: newStoreName,
+      },
+    };
+    expect(mockUpdateSettings).toHaveBeenCalledWith(expectedPayload);
   });
 
   // Add more tests for different sections and interactions

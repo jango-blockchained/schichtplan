@@ -167,7 +167,7 @@ class EmployeeTypeSchema(BaseModel):
     abbr: Optional[str] = Field(None, description="Abbreviation for the employee type.")
     min_hours: Optional[float] = Field(None, description="Minimum contractual hours for this type.") # Made optional based on common use cases
     max_hours: Optional[float] = Field(None, description="Maximum contractual hours for this type.") # Made optional
-    type: Literal["employee_type"] = Field("employee_type", description="Internal type discriminator.")
+    type: Literal["employee_type", "employee"] = Field("employee_type", description="Internal type discriminator.")
 
 
 class ShiftTypeSchemaPydantic(BaseModel): # Renamed to avoid conflicts
@@ -183,7 +183,7 @@ class AbsenceTypeSchema(BaseModel):
     id: str = Field(..., description="Unique identifier for the absence type.")
     name: str = Field(..., description="Display name of the absence type.")
     color: str = Field(..., description="Color code (hex) for this absence type.")
-    type: Literal["absence_type"] = Field("absence_type", description="Internal type discriminator.")
+    type: Literal["absence_type", "absence"] = Field("absence_type", description="Internal type discriminator.")
 
 
 class EmployeeGroupsSettingsSchema(BaseModel):

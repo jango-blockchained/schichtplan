@@ -23,7 +23,7 @@ class ProcessTracker:
 
         Args:
             process_name: A name for the overall process (e.g., "Schedule Generation").
-            schedule_logger: Logger instance for general schedule process logging (e.g., logger.schedule_logger).
+            schedule_logger: Logger instance for general schedule process logging (e.g., logger).
             diagnostic_logger: Logger instance for detailed diagnostic logging (e.g., logger.create_diagnostic_logger).
         """
         self.process_name = process_name
