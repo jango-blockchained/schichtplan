@@ -86,7 +86,7 @@ class AISchedulerService:
         # Create a process tracker
         process_tracker = ProcessTracker(
             process_name=process_name,
-            schedule_logger=logger.schedule_logger,
+            schedule_logger=logger,
             diagnostic_logger=diagnostic_logger
         )
         

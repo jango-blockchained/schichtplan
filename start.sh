@@ -9,7 +9,7 @@ set -euo pipefail
 
 # Configuration
 BACKEND_PORT_MIN=5000
-BACKEND_PORT_MAX=5020
+BACKEND_PORT_MAX=5000
 FRONTEND_PORT=5173
 TMUX_SESSION="schichtplan"
 VENV_PATH="src/backend/.venv"

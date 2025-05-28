@@ -883,10 +883,10 @@ def validate_schedule():
 
         # Create config for validation
         # Updated to use the new from_scheduler_config method
-        config = SchedulerConfig(
-            enforce_rest_periods=data.get("enforce_rest_periods", True),
-            min_rest_hours=data.get("min_rest_hours", 11),
-        )
+        config = SchedulerConfig({
+            "enforce_rest_periods": data.get("enforce_rest_periods", True),
+            "min_rest_hours": data.get("min_rest_hours", 11),
+        })
 
         # Convert SchedulerConfig to ScheduleConfig
         schedule_config = ScheduleConfig.from_scheduler_config(config)

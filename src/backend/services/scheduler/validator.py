@@ -241,12 +241,14 @@ class ScheduleConfig:
                 config_dict['min_rest_hours'] = config.min_rest_hours
             if hasattr(config, 'enforce_rest_periods'):
                 config_dict['enforce_rest_periods'] = config.enforce_rest_periods
+            if hasattr(config, 'max_consecutive_days'):
+                config_dict['max_consecutive_days'] = config.max_consecutive_days
                 
             # Add more field mappings as needed
             
         except Exception as e:
             # Log error but continue with defaults
-            print(f"Error mapping config: {str(e)}")
+            logger.error(f"Error mapping config: {str(e)}")
             
         return cls(**config_dict)
 
