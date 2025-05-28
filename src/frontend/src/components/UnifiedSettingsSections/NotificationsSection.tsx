@@ -70,9 +70,9 @@ const NotificationsSection: React.FC<NotificationsSectionProps> = ({
             </Label>
             <Switch
               id="schedule-published-toggle"
-              checked={settings.schedule_published ?? false}
+              checked={settings.schedule_published_notify ?? false}
               onCheckedChange={(checked) =>
-                handleToggle("schedule_published", checked)
+                handleToggle("schedule_published_notify", checked)
               }
             />
           </div>
@@ -90,9 +90,9 @@ const NotificationsSection: React.FC<NotificationsSectionProps> = ({
             </Label>
             <Switch
               id="shift-changes-toggle"
-              checked={settings.shift_changes ?? false}
+              checked={settings.shift_changes_notify ?? false}
               onCheckedChange={(checked) =>
-                handleToggle("shift_changes", checked)
+                handleToggle("shift_changes_notify", checked)
               }
             />
           </div>
@@ -110,9 +110,9 @@ const NotificationsSection: React.FC<NotificationsSectionProps> = ({
             </Label>
             <Switch
               id="time-off-requests-toggle"
-              checked={settings.time_off_requests ?? false}
+              checked={settings.time_off_requests_notify ?? false}
               onCheckedChange={(checked) =>
-                handleToggle("time_off_requests", checked)
+                handleToggle("time_off_requests_notify", checked)
               }
             />
           </div>

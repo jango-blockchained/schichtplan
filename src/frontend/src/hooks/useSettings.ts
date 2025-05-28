@@ -27,7 +27,6 @@ export const DEFAULT_SETTINGS: Settings = {
       saturday: false,
       sunday: false
     },
-    special_hours: {},
     special_days: {},
   },
   availability_types: { 
@@ -113,10 +112,12 @@ export const DEFAULT_SETTINGS: Settings = {
     show_sunday: false,
     show_weekdays: true,
     start_of_week: 1,
+    calendar_start_day: "monday", // Added default
+    calendar_default_view: "month", // Added default
     email_notifications: false,
-    schedule_published: false,
-    shift_changes: false,
-    time_off_requests: false,
+    schedule_published_notify: false, // Renamed from schedule_published
+    shift_changes_notify: false, // Renamed from shift_changes
+    time_off_requests_notify: false, // Renamed from time_off_requests
   },
   pdf_layout: {
     page_size: "A4",
@@ -161,6 +162,7 @@ export const DEFAULT_SETTINGS: Settings = {
         name: "Frühschicht",
         color: "#4CAF50",
         type: "shift_type",
+        autoAssignOnly: false, // Added default
       },
     ],
     absence_types: [

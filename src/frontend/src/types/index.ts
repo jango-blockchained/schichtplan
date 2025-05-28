@@ -169,25 +169,22 @@ export interface ApiError {
 export interface Settings {
   id: number;
   general: {
-    store_name: string;
+    store_name: string | null;
     store_address: string | null;
     store_phone: string | null;
     store_email: string | null;
-    timezone: string;
-    language: string;
-    date_format: string;
-    time_format: string;
-    store_opening: string;
-    store_closing: string;
-    keyholder_before_minutes: number;
-    keyholder_after_minutes: number;
-    opening_days: { [key: string]: boolean };
-    special_hours: {
-      [key: string]: { is_closed: boolean; opening: string; closing: string };
-    };
+    timezone: string | null;
+    language: string | null;
+    date_format: string | null;
+    time_format: string | null;
+    store_opening: string | null;
+    store_closing: string | null;
+    keyholder_before_minutes: number | null;
+    keyholder_after_minutes: number | null;
+    opening_days: { [key: string]: boolean } | null;
     special_days: {
       [date: string]: {
-        date: string;
+        date: string; // Restored this line, as SpecialDaysManagement.tsx uses it
         description: string;
         is_closed: boolean;
         custom_hours?: {
@@ -195,18 +192,18 @@ export interface Settings {
           closing: string; // HH:MM format
         };
       };
-    };
+    } | null;
   };
   scheduling: {
-    scheduling_resource_type: "shifts" | "coverage";
-    default_shift_duration: number;
-    min_break_duration: number;
-    max_daily_hours: number;
-    max_weekly_hours: number;
-    min_rest_between_shifts: number;
-    scheduling_period_weeks: number;
-    auto_schedule_preferences: boolean;
-    enable_diagnostics?: boolean;
+    scheduling_resource_type: "shifts" | "coverage" | null;
+    default_shift_duration: number | null;
+    min_break_duration: number | null;
+    max_daily_hours: number | null;
+    max_weekly_hours: number | null;
+    min_rest_between_shifts: number | null;
+    scheduling_period_weeks: number | null;
+    auto_schedule_preferences: boolean | null;
+    enable_diagnostics?: boolean | null;
     generation_requirements: {
       enforce_minimum_coverage: boolean;
       enforce_contracted_hours: boolean;
@@ -222,107 +219,106 @@ export interface Settings {
       enforce_availability: boolean;
       enforce_qualifications: boolean;
       enforce_opening_hours: boolean;
-    };
-    scheduling_algorithm?: "standard" | "optimized";
-    max_generation_attempts?: number;
-    // Ensure all backend fields are present and documented here for full round-trip support
+    } | null;
+    scheduling_algorithm?: "standard" | "optimized" | null;
+    max_generation_attempts?: number | null;
   };
   display: {
-    theme: string;
-    primary_color: string;
-    secondary_color: string;
-    accent_color: string;
-    background_color: string;
-    surface_color: string;
-    text_color: string;
+    theme: 'light' | 'dark' | 'system' | null;
+    primary_color: string | null;
+    secondary_color: string | null;
+    accent_color: string | null;
+    background_color: string | null;
+    surface_color: string | null;
+    text_color: string | null;
     dark_theme?: {
-      primary_color: string;
-      secondary_color: string;
-      accent_color: string;
-      background_color: string;
-      surface_color: string;
-      text_color: string;
-    };
-    show_sunday: boolean;
-    show_weekdays: boolean;
-    start_of_week: number;
-    calendar_start_day?: "sunday" | "monday";
-    calendar_default_view?: "month" | "week" | "day";
-    email_notifications: boolean;
-    schedule_published: boolean;
-    shift_changes: boolean;
-    time_off_requests?: boolean;
+      primary_color: string | null;
+      secondary_color: string | null;
+      accent_color: string | null;
+      background_color: string | null;
+      surface_color: string | null;
+      text_color: string | null;
+    } | null;
+    show_sunday: boolean | null;
+    show_weekdays: boolean | null;
+    start_of_week: 0 | 1 | 2 | 3 | 4 | 5 | 6 | null;
+    calendar_start_day?: "sunday" | "monday" | null;
+    calendar_default_view?: "month" | "week" | "day" | null;
+    email_notifications: boolean | null;
+    schedule_published_notify: boolean | null; // Ensure this is the name
+    shift_changes_notify: boolean | null; // Ensure this is the name
+    time_off_requests_notify?: boolean | null; // Ensure this is the name
   };
   pdf_layout: {
-    page_size: string;
-    orientation: string;
+    page_size: string | null;
+    orientation: "portrait" | "landscape" | null;
     margins: {
-      top: number;
-      right: number;
-      bottom: number;
-      left: number;
-    };
+      top: number | null;
+      right: number | null;
+      bottom: number | null;
+      left: number | null;
+    } | null;
     table_style: {
-      header_bg_color: string;
-      border_color: string;
-      text_color: string;
-      header_text_color: string;
-    };
+      header_bg_color: string | null;
+      border_color: string | null;
+      text_color: string | null;
+      header_text_color: string | null;
+    } | null;
     fonts: {
-      family: string;
-      size: number;
-      header_size: number;
-    };
+      family: string | null;
+      size: number | null;
+      header_size: number | null;
+    } | null;
     content: {
-      show_employee_id: boolean;
-      show_position: boolean;
-      show_breaks: boolean;
-      show_total_hours: boolean;
-    };
-  };
+      show_employee_id: boolean | null;
+      show_position: boolean | null;
+      show_breaks: boolean | null;
+      show_total_hours: boolean | null;
+    } | null;
+  } | null;
   employee_groups: {
     employee_types: Array<{
       id: string;
       name: string;
-      abbr?: string;
-      min_hours?: number;
-      max_hours?: number;
-      type: "employee_type";
-    }>;
+      abbr?: string | null;
+      min_hours?: number | null;
+      max_hours?: number | null;
+      type: "employee_type" | "employee";
+    }> | null;
     shift_types: Array<{
       id: string;
       name: string;
       color: string;
       type: "shift_type";
-      autoAssignOnly?: boolean;
-    }>;
+      autoAssignOnly?: boolean | null;
+    }> | null;
     absence_types: Array<{
       id: string;
       name: string;
       color: string;
-      type: "absence_type";
-    }>;
-  };
+      type: "absence_type" | "absence";
+    }> | null;
+  } | null;
   availability_types: {
     types: Array<{
       id: string;
       name: string;
-      description?: string;
+      description?: string | null;
       color: string;
-      priority?: number;
+      priority: number;
       is_available: boolean;
-    }>;
-  };
+    }> | null;
+  } | null;
   actions: {
     demo_data?: {
-      selected_module?: string;
+      selected_module?: string | null;
       last_execution?: string | null;
-    };
-  };
+    } | null;
+  } | null;
   ai_scheduling?: {
-    enabled?: boolean;
+    enabled?: boolean | null;
     api_key?: string | null;
-  };
+  } | null;
 }
 
 export interface CoverageTimeSlot {

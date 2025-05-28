@@ -88,3 +88,6 @@ TASK007_create_ai_schedule_api_endpoints
 - Focus on making complex AI concepts accessible to non-technical users
 - Ensure controls provide appropriate defaults for common scenarios
 - Consider adding tooltips or help text for advanced features
+
+## AI On Hold Note
+This task is on hold because its dependencies (`TASK004_create_wireframes`, `TASK006_create_schedule_visualization_component`, `TASK007_create_ai_schedule_api_endpoints`) are not yet `_completed.md`.

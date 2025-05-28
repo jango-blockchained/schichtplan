@@ -28,26 +28,24 @@ import { ScheduleGenerationSettings } from "@/components/ScheduleGenerationSetti
 import type { Settings } from "@/types/index";
 
 interface SchedulingEngineSectionProps {
-  settings?: Settings["scheduling"];
+  settings: Settings["scheduling"]; // Changed to required
   onInputChange: (key: string, value: any, isNumeric?: boolean) => void;
   onDiagnosticsChange: (checked: boolean) => void;
-  onGenerationSettingsUpdate: (updates: any) => void;
+  onGenerationSettingsUpdate: (updates: Partial<Settings["scheduling"]["generation_requirements"]>) => void; // Typed updates
   onImmediateUpdate: () => void;
 }
 
 export const SchedulingEngineSection: React.FC<
   SchedulingEngineSectionProps
 > = ({
-  settings,
+  settings, // Use directly
   onInputChange,
   onDiagnosticsChange,
   onGenerationSettingsUpdate,
   onImmediateUpdate,
 }) => {
-  // Ensure settings is never undefined by providing default empty object
-  const schedulingSettings = settings || {};
   const generationRequirements =
-    schedulingSettings.generation_requirements || {};
+    settings.generation_requirements || {}; 
 
   return (
     <div className="grid gap-6">
@@ -64,9 +62,7 @@ export const SchedulingEngineSection: React.FC<
               <div className="space-y-2">
                 <Label htmlFor="scheduling_resource_type">Resource Type</Label>
                 <Select
-                  value={
-                    schedulingSettings.scheduling_resource_type || "shifts"
-                  }
+                  value={settings.scheduling_resource_type || "shifts"}
                   onValueChange={(value: "shifts" | "coverage") =>
                     onInputChange("scheduling_resource_type", value)
                   }
@@ -87,8 +83,8 @@ export const SchedulingEngineSection: React.FC<
                 <Input
                   id="default_shift_duration"
                   type="number"
-                  value={schedulingSettings.default_shift_duration || 8}
-                  onChange={(e) =>
+                  value={settings.default_shift_duration ?? 8}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     onInputChange(
                       "default_shift_duration",
                       e.target.value,
@@ -104,8 +100,8 @@ export const SchedulingEngineSection: React.FC<
                 <Input
                   id="min_break_duration"
                   type="number"
-                  value={schedulingSettings.min_break_duration || 30}
-                  onChange={(e) =>
+                  value={settings.min_break_duration ?? 30}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     onInputChange("min_break_duration", e.target.value, true)
                   }
                 />
@@ -117,8 +113,8 @@ export const SchedulingEngineSection: React.FC<
                 <Input
                   id="min_rest_between_shifts"
                   type="number"
-                  value={schedulingSettings.min_rest_between_shifts || 11}
-                  onChange={(e) =>
+                  value={settings.min_rest_between_shifts ?? 11}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     onInputChange(
                       "min_rest_between_shifts",
                       e.target.value,
@@ -134,8 +130,8 @@ export const SchedulingEngineSection: React.FC<
                 <Input
                   id="max_daily_hours"
                   type="number"
-                  value={schedulingSettings.max_daily_hours || 10}
-                  onChange={(e) =>
+                  value={settings.max_daily_hours ?? 10}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     onInputChange("max_daily_hours", e.target.value, true)
                   }
                 />
@@ -145,8 +141,8 @@ export const SchedulingEngineSection: React.FC<
                 <Input
                   id="max_weekly_hours"
                   type="number"
-                  value={schedulingSettings.max_weekly_hours || 40}
-                  onChange={(e) =>
+                  value={settings.max_weekly_hours ?? 40}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     onInputChange("max_weekly_hours", e.target.value, true)
                   }
                 />
@@ -158,8 +154,8 @@ export const SchedulingEngineSection: React.FC<
                 <Input
                   id="scheduling_period_weeks"
                   type="number"
-                  value={schedulingSettings.scheduling_period_weeks || 1}
-                  onChange={(e) =>
+                  value={settings.scheduling_period_weeks ?? 1}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     onInputChange(
                       "scheduling_period_weeks",
                       e.target.value,
@@ -171,7 +167,7 @@ export const SchedulingEngineSection: React.FC<
               <div className="space-y-2">
                 <Label htmlFor="scheduling_algorithm">Scheduling Algorithm</Label>
                 <Select
-                  value={schedulingSettings.scheduling_algorithm || "standard"}
+                  value={settings.scheduling_algorithm || "standard"}
                   onValueChange={(value: "standard" | "optimized") =>
                     onInputChange("scheduling_algorithm", value)
                   }
@@ -188,9 +184,7 @@ export const SchedulingEngineSection: React.FC<
               <div className="flex items-center space-x-2 pt-2">
                 <Switch
                   id="auto_schedule_preferences"
-                  checked={
-                    schedulingSettings.auto_schedule_preferences !== false
-                  }
+                  checked={settings.auto_schedule_preferences !== false}
                   onCheckedChange={(checked) =>
                     onInputChange("auto_schedule_preferences", checked)
                   }
@@ -202,8 +196,8 @@ export const SchedulingEngineSection: React.FC<
               <div className="flex items-center space-x-2 pt-2">
                 <Switch
                   id="enable_diagnostics"
-                  checked={!!schedulingSettings.enable_diagnostics}
-                  onCheckedChange={onDiagnosticsChange}
+                  checked={!!settings.enable_diagnostics}
+                  onCheckedChange={onDiagnosticsChange} // This prop is directly for this switch
                 />
                 <Label
                   htmlFor="enable_diagnostics"
@@ -226,7 +220,7 @@ export const SchedulingEngineSection: React.FC<
         </CardContent>
       </Card>
       <ScheduleGenerationSettings
-        settings={generationRequirements}
+        settings={generationRequirements} // This is settings.generation_requirements || {}
         onUpdate={onGenerationSettingsUpdate}
       />
     </div>

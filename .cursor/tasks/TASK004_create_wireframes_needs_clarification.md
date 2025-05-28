@@ -68,3 +68,6 @@ TASK002_research_ui_patterns
 - Consider using Figma, Adobe XD, or similar tools for wireframing
 - Focus on how to visually distinguish AI-suggested shifts
 - Ensure the design can scale with large numbers of employees and shifts
+
+## AI Clarification Note
+This task requires visual design work (wireframing) using tools like Figma or Adobe XD, which is outside the scope of my current capabilities as an AI. Please assign this task to a human designer. I have marked this task as `_needs_clarification`.

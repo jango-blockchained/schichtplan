@@ -85,3 +85,6 @@ TASK006_create_schedule_visualization_component
 - Focus on actionable insights rather than just raw data
 - Ensure visualizations are accessible (color blindness, etc.)
 - Consider performance with large datasets
+
+## AI On Hold Note
+This task is on hold because its dependency, `TASK006_create_schedule_visualization_component`, is not yet `_completed.md`.

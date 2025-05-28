@@ -24,7 +24,7 @@ import type {
 } from "@/types/index"; // Assuming these are the correct root types
 
 interface EmployeeShiftDefinitionsSectionProps {
-  settings?: Settings["employee_groups"]; // Match the prop name being passed from UnifiedSettingsPage
+  settings: Settings["employee_groups"] | null; // Prop can be null
   onUpdate: (
     category: keyof Settings,
     updates: Partial<Settings[keyof Settings]>,
@@ -41,51 +41,50 @@ export const EmployeeShiftDefinitionsSection: React.FC<
   onImmediateUpdate,
   isLoading, // Accept isLoading prop
 }) => {
-  // Ensure settings is never undefined by providing default empty object
-  const employeeGroups = settings || {
-    employee_types: [],
-    absence_types: [],
-    shift_types: [],
-  };
+  const employee_types_data = settings?.employee_types || [];
+  const absence_types_data = settings?.absence_types || [];
+  const shift_types_data = settings?.shift_types || [];
 
-  // Pass the data directly without modifying the 'type' field
   const memoizedEmployeeTypes = useMemo(() => {
-    return employeeGroups.employee_types || [];
-  }, [employeeGroups.employee_types]);
+    return employee_types_data;
+  }, [employee_types_data]);
 
   const memoizedAbsenceTypes = useMemo(() => {
-    return employeeGroups.absence_types || [];
-  }, [employeeGroups.absence_types]);
+    return absence_types_data;
+  }, [absence_types_data]);
 
   const memoizedShiftTypes = useMemo(() => {
-    return employeeGroups.shift_types || [];
-  }, [employeeGroups.shift_types]);
+    return shift_types_data;
+  }, [shift_types_data]);
 
   const handleEmployeeTypesChange = (
-    updatedEmployeeTypes: EmployeeType[],
+    updatedEmployeeTypes: EditorEmployeeType[], // Assuming editor provides its own type
   ) => {
-    const patched = updatedEmployeeTypes.map((et) => ({ ...et, type: "employee_type" }));
+    const patched = updatedEmployeeTypes.map((et) => ({ ...et, type: "employee_type" as const }));
     onUpdate("employee_groups", {
-      ...employeeGroups,
-      employee_types: patched,
+      employee_types: patched as unknown as EmployeeType[], // Cast back to main type
+      absence_types: absence_types_data,
+      shift_types: shift_types_data,
     });
   };
 
   const handleAbsenceTypesChange = (
-    updatedAbsenceTypes: AbsenceType[],
+    updatedAbsenceTypes: EditorAbsenceType[], // Assuming editor provides its own type
   ) => {
-    const patched = updatedAbsenceTypes.map((at) => ({ ...at, type: "absence_type" }));
+    const patched = updatedAbsenceTypes.map((at) => ({ ...at, type: "absence_type" as const }));
     onUpdate("employee_groups", {
-      ...employeeGroups,
-      absence_types: patched,
+      employee_types: employee_types_data,
+      absence_types: patched as unknown as AbsenceType[], // Cast back to main type
+      shift_types: shift_types_data,
     });
   };
 
-  const handleShiftTypesChange = (updatedShiftTypes: ShiftType[]) => {
-    const patched = updatedShiftTypes.map((st) => ({ ...st, type: "shift_type" }));
+  const handleShiftTypesChange = (updatedShiftTypes: EditorShiftType[]) => { // Assuming editor provides its own type
+    const patched = updatedShiftTypes.map((st) => ({ ...st, type: "shift_type" as const }));
     onUpdate("employee_groups", {
-      ...employeeGroups,
-      shift_types: patched,
+      employee_types: employee_types_data,
+      absence_types: absence_types_data,
+      shift_types: patched as unknown as ShiftType[], // Cast back to main type
     });
   };
 

@@ -76,3 +76,6 @@ TASK005_implement_ai_scheduling_service
 - Consider implementing websocket notifications for long-running jobs
 - Ensure proper transaction handling for database operations
 - Design for backward compatibility with existing schedule endpoints
+
+## AI On Hold Note
+This task is on hold because its dependency, `TASK005_implement_ai_scheduling_service`, is currently `_in_progress` and not yet `_completed.md`.

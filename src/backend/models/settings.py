@@ -109,6 +109,8 @@ class Settings(db.Model):
     show_sunday = Column(Boolean, nullable=False, default=False)
     show_weekdays = Column(Boolean, nullable=False, default=False)
     start_of_week = Column(Integer, nullable=False, default=1) # 0=Sunday, 1=Monday
+    calendar_start_day = Column(String(10), nullable=True, default='monday') # Added
+    calendar_default_view = Column(String(10), nullable=True, default='month') # Added
     email_notifications = Column(Boolean, nullable=False, default=True)
     schedule_published_notify = Column(Boolean, nullable=False, default=True)
     shift_changes_notify = Column(Boolean, nullable=False, default=True)
@@ -246,6 +248,8 @@ class Settings(db.Model):
                 "show_sunday": self.show_sunday,
                 "show_weekdays": self.show_weekdays,
                 "start_of_week": self.start_of_week,
+                "calendar_start_day": self.calendar_start_day, # Added
+                "calendar_default_view": self.calendar_default_view, # Added
                 "email_notifications": self.email_notifications,
                 "schedule_published_notify": self.schedule_published_notify,
                 "shift_changes_notify": self.shift_changes_notify,
@@ -305,7 +309,44 @@ class Settings(db.Model):
         settings.scheduling_algorithm = "standard" # Default to standard algorithm
         settings.max_generation_attempts = 10 # Maximum attempts for schedule generation
         settings.theme = "light"
-        # ... (other defaults from original method for display, pdf, groups etc.)
+        settings.primary_color = "#1976D2"
+        settings.secondary_color = "#424242"
+        settings.accent_color = "#FF4081"
+        settings.background_color = "#FFFFFF"
+        settings.surface_color = "#F5F5F5"
+        settings.text_color = "#212121"
+        settings.dark_theme_primary_color = "#90CAF9"
+        settings.dark_theme_secondary_color = "#757575"
+        settings.dark_theme_accent_color = "#FF80AB"
+        settings.dark_theme_background_color = "#121212"
+        settings.dark_theme_surface_color = "#1E1E1E"
+        settings.dark_theme_text_color = "#FFFFFF"
+        settings.show_sunday = False
+        settings.show_weekdays = False
+        settings.start_of_week = 1
+        settings.calendar_start_day = "monday" # Added
+        settings.calendar_default_view = "month" # Added
+        settings.email_notifications = True
+        settings.schedule_published_notify = True
+        settings.shift_changes_notify = True
+        settings.time_off_requests_notify = True
+        settings.page_size = "A4"
+        settings.orientation = "portrait"
+        settings.margin_top = 20.0
+        settings.margin_right = 20.0
+        settings.margin_bottom = 20.0
+        settings.margin_left = 20.0
+        settings.table_header_bg_color = "#f3f4f6"
+        settings.table_border_color = "#e5e7eb"
+        settings.table_text_color = "#111827"
+        settings.table_header_text_color = "#111827"
+        settings.font_family = "Helvetica"
+        settings.font_size = 10.0
+        settings.header_font_size = 12.0
+        settings.show_employee_id = True
+        settings.show_position = True
+        settings.show_breaks = True
+        settings.show_total_hours = True
         settings.employee_types = []
         settings.shift_types = []
         settings.absence_types = []
@@ -316,7 +357,8 @@ class Settings(db.Model):
 
     def update_from_dict(self, data: Dict[str, Any]) -> None:
         for category, values in data.items():
-            if not isinstance(values, dict): continue # Skip if category value is not a dict
+            if not isinstance(values, dict):
+                continue # Skip if category value is not a dict
 
             if category == "general":
                 for key, value in values.items():
@@ -330,7 +372,8 @@ class Settings(db.Model):
             elif category == "scheduling":
                 for key, value in values.items():
                     if key == "generation_requirements" and isinstance(value, dict):
-                        if self.generation_requirements is None: self.generation_requirements = {}
+                        if self.generation_requirements is None:
+                            self.generation_requirements = {}
                         self.generation_requirements.update(value)
                     elif hasattr(self, key):
                         setattr(self, key, value)
@@ -339,7 +382,8 @@ class Settings(db.Model):
                     if key == "dark_theme" and isinstance(value, dict):
                         for theme_key, theme_value in value.items():
                             attr_name = f"dark_theme_{theme_key}"
-                            if hasattr(self, attr_name): setattr(self, attr_name, theme_value)
+                            if hasattr(self, attr_name):
+                                setattr(self, attr_name, theme_value)
                     elif hasattr(self, key):
                         setattr(self, key, value)
             # For JSON blob fields (lists of objects or specific dict structures), direct assignment is appropriate
@@ -351,13 +395,17 @@ class Settings(db.Model):
             elif category == "pdf_layout": # pdf_layout needs careful handling of nested structures
                 for pdf_key, pdf_value in values.items():
                     if pdf_key == "margins" and isinstance(pdf_value, dict):
-                        for m_key, m_value in pdf_value.items(): setattr(self, f"margin_{m_key}", m_value)
+                        for m_key, m_value in pdf_value.items():
+                            setattr(self, f"margin_{m_key}", m_value)
                     elif pdf_key == "table_style" and isinstance(pdf_value, dict):
-                        for ts_key, ts_value in pdf_value.items(): setattr(self, f"table_{ts_key}", ts_value) # Assumes model fields like table_header_bg_color
+                        for ts_key, ts_value in pdf_value.items():
+                            setattr(self, f"table_{ts_key}", ts_value) # Assumes model fields like table_header_bg_color
                     elif pdf_key == "fonts" and isinstance(pdf_value, dict):
-                        for f_key, f_value in pdf_value.items(): setattr(self, f"font_{f_key}" if f_key != "header_size" else "header_font_size", f_value) # font_family, font_size, header_font_size
+                        for f_key, f_value in pdf_value.items():
+                            setattr(self, f"font_{f_key}" if f_key != "header_size" else "header_font_size", f_value) # font_family, font_size, header_font_size
                     elif pdf_key == "content" and isinstance(pdf_value, dict):
-                        for c_key, c_value in pdf_value.items(): setattr(self, c_key, c_value) # Assumes model fields like show_employee_id
+                        for c_key, c_value in pdf_value.items():
+                            setattr(self, c_key, c_value) # Assumes model fields like show_employee_id
                     elif hasattr(self, pdf_key): # For direct fields like page_size, orientation
                         setattr(self, pdf_key, pdf_value)
             # Other direct model attributes if any top-level keys come (not expected from new CompleteSettings)

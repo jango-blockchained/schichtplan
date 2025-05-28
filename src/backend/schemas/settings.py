@@ -1,6 +1,6 @@
-from pydantic import BaseModel, Field, validator, ValidationError, RootModel
-from typing import Dict, List, Optional, Any, Union, Literal
-from datetime import datetime, date
+from pydantic import BaseModel, Field, validator, RootModel
+from typing import Dict, List, Optional, Any, Literal
+from datetime import datetime
 
 # --- Existing/Verified Models (with minor adjustments if needed) ---
 
@@ -119,6 +119,8 @@ class DisplaySettingsSchema(BaseModel):
     show_sunday: Optional[bool] = Field(None, description="Show Sunday in calendar views.")
     show_weekdays: Optional[bool] = Field(None, description="Show weekdays in calendar views.") # This seems redundant if show_sunday implies others
     start_of_week: Optional[Literal[0, 1, 2, 3, 4, 5, 6]] = Field(None, description="Start day of the week (0=Sunday, 1=Monday, ...).") # Adjusted to Literal
+    calendar_start_day: Optional[Literal['sunday', 'monday']] = Field(None, description="User's preferred start day for calendar views.")
+    calendar_default_view: Optional[Literal['month', 'week', 'day']] = Field(None, description="Default view for the calendar.")
     email_notifications: Optional[bool] = Field(None, description="Master switch for email notifications.")
     schedule_published_notify: Optional[bool] = Field(None, description="Notify on schedule publish.") # Aligned name
     shift_changes_notify: Optional[bool] = Field(None, description="Notify on shift changes.") # Aligned name
@@ -176,6 +178,7 @@ class ShiftTypeSchemaPydantic(BaseModel): # Renamed to avoid conflicts
     name: str = Field(..., description="Display name of the shift type.")
     color: str = Field(..., description="Color code (hex) for this shift type.")
     type: Literal["shift_type"] = Field("shift_type", description="Internal type discriminator.")
+    auto_assign_only: Optional[bool] = Field(None, description="Whether this shift type is for auto-assignment only.")
 
 
 class AbsenceTypeSchema(BaseModel):
