@@ -90,12 +90,13 @@ def create_app(config_class=Config):
         app,
         resources={
             r"/api/*": {
-                "origins": "*",  # Allow all origins for API endpoints
+                "origins": ["http://localhost:5173", "http://127.0.0.1:5173"], # Allow specific frontend origins
                 "supports_credentials": True,
                 "allow_credentials": True,
                 "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
                 "expose_headers": ["Content-Type", "Authorization"],
-                "allow_headers": ["Content-Type", "Authorization"],
+                "allow_headers": ["Content-Type", "Authorization", "Accept", "X-Requested-With"],
+                "max_age": 86400,  # Cache preflight requests for 24 hours
             }
         },
     )

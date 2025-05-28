@@ -303,8 +303,8 @@ class ScheduleGenerator:
 
     def __init__(self, resources: Optional[RuntimeScheduleResources] = None, passed_config: Optional[SchedulerConfig] = None, app_instance: Optional[Any] = None):
         # Use the centrally configured logger
-        self.logger = central_logger.schedule_logger # Use the specific schedule logger
-        self.app_logger = central_logger.app_logger # Use app logger for general info/debug
+        self.logger = central_logger # Use the central logger directly
+        self.app_logger = central_logger # Use central logger for general info/debug
 
         # Generate a unique session ID for this generation run
         self.session_id = str(uuid.uuid4())[:8]

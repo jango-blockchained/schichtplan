@@ -9,9 +9,7 @@ import logging
 from sqlalchemy.exc import SQLAlchemyError
 
 from models import db
-from utils.logger import Logger
-
-logger = Logger()
+from utils.logger import logger
 
 @contextmanager
 def session_manager():
@@ -31,11 +29,11 @@ def session_manager():
         db.session.commit()
     except SQLAlchemyError as e:
         db.session.rollback()
-        logger.error_logger.error(f"Database error: {str(e)}", exc_info=True)
+        logger.error(f"Database error: {str(e)}", exc_info=True)
         raise
     except Exception as e:
         db.session.rollback()
-        logger.error_logger.error(f"Unexpected error in database operation: {str(e)}", exc_info=True)
+        logger.error(f"Unexpected error in database operation: {str(e)}", exc_info=True)
         raise
 
 def transactional(func):
@@ -60,11 +58,11 @@ def transactional(func):
             return result
         except SQLAlchemyError as e:
             db.session.rollback()
-            logger.error_logger.error(f"Database error in {func.__name__}: {str(e)}", exc_info=True)
+            logger.error(f"Database error in {func.__name__}: {str(e)}", exc_info=True)
             raise
         except Exception as e:
             db.session.rollback()
-            logger.error_logger.error(f"Error in {func.__name__}: {str(e)}", exc_info=True)
+            logger.error(f"Error in {func.__name__}: {str(e)}", exc_info=True)
             raise
     return wrapper
 
@@ -80,7 +78,7 @@ def safe_commit():
         return True
     except SQLAlchemyError as e:
         db.session.rollback()
-        logger.error_logger.error(f"Failed to commit database session: {str(e)}", exc_info=True)
+        logger.error(f"Failed to commit database session: {str(e)}", exc_info=True)
         return False
 
 def add_all_or_abort(objects, error_message="Failed to add items to database"):
@@ -100,7 +98,7 @@ def add_all_or_abort(objects, error_message="Failed to add items to database"):
         return True
     except SQLAlchemyError as e:
         db.session.rollback()
-        logger.error_logger.error(f"{error_message}: {str(e)}", exc_info=True)
+        logger.error(f"{error_message}: {str(e)}", exc_info=True)
         return False
 
 class AppContextManager:

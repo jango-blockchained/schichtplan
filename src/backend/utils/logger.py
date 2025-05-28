@@ -270,24 +270,21 @@ class Logger:
         diag_filename = f"schedule_diagnostic_{session_id}.log"
         return str(self.diagnostics_dir / diag_filename)
 
-    def debug(self, message, event_type=None, details=None, status=None):
-        self.log_message(logging.DEBUG, message, event_type, details, status)
+    def debug(self, message, event_type=None, details=None, status=None, extra=None):
+        self.log_message(logging.DEBUG, message, event_type, details, status, extra=extra)
 
-    def info(self, message, event_type=None, details=None, status=None):
-        self.log_message(logging.INFO, message, event_type, details, status)
+    def info(self, message, event_type=None, details=None, status=None, extra=None):
+        self.log_message(logging.INFO, message, event_type, details, status, extra=extra)
 
     def warning(self, message, event_type=None, details=None, status=None, exc_info=None, stack_info=False, extra=None):
         # Flask's logger.warning can pass exc_info, stack_info, and extra.
-        # We'll pass them to log_message if it's adapted, or handle them here.
-        # For now, keeping it simple and aligned with other custom methods.
-        # The standard logging.warning uses logging.WARNING (level 30)
-        self.log_message(logging.WARNING, message, event_type, details, status, exc_info=exc_info, stack_info=stack_info)
+        # We'll pass all parameters to log_message
+        self.log_message(logging.WARNING, message, event_type, details, status, exc_info=exc_info, stack_info=stack_info, extra=extra)
 
     def error(self, message, event_type=None, details=None, status="Error", exc_info=None, stack_info=False, extra=None):
-        # If extra is provided, use it as details if details is None
-        if extra is not None and details is None:
-            details = extra
-        self.log_message(logging.ERROR, message, event_type, details, status, exc_info=exc_info, stack_info=stack_info)
+        # Pass the extra parameter directly to log_message
+        # If details is None and extra is provided, details can still be set from extra in log_message
+        self.log_message(logging.ERROR, message, event_type, details, status, exc_info=exc_info, stack_info=stack_info, extra=extra)
 
     # Helper method to format time like logging.Formatter does
     def formatTime(self, datefmt=None):
@@ -307,6 +304,7 @@ class Logger:
         status=None,
         exc_info=None,
         stack_info=None,
+        extra=None,
     ):
         if not self.initialized:
             print("Logger not initialized, skipping log message.")
@@ -329,6 +327,18 @@ class Logger:
         log_entry["status"] = status if status else self._default_status.get(level, "")
 
         try:
+            # If details is None but extra is provided, we can use relevant fields from extra as details
+            if details is None and extra is not None and isinstance(extra, dict):
+                # Create a copy of the extra dict to use as details
+                details_from_extra = {}
+                # Copy specific fields of interest
+                for key in ['error', 'traceback']:
+                    if key in extra:
+                        details_from_extra[key] = extra[key]
+                # Only use this if we found useful keys
+                if details_from_extra:
+                    details = details_from_extra
+            
             # Ensure details are JSON serializable if they are complex objects
             if details is not None and not isinstance(details, (str, int, float, bool, list, dict, type(None))):
                 try:
@@ -372,6 +382,15 @@ class Logger:
                     if not hasattr(record, key):
                         setattr(record, key, value)
                 
+                # Add fields from extra parameter if provided
+                if extra is not None and isinstance(extra, dict):
+                    for key, value in extra.items():
+                        if not hasattr(record, key) or key == 'action':  # Allow overriding action
+                            setattr(record, key, value)
+                            # If this is the action field, also update it in the log_entry
+                            if key == 'action':
+                                log_entry['action'] = value
+                
                 self.console_handler.handle(record)
 
             # Log to file handler (JSON output)
@@ -392,6 +411,19 @@ class Logger:
                     record.stack_info = ''.join(traceback.format_stack())
                 else:
                     record.stack_info = None
+                
+                # Add fields from extra parameter to the file handler record too
+                if extra is not None and isinstance(extra, dict):
+                    for key, value in extra.items():
+                        if not hasattr(record, key) or key == 'action':  # Allow overriding action
+                            setattr(record, key, value)
+                            # If this is the action field, also update it in the log_entry
+                            if key == 'action' and 'action' in log_entry:
+                                log_entry['action'] = value
+                    
+                    # Also add a full copy of the extra dict to the record as 'extra_data'
+                    # This ensures we capture all the fields even if they're not explicitly handled
+                    setattr(record, 'extra_data', extra)
                     
                 self.file_handler.handle(record)
 
