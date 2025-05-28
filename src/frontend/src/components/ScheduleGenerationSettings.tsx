@@ -107,10 +107,10 @@ const DEFAULT_REQUIREMENTS: Record<RequirementKey, boolean> =
   ) as Record<RequirementKey, boolean>;
 
 interface ScheduleGenerationSettingsProps {
-  /** Current application settings */
-  settings: Settings;
+  /** Current generation requirements settings */
+  settings: Partial<Settings["scheduling"]["generation_requirements"]> | null; // Changed type
   /** Callback for updating generation requirements */
-  onUpdate: (updatedSettings: Settings) => Promise<void>;
+  onUpdate: (updatedRequirements: Record<RequirementKey, boolean>) => void; // Changed type
   /** Whether to create empty schedules during generation */
   createEmptySchedules?: boolean;
   /** Whether to include empty schedules in the view */
@@ -134,7 +134,7 @@ interface ScheduleGenerationSettingsProps {
  * including constraints, empty schedule handling, and triggering generation.
  */
 export function ScheduleGenerationSettings({
-  settings,
+  settings, // This is now Partial<Settings["scheduling"]["generation_requirements"]> | null
   onUpdate,
   createEmptySchedules,
   includeEmpty,
@@ -152,16 +152,13 @@ export function ScheduleGenerationSettings({
     Record<RequirementKey, boolean>
   >(() => {
     // Initialize with settings if available, otherwise use defaults
-    if (settings?.scheduling?.generation_requirements) {
+    if (settings) { // settings is now directly the generation_requirements object or null
       const req = { ...DEFAULT_REQUIREMENTS };
-      // Only override values that are explicitly defined in settings
-      Object.keys(settings.scheduling.generation_requirements).forEach(
+      Object.keys(settings).forEach(
         (key) => {
-          if (key in req) {
+          if (key in req && settings[key as RequirementKey] !== undefined) { // Check for undefined
             req[key as RequirementKey] =
-              !!settings.scheduling.generation_requirements[
-                key as keyof typeof settings.scheduling.generation_requirements
-              ];
+              !!settings[key as RequirementKey];
           }
         },
       );
@@ -172,16 +169,13 @@ export function ScheduleGenerationSettings({
 
   // Update local state when settings change
   useEffect(() => {
-    if (settings?.scheduling?.generation_requirements) {
+    if (settings) { // settings is now directly the generation_requirements object or null
       const req = { ...DEFAULT_REQUIREMENTS };
-      // Only override values that are explicitly defined in settings
-      Object.keys(settings.scheduling.generation_requirements).forEach(
+      Object.keys(settings).forEach(
         (key) => {
-          if (key in req) {
+          if (key in req && settings[key as RequirementKey] !== undefined) { // Check for undefined
             req[key as RequirementKey] =
-              !!settings.scheduling.generation_requirements[
-                key as keyof typeof settings.scheduling.generation_requirements
-              ];
+              !!settings[key as RequirementKey];
           }
         },
       );
@@ -192,16 +186,12 @@ export function ScheduleGenerationSettings({
   }, [settings]);
 
   const handleToggle = (key: RequirementKey, checked: boolean) => {
-    // Update local state
     const updatedRequirements = {
       ...localRequirements,
       [key]: checked,
     };
-
     setLocalRequirements(updatedRequirements);
-
-    // Save changes immediately
-    onUpdate(updatedRequirements);
+    onUpdate(updatedRequirements); // Correctly calls with Record<RequirementKey, boolean>
 
     // Show a small toast to confirm the change
     const requirement = SCHEDULE_REQUIREMENTS.find((r) => r.key === key);
@@ -216,8 +206,7 @@ export function ScheduleGenerationSettings({
 
   const handleSave = () => {
     try {
-      // Call onUpdate directly to save to backend
-      onUpdate(localRequirements);
+      onUpdate(localRequirements); // Correctly calls with Record<RequirementKey, boolean>
 
       // Only show success message when explicitly saving
       toast({

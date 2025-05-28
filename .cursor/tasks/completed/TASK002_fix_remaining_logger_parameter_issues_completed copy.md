@@ -15,7 +15,7 @@ The logger in `src/backend/utils/logger.py` had been updated with new methods, b
    - Updated `log_message` to add fields from `extra` to LogRecord objects
    - Added special handling for the 'action' field in the `extra` dictionary
    - Added logic to use fields from `extra` as details when details is None
-3. Made the changes backward compatible so existing code will continue to work
+3. Made the changes backward compatible so existing code will continue to work.
 
 ## Solution Details
 The updated logger implementation now properly handles the `extra` parameter in these ways:

@@ -18,7 +18,7 @@ The linter is showing errors related to the `SchedulerConfig` class:
    - Improved the `from_scheduler_config` method to handle more parameters.
 4. ✅ Test the changes
    - Ran tests for `test_schedule_validator.py` and the initial tests were passing.
-   - The API endpoint test didn't work as the server wasn't running, but the code fix should resolve the linter errors.
+   - The API endpoint test didn't work as the server wasn't running, but the code fix should resolve the linter errors
 
 ## Changes Made
 1. Modified the `SchedulerConfig` initialization in `src/backend/routes/schedules.py`:
