@@ -1,9 +1,19 @@
-"""Constraint checking module for the scheduler."""
+"""
+Module for checking various scheduling constraints.
+
+This module provides the `ConstraintChecker` class, which is responsible for
+validating potential shift assignments against a set of predefined rules
+and configurations. These rules include limits on consecutive workdays,
+minimum rest periods between shifts, and maximum daily/weekly working hours.
+
+The checker uses schedule data, employee information, and configuration settings
+to determine if a new assignment would violate any constraints.
+"""
 
 from datetime import date, timedelta, datetime
 import sys
 import os
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Union, Any  # Added Any
 
 # Add parent directories to path if needed
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -14,15 +24,12 @@ if src_backend_dir not in sys.path:
 # Try to handle imports in different environments
 try:
     from models import Employee, ShiftTemplate
-    from utils.logger import logger
 except ImportError:
     try:
         from backend.models import Employee, ShiftTemplate
-        from backend.utils.logger import logger
     except ImportError:
         try:
             from src.backend.models import Employee, ShiftTemplate
-            from src.backend.utils.logger import logger
         except ImportError:
             # Create type hint classes for standalone testing
             class Employee:
@@ -43,33 +50,102 @@ except ImportError:
 
 
 class ConstraintChecker:
-    """Class for checking schedule constraints"""
+    """
+    Validates employee shift assignments against a set of configurable constraints.
 
-    def __init__(self, resources, config, logger):
+    This class checks for violations such as exceeding maximum consecutive workdays,
+    insufficient rest time between shifts, and surpassing daily or weekly
+    hour limits. It uses employee data, existing schedule information, and
+    runtime configurations to perform these checks.
+
+    Attributes:
+        resources: An object providing access to employee and shift data.
+        config: Configuration object containing constraint parameters (e.g., max_consecutive_days).
+        logger: Logger instance for logging messages and errors.
+        schedule (List[Dict]): The current list of assignments being considered.
+            (Primarily used by older methods, newer methods prefer passed-in assignments).
+        schedule_by_date (Dict[date, List[Dict]]): Assignments grouped by date.
+            (Primarily used by older methods).
+    """
+
+    def __init__(self, resources: Any, config: Any, logger: Any):
+        """
+        Initializes the ConstraintChecker.
+
+        Args:
+            resources: An object that provides access to schedule resources like
+                employee data and shift templates.
+            config: A configuration object or dictionary containing constraint
+                parameters (e.g., max_consecutive_days, min_rest_hours).
+            logger: A logger instance for logging information and errors.
+        """
         self.resources = resources
         self.config = config
         self.logger = logger
-        self.schedule = []
-        self.schedule_by_date = {}
+        self.schedule: List[Dict] = []  # For older methods
+        self.schedule_by_date: Dict[date, List[Dict]] = {} # For older methods
 
-    def set_schedule(self, schedule, schedule_by_date):
-        """Set the current schedule for constraint checking (used by older methods)"""
+    def set_schedule(self, schedule: List[Dict], schedule_by_date: Dict[date, List[Dict]]):
+        """
+        Sets the current schedule context for constraint checking.
+
+        Note: This method is primarily for compatibility with older parts of the
+        scheduler. Newer constraint checking methods prefer to receive existing
+        assignments directly as arguments.
+
+        Args:
+            schedule: A list of assignment dictionaries representing the current schedule.
+            schedule_by_date: A dictionary mapping dates to lists of assignment
+                dictionaries for that date.
+        """
         self.schedule = schedule
         self.schedule_by_date = schedule_by_date
 
-    def _calculate_shift_duration_from_datetimes(self, start_dt: datetime, end_dt: datetime) -> float:
-        """Calculate duration in hours between two datetime objects."""
+    def _calculate_shift_duration_from_datetimes(self, start_dt: Optional[datetime], end_dt: Optional[datetime]) -> float:
+        """
+        Calculates the duration in hours between two datetime objects.
+
+        Args:
+            start_dt: The start datetime of the shift.
+            end_dt: The end datetime of the shift.
+
+        Returns:
+            The duration of the shift in hours. Returns 0.0 if inputs are invalid
+            or end_dt is before start_dt.
+        """
         if not start_dt or not end_dt or end_dt < start_dt:
             return 0.0
         duration_timedelta = end_dt - start_dt
         return duration_timedelta.total_seconds() / 3600.0
 
     def _get_assignments_for_employee(self, employee_id: int, assignments_list: List[Dict]) -> List[Dict]:
-        """Helper to filter a list of assignment dicts for a specific employee."""
+        """
+        Filters a list of assignment dictionaries to get those for a specific employee.
+
+        Args:
+            employee_id: The ID of the employee whose assignments are to be retrieved.
+            assignments_list: A list of assignment dictionaries to filter.
+
+        Returns:
+            A list of assignment dictionaries belonging to the specified employee.
+        """
         return [asn for asn in assignments_list if asn.get("employee_id") == employee_id]
 
-    def _parse_assignment_datetime(self, assignment: Dict, field_name: str, on_date: date) -> Optional[datetime]:
-        """Safely parse a time string from an assignment dict into a datetime object on a given date."""
+    def _parse_assignment_datetime(self, assignment: Dict, field_name: str, on_date: Union[date, str]) -> Optional[datetime]:
+        """
+        Safely parses a time string from an assignment dictionary into a datetime object.
+
+        The time string is combined with the provided `on_date` to create a full
+        datetime object.
+
+        Args:
+            assignment: The assignment dictionary, expected to contain `field_name`.
+            field_name: The key in the `assignment` dict that holds the time string (e.g., "start_time").
+            on_date: The date on which the time occurs. Can be a `date` object or an ISO format string.
+
+        Returns:
+            A datetime object if parsing is successful, otherwise None.
+        """
         time_str = assignment.get(field_name)
         if not time_str: # Check if time_str is None or empty
             self.logger.debug(f"Time string is None or empty for field {field_name} in assignment {assignment.get('id')}")
@@ -100,14 +176,22 @@ class ConstraintChecker:
         existing_assignments: List[Dict]
     ) -> List[Dict]:
         """
-        Checks all constraints for a potential new shift against existing assignments.
+        Checks all defined constraints for a potential new shift assignment.
+
+        This method aggregates results from various individual constraint checks
+        (e.g., max consecutive days, min rest period, daily/weekly hours).
+
         Args:
-            employee_id: The ID of the employee.
-            new_shift_start_dt: The start datetime of the new potential shift.
-            new_shift_end_dt: The end datetime of the new potential shift.
-            existing_assignments: A list of assignment dictionaries already made.
+            employee_id: The ID of the employee for whom the new shift is considered.
+            new_shift_start_dt: The proposed start datetime of the new shift.
+            new_shift_end_dt: The proposed end datetime of the new shift.
+            existing_assignments: A list of dictionaries representing assignments
+                already part of the schedule for context.
+
         Returns:
-            A list of violation detail dictionaries. Empty if no violations.
+            A list of violation detail dictionaries. Each dictionary describes a
+            constraint violation. Returns an empty list if no violations are found.
+            Example violation: `{"type": "max_consecutive_days", "message": "...", ...}`
         """
         violations = []
         employee = self.resources.get_employee(employee_id)
@@ -152,7 +236,24 @@ class ConstraintChecker:
     def _check_max_consecutive_days(
         self, employee: Employee, new_shift_date: date, existing_assignments: List[Dict]
     ) -> Optional[Dict]:
-        """Checks if adding a shift on new_shift_date would exceed max consecutive workdays."""
+        """
+        Checks if assigning a shift on `new_shift_date` would exceed the maximum
+        configured consecutive working days for the employee.
+
+        It considers both existing assignments and the proposed new shift date
+        to calculate the potential consecutive work streak.
+
+        Args:
+            employee: The `Employee` object for whom the check is being performed.
+            new_shift_date: The date of the potential new shift.
+            existing_assignments: A list of assignment dictionaries representing
+                the employee's current schedule.
+
+        Returns:
+            A dictionary describing the violation if the limit is exceeded,
+            containing `{"type": "max_consecutive_days", "message": ..., "limit": ..., "value": ...}`.
+            Returns `None` if there is no violation.
+        """
         max_consecutive = getattr(self.config, "max_consecutive_days", 7)
         
         employee_assignments = self._get_assignments_for_employee(employee.id, existing_assignments)
@@ -199,7 +300,24 @@ class ConstraintChecker:
     def _check_min_rest_between_shifts(
         self, employee: Employee, new_shift_start_dt: datetime, new_shift_end_dt: datetime, existing_assignments: List[Dict]
     ) -> Optional[Dict]:
-        """Checks for sufficient rest before and after the new_shift."""
+        """
+        Checks if there is sufficient rest time before the `new_shift_start_dt`
+        (after any previous shift) and after the `new_shift_end_dt` (before any
+        subsequent shift).
+
+        The minimum rest period is defined in the configuration.
+
+        Args:
+            employee: The `Employee` object.
+            new_shift_start_dt: The start datetime of the potential new shift.
+            new_shift_end_dt: The end datetime of the potential new shift.
+            existing_assignments: A list of the employee's existing assignment dictionaries.
+
+        Returns:
+            A dictionary describing the violation if rest is insufficient (either
+            `"min_rest_before"` or `"min_rest_after"`), or `None` if rest is sufficient.
+            Violation dict: `{"type": ..., "message": ..., "limit": ..., "value": ...}`.
+        """
         min_rest_hours = getattr(self.config, "min_rest_hours", 11.0) # Ensure float for comparison if config value is int
         if not getattr(self.config, "enforce_rest_periods", True):
             return None
@@ -254,7 +372,19 @@ class ConstraintChecker:
         return None
 
     def _check_daily_hours_limit(self, employee: Employee, new_shift_duration: float) -> Optional[Dict]:
-        """Checks if the new_shift_duration exceeds the employee's daily hour limit."""
+        """
+        Checks if the duration of the new shift exceeds the maximum daily working
+        hours configured for the employee's group.
+
+        Args:
+            employee: The `Employee` object.
+            new_shift_duration: The duration (in hours) of the potential new shift.
+
+        Returns:
+            A dictionary describing the violation if the daily limit is exceeded,
+            `{"type": "max_daily_hours", "message": ..., "limit": ..., "value": ...}`.
+            Returns `None` if there is no violation.
+        """
         max_daily_hours_cfg = getattr(self.config, "employee_types", [])
         employee_group_id_attr = getattr(employee, 'employee_group', None)
         employee_group_id_str = None
@@ -289,7 +419,26 @@ class ConstraintChecker:
     def _check_weekly_hours_limit(
         self, employee: Employee, new_shift_start_dt: datetime, new_shift_duration: float, existing_assignments: List[Dict]
     ) -> Optional[Dict]:
-        """Checks if adding the new shift would exceed weekly hour limits."""
+        """
+        Checks if adding the new shift would cause the employee to exceed their
+        configured maximum weekly working hours or a limit based on their
+        contracted hours.
+
+        It calculates the total hours for the week of the `new_shift_start_dt`,
+        including existing assignments and the proposed new shift.
+
+        Args:
+            employee: The `Employee` object.
+            new_shift_start_dt: The start datetime of the potential new shift.
+                This is used to determine the relevant week.
+            new_shift_duration: The duration (in hours) of the potential new shift.
+            existing_assignments: A list of the employee's existing assignment dictionaries.
+
+        Returns:
+            A dictionary describing the violation if a weekly limit is exceeded
+            (either `"max_weekly_hours_group"` or `"max_weekly_hours_contract"`), or `None`.
+            Violation dict: `{"type": ..., "message": ..., "limit": ..., "value": ...}`.
+        """
         new_shift_date = new_shift_start_dt.date()
         # Determine the week (Monday to Sunday) for the new_shift_date
         week_start_date = new_shift_date - timedelta(days=new_shift_date.weekday())
@@ -363,7 +512,24 @@ class ConstraintChecker:
         current_date: date,
         shift: ShiftTemplate,
     ) -> bool:
-        """Check if assigning the employee to this shift would exceed constraints"""
+        """
+        Checks if assigning the given employee to the specified shift on the
+        current date would violate any configured scheduling constraints.
+
+        This method appears to be an older way of checking constraints and might
+        aggregate several checks like consecutive days, rest time, daily hours,
+        and weekly hours. Consider using `check_all_constraints` for more detailed
+        violation information.
+
+        Args:
+            employee: The `Employee` object to check constraints for.
+            current_date: The date of the potential shift assignment.
+            shift: The `ShiftTemplate` object for the potential assignment.
+
+        Returns:
+            True if any constraint is violated, False otherwise. Returns True
+            if an error occurs during constraint checking, as a safety measure.
+        """
         try:
             # Check general constraints like max consecutive days, rest time, etc.
             # Log what we're checking for debugging
@@ -447,7 +613,26 @@ class ConstraintChecker:
         shift: ShiftTemplate,
         current_date: date,
     ) -> bool:
-        """Check if employee has enough rest between shifts"""
+        """
+        Checks if the employee has enough rest time around the proposed shift.
+
+        This method considers the shift on the `current_date`, the employee's
+        shifts on the previous day, and the employee's shifts on the next day.
+        The minimum rest hours are defined in the configuration.
+
+        Note: This method relies on `self.schedule_by_date` and `self.resources.shifts`
+        which are part of the older schedule context pattern. The newer method
+        `_check_min_rest_between_shifts` is preferred for more direct control.
+
+        Args:
+            employee: The `Employee` object.
+            shift: The `ShiftTemplate` for the proposed shift on `current_date`.
+            current_date: The date of the proposed shift.
+
+        Returns:
+            True if the employee has sufficient rest, False otherwise.
+            Returns True if rest period enforcement is disabled in the config.
+        """
         # Skip rest check if not enforced
         if (
             not hasattr(self.config, "enforce_rest_periods")
@@ -507,7 +692,19 @@ class ConstraintChecker:
         return True
 
     def count_consecutive_days(self, employee_id: int, current_date: date) -> int:
-        """Count how many consecutive days an employee has worked up to current_date"""
+        """
+        Counts the number of consecutive days an employee has worked up to and
+        including the `current_date`.
+
+        Relies on `self.schedule_by_date` for existing assignment data.
+
+        Args:
+            employee_id: The ID of the employee.
+            current_date: The date to count consecutive workdays up to.
+
+        Returns:
+            The number of consecutive workdays.
+        """
         consecutive_days = 0
         check_date = current_date - timedelta(days=1)
 
@@ -597,101 +794,75 @@ class ConstraintChecker:
 
         return weekly_hours > max_hours
 
-    def get_weekly_hours(self, employee_id: int, week_start: date) -> float:
-        """Calculate total scheduled hours for an employee in the given week"""
-        total_hours = 0.0
+    def get_weekly_hours(self, employee_id: int, current_date: date) -> float:
+        """
+        Calculates the total hours worked by an employee in the week that includes
+        the `current_date`.
 
-        # Get the week end date
-        week_end = week_start + timedelta(days=6)
+        The week is considered Monday to Sunday. Relies on `self.schedule_by_date`
+        and `self.resources.shifts`.
 
-        # Instead of checking all entries, we can pre-filter by employee_id
-        employee_entries = [
-            entry
-            for entry in self.schedule
-            if (isinstance(entry, dict) and entry.get("employee_id") == employee_id)
-            or (hasattr(entry, "employee_id") and entry.employee_id == employee_id)
-        ]
+        Args:
+            employee_id: The ID of the employee.
+            current_date: A date within the week for which to calculate hours.
 
-        # Then check only those entries against the date range
-        for entry in employee_entries:
-            # Get the entry date
-            if isinstance(entry, dict):
-                # Dictionary case
-                entry_date_str = entry.get("date")
-                if not entry_date_str:
-                    continue
+        Returns:
+            The total hours worked by the employee in that week.
+        """
+        weekly_hours = 0.0
+        # Determine the week (Monday to Sunday) for the current_date
+        start_of_week = current_date - timedelta(days=current_date.weekday())
+        end_of_week = start_of_week + timedelta(days=6)
 
-                try:
-                    entry_date = datetime.fromisoformat(entry_date_str).date()
-                except (ValueError, TypeError):
-                    self.log_warning(
-                        f"Invalid date format in schedule entry: {entry_date_str}"
-                    )
-                    continue
-            else:
-                # Schedule object case
-                if not hasattr(entry, "date"):
-                    continue
+        for day_offset in range(7):
+            check_date = start_of_week + timedelta(days=day_offset)
+            entries_on_date = self.schedule_by_date.get(check_date, [])
 
-                if isinstance(entry.date, date):
-                    entry_date = entry.date
-                elif isinstance(entry.date, str):
-                    try:
-                        entry_date = datetime.fromisoformat(entry.date).date()
-                    except (ValueError, TypeError):
-                        self.log_warning(
-                            f"Invalid date format in schedule entry: {entry.date}"
-                        )
-                        continue
-                else:
-                    continue
+            for entry in entries_on_date:
+                if entry.employee_id == employee_id and entry.shift_id is not None:
+                    # Fetch the shift object from resources
+                    shift = next((s for s in self.resources.shifts if s.id == entry.shift_id), None)
 
-            # Check if the entry is within the week
-            if week_start <= entry_date <= week_end:
-                # Add the hours from this entry
-                if isinstance(entry, dict):
-                    # Dictionary case
-                    hours = entry.get("duration_hours", 0.0)
-                    if hours:
-                        total_hours += float(hours)
-                else:
-                    # Schedule object case - safely handle shifts and their duration
-                    if hasattr(entry, "shift") and entry.shift is not None:
-                        if (
-                            hasattr(entry.shift, "duration_hours")
-                            and entry.shift.duration_hours is not None
-                        ):
-                            total_hours += entry.shift.duration_hours
+                    if shift is not None:
+                        duration_hours = 0
+                        if hasattr(shift, "duration_hours") and shift.duration_hours is not None:
+                            duration_hours = shift.duration_hours
+                        elif hasattr(shift, "start_time") and hasattr(shift, "end_time") and shift.start_time and shift.end_time:
+                            # Use the existing method to calculate duration from time strings
+                            duration_hours = self.calculate_shift_duration(shift.start_time, shift.end_time)
+                        
+                        weekly_hours += duration_hours
+                        # The following caching logic seems out of place for just getting weekly hours
+                        # and might be the source of the undefined 'shift' if not fetched correctly.
+                        # For now, I am ensuring 'shift' is defined before this block.
+                        # if not hasattr(shift, "duration_hours") or shift.duration_hours is None:
+                        #     if duration_hours > 0: # Cache only if valid
+                        #         shift.duration_hours = duration_hours # This mutates the resource, be careful
+                        #         self.log_debug(
+                        #             f"Cached duration {duration_hours:.2f}h on shift {shift.id}"
+                        #         )
+                    else:
+                        self.logger.warning(f"Shift with ID {entry.shift_id} not found in resources for weekly hours calculation.")
+        return weekly_hours
 
-        return total_hours
+    def calculate_shift_duration(self, start_time_str: str, end_time_str: str) -> float:
+        """
+        Calculates the duration of a shift in hours from string representations
+        of start and end times.
 
-    def count_weekly_shifts(self, employee_id: int, week_start: date) -> int:
-        """Count the number of shifts for an employee in the given week"""
-        count = 0
+        Handles time wrapping around midnight (e.g., 22:00 to 06:00).
 
-        # Check existing schedule entries
-        for entry in self.schedule:
-            if entry.employee_id == employee_id:
-                entry_date = entry.date
-                entry_week_start = self.get_week_start(entry_date)
+        Args:
+            start_time_str: The start time of the shift (e.g., "09:00").
+            end_time_str: The end time of the shift (e.g., "17:00").
 
-                if entry_week_start == week_start:
-                    count += 1
-
-        return count
-
-    def get_week_start(self, day: date) -> date:
-        """Get the start of the week (Monday) for a given date"""
-        return day - timedelta(days=day.weekday())
-
-    def calculate_shift_duration(
-        self, start_time: str, end_time: str, shift=None
-    ) -> float:
-        """Calculate the duration of a shift in hours"""
+        Returns:
+            The duration of the shift in hours. Returns 0.0 if parsing fails.
+        """
         try:
             # Parse hours and minutes from time strings
-            start_parts = start_time.split(":")
-            end_parts = end_time.split(":")
+            start_parts = start_time_str.split(":")
+            end_parts = end_time_str.split(":")
 
             start_hour = int(start_parts[0])
             start_min = int(start_parts[1]) if len(start_parts) > 1 else 0
@@ -719,18 +890,32 @@ class ConstraintChecker:
                     )
 
             self.log_debug(
-                f"Shift duration {start_time}-{end_time} = {duration_hours:.2f}h"
+                f"Shift duration {start_time_str}-{end_time_str} = {duration_hours:.2f}h"
             )
             return duration_hours
         except Exception as e:
             self.log_error(f"Error calculating shift duration: {str(e)}")
             return 0.0
 
-    def calculate_rest_hours(self, end_time: str, start_time: str) -> float:
-        """Calculate the rest hours between two shifts"""
+    def calculate_rest_hours(self, prev_shift_end_time_str: str, current_shift_start_time_str: str) -> float:
+        """
+        Calculates the rest time in hours between the end of a previous shift
+        and the start of a current shift.
+
+        Assumes the shifts are on consecutive days or the same day if applicable.
+        Handles time wrapping around midnight.
+
+        Args:
+            prev_shift_end_time_str: The end time of the previous shift (e.g., "22:00").
+            current_shift_start_time_str: The start time of the current shift (e.g., "07:00").
+
+        Returns:
+            The rest duration in hours. Returns a large number (24.0) if parsing fails,
+            implying no rest constraint violation from this calculation.
+        """
         try:
-            end_hour, end_min = map(int, end_time.split(":"))
-            start_hour, start_min = map(int, start_time.split(":"))
+            end_hour, end_min = map(int, prev_shift_end_time_str.split(":"))
+            start_hour, start_min = map(int, current_shift_start_time_str.split(":"))
 
             end_minutes = end_hour * 60 + end_min
             start_minutes = start_hour * 60 + start_min

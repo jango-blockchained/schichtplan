@@ -1,13 +1,19 @@
-"""Schedule generation service for Schichtplan."""
-"""Schedule generation service for Schichtplan."""
-from datetime import date, datetime, timedelta
+"""
+Core module for generating employee schedules.
+
+This module defines the main classes and logic for creating schedules based on
+employee availability, shift requirements, and various constraints. It coordinates
+different aspects of scheduling such as resource loading, constraint checking,
+assignment distribution, and serialization of the final schedule.
+"""
+
 import logging
-from typing import Dict, List, Any, Optional, TYPE_CHECKING, Union, cast
-import sys
 import os
-import uuid # Import uuid for session ID generation
-from collections import defaultdict # ADDED defaultdict
-from src.backend.models.schedule import ScheduleStatus
+import sys
+import uuid
+from collections import defaultdict
+from datetime import date, timedelta
+from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 
 # Add parent directories to path if needed
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -65,13 +71,12 @@ from .validator import ScheduleConfig as ValidatorRuntimeScheduleConfig # Runtim
 
 # --- Model Imports ---
 try:
-    from src.backend.models import Employee, ShiftTemplate, Schedule
+    # from src.backend.models import Employee, ShiftTemplate, Schedule # Schedule and Employee, ShiftTemplate are unused here
     from src.backend.models.employee import AvailabilityType
-    central_logger.app_logger.info("Successfully imported models (Employee, ShiftTemplate, Schedule, AvailabilityType) from src.backend.models")
+    central_logger.app_logger.info("Successfully imported AvailabilityType from src.backend.models.employee")
 except ImportError as e:
-    central_logger.app_logger.error(f"CRITICAL: Failed to import core models from src.backend.models: {e}", exc_info=True)
-    # If core models cannot be imported, re-raise as this is a critical failure.
-    raise ImportError(f"Could not import core models from src.backend.models. Scheduling cannot proceed. Error: {e}") from e
+    central_logger.app_logger.error(f"CRITICAL: Failed to import AvailabilityType: {e}", exc_info=True)
+    raise ImportError(f"Could not import AvailabilityType. Scheduling cannot proceed. Error: {e}") from e
 
 
 # --- Explicit Imports for Type Checking ---
@@ -79,46 +84,40 @@ if TYPE_CHECKING:
     from .resources import ScheduleResources as ActualScheduleResources
     from .config import SchedulerConfig as ActualSchedulerConfig # Generator's own config class for type hints
     from .validator import ScheduleConfig as ActualValidatorScheduleConfig # Validator's config class for type hints
-    from backend.models.schedule import Schedule as ActualScheduleModel # The DB model for assignments/schedule entries
-
-# Set up placeholder logger - REMOVED as we use central_logger now
-# logger = logging.getLogger(__name__)
-
-# Setup for imports - we'll try different import paths
-import importlib.util
-from enum import Enum
-
-
-
-# Now try to import employee module
-# --- MODIFIED IMPORT FOR AvailabilityType ---
-try:
-    from src.backend.models.employee import AvailabilityType
-    central_logger.app_logger.info("Successfully imported AvailabilityType from src.backend.models.employee")
-except ImportError as e:
-    central_logger.app_logger.error(f"CRITICAL: Failed to import AvailabilityType from src.backend.models.employee: {e}", exc_info=True)
-    raise ImportError(f"Could not import AvailabilityType from src.backend.models.employee. Scheduling cannot proceed. Error: {e}") from e
-
-# Try to import logger - REMOVED, using direct import now
-# utils_logger = try_import("utils.logger")
-# if utils_logger is None:
-#     utils_logger = try_import("backend.utils.logger")
-# if utils_logger is None:
-#     utils_logger = try_import("src.backend.utils.logger")
-
-
-# if utils_logger: # REMOVED
-#     logger = getattr(utils_logger, "logger", logger) # REMOVED
-
+    # from backend.models.schedule import Schedule as ActualScheduleModel # Unused
 
 class ScheduleGenerationError(Exception):
-    """Exception raised for errors during schedule generation."""
+    """
+    Custom exception raised for errors encountered during schedule generation.
 
-    pass
+    Attributes:
+        message (str): Explanation of the error.
+    """
 
 
 class ScheduleAssignment:
-    """Represents a single assignment of an employee to a shift"""
+    """
+    Represents a single assignment of an employee to a specific shift on a given date.
+
+    This class encapsulates all details pertinent to one shift assignment, including
+    employee and shift identifiers, date, times, and status. It also handles
+    the extraction of shift details from a `ShiftTemplate` object or dictionary.
+
+    Attributes:
+        employee_id (int): The ID of the assigned employee.
+        shift_id (int): The ID of the assigned shift.
+        date (date): The date of the assignment.
+        shift_template_source (Any): The original shift template data.
+        availability_type (Optional[str]): The availability type of the employee for this shift (e.g., "AVAILABLE", "PREFERRED").
+        status (str): The status of the assignment (e.g., "PENDING", "CONFIRMED").
+        version (int): The version number of this assignment.
+        start_time (Optional[str]): The start time of the shift (e.g., "09:00").
+        end_time (Optional[str]): The end time of the shift (e.g., "17:00").
+        shift_type_str (Optional[str]): The type of the shift (e.g., "EARLY", "LATE").
+        notes (Optional[str]): Any notes associated with this assignment.
+        break_start (Optional[str]): The start time of the break, if any.
+        break_end (Optional[str]): The end time of the break, if any.
+    """
 
     def __init__(
         self,
@@ -129,13 +128,33 @@ class ScheduleAssignment:
         availability_type: Optional[Union[str, AvailabilityType]] = None,
         status: str = "PENDING",
         version: int = 1,
-        # Add other potential fields from DistributionManager's assignment dict
+        # Add other potential fields from DistributionManager\'s assignment dict
         break_start: Optional[str] = None,
         break_end: Optional[str] = None,
         notes: Optional[str] = None,
         # Add the logger as a parameter
         logger_instance: Optional[logging.Logger] = None
     ):
+        """
+        Initializes a ScheduleAssignment instance.
+
+        Args:
+            employee_id: The ID of the employee.
+            shift_id: The ID of the shift.
+            date_val: The date of the assignment.
+            shift_template: The source shift template (ORM object or dict)
+                from which to derive shift details like times and type.
+            availability_type: The employee's availability type for this shift.
+                Can be a string or an AvailabilityType enum member.
+                Defaults to AvailabilityType.AVAILABLE.value.
+            status: The initial status of the assignment. Defaults to "PENDING".
+            version: The version of this assignment. Defaults to 1.
+            break_start: Optional start time of the break.
+            break_end: Optional end time of the break.
+            notes: Optional notes for the assignment.
+            logger_instance: Optional logger instance to use. If None,
+                the central application logger is used.
+        """
         self.employee_id = employee_id
         self.shift_id = shift_id
         self.date = date_val
@@ -266,9 +285,36 @@ class ScheduleAssignment:
 
 
 class ScheduleContainer:
-    """Container class for schedule metadata"""
+    """
+    Container for holding a generated schedule and its associated metadata.
+
+    This class acts as a wrapper for a list of `ScheduleAssignment` objects,
+    along with overall schedule properties like start date, end date, status,
+    and version. It provides methods to manage and access assignments.
+
+    Attributes:
+        start_date (date): The start date of the schedule period.
+        end_date (date): The end date of the schedule period.
+        status (str): The overall status of the schedule (e.g., "DRAFT", "PUBLISHED").
+        version (int): The version number of the schedule.
+        assignments (List[ScheduleAssignment]): A list of all shift assignments
+            within this schedule.
+        schedule_entries_by_date (Dict[date, List[ScheduleAssignment]]):
+            A dictionary mapping dates to a list of assignments for that date.
+        id (Optional[Any]): An identifier for the schedule, typically assigned
+            after saving to a database.
+    """
 
     def __init__(self, start_date: date, end_date: date, status="DRAFT", version=1):
+        """
+        Initializes a ScheduleContainer instance.
+
+        Args:
+            start_date: The start date of the schedule period.
+            end_date: The end date of the schedule period.
+            status: The initial status of the schedule. Defaults to "DRAFT".
+            version: The version number of the schedule. Defaults to 1.
+        """
         self.start_date = start_date
         self.end_date = end_date
         self.status = status
@@ -298,10 +344,54 @@ class ScheduleContainer:
 class ScheduleGenerator:
     """
     Main class for generating employee schedules.
-    Coordinates the scheduling process using the specialized modules.
+
+    This class orchestrates the entire schedule generation process. It utilizes
+    various helper modules for resource management, constraint checking,
+    availability verification, and assignment distribution. It is responsible
+    for loading necessary data, processing each day in the schedule period,
+    generating assignments, and preparing the schedule for serialization.
+
+    A unique session ID is generated for each instantiation to aid in logging
+    and diagnostics.
+
+    Attributes:
+        logger: Central logger instance for general logging.
+        app_logger: Alias for the central logger.
+        session_id (str): A unique identifier for this generation session.
+        diagnostic_logger: A logger instance specific to this session for detailed
+            diagnostic messages.
+        process_tracker (ProcessTracker): Utility to track stages and errors
+            during the generation process.
+        resources (RuntimeScheduleResources): Manages access to employees, shifts,
+            coverage requirements, and availability data.
+        config (SchedulerConfig): Configuration settings for the schedule generator.
+        constraint_checker (ConstraintChecker): Validates assignments against
+            defined constraints.
+        availability_checker (AvailabilityChecker): Checks employee availability.
+        distribution_manager (DistributionManager): Handles the logic of assigning
+            employees to shifts.
+        serializer (ScheduleSerializer): Handles serialization of the generated schedule.
+        generation_errors (List[Any]): A list to store any errors encountered
+            during generation.
+        schedule (Optional[ScheduleContainer]): The container for the generated
+            schedule assignments and metadata.
     """
 
     def __init__(self, resources: Optional[RuntimeScheduleResources] = None, passed_config: Optional[SchedulerConfig] = None, app_instance: Optional[Any] = None):
+        """
+        Initializes the ScheduleGenerator.
+
+        Sets up logging, process tracking, and initializes all necessary service
+        modules (resources, config, checkers, managers).
+
+        Args:
+            resources: Optional pre-initialized `RuntimeScheduleResources` instance.
+                If None, a new one will be created.
+            passed_config: Optional pre-initialized `SchedulerConfig` instance
+                for the generator. If None, a default config is loaded.
+            app_instance: Optional Flask application instance, used by
+                `RuntimeScheduleResources` if it needs to be created.
+        """
         # Use the centrally configured logger
         self.logger = central_logger # Use the central logger directly
         self.app_logger = central_logger # Use central logger for general info/debug
@@ -361,8 +451,8 @@ class ScheduleGenerator:
             self.schedule: Optional[ScheduleContainer] = None
         else:
             self.schedule = None
-        self.assignments = []
-        self.schedule_by_date = {}
+        self.assignments = [] # Deprecated
+        self.schedule_by_date = {} # Deprecated
 
     def generate(
         self,
@@ -858,7 +948,7 @@ class ScheduleGenerator:
             # Log the input to this step
             self.process_tracker.log_step_data("Shift Instances for Distribution", potential_daily_shifts)
             
-            self.diagnostic_logger.info(f"DEBUG: Before distribution call, parameters:")
+            self.diagnostic_logger.info("DEBUG: Parameters before distribution call:")
             self.diagnostic_logger.info(f"  current_date: {current_date}")
             self.diagnostic_logger.info(f"  date_shifts (potential_daily_shifts): {len(potential_daily_shifts)}")
             self.diagnostic_logger.info(f"  constraint_checker: {self.constraint_checker is not None}")
@@ -978,22 +1068,6 @@ class ScheduleGenerator:
                         
                         # Ensure we have non-null values for required fields
                         # Use the .value of the correct enum
-                        resolved_availability_type = entry.availability_type
-                        if isinstance(entry.availability_type, AvailabilityType): # If it's an enum member
-                            # Use the enum member directly for the DB model
-                            availability_type_for_db = entry.availability_type
-                        elif isinstance(entry.availability_type, str):
-                            # Attempt to cast to ensure it's a valid value, if not, default or log warning
-                            try:
-                                availability_type_for_db = AvailabilityType(entry.availability_type)
-                            except ValueError:
-                                central_logger.error(f"Invalid availability_type string '{entry.availability_type}' found during DB save. Defaulting to AVAILABLE. This should not happen if Schedule.availability_type is an Enum column.")
-                                availability_type_for_db = AvailabilityType.AVAILABLE
-                        else: # Should not happen
-                            central_logger.error(f"Unexpected availability_type type '{type(entry.availability_type)}' found during DB save. Defaulting to AVAILABLE.")
-                            availability_type_for_db = AvailabilityType.AVAILABLE
-                        
-                        availability_type_to_save = availability_type_for_db
                         shift_type_to_save = entry.shift_type_str or "UNKNOWN" # Assuming UNKNOWN is a safe default string
 
                         # Add structured notes if missing
@@ -1014,7 +1088,7 @@ class ScheduleGenerator:
                             break_start=entry.break_start,
                             break_end=entry.break_end,
                             notes=notes,
-                            availability_type=availability_type_to_save,
+                            availability_type=entry.availability_type,
                             shift_type=shift_type_to_save
                         )
                         
