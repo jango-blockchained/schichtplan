@@ -16,6 +16,7 @@ import {
   ShiftForEmployee,
   ScheduleEntry,
 } from "../../types"; // Import the types
+import { createSchedule } from "../../services/api";
 
 // Mock dependencies
 const mockToast = jest.fn();

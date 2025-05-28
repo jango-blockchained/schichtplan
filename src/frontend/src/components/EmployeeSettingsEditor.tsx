@@ -36,7 +36,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 
-export type { EmployeeType, AbsenceType };
 export type GroupType = EmployeeType | AbsenceType;
 
 // Define Zod schemas for validation

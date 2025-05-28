@@ -139,6 +139,8 @@ def get_employee_availabilities(employee_id):
 
 
 @employees.route("/employees/<int:employee_id>/availabilities", methods=["PUT"])
+@employees.route("/employees/<int:employee_id>/availability", methods=["PUT"])
+@employees.route("/api/employees/<int:employee_id>/availability", methods=["PUT"])
 def update_employee_availabilities(employee_id):
     """Update availabilities for an employee"""
     try:
@@ -164,3 +166,10 @@ def update_employee_availabilities(employee_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 400
+
+
+@employees.route("/employees/<int:employee_id>/availability", methods=["GET"])
+@employees.route("/api/employees/<int:employee_id>/availability", methods=["GET"])
+def get_employee_availability(employee_id):
+    """Alias for get_employee_availabilities - handles the singular form for frontend compatibility"""
+    return get_employee_availabilities(employee_id)

@@ -78,18 +78,20 @@ const mapToBackend = (
     id: ft.id,
     name: ft.name,
     color: ft.color,
-    description: ft.description,
+    description: ft.description ?? null,
     priority:
-      ft.originalPriority ??
-      (ft.id === "UNAVAILABLE"
-        ? 4
-        : ft.id === "FIXED"
-          ? 1
-          : ft.id === "AVAILABLE"
-            ? 2
-            : 3),
-    is_available: ft.originalIsAvailable ?? ft.id !== "UNAVAILABLE",
-    type: "availability_type",
+      ft.originalPriority !== undefined && ft.originalPriority !== null
+        ? ft.originalPriority
+        : ft.id === "UNAVAILABLE"
+          ? 4
+          : ft.id === "FIXED"
+            ? 1
+            : ft.id === "AVAILABLE"
+              ? 2
+              : 3,
+    is_available: ft.originalIsAvailable !== undefined && ft.originalIsAvailable !== null
+      ? ft.originalIsAvailable
+      : ft.id !== "UNAVAILABLE",
   }));
 };
 

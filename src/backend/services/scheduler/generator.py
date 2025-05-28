@@ -20,13 +20,13 @@ if src_backend_dir not in sys.path:
 try:
     from utils.logger import logger as central_logger
     # Add a stream handler for console visibility during development/debugging if not already configured
-    if not any(isinstance(h, logging.StreamHandler) for h in central_logger.schedule_logger.handlers):
+    if not any(isinstance(h, logging.StreamHandler) for h in central_logger.app_logger.handlers):
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(logging.INFO) # Or DEBUG
         console_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         console_handler.setFormatter(console_formatter)
-        central_logger.schedule_logger.addHandler(console_handler)
-        central_logger.schedule_logger.info("Added console handler to schedule_logger for generator.")
+        central_logger.app_logger.addHandler(console_handler)
+        central_logger.info("Added console handler for generator.")
 
 except ImportError:
     print("Error: Could not import central logger from utils.logger. Falling back to basic logging.", file=sys.stderr)
@@ -35,16 +35,20 @@ except ImportError:
     # Create a dummy logger object that mimics the structure if needed
     class DummyLogger:
         def __init__(self):
-            self.schedule_logger = logging.getLogger("schedule_fallback")
-            self.diagnostic_logger = logging.getLogger("diagnostic_fallback")
-            self.app_logger = logging.getLogger("app_fallback")
-            self.error_logger = logging.getLogger("error_fallback")
-            self.user_logger = logging.getLogger("user_fallback")
+            self._logger = logging.getLogger("fallback")
         def create_diagnostic_logger(self, session_id):
              # Return a named logger, but setup might be basic
              return logging.getLogger(f"diagnostic_{session_id}_fallback")
         def get_diagnostic_log_path(self, session_id):
             return f"fallback_diagnostic_{session_id}.log" # Placeholder path
+        def debug(self, message, *args, **kwargs):
+            self._logger.debug(message, *args, **kwargs)
+        def info(self, message, *args, **kwargs):
+            self._logger.info(message, *args, **kwargs)
+        def warning(self, message, *args, **kwargs):
+            self._logger.warning(message, *args, **kwargs)
+        def error(self, message, *args, **kwargs):
+            self._logger.error(message, *args, **kwargs)
     central_logger = DummyLogger()
 
 
@@ -254,9 +258,9 @@ class ScheduleAssignment:
                             
         # Final validation check for required fields
         if not self.start_time or not self.end_time:
-            # Error logging should be safe since error_logger is part of the basic logger interface
-            central_logger.error_logger.error(f"Missing required time data for shift: employee_id={employee_id}, shift_id={shift_id}, date={date_val}")
-            central_logger.error_logger.error(f"Retrieved data: start_time={self.start_time}, end_time={self.end_time}, shift_type={self.shift_type_str}")
+            # Error logging should be safe since error() is part of the basic logger interface
+            central_logger.error(f"Missing required time data for shift: employee_id={employee_id}, shift_id={shift_id}, date={date_val}")
+            central_logger.error(f"Retrieved data: start_time={self.start_time}, end_time={self.end_time}, shift_type={self.shift_type_str}")
         else:
             current_logger.debug(f"Successfully extracted shift data: start_time={self.start_time}, end_time={self.end_time}, shift_type={self.shift_type_str}")
 
@@ -983,10 +987,10 @@ class ScheduleGenerator:
                             try:
                                 availability_type_for_db = AvailabilityType(entry.availability_type)
                             except ValueError:
-                                central_logger.error_logger.error(f"Invalid availability_type string '{entry.availability_type}' found during DB save. Defaulting to AVAILABLE. This should not happen if Schedule.availability_type is an Enum column.")
+                                central_logger.error(f"Invalid availability_type string '{entry.availability_type}' found during DB save. Defaulting to AVAILABLE. This should not happen if Schedule.availability_type is an Enum column.")
                                 availability_type_for_db = AvailabilityType.AVAILABLE
                         else: # Should not happen
-                            central_logger.error_logger.error(f"Unexpected availability_type type '{type(entry.availability_type)}' found during DB save. Defaulting to AVAILABLE.")
+                            central_logger.error(f"Unexpected availability_type type '{type(entry.availability_type)}' found during DB save. Defaulting to AVAILABLE.")
                             availability_type_for_db = AvailabilityType.AVAILABLE
                         
                         availability_type_to_save = availability_type_for_db

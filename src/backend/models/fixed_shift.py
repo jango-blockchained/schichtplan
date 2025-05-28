@@ -159,25 +159,15 @@ class ShiftTemplate(db.Model):
             duration = (end_minutes - start_minutes) / 60
 
             # Log the calculation
-            if hasattr(logger, "schedule_logger"):
-                logger.schedule_logger.debug(
-                    f"Calculated shift duration: {self.start_time} - {self.end_time} = {duration:.2f} hours"
-                )
-            else:
-                logger.debug(
-                    f"Calculated shift duration: {self.start_time} - {self.end_time} = {duration:.2f} hours"
-                )
+            logger.debug(
+                f"Calculated shift duration: {self.start_time} - {self.end_time} = {duration:.2f} hours"
+            )
 
             # Set the duration
             self.duration_hours = duration
             return duration
         except Exception as e:
-            if hasattr(logger, "schedule_logger"):
-                logger.schedule_logger.error(
-                    f"Error calculating shift duration: {str(e)}"
-                )
-            else:
-                logger.error(f"Error calculating shift duration: {str(e)}")
+            logger.error(f"Error calculating shift duration: {str(e)}")
             return 0
 
     def _validate_store_hours(self):

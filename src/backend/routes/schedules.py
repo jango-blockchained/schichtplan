@@ -1,10 +1,11 @@
 from flask import Blueprint, request, jsonify, current_app, send_file
 from http import HTTPStatus
 from datetime import datetime, date, timedelta
-from sqlalchemy import desc, text
+from sqlalchemy import desc, text, select
 from sqlalchemy.exc import IntegrityError
 from pydantic import ValidationError
-from src.backend.utils import logger
+# Import the standard logging library
+import logging
 from src.backend.models import db
 from src.backend.models.schedule import Schedule, ScheduleStatus, ScheduleVersionMeta
 from src.backend.models.employee import Employee, EmployeeAvailability, AvailabilityType
@@ -15,13 +16,15 @@ from src.backend.models.settings import Settings
 from src.backend.services.pdf_generator import PDFGenerator
 from src.backend.services.scheduler.resources import ScheduleResources, ScheduleResourceError
 from src.backend.services.scheduler.generator import ScheduleGenerator
-from src.backend.services.scheduler.config import ScheduleConfig
-from src.backend.services.scheduler.validator import ScheduleValidator
-from src.backend.schemas.schedule import ScheduleUpdateRequest, ScheduleGenerateRequest
+from src.backend.services.scheduler.config import SchedulerConfig
+from src.backend.services.scheduler.validator import ScheduleValidator, ScheduleConfig
+from src.backend.schemas.schedules import ScheduleUpdateRequest, ScheduleGenerateRequest
+from src.backend.utils.logger import logger
 
 # Define blueprint
 schedules = Blueprint("schedules", __name__)
 
+# Remove error_logger and schedule_logger variables since we're using logger directly
 
 def get_or_create_initial_version(start_date, end_date):
     """Helper function to get or create the initial version metadata"""
@@ -45,51 +48,55 @@ def get_or_create_initial_version(start_date, end_date):
         return version_meta
     except Exception as e:
         db.session.rollback()
-        logger.error_logger.error(f"Error in get_or_create_initial_version: {str(e)}", exc_info=True)
+        logger.error(f"Error in get_or_create_initial_version: {str(e)}", exc_info=True)
         return None
 
 
 def get_versions_for_date_range(start_date, end_date):
     """Helper function to get all versions available for a specific date range"""
     try:
-        logger.schedule_logger.info(
+        logger.debug(
             f"Getting versions for date range: {start_date} to {end_date}"
         )
 
-        # Try to get versions from version_meta first
+        # Try to get versions from version_meta first using the query pattern
         versions = (
-            db.session.query(ScheduleVersionMeta)
-            .filter(
+            ScheduleVersionMeta.query.filter(
                 ScheduleVersionMeta.date_range_start <= end_date,
-                ScheduleVersionMeta.date_range_end >= start_date,
+                ScheduleVersionMeta.date_range_end >= start_date
             )
-            .order_by(ScheduleVersionMeta.version.desc())
+            .order_by(desc(ScheduleVersionMeta.version))
             .all()
         )
 
         if versions:
-            logger.schedule_logger.info(
+            logger.debug(
                 f"Found {len(versions)} versions in version_meta"
             )
             return versions
 
         # Fallback: Get versions from schedules
-        logger.schedule_logger.info(
+        logger.debug(
             "No versions found in version_meta, falling back to schedules table"
         )
+        
+        # Use query.filter() and import desc() for sorting
         version_numbers = (
             db.session.query(Schedule.version)
-            .filter(Schedule.date >= start_date, Schedule.date <= end_date)
+            .filter(
+                Schedule.date >= start_date,
+                Schedule.date <= end_date
+            )
             .distinct()
             .order_by(desc(Schedule.version))
             .all()
         )
 
         if not version_numbers:
-            logger.schedule_logger.info("No versions found in schedules table")
+            logger.debug("No versions found in schedules table")
             return []
 
-        logger.schedule_logger.info(
+        logger.debug(
             f"Found {len(version_numbers)} versions in schedules table"
         )
 
@@ -100,7 +107,7 @@ def get_versions_for_date_range(start_date, end_date):
                 # Check if metadata exists
                 meta = db.session.query(ScheduleVersionMeta).get(version)
                 if not meta:
-                    logger.schedule_logger.info(
+                    logger.debug(
                         f"Creating metadata for version {version}"
                     )
                     # Get date range for this version
@@ -123,34 +130,34 @@ def get_versions_for_date_range(start_date, end_date):
                         db.session.add(meta)
                         try:
                             db.session.commit()
-                            logger.schedule_logger.info(
+                            logger.debug(
                                 f"Created metadata for version {version}"
                             )
                         except Exception as e:
                             db.session.rollback()
-                            logger.error_logger.error(
+                            logger.error(
                                 f"Failed to create metadata for version {version}: {str(e)}"
                             )
                 if meta:
                     result.append(meta)
             except Exception as e:
-                logger.error_logger.error(
+                logger.error(
                     f"Error processing version {version}: {str(e)}"
                 )
                 continue
 
         if not result:
-            logger.schedule_logger.warning("No version metadata could be created")
+            logger.warning("No version metadata could be created")
         else:
-            logger.schedule_logger.info(
+            logger.debug(
                 f"Successfully processed {len(result)} versions"
             )
 
         return result
 
     except Exception as e:
-        logger.error_logger.error(f"Error in get_versions_for_date_range: {str(e)}", exc_info=True)
-        raise  # Re-raise the exception to be handled by the route handler
+        logger.error(f"Error in get_versions_for_date_range: {str(e)}", exc_info=True)
+        return None  # Return None instead of re-raising to prevent cascading errors
 
 
 @schedules.route("/schedules", methods=["GET"])
@@ -176,7 +183,7 @@ def get_schedules():
             start_date = start_of_week.strftime("%Y-%m-%d")
             end_date = end_of_week.strftime("%Y-%m-%d")
 
-            logger.schedule_logger.info(
+            logger.info(
                 f"Using default date range: {start_date} to {end_date}"
             )
 
@@ -194,24 +201,30 @@ def get_schedules():
         # If no version specified, use the latest available version
         if version is None:
             version = available_versions[0].version if available_versions else 1
-            logger.schedule_logger.info(
+            logger.info(
                 f"Using latest version for date range: {version}"
             )
 
         # Build query for schedules with eager loading of shift relationships
         query = db.session.query(Schedule).options(
             db.joinedload(Schedule.shift)  # Ensure shift relationship is loaded
-        ).filter(
+        )
+
+        # Apply date filters
+        query = query.filter(
             Schedule.date >= start_date,
             Schedule.date <= end_date,
-            Schedule.version == version,
         )
+
+        # Apply version filter if specified
+        if version is not None:
+            query = query.filter(Schedule.version == version)
 
         # Get all schedules
         all_schedules = query.all()
 
         # Get the placeholder shift (00:00 - 00:00)
-        placeholder_shift = db.session.query(FixedShiftShiftTemplate).filter_by(
+        placeholder_shift = db.session.query(ShiftTemplate).filter_by(
             start_time="00:00", end_time="00:00"
         ).first()
 
@@ -222,7 +235,7 @@ def get_schedules():
             schedules = all_schedules
 
         # Create a lookup of all shifts for data enrichment
-        all_shifts = db.session.query(FixedShiftShiftTemplate).all()
+        all_shifts = db.session.query(ShiftTemplate).all()
         shift_lookup = {shift.id: shift for shift in all_shifts}
         
         # Enrich schedule data
@@ -243,66 +256,45 @@ def get_schedules():
                     schedule_dict['shift_type_name'] = shift.shift_type.value if shift.shift_type else None
                     
                     # Log the enrichment
-                    logger.schedule_logger.info(
+                    logger.info(
                         f"Enriched schedule {schedule.id} with missing shift data from shift {shift.id}"
                     )
             
             enriched_schedules.append(schedule_dict)
         
-        # Get version metadata for the current version
-        version_meta = next(
-            (v for v in available_versions if v.version == version), None
-        )
-
-        # If this is a new week with no versions, create initial version
-        if not available_versions:
-            version = 1
-            version_meta = get_or_create_initial_version(start_date, end_date)
-
-        # Prepare version information
-        version_numbers = [v.version for v in available_versions] or [1]
-        version_statuses = {v.version: v.status.value for v in available_versions} or {
-            1: "DRAFT"
-        }
-
-        # Count schedules with shifts and missing data for diagnostics
-        schedules_with_shifts = [s for s in schedules if s.shift_id is not None]
-        schedules_with_times = [s for s in schedules_with_shifts if 'shift_start' in enriched_schedules[schedules.index(s)] and 'shift_end' in enriched_schedules[schedules.index(s)]]
-        
-        logger.schedule_logger.info(
-            f"Returning {len(schedules)} schedules, {len(schedules_with_shifts)} with shifts, {len(schedules_with_times)} with times"
-        )
+        # Convert versions to a more suitable format for JSON (e.g., list of dicts)
+        versions_list = [
+            {
+                "version": v.version,
+                "created_at": v.created_at.isoformat() if v.created_at else None,
+                "status": v.status.value if v.status else None,
+                "date_range_start": v.date_range_start.isoformat() if v.date_range_start else None,
+                "date_range_end": v.date_range_end.isoformat() if v.date_range_end else None,
+                "notes": v.notes,
+            }
+            for v in available_versions
+        ]
 
         return jsonify(
             {
+                "status": "success",
                 "schedules": enriched_schedules,
-                "versions": version_numbers,
-                "version_statuses": version_statuses,
+                "versions": versions_list,
                 "current_version": version,
-                "version_meta": version_meta.to_dict() if version_meta else None,
-                "total_schedules": len(all_schedules),
-                "filtered_schedules": len(schedules),
-                "schedules_with_shifts": len(schedules_with_shifts),
-                "schedules_with_times": len(schedules_with_times),
-                "date_range": {
-                    "start": start_date.isoformat(),
-                    "end": end_date.isoformat(),
-                    "week": start_date.isocalendar()[1],  # Add week number
-                },
             }
-        )
+        ), HTTPStatus.OK
 
-    except ValueError as e:
-        return jsonify({"status": "error", "message": str(e)}), HTTPStatus.BAD_REQUEST
     except Exception as e:
-        logger.error_logger.error(f"Error in get_schedules: {str(e)}", exc_info=True)
-        return jsonify({"status": "error", "message": "An internal server error occurred."}), HTTPStatus.INTERNAL_SERVER_ERROR
+        logger.error(f"Error in get_schedules: {str(e)}", exc_info=True)
+        return jsonify(
+            {"status": "error", "message": "An unexpected error occurred"}
+        ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 @schedules.route("/schedules", methods=["POST"])
 def create_schedule_entry():
     """Create a new individual schedule entry"""
-    logger.schedule_logger.info("Received request to create schedule entry")
+    logger.info("Received request to create schedule entry")
     try:
         data = request.get_json()
         # Use the update schema for validation as it contains the necessary fields
@@ -313,7 +305,7 @@ def create_schedule_entry():
         if request_data.employee_id is None or request_data.date is None or request_data.version is None:
              return jsonify({"status": "error", "message": "Missing required fields for creating a new schedule: employee_id, date, and version"}), HTTPStatus.BAD_REQUEST
 
-        logger.schedule_logger.info(
+        logger.info(
             f"Creating new schedule entry with data: employee_id={request_data.employee_id}, date={request_data.date}, shift_id={request_data.shift_id}, version={request_data.version}"
         )
 
@@ -333,7 +325,7 @@ def create_schedule_entry():
              # Setting break_start/end might require shift_id lookup or might be set manually
              # For now, only calculate if shift_id is present, otherwise clear
             if schedule.shift_id is not None:
-                shift = FixedShiftShiftTemplate.query.get(schedule.shift_id)
+                shift = ShiftTemplate.query.get(schedule.shift_id)
                 if shift is not None:
                     # Simplified break calculation: assume break starts after 1 hour of shift
                     shift_start = datetime.strptime(shift.start_time, "%H:%M")
@@ -345,7 +337,7 @@ def create_schedule_entry():
                     # Format times as strings
                     schedule.break_start = break_start_time.strftime("%H:%M")
                     schedule.break_end = break_end_time.strftime("%H:%M")
-                    logger.schedule_logger.info(
+                    logger.info(
                         f"Calculated break times: {schedule.break_start} to {schedule.break_end} from duration {request_data.break_duration}"
                     )
                 else:
@@ -361,7 +353,7 @@ def create_schedule_entry():
         db.session.add(schedule)
         db.session.commit()
 
-        logger.schedule_logger.info(f"Schedule entry created successfully with ID: {schedule.id}")
+        logger.info(f"Schedule entry created successfully with ID: {schedule.id}")
 
         # Add break_duration to the response before jsonify
         response_data = schedule.to_dict()
@@ -377,7 +369,7 @@ def create_schedule_entry():
                 )
                 response_data["break_duration"] = break_duration_minutes
             except Exception as e:
-                logger.error_logger.error(f"Error calculating break duration for new schedule {schedule.id}: {str(e)}")
+                logger.error(f"Error calculating break duration for new schedule {schedule.id}: {str(e)}")
                 response_data["break_duration"] = 0
         else:
             response_data["break_duration"] = 0
@@ -386,15 +378,15 @@ def create_schedule_entry():
         return jsonify(response_data), HTTPStatus.CREATED
 
     except ValidationError as e:
-        logger.error_logger.error(f"Validation error creating schedule entry: {e.errors()}")
+        logger.error(f"Validation error creating schedule entry: {e.errors()}")
         return jsonify({"status": "error", "message": "Invalid input for creating schedule entry.", "details": e.errors()}), HTTPStatus.BAD_REQUEST
     except IntegrityError as e:
         db.session.rollback()
-        logger.error_logger.error(f"Database integrity error creating schedule entry: {str(e)}", exc_info=True)
+        logger.error(f"Database integrity error creating schedule entry: {str(e)}", exc_info=True)
         return jsonify({"status": "error", "message": "Database error creating schedule entry.", "details": "A schedule entry for this employee, date, and version might already exist."}), HTTPStatus.CONFLICT # Use 409 for conflict
     except Exception as e:
         db.session.rollback()
-        logger.error_logger.error(f"An unexpected error occurred creating schedule entry: {str(e)}", exc_info=True)
+        logger.error(f"An unexpected error occurred creating schedule entry: {str(e)}", exc_info=True)
         return jsonify({"status": "error", "message": "An internal server error occurred while creating schedule entry.", "details": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
@@ -402,7 +394,7 @@ def create_schedule_entry():
 @schedules.route("/schedules/generate/", methods=["POST"])
 def generate_schedule():
     """Generate a schedule"""
-    logger.schedule_logger.info("Received request to generate schedule")
+    logger.info("Received request to generate schedule")
 
     try:
         # Use Pydantic for request validation
@@ -412,7 +404,7 @@ def generate_schedule():
         # The request might include other config like version, create_empty_schedules etc.
         external_config_dict = schedule_request.dict(exclude_unset=True) # Get all passed params as dict
         
-        logger.schedule_logger.info(f"Generating schedule for date range: {schedule_request.start_date} to {schedule_request.end_date}")
+        logger.info(f"Generating schedule for date range: {schedule_request.start_date} to {schedule_request.end_date}")
 
         # --- FIX: Use dates directly from Pydantic validation ---
         start_date = schedule_request.start_date
@@ -435,7 +427,7 @@ def generate_schedule():
         if result and result.get('status') == 'failed':
              # Log the failure reason which should be included in the result
              failure_reason = result.get('reason', 'Unknown scheduling error')
-             logger.error_logger.error(f"Schedule generation failed: {failure_reason}")
+             logger.error(f"Schedule generation failed: {failure_reason}")
              # Return a 500 Internal Server Error with the failure reason
              return jsonify({
                  "status": "error",
@@ -443,18 +435,18 @@ def generate_schedule():
              }), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-        logger.schedule_logger.info("Schedule generation successful")
+        logger.info("Schedule generation successful")
         # Assuming generate_schedule returns a dict suitable for jsonify
         return jsonify(result), HTTPStatus.OK
 
     except ValidationError as e:
-        logger.error_logger.error(f"Validation error in schedule generation request: {e.errors()}")
+        logger.error(f"Validation error in schedule generation request: {e.errors()}")
         return jsonify({"status": "error", "message": "Validation failed", "errors": e.errors()}), HTTPStatus.BAD_REQUEST
     except ScheduleResourceError as e:
-        logger.error_logger.error(f"Schedule resource error during generation: {str(e)}", exc_info=True)
+        logger.error(f"Schedule resource error during generation: {str(e)}", exc_info=True)
         return jsonify({"status": "error", "message": f"Failed during resource loading: {str(e)}"}), HTTPStatus.INTERNAL_SERVER_ERROR
     except Exception as e:
-        logger.error_logger.error(f"An unexpected error occurred during schedule generation: {str(e)}", exc_info=True)
+        logger.error(f"An unexpected error occurred during schedule generation: {str(e)}", exc_info=True)
         # More specific error handling based on the type of exception might be needed
         db.session.rollback() # Rollback session on error
         return jsonify({"status": "error", "message": f"An unexpected error occurred: {str(e)}"}), HTTPStatus.INTERNAL_SERVER_ERROR
@@ -494,7 +486,7 @@ def get_schedule_pdf():
     except (KeyError, ValueError) as e:
         return jsonify({"status": "error", "message": f"Invalid input: {str(e)}"}), HTTPStatus.BAD_REQUEST
     except Exception as e:
-        logger.error_logger.error(f"Error in get_schedule_pdf: {str(e)}", exc_info=True)
+        logger.error(f"Error in get_schedule_pdf: {str(e)}", exc_info=True)
         return jsonify({"status": "error", "message": "An internal server error occurred."}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
@@ -513,7 +505,7 @@ def get_schedule(schedule_id):
 @schedules.route("/schedules/update/<int:schedule_id>", methods=["POST"])
 def update_schedule(schedule_id):
     """Update a schedule (for drag and drop functionality)"""
-    logger.schedule_logger.info(
+    logger.info(
         f"Update request for schedule_id={schedule_id}"
     )
 
@@ -524,11 +516,11 @@ def update_schedule(schedule_id):
         
         # Enhanced logging for shift deletion operations
         if request_data.shift_id is None:
-            logger.schedule_logger.warning(
+            logger.warning(
                 f"DELETION OPERATION - Request to set shift_id=None for schedule_id={schedule_id}, version={request_data.version}"
             )
         else:
-            logger.schedule_logger.info(
+            logger.info(
                 f"Validated update request data for schedule_id={schedule_id}: {request_data.dict()}"
             )
 
@@ -540,7 +532,7 @@ def update_schedule(schedule_id):
 
             # Get the version from the validated data or default to 1
             version = request_data.version if request_data.version is not None else 1
-            logger.schedule_logger.info(
+            logger.info(
                 f"Creating new schedule with data: {request_data.dict()} and version {version}"
             )
 
@@ -558,7 +550,7 @@ def update_schedule(schedule_id):
             if request_data.break_duration is not None and request_data.break_duration > 0:
                 # If we have a shift, calculate break times based on shift times
                 if schedule.shift_id is not None:
-                    shift = FixedShiftShiftTemplate.query.get(schedule.shift_id)
+                    shift = ShiftTemplate.query.get(schedule.shift_id)
                     if shift is not None:
                         # Start break midway through the shift
                         shift_start = datetime.strptime(shift.start_time, "%H:%M")
@@ -582,7 +574,7 @@ def update_schedule(schedule_id):
                         schedule.break_start = break_start_time.strftime("%H:%M")
                         schedule.break_end = break_end_time.strftime("%H:%M")
 
-                        logger.schedule_logger.info(
+                        logger.info(
                             f"Calculated break times: {schedule.break_start} to {schedule.break_end} from duration {request_data.break_duration}"
                         )
                 elif request_data.break_duration > 0: # If no shift but break duration is provided, clear break times
@@ -597,11 +589,11 @@ def update_schedule(schedule_id):
             
             # Enhanced logging for shift deletion operations
             if request_data.shift_id is None:
-                logger.schedule_logger.warning(
+                logger.warning(
                     f"DELETION OPERATION - Found existing schedule {schedule_id} with current shift_id={schedule.shift_id}, version={schedule.version}"
                 )
             else:
-                logger.schedule_logger.info(
+                logger.info(
                     f"Updating existing schedule: {schedule_id}, current version: {schedule.version}"
                 )
             
@@ -614,7 +606,7 @@ def update_schedule(schedule_id):
                 # Explicitly check if shift_id is None to detect deletion operations
                 if request_data.shift_id is None:
                     # This is a deletion operation
-                    logger.schedule_logger.warning(
+                    logger.warning(
                         f"DELETION OPERATION - Setting shift_id=None for schedule_id={schedule_id}"
                     )
                     schedule.shift_id = None
@@ -627,17 +619,17 @@ def update_schedule(schedule_id):
                 else:
                     # This is a regular update with a new shift_id
                     schedule.shift_id = request_data.shift_id
-                    logger.schedule_logger.info(
+                    logger.info(
                         f"After update, shift_id={schedule.shift_id}"
                     )
                     
                     # If we're setting a shift_id, also update shift times from the template
                     if schedule.shift_id is not None:
-                        shift_template = FixedShiftShiftTemplate.query.get(schedule.shift_id)
+                        shift_template = ShiftTemplate.query.get(schedule.shift_id)
                         if shift_template:
                             schedule.shift_start = shift_template.start_time
                             schedule.shift_end = shift_template.end_time
-                            logger.schedule_logger.info(
+                            logger.info(
                                 f"Updated shift times from template: {schedule.shift_start} to {schedule.shift_end}"
                             )
                 
@@ -649,23 +641,25 @@ def update_schedule(schedule_id):
                 
             if request_data.version is not None:
                 schedule.version = request_data.version
-                logger.schedule_logger.info(
+                logger.info(
                     f"Updated schedule version to {schedule.version}"
                 )
                 
-            if request_data.availability_type is not None:
+            if request_data.availability_type is not None: # Check if explicitly provided
                 # Handle availability_type conversion correctly
-                schedule.availability_type = AvailabilityType(request_data.availability_type) if request_data.availability_type is not None else None
-                logger.schedule_logger.info(
-                    f"Updated schedule availability_type to {schedule.availability_type}"
-                )
+                schedule.availability_type = AvailabilityType(request_data.availability_type)
+            elif hasattr(schedule, 'availability_type'): # If not provided, ensure it has a default or remains None if allowed by model
+                 schedule.availability_type = None # Assuming None is allowed if not provided in update
+                 logger.info(
+                     f"Cleared schedule availability_type for schedule {schedule_id}"
+                 )
 
             # Handle break_duration updates
             if request_data.break_duration is not None:
                 if request_data.break_duration > 0:
                     # If we have a shift, calculate break times based on shift times
                     if schedule.shift_id is not None:
-                        shift = FixedShiftShiftTemplate.query.get(schedule.shift_id)
+                        shift = ShiftTemplate.query.get(schedule.shift_id)
                         if shift is not None:
                             # Start break midway through the shift
                             shift_start = datetime.strptime(shift.start_time, "%H:%M")
@@ -689,7 +683,7 @@ def update_schedule(schedule_id):
                             schedule.break_start = break_start_time.strftime("%H:%M")
                             schedule.break_end = break_end_time.strftime("%H:%M")
 
-                            logger.schedule_logger.info(
+                            logger.info(
                                 f"Calculated break times: {schedule.break_start} to {schedule.break_end} from duration {request_data.break_duration}"
                             )
                     elif request_data.break_duration > 0: # If no shift but break duration is provided, clear break times
@@ -704,11 +698,11 @@ def update_schedule(schedule_id):
         
         # Log operation outcome
         if schedule_id > 0 and (request_data.shift_id is None and hasattr(request_data, 'shift_id')):
-            logger.schedule_logger.warning(
+            logger.warning(
                 f"DELETION OPERATION COMPLETED - Schedule {schedule_id} now has shift_id={schedule.shift_id}"
             )
         else:
-            logger.schedule_logger.info(
+            logger.info(
                 f"Database commit successful for schedule_id={schedule_id}"
             )
 
@@ -726,21 +720,21 @@ def update_schedule(schedule_id):
                 )
                 response_data["break_duration"] = break_duration_minutes
             except Exception as e:
-                logger.error_logger.error(f"Error calculating break duration: {str(e)}")
+                logger.error(f"Error calculating break duration: {str(e)}")
                 response_data["break_duration"] = 0
         else:
             response_data["break_duration"] = 0
 
-        logger.schedule_logger.info(f"Schedule updated successfully: {response_data}")
+        logger.info(f"Schedule updated successfully: {response_data}")
         return jsonify(response_data)
 
     except ValidationError as e: # Catch Pydantic validation errors
-        logger.error_logger.error(f"Validation error updating schedule {schedule_id}: {e.errors()}")
+        logger.error(f"Validation error updating schedule {schedule_id}: {e.errors()}")
         return jsonify({"status": "error", "message": "Invalid input.", "details": e.errors()}), HTTPStatus.BAD_REQUEST # Return validation details
 
     except Exception as e: # Catch any other exceptions
         db.session.rollback()
-        logger.error_logger.error(f"Error updating schedule {schedule_id}: {str(e)}", exc_info=True)
+        logger.error(f"Error updating schedule {schedule_id}: {str(e)}", exc_info=True)
         return jsonify({"status": "error", "message": "An internal server error occurred.", "details": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
@@ -757,7 +751,7 @@ def delete_schedule(schedule_id):
 
     except Exception as e:
         db.session.rollback()
-        logger.error_logger.error(f"Error deleting schedule: {str(e)}", exc_info=True)
+        logger.error(f"Error deleting schedule: {str(e)}", exc_info=True)
         return jsonify({"status": "error", "message": "An internal server error occurred."}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
@@ -795,7 +789,7 @@ def export_schedule():
             import traceback
 
             error_msg = f"PDF generation error: {str(e)}"
-            logger.error_logger.error(
+            logger.error(
                 error_msg,
                 extra={
                     "action": "pdf_generation_error",
@@ -812,7 +806,7 @@ def export_schedule():
         import traceback
 
         error_msg = f"Unexpected error: {str(e)}"
-        logger.error_logger.error(
+        logger.error(
             error_msg,
             extra={
                 "action": "export_schedule_error",
@@ -838,7 +832,7 @@ def publish_schedule(version):
         return jsonify({"status": "success", "message": "Schedule published successfully"})
     except Exception as e:
         db.session.rollback()
-        logger.error_logger.error(f"Error publishing schedule: {str(e)}", exc_info=True)
+        logger.error(f"Error publishing schedule: {str(e)}", exc_info=True)
         return jsonify({"status": "error", "message": "An internal server error occurred."}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
@@ -856,7 +850,7 @@ def archive_schedule(version):
         return jsonify({"status": "success", "message": "Schedule archived successfully"})
     except Exception as e:
         db.session.rollback()
-        logger.error_logger.error(f"Error archiving schedule: {str(e)}", exc_info=True)
+        logger.error(f"Error archiving schedule: {str(e)}", exc_info=True)
         return jsonify({"status": "error", "message": "An internal server error occurred."}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
@@ -884,38 +878,49 @@ def validate_schedule():
         resources.load()
         validator = ScheduleValidator(resources)
 
-        # Create config from request
-        config = ScheduleConfig(
-            enforce_min_coverage=data.get("enforce_min_coverage", True),
-            enforce_contracted_hours=data.get("enforce_contracted_hours", True),
-            enforce_keyholder=data.get("enforce_keyholder", True),
+        # Create validator
+        validator = ScheduleValidator()
+
+        # Create config for validation
+        # Updated to use the new from_scheduler_config method
+        config = SchedulerConfig(
             enforce_rest_periods=data.get("enforce_rest_periods", True),
-            enforce_max_shifts=data.get("enforce_max_shifts", True),
-            enforce_max_hours=data.get("enforce_max_hours", True),
             min_rest_hours=data.get("min_rest_hours", 11),
         )
 
+        # Convert SchedulerConfig to ScheduleConfig
+        schedule_config = ScheduleConfig.from_scheduler_config(config)
+
         # Validate schedule
-        validation_errors = validator.validate(schedules, config)
+        validation_errors = validator.validate(schedules, schedule_config)
 
-        # Convert errors to JSON format
-        errors = []
-        for error in validation_errors:
-            errors.append(
+        if validation_errors:
+            # Format and categorize validation errors for frontend display
+            errors = []
+            for error in validation_errors:
+                errors.append(
+                    {
+                        "type": error.error_type,
+                        "message": error.message,
+                        "severity": error.severity,
+                        "details": error.details or {},
+                    }
+                )
+
+            return jsonify(
                 {
-                    "type": error.error_type,
-                    "message": error.message,
-                    "severity": error.severity,
-                    "details": error.details or {},
+                    "status": "error",
+                    "valid": False,
+                    "errors": errors,
+                    "schedule_count": len(schedules),
+                    "validation_time": datetime.now().isoformat(),
                 }
-            )
+            ), 200
 
-        # Return validation report
         return jsonify(
             {
                 "status": "success",
-                "valid": len(errors) == 0,
-                "errors": errors,
+                "valid": True,
                 "schedule_count": len(schedules),
                 "validation_time": datetime.now().isoformat(),
             }
@@ -973,7 +978,7 @@ def get_all_versions():
         )
 
     except Exception as e:
-        logger.error_logger.error(f"Error fetching versions: {str(e)}", exc_info=True)
+        logger.error(f"Error fetching versions: {str(e)}", exc_info=True)
         return jsonify({"status": "error", "message": "An internal server error occurred."}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
@@ -1012,7 +1017,7 @@ def create_new_version():
         )
         new_version = max(max_schedule_version, max_meta_version) + 1
 
-        logger.schedule_logger.info(
+        logger.info(
             f"Creating new schedule version {new_version} (max schedule version: {max_schedule_version}, max meta version: {max_meta_version})"
             + (f" based on version {base_version}" if base_version else "")
         )
@@ -1042,11 +1047,11 @@ def create_new_version():
                 new_schedules.append(new_schedule)
 
             if new_schedules:
-                logger.schedule_logger.info(
+                logger.info(
                     f"Copied {len(new_schedules)} schedules from version {base_version}"
                 )
             else:
-                logger.schedule_logger.info(
+                logger.info(
                     f"No schedules found in version {base_version} for the given date range"
                 )
 
@@ -1082,7 +1087,7 @@ def create_new_version():
                     )
                     new_schedules.append(new_schedule)
 
-            logger.schedule_logger.info(
+            logger.info(
                 f"Created {len(new_schedules)} empty schedules for version {new_version}"
             )
 
@@ -1114,7 +1119,7 @@ def create_new_version():
                 ),
             )
             db.session.add(version_meta)
-            logger.schedule_logger.info(
+            logger.info(
                 f"Created version metadata for version {new_version}"
             )
 
@@ -1131,7 +1136,7 @@ def create_new_version():
             )
         except Exception as e:
             # If version_meta table doesn't exist, just commit the schedules
-            logger.error_logger.error(f"Could not create version metadata: {str(e)}", exc_info=True)
+            logger.error(f"Could not create version metadata: {str(e)}", exc_info=True)
             db.session.commit()
 
             return jsonify(
@@ -1145,7 +1150,7 @@ def create_new_version():
 
     except Exception as e:
         db.session.rollback()
-        logger.error_logger.error(f"Error creating new version: {str(e)}", exc_info=True)
+        logger.error(f"Error creating new version: {str(e)}", exc_info=True)
         return jsonify({"status": "error", "message": "An internal server error occurred."}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
@@ -1232,13 +1237,13 @@ def update_version_status(version):
 
         except Exception as e:
             db.session.rollback()
-            logger.error_logger.error(f"Error updating version status: {str(e)}", exc_info=True)
+            logger.error(f"Error updating version status: {str(e)}", exc_info=True)
             return jsonify(
                 {"status": "error", "message": f"Database error: {str(e)}"}
             ), HTTPStatus.INTERNAL_SERVER_ERROR
 
     except Exception as e:
-        logger.error_logger.error(f"Error in update_version_status: {str(e)}", exc_info=True)
+        logger.error(f"Error in update_version_status: {str(e)}", exc_info=True)
         return jsonify({"status": "error", "message": "An internal server error occurred."}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
@@ -1263,7 +1268,7 @@ def get_version_details(version):
         try:
             version_meta = ScheduleVersionMeta.query.filter_by(version=version).first()
         except Exception as e:
-            logger.schedule_logger.warning(f"Could not fetch version metadata: {str(e)}")
+            logger.warning(f"Could not fetch version metadata: {str(e)}")
 
         # Build response
         response = {
@@ -1311,7 +1316,7 @@ def get_version_details(version):
         return jsonify(response)
 
     except Exception as e:
-        logger.error_logger.error(f"Error getting version details: {str(e)}", exc_info=True)
+        logger.error(f"Error getting version details: {str(e)}", exc_info=True)
         return jsonify({"status": "error", "message": "An internal server error occurred."}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
@@ -1356,7 +1361,7 @@ def duplicate_version():
         max_version = db.session.query(db.func.max(Schedule.version)).scalar() or 0
         new_version = max_version + 1
 
-        logger.schedule_logger.info(
+        logger.info(
             f"Duplicating schedule version {source_version} to new version {new_version}"
         )
 
@@ -1406,7 +1411,7 @@ def duplicate_version():
             )
             db.session.add(version_meta)
         except Exception as e:
-            logger.schedule_logger.warning(
+            logger.warning(
                 f"Could not create version metadata: {str(e)}"
             )
             # Continue anyway, we'll create the version without metadata
@@ -1427,7 +1432,7 @@ def duplicate_version():
 
     except Exception as e:
         db.session.rollback()
-        logger.error_logger.error(f"Error duplicating version: {str(e)}", exc_info=True)
+        logger.error(f"Error duplicating version: {str(e)}", exc_info=True)
         return jsonify({"status": "error", "message": "An internal server error occurred."}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
@@ -1537,7 +1542,7 @@ def compare_versions():
         )
 
     except Exception as e:
-        logger.error_logger.error(f"Error comparing versions: {str(e)}", exc_info=True)
+        logger.error(f"Error comparing versions: {str(e)}", exc_info=True)
         return jsonify({"status": "error", "message": "An internal server error occurred."}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
@@ -1598,14 +1603,14 @@ def update_version_notes(version):
             )
 
         except Exception as e:
-            logger.error_logger.error(f"Error updating version notes: {str(e)}", exc_info=True)
+            logger.error(f"Error updating version notes: {str(e)}", exc_info=True)
             return jsonify(
                 {"status": "error", "message": f"Failed to update version notes: {str(e)}"}
             ), HTTPStatus.INTERNAL_SERVER_ERROR
 
     except Exception as e:
         db.session.rollback()
-        logger.error_logger.error(f"Error in update_version_notes: {str(e)}", exc_info=True)
+        logger.error(f"Error in update_version_notes: {str(e)}", exc_info=True)
         return jsonify({"status": "error", "message": "An internal server error occurred."}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
@@ -1645,24 +1650,24 @@ def fix_schedule_display():
             Schedule.date <= end_date
         ).all()
 
-        logger.schedule_logger.info(f"Found {len(schedules)} schedules to check for version {version}")
+        logger.info(f"Found {len(schedules)} schedules to check for version {version}")
 
         # Count how many have no shift_id
         empty_schedules = [s for s in schedules if s.shift_id is None]
-        logger.schedule_logger.info(f"{len(empty_schedules)} schedules have no shift_id")
+        logger.info(f"{len(empty_schedules)} schedules have no shift_id")
 
         # Count schedules that have shift_id but missing relationship data
         incomplete_schedules = [s for s in schedules if s.shift_id is not None and (not hasattr(s, 'shift') or s.shift is None)]
-        logger.schedule_logger.info(f"{len(incomplete_schedules)} schedules have shift_id but missing relationship data")
+        logger.info(f"{len(incomplete_schedules)} schedules have shift_id but missing relationship data")
 
         # Get all shift templates to ensure we have complete shift info
-        all_shifts = FixedShiftShiftTemplate.query.all()
+        all_shifts = ShiftTemplate.query.all()
         shift_lookup = {shift.id: shift for shift in all_shifts}
         
         # Get default shift (early shift)
-        default_shift = FixedShiftShiftTemplate.query.filter_by(shift_type_id="EARLY").first()
+        default_shift = ShiftTemplate.query.filter_by(shift_type_id="EARLY").first()
         if not default_shift:
-            default_shift = FixedShiftShiftTemplate.query.first()
+            default_shift = ShiftTemplate.query.first()
         
         if not default_shift:
             return jsonify({
@@ -1711,7 +1716,7 @@ def fix_schedule_display():
                     
                     assigned_count += 1
                     days_fixed.add(date_obj.isoformat())
-                    logger.schedule_logger.info(f"Assigned shift {default_shift.id} to employee {first_schedule.employee_id} on {date_obj}")
+                    logger.info(f"Assigned shift {default_shift.id} to employee {first_schedule.employee_id} on {date_obj}")
                     
                     # Also check other schedules on this day that might need shift_id update
                     for other_schedule in date_schedules:
@@ -1733,7 +1738,7 @@ def fix_schedule_display():
                 if schedule.shift_id in shift_lookup:
                     # Set the relationship explicitly
                     schedule.shift = shift_lookup[schedule.shift_id]
-                    logger.schedule_logger.info(f"Fixed relationship for schedule {schedule.id} with shift {schedule.shift_id}")
+                    logger.info(f"Fixed relationship for schedule {schedule.id} with shift {schedule.shift_id}")
                     assigned_count += 1
                     
                     # Set shift_type_id if available
@@ -1767,9 +1772,9 @@ def fix_schedule_display():
         if schedules_with_shifts:
             sample_schedule = schedules_with_shifts[0]
             has_shift_data = hasattr(sample_schedule, 'shift') and sample_schedule.shift is not None
-            logger.schedule_logger.info(f"Sample schedule (ID={sample_schedule.id}) has shift data: {has_shift_data}")
+            logger.info(f"Sample schedule (ID={sample_schedule.id}) has shift data: {has_shift_data}")
             if has_shift_data:
-                logger.schedule_logger.info(f"Shift details: start={sample_schedule.shift.start_time}, end={sample_schedule.shift.end_time}")
+                logger.info(f"Shift details: start={sample_schedule.shift.start_time}, end={sample_schedule.shift.end_time}")
         
         # Convert schedules to dictionaries with complete information for the frontend
         enriched_schedules = []
@@ -1789,7 +1794,7 @@ def fix_schedule_display():
                     schedule_dict['shift_type_name'] = shift.shift_type.value if shift.shift_type else None
                     
                     # Log that we had to manually add missing shift data
-                    logger.schedule_logger.warning(
+                    logger.warning(
                         f"Manually added shift data for schedule {schedule.id} - to_dict() didn't include it"
                     )
             
@@ -1808,43 +1813,41 @@ def fix_schedule_display():
         })
 
     except Exception as e:
-        db.session.rollback()
-        logger.error_logger.error(f"Error in fix_schedule_display: {str(e)}", exc_info=True)
-        return jsonify({"status": "error", "message": "An internal server error occurred."}), HTTPStatus.INTERNAL_SERVER_ERROR
+        logger.error(f"Error in fix_schedule_display: {str(e)}", exc_info=True)
 
 
 @schedules.route("/schedules/ai-generate", methods=["POST"])
 def generate_ai_schedule():
-    logger.schedule_logger.info("Received request to generate AI schedule")
+    """Generate a schedule using AI"""
     try:
+        logger.info("Received request to generate AI schedule")
+        
+        # Process request
         data = request.get_json()
-        start_date_str = data.get("start_date")
-        end_date_str = data.get("end_date")
-        version = data.get("version")
-
-        if not start_date_str or not end_date_str or version is None:
-            return jsonify({"status": "error", "message": "Missing date range or version"}), HTTPStatus.BAD_REQUEST
-
-        start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
-        end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
-
-        logger.schedule_logger.info(f"Generating AI schedule for date range: {start_date_str} to {end_date_str}, version: {version}")
+        
+        try:
+            start_date = datetime.strptime(data.get("start_date"), "%Y-%m-%d").date()
+            end_date = datetime.strptime(data.get("end_date"), "%Y-%m-%d").date()
+        except (ValueError, TypeError):
+            return jsonify({"status": "error", "message": "Invalid or missing date format, expected YYYY-MM-DD"}), HTTPStatus.BAD_REQUEST
+        
+        logger.info(f"Generating AI schedule for date range: {start_date} to {end_date}")
 
         # --- Data Collection ---
-        logger.schedule_logger.info("Collecting data for AI schedule generation...")
+        logger.info("Collecting data for AI schedule generation...")
 
         with current_app.app_context():
             # Fetch employees
             employees = Employee.query.filter_by(is_active=True).all()
-            logger.schedule_logger.info(f"Fetched {len(employees)} active employees.")
+            logger.info(f"Fetched {len(employees)} active employees.")
 
             # Fetch shifts (ShiftTemplates)
             shifts = ShiftTemplate.query.all()
-            logger.schedule_logger.info(f"Fetched {len(shifts)} shift templates.")
+            logger.info(f"Fetched {len(shifts)} shift templates.")
 
             # Fetch coverage
             coverage = Coverage.query.all()
-            logger.schedule_logger.info(f"Fetched {len(coverage)} coverage entries.")
+            logger.info(f"Fetched {len(coverage)} coverage entries.")
 
             # Fetch employee availability for the date range
             availabilities = EmployeeAvailability.query.filter(
@@ -1864,32 +1867,32 @@ def generate_ai_schedule():
                  if key not in all_availabilities or (av.start_date is not None and all_availabilities[key].start_date is None):
                       all_availabilities[key] = av
 
-            logger.schedule_logger.info(f"Fetched {len(all_availabilities)} employee availability entries (including recurring).")
+            logger.info(f"Fetched {len(all_availabilities)} employee availability entries (including recurring).")
 
             # Fetch absences for the date range
             absences = Absence.query.filter(
                 Absence.start_date <= end_date,
                 Absence.end_date >= start_date
             ).all()
-            logger.schedule_logger.info(f"Fetched {len(absences)} absence entries.")
+            logger.info(f"Fetched {len(absences)} absence entries.")
 
             # Fetch settings
             settings = Settings.query.first()
             if not settings:
                  # Log a warning or error if settings are not found, use default or raise error
-                 logger.error_logger.warning("Settings not found in DB, using default.")
+                 logger.warning("Settings not found in DB, using default.")
                  settings = Settings.get_default_settings()
-            logger.schedule_logger.info("Fetched application settings.")
+            logger.info("Fetched application settings.")
         # --- End Data Collection ---
 
         # --- Data Structuring ---
-        logger.schedule_logger.info("Structuring collected data...")
+        logger.info("Structuring collected data...")
 
         # Convert fetched objects to dictionaries for JSON serialization
         structured_data = {
-            "start_date": start_date_str,
-            "end_date": end_date_str,
-            "version": version,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "version": data.get("version"),
             "employees": [emp.to_dict() for emp in employees] if employees else [],
             "shifts": [shift.to_dict() for shift in shifts] if shifts else [],
             "coverage": [cov.to_dict() for cov in coverage] if coverage else [],
@@ -1898,24 +1901,14 @@ def generate_ai_schedule():
             "settings": settings.to_dict() if settings else {}, # Convert settings to dict
         }
 
-        logger.schedule_logger.info("Data structuring complete.")
+        logger.info("Data structuring complete.")
         # --- End Data Structuring ---
 
         # --- AI Model Interaction ---
-        logger.schedule_logger.info("Sending data to AI model for generation...")
+        logger.info("Sending data to AI model for generation...")
 
         # TODO: Implement the actual API call to the external AI model (e.g., Gemini)
         # This section needs to contain the code to send the 'structured_data' to the AI model.
-        # Key considerations:
-        # 1. Choose an appropriate library for making HTTP requests (e.g., `requests`). You might need to install it (`pip install requests`).
-        # 2. Configure the API endpoint URL for the AI model.
-        # 3. Include any necessary API keys or authentication credentials.
-        # 4. Format the `structured_data` into the input format expected by the AI model's API.
-        #    This might involve serializing the dictionary to JSON and ensuring the structure matches the AI's requirements.
-        # 5. Make the POST or other appropriate HTTP request.
-        # 6. Implement error handling for network issues, API errors (e.g., invalid input, rate limits), and unexpected responses.
-        # 7. Handle timeouts for the API call.
-        # 8. The response from the AI model should contain the generated schedule data.
 
         # Example (Conceptual) API Call Structure:
         # try:
@@ -1926,7 +1919,7 @@ def generate_ai_schedule():
         #     ai_response.raise_for_status() # Raise an exception for bad status codes (4xx or 5xx)
         #     ai_response_data = ai_response.json()
         # except requests.exceptions.RequestException as e:
-        #     logger.error_logger.error(f"AI API call failed: {str(e)}", exc_info=True)
+        #     logger.error(f"AI API call failed: {str(e)}", exc_info=True)
         #     return jsonify({"status": "error", "message": f"Failed to get response from AI model: {str(e)}"}), HTTPStatus.INTERNAL_SERVER_ERROR
 
         # Placeholder for AI model response (replace with actual API call result)
@@ -1934,11 +1927,11 @@ def generate_ai_schedule():
         # Assume for now it returns a list of schedule assignments.
         ai_response_data = { "generated_assignments": [] } # Example structure: list of dicts like {"employee_id": ..., "date": "YYYY-MM-DD", "shift_id": ...}
 
-        logger.schedule_logger.info("Received response from AI model (placeholder).")
+        logger.info("Received response from AI model (placeholder).")
         # --- End AI Model Interaction ---
 
         # --- Process AI Model Response and Update Database ---
-        logger.schedule_logger.info("Processing AI model response and updating database...")
+        logger.info("Processing AI model response and updating database...")
 
         # TODO: Implement logic to process the ai_response_data received from the AI model.
         # This section needs to parse the AI's output and apply it to the database.
@@ -1972,7 +1965,7 @@ def generate_ai_schedule():
         #            date_str = assignment.get("date")
         #            shift_id = assignment.get("shift_id") # Can be None
         #            if not employee_id or not date_str:
-        #                 logger.error_logger.error(f"Skipping invalid assignment from AI: {assignment}")
+        #                 logger.error(f"Skipping invalid assignment from AI: {assignment}")
         #                 continue
         #            assignment_date = datetime.strptime(date_str, "%Y-%m-%d").date()
         #
@@ -1986,17 +1979,17 @@ def generate_ai_schedule():
         #            )
         #            new_schedules_to_add.append(new_schedule)
         #        except Exception as e:
-        #             logger.error_logger.error(f"Error processing AI assignment {assignment}: {str(e)}", exc_info=True)
+        #             logger.error(f"Error processing AI assignment {assignment}: {str(e)}", exc_info=True)
         #             continue
         #
         #    if new_schedules_to_add:
         #        db.session.add_all(new_schedules_to_add)
         #        db.session.commit()
-        #        logger.schedule_logger.info(f"Successfully added {len(new_schedules_to_add)} AI-generated schedules.")
+        #        logger.info(f"Successfully added {len(new_schedules_to_add)} AI-generated schedules.")
         #    else:
-        #        logger.schedule_logger.warning("No valid AI-generated schedules to add.")
+        #        logger.warning("No valid AI-generated schedules to add.")
 
-        logger.schedule_logger.info("Database update complete.")
+        logger.info("Database update complete.")
         # --- End Process AI Model Response and Update Database ---
 
         # Return a success message and potentially the generated schedules or a summary
@@ -2006,8 +1999,8 @@ def generate_ai_schedule():
         return jsonify({"status": "success", "message": "AI schedule generation process outlined. Manual implementation required for AI interaction and database update.", "details": "TODO sections added."}), HTTPStatus.OK
 
     except ValueError:
-        logger.error_logger.error("Invalid date format received for AI schedule generation", exc_info=True)
+        logger.error("Invalid date format received for AI schedule generation", exc_info=True)
         return jsonify({"status": "error", "message": "Invalid date format, expected YYYY-MM-DD"}), HTTPStatus.BAD_REQUEST
     except Exception as e:
-        logger.error_logger.error(f"An error occurred during AI schedule generation: {str(e)}", exc_info=True)
+        logger.error(f"An error occurred during AI schedule generation: {str(e)}", exc_info=True)
         return jsonify({"status": "error", "message": "An internal error occurred"}), HTTPStatus.INTERNAL_SERVER_ERROR

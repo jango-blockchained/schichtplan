@@ -273,6 +273,9 @@ class Logger:
     def debug(self, message, event_type=None, details=None, status=None):
         self.log_message(logging.DEBUG, message, event_type, details, status)
 
+    def info(self, message, event_type=None, details=None, status=None):
+        self.log_message(logging.INFO, message, event_type, details, status)
+
     def warning(self, message, event_type=None, details=None, status=None, exc_info=None, stack_info=False, extra=None):
         # Flask's logger.warning can pass exc_info, stack_info, and extra.
         # We'll pass them to log_message if it's adapted, or handle them here.
@@ -280,7 +283,10 @@ class Logger:
         # The standard logging.warning uses logging.WARNING (level 30)
         self.log_message(logging.WARNING, message, event_type, details, status, exc_info=exc_info, stack_info=stack_info)
 
-    def error(self, message, event_type=None, details=None, status="Error", exc_info=None, stack_info=False):
+    def error(self, message, event_type=None, details=None, status="Error", exc_info=None, stack_info=False, extra=None):
+        # If extra is provided, use it as details if details is None
+        if extra is not None and details is None:
+            details = extra
         self.log_message(logging.ERROR, message, event_type, details, status, exc_info=exc_info, stack_info=stack_info)
 
     # Helper method to format time like logging.Formatter does

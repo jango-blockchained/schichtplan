@@ -43,12 +43,12 @@ export function GroupsManager({
             type="employee"
             groups={employeeTypes.map((type) => ({
               ...type,
-              type: "employee" as const,
+              type: "employee_type" as const,
             }))}
             onChange={(groups) => {
               const employeeTypes = groups
                 .filter(
-                  (group): group is EmployeeType => group.type === "employee",
+                  (group): group is EmployeeType => group.type === "employee_type",
                 )
                 .map(({ type, ...rest }) => rest);
               onEmployeeTypesChange(employeeTypes);
@@ -69,12 +69,12 @@ export function GroupsManager({
             type="absence"
             groups={absenceTypes.map((type) => ({
               ...type,
-              type: "absence" as const,
+              type: "absence_type" as const,
             }))}
             onChange={(groups) => {
               const absenceTypes = groups
                 .filter(
-                  (group): group is AbsenceType => group.type === "absence",
+                  (group): group is AbsenceType => group.type === "absence_type",
                 )
                 .map(({ type, ...rest }) => rest);
               onAbsenceTypesChange(absenceTypes);

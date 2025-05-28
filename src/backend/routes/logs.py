@@ -21,7 +21,7 @@ def save_logs():
 
         for log in logs:
             if log["level"] == "error":
-                logger.error_logger.error(json.dumps(log))
+                logger.error(json.dumps(log))
             elif log["level"] == "warning":
                 logger.app_logger.warning(json.dumps(log))
             else:
@@ -305,7 +305,7 @@ def clear_logs():
                 logger.app_logger.info(f"Cleared log file: {filename}")
 
         # Log that logs were cleared (this will be the first entry in the cleared error log)
-        logger.error_logger.info("All logs were cleared by admin request")
+        logger.info("All logs were cleared by admin request")
 
         return jsonify(
             {

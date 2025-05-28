@@ -6,35 +6,7 @@ import { JSDOM } from "jsdom";
 import "@testing-library/jest-dom";
 
 // Set up a basic DOM environment
-const dom = new JSDOM("<!doctype html><html><body></body></html>", {
-  url: "http://localhost",
-  pretendToBeVisual: true,
-});
-
-// Set up global objects
-global.window = dom.window as unknown as Window & typeof globalThis;
-global.document = dom.window.document;
-global.navigator = dom.window.navigator;
-global.getComputedStyle = dom.window.getComputedStyle;
-global.requestAnimationFrame = (callback) => setTimeout(callback, 0);
-
-// Mock getComputedStyle
-global.window.getComputedStyle = (element: Element) => ({
-  getPropertyValue: (prop: string) => "",
-  ...({} as CSSStyleDeclaration),
-});
-
-// Mock matchMedia
-global.window.matchMedia = (query: string) => ({
-  matches: false,
-  media: query,
-  onchange: null,
-  addListener: () => {},
-  removeListener: () => {},
-  addEventListener: () => {},
-  removeEventListener: () => {},
-  dispatchEvent: () => true,
-});
+// Removed JSDOM setup as it conflicts with happy-dom setup in setup.ts
 
 // Mock localStorage
 const localStorageMock = {
@@ -61,10 +33,17 @@ const createTestQueryClient = () =>
 // Custom render function that includes providers
 function customRender(
   ui: React.ReactElement,
-  { queryClient = createTestQueryClient(), ...options } = {},
+  options = {},
 ) {
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
   return render(
-    <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={client}>
       <ThemeProvider>{ui}</ThemeProvider>
     </QueryClientProvider>,
     options,

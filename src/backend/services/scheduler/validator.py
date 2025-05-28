@@ -226,6 +226,31 @@ class ScheduleConfig:
         self.enforce_keyholder = self.enforce_keyholder_coverage
 
     @classmethod
+    def from_scheduler_config(cls, config):
+        """Create a ScheduleConfig from a SchedulerConfig instance"""
+        if config is None:
+            return cls()
+            
+        # Extract common attributes from the provided config
+        # This ensures we can accept both SchedulerConfig and dicts
+        config_dict = {}
+        
+        # Try to map common fields
+        try:
+            if hasattr(config, 'min_rest_hours'):
+                config_dict['min_rest_hours'] = config.min_rest_hours
+            if hasattr(config, 'enforce_rest_periods'):
+                config_dict['enforce_rest_periods'] = config.enforce_rest_periods
+                
+            # Add more field mappings as needed
+            
+        except Exception as e:
+            # Log error but continue with defaults
+            print(f"Error mapping config: {str(e)}")
+            
+        return cls(**config_dict)
+
+    @classmethod
     def from_settings(cls, settings):
         """Create a ScheduleConfig instance from the application settings"""
         if not settings:

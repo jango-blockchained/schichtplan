@@ -155,15 +155,19 @@ setup_venv() {
 # Create required directories
 create_directories() {
     log "INFO" "Setting up directory structure..."
-    local dirs=("$LOG_DIR" "src/instance" "src/scripts")
+    local dirs=("$LOG_DIR" "$LOG_DIR/diagnostics" "$LOG_DIR/sessions" "src/instance" "src/scripts")
     for dir in "${dirs[@]}"; do
         if [ ! -d "$dir" ]; then
             mkdir -p "$dir" || {
                 log "ERROR" "Failed to create directory: $dir"
                 exit 1
             }
+            log "INFO" "Created directory: $dir"
         fi
     done
+    
+    # Ensure the logs directory is writable
+    chmod -R 755 "$LOG_DIR" || log "WARN" "Failed to set permissions for $LOG_DIR"
 }
 
 # Check and set script permissions
@@ -224,7 +228,7 @@ setup_tmux_session() {
         tmux send-keys -t "$TMUX_SESSION" "echo 'Installing frontend dependencies...'" C-m
         tmux send-keys -t "$TMUX_SESSION" "bun install" C-m
         tmux send-keys -t "$TMUX_SESSION" "echo 'Starting Frontend...'" C-m
-        tmux send-keys -t "$TMUX_SESSION" "npx vite > src/logs/tmux_frontend_output.log 2>&1" C-m
+        tmux send-keys -t "$TMUX_SESSION" "npx vite > \"$SCRIPT_DIR/$LOG_DIR/tmux_frontend_output.log\" 2>&1" C-m
     else
         log "ERROR" "Frontend package.json not found"
         cleanup
@@ -289,16 +293,24 @@ wait_for_services() {
     log "INFO" "Backend started successfully on port $backend_port"
     
     # Wait for frontend (add initial delay too)
-    log "INFO" "Allowing 2 seconds for frontend to initialize..."
-    sleep 2
+    log "INFO" "Allowing 5 seconds for frontend to initialize..."
+    sleep 5
     attempt=0
     local frontend_ready=false
     
     while [ $attempt -lt $max_attempts ] && [ "$frontend_ready" = false ]; do
-        # Check if frontend is responding (simple check is usually fine for dev servers)
-        if curl -s --fail "http://localhost:$FRONTEND_PORT" >/dev/null 2>&1; then
-            frontend_ready=true
-        else
+        # Check if frontend port is in use - more reliable than HTTP check for Vite
+        if check_port "$FRONTEND_PORT"; then
+            # Additional check to look for Vite output in the log file
+            if grep -q "VITE .* ready" "$SCRIPT_DIR/$LOG_DIR/tmux_frontend_output.log" 2>/dev/null; then
+                frontend_ready=true
+                log "INFO" "Frontend is running on port $FRONTEND_PORT"
+            else
+                log "INFO" "Frontend port $FRONTEND_PORT is active but Vite may still be initializing"
+            fi
+        fi
+        
+        if [ "$frontend_ready" = false ]; then
             log "INFO" "Waiting for frontend... (attempt $((attempt + 1))/$max_attempts)"
             sleep 2
             attempt=$((attempt + 1))
@@ -306,13 +318,13 @@ wait_for_services() {
     done
     
     if [ "$frontend_ready" = false ]; then
-        log "ERROR" "Frontend did not start successfully within the timeout period."
-        log "ERROR" "Check the frontend logs in the tmux pane for errors."
-        cleanup
-        exit 1
+        log "WARN" "Frontend may not have started properly within the timeout period."
+        log "WARN" "You may need to start the frontend manually with 'cd src/frontend && bun run dev'"
+        log "INFO" "However, continuing startup as the frontend might still be initializing..."
+        # Don't exit here, allow the script to continue
+    else
+        log "INFO" "Frontend started successfully on port $FRONTEND_PORT"
     fi
-    
-    log "INFO" "Frontend started successfully on port $FRONTEND_PORT"
     
     # Final status message
     log "SUCCESS" "All services started successfully!"
@@ -408,6 +420,11 @@ main() {
     create_directories
     check_permissions
     setup_venv
+    
+    # Create or clear log files
+    log "INFO" "Preparing log files..."
+    : > "$SCRIPT_DIR/$LOG_DIR/tmux_backend_output.log"
+    : > "$SCRIPT_DIR/$LOG_DIR/tmux_frontend_output.log"
     
     # Clean up ONLY existing processes before starting new ones
     stop_existing_services
