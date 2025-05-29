@@ -2,6 +2,7 @@
 """
 Temporary diagnostic script for Schichtplan schedule generator
 """
+
 import os
 import sys
 import time
@@ -20,17 +21,20 @@ try:
     # Import Flask
     print("\n==== TEST 1: Import Flask ====")
     import flask
+
     print(f"Flask imported successfully (version: {flask.__version__})")
 
     # Import SQLAlchemy
     print("\n==== TEST 2: Import SQLAlchemy ====")
     import sqlalchemy
     from sqlalchemy import text
+
     print(f"SQLAlchemy imported successfully (version: {sqlalchemy.__version__})")
 
     # Import app module
     print("\n==== TEST 3: Import App Module ====")
     from src.backend.app import create_app
+
     print("App module imported successfully")
 
     # Create Flask app
@@ -44,6 +48,7 @@ try:
     # Import models
     print("\n==== TEST 5: Import Models ====")
     from src.backend.models import db, Employee, ShiftTemplate, Coverage
+
     print("Models imported successfully")
 
     # Test database connection
@@ -51,14 +56,14 @@ try:
     with app.app_context():
         # Test basic connectivity
         try:
-            result = db.session.execute(text('SELECT 1')).scalar()
+            result = db.session.execute(text("SELECT 1")).scalar()
             print(f"Basic database query result: {result}")
-            
+
             # Check tables
             employee_count = Employee.query.count()
             shift_count = ShiftTemplate.query.count()
             coverage_count = Coverage.query.count()
-            
+
             print(f"Database status:")
             print(f"  - Employee count: {employee_count}")
             print(f"  - Shift template count: {shift_count}")
@@ -72,6 +77,7 @@ try:
     print("\n==== TEST 7: Import Scheduler ====")
     try:
         from src.backend.services.scheduler import ScheduleGenerator
+
         print("Scheduler imported successfully")
     except Exception as e:
         print(f"Scheduler import error: {e}")
@@ -96,33 +102,29 @@ try:
         try:
             generator = ScheduleGenerator()
             print("Generating schedule...")
-            
+
             # Use today and the next 2 days for a quick test
             today = date.today()
             end_date = today + timedelta(days=2)
-            
+
             start_time = time.time()
-            result = generator.generate(
-                start_date=today,
-                end_date=end_date,
-                version=1
-            )
+            result = generator.generate(start_date=today, end_date=end_date, version=1)
             end_time = time.time()
-            
-            schedule_entries = result.get('schedule', [])
-            warnings = result.get('warnings', [])
-            errors = result.get('errors', [])
-            
+
+            schedule_entries = result.get("schedule", [])
+            warnings = result.get("warnings", [])
+            errors = result.get("errors", [])
+
             print(f"Schedule generated in {end_time - start_time:.2f} seconds:")
             print(f"  - Date range: {today} to {end_date}")
             print(f"  - Entries: {len(schedule_entries)}")
             print(f"  - Warnings: {len(warnings)}")
             print(f"  - Errors: {len(errors)}")
-            
+
             if errors:
                 print("\nSample errors:")
                 for i, error in enumerate(errors[:3]):
-                    print(f"  {i+1}. {error.get('message', 'Unknown error')}")
+                    print(f"  {i + 1}. {error.get('message', 'Unknown error')}")
                 if len(errors) > 3:
                     print(f"  ... and {len(errors) - 3} more")
         except Exception as e:

@@ -14,14 +14,14 @@ from src.backend.schemas.settings import (
     CategorySettings,
     GenerationRequirements,
     CompleteSettings,
-    GeneralSettings, # Added
-    SchedulingSettingsSchema, # Added
-    DisplaySettingsSchema, # Added
-    PDFLayoutSettingsSchema, # Added
-    EmployeeGroupsSettingsSchema, # Added
-    AvailabilityTypesSettingsSchema, # Added
-    ActionsSettingsSchema, # Added
-    AISchedulingSettingsSchema # Added
+    GeneralSettings,  # Added
+    SchedulingSettingsSchema,  # Added
+    DisplaySettingsSchema,  # Added
+    PDFLayoutSettingsSchema,  # Added
+    EmployeeGroupsSettingsSchema,  # Added
+    AvailabilityTypesSettingsSchema,  # Added
+    ActionsSettingsSchema,  # Added
+    AISchedulingSettingsSchema,  # Added
 )
 from sqlalchemy.exc import IntegrityError
 
@@ -99,7 +99,9 @@ def restore_database():
 
     file = request.files["file"]
     if file.filename is None or not file.filename.endswith(".json"):
-        return jsonify({"error": "Invalid file format or missing filename"}), HTTPStatus.BAD_REQUEST
+        return jsonify(
+            {"error": "Invalid file format or missing filename"}
+        ), HTTPStatus.BAD_REQUEST
 
     try:
         data = json.load(file.stream)
@@ -146,14 +148,16 @@ def wipe_tables():
         ), HTTPStatus.BAD_REQUEST
 
     data = request.get_json()
-    
+
     # Validate input using Pydantic schema
     try:
         tables_schema = TablesList(**data)
         tables_to_wipe = tables_schema.tables
     except ValidationError as e:
-        return jsonify({"error": "Invalid input data", "details": e.errors()}), HTTPStatus.BAD_REQUEST
-    
+        return jsonify(
+            {"error": "Invalid input data", "details": e.errors()}
+        ), HTTPStatus.BAD_REQUEST
+
     inspector = inspect(db.engine)
     available_tables = [
         t for t in inspector.get_table_names() if t != "alembic_version"
@@ -242,15 +246,17 @@ def get_settings():
 def update_settings():
     """Update settings"""
     data = request.get_json()
-    
+
     # Validate input using Pydantic schema
     try:
         settings_schema = CompleteSettings(**data)
         # Convert Pydantic model to dict
         validated_data = settings_schema.dict(exclude_none=True)
     except ValidationError as e:
-        return jsonify({"error": "Invalid input data", "details": e.errors()}), HTTPStatus.BAD_REQUEST
-    
+        return jsonify(
+            {"error": "Invalid input data", "details": e.errors()}
+        ), HTTPStatus.BAD_REQUEST
+
     settings = Settings.query.first()
 
     if not settings:
@@ -303,7 +309,7 @@ def get_category_settings(category):
 def update_category_settings(category):
     """Update settings for a specific category"""
     data = request.get_json()
-    
+
     # Validate based on category
     try:
         if category == "general":
@@ -315,18 +321,26 @@ def update_category_settings(category):
         elif category == "pdf_layout":
             validated_data = PDFLayoutSettingsSchema(**data).dict(exclude_none=True)
         elif category == "employee_groups":
-            validated_data = EmployeeGroupsSettingsSchema(**data).dict(exclude_none=True)
+            validated_data = EmployeeGroupsSettingsSchema(**data).dict(
+                exclude_none=True
+            )
         elif category == "availability_types":
-            validated_data = AvailabilityTypesSettingsSchema(**data).dict(exclude_none=True)
+            validated_data = AvailabilityTypesSettingsSchema(**data).dict(
+                exclude_none=True
+            )
         elif category == "actions":
             validated_data = ActionsSettingsSchema(**data).dict(exclude_none=True)
         elif category == "ai_scheduling":
             validated_data = AISchedulingSettingsSchema(**data).dict(exclude_none=True)
         else:
-            return jsonify({"error": f"Unknown or unsupported settings category: {category}"}), HTTPStatus.BAD_REQUEST
+            return jsonify(
+                {"error": f"Unknown or unsupported settings category: {category}"}
+            ), HTTPStatus.BAD_REQUEST
     except ValidationError as e:
-        return jsonify({"error": "Invalid input data", "details": e.errors()}), HTTPStatus.BAD_REQUEST
-    
+        return jsonify(
+            {"error": "Invalid input data", "details": e.errors()}
+        ), HTTPStatus.BAD_REQUEST
+
     settings = Settings.query.first()
 
     if not settings:
@@ -346,14 +360,16 @@ def update_category_settings(category):
 def update_setting(category, key):
     """Update a specific setting"""
     data = request.get_json()
-    
+
     # Validate input using Pydantic schema
     try:
         setting_value = SettingValue(**data)
         value = setting_value.value
     except ValidationError as e:
-        return jsonify({"error": "Invalid input data", "details": e.errors()}), HTTPStatus.BAD_REQUEST
-    
+        return jsonify(
+            {"error": "Invalid input data", "details": e.errors()}
+        ), HTTPStatus.BAD_REQUEST
+
     settings = Settings.query.first()
 
     if not settings:
@@ -576,7 +592,7 @@ def get_generation_settings():
             final_requirements = default_requirements.copy()
             final_requirements.update(stored_requirements)
             return jsonify(final_requirements), HTTPStatus.OK
-        
+
         # If not stored or empty, return full defaults
         return jsonify(default_requirements), HTTPStatus.OK
     except Exception as e:
@@ -598,7 +614,9 @@ def update_generation_settings():
             generation_settings = GenerationRequirements(**data)
             validated_data = generation_settings.dict(exclude_none=True)
         except ValidationError as e:
-            return jsonify({"error": "Invalid input data", "details": e.errors()}), HTTPStatus.BAD_REQUEST
+            return jsonify(
+                {"error": "Invalid input data", "details": e.errors()}
+            ), HTTPStatus.BAD_REQUEST
 
         # Get settings
         settings_obj = Settings.query.first()
@@ -607,10 +625,14 @@ def update_generation_settings():
             db.session.add(settings_obj)
             db.session.commit()
 
-        if settings_obj.generation_requirements is None or not isinstance(settings_obj.generation_requirements, dict):
+        if settings_obj.generation_requirements is None or not isinstance(
+            settings_obj.generation_requirements, dict
+        ):
             settings_obj.generation_requirements = {}
-        
-        settings_obj.generation_requirements.update(validated_data) # validated_data is already a dict from Pydantic
+
+        settings_obj.generation_requirements.update(
+            validated_data
+        )  # validated_data is already a dict from Pydantic
         db.session.commit()
 
         return jsonify(settings_obj.generation_requirements), HTTPStatus.OK

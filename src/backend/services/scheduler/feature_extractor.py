@@ -7,6 +7,7 @@ from datetime import date
 # from src.backend.models import Employee, ShiftTemplate, Schedule # Example imports
 # from .resources import ScheduleResources # Example import
 
+
 class FeatureExtractor:
     """Extracts features from raw scheduling data for ML model training or prediction."""
 
@@ -22,9 +23,7 @@ class FeatureExtractor:
         # TODO: Initialize or load any required data here
 
     def extract_features_for_prediction(
-        self, 
-        potential_assignments: List[Dict[str, Any]], 
-        current_date: date
+        self, potential_assignments: List[Dict[str, Any]], current_date: date
     ) -> List[Dict[str, Any]]:
         """
         Extracts features for a list of potential employee-shift assignments for a specific date.
@@ -51,14 +50,14 @@ class FeatureExtractor:
         for assignment in potential_assignments:
             # Placeholder: add dummy features
             features = {
-                'employee_id': assignment.get('employee_id'),
-                'shift_id': assignment.get('shift_id'),
-                'date': current_date.isoformat(),
-                'day_of_week': current_date.weekday(), # 0=Monday, 6=Sunday
-                'is_weekend': current_date.weekday() >= 5,
+                "employee_id": assignment.get("employee_id"),
+                "shift_id": assignment.get("shift_id"),
+                "date": current_date.isoformat(),
+                "day_of_week": current_date.weekday(),  # 0=Monday, 6=Sunday
+                "is_weekend": current_date.weekday() >= 5,
                 # TODO: Add actual feature calculation based on self.resources and assignment details
-                'dummy_feature_1': 0.5, 
-                'dummy_feature_2': 10
+                "dummy_feature_1": 0.5,
+                "dummy_feature_2": 10,
             }
             # Combine original assignment data with new features
             extracted_features.append({**assignment, **features})
@@ -70,7 +69,7 @@ class FeatureExtractor:
     def extract_features_for_training(
         self,
         historical_schedules: List[Any],
-        other_historical_data: Dict[str, Any] # e.g., manual edits, feedback
+        other_historical_data: Dict[str, Any],  # e.g., manual edits, feedback
     ) -> Any:
         """
         Extracts features and labels from historical data for ML model training.
@@ -86,23 +85,24 @@ class FeatureExtractor:
         # TODO: Implement feature and label extraction for training data
         pass
 
+
 # Example Usage (for testing, requires data resources)
 # if __name__ == '__main__':
 #     # Assume you have mock or actual resources
 #     mock_resources = SimpleNamespace(employees=[{'id': 1}, {'id': 2}], shifts=[{'id': 101}], schedules=[])
 #     extractor = FeatureExtractor(resources=mock_resources)
-# 
+#
 #     potential_assignments_for_day = [
 #         {'employee_id': 1, 'shift_id': 101},
 #         {'employee_id': 2, 'shift_id': 101},
 #         {'employee_id': 1, 'shift_id': 102}, # Assume shift 102 exists
 #     ]
 #     current_date = date(2024, 9, 10)
-# 
+#
 #     features = extractor.extract_features_for_prediction(
 #         potential_assignments_for_day,
 #         current_date
 #     )
-# 
+#
 #     import pprint
-#     pprint.pprint(features)) 
+#     pprint.pprint(features))

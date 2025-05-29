@@ -10,16 +10,24 @@ from src.backend.services.scheduler.validator import (
 )
 from src.backend.services.scheduler.resources import ScheduleResources
 from src.backend.models.employee import Employee as ActualEmployee, EmployeeGroup
-from src.backend.services.scheduler.coverage_utils import get_required_staffing_for_interval
+from src.backend.services.scheduler.coverage_utils import (
+    get_required_staffing_for_interval,
+)
 
 
 class MockScheduleEntry:
-    def __init__(self, employee_id, date_obj, start_time_str, end_time_str, shift_id=None):
+    def __init__(
+        self, employee_id, date_obj, start_time_str, end_time_str, shift_id=None
+    ):
         self.employee_id = employee_id
         self.date = date_obj
         self.start_time = start_time_str
         self.end_time = end_time_str
-        self.shift_id = shift_id if shift_id is not None else f"shift_{start_time_str}_{end_time_str}"
+        self.shift_id = (
+            shift_id
+            if shift_id is not None
+            else f"shift_{start_time_str}_{end_time_str}"
+        )
         self.id = f"assign_{employee_id}_{shift_id}_{date_obj.strftime('%Y%m%d')}"
         self.break_start = None
         self.break_end = None
@@ -90,142 +98,274 @@ class TestScheduleValidator(unittest.TestCase):
                 if emp.id == employee_id:
                     return emp
             return None
-        self.mock_resources.get_employee = MagicMock(side_effect=get_employee_side_effect)
 
-    @patch('src.backend.services.scheduler.validator.get_required_staffing_for_interval')
-    @patch('src.backend.services.scheduler.validator._time_str_to_datetime_time', new_callable=MagicMock)
-    def test_validate_coverage_interval_perfect_match(self, mock_time_converter, mock_get_needs):
+        self.mock_resources.get_employee = MagicMock(
+            side_effect=get_employee_side_effect
+        )
+
+    @patch(
+        "src.backend.services.scheduler.validator.get_required_staffing_for_interval"
+    )
+    @patch(
+        "src.backend.services.scheduler.validator._time_str_to_datetime_time",
+        new_callable=MagicMock,
+    )
+    def test_validate_coverage_interval_perfect_match(
+        self, mock_time_converter, mock_get_needs
+    ):
         # Setup: validator.INTERVAL_MINUTES is 60
         test_date = date(2023, 1, 2)
         mock_assignments = [
-            MockScheduleEntry(employee_id=1, date_obj=test_date, start_time_str="09:00", end_time_str="17:00")
+            MockScheduleEntry(
+                employee_id=1,
+                date_obj=test_date,
+                start_time_str="09:00",
+                end_time_str="17:00",
+            )
         ]
         self.mock_employees[0].is_keyholder = True
         self.mock_employees[0].employee_group = "SUPERVISOR"
 
         # Mock _time_str_to_datetime_time conversions
         def time_converter_side_effect(time_str, suppress_error=False):
-            if not time_str: return None
-            try: return datetime.strptime(time_str, '%H:%M').time()
-            except ValueError: return None
+            if not time_str:
+                return None
+            try:
+                return datetime.strptime(time_str, "%H:%M").time()
+            except ValueError:
+                return None
+
         mock_time_converter.side_effect = time_converter_side_effect
 
         # Mock get_required_staffing_for_interval responses
-        def get_needs_side_effect(date, interval_start_time, resources, interval_duration_minutes=None):
-            if date == test_date and interval_start_time == time(9,0):
-                return {"min_employees": 1, "requires_keyholder": True, "employee_types": ["SUPERVISOR"]}
-            if date == test_date and interval_start_time == time(10,0):
-                 return {"min_employees": 1, "requires_keyholder": True, "employee_types": ["SUPERVISOR"]}
-            if date == test_date and time(9,0) <= interval_start_time < time(17,0):
-                 return {"min_employees": 1, "requires_keyholder": True, "employee_types": ["SUPERVISOR"]}
-            return {"min_employees": 0, "requires_keyholder": False, "employee_types": []}
+        def get_needs_side_effect(
+            date, interval_start_time, resources, interval_duration_minutes=None
+        ):
+            if date == test_date and interval_start_time == time(9, 0):
+                return {
+                    "min_employees": 1,
+                    "requires_keyholder": True,
+                    "employee_types": ["SUPERVISOR"],
+                }
+            if date == test_date and interval_start_time == time(10, 0):
+                return {
+                    "min_employees": 1,
+                    "requires_keyholder": True,
+                    "employee_types": ["SUPERVISOR"],
+                }
+            if date == test_date and time(9, 0) <= interval_start_time < time(17, 0):
+                return {
+                    "min_employees": 1,
+                    "requires_keyholder": True,
+                    "employee_types": ["SUPERVISOR"],
+                }
+            return {
+                "min_employees": 0,
+                "requires_keyholder": False,
+                "employee_types": [],
+            }
+
         mock_get_needs.side_effect = get_needs_side_effect
 
         config = ScheduleConfig(enforce_minimum_coverage=True)
         errors = self.validator.validate(mock_assignments, config)
-        
-        understaffing_errors = [e for e in errors if e.error_type == 'Understaffing']
-        keyholder_errors = [e for e in errors if e.error_type == 'MissingKeyholder']
-        type_errors = [e for e in errors if e.error_type == 'MissingEmployeeType']
-        
-        self.assertEqual(len(understaffing_errors), 0, f"Understaffing errors: {understaffing_errors}")
-        self.assertEqual(len(keyholder_errors), 0, f"Keyholder errors: {keyholder_errors}")
+
+        understaffing_errors = [e for e in errors if e.error_type == "Understaffing"]
+        keyholder_errors = [e for e in errors if e.error_type == "MissingKeyholder"]
+        type_errors = [e for e in errors if e.error_type == "MissingEmployeeType"]
+
+        self.assertEqual(
+            len(understaffing_errors),
+            0,
+            f"Understaffing errors: {understaffing_errors}",
+        )
+        self.assertEqual(
+            len(keyholder_errors), 0, f"Keyholder errors: {keyholder_errors}"
+        )
         self.assertEqual(len(type_errors), 0, f"Type errors: {type_errors}")
         self.assertEqual(len(errors), 0)
 
-    @patch('src.backend.services.scheduler.validator.get_required_staffing_for_interval')
-    @patch('src.backend.services.scheduler.validator._time_str_to_datetime_time', new_callable=MagicMock)
-    def test_validate_coverage_interval_understaffing(self, mock_time_converter, mock_get_needs):
+    @patch(
+        "src.backend.services.scheduler.validator.get_required_staffing_for_interval"
+    )
+    @patch(
+        "src.backend.services.scheduler.validator._time_str_to_datetime_time",
+        new_callable=MagicMock,
+    )
+    def test_validate_coverage_interval_understaffing(
+        self, mock_time_converter, mock_get_needs
+    ):
         test_date = date(2023, 1, 2)
         mock_assignments = []
 
-        def time_converter_side_effect(time_str, suppress_error=False): return datetime.strptime(time_str, '%H:%M').time()
+        def time_converter_side_effect(time_str, suppress_error=False):
+            return datetime.strptime(time_str, "%H:%M").time()
+
         mock_time_converter.side_effect = time_converter_side_effect
-        
+
         mock_get_needs.return_value = {"min_employees": 1}
 
         config = ScheduleConfig(enforce_minimum_coverage=True)
         errors = self.validator.validate(mock_assignments, config)
-        
-        understaffing_errors = [e for e in errors if e.error_type == 'Understaffing']
+
+        understaffing_errors = [e for e in errors if e.error_type == "Understaffing"]
         self.assertEqual(len(understaffing_errors), 24)
         if understaffing_errors:
             self.assertEqual(understaffing_errors[0].severity, "critical")
-            self.assertEqual(understaffing_errors[0].details['required_min_employees'], 1)
-            self.assertEqual(understaffing_errors[0].details['actual_assigned_employees'], 0)
+            self.assertEqual(
+                understaffing_errors[0].details["required_min_employees"], 1
+            )
+            self.assertEqual(
+                understaffing_errors[0].details["actual_assigned_employees"], 0
+            )
 
-    @patch('src.backend.services.scheduler.validator.get_required_staffing_for_interval')
-    @patch('src.backend.services.scheduler.validator._time_str_to_datetime_time', new_callable=MagicMock)
-    def test_validate_coverage_interval_missing_keyholder(self, mock_time_converter, mock_get_needs):
+    @patch(
+        "src.backend.services.scheduler.validator.get_required_staffing_for_interval"
+    )
+    @patch(
+        "src.backend.services.scheduler.validator._time_str_to_datetime_time",
+        new_callable=MagicMock,
+    )
+    def test_validate_coverage_interval_missing_keyholder(
+        self, mock_time_converter, mock_get_needs
+    ):
         test_date = date(2023, 1, 2)
-        mock_assignments = [MockScheduleEntry(employee_id=2, date_obj=test_date, start_time_str="09:00", end_time_str="10:00")]
+        mock_assignments = [
+            MockScheduleEntry(
+                employee_id=2,
+                date_obj=test_date,
+                start_time_str="09:00",
+                end_time_str="10:00",
+            )
+        ]
         self.mock_employees[1].is_keyholder = False
 
-        def time_converter_side_effect(time_str, suppress_error=False): return datetime.strptime(time_str, '%H:%M').time()
+        def time_converter_side_effect(time_str, suppress_error=False):
+            return datetime.strptime(time_str, "%H:%M").time()
+
         mock_time_converter.side_effect = time_converter_side_effect
 
-        mock_get_needs.return_value = {"min_employees": 1, "requires_keyholder": True, "employee_types": []}
+        mock_get_needs.return_value = {
+            "min_employees": 1,
+            "requires_keyholder": True,
+            "employee_types": [],
+        }
 
-        config = ScheduleConfig(enforce_minimum_coverage=True, enforce_keyholder_coverage=True)
+        config = ScheduleConfig(
+            enforce_minimum_coverage=True, enforce_keyholder_coverage=True
+        )
         errors = self.validator.validate(mock_assignments, config)
 
-        keyholder_errors = [e for e in errors if e.error_type == 'MissingKeyholder']
+        keyholder_errors = [e for e in errors if e.error_type == "MissingKeyholder"]
         self.assertEqual(len(keyholder_errors), 1)
         if keyholder_errors:
             self.assertEqual(keyholder_errors[0].severity, "critical")
-            self.assertTrue(keyholder_errors[0].details['required_keyholder'])
-            self.assertEqual(keyholder_errors[0].details['actual_keyholders_present'], 0)
+            self.assertTrue(keyholder_errors[0].details["required_keyholder"])
+            self.assertEqual(
+                keyholder_errors[0].details["actual_keyholders_present"], 0
+            )
 
-    @patch('src.backend.services.scheduler.validator.get_required_staffing_for_interval')
-    @patch('src.backend.services.scheduler.validator._time_str_to_datetime_time', new_callable=MagicMock)
-    def test_validate_coverage_interval_missing_employee_type(self, mock_time_converter, mock_get_needs):
+    @patch(
+        "src.backend.services.scheduler.validator.get_required_staffing_for_interval"
+    )
+    @patch(
+        "src.backend.services.scheduler.validator._time_str_to_datetime_time",
+        new_callable=MagicMock,
+    )
+    def test_validate_coverage_interval_missing_employee_type(
+        self, mock_time_converter, mock_get_needs
+    ):
         test_date = date(2023, 1, 2)
         self.mock_employees[0].employee_group = EmployeeGroup.GFB
-        mock_assignments = [MockScheduleEntry(employee_id=1, date_obj=test_date, start_time_str="09:00", end_time_str="10:00")]
-        
-        def time_converter_side_effect(time_str, suppress_error=False): return datetime.strptime(time_str, '%H:%M').time()
+        mock_assignments = [
+            MockScheduleEntry(
+                employee_id=1,
+                date_obj=test_date,
+                start_time_str="09:00",
+                end_time_str="10:00",
+            )
+        ]
+
+        def time_converter_side_effect(time_str, suppress_error=False):
+            return datetime.strptime(time_str, "%H:%M").time()
+
         mock_time_converter.side_effect = time_converter_side_effect
 
-        mock_get_needs.return_value = {"min_employees": 1, "requires_keyholder": False, "employee_types": ["SUPERVISOR"]}
+        mock_get_needs.return_value = {
+            "min_employees": 1,
+            "requires_keyholder": False,
+            "employee_types": ["SUPERVISOR"],
+        }
 
         config = ScheduleConfig(enforce_minimum_coverage=True)
         errors = self.validator.validate(mock_assignments, config)
-        
-        type_errors = [e for e in errors if e.error_type == 'MissingEmployeeType']
+
+        type_errors = [e for e in errors if e.error_type == "MissingEmployeeType"]
         self.assertEqual(len(type_errors), 1)
         if type_errors:
             self.assertEqual(type_errors[0].severity, "warning")
-            self.assertIn("SUPERVISOR", type_errors[0].details['unmet_types'])
-            self.assertEqual(type_errors[0].details['actual_types_present_counts'].get(str(EmployeeGroup.GFB)), 1)
+            self.assertIn("SUPERVISOR", type_errors[0].details["unmet_types"])
+            self.assertEqual(
+                type_errors[0]
+                .details["actual_types_present_counts"]
+                .get(str(EmployeeGroup.GFB)),
+                1,
+            )
 
-    @patch('src.backend.services.scheduler.validator.get_required_staffing_for_interval')
+    @patch(
+        "src.backend.services.scheduler.validator.get_required_staffing_for_interval"
+    )
     def test_validate_coverage_interval_empty_schedule(self, mock_get_needs):
         config = ScheduleConfig(enforce_minimum_coverage=True)
         errors = self.validator.validate([], config)
-        info_msgs = [e for e in errors if e.severity == 'info' and e.error_type == 'CoverageValidationSkip']
+        info_msgs = [
+            e
+            for e in errors
+            if e.severity == "info" and e.error_type == "CoverageValidationSkip"
+        ]
         self.assertEqual(len(info_msgs), 1)
         self.assertEqual(len(errors), 1)
         mock_get_needs.assert_not_called()
 
-    @patch('src.backend.services.scheduler.validator.get_required_staffing_for_interval')
-    @patch('src.backend.services.scheduler.validator._time_str_to_datetime_time', new_callable=MagicMock)
-    def test_validate_coverage_interval_get_needs_exception(self, mock_time_converter, mock_get_needs):
+    @patch(
+        "src.backend.services.scheduler.validator.get_required_staffing_for_interval"
+    )
+    @patch(
+        "src.backend.services.scheduler.validator._time_str_to_datetime_time",
+        new_callable=MagicMock,
+    )
+    def test_validate_coverage_interval_get_needs_exception(
+        self, mock_time_converter, mock_get_needs
+    ):
         test_date = date(2023, 1, 2)
-        mock_assignments = [MockScheduleEntry(employee_id=1, date_obj=test_date, start_time_str="09:00", end_time_str="10:00")]
+        mock_assignments = [
+            MockScheduleEntry(
+                employee_id=1,
+                date_obj=test_date,
+                start_time_str="09:00",
+                end_time_str="10:00",
+            )
+        ]
 
-        def time_converter_side_effect(time_str, suppress_error=False): return datetime.strptime(time_str, '%H:%M').time()
+        def time_converter_side_effect(time_str, suppress_error=False):
+            return datetime.strptime(time_str, "%H:%M").time()
+
         mock_time_converter.side_effect = time_converter_side_effect
-        
+
         mock_get_needs.side_effect = Exception("DB error!")
 
         config = ScheduleConfig(enforce_minimum_coverage=True)
         errors = self.validator.validate(mock_assignments, config)
 
-        coverage_needs_errors = [e for e in errors if e.error_type == 'CoverageNeedsError']
+        coverage_needs_errors = [
+            e for e in errors if e.error_type == "CoverageNeedsError"
+        ]
         self.assertEqual(len(coverage_needs_errors), 1)
         if coverage_needs_errors:
             self.assertEqual(coverage_needs_errors[0].severity, "critical")
-            self.assertIn("Failed to retrieve coverage needs", coverage_needs_errors[0].message)
+            self.assertIn(
+                "Failed to retrieve coverage needs", coverage_needs_errors[0].message
+            )
 
     def test_validate_contracted_hours(self):
         """Test contracted hours validation"""

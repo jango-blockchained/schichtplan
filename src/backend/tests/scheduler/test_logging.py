@@ -6,10 +6,11 @@ import time
 import pytest
 from pathlib import Path
 import shutil  # For directory removal
-import traceback # Added import
+import traceback  # Added import
 
 # Add project root to path to allow imports
 import sys
+
 current_dir = Path(__file__).parent
 # Go up 4 levels to reach the project root directory # Adjusted for test location
 # sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))) # Let conftest handle path
@@ -17,12 +18,13 @@ current_dir = Path(__file__).parent
 # sys.path.insert(0, str(project_root / "src")) # Let conftest handle path
 
 # Import necessary classes (adjust paths if necessary)
-from services.scheduler import ScheduleGenerator # Assumes src/backend is on path
-from services.scheduler.logging_utils import ProcessTracker # Import ProcessTracker
+from services.scheduler import ScheduleGenerator  # Assumes src/backend is on path
+from services.scheduler.logging_utils import ProcessTracker  # Import ProcessTracker
 
 # Define a temporary directory for test logs relative to this test file
 TEST_LOG_DIR_NAME = "test_scheduler_logs"
 TEST_LOG_DIR = current_dir / TEST_LOG_DIR_NAME
+
 
 @pytest.fixture(scope="function")
 def test_log_directory():
@@ -38,6 +40,7 @@ def test_log_directory():
     except OSError as e:
         print(f"\n[Test Fixture] Error removing directory {TEST_LOG_DIR}: {e}")
 
+
 def test_diagnostic_log_creation_and_content(test_log_directory):
     """
     Tests if the ProcessTracker creates the diagnostic log file and
@@ -48,8 +51,12 @@ def test_diagnostic_log_creation_and_content(test_log_directory):
         generator = ScheduleGenerator()
         # Access the ProcessTracker instance
         process_tracker = generator.process_tracker
-        assert process_tracker is not None, "ProcessTracker should be initialized in ScheduleGenerator"
-        assert isinstance(process_tracker, ProcessTracker), "Should be a ProcessTracker instance"
+        assert process_tracker is not None, (
+            "ProcessTracker should be initialized in ScheduleGenerator"
+        )
+        assert isinstance(process_tracker, ProcessTracker), (
+            "Should be a ProcessTracker instance"
+        )
 
         # 2. Setup logging to use the test directory and DEBUG level
         # ProcessTracker setup is internal, we don't call setup_logging directly here.
@@ -71,12 +78,14 @@ def test_diagnostic_log_creation_and_content(test_log_directory):
         print(f"\n[Test] Found diagnostic log path: {diagnostic_log_path}")
 
         # Ensure the file exists after setup (it writes initial lines)
-        assert os.path.exists(diagnostic_log_path), f"Diagnostic log file should exist: {diagnostic_log_path}"
+        assert os.path.exists(diagnostic_log_path), (
+            f"Diagnostic log file should exist: {diagnostic_log_path}"
+        )
         print(f"\n[Test] Verified diagnostic log file exists initially.")
 
         # Clear the log file before adding new test messages
-        with open(diagnostic_log_path, 'w') as f:
-            f.write("") # Clear content
+        with open(diagnostic_log_path, "w") as f:
+            f.write("")  # Clear content
 
         # 4. Trigger log messages via the process tracker and generator's logger
         # start_process() no longer takes a process name argument
@@ -98,12 +107,16 @@ def test_diagnostic_log_creation_and_content(test_log_directory):
 
         # 6. Assertions
         print(f"\n[Test] Reading log file: {diagnostic_log_path}")
-        assert os.path.exists(diagnostic_log_path), f"Diagnostic log file should still exist: {diagnostic_log_path}"
+        assert os.path.exists(diagnostic_log_path), (
+            f"Diagnostic log file should still exist: {diagnostic_log_path}"
+        )
 
-        with open(diagnostic_log_path, 'r') as f:
+        with open(diagnostic_log_path, "r") as f:
             log_content = f.read()
 
-        print(f"\n[Test] Log Content:\n------\n{log_content[:1000]}...\n------") # Print first 1000 chars
+        print(
+            f"\n[Test] Log Content:\n------\n{log_content[:1000]}...\n------"
+        )  # Print first 1000 chars
 
         # Check for key messages / markers
         # Note: Initial header might not be present if we cleared the file
@@ -116,13 +129,21 @@ def test_diagnostic_log_creation_and_content(test_log_directory):
         # assert "WARNING - This is a warning message." in log_content, "Warning message missing"
         # assert "ERROR - This is an error message." in log_content, "Error message missing"
         assert "[Step 1] Sample Data:" in log_content, "Step data missing/incorrect"
-        assert "Completed step 1: Test Step 1" in log_content or "END STEP 1: Test Step 1" in log_content, "Step 1 end missing"
+        assert (
+            "Completed step 1: Test Step 1" in log_content
+            or "END STEP 1: Test Step 1" in log_content
+        ), "Step 1 end missing"
         assert "STEP 2: Test Step 2" in log_content, "Step 2 start missing"
-        assert "Completed step 2: Test Step 2" in log_content or "END STEP 2: Test Step 2" in log_content, "Step 2 end missing"
+        assert (
+            "Completed step 2: Test Step 2" in log_content
+            or "END STEP 2: Test Step 2" in log_content
+        ), "Step 2 end missing"
         assert "PROCESS COMPLETED" in log_content, "Process end missing"
-        assert "STATS:" in log_content and '"final_stat": "Complete"' in log_content, "Final stats missing/incorrect" # Adjusted assertion format
+        assert "STATS:" in log_content and '"final_stat": "Complete"' in log_content, (
+            "Final stats missing/incorrect"
+        )  # Adjusted assertion format
 
         print(f"\n[Test] All log content assertions passed for {diagnostic_log_path}")
 
     except Exception as e:
-        pytest.fail(f"Test failed with exception: {e}\n{traceback.format_exc()}") 
+        pytest.fail(f"Test failed with exception: {e}\n{traceback.format_exc()}")

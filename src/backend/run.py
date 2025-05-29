@@ -10,34 +10,36 @@ import subprocess
 from pathlib import Path
 import click
 
+
 # Function to check and activate virtualenv
 def ensure_virtualenv():
     """Make sure we're running in the virtualenv with all dependencies."""
-    venv_path = Path(__file__).resolve().parent / '.venv'
+    venv_path = Path(__file__).resolve().parent / ".venv"
     if not venv_path.exists():
         print(f"Virtual environment not found at {venv_path}")
         return False
-    
+
     # Check if we're already in a virtualenv
-    if os.environ.get('VIRTUAL_ENV'):
+    if os.environ.get("VIRTUAL_ENV"):
         print(f"Already in virtualenv: {os.environ.get('VIRTUAL_ENV')}")
         return True
-    
+
     # Determine the activate script based on shell
-    activate_script = venv_path / 'bin' / 'activate'
+    activate_script = venv_path / "bin" / "activate"
     if not activate_script.exists():
         print(f"Activate script not found at {activate_script}")
         return False
-    
+
     print(f"Activating virtualenv at {venv_path}")
     # We can't directly source in Python, so we'll run a new Python process with the virtualenv activated
     cmd = f"source {activate_script} && exec python3 {' '.join(sys.argv)}"
-    os.execvp('bash', ['bash', '-c', cmd])
+    os.execvp("bash", ["bash", "-c", cmd])
     # If we get here, the exec failed
     return False
 
+
 # Check virtualenv first if not running in a virtualenv already
-if not os.environ.get('VIRTUAL_ENV') and __name__ == '__main__':
+if not os.environ.get("VIRTUAL_ENV") and __name__ == "__main__":
     ensure_virtualenv()
 
 # Add the current directory to the Python path
@@ -58,20 +60,21 @@ from werkzeug.serving import is_running_from_reloader
 
 # Attempt to load environment variables from .env file
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # Determine the environment
-env = os.environ.get('FLASK_ENV', 'development')
+env = os.environ.get("FLASK_ENV", "development")
 
 # Configure the app based on the environment
-if env == 'production':
+if env == "production":
     # Use a ProductionConfig class if defined, or just the base Config
     # from src.backend.config import ProductionConfig as CurrentConfig
-    CurrentConfig = Config # Using base Config for now
-elif env == 'testing':
+    CurrentConfig = Config  # Using base Config for now
+elif env == "testing":
     # from src.backend.config import TestingConfig as CurrentConfig
-    CurrentConfig = Config # Using base Config for now
-else: # development or other
+    CurrentConfig = Config  # Using base Config for now
+else:  # development or other
     CurrentConfig = Config
 
 app = create_app(CurrentConfig)
@@ -83,38 +86,42 @@ with app.app_context():
     # For now, just ensuring the context is pushed before running the app.
     print(f"Debug: App context pushed in run.py for app ID {id(app)}")
 
+
 # Use Click to define a command group for the app
 @click.group()
 def cli():
     "A command line interface for the Schichtplan application."
     pass
 
+
 # Integrate Flask-Migrate commands
 # No need to manually add migrate commands if using Migrate(app, db) directly
 
+
 # Example custom command (optional)
 @cli.command()
-@click.option('--port', default=5000, type=int, help='Port to listen on.')
-@click.option('--debug', is_flag=True, help='Enable debug mode.')
+@click.option("--port", default=5000, type=int, help="Port to listen on.")
+@click.option("--debug", is_flag=True, help="Enable debug mode.")
 def runserver(port, debug):
     "Run the Flask development server."
     app.run(debug=debug, port=port)
 
+
 # Add the default runserver command if __name__ == '__main__'
-if __name__ == '__main__':
-    # The app context is already pushed above, 
+if __name__ == "__main__":
+    # The app context is already pushed above,
     # so startup code requiring context will run before cli().
-    # We can still call cli() to enable command line interface, 
-    # but the main startup logic for resource loading etc. 
+    # We can still call cli() to enable command line interface,
+    # but the main startup logic for resource loading etc.
     # benefits from the context pushed before cli().
-    
-    # If you prefer running with 'flask run', remove this __main__ block 
+
+    # If you prefer running with 'flask run', remove this __main__ block
     # and use 'export FLASK_APP=run.py && flask run'.
     # If you use 'flask run', Flask handles context pushing.
     # Since we are running run.py directly, we push context manually.
-    
+
     # Check if we are running with gunicorn or similar production server
-    # This check might be needed if resource loading during startup is only problematic 
+    # This check might be needed if resource loading during startup is only problematic
     # in development server scenarios run directly via run.py
     # import sys
     # if 'gunicorn' not in sys.argv[0]:
@@ -122,19 +129,20 @@ if __name__ == '__main__':
     #         # Startup tasks for development server run
     #         pass # Resource loading should happen naturally during imports/init
 
-    # Running via click's cli() will handle command parsing, 
+    # Running via click's cli() will handle command parsing,
     # including the runserver command defined above.
-    # The app context pushed above is available for any code that runs 
+    # The app context pushed above is available for any code that runs
     # as a result of imports before cli() or within commands if they don't manage their own context.
-    
-    # For typical Flask development server run via 'python run.py', 
-    # resource loading might happen when modules are imported. 
+
+    # For typical Flask development server run via 'python run.py',
+    # resource loading might happen when modules are imported.
     # Pushing the context here should cover that.
-    cli() # This will run the click CLI, including the runserver command
+    cli()  # This will run the click CLI, including the runserver command
 
 # If running with gunicorn or other WSGI server, they will import 'app'
 # and should handle the application context for requests.
 # The explicit push above handles context for code running at import time of run.py
+
 
 def get_process_on_port(port):
     """Return process ID using the given port."""
@@ -153,7 +161,12 @@ def kill_port_with_npx(port):
     """Kill the process using the given port with npx kill-port."""
     try:
         print(f"Killing port {port} with npx kill-port...")
-        result = subprocess.run(["npx", "-y", "kill-port", str(port)], capture_output=True, text=True, timeout=30)
+        result = subprocess.run(
+            ["npx", "-y", "kill-port", str(port)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
         print(result.stdout)
         if result.returncode == 0:
             time.sleep(1)

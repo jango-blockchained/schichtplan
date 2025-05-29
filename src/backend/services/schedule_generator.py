@@ -115,16 +115,12 @@ class ScheduleResources:
                             f"Validated shift {shift.id}: {shift.duration_hours}h ({shift.start_time}-{shift.end_time})"
                         )
                 except Exception as e:
-                    logger.error(
-                        f"Error validating shift {shift.id}: {str(e)}"
-                    )
+                    logger.error(f"Error validating shift {shift.id}: {str(e)}")
                     invalid_shifts.append(shift)
 
             # Remove invalid shifts
             if invalid_shifts:
-                logger.warning(
-                    f"Removing {len(invalid_shifts)} invalid shifts"
-                )
+                logger.warning(f"Removing {len(invalid_shifts)} invalid shifts")
                 for shift in invalid_shifts:
                     self.shifts.remove(shift)
 
@@ -143,9 +139,7 @@ class ScheduleResources:
                 )
                 .all()
             )
-            logger.debug(
-                f"Loaded {len(self.employees)} active employees"
-            )
+            logger.debug(f"Loaded {len(self.employees)} active employees")
 
             # Load availability data
             self.availability_data = EmployeeAvailability.query.filter(
@@ -157,15 +151,11 @@ class ScheduleResources:
                     ]
                 )
             ).all()
-            logger.debug(
-                f"Loaded {len(self.availability_data)} availability records"
-            )
+            logger.debug(f"Loaded {len(self.availability_data)} availability records")
 
             # Load coverage data
             self.coverage_data = Coverage.query.all()
-            logger.debug(
-                f"Loaded {len(self.coverage_data)} coverage records"
-            )
+            logger.debug(f"Loaded {len(self.coverage_data)} coverage records")
 
             # Initialize empty schedule data
             self.schedule_data = {}
@@ -357,9 +347,7 @@ class ScheduleGenerator:
                         "%Y-%m-%d"
                     )
                 except ValueError as e:
-                    logger.error(
-                        f"Error parsing date string {current_date}: {str(e)}"
-                    )
+                    logger.error(f"Error parsing date string {current_date}: {str(e)}")
                     # Increment date string manually (assume YYYY-MM-DD format)
                     # This is a fallback that might not always work correctly
                     current_date = (
@@ -368,9 +356,7 @@ class ScheduleGenerator:
             else:
                 current_date += timedelta(days=1)
 
-        logger.info(
-            "Slot filling completed", extra={"action": "fill_slots_complete"}
-        )
+        logger.info("Slot filling completed", extra={"action": "fill_slots_complete"})
 
     def _check_tz_gfb_constraints(self, employee, date, coverage):
         """
@@ -472,9 +458,7 @@ class ScheduleGenerator:
                     coverage.start_time, coverage.end_time
                 )
             except Exception as e:
-                logger.error(
-                    f"Error calculating time slot duration: {str(e)}"
-                )
+                logger.error(f"Error calculating time slot duration: {str(e)}")
                 return False
 
             # Add the potential new shift duration to total hours
@@ -650,9 +634,7 @@ class ScheduleGenerator:
         if isinstance(end_date, str):
             try:
                 end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
-                logger.debug(
-                    f"Converted end_date string to date object: {end_date}"
-                )
+                logger.debug(f"Converted end_date string to date object: {end_date}")
             except ValueError as e:
                 error_msg = f"Invalid end_date format: {end_date}. Expected 'YYYY-MM-DD'. Error: {str(e)}"
                 logger.error(error_msg)
@@ -679,12 +661,8 @@ class ScheduleGenerator:
 
             # Log loaded resources
             logger.info(f"Loaded {len(self.resources.shifts)} shifts")
-            logger.info(
-                f"Loaded {len(self.resources.coverage_data)} coverage blocks"
-            )
-            logger.info(
-                f"Loaded {len(self.resources.employees)} employees"
-            )
+            logger.info(f"Loaded {len(self.resources.coverage_data)} coverage blocks")
+            logger.info(f"Loaded {len(self.resources.employees)} employees")
 
             # Validate input dates
             if start_date is None or end_date is None:
@@ -694,9 +672,7 @@ class ScheduleGenerator:
                 # Use default dates if input dates are invalid
                 start_date = datetime.now().date()
                 end_date = start_date + timedelta(days=6)
-                logger.info(
-                    f"Using default date range: {start_date} to {end_date}"
-                )
+                logger.info(f"Using default date range: {start_date} to {end_date}")
 
             if start_date > end_date:
                 error_msg = "Start date must be before end date"
@@ -704,9 +680,7 @@ class ScheduleGenerator:
                 generation_errors.append({"type": "critical", "message": error_msg})
                 # Swap dates if start date is after end date
                 start_date, end_date = end_date, start_date
-                logger.info(
-                    f"Swapped dates: {start_date} to {end_date}"
-                )
+                logger.info(f"Swapped dates: {start_date} to {end_date}")
 
             # Check if we have active employees
             active_employees = [e for e in self.resources.employees if e.is_active]
@@ -717,9 +691,7 @@ class ScheduleGenerator:
                 # Continue with empty schedule but include employee names if we have any employees
                 if self.resources.employees:
                     active_employees = self.resources.employees
-                    logger.info(
-                        "Using all employees regardless of active status"
-                    )
+                    logger.info("Using all employees regardless of active status")
 
             # Always include all employees in the schedule plan, even if they don't get assigned
             if create_empty_schedules:
@@ -1342,9 +1314,7 @@ class ScheduleGenerator:
                 )
             )
         except Exception as e:
-            logger.error(
-                f"Error sorting shifts by coverage match: {str(e)}"
-            )
+            logger.error(f"Error sorting shifts by coverage match: {str(e)}")
 
         # Get available employees after filtering constraints
         filtered_candidates = []
@@ -1408,9 +1378,7 @@ class ScheduleGenerator:
                     ):
                         already_assigned_count += 1
         except Exception as e:
-            logger.error(
-                f"Error checking already assigned employees: {str(e)}"
-            )
+            logger.error(f"Error checking already assigned employees: {str(e)}")
 
         # Calculate how many more employees we need
         employees_still_needed = max(0, coverage.min_employees - already_assigned_count)
@@ -1469,18 +1437,14 @@ class ScheduleGenerator:
                         logger.error(error_msg)
                         # Continue with next employee
 
-                logger.info(
-                    f"Assigned {assigned_count} employees to shift {shift.id}"
-                )
+                logger.info(f"Assigned {assigned_count} employees to shift {shift.id}")
 
                 # If we've met the minimum requirement, return success
                 if assigned_count + already_assigned_count >= coverage.min_employees:
                     return True
 
         # If we didn't return yet, we couldn't assign enough employees
-        logger.warning(
-            f"Could not assign enough employees to coverage {coverage.id}"
-        )
+        logger.warning(f"Could not assign enough employees to coverage {coverage.id}")
         return False
 
     def _verify_minimum_coverage(self) -> List[Dict[str, Any]]:
@@ -1615,9 +1579,7 @@ class ScheduleGenerator:
 
         # Add additional logging to debug the issue
         if not schedules:
-            logger.debug(
-                f"No schedules found for employee {employee.id}"
-            )
+            logger.debug(f"No schedules found for employee {employee.id}")
             return 0.0
 
         total_hours = 0.0
@@ -1625,9 +1587,7 @@ class ScheduleGenerator:
             try:
                 # Skip if schedule has no shift_id
                 if not hasattr(schedule, "shift_id") or schedule.shift_id is None:
-                    logger.debug(
-                        f"Schedule for employee {employee.id} has no shift_id"
-                    )
+                    logger.debug(f"Schedule for employee {employee.id} has no shift_id")
                     continue
 
                 # Try to get shift from schedule.shift first
@@ -1677,9 +1637,7 @@ class ScheduleGenerator:
                 )
                 # Continue with next schedule if there's an error
 
-        logger.debug(
-            f"Total hours for employee {employee.id}: {total_hours}h"
-        )
+        logger.debug(f"Total hours for employee {employee.id}: {total_hours}h")
         return total_hours
 
     def _calculate_rest_hours(self, end_time_str: str, start_time_str: str) -> float:
@@ -1843,16 +1801,12 @@ class ScheduleGenerator:
 
             # Check if we have store settings
             if not hasattr(self.resources, "settings") or not self.resources.settings:
-                logger.warning(
-                    "No store settings found, assuming store is open"
-                )
+                logger.warning("No store settings found, assuming store is open")
                 return True
 
             # Check if this day is in opening days
             if not self.resources.settings.opening_days:
-                logger.warning(
-                    "No opening days defined, assuming store is open"
-                )
+                logger.warning("No opening days defined, assuming store is open")
                 return True
 
             return day_of_week in self.resources.settings.opening_days

@@ -65,13 +65,17 @@ class Schedule(db.Model):
         self.break_end = break_end
         self.notes = notes
         self.shift_type = shift_type
-        self.availability_type = availability_type.value if isinstance(availability_type, AvailabilityType) else availability_type
+        self.availability_type = (
+            availability_type.value
+            if isinstance(availability_type, AvailabilityType)
+            else availability_type
+        )
         self.status = status
 
     def to_dict(self):
         """Convert schedule to dictionary for API response"""
         from .fixed_shift import ShiftTemplate  # Import here to avoid circular imports
-        
+
         data = {
             "id": self.id,
             "employee_id": self.employee_id,
@@ -82,14 +86,20 @@ class Schedule(db.Model):
             "break_end": self.break_end,
             "notes": self.notes,
             "shift_type": self.shift_type,
-            "availability_type": self.availability_type.value if isinstance(self.availability_type, AvailabilityType) else self.availability_type,
+            "availability_type": self.availability_type.value
+            if isinstance(self.availability_type, AvailabilityType)
+            else self.availability_type,
             "status": self.status.value if self.status is not None else "DRAFT",
-            "created_at": self.created_at.isoformat() if self.created_at is not None else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at is not None else None,
+            "created_at": self.created_at.isoformat()
+            if self.created_at is not None
+            else None,
+            "updated_at": self.updated_at.isoformat()
+            if self.updated_at is not None
+            else None,
         }
 
         # Add shift details if available through relationship
-        if hasattr(self, 'shift') and self.shift:
+        if hasattr(self, "shift") and self.shift:
             data.update(
                 {
                     "shift_start": self.shift.start_time,
@@ -125,6 +135,7 @@ class Schedule(db.Model):
             except Exception as e:
                 # Log the error but don't fail the whole response
                 import logging
+
                 logger = logging.getLogger(__name__)
                 logger.error(f"Error fetching shift data for schedule {self.id}: {e}")
 
@@ -189,16 +200,22 @@ class ScheduleVersionMeta(db.Model):
     def to_dict(self):
         return {
             "version": self.version,
-            "created_at": self.created_at.isoformat() if self.created_at is not None else None,
+            "created_at": self.created_at.isoformat()
+            if self.created_at is not None
+            else None,
             "created_by": self.created_by,
-            "updated_at": self.updated_at.isoformat() if self.updated_at is not None else None,
+            "updated_at": self.updated_at.isoformat()
+            if self.updated_at is not None
+            else None,
             "updated_by": self.updated_by,
             "status": self.status.value,
             "date_range": {
                 "start": self.date_range_start.isoformat()
                 if self.date_range_start is not None
                 else None,
-                "end": self.date_range_end.isoformat() if self.date_range_end is not None else None,
+                "end": self.date_range_end.isoformat()
+                if self.date_range_end is not None
+                else None,
             },
             "base_version": self.base_version,
             "notes": self.notes,

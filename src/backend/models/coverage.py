@@ -48,6 +48,7 @@ class Coverage(db.Model):
         created_at (DateTime): Timestamp of creation.
         updated_at (DateTime): Timestamp of last update.
     """
+
     __tablename__ = "coverage"
 
     id = Column(Integer, primary_key=True)

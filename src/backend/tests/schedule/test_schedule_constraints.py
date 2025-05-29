@@ -292,8 +292,12 @@ def test_rest_time_constraint():
                     next_schedule = emp_schedules[i + 1]
 
                     # Get shift end time for current schedule
-                    current_shift = db.session.get(ShiftTemplate, current.get("shift_id"))
-                    next_shift = db.session.get(ShiftTemplate, next_schedule.get("shift_id"))
+                    current_shift = db.session.get(
+                        ShiftTemplate, current.get("shift_id")
+                    )
+                    next_shift = db.session.get(
+                        ShiftTemplate, next_schedule.get("shift_id")
+                    )
 
                     if current_shift and next_shift:
                         # Calculate end time of current shift

@@ -2,7 +2,15 @@ from . import db
 from enum import Enum
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Enum as SQLEnum
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Boolean,
+    ForeignKey,
+    DateTime,
+    Enum as SQLEnum,
+)
 from sqlalchemy.orm import relationship
 import uuid
 
@@ -28,7 +36,9 @@ class User(db.Model):
     api_key = Column(String(64), unique=True, nullable=True)
     last_login = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(
+        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
 
     # Relationship to Employee model (one-to-one)
     employee = relationship("Employee", backref="user", uselist=False)
@@ -72,22 +82,25 @@ class User(db.Model):
         """Get list of permissions based on role"""
         permissions = {
             UserRole.ADMIN: [
-                "view_all", "create_all", "edit_all", "delete_all", 
-                "manage_users", "export_data", "generate_schedule"
+                "view_all",
+                "create_all",
+                "edit_all",
+                "delete_all",
+                "manage_users",
+                "export_data",
+                "generate_schedule",
             ],
             UserRole.MANAGER: [
-                "view_all", "create_schedule", "edit_schedule", 
-                "manage_employees", "export_data", "generate_schedule"
+                "view_all",
+                "create_schedule",
+                "edit_schedule",
+                "manage_employees",
+                "export_data",
+                "generate_schedule",
             ],
-            UserRole.SUPERVISOR: [
-                "view_all", "edit_schedule", "export_data"
-            ],
-            UserRole.EMPLOYEE: [
-                "view_own", "edit_availability"
-            ],
-            UserRole.READONLY: [
-                "view_all"
-            ]
+            UserRole.SUPERVISOR: ["view_all", "edit_schedule", "export_data"],
+            UserRole.EMPLOYEE: ["view_own", "edit_availability"],
+            UserRole.READONLY: ["view_all"],
         }
         return permissions.get(self.role, [])
 
@@ -117,10 +130,10 @@ class User(db.Model):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
-        
+
         if include_api_key:
             result["api_key"] = self.api_key
-            
+
         return result
 
     def __repr__(self):

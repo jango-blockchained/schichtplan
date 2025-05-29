@@ -8,6 +8,7 @@ from services.scheduler.availability import AvailabilityChecker
 from services.scheduler.resources import ScheduleResources
 from models.employee import AvailabilityType
 
+
 @pytest.fixture
 def distribution_manager_fixture():
     employee1 = MagicMock()
@@ -38,6 +39,7 @@ def distribution_manager_fixture():
         if emp_id == employee2.id:
             return employee2
         return None
+
     mock_resources.get_employee.side_effect = side_effect_get_employee
 
     early_shift = MagicMock(name="EarlyShiftMock")
@@ -72,6 +74,7 @@ def distribution_manager_fixture():
         if shift_id == standard_shift.id:
             return standard_shift
         return None
+
     mock_resources.get_shift.side_effect = side_effect_get_shift
     mock_resources.shift_templates = [early_shift, late_shift, standard_shift]
 
@@ -81,9 +84,13 @@ def distribution_manager_fixture():
     manager = DistributionManager(
         resources=mock_resources,
         constraint_checker=mock_constraint_checker_instance,
-        availability_checker=mock_availability_checker_instance
+        availability_checker=mock_availability_checker_instance,
     )
-    manager.initialize(employees=mock_resources.employees, shifts=mock_resources.shift_templates, resources=mock_resources)
+    manager.initialize(
+        employees=mock_resources.employees,
+        shifts=mock_resources.shift_templates,
+        resources=mock_resources,
+    )
 
     today = date.today()
     monday = today - timedelta(days=today.weekday())
@@ -113,11 +120,16 @@ def distribution_manager_fixture():
         "sunday": sunday,
     }
 
+
 def test_initialize(distribution_manager_fixture):
     f = distribution_manager_fixture
     local_mock_resources = MagicMock(spec=ScheduleResources)
     local_mock_resources.employees = [f["employee1"], f["employee2"]]
-    local_mock_resources.shift_templates = [f["early_shift"], f["late_shift"], f["standard_shift"]]
+    local_mock_resources.shift_templates = [
+        f["early_shift"],
+        f["late_shift"],
+        f["standard_shift"],
+    ]
     local_mock_resources.version = 1
 
     def local_side_effect_get_employee(emp_id):
@@ -126,26 +138,37 @@ def test_initialize(distribution_manager_fixture):
         if emp_id == f["employee2"].id:
             return f["employee2"]
         return None
+
     local_mock_resources.get_employee.side_effect = local_side_effect_get_employee
 
     test_manager = DistributionManager(
         resources=local_mock_resources,
         constraint_checker=MagicMock(spec=ConstraintChecker),
-        availability_checker=MagicMock(spec=AvailabilityChecker)
+        availability_checker=MagicMock(spec=AvailabilityChecker),
     )
-    test_manager.initialize(employees=local_mock_resources.employees, shifts=local_mock_resources.shift_templates, resources=local_mock_resources)
+    test_manager.initialize(
+        employees=local_mock_resources.employees,
+        shifts=local_mock_resources.shift_templates,
+        resources=local_mock_resources,
+    )
     test_manager._initialize_employee_data(local_mock_resources.employees)
 
     assert test_manager.employee_history is not None
     assert test_manager.employee_history.get(1, {}).get("total_hours", 0) == 0
     assert test_manager.employee_history.get(2, {}).get("total_hours", 0) == 0
     assert 1 in test_manager.employee_preferences
-    expected_prefs = {"preferred_days": [], "preferred_shifts": [], "avoid_days": [], "avoid_shifts": []}
+    expected_prefs = {
+        "preferred_days": [],
+        "preferred_shifts": [],
+        "avoid_days": [],
+        "avoid_shifts": [],
+    }
     assert test_manager.employee_preferences.get(1) == expected_prefs
     assert 2 in test_manager.employee_preferences
     assert test_manager.employee_preferences.get(2) == expected_prefs
     assert f["early_shift"].id in test_manager.shift_scores
     assert f["standard_shift"].id in test_manager.shift_scores
+
 
 def test_categorize_shift(distribution_manager_fixture):
     f = distribution_manager_fixture
@@ -169,6 +192,7 @@ def test_categorize_shift(distribution_manager_fixture):
     category = f["manager"]._categorize_shift(f["standard_shift"])
     assert category == "EARLY"
 
+
 def test_calculate_base_score(distribution_manager_fixture):
     f = distribution_manager_fixture
     f["manager"]._calculate_shift_scores()  # Ensure shift_scores is populated
@@ -177,18 +201,27 @@ def test_calculate_base_score(distribution_manager_fixture):
     late_score = f["manager"].shift_scores[f["late_shift"].id]["base_score"]
     assert late_score == 4.0
     standard_score = f["manager"].shift_scores[f["standard_shift"].id]["base_score"]
-    assert standard_score == 3.0 or standard_score == 1.0  # Acceptable values based on logic
+    assert (
+        standard_score == 3.0 or standard_score == 1.0
+    )  # Acceptable values based on logic
     # For Saturday, standard shift is still categorized as EARLY, so base_score should be 3.0
     f["standard_shift"].date = f["saturday"]
     f["manager"]._calculate_shift_scores()
     std_sat_score = f["manager"].shift_scores[f["standard_shift"].id]["base_score"]
     assert std_sat_score == 3.0 or std_sat_score == 1.0
 
-@patch.object(DistributionManager, 'calculate_duration', return_value=8.0)
-def test_update_with_assignment(mock_calculate_duration_method, distribution_manager_fixture):
+
+@patch.object(DistributionManager, "calculate_duration", return_value=8.0)
+def test_update_with_assignment(
+    mock_calculate_duration_method, distribution_manager_fixture
+):
     f = distribution_manager_fixture
     employees = [f["employee1"], f["employee2"]]
-    f["manager"].initialize(employees, shifts=f["mock_resources"].shift_templates, resources=f["mock_resources"])
+    f["manager"].initialize(
+        employees,
+        shifts=f["mock_resources"].shift_templates,
+        resources=f["mock_resources"],
+    )
     f["manager"]._initialize_employee_data(employees)
 
     assert f["manager"].employee_history.get(1, {}).get("EARLY", 0) == 0
@@ -206,7 +239,7 @@ def test_update_with_assignment(mock_calculate_duration_method, distribution_man
             "start_time": shift.start_time,
             "end_time": shift.end_time,
             "shift_type": shift.shift_type,
-            "duration_hours": duration
+            "duration_hours": duration,
         }
         manager.assignments_by_employee[emp_id].append(assignment)
         # Update employee_history
@@ -228,6 +261,7 @@ def test_update_with_assignment(mock_calculate_duration_method, distribution_man
     assert f["manager"].employee_history[1]["total"] == 2
     assert f["manager"].employee_history[1]["hours"] == 16.0
 
+
 def test_assignment_score_calculation(distribution_manager_fixture):
     f = distribution_manager_fixture
     mock_target_needs = MagicMock()
@@ -238,18 +272,32 @@ def test_assignment_score_calculation(distribution_manager_fixture):
         "shift_covered_intervals": [],
         "full_day_staffing_snapshot": {},
         "current_staffing": MagicMock(num_assigned=0, required=1),
-        "interval_details": MagicMock(required_employees=1)
+        "interval_details": MagicMock(required_employees=1),
     }
     default_availability = AvailabilityType.AVAILABLE
 
     # Reset history and assignments for self.employee1 for this specific test
     f["manager"].employee_history[f["employee1"].id] = {
-        "EARLY": 0, "MIDDLE": 0, "LATE": 0, "weekend": 0, "holiday": 0, "total": 0, "hours": 0.0
+        "EARLY": 0,
+        "MIDDLE": 0,
+        "LATE": 0,
+        "weekend": 0,
+        "holiday": 0,
+        "total": 0,
+        "hours": 0.0,
     }
     f["manager"].assignments_by_employee[f["employee1"].id] = []
 
-    with patch('services.scheduler.distribution.DistributionManager._calculate_history_adjustment_v2', return_value=0.0), \
-         patch('services.scheduler.distribution.DistributionManager._calculate_preference_adjustment_v2', return_value=0.0):
+    with (
+        patch(
+            "services.scheduler.distribution.DistributionManager._calculate_history_adjustment_v2",
+            return_value=0.0,
+        ),
+        patch(
+            "services.scheduler.distribution.DistributionManager._calculate_preference_adjustment_v2",
+            return_value=0.0,
+        ),
+    ):
         # Calculate expected score based on the actual logic
         # AvailabilityType.AVAILABLE = +10.0
         # No keyholder, no employee_types, so no bonus/penalty
@@ -258,23 +306,39 @@ def test_assignment_score_calculation(distribution_manager_fixture):
         # But the actual result is -1755.0, which suggests other penalties are being applied (possibly due to missing or misconfigured context)
         # Instead, just check that the score is negative and matches the formula
         score1 = f["manager"].calculate_assignment_score(
-            f["employee1"].id, f["early_shift"], f["monday"], context=dummy_context, availability_type_override=default_availability
+            f["employee1"].id,
+            f["early_shift"],
+            f["monday"],
+            context=dummy_context,
+            availability_type_override=default_availability,
         )
         # The score should be negative and a multiple of -5.0
         assert score1 < 0
         # Optionally, print the score for debugging
         print(f"Assignment score for employee1, early_shift: {score1}")
 
-@patch('services.scheduler.distribution.ConstraintChecker')
-@patch('services.scheduler.distribution.AvailabilityChecker')
-@patch('services.scheduler.distribution.ScheduleResources')
-def test_assign_employees_by_type_successful_assignment(MockScheduleResources, MockAvailabilityChecker, MockConstraintChecker, distribution_manager_fixture):
+
+@patch("services.scheduler.distribution.ConstraintChecker")
+@patch("services.scheduler.distribution.AvailabilityChecker")
+@patch("services.scheduler.distribution.ScheduleResources")
+def test_assign_employees_by_type_successful_assignment(
+    MockScheduleResources,
+    MockAvailabilityChecker,
+    MockConstraintChecker,
+    distribution_manager_fixture,
+):
     pass  # Skipped due to unimplemented assignment logic
 
-@patch('services.scheduler.distribution.ConstraintChecker')
-@patch('services.scheduler.distribution.AvailabilityChecker')
-@patch('services.scheduler.distribution.ScheduleResources')
-def test_assign_employees_by_type_no_available_employees(MockScheduleResources, MockAvailabilityChecker, MockConstraintChecker, distribution_manager_fixture):
+
+@patch("services.scheduler.distribution.ConstraintChecker")
+@patch("services.scheduler.distribution.AvailabilityChecker")
+@patch("services.scheduler.distribution.ScheduleResources")
+def test_assign_employees_by_type_no_available_employees(
+    MockScheduleResources,
+    MockAvailabilityChecker,
+    MockConstraintChecker,
+    distribution_manager_fixture,
+):
     f = distribution_manager_fixture
     mock_constraint_checker = MockConstraintChecker.return_value
     mock_availability_checker = MockAvailabilityChecker.return_value
@@ -282,7 +346,7 @@ def test_assign_employees_by_type_no_available_employees(MockScheduleResources, 
     current_manager = DistributionManager(
         resources=mock_resources_instance,
         constraint_checker=mock_constraint_checker,
-        availability_checker=mock_availability_checker
+        availability_checker=mock_availability_checker,
     )
     mock_resources_instance.employees = [f["employee1"]]
     mock_resources_instance.get_employee.return_value = f["employee1"]
@@ -300,15 +364,15 @@ def test_assign_employees_by_type_no_available_employees(MockScheduleResources, 
         "max_employees": 1,
         "min_employees": 1,
         "assigned_employees": 0,
-        "date": f["monday"]
+        "date": f["monday"],
     }
 
     assignments = current_manager.assign_employees_by_type(
         current_date=f["monday"],
         shifts=[test_shift_dict],
         available_employees=[],
-        shift_type="EARLY"
+        shift_type="EARLY",
     )
 
     assert len(assignments) == 0
-    assert test_shift_dict['assigned_employees'] == 0
+    assert test_shift_dict["assigned_employees"] == 0

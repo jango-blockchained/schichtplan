@@ -8,10 +8,15 @@ with app.app_context():
     if settings:
         print("Updating employee types...")
         settings.employee_types = [
-            {'id': 'VZ', 'name': 'Vollzeit', 'min_hours': 35, 'max_hours': 40},
-            {'id': 'TL', 'name': 'Teilzeit', 'min_hours': 15, 'max_hours': 34},
-            {'id': 'TZ', 'name': 'Teilzeit', 'min_hours': 15, 'max_hours': 34},
-            {'id': 'GFB', 'name': 'Geringfügig Beschäftigt', 'min_hours': 0, 'max_hours': 14}
+            {"id": "VZ", "name": "Vollzeit", "min_hours": 35, "max_hours": 40},
+            {"id": "TL", "name": "Teilzeit", "min_hours": 15, "max_hours": 34},
+            {"id": "TZ", "name": "Teilzeit", "min_hours": 15, "max_hours": 34},
+            {
+                "id": "GFB",
+                "name": "Geringfügig Beschäftigt",
+                "min_hours": 0,
+                "max_hours": 14,
+            },
         ]
         try:
             db.session.commit()
@@ -20,4 +25,4 @@ with app.app_context():
             db.session.rollback()
             print(f"Error updating employee types: {str(e)}")
     else:
-        print("No settings found in database!") 
+        print("No settings found in database!")

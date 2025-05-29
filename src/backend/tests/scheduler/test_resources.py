@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 from services.scheduler.resources import ScheduleResources, ScheduleResourceError
 from models.employee import AvailabilityType, EmployeeGroup
 
+
 @pytest.fixture
 def resources_fixture():
     resources = ScheduleResources()
@@ -93,6 +94,7 @@ def resources_fixture():
         "mock_schedules": mock_schedules,
     }
 
+
 @patch("services.scheduler.resources.Settings")
 @patch("services.scheduler.resources.Employee")
 @patch("services.scheduler.resources.ShiftTemplate")
@@ -138,6 +140,7 @@ def test_load_resources_success(
     assert resources.absences == mock_absences
     assert resources.availabilities == mock_availabilities
 
+
 @patch("services.scheduler.resources.Settings")
 @patch("services.scheduler.resources.db")
 def test_load_settings_creates_default(mock_db, mock_Settings, resources_fixture):
@@ -151,11 +154,13 @@ def test_load_settings_creates_default(mock_db, mock_Settings, resources_fixture
     mock_session.add.assert_called_once()
     mock_session.commit.assert_called_once()
 
+
 @patch("services.scheduler.resources.Employee")
 def test_load_employees_filters_active(mock_Employee, resources_fixture):
     resources = resources_fixture["resources"]
     resources._load_employees()
     mock_Employee.query.filter_by.assert_called_once_with(is_active=True)
+
 
 @patch("services.scheduler.resources.Coverage")
 def test_load_coverage(mock_Coverage, resources_fixture):
@@ -166,6 +171,7 @@ def test_load_coverage(mock_Coverage, resources_fixture):
     mock_Coverage.query.all.assert_called_once()
     assert result == mock_coverage
 
+
 @patch("services.scheduler.resources.ShiftTemplate")
 def test_load_shifts(mock_ShiftTemplate, resources_fixture):
     resources = resources_fixture["resources"]
@@ -174,6 +180,7 @@ def test_load_shifts(mock_ShiftTemplate, resources_fixture):
     result = resources._load_shifts()
     mock_ShiftTemplate.query.all.assert_called_once()
     assert result == mock_shifts
+
 
 @patch("services.scheduler.resources.Absence")
 def test_load_absences(mock_Absence, resources_fixture):

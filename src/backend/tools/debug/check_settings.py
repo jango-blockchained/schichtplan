@@ -11,15 +11,22 @@ with app.app_context():
     if settings:
         print("Settings found!")
         print("AI Settings:", settings.ai_scheduling)
-        
-        if isinstance(settings.ai_scheduling, dict) and 'api_key' in settings.ai_scheduling:
-            api_key = settings.ai_scheduling.get('api_key')
+
+        if (
+            isinstance(settings.ai_scheduling, dict)
+            and "api_key" in settings.ai_scheduling
+        ):
+            api_key = settings.ai_scheduling.get("api_key")
             if api_key:
-                masked_key = api_key[:4] + '*' * (len(api_key) - 8) + api_key[-4:] if len(api_key) > 8 else '****'
+                masked_key = (
+                    api_key[:4] + "*" * (len(api_key) - 8) + api_key[-4:]
+                    if len(api_key) > 8
+                    else "****"
+                )
                 print(f"API Key: {masked_key}")
             else:
                 print("API Key entry exists but is empty")
         else:
             print("No API Key entry in settings")
     else:
-        print("No settings found!") 
+        print("No settings found!")

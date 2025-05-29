@@ -13,7 +13,10 @@ from src.backend.models import db
 from src.backend.models.employee import Employee, EmployeeGroup
 from src.backend.models.fixed_shift import ShiftTemplate
 from src.backend.models.settings import Settings
-from src.backend.models.schedule import ScheduleVersionMeta as VersionMeta, ScheduleStatus
+from src.backend.models.schedule import (
+    ScheduleVersionMeta as VersionMeta,
+    ScheduleStatus,
+)
 from src.backend.models.employee import AvailabilityType
 
 
@@ -21,7 +24,7 @@ from src.backend.models.employee import AvailabilityType
 def app():
     """Create and configure a Flask app for testing."""
     app = create_app()
-    app.config['TESTING'] = True
+    app.config["TESTING"] = True
 
     # Create tables
     with app.app_context():
@@ -56,17 +59,19 @@ def setup_test_data(app):
         # Create store settings (using get_or_create_default)
         settings = Settings.get_or_create_default()
         # Update settings using update_from_dict
-        settings.update_from_dict({
-            'store_opening': "08:00",
-            'store_closing': "20:00",
-            'min_break_duration': 60,
-            'generation_requirements': {
-                 'enforce_keyholder_coverage': True,
-                 'enforce_rest_periods': 11,
-                 'enforce_max_hours': 40
-                 # Add other relevant requirements as needed by tests
-             }
-        })
+        settings.update_from_dict(
+            {
+                "store_opening": "08:00",
+                "store_closing": "20:00",
+                "min_break_duration": 60,
+                "generation_requirements": {
+                    "enforce_keyholder_coverage": True,
+                    "enforce_rest_periods": 11,
+                    "enforce_max_hours": 40,
+                    # Add other relevant requirements as needed by tests
+                },
+            }
+        )
         db.session.commit()  # Commit changes to settings
 
         # Create shifts
@@ -76,19 +81,19 @@ def setup_test_data(app):
                 start_time="08:00",
                 end_time="16:00",
                 requires_break=True,
-                shift_type_id="EARLY", # Explicitly set shift_type_id
+                shift_type_id="EARLY",  # Explicitly set shift_type_id
             ),
             ShiftTemplate(
                 start_time="10:00",
                 end_time="18:00",
                 requires_break=True,
-                shift_type_id="MIDDLE", # Explicitly set shift_type_id
+                shift_type_id="MIDDLE",  # Explicitly set shift_type_id
             ),
             ShiftTemplate(
                 start_time="12:00",
                 end_time="20:00",
                 requires_break=True,
-                shift_type_id="LATE", # Explicitly set shift_type_id
+                shift_type_id="LATE",  # Explicitly set shift_type_id
             ),
         ]
         for shift in shifts:
@@ -147,7 +152,9 @@ def setup_test_data(app):
         db.session.commit()
 
 
-def create_default_version(session, start_date, end_date, version=1, status=ScheduleStatus.DRAFT):
+def create_default_version(
+    session, start_date, end_date, version=1, status=ScheduleStatus.DRAFT
+):
     existing_version = session.query(VersionMeta).filter_by(version=version).first()
     if not existing_version:
         new_version = VersionMeta(
@@ -222,12 +229,12 @@ def test_generate_schedule_missing_parameters(client, setup_test_data):
     assert response.status_code == 400
     data = json.loads(response.data)
     # Assert Pydantic validation error structure
-    assert data.get('status') == 'error'
-    assert data.get('message') == 'Invalid input.'
-    assert 'details' in data
-    assert isinstance(data['details'], list)
-    assert len(data['details']) > 0
-    assert any(err.get('loc') == ('start_date', ) for err in data['details'])
+    assert data.get("status") == "error"
+    assert data.get("message") == "Invalid input."
+    assert "details" in data
+    assert isinstance(data["details"], list)
+    assert len(data["details"]) > 0
+    assert any(err.get("loc") == ("start_date",) for err in data["details"])
 
     # Test with missing end_date
     start_date = today
@@ -246,12 +253,12 @@ def test_generate_schedule_missing_parameters(client, setup_test_data):
     assert response.status_code == 400
     data = json.loads(response.data)
     # Assert Pydantic validation error structure
-    assert data.get('status') == 'error'
-    assert data.get('message') == 'Invalid input.'
-    assert 'details' in data
-    assert isinstance(data['details'], list)
-    assert len(data['details']) > 0
-    assert any(err.get('loc') == ('end_date', ) for err in data['details'])
+    assert data.get("status") == "error"
+    assert data.get("message") == "Invalid input."
+    assert "details" in data
+    assert isinstance(data["details"], list)
+    assert len(data["details"]) > 0
+    assert any(err.get("loc") == ("end_date",) for err in data["details"])
 
     # Test with missing version (version is Optional, should not cause a 400 here)
     # response = client.post(
@@ -293,8 +300,8 @@ def test_generate_schedule_invalid_dates(client, setup_test_data):
     data = json.loads(response.data)
     # This is a logical validation error, not a Pydantic format error.
     # The route handler returns a simple error message.
-    assert data.get('status') == 'error'
-    assert data.get('message') == 'End date must be after start date'
+    assert data.get("status") == "error"
+    assert data.get("message") == "End date must be after start date"
 
 
 def test_generate_schedule_invalid_input_types(client, setup_test_data):
@@ -307,7 +314,7 @@ def test_generate_schedule_invalid_input_types(client, setup_test_data):
     response = client.post(
         "/api/schedules/generate",
         json={
-            "start_date": "26-10-2023", # Invalid format
+            "start_date": "26-10-2023",  # Invalid format
             "end_date": end_date.isoformat(),
             "create_empty_schedules": True,
             "version": 1,
@@ -315,12 +322,12 @@ def test_generate_schedule_invalid_input_types(client, setup_test_data):
     )
     assert response.status_code == 400
     data = json.loads(response.data)
-    assert data.get('status') == 'error'
-    assert data.get('message') == 'Invalid input.'
-    assert 'details' in data
-    assert isinstance(data['details'], list)
-    assert len(data['details']) > 0
-    assert any(err.get('loc') == ('start_date', ) for err in data['details'])
+    assert data.get("status") == "error"
+    assert data.get("message") == "Invalid input."
+    assert "details" in data
+    assert isinstance(data["details"], list)
+    assert len(data["details"]) > 0
+    assert any(err.get("loc") == ("start_date",) for err in data["details"])
 
     # Test with non-boolean for create_empty_schedules
     response = client.post(
@@ -328,18 +335,18 @@ def test_generate_schedule_invalid_input_types(client, setup_test_data):
         json={
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
-            "create_empty_schedules": "True", # Invalid type
+            "create_empty_schedules": "True",  # Invalid type
             "version": 1,
         },
     )
     assert response.status_code == 400
     data = json.loads(response.data)
-    assert data.get('status') == 'error'
-    assert data.get('message') == 'Invalid input.'
-    assert 'details' in data
-    assert isinstance(data['details'], list)
-    assert len(data['details']) > 0
-    assert any(err.get('loc') == ('create_empty_schedules', ) for err in data['details'])
+    assert data.get("status") == "error"
+    assert data.get("message") == "Invalid input."
+    assert "details" in data
+    assert isinstance(data["details"], list)
+    assert len(data["details"]) > 0
+    assert any(err.get("loc") == ("create_empty_schedules",) for err in data["details"])
 
     # Test with non-integer for version
     response = client.post(
@@ -348,17 +355,17 @@ def test_generate_schedule_invalid_input_types(client, setup_test_data):
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
             "create_empty_schedules": True,
-            "version": "one", # Invalid type
+            "version": "one",  # Invalid type
         },
     )
     assert response.status_code == 400
     data = json.loads(response.data)
-    assert data.get('status') == 'error'
-    assert data.get('message') == 'Invalid input.'
-    assert 'details' in data
-    assert isinstance(data['details'], list)
-    assert len(data['details']) > 0
-    assert any(err.get('loc') == ('version', ) for err in data['details'])
+    assert data.get("status") == "error"
+    assert data.get("message") == "Invalid input."
+    assert "details" in data
+    assert isinstance(data["details"], list)
+    assert len(data["details"]) > 0
+    assert any(err.get("loc") == ("version",) for err in data["details"])
 
 
 def test_generate_schedule_invalid_version(client, setup_test_data):
@@ -385,7 +392,9 @@ def test_generate_schedule_invalid_version(client, setup_test_data):
     assert response.status_code == 404
     data = json.loads(response.data)
     assert "error" in data
-    assert data.get('message') == 'Schedule version 999 not found' # Check specific error message
+    assert (
+        data.get("message") == "Schedule version 999 not found"
+    )  # Check specific error message
 
 
 def test_generate_schedule_long_period(client, setup_test_data):
@@ -417,7 +426,7 @@ def test_generate_schedule_long_period(client, setup_test_data):
     # Check that schedules were created for the entire period
     # For 30 days and 4 employees, we should have at least 30*4 = 120 schedules
     # We don't generate schedules for Sunday, so 30 * (6/7) * 4 ~= 102.8 -> at least 103 schedules
-    assert len(data["schedules"]) >= 103 # Adjusted minimum expected count
+    assert len(data["schedules"]) >= 103  # Adjusted minimum expected count
 
 
 def test_get_schedules_endpoint(client, setup_test_data):
@@ -538,7 +547,7 @@ def test_ai_generate_schedule_valid(client, setup_test_data):
 
     # Make request to generate schedule using AI endpoint
     response = client.post(
-        "/ai/schedule/generate", # Target the AI endpoint
+        "/ai/schedule/generate",  # Target the AI endpoint
         json={
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
@@ -571,7 +580,7 @@ def test_ai_generate_schedule_invalid_data(client, setup_test_data):
     end_date = today + timedelta(days=7)
 
     response = client.post(
-        "/ai/schedule/generate", # Target the AI endpoint
+        "/ai/schedule/generate",  # Target the AI endpoint
         json={
             "end_date": end_date.isoformat(),
             "create_empty_schedules": True,
@@ -583,19 +592,19 @@ def test_ai_generate_schedule_invalid_data(client, setup_test_data):
     assert response.status_code == 400
     data = json.loads(response.data)
     # Assert Pydantic validation error structure
-    assert data.get('status') == 'error'
-    assert data.get('message') == 'Invalid input.'
-    assert 'details' in data
-    assert isinstance(data['details'], list)
-    assert len(data['details']) > 0
-    assert any(err.get('loc') == ('start_date', ) for err in data['details'])
+    assert data.get("status") == "error"
+    assert data.get("message") == "Invalid input."
+    assert "details" in data
+    assert isinstance(data["details"], list)
+    assert len(data["details"]) > 0
+    assert any(err.get("loc") == ("start_date",) for err in data["details"])
 
     # Test with invalid date format
     start_date = today - timedelta(days=today.weekday())
     response = client.post(
         "/ai/schedule/generate",
         json={
-            "start_date": "bad-date", # Invalid format
+            "start_date": "bad-date",  # Invalid format
             "end_date": end_date.isoformat(),
             "create_empty_schedules": True,
             "version": 1,
@@ -603,12 +612,12 @@ def test_ai_generate_schedule_invalid_data(client, setup_test_data):
     )
     assert response.status_code == 400
     data = json.loads(response.data)
-    assert data.get('status') == 'error'
-    assert data.get('message') == 'Invalid input.'
-    assert 'details' in data
-    assert isinstance(data['details'], list)
-    assert len(data['details']) > 0
-    assert any(err.get('loc') == ('start_date', ) for err in data['details'])
+    assert data.get("status") == "error"
+    assert data.get("message") == "Invalid input."
+    assert "details" in data
+    assert isinstance(data["details"], list)
+    assert len(data["details"]) > 0
+    assert any(err.get("loc") == ("start_date",) for err in data["details"])
 
     # Test with non-integer version
     response = client.post(
@@ -617,14 +626,14 @@ def test_ai_generate_schedule_invalid_data(client, setup_test_data):
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
             "create_empty_schedules": True,
-            "version": "not an integer", # Invalid type
+            "version": "not an integer",  # Invalid type
         },
     )
     assert response.status_code == 400
     data = json.loads(response.data)
-    assert data.get('status') == 'error'
-    assert data.get('message') == 'Invalid input.'
-    assert 'details' in data
-    assert isinstance(data['details'], list)
-    assert len(data['details']) > 0
-    assert any(err.get('loc') == ('version', ) for err in data['details'])
+    assert data.get("status") == "error"
+    assert data.get("message") == "Invalid input."
+    assert "details" in data
+    assert isinstance(data["details"], list)
+    assert len(data["details"]) > 0
+    assert any(err.get("loc") == ("version",) for err in data["details"])

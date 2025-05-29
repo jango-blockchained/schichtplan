@@ -39,7 +39,7 @@ def create_shift():
                     "3": True,  # Thursday
                     "4": True,  # Friday
                     "5": True,  # Saturday
-                    "6": False, # Sunday
+                    "6": False,  # Sunday
                 },
             ),
         )

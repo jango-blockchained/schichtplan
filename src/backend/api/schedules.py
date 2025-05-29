@@ -37,7 +37,12 @@ def get_next_month_dates():
     return next_month, next_month.replace(day=last_day)
 
 
-from ..services.auth_service import login_required, permission_required, get_current_user
+from ..services.auth_service import (
+    login_required,
+    permission_required,
+    get_current_user,
+)
+
 
 @bp.route("/", methods=["GET"])
 @login_required
@@ -71,20 +76,26 @@ def get_schedules():
 
         # Get all versions for this date range
         try:
-            versions_query = (db.session.query(Schedule.version)  # type: ignore
-                              .filter(Schedule.date >= start_date_obj,  # type: ignore
-                                      Schedule.date <= end_date_obj)  # type: ignore
-                              .distinct()
-                              .order_by(Schedule.version.desc()))  # type: ignore
+            versions_query = (
+                db.session.query(Schedule.version)  # type: ignore
+                .filter(
+                    Schedule.date >= start_date_obj,  # type: ignore
+                    Schedule.date <= end_date_obj,
+                )  # type: ignore
+                .distinct()
+                .order_by(Schedule.version.desc())
+            )  # type: ignore
             versions = versions_query.all()
 
             # Try to get from version metadata too
-            version_metas_query = (ScheduleVersionMeta.query.filter(  # type: ignore
-                and_(ScheduleVersionMeta.date_range_start != None,
-                     ScheduleVersionMeta.date_range_start <= end_date_obj,  # type: ignore
-                     ScheduleVersionMeta.date_range_end != None,
-                     ScheduleVersionMeta.date_range_end >= start_date_obj))  # type: ignore
-                                   .order_by(ScheduleVersionMeta.version.desc())) # type: ignore
+            version_metas_query = ScheduleVersionMeta.query.filter(  # type: ignore
+                and_(
+                    ScheduleVersionMeta.date_range_start != None,
+                    ScheduleVersionMeta.date_range_start <= end_date_obj,  # type: ignore
+                    ScheduleVersionMeta.date_range_end != None,
+                    ScheduleVersionMeta.date_range_end >= start_date_obj,
+                )
+            ).order_by(ScheduleVersionMeta.version.desc())  # type: ignore  # type: ignore
             version_metas = version_metas_query.all()
 
             # Combine versions from both sources
@@ -125,7 +136,7 @@ def get_schedules():
                 schedule_query = schedule_query.filter(Schedule.date >= start_date_obj)  # type: ignore
             if end_date_obj is not None:
                 schedule_query = schedule_query.filter(Schedule.date <= end_date_obj)  # type: ignore
-            
+
             schedules = schedule_query.all()
 
             # Apply include_empty filter after database query
@@ -195,7 +206,9 @@ def generate_schedule():
 
         # Delete existing schedules for the period
         if start_date is not None and end_date is not None:
-            Schedule.query.filter(Schedule.date >= start_date, Schedule.date <= end_date).delete() # type: ignore
+            Schedule.query.filter(
+                Schedule.date >= start_date, Schedule.date <= end_date
+            ).delete()  # type: ignore
 
         # Ensure we're in an application context
         with current_app.app_context():
@@ -313,7 +326,12 @@ def _generate_day_schedule(
         available_employees = [
             emp
             for emp in employees
-            if _can_work_shift(emp, shift, current_date, {k.value: v for k, v in employee_hours.items()})
+            if _can_work_shift(
+                emp,
+                shift,
+                current_date,
+                {k.value: v for k, v in employee_hours.items()},
+            )
         ]
 
         # Assign employees to shift
@@ -333,7 +351,8 @@ def _generate_day_schedule(
             if needs_keyholder and not has_keyholder:
                 # Try to find a keyholder first
                 keyholder = next(
-                    (emp for emp in available_employees if emp.is_keyholder is True), None
+                    (emp for emp in available_employees if emp.is_keyholder is True),
+                    None,
                 )
                 if keyholder:
                     employee = keyholder
@@ -412,11 +431,13 @@ def _can_work_shift(
     week_hours = employee_hours.get(employee.id, 0.0)
 
     # Add hours from previous days this week
-    week_schedules_query = (Schedule.query.filter(  # type: ignore
-        Schedule.employee_id == employee.id,  # type: ignore
-        Schedule.date >= week_start,  # type: ignore
-        Schedule.date < current_date)  # type: ignore
-                           )
+    week_schedules_query = (
+        Schedule.query.filter(  # type: ignore
+            Schedule.employee_id == employee.id,  # type: ignore
+            Schedule.date >= week_start,  # type: ignore
+            Schedule.date < current_date,
+        )  # type: ignore
+    )
     week_schedules = week_schedules_query.all()
     for schedule in week_schedules:
         schedule_shift = db.session.get(ShiftTemplate, schedule.shift_id)  # type: ignore
@@ -449,9 +470,13 @@ def export_schedule():
         end_date = datetime.strptime(data["end_date"], "%Y-%m-%d").date()
 
         # Get schedules for the period
-        schedules = (Schedule.query.filter(Schedule.date >= start_date, Schedule.date <= end_date)  # type: ignore
-                     .order_by(Schedule.date, Schedule.shift_id)  # type: ignore
-                     .all())
+        schedules = (
+            Schedule.query.filter(
+                Schedule.date >= start_date, Schedule.date <= end_date
+            )  # type: ignore
+            .order_by(Schedule.date, Schedule.shift_id)  # type: ignore
+            .all()
+        )
 
         # Create PDF
         buffer = BytesIO()
@@ -542,9 +567,7 @@ def test_schedule_generation(client, app):
     with app.app_context():
         # Create store config
         store_config = Settings(
-            opening_time="08:00",
-            closing_time="20:00", 
-            break_duration=60
+            opening_time="08:00", closing_time="20:00", break_duration=60
         )
         db.session.add(store_config)
 
@@ -582,7 +605,7 @@ def test_schedule_generation(client, app):
             first_name="Key",
             last_name="Holder 1",
             employee_group=EmployeeGroup.VZ,  # Assuming 'group' maps to 'employee_group'
-            contracted_hours=40, # Assuming 'max_hours_per_week' maps to 'contracted_hours'
+            contracted_hours=40,  # Assuming 'max_hours_per_week' maps to 'contracted_hours'
             is_keyholder=True,
         )
 
@@ -677,19 +700,21 @@ def get_all_versions():
                 ), HTTPStatus.BAD_REQUEST
 
         # Get all version metadata
-        version_metas_query = (ScheduleVersionMeta.query.filter(  # type: ignore
+        version_metas_query = ScheduleVersionMeta.query.filter(  # type: ignore
             ScheduleVersionMeta.date_range_start <= end_of_week,  # type: ignore
-            ScheduleVersionMeta.date_range_end >= start_of_week)  # type: ignore
-                               .order_by(ScheduleVersionMeta.version.desc()))  # type: ignore
+            ScheduleVersionMeta.date_range_end >= start_of_week,
+        ).order_by(ScheduleVersionMeta.version.desc())  # type: ignore  # type: ignore
         version_metas = version_metas_query.all()
 
         # If no versions exist, return empty list
         if not version_metas:
             # Try to find versions from schedules table as a fallback
-            schedule_versions_query = (db.session.query(Schedule.version)  # type: ignore
-                                       .filter(Schedule.date >= start_of_week, Schedule.date <= end_of_week)  # type: ignore
-                                       .distinct()
-                                       .order_by(Schedule.version.desc()))  # type: ignore
+            schedule_versions_query = (
+                db.session.query(Schedule.version)  # type: ignore
+                .filter(Schedule.date >= start_of_week, Schedule.date <= end_of_week)  # type: ignore
+                .distinct()
+                .order_by(Schedule.version.desc())
+            )  # type: ignore
             schedule_versions = schedule_versions_query.all()
 
             # If we found versions in schedules, create metadata for them
@@ -783,18 +808,20 @@ def create_new_version():
             ), HTTPStatus.BAD_REQUEST
 
         # Get the current max version from both tables
-        max_schedule_version_query = (db.session.query(db.func.max(Schedule.version)))  # type: ignore
+        max_schedule_version_query = db.session.query(db.func.max(Schedule.version))  # type: ignore
         max_schedule_version = max_schedule_version_query.scalar() or 0
-        max_meta_version_query = (db.session.query(db.func.max(ScheduleVersionMeta.version)))  # type: ignore
+        max_meta_version_query = db.session.query(
+            db.func.max(ScheduleVersionMeta.version)
+        )  # type: ignore
         max_meta_version = max_meta_version_query.scalar() or 0
         new_version = max(max_schedule_version, max_meta_version) + 1
 
         # Check if a version already exists for this date range
-        existing_version_query = (ScheduleVersionMeta.query.filter(  # type: ignore
+        existing_version_query = ScheduleVersionMeta.query.filter(  # type: ignore
             ScheduleVersionMeta.date_range_start == start_date,  # type: ignore
             ScheduleVersionMeta.date_range_end == end_date,  # type: ignore
-            ScheduleVersionMeta.status != ScheduleStatus.ARCHIVED)
-                                 )
+            ScheduleVersionMeta.status != ScheduleStatus.ARCHIVED,
+        )
         existing_version = existing_version_query.first()
 
         # If a version exists for this date range, create a new incremented version
@@ -1040,9 +1067,11 @@ def duplicate_version():
         source_meta = db.session.get(ScheduleVersionMeta, source_version)  # type: ignore
 
         # Get next version number
-        max_schedule_version_query = (db.session.query(db.func.max(Schedule.version)))  # type: ignore
+        max_schedule_version_query = db.session.query(db.func.max(Schedule.version))  # type: ignore
         max_schedule_version = max_schedule_version_query.scalar() or 0
-        max_meta_version_query = (db.session.query(db.func.max(ScheduleVersionMeta.version)))  # type: ignore
+        max_meta_version_query = db.session.query(
+            db.func.max(ScheduleVersionMeta.version)
+        )  # type: ignore
         max_meta_version = max_meta_version_query.scalar() or 0
         new_version = max(max_schedule_version, max_meta_version) + 1
 
@@ -1173,7 +1202,9 @@ def create_schedule():
         data = request.get_json()
 
         # Debug: Check db instance ID
-        print(f"Debug: db instance ID in create_schedule: {id(db)}") # Keeping this line commented for now, can uncomment later if needed
+        print(
+            f"Debug: db instance ID in create_schedule: {id(db)}"
+        )  # Keeping this line commented for now, can uncomment later if needed
 
         # Wrap database operations in app context
         with current_app.app_context():
@@ -1227,6 +1258,4 @@ def create_schedule():
     except Exception as e:
         # General errors
         logger.error(f"Error in create_schedule: {str(e)}")
-        return jsonify(
-            {"error": str(e)}
-        ), HTTPStatus.INTERNAL_SERVER_ERROR
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR

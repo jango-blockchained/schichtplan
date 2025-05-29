@@ -1,6 +1,7 @@
 """
 Utility functions for processing coverage data in the scheduler.
 """
+
 import datetime
 from typing import Dict, List, Set, Optional
 
@@ -9,12 +10,12 @@ from typing import Dict, List, Set, Optional
 # Adjust paths if necessary based on actual project structure
 from .resources import ScheduleResources
 from src.backend.models.coverage import Coverage
-from src.backend.models.employee import EmployeeGroup # For default employee_types
+from src.backend.models.employee import EmployeeGroup  # For default employee_types
 
 
 def _time_str_to_datetime_time(time_str: str) -> Optional[datetime.time]:
     """Converts an 'HH:MM' string to a datetime.time object."""
-    if not time_str or len(time_str) != 5 or time_str[2] != ':':
+    if not time_str or len(time_str) != 5 or time_str[2] != ":":
         # Basic validation, can be enhanced
         return None
     try:
@@ -22,12 +23,13 @@ def _time_str_to_datetime_time(time_str: str) -> Optional[datetime.time]:
     except ValueError:
         return None
 
+
 def get_required_staffing_for_interval(
     target_date: datetime.date,
     interval_start_time: datetime.time,
     resources: ScheduleResources,
     # Default interval duration to 15 minutes, can be made configurable
-    interval_duration_minutes: int = 15
+    interval_duration_minutes: int = 15,
 ) -> Dict:
     """
     Calculates the specific staffing needs for a given time interval on a target date.
@@ -63,27 +65,32 @@ def get_required_staffing_for_interval(
         Returns default zero/empty needs if no coverage applies.
     """
     required_staffing = {
-        'min_employees': 0,
-        'employee_types': set(),
-        'allowed_employee_groups': set(),
-        'requires_keyholder': False,
-        'keyholder_before_minutes': None, # Use None for no requirement
-        'keyholder_after_minutes': None,  # Use None for no requirement
+        "min_employees": 0,
+        "employee_types": set(),
+        "allowed_employee_groups": set(),
+        "requires_keyholder": False,
+        "keyholder_before_minutes": None,  # Use None for no requirement
+        "keyholder_after_minutes": None,  # Use None for no requirement
     }
 
-    target_day_index: int = target_date.weekday() # Monday is 0 and Sunday is 6
+    target_day_index: int = target_date.weekday()  # Monday is 0 and Sunday is 6
 
     # Calculate the end time of the interval for checking against Coverage.end_time
     # interval_end_time will be exclusive for comparisons
     interval_start_dt = datetime.datetime.combine(target_date, interval_start_time)
-    interval_end_dt = interval_start_dt + datetime.timedelta(minutes=interval_duration_minutes)
+    interval_end_dt = interval_start_dt + datetime.timedelta(
+        minutes=interval_duration_minutes
+    )
     # interval_end_time_for_comparison = interval_end_dt.time() # This might cross midnight
 
     applicable_coverage_found = False
 
     for coverage_rule in resources.coverage:
         # Ensure coverage_rule has the necessary attributes
-        if not all(hasattr(coverage_rule, attr) for attr in ['day_index', 'start_time', 'end_time', 'min_employees']):
+        if not all(
+            hasattr(coverage_rule, attr)
+            for attr in ["day_index", "start_time", "end_time", "min_employees"]
+        ):
             # log a warning or skip
             continue
 
@@ -96,62 +103,59 @@ def get_required_staffing_for_interval(
         if not coverage_start_time_obj or not coverage_end_time_obj:
             # log a warning about invalid time format in coverage rule
             continue
-        
+
         # Check if the interval_start_time is within the coverage rule's time span.
         # Coverage applies if: coverage_start_time <= interval_start_time < coverage_end_time
         if not (coverage_start_time_obj <= interval_start_time < coverage_end_time_obj):
             continue
-            
+
         # If we reach here, this coverage rule applies to this interval
         applicable_coverage_found = True
 
         # 1. min_employees: take the maximum
-        required_staffing['min_employees'] = max(
-            required_staffing['min_employees'],
-            coverage_rule.min_employees
+        required_staffing["min_employees"] = max(
+            required_staffing["min_employees"], coverage_rule.min_employees
         )
 
         # 2. employee_types: union of sets
-        current_employee_types = getattr(coverage_rule, 'employee_types', [])
-        if isinstance(current_employee_types, list): # Ensure it's iterable
-            required_staffing['employee_types'].update(current_employee_types)
-        
+        current_employee_types = getattr(coverage_rule, "employee_types", [])
+        if isinstance(current_employee_types, list):  # Ensure it's iterable
+            required_staffing["employee_types"].update(current_employee_types)
+
         # 3. allowed_employee_groups: union of sets
-        current_allowed_groups = getattr(coverage_rule, 'allowed_employee_groups', [])
-        if isinstance(current_allowed_groups, list): # Ensure it's iterable
-            required_staffing['allowed_employee_groups'].update(current_allowed_groups)
+        current_allowed_groups = getattr(coverage_rule, "allowed_employee_groups", [])
+        if isinstance(current_allowed_groups, list):  # Ensure it's iterable
+            required_staffing["allowed_employee_groups"].update(current_allowed_groups)
 
         # 4. requires_keyholder: OR condition
-        if getattr(coverage_rule, 'requires_keyholder', False):
-            required_staffing['requires_keyholder'] = True
-        
+        if getattr(coverage_rule, "requires_keyholder", False):
+            required_staffing["requires_keyholder"] = True
+
         # 5. keyholder_before_minutes: max of defined values
-        kb_minutes = getattr(coverage_rule, 'keyholder_before_minutes', None)
+        kb_minutes = getattr(coverage_rule, "keyholder_before_minutes", None)
         if kb_minutes is not None:
-            if required_staffing['keyholder_before_minutes'] is None:
-                required_staffing['keyholder_before_minutes'] = kb_minutes
+            if required_staffing["keyholder_before_minutes"] is None:
+                required_staffing["keyholder_before_minutes"] = kb_minutes
             else:
-                required_staffing['keyholder_before_minutes'] = max(
-                    required_staffing['keyholder_before_minutes'],
-                    kb_minutes
+                required_staffing["keyholder_before_minutes"] = max(
+                    required_staffing["keyholder_before_minutes"], kb_minutes
                 )
 
         # 6. keyholder_after_minutes: max of defined values
-        ka_minutes = getattr(coverage_rule, 'keyholder_after_minutes', None)
+        ka_minutes = getattr(coverage_rule, "keyholder_after_minutes", None)
         if ka_minutes is not None:
-            if required_staffing['keyholder_after_minutes'] is None:
-                required_staffing['keyholder_after_minutes'] = ka_minutes
+            if required_staffing["keyholder_after_minutes"] is None:
+                required_staffing["keyholder_after_minutes"] = ka_minutes
             else:
-                required_staffing['keyholder_after_minutes'] = max(
-                    required_staffing['keyholder_after_minutes'],
-                    ka_minutes
+                required_staffing["keyholder_after_minutes"] = max(
+                    required_staffing["keyholder_after_minutes"], ka_minutes
                 )
-                
+
     # If no coverage rules applied, ensure min_employees is 0.
     # The default employee_types and allowed_employee_groups will be empty sets,
     # and requires_keyholder will be False, which is correct.
     if not applicable_coverage_found:
-        required_staffing['min_employees'] = 0
+        required_staffing["min_employees"] = 0
         # Defaults for keyholder_before/after_minutes remain None if no rule set them.
 
     # If min_employees > 0 but types/groups are empty, populate with all EmployeeGroup values as a fallback.
@@ -169,4 +173,4 @@ def get_required_staffing_for_interval(
     # For example, if min_employees > 0 and not required_staffing['allowed_employee_groups']:
     #     required_staffing['allowed_employee_groups'] = {group.value for group in EmployeeGroup}
 
-    return required_staffing 
+    return required_staffing

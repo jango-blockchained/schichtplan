@@ -23,8 +23,12 @@ from src.backend.models import (
     User,
     UserRole,
 )
-from src.backend.models.fixed_shift import ShiftType as ShiftTemplateShiftTypeEnum # Alias to avoid confusion
-from src.backend.models.employee import AvailabilityType as EmployeeAvailabilityTypeEnum # Alias
+from src.backend.models.fixed_shift import (
+    ShiftType as ShiftTemplateShiftTypeEnum,
+)  # Alias to avoid confusion
+from src.backend.models.employee import (
+    AvailabilityType as EmployeeAvailabilityTypeEnum,
+)  # Alias
 
 # Import generation functions from demo_data API (or replicate/adapt them here)
 # For simplicity in this step, we'll assume these functions from demo_data.py are accessible
@@ -40,7 +44,9 @@ from src.backend.api.demo_data import (
     generate_improved_absences,
 )
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 # --- Configuration for Seed Data ---
@@ -51,20 +57,22 @@ DEFAULT_ADMIN_EMAIL = "admin@example.com"
 
 # --- Helper Functions ---
 
+
 def clear_all_data():
     logger.info("Clearing existing data...")
     # Order matters due to foreign key constraints
     Schedule.query.delete()
     Absence.query.delete()
     EmployeeAvailability.query.delete()
-    User.query.filter(User.username != DEFAULT_ADMIN_USERNAME).delete() # Keep admin
+    User.query.filter(User.username != DEFAULT_ADMIN_USERNAME).delete()  # Keep admin
     Employee.query.delete()
     ShiftTemplate.query.delete()
     Coverage.query.delete()
     # Settings are usually kept or reset to default, not fully deleted
-    # db.session.query(Settings).delete() 
+    # db.session.query(Settings).delete()
     db.session.commit()
     logger.info("Existing data cleared (except admin user and settings).")
+
 
 def seed_settings():
     logger.info("Seeding Settings...")
@@ -80,7 +88,7 @@ def seed_settings():
     if not settings.employee_types:
         settings.employee_types = get_default_employee_types()
         logger.info("Populated default employee types in settings.")
-    
+
     if not settings.absence_types:
         settings.absence_types = get_default_absence_types()
         logger.info("Populated default absence types in settings.")
@@ -88,11 +96,41 @@ def seed_settings():
     # Define and populate shift_types in settings
     # This gives more control than importing a generic generator
     default_shift_types_for_settings = [
-        {"id": "EARLY", "name": "Early Shift", "color": "#4CAF50", "type": "shift_type", "auto_assign_only": False},
-        {"id": "MIDDLE", "name": "Middle Shift", "color": "#2196F3", "type": "shift_type", "auto_assign_only": False},
-        {"id": "LATE", "name": "Late Shift", "color": "#9C27B0", "type": "shift_type", "auto_assign_only": False},
-        {"id": "TRAINING", "name": "Training Shift", "color": "#FFC107", "type": "shift_type", "auto_assign_only": True},
-        {"id": "OFFICE", "name": "Office Duty", "color": "#795548", "type": "shift_type", "auto_assign_only": True},
+        {
+            "id": "EARLY",
+            "name": "Early Shift",
+            "color": "#4CAF50",
+            "type": "shift_type",
+            "auto_assign_only": False,
+        },
+        {
+            "id": "MIDDLE",
+            "name": "Middle Shift",
+            "color": "#2196F3",
+            "type": "shift_type",
+            "auto_assign_only": False,
+        },
+        {
+            "id": "LATE",
+            "name": "Late Shift",
+            "color": "#9C27B0",
+            "type": "shift_type",
+            "auto_assign_only": False,
+        },
+        {
+            "id": "TRAINING",
+            "name": "Training Shift",
+            "color": "#FFC107",
+            "type": "shift_type",
+            "auto_assign_only": True,
+        },
+        {
+            "id": "OFFICE",
+            "name": "Office Duty",
+            "color": "#795548",
+            "type": "shift_type",
+            "auto_assign_only": True,
+        },
     ]
     if not settings.shift_types:
         settings.shift_types = default_shift_types_for_settings
@@ -103,17 +141,46 @@ def seed_settings():
         # Replicate structure from Settings model default
         settings.availability_types = {
             "types": [
-                {"id": "AVAILABLE", "name": "Available", "description": "Available for work", "color": "#22c55e", "priority": 2, "is_available": True},
-                {"id": "FIXED", "name": "Fixed", "description": "Fixed working hours", "color": "#3b82f6", "priority": 1, "is_available": True},
-                {"id": "PREFERRED", "name": "Preferred", "description": "Preferred hours", "color": "#f59e0b", "priority": 3, "is_available": True},
-                {"id": "UNAVAILABLE", "name": "Unavailable", "description": "Not available for work", "color": "#ef4444", "priority": 4, "is_available": False},
+                {
+                    "id": "AVAILABLE",
+                    "name": "Available",
+                    "description": "Available for work",
+                    "color": "#22c55e",
+                    "priority": 2,
+                    "is_available": True,
+                },
+                {
+                    "id": "FIXED",
+                    "name": "Fixed",
+                    "description": "Fixed working hours",
+                    "color": "#3b82f6",
+                    "priority": 1,
+                    "is_available": True,
+                },
+                {
+                    "id": "PREFERRED",
+                    "name": "Preferred",
+                    "description": "Preferred hours",
+                    "color": "#f59e0b",
+                    "priority": 3,
+                    "is_available": True,
+                },
+                {
+                    "id": "UNAVAILABLE",
+                    "name": "Unavailable",
+                    "description": "Not available for work",
+                    "color": "#ef4444",
+                    "priority": 4,
+                    "is_available": False,
+                },
             ]
         }
         logger.info("Populated default availability types in settings.")
-        
+
     db.session.commit()
     logger.info("Settings seeded/updated.")
     return settings
+
 
 def seed_employees(num_employees: int):
     logger.info(f"Seeding {num_employees} Employees...")
@@ -121,25 +188,28 @@ def seed_employees(num_employees: int):
     # We might want to modify it or wrap it if we want finer control (e.g. not clearing if not desired)
     employees = generate_improved_employee_data(num_employees_override=num_employees)
     db.session.add_all(employees)
-    db.session.commit() # Commit here so User can link to existing employee
+    db.session.commit()  # Commit here so User can link to existing employee
     logger.info(f"{len(employees)} Employees seeded.")
     return employees
+
 
 def seed_admin_user(employees):
     logger.info("Seeding Admin User...")
     admin_user = User.query.filter_by(username=DEFAULT_ADMIN_USERNAME).first()
     if not admin_user:
-        admin_employee = next((emp for emp in employees if emp.employee_group == EmployeeGroup.TL), None)
+        admin_employee = next(
+            (emp for emp in employees if emp.employee_group == EmployeeGroup.TL), None
+        )
         if not admin_employee and employees:
-            admin_employee = employees[0] # Assign to the first employee if no TL
-        
+            admin_employee = employees[0]  # Assign to the first employee if no TL
+
         admin_user = User(
             username=DEFAULT_ADMIN_USERNAME,
             email=DEFAULT_ADMIN_EMAIL,
             password=DEFAULT_ADMIN_PASSWORD,
             role=UserRole.ADMIN,
             employee_id=admin_employee.id if admin_employee else None,
-            is_active=True
+            is_active=True,
         )
         db.session.add(admin_user)
         db.session.commit()
@@ -148,17 +218,21 @@ def seed_admin_user(employees):
         logger.info(f"Admin user '{DEFAULT_ADMIN_USERNAME}' already exists.")
     return admin_user
 
+
 def seed_shift_templates():
     logger.info("Seeding Shift Templates...")
     # This function from demo_data.py clears existing shift templates.
-    shift_templates = generate_optimized_shift_templates() # Uses ShiftTemplateShiftTypeEnum
+    shift_templates = (
+        generate_optimized_shift_templates()
+    )  # Uses ShiftTemplateShiftTypeEnum
     # db.session.add_all(shift_templates) # generate_optimized_shift_templates already adds and commits
     logger.info(f"{len(shift_templates)} Shift Templates seeded.")
     return shift_templates
 
+
 def seed_coverage():
     logger.info("Seeding Coverage Rules...")
-    Coverage.query.delete() # Clear existing coverage before adding new ones
+    Coverage.query.delete()  # Clear existing coverage before adding new ones
     db.session.commit()
     coverage_slots = generate_granular_coverage_data()
     db.session.add_all(coverage_slots)
@@ -166,10 +240,11 @@ def seed_coverage():
     logger.info(f"{len(coverage_slots)} Coverage Rules seeded.")
     return coverage_slots
 
+
 def seed_availability(employees):
     logger.info("Seeding Employee Availability...")
     # This function from demo_data.py does not clear existing availabilities.
-    EmployeeAvailability.query.delete() # Clear them first
+    EmployeeAvailability.query.delete()  # Clear them first
     db.session.commit()
     availabilities, _, _ = generate_improved_availability_data(employees)
     db.session.add_all(availabilities)
@@ -177,10 +252,11 @@ def seed_availability(employees):
     logger.info(f"{len(availabilities)} Employee Availability records seeded.")
     return availabilities
 
+
 def seed_absences(employees):
     logger.info("Seeding Absences...")
     # This function from demo_data.py does not clear existing absences.
-    Absence.query.delete() # Clear them first
+    Absence.query.delete()  # Clear them first
     db.session.commit()
     absences = generate_improved_absences(employees)
     db.session.add_all(absences)
@@ -188,7 +264,9 @@ def seed_absences(employees):
     logger.info(f"{len(absences)} Absences seeded.")
     return absences
 
+
 # --- Main Seeding Logic ---
+
 
 def main(args):
     app = create_app()
@@ -198,9 +276,11 @@ def main(args):
 
         settings = seed_settings()
         employees = seed_employees(args.num_employees)
-        
+
         if not employees:
-            logger.error("No employees were created, cannot seed admin user or related data.")
+            logger.error(
+                "No employees were created, cannot seed admin user or related data."
+            )
             return
 
         admin_user = seed_admin_user(employees)
@@ -210,6 +290,7 @@ def main(args):
         seed_absences(employees)
 
         logger.info("Database seeding complete.")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Seed the database with sample data.")
@@ -226,4 +307,3 @@ if __name__ == "__main__":
     )
     script_args = parser.parse_args()
     main(script_args)
-
