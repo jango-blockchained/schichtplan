@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, current_app
 from datetime import datetime
-from models import db, User, UserRole
+from models import User, UserRole
 from sqlalchemy.exc import SQLAlchemyError
 from services.auth_service import generate_token, login_required, role_required
 from utils.db_utils import session_manager

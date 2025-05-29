@@ -8,7 +8,7 @@ This shows how the ScheduleGenerator processes coverage and shifts.
 import sys
 import os
 import logging
-from datetime import datetime, date, timedelta
+from datetime import date, timedelta
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -87,9 +87,6 @@ def check_coverage_shift_distribution():
             return
 
         # Step 2: Simulate how the DistributionManager processes these
-        from backend.services.scheduler.generator import ScheduleGenerator
-        from backend.services.scheduler.resources import ScheduleResources
-        from backend.services.scheduler.config import SchedulerConfig
 
         print("\n--- SHIFT-COVERAGE ALIGNMENT ANALYSIS ---")
 

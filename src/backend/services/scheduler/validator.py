@@ -1,5 +1,5 @@
 from datetime import time, date
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta
 
 # Standard library imports
 import logging
@@ -41,9 +41,7 @@ except ImportError as e:
 # Ensure these are imported directly for clarity and linter happiness
 from .resources import ScheduleResources
 from .utility import (
-    requires_keyholder,
     calculate_rest_hours,
-    time_to_minutes,
 )
 
 try:
@@ -85,8 +83,6 @@ except ImportError:
 # --- Explicit Model Imports for Type Checking ---
 if TYPE_CHECKING:
     from backend.models.employee import Employee as ActualEmployee
-    from backend.models.schedule import Schedule as ActualSchedule
-    from backend.models.employee import EmployeeGroup as ActualEmployeeGroup
 
 # --- Define Actual... names for runtime as well ---
 # These are no longer needed as we directly import and use the actual models or their aliases

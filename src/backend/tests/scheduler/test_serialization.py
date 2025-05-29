@@ -234,7 +234,7 @@ class TestScheduleSerializer(unittest.TestCase):
             container_instance = MagicMock()
             mock_container.return_value = container_instance
 
-            result = self.serializer.deserialize_schedule(schedule_json)
+            self.serializer.deserialize_schedule(schedule_json)
 
             # Verify ScheduleContainer was created with correct parameters
             mock_container.assert_called_once()

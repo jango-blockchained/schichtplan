@@ -1,19 +1,14 @@
 import pytest
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 from datetime import date, time, datetime
-from collections import defaultdict
 
 # Assuming models and DistributionManager are accessible
 # Adjust imports based on your project structure
-from src.backend.models.employee import AvailabilityType, Employee as ActualEmployee
-from src.backend.models import ShiftTemplate as ActualShiftTemplate
+from src.backend.models.employee import AvailabilityType
 # If you have dummy/type hint versions for testing in DistributionManager, import them too
 # from src.backend.services.scheduler.distribution import Employee as DummyEmployee, ShiftTemplate as DummyShiftTemplate
 
 from src.backend.services.scheduler.distribution import DistributionManager
-from src.backend.services.scheduler.resources import ScheduleResources
-from src.backend.services.scheduler.constraints import ConstraintChecker
-from src.backend.services.scheduler.availability import AvailabilityChecker
 
 
 # Helper to create a mock employee with specific attributes

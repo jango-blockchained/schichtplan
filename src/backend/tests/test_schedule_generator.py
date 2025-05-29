@@ -4,12 +4,10 @@ from datetime import date, timedelta
 from services.scheduler.generator import (
     ScheduleGenerator,
     ScheduleGenerationError,
-    ScheduleContainer,
     ScheduleAssignment,
 )
 from services.scheduler.resources import ScheduleResources
 from models.employee import EmployeeGroup
-from models.schedule import ScheduleStatus
 from src.backend.app import create_app
 
 

@@ -1,4 +1,3 @@
-import sys
 import logging
 import traceback
 from logging.handlers import RotatingFileHandler
@@ -280,7 +279,6 @@ def create_app(config_class=Config):
         """Run the AI schedule generator diagnostic"""
         from src.backend.models import Employee, ShiftTemplate, Coverage
         from src.backend.services.ai_scheduler_service import AISchedulerService
-        from pathlib import Path
 
         session_id = str(uuid.uuid4())[:8]
         app.logger.info(f"Starting AI diagnostic session {session_id}")

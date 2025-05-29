@@ -9,8 +9,8 @@ import os
 import sys
 import json
 import sqlite3
-from datetime import date, datetime, timedelta
-from typing import List, Dict, Any
+from datetime import date
+from typing import List
 
 # Add the parent directories to path to resolve imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -253,7 +253,7 @@ def main():
             entry for entry in schedule if entry.get("employee_id") is not None
         ]
 
-        print(f"Schedule generation complete:")
+        print("Schedule generation complete:")
         print(f"  Total entries: {len(schedule)}")
         print(f"  Assignments: {len(assignments)}")
 

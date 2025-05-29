@@ -7,7 +7,7 @@ including error handling, parameter validation, and response structure.
 
 import json
 import pytest
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta
 from src.backend.app import create_app
 from src.backend.models import db
 from src.backend.models.employee import Employee, EmployeeGroup
@@ -17,7 +17,6 @@ from src.backend.models.schedule import (
     ScheduleVersionMeta as VersionMeta,
     ScheduleStatus,
 )
-from src.backend.models.employee import AvailabilityType
 
 
 @pytest.fixture

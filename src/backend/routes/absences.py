@@ -1,6 +1,5 @@
 from flask import Blueprint, jsonify, request
 from src.backend.models import db, Absence, Employee
-from datetime import datetime
 from pydantic import ValidationError
 from src.backend.schemas.absences import AbsenceCreateRequest, AbsenceUpdateRequest
 

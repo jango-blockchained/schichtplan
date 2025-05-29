@@ -7,7 +7,6 @@ This script clears existing data (optional) and populates core entities.
 
 import argparse
 import logging
-from datetime import datetime, date, timedelta
 
 from src.backend.app import create_app
 from src.backend.models import (
@@ -23,12 +22,6 @@ from src.backend.models import (
     User,
     UserRole,
 )
-from src.backend.models.fixed_shift import (
-    ShiftType as ShiftTemplateShiftTypeEnum,
-)  # Alias to avoid confusion
-from src.backend.models.employee import (
-    AvailabilityType as EmployeeAvailabilityTypeEnum,
-)  # Alias
 
 # Import generation functions from demo_data API (or replicate/adapt them here)
 # For simplicity in this step, we'll assume these functions from demo_data.py are accessible

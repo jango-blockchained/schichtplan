@@ -39,8 +39,6 @@ def get_next_month_dates():
 
 from ..services.auth_service import (
     login_required,
-    permission_required,
-    get_current_user,
 )
 
 

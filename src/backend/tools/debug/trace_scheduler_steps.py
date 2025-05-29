@@ -9,7 +9,7 @@ import os
 import sys
 import logging
 import json
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from contextlib import contextmanager
 
 # Add the parent directories to path to resolve imports
@@ -91,7 +91,7 @@ def main():
             with trace_section("Processing coverage"):
                 # Process coverage for the test date
                 shift_needs = generator._process_coverage(test_date)
-                print(f"  Coverage needs result:")
+                print("  Coverage needs result:")
                 pretty_print_json(shift_needs, indent=2)
 
                 # Analyze result

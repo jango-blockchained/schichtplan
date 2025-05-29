@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 """Script to correctly update the Gemini API key in database settings"""
 
-import os
 import sys
-import json
 from pathlib import Path
 
 # Add the project directory to the Python path
@@ -66,7 +64,7 @@ def update_gemini_api_key():
             if len(api_key) > 8
             else "****"
         )
-        print(f"\nSettings updated successfully:")
+        print("\nSettings updated successfully:")
         print(f"API Key: {masked_key}")
         print(f"Enabled: {settings.ai_scheduling.get('enabled', False)}")
 

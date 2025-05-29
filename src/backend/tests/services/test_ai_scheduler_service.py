@@ -200,7 +200,7 @@ class TestAISchedulerService(unittest.TestCase):
             f"Employee Availability ({start_date_obj} to {end_date_obj}):", result_text
         )
         # Construct expected availability string carefully based on the service's formatting
-        expected_avail_record = f"From 2024-01-01 to 2024-01-01, Type: Available, Day: 0, Hour: 8, IsAvailable: True"
+        expected_avail_record = "From 2024-01-01 to 2024-01-01, Type: Available, Day: 0, Hour: 8, IsAvailable: True"
         expected_avail_json_part = {
             "employee_id": 1,
             "availability_type": "Available",
@@ -417,7 +417,7 @@ class TestAISchedulerService(unittest.TestCase):
         self.assertIn("Gemini API HTTP error: 400", str(context.exception))
         self.assertIn("Invalid API key", str(context.exception))
         mock_logger.app_logger.error.assert_any_call(
-            f"HTTP error calling Gemini API: 400 - Bad Request",
+            "HTTP error calling Gemini API: 400 - Bad Request",
             extra={"error_details": "Invalid API key"},
         )
 

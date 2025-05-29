@@ -1,5 +1,4 @@
 import pytest
-from src.backend.app import create_app
 from src.backend.services.scheduler.resources import ScheduleResources
 from src.backend.models import (
     db,

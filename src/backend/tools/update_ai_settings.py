@@ -3,7 +3,6 @@
 
 import sys
 import os
-import json
 from pathlib import Path
 
 # Add necessary paths
@@ -78,7 +77,7 @@ def update_ai_settings():
             else "****"
         )
 
-        print(f"AI settings updated successfully:")
+        print("AI settings updated successfully:")
         print(f"API Key: {masked_key}")
         print(f"Enabled: {settings.ai_scheduling.get('enabled', False)}")
 

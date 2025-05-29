@@ -17,7 +17,6 @@ Author: Claude
 Date: 2024-07-11
 """
 
-import os
 import sys
 import sqlite3
 import json

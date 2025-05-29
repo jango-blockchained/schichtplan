@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # test_ai_generation.py - Debug tool to test AI schedule generation
 
-import os
 import sys
 import json
 from pathlib import Path

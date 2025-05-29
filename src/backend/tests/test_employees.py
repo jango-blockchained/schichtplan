@@ -1,8 +1,5 @@
-import pytest
 import json
-from http import HTTPStatus
-from src.backend.app import create_app
-from src.backend.models import db, Employee, EmployeeGroup, Absence
+from src.backend.models import Employee, EmployeeGroup, Absence
 from datetime import datetime
 
 

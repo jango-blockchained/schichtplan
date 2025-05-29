@@ -11,12 +11,8 @@ from models import (
     ScheduleVersionMeta,
     ScheduleStatus,
 )
-from datetime import datetime, date, time, timedelta
+from datetime import date, time, timedelta
 from models.employee import AvailabilityType
-from models.settings import (
-    DAY_NAME_TO_NUM_KEY,
-    NUM_KEY_TO_DAY_NAME,
-)  # For API test payload if needed
 
 
 def test_get_employees_empty(client, session):
@@ -762,7 +758,7 @@ def test_update_schedule_invalid_input(client, session):
 
 def test_get_employee_status_by_date_empty(client):
     """Test getting employee status for a date when no data exists"""
-    response = client.get(f"/api/availability/by_date?date=2024-01-01")
+    response = client.get("/api/availability/by_date?date=2024-01-01")
     assert response.status_code == 200
     assert response.json == []
 
@@ -852,7 +848,7 @@ def test_get_employee_status_by_date(client, session):
 def test_get_applicable_shifts_empty(client):
     """Test getting applicable shifts when no data exists"""
     response = client.get(
-        f"/api/availability/shifts_for_employee?date=2024-01-01&employee_id=1"
+        "/api/availability/shifts_for_employee?date=2024-01-01&employee_id=1"
     )
     assert response.status_code == 200
     assert response.json == []

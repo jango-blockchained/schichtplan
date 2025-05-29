@@ -5,7 +5,6 @@ Helps with common transaction patterns and error handling.
 
 from functools import wraps
 from contextlib import contextmanager
-import logging
 from sqlalchemy.exc import SQLAlchemyError
 
 from models import db

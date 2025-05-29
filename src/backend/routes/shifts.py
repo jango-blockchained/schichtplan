@@ -1,8 +1,6 @@
 from flask import Blueprint, jsonify, request
 from src.backend.models import db, ShiftTemplate
 from src.backend.models.fixed_shift import ShiftValidationError, ShiftType
-from sqlalchemy.exc import IntegrityError
-from datetime import time
 
 shifts = Blueprint("shifts", __name__)
 

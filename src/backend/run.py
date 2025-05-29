@@ -3,7 +3,6 @@ import os
 import socket
 import time
 import sys
-import signal
 import argparse
 import random
 import subprocess

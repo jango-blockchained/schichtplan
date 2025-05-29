@@ -1,22 +1,14 @@
 """Distribution module for fair employee assignment across shifts."""
 
-from typing import Dict, List, Any, Optional, Union, Tuple, TYPE_CHECKING
+from typing import Dict, List, Any, Optional, Union, TYPE_CHECKING
 from datetime import date, datetime, timedelta, time  # Import time
 from collections import defaultdict
-import functools
 import sys
 import os
 import logging
-from types import SimpleNamespace  # Import SimpleNamespace
 from .resources import (
     ScheduleResources,
 )  # Assuming ScheduleResources is in resources.py
-from .constraints import (
-    ConstraintChecker,
-)  # Assuming ConstraintChecker is in constraints.py
-from .availability import (
-    AvailabilityChecker,
-)  # Assuming AvailabilityChecker is in availability.py
 
 try:
     from .coverage_utils import (
@@ -540,7 +532,7 @@ class DistributionManager:
             # I will not replicate the full code here but mark where the assignment loop happens.
 
             self.logger.info(
-                f"Employees sorted by priority score (Rule-based). ML predictions are available for use in assignment loop."
+                "Employees sorted by priority score (Rule-based). ML predictions are available for use in assignment loop."
             )
 
             # --- Assignment Loop Placeholder with ML Integration Note ---
@@ -950,7 +942,7 @@ class DistributionManager:
             shift_template_id = getattr(shift_template, "id", None)
             if shift_template_id is None:
                 self.logger.warning(
-                    f"calculate_assignment_score: No ID attribute in shift template object"
+                    "calculate_assignment_score: No ID attribute in shift template object"
                 )
                 return -float("inf")
 

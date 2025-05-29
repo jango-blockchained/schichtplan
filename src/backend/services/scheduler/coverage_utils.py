@@ -3,14 +3,12 @@ Utility functions for processing coverage data in the scheduler.
 """
 
 import datetime
-from typing import Dict, List, Set, Optional
+from typing import Dict, Optional
 
 # Assuming ScheduleResources is in a sibling file resources.py
 # and Coverage model is two levels up in models directory
 # Adjust paths if necessary based on actual project structure
 from .resources import ScheduleResources
-from src.backend.models.coverage import Coverage
-from src.backend.models.employee import EmployeeGroup  # For default employee_types
 
 
 def _time_str_to_datetime_time(time_str: str) -> Optional[datetime.time]:

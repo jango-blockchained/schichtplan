@@ -1,16 +1,15 @@
 from flask import Blueprint, request, jsonify, current_app, send_file
 from http import HTTPStatus
 from datetime import datetime, date, timedelta
-from sqlalchemy import desc, text, select
+from sqlalchemy import desc, text
 from sqlalchemy.exc import IntegrityError
 from pydantic import ValidationError
 
 # Import the standard logging library
-import logging
 from src.backend.models import db
 from src.backend.models.schedule import Schedule, ScheduleStatus, ScheduleVersionMeta
 from src.backend.models.employee import Employee, EmployeeAvailability, AvailabilityType
-from src.backend.models.fixed_shift import ShiftTemplate, ShiftType
+from src.backend.models.fixed_shift import ShiftTemplate
 from src.backend.models.absence import Absence
 from src.backend.models.coverage import Coverage
 from src.backend.models.settings import Settings

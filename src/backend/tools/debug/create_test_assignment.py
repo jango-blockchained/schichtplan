@@ -6,7 +6,6 @@ assignments properly when created manually.
 """
 
 import os
-import sys
 import sqlite3
 from datetime import date, datetime, timedelta
 

@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 # save_api_key.py - Save the provided API key to settings database
 
-import os
 import sys
-import json
 from pathlib import Path
 
 # Add the parent directory to the path so imports work

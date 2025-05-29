@@ -7,8 +7,7 @@ and attempts to fix it by creating or updating the database entries.
 
 import os
 import sys
-import json
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 import random
 import sqlite3
 
@@ -130,7 +129,7 @@ def main():
             resources = ScheduleResources()
             resources.load()
 
-            print(f"Resource loader got:")
+            print("Resource loader got:")
             print(f"- Employees: {len(resources.employees)}")
             print(f"- Shifts: {len(resources.shifts)}")
             print(f"- Coverage: {len(resources.coverage)}")

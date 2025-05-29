@@ -14,7 +14,6 @@ sys.path.insert(0, str(backend_dir.parent.parent))
 try:
     # Import app and db related modules
     from src.backend.app import create_app
-    from src.backend.models import db
 
     # Create Flask app
     app = create_app()

@@ -14,7 +14,6 @@ from http import HTTPStatus
 from datetime import datetime, date, timedelta, UTC
 import random
 import logging
-import math
 
 bp = Blueprint("demo_data", __name__, url_prefix="/demo-data")
 

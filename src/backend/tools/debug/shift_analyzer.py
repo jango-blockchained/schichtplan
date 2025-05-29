@@ -9,7 +9,7 @@ why only EARLY shifts are being assigned.
 import os
 import sys
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date
 import argparse
 
 # Add parent directories to path

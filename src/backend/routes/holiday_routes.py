@@ -1,8 +1,7 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
 from http import HTTPStatus
 import requests
 import logging
-from datetime import datetime
 
 holidays = Blueprint("holidays", __name__)
 
