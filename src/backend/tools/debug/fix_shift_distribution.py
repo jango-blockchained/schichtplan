@@ -30,23 +30,27 @@ logging.basicConfig(
 )
 logger = logging.getLogger("fix_shift_distribution")
 
+
 def print_section(title):
     """Print a section title with formatting"""
     print("\n" + "=" * 80)
     print(f" {title} ".center(80, "="))
     print("=" * 80 + "\n")
 
+
 def create_improved_distribution_algorithm():
     """Create an improved version of the distribution algorithm
-    
+
     This function creates a modified version of assign_employees_with_distribution
     that interleaves shifts by type instead of processing all EARLY shifts first.
     """
     import_path = "src.backend.services.scheduler.distribution"
     distribution_module = importlib.import_module(import_path)
-    original_code = inspect.getsource(distribution_module.DistributionManager.assign_employees_with_distribution)
-    
-    # Create the improved implementation    
+    original_code = inspect.getsource(
+        distribution_module.DistributionManager.assign_employees_with_distribution
+    )
+
+    # Create the improved implementation
     improved_code = '''
     def assign_employees_with_distribution(
         self, current_date: date, shifts: List[Any], coverage: Dict[str, int]
@@ -224,98 +228,119 @@ def create_improved_distribution_algorithm():
             self.logger.error("Stack trace:", exc_info=True)
             raise
     '''
-    
+
     return original_code, improved_code
-    
+
+
 def modify_distribution_file():
     """Create a backup of the original distribution.py and apply the improved algorithm"""
-    
+
     # Get the paths
-    distribution_file = os.path.join(backend_dir, "services", "scheduler", "distribution.py")
-    backup_file = os.path.join(backend_dir, "services", "scheduler", "distribution.py.bak")
-    
+    distribution_file = os.path.join(
+        backend_dir, "services", "scheduler", "distribution.py"
+    )
+    backup_file = os.path.join(
+        backend_dir, "services", "scheduler", "distribution.py.bak"
+    )
+
     # Check if the file exists
     if not os.path.exists(distribution_file):
         print(f"Error: Distribution file not found at {distribution_file}")
         return False
-    
+
     # Create a backup if it doesn't exist
     if not os.path.exists(backup_file):
         print(f"Creating backup of original file to {backup_file}")
-        with open(distribution_file, 'r') as src:
-            with open(backup_file, 'w') as dst:
+        with open(distribution_file, "r") as src:
+            with open(backup_file, "w") as dst:
                 dst.write(src.read())
-    
+
     try:
         # Get the original and improved algorithm code
         original_code, improved_code = create_improved_distribution_algorithm()
-        
+
         # Read the current file content
-        with open(distribution_file, 'r') as file:
+        with open(distribution_file, "r") as file:
             content = file.read()
-        
+
         # Replace the old implementation with the new one
         updated_content = content.replace(original_code, improved_code)
-        
+
         # Write the updated content back to the file
-        with open(distribution_file, 'w') as file:
+        with open(distribution_file, "w") as file:
             file.write(updated_content)
-        
+
         print(f"Successfully updated {distribution_file} with improved algorithm")
         return True
     except Exception as e:
         print(f"Error modifying distribution file: {e}")
         return False
 
+
 def restore_distribution_file():
     """Restore the original distribution.py from backup"""
-    
+
     # Get the paths
-    distribution_file = os.path.join(backend_dir, "services", "scheduler", "distribution.py")
-    backup_file = os.path.join(backend_dir, "services", "scheduler", "distribution.py.bak")
-    
+    distribution_file = os.path.join(
+        backend_dir, "services", "scheduler", "distribution.py"
+    )
+    backup_file = os.path.join(
+        backend_dir, "services", "scheduler", "distribution.py.bak"
+    )
+
     # Check if backup exists
     if not os.path.exists(backup_file):
         print(f"Error: Backup file not found at {backup_file}")
         return False
-    
+
     # Restore the backup
-    with open(backup_file, 'r') as src:
-        with open(distribution_file, 'w') as dst:
+    with open(backup_file, "r") as src:
+        with open(distribution_file, "w") as dst:
             dst.write(src.read())
-    
+
     print(f"Successfully restored {distribution_file} from backup")
     return True
 
+
 def main():
     print_section("SHIFT DISTRIBUTION FIXER")
-    print("This tool improves the distribution algorithm to ensure a balanced mix of shift types.")
-    
+    print(
+        "This tool improves the distribution algorithm to ensure a balanced mix of shift types."
+    )
+
     # Get action from command line
     import argparse
-    parser = argparse.ArgumentParser(description='Fix shift distribution algorithm')
-    parser.add_argument('--action', choices=['apply', 'restore'], default='apply',
-                        help='Apply the fix or restore from backup')
-    
+
+    parser = argparse.ArgumentParser(description="Fix shift distribution algorithm")
+    parser.add_argument(
+        "--action",
+        choices=["apply", "restore"],
+        default="apply",
+        help="Apply the fix or restore from backup",
+    )
+
     args = parser.parse_args()
-    
-    if args.action == 'apply':
+
+    if args.action == "apply":
         print("Applying improved distribution algorithm...")
         success = modify_distribution_file()
     else:
         print("Restoring original distribution algorithm...")
         success = restore_distribution_file()
-    
+
     if success:
         print("\nAction completed successfully.")
         print("\nTo test the changes, run the scheduler diagnostic:")
-        print("  python -m src.backend.tools.debug.scheduler_diagnostic --start 2024-11-01 --end 2024-11-07")
+        print(
+            "  python -m src.backend.tools.debug.scheduler_diagnostic --start 2024-11-01 --end 2024-11-07"
+        )
     else:
         print("\nAction failed. See error messages above.")
-    
+
     print("\n" + "=" * 80)
     print(" PROCESS COMPLETE ".center(80, "="))
     print("=" * 80)
 
+
 if __name__ == "__main__":
-    main() 
+    main()

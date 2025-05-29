@@ -8,13 +8,16 @@ import os
 import traceback
 
 # Add the parent directories to the path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
+sys.path.insert(
+    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
+)
 
 # Now do the imports
 from backend.app import create_app
 from backend.models import ShiftTemplate, db
 from backend.services.scheduler.resources import ScheduleResources
+
 
 def diagnose_shifts():
     """Diagnose shift template issues in the database"""
@@ -131,12 +134,14 @@ def diagnose_shifts():
                         updated = True
                     except Exception as e:
                         print(f"  ERROR fixing duration for shift {shift.id}: {str(e)}")
-                
+
                 # Fix missing active_days
                 if not shift.active_days:
                     # Set to all weekdays by default (0-6, Monday through Sunday)
                     shift.active_days = [0, 1, 2, 3, 4, 5, 6]
-                    print(f"  Fixed active_days for shift {shift.id}: set to all days of the week")
+                    print(
+                        f"  Fixed active_days for shift {shift.id}: set to all days of the week"
+                    )
                     updated = True
 
                 if updated:

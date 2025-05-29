@@ -9,7 +9,8 @@ from datetime import datetime
 from typing import Optional, Dict, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from logging import Logger as LoggerType # Avoid circular import issues
+    from logging import Logger as LoggerType  # Avoid circular import issues
+
 
 class ProcessTracker:
     """
@@ -17,7 +18,12 @@ class ProcessTracker:
     Logs information using provided logger instances.
     """
 
-    def __init__(self, process_name: str, schedule_logger: 'LoggerType', diagnostic_logger: 'LoggerType'):
+    def __init__(
+        self,
+        process_name: str,
+        schedule_logger: "LoggerType",
+        diagnostic_logger: "LoggerType",
+    ):
         """
         Initialize the tracker.
 
@@ -37,8 +43,9 @@ class ProcessTracker:
         self.process_start_time = None
 
         # Log initialization immediately using the provided diagnostic logger
-        self.diagnostic_logger.info(f"ProcessTracker initialized for '{process_name}' (Session: {self.session_id})")
-
+        self.diagnostic_logger.info(
+            f"ProcessTracker initialized for '{process_name}' (Session: {self.session_id})"
+        )
 
     def start_process(self) -> None:
         """Start timing the overall process."""
@@ -59,7 +66,6 @@ class ProcessTracker:
         self.schedule_logger.info(step_msg)
         self.diagnostic_logger.info(f"--> START STEP {self.step_count}: {step_name}")
 
-
     def end_step(self, results: Optional[Dict[str, Any]] = None) -> None:
         """Log the completion of a processing step with optional results."""
         if self.current_step and self.step_start_time:
@@ -78,19 +84,23 @@ class ProcessTracker:
                 try:
                     # Use indentation for readability in diagnostic log
                     result_str = json.dumps(results, default=str, indent=2)
-                    self.diagnostic_logger.debug(f"    Step {self.step_count} Results:\n{result_str}")
+                    self.diagnostic_logger.debug(
+                        f"    Step {self.step_count} Results:\n{result_str}"
+                    )
                     # Log concise summary to schedule log if needed
                     # self.schedule_logger.debug(f"Step {self.step_count} results keys: {list(results.keys())}")
                 except Exception as e:
-                    self.diagnostic_logger.error(f"Failed to serialize step results: {e}")
+                    self.diagnostic_logger.error(
+                        f"Failed to serialize step results: {e}"
+                    )
                     self.diagnostic_logger.debug(f"Raw results: {results}")
-
 
             self.current_step = None
             self.step_start_time = None
         else:
-             self.diagnostic_logger.warning("end_step called without an active step or start time.")
-
+            self.diagnostic_logger.warning(
+                "end_step called without an active step or start time."
+            )
 
     def end_process(self, stats: Optional[Dict[str, Any]] = None) -> None:
         """Log the completion of the entire process."""
@@ -109,12 +119,16 @@ class ProcessTracker:
 
             completion_msg = "===== PROCESS COMPLETED ====="
             summary_msg = f"Process summary: {json.dumps(summary, default=str)}"
-            diag_summary_msg = (f"PROCESS COMPLETED - Runtime: {duration_sec:.2f}s "
-                                f"- Steps: {len(self.steps_completed)}/{self.step_count}")
+            diag_summary_msg = (
+                f"PROCESS COMPLETED - Runtime: {duration_sec:.2f}s "
+                f"- Steps: {len(self.steps_completed)}/{self.step_count}"
+            )
 
             self.schedule_logger.info(completion_msg)
             self.schedule_logger.info(f"Total runtime: {duration_sec:.2f} seconds")
-            self.schedule_logger.info(f"Steps completed: {len(self.steps_completed)}/{self.step_count}")
+            self.schedule_logger.info(
+                f"Steps completed: {len(self.steps_completed)}/{self.step_count}"
+            )
             self.schedule_logger.info(summary_msg)
 
             self.diagnostic_logger.info(completion_msg)
@@ -125,13 +139,19 @@ class ProcessTracker:
                     stats_str = json.dumps(stats, default=str, indent=2)
                     self.diagnostic_logger.info(f"STATS:\n{stats_str}")
                 except Exception as e:
-                    self.diagnostic_logger.error(f"Failed to serialize final stats: {e}")
+                    self.diagnostic_logger.error(
+                        f"Failed to serialize final stats: {e}"
+                    )
                     self.diagnostic_logger.info(f"Raw stats: {stats}")
 
         else:
-            self.diagnostic_logger.warning("end_process called without a process start time.")
+            self.diagnostic_logger.warning(
+                "end_process called without a process start time."
+            )
 
-    def log_step_data(self, data_name: str, data: Any, level: int = logging.DEBUG) -> None:
+    def log_step_data(
+        self, data_name: str, data: Any, level: int = logging.DEBUG
+    ) -> None:
         """Log detailed data associated with the current step, primarily to the diagnostic log."""
         if self.current_step:
             try:
@@ -154,11 +174,14 @@ class ProcessTracker:
                 # self.schedule_logger.debug(f"{log_prefix} logged to diagnostics.")
 
             except Exception as e:
-                self.diagnostic_logger.error(f"Error logging step data '{data_name}': {e}")
+                self.diagnostic_logger.error(
+                    f"Error logging step data '{data_name}': {e}"
+                )
                 self.diagnostic_logger.debug(f"Raw data: {data}")
         else:
-            self.diagnostic_logger.warning(f"log_step_data called without an active step for '{data_name}'.")
-
+            self.diagnostic_logger.warning(
+                f"log_step_data called without an active step for '{data_name}'."
+            )
 
     def log_error(self, message: str, exc_info=True) -> None:
         """Log an error message to both schedule and diagnostic logs."""
@@ -172,27 +195,28 @@ class ProcessTracker:
                 )
                 self.diagnostic_logger.error(f"ERROR: {message}\n{''.join(tb_lines)}")
             else:
-                 self.diagnostic_logger.error(f"ERROR: {message} (Exception info requested but not available)")
+                self.diagnostic_logger.error(
+                    f"ERROR: {message} (Exception info requested but not available)"
+                )
         else:
             self.diagnostic_logger.error(f"ERROR: {message}")
 
     # Convenience methods to log to both loggers if desired, or just one
     def log_info(self, message: str, log_to_diag: bool = True):
-         self.schedule_logger.info(message)
-         if log_to_diag:
-             self.diagnostic_logger.info(message)
+        self.schedule_logger.info(message)
+        if log_to_diag:
+            self.diagnostic_logger.info(message)
 
     def log_debug(self, message: str, log_to_schedule: bool = False):
-         # Debug usually goes only to diagnostic unless specified
-         self.diagnostic_logger.debug(message)
-         if log_to_schedule:
-             self.schedule_logger.debug(message)
+        # Debug usually goes only to diagnostic unless specified
+        self.diagnostic_logger.debug(message)
+        if log_to_schedule:
+            self.schedule_logger.debug(message)
 
     def log_warning(self, message: str, log_to_diag: bool = True):
         self.schedule_logger.warning(message)
         if log_to_diag:
             self.diagnostic_logger.warning(message)
-
 
     def get_session_id(self) -> str:
         """Get the unique session ID for this process run."""

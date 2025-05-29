@@ -259,12 +259,14 @@ class ScheduleGeneratorDiagnostic:
                         EmployeeAvailability,
                         Absence,
                     )
+
                     self._log_info("Successfully imported model classes")
 
                     # Import scheduler services
                     from src.backend.services.scheduler.generator import (
                         ScheduleGenerator,
                     )
+
                     self._log_info("Successfully imported ScheduleGenerator")
 
                     self._log_success("Models imported successfully")
@@ -315,9 +317,17 @@ class ScheduleGeneratorDiagnostic:
                 # Check employees
                 try:
                     # Use db.session.execute instead of Model.query
-                    employee_count = db.session.execute(db.select(db.func.count(Employee.id))).scalar_one()
-                    active_employees = db.session.execute(db.select(db.func.count(Employee.id)).filter_by(is_active=True)).scalar_one()
-                    keyholders = db.session.execute(db.select(db.func.count(Employee.id)).filter_by(is_keyholder=True)).scalar_one()
+                    employee_count = db.session.execute(
+                        db.select(db.func.count(Employee.id))
+                    ).scalar_one()
+                    active_employees = db.session.execute(
+                        db.select(db.func.count(Employee.id)).filter_by(is_active=True)
+                    ).scalar_one()
+                    keyholders = db.session.execute(
+                        db.select(db.func.count(Employee.id)).filter_by(
+                            is_keyholder=True
+                        )
+                    ).scalar_one()
 
                     self.stats["employees"] = employee_count
                     self.stats["available_employees"] = active_employees
@@ -339,7 +349,9 @@ class ScheduleGeneratorDiagnostic:
 
                     # Check shift templates
                     # Use db.session.execute instead of Model.query
-                    shift_count = db.session.execute(db.select(db.func.count(ShiftTemplate.id))).scalar_one()
+                    shift_count = db.session.execute(
+                        db.select(db.func.count(ShiftTemplate.id))
+                    ).scalar_one()
                     self.stats["shifts"] = shift_count
                     self._log_info(f"Shift templates: {shift_count}")
 
@@ -351,7 +363,9 @@ class ScheduleGeneratorDiagnostic:
 
                     # Check coverage requirements
                     # Use db.session.execute instead of Model.query
-                    coverage_count = db.session.execute(db.select(db.func.count(Coverage.id))).scalar_one()
+                    coverage_count = db.session.execute(
+                        db.select(db.func.count(Coverage.id))
+                    ).scalar_one()
                     self.stats["coverage_blocks"] = coverage_count
                     self._log_info(f"Coverage requirements: {coverage_count}")
 
@@ -363,7 +377,9 @@ class ScheduleGeneratorDiagnostic:
 
                     # Check settings
                     # Use db.session.execute instead of Model.query
-                    settings = db.session.execute(db.select(Settings)).scalar_one_or_none()
+                    settings = db.session.execute(
+                        db.select(Settings)
+                    ).scalar_one_or_none()
                     if not settings:
                         self._log_warning(
                             "No settings found in database, using defaults"

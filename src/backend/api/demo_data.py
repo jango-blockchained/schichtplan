@@ -189,9 +189,7 @@ def generate_employee_data(num_employees: int = 30):
                 f"TZ employee: {first_name} {last_name}, contracted_hours: {contracted_hours}"
             )
         else:  # GFB
-            contracted_hours = random.randint(
-                5, 10
-            )
+            contracted_hours = random.randint(5, 10)
             logging.info(
                 f"GFB employee: {first_name} {last_name}, contracted_hours: {contracted_hours}"
             )
@@ -309,7 +307,7 @@ def generate_improved_availability_data(employees):
                     availability_type=AvailabilityType.FIXED,
                     start_date=day_date_obj,
                     end_date=day_date_obj,
-                    is_recurring=False
+                    is_recurring=False,
                 )
                 availabilities.append(avail_slot)
         employee_weekly_hours[emp.id] = total_hours
@@ -319,8 +317,7 @@ def generate_improved_availability_data(employees):
     for employee in other_employees:
         target_weekly_hours = int(employee.contracted_hours * 1.5)
         num_available_days = random.randint(4, 6)
-        chosen_days_indices = random.sample(
-            working_days_indices, num_available_days)
+        chosen_days_indices = random.sample(working_days_indices, num_available_days)
         chosen_days_indices.sort()
         remaining_target_hours = target_weekly_hours
         for day_idx in chosen_days_indices:
@@ -329,7 +326,8 @@ def generate_improved_availability_data(employees):
             day_date_obj = start_of_week_date + timedelta(days=day_idx)
             days_left = len(chosen_days_indices) - chosen_days_indices.index(day_idx)
             hours_for_this_day_total = min(
-                8, max(4, remaining_target_hours // days_left))
+                8, max(4, remaining_target_hours // days_left)
+            )
             for h in range(9, 9 + hours_for_this_day_total):
                 avail_slot = EmployeeAvailability(
                     employee_id=employee.id,
@@ -339,7 +337,7 @@ def generate_improved_availability_data(employees):
                     availability_type=AvailabilityType.AVAILABLE,
                     start_date=day_date_obj,
                     end_date=day_date_obj,
-                    is_recurring=False
+                    is_recurring=False,
                 )
                 availabilities.append(avail_slot)
             remaining_target_hours -= hours_for_this_day_total
@@ -432,7 +430,7 @@ def generate_demo_data():
     try:
         json_data = request.get_json() or {}
         module = json_data.get("module", "all")
-        
+
         num_employees_raw = json_data.get("num_employees")
         num_employees = 30  # Default
         if isinstance(num_employees_raw, int):
@@ -444,7 +442,9 @@ def generate_demo_data():
                 if parsed_num > 0:
                     num_employees = parsed_num
 
-        logging.info(f"Generating demo data for module: {module}, num_employees: {num_employees}")
+        logging.info(
+            f"Generating demo data for module: {module}, num_employees: {num_employees}"
+        )
 
         if module in ["settings", "all"]:
             logging.info("Generating demo settings...")
@@ -602,7 +602,9 @@ def generate_demo_data():
 
 def generate_improved_employee_data(num_employees_override: int | None = None):
     """Generate optimized employee data with keyholders and proper distribution of types"""
-    logging.info(f"Starting to generate improved employee data. Override: {num_employees_override}")
+    logging.info(
+        f"Starting to generate improved employee data. Override: {num_employees_override}"
+    )
 
     settings = Settings.query.first()
     if not settings:
@@ -724,7 +726,9 @@ def generate_improved_employee_data(num_employees_override: int | None = None):
     employee_id_counter = 1
 
     if num_employees_override is not None:
-        logging.info(f"Generating specified number of employees: {num_employees_override}")
+        logging.info(
+            f"Generating specified number of employees: {num_employees_override}"
+        )
         for _ in range(num_employees_override):
             emp_type = random.choice(employee_types)
             first_name = random.choice(first_names)
@@ -735,13 +739,21 @@ def generate_improved_employee_data(num_employees_override: int | None = None):
             employee_id_counter += 1
 
             # Contracted hours based on chosen emp_type
-            contracted_hours = random.randint(emp_type["min_hours"], emp_type["max_hours"])
-            if emp_type["id"] in ["VZ", "TL"] and contracted_hours < 35: # Ensure VZ/TL have at least 35
+            contracted_hours = random.randint(
+                emp_type["min_hours"], emp_type["max_hours"]
+            )
+            if (
+                emp_type["id"] in ["VZ", "TL"] and contracted_hours < 35
+            ):  # Ensure VZ/TL have at least 35
                 contracted_hours = 40.0
-            elif emp_type["id"] == "GFB" and contracted_hours > 10: # Cap GFB at 10 (was 14)
-                 contracted_hours = 10.0
-            elif emp_type["id"] == "TZ" and contracted_hours < 10: # Ensure TZ has at least 10
-                 contracted_hours = 10.0
+            elif (
+                emp_type["id"] == "GFB" and contracted_hours > 10
+            ):  # Cap GFB at 10 (was 14)
+                contracted_hours = 10.0
+            elif (
+                emp_type["id"] == "TZ" and contracted_hours < 10
+            ):  # Ensure TZ has at least 10
+                contracted_hours = 10.0
 
             is_keyholder = emp_type["id"] != "GFB"
 
@@ -759,7 +771,7 @@ def generate_improved_employee_data(num_employees_override: int | None = None):
                     contracted_hours=contracted_hours,
                     is_keyholder=is_keyholder,
                     is_active=True,
-                    email=f"employee{employee_id_counter}@example.com", # Use unique counter for email
+                    email=f"employee{employee_id_counter}@example.com",  # Use unique counter for email
                     phone=f"+49 {random.randint(100, 999)} {random.randint(1000000, 9999999)}",
                 )
                 employees.append(employee)
@@ -806,7 +818,7 @@ def generate_improved_employee_data(num_employees_override: int | None = None):
                         contracted_hours=contracted_hours,
                         is_keyholder=is_keyholder,
                         is_active=True,
-                        email=f"employee{employee_id_counter}@example.com", # Use unique counter for email
+                        email=f"employee{employee_id_counter}@example.com",  # Use unique counter for email
                         phone=f"+49 {random.randint(100, 999)} {random.randint(1000000, 9999999)}",
                     )
                     employees.append(employee)
@@ -1088,7 +1100,9 @@ def generate_optimized_shift_templates():
             end_time="14:00",
             requires_break=False,
             shift_type=ShiftType.EARLY,
-            active_days={str(i): i != 6 for i in range(7)},  # All days except Sunday (Sunday is 6)
+            active_days={
+                str(i): i != 6 for i in range(7)
+            },  # All days except Sunday (Sunday is 6)
         ),
         # Mid-day shifts
         ShiftTemplate(
@@ -1096,7 +1110,9 @@ def generate_optimized_shift_templates():
             end_time="16:00",
             requires_break=False,
             shift_type=ShiftType.MIDDLE,
-            active_days={str(i): i != 6 for i in range(7)},  # All days except Sunday (Sunday is 6)
+            active_days={
+                str(i): i != 6 for i in range(7)
+            },  # All days except Sunday (Sunday is 6)
         ),
         # Closing shifts
         ShiftTemplate(
@@ -1104,7 +1120,9 @@ def generate_optimized_shift_templates():
             end_time="20:00",
             requires_break=False,
             shift_type=ShiftType.LATE,
-            active_days={str(i): i != 6 for i in range(7)},  # All days except Sunday (Sunday is 6)
+            active_days={
+                str(i): i != 6 for i in range(7)
+            },  # All days except Sunday (Sunday is 6)
         ),
         # Full-time morning to mid-afternoon
         ShiftTemplate(
@@ -1112,7 +1130,9 @@ def generate_optimized_shift_templates():
             end_time="17:00",
             requires_break=True,
             shift_type=ShiftType.EARLY,
-            active_days={str(i): i != 6 for i in range(7)},  # All days except Sunday (Sunday is 6)
+            active_days={
+                str(i): i != 6 for i in range(7)
+            },  # All days except Sunday (Sunday is 6)
         ),
         # Full-time mid-day to closing
         ShiftTemplate(
@@ -1120,7 +1140,9 @@ def generate_optimized_shift_templates():
             end_time="20:00",
             requires_break=True,
             shift_type=ShiftType.LATE,
-            active_days={str(i): i != 6 for i in range(7)},  # All days except Sunday (Sunday is 6)
+            active_days={
+                str(i): i != 6 for i in range(7)
+            },  # All days except Sunday (Sunday is 6)
         ),
         # Short opening shift (mini-job)
         ShiftTemplate(
@@ -1128,7 +1150,9 @@ def generate_optimized_shift_templates():
             end_time="12:00",
             requires_break=False,
             shift_type=ShiftType.EARLY,
-            active_days={str(i): i != 6 for i in range(7)},  # All days except Sunday (Sunday is 6)
+            active_days={
+                str(i): i != 6 for i in range(7)
+            },  # All days except Sunday (Sunday is 6)
         ),
         # Short mid-day shift (mini-job)
         ShiftTemplate(
@@ -1136,7 +1160,9 @@ def generate_optimized_shift_templates():
             end_time="16:00",
             requires_break=False,
             shift_type=ShiftType.MIDDLE,
-            active_days={str(i): i != 6 for i in range(7)},  # All days except Sunday (Sunday is 6)
+            active_days={
+                str(i): i != 6 for i in range(7)
+            },  # All days except Sunday (Sunday is 6)
         ),
         # Short closing shift (mini-job)
         ShiftTemplate(
@@ -1144,7 +1170,9 @@ def generate_optimized_shift_templates():
             end_time="20:00",
             requires_break=False,
             shift_type=ShiftType.LATE,
-            active_days={str(i): i != 6 for i in range(7)},  # All days except Sunday (Sunday is 6)
+            active_days={
+                str(i): i != 6 for i in range(7)
+            },  # All days except Sunday (Sunday is 6)
         ),
     ]
 
@@ -1219,14 +1247,16 @@ def generate_improved_absences(employees):
                         start_date_obj = today + timedelta(  # Renamed to avoid conflict
                             days=random.randint(1, date_range - duration)
                         )
-                        end_date_obj = start_date_obj + timedelta(days=duration - 1) # Renamed
+                        end_date_obj = start_date_obj + timedelta(
+                            days=duration - 1
+                        )  # Renamed
 
                         # Check if this period overlaps with existing absences
                         overlaps = False
                         for existing in absences:
                             if existing.employee_id == employee.id and not (
-                                end_date_obj < existing.start_date # Use renamed var
-                                or start_date_obj > existing.end_date # Use renamed var
+                                end_date_obj < existing.start_date  # Use renamed var
+                                or start_date_obj > existing.end_date  # Use renamed var
                             ):
                                 overlaps = True
                                 break
@@ -1236,14 +1266,14 @@ def generate_improved_absences(employees):
                             absence = Absence(
                                 employee_id=employee.id,  # noqa
                                 absence_type_id=absence_type,  # noqa
-                                start_date=start_date_obj, # Use renamed var # noqa
-                                end_date=end_date_obj,   # Use renamed var # noqa
+                                start_date=start_date_obj,  # Use renamed var # noqa
+                                end_date=end_date_obj,  # Use renamed var # noqa
                                 note=f"Generated {absence_type} absence",  # noqa
                             )
                             absences.append(absence)
                             logging.info(
                                 f"Created {absence_type} absence for {employee.employee_id} "
-                                f"from {start_date_obj} to {end_date_obj}" # Use renamed vars
+                                f"from {start_date_obj} to {end_date_obj}"  # Use renamed vars
                             )
 
                         attempts += 1
@@ -1266,7 +1296,9 @@ def generate_optimized_demo_data():
                 if parsed_num > 0:
                     num_employees_override = parsed_num
 
-        logging.info(f"Generating optimized demo data with diverse shift patterns, num_employees_override: {num_employees_override}")
+        logging.info(
+            f"Generating optimized demo data with diverse shift patterns, num_employees_override: {num_employees_override}"
+        )
 
         # Update settings first
         settings = Settings.query.first()
@@ -1291,7 +1323,9 @@ def generate_optimized_demo_data():
         # Generate new optimized data
         try:
             logging.info("Generating improved employee data...")
-            employees = generate_improved_employee_data(num_employees_override=num_employees_override)
+            employees = generate_improved_employee_data(
+                num_employees_override=num_employees_override
+            )
             logging.info(f"Created {len(employees)} employees, adding to session...")
             db.session.add_all(employees)
             logging.info("Committing employees to database...")
@@ -1326,7 +1360,9 @@ def generate_optimized_demo_data():
         # Note: The old generate_improved_availability_data is being replaced.
         # The new one (defined as a string above) should be used here.
         # For now, this call will use the OLD version from the file.
-        availabilities, daily_employee_day_type, employee_weekly_hours = generate_improved_availability_data(employees)
+        availabilities, daily_employee_day_type, employee_weekly_hours = (
+            generate_improved_availability_data(employees)
+        )
         db.session.add_all(availabilities)
         db.session.commit()
         logging.info(f"Successfully created {len(availabilities)} availabilities")

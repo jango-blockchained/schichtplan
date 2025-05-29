@@ -61,7 +61,10 @@ class Employee(db.Model):
     phone = Column(String(20), nullable=True)
     created_at = Column(db.DateTime, nullable=False, default=datetime.now(UTC))
     updated_at = Column(
-        db.DateTime, nullable=False, default=datetime.now(UTC), onupdate=datetime.now(UTC)
+        db.DateTime,
+        nullable=False,
+        default=datetime.now(UTC),
+        onupdate=datetime.now(UTC),
     )
 
     # Relationships
@@ -221,7 +224,10 @@ class EmployeeAvailability(db.Model):
     )
     created_at = Column(db.DateTime, nullable=False, default=datetime.now(UTC))
     updated_at = Column(
-        db.DateTime, nullable=False, default=datetime.now(UTC), onupdate=datetime.now(UTC)
+        db.DateTime,
+        nullable=False,
+        default=datetime.now(UTC),
+        onupdate=datetime.now(UTC),
     )
 
     employee = relationship("Employee", back_populates="availabilities")

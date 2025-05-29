@@ -51,17 +51,35 @@ def update_settings():
     try:
         data = request.get_json()
         if not data:
-            return jsonify({"error": "Invalid input: No data provided"}), HTTPStatus.BAD_REQUEST
+            return jsonify(
+                {"error": "Invalid input: No data provided"}
+            ), HTTPStatus.BAD_REQUEST
 
         # Basic validation examples (can be expanded based on Settings model)
         if "general" in data and not isinstance(data["general"], dict):
-            return jsonify({"error": "Invalid input: 'general' must be an object"}), HTTPStatus.BAD_REQUEST
+            return jsonify(
+                {"error": "Invalid input: 'general' must be an object"}
+            ), HTTPStatus.BAD_REQUEST
         if "ai_scheduling" in data and not isinstance(data["ai_scheduling"], dict):
-             return jsonify({"error": "Invalid input: 'ai_scheduling' must be an object"}), HTTPStatus.BAD_REQUEST
-        if "ai_scheduling" in data and "enabled" in data["ai_scheduling"] and not isinstance(data["ai_scheduling"]["enabled"], bool):
-             return jsonify({"error": "Invalid input: 'ai_scheduling.enabled' must be a boolean"}), HTTPStatus.BAD_REQUEST
-        if "ai_scheduling" in data and "api_key" in data["ai_scheduling"] and not isinstance(data["ai_scheduling"]["api_key"], str):
-             return jsonify({"error": "Invalid input: 'ai_scheduling.api_key' must be a string"}), HTTPStatus.BAD_REQUEST
+            return jsonify(
+                {"error": "Invalid input: 'ai_scheduling' must be an object"}
+            ), HTTPStatus.BAD_REQUEST
+        if (
+            "ai_scheduling" in data
+            and "enabled" in data["ai_scheduling"]
+            and not isinstance(data["ai_scheduling"]["enabled"], bool)
+        ):
+            return jsonify(
+                {"error": "Invalid input: 'ai_scheduling.enabled' must be a boolean"}
+            ), HTTPStatus.BAD_REQUEST
+        if (
+            "ai_scheduling" in data
+            and "api_key" in data["ai_scheduling"]
+            and not isinstance(data["ai_scheduling"]["api_key"], str)
+        ):
+            return jsonify(
+                {"error": "Invalid input: 'ai_scheduling.api_key' must be a string"}
+            ), HTTPStatus.BAD_REQUEST
 
         settings = Settings.query.first()
 

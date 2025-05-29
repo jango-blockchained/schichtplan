@@ -3,8 +3,8 @@ from logging.handlers import RotatingFileHandler
 import json
 from pathlib import Path
 import os
-import sys # Import sys for stderr
-import traceback # Import traceback
+import sys  # Import sys for stderr
+import traceback  # Import traceback
 from datetime import datetime
 
 # Get the root directory (two levels up from this file)
@@ -87,19 +87,22 @@ class Logger:
         logging.ERROR: "Error",
         logging.CRITICAL: "Critical",
     }
-    
+
     def __init__(self):
         self.initialized = False  # Add initialized flag
         self.console_handler = None  # Initialize handler attributes
         self.file_handler = None
         self.logger_name = "app"  # Default logger name
-        
-        print("!!! Logger __init__ started !!!", file=sys.stderr) # DEBUG PRINT
+
+        print("!!! Logger __init__ started !!!", file=sys.stderr)  # DEBUG PRINT
         try:
             # Create logs directory in the project root if it doesn't exist
             self.logs_dir = ROOT_DIR / "logs"
             self.logs_dir.mkdir(exist_ok=True)
-            print(f"!!! Logger attempting to use logs dir: {self.logs_dir}", file=sys.stderr) # DEBUG PRINT
+            print(
+                f"!!! Logger attempting to use logs dir: {self.logs_dir}",
+                file=sys.stderr,
+            )  # DEBUG PRINT
 
             # Create a sessions directory for session-specific logs
             self.sessions_dir = self.logs_dir / "sessions"
@@ -113,7 +116,7 @@ class Logger:
             formatter = CustomFormatter()
 
             # User actions logger
-            print("!!! Setting up user_logger...", file=sys.stderr) # DEBUG PRINT
+            print("!!! Setting up user_logger...", file=sys.stderr)  # DEBUG PRINT
             self.user_logger = logging.getLogger("user_actions")
             self.user_logger.setLevel(logging.INFO)
             self.user_logger.propagate = False
@@ -128,10 +131,10 @@ class Logger:
             if self.user_logger.hasHandlers():
                 self.user_logger.handlers.clear()
             self.user_logger.addHandler(user_handler)
-            print("!!! user_logger setup done.", file=sys.stderr) # DEBUG PRINT
+            print("!!! user_logger setup done.", file=sys.stderr)  # DEBUG PRINT
 
             # Error logger
-            print("!!! Setting up error_logger...", file=sys.stderr) # DEBUG PRINT
+            print("!!! Setting up error_logger...", file=sys.stderr)  # DEBUG PRINT
             self.error_logger = logging.getLogger("errors")
             self.error_logger.setLevel(logging.DEBUG)
             self.error_logger.propagate = False
@@ -146,10 +149,10 @@ class Logger:
             if self.error_logger.hasHandlers():
                 self.error_logger.handlers.clear()
             self.error_logger.addHandler(error_handler)
-            print("!!! error_logger setup done.", file=sys.stderr) # DEBUG PRINT
+            print("!!! error_logger setup done.", file=sys.stderr)  # DEBUG PRINT
 
             # Schedule logger
-            print("!!! Setting up schedule_logger...", file=sys.stderr) # DEBUG PRINT
+            print("!!! Setting up schedule_logger...", file=sys.stderr)  # DEBUG PRINT
             self.schedule_logger = logging.getLogger("schedule")
             self.schedule_logger.setLevel(logging.DEBUG)
             self.schedule_logger.propagate = False
@@ -164,10 +167,10 @@ class Logger:
             if self.schedule_logger.hasHandlers():
                 self.schedule_logger.handlers.clear()
             self.schedule_logger.addHandler(schedule_handler)
-            print("!!! schedule_logger setup done.", file=sys.stderr) # DEBUG PRINT
+            print("!!! schedule_logger setup done.", file=sys.stderr)  # DEBUG PRINT
 
             # App logger for general application logs
-            print("!!! Setting up app_logger...", file=sys.stderr) # DEBUG PRINT
+            print("!!! Setting up app_logger...", file=sys.stderr)  # DEBUG PRINT
             self.app_logger = logging.getLogger("app")
             self.app_logger.setLevel(logging.DEBUG)
             self.app_logger.propagate = False
@@ -182,31 +185,37 @@ class Logger:
             if self.app_logger.hasHandlers():
                 self.app_logger.handlers.clear()
             self.app_logger.addHandler(app_handler)
-            print("!!! app_logger setup done.", file=sys.stderr) # DEBUG PRINT
+            print("!!! app_logger setup done.", file=sys.stderr)  # DEBUG PRINT
 
             # --- Add Console Handler for General Debugging ---
             self.console_handler = logging.StreamHandler()
             self.console_handler.setLevel(logging.DEBUG)  # Change from INFO to DEBUG
-            console_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            console_formatter = logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            )
             self.console_handler.setFormatter(console_formatter)
 
             # Add console handler to relevant loggers
             self.app_logger.addHandler(self.console_handler)
             self.schedule_logger.addHandler(self.console_handler)
             self.error_logger.addHandler(self.console_handler)
-            
+
             # Save reference to file handler for use in log_message
             self.file_handler = app_handler
-            
+
             # Mark as initialized
             self.initialized = True
-            
-            print("!!! Logger __init__ finished successfully !!!", file=sys.stderr) # DEBUG PRINT
+
+            print(
+                "!!! Logger __init__ finished successfully !!!", file=sys.stderr
+            )  # DEBUG PRINT
 
         except Exception as e:
-            print(f"!!! FATAL ERROR during Logger __init__: {e}", file=sys.stderr) # DEBUG PRINT
-            traceback.print_exc(file=sys.stderr) # DEBUG PRINT
-            raise # Re-raise
+            print(
+                f"!!! FATAL ERROR during Logger __init__: {e}", file=sys.stderr
+            )  # DEBUG PRINT
+            traceback.print_exc(file=sys.stderr)  # DEBUG PRINT
+            raise  # Re-raise
 
     def create_session_logger(self, session_id: str) -> logging.Logger:
         """Create a new logger for a specific session"""
@@ -230,7 +239,9 @@ class Logger:
 
         return session_logger
 
-    def create_diagnostic_logger(self, session_id: str, log_level=logging.DEBUG) -> logging.Logger:
+    def create_diagnostic_logger(
+        self, session_id: str, log_level=logging.DEBUG
+    ) -> logging.Logger:
         """Create a new logger for diagnostic details of a specific session"""
         logger_name = f"diagnostic_{session_id}"
         diag_logger = logging.getLogger(logger_name)
@@ -259,7 +270,9 @@ class Logger:
             # diag_logger.addHandler(console_handler)
 
             # Log initialization message
-            diag_logger.info(f"===== Diagnostic logging initialized (Session: {session_id}) =====")
+            diag_logger.info(
+                f"===== Diagnostic logging initialized (Session: {session_id}) ====="
+            )
             diag_logger.debug(f"Log file created at: {diag_file_path}")
             diag_logger.debug(f"Session ID: {session_id}")
 
@@ -271,20 +284,60 @@ class Logger:
         return str(self.diagnostics_dir / diag_filename)
 
     def debug(self, message, event_type=None, details=None, status=None, extra=None):
-        self.log_message(logging.DEBUG, message, event_type, details, status, extra=extra)
+        self.log_message(
+            logging.DEBUG, message, event_type, details, status, extra=extra
+        )
 
     def info(self, message, event_type=None, details=None, status=None, extra=None):
-        self.log_message(logging.INFO, message, event_type, details, status, extra=extra)
+        self.log_message(
+            logging.INFO, message, event_type, details, status, extra=extra
+        )
 
-    def warning(self, message, event_type=None, details=None, status=None, exc_info=None, stack_info=False, extra=None):
+    def warning(
+        self,
+        message,
+        event_type=None,
+        details=None,
+        status=None,
+        exc_info=None,
+        stack_info=False,
+        extra=None,
+    ):
         # Flask's logger.warning can pass exc_info, stack_info, and extra.
         # We'll pass all parameters to log_message
-        self.log_message(logging.WARNING, message, event_type, details, status, exc_info=exc_info, stack_info=stack_info, extra=extra)
+        self.log_message(
+            logging.WARNING,
+            message,
+            event_type,
+            details,
+            status,
+            exc_info=exc_info,
+            stack_info=stack_info,
+            extra=extra,
+        )
 
-    def error(self, message, event_type=None, details=None, status="Error", exc_info=None, stack_info=False, extra=None):
+    def error(
+        self,
+        message,
+        event_type=None,
+        details=None,
+        status="Error",
+        exc_info=None,
+        stack_info=False,
+        extra=None,
+    ):
         # Pass the extra parameter directly to log_message
         # If details is None and extra is provided, details can still be set from extra in log_message
-        self.log_message(logging.ERROR, message, event_type, details, status, exc_info=exc_info, stack_info=stack_info, extra=extra)
+        self.log_message(
+            logging.ERROR,
+            message,
+            event_type,
+            details,
+            status,
+            exc_info=exc_info,
+            stack_info=stack_info,
+            extra=extra,
+        )
 
     # Helper method to format time like logging.Formatter does
     def formatTime(self, datefmt=None):
@@ -309,7 +362,7 @@ class Logger:
         if not self.initialized:
             print("Logger not initialized, skipping log message.")
             return
-            
+
         # Construct a log entry dictionary
         log_entry = {
             "timestamp": self.formatTime("%Y-%m-%d %H:%M:%S"),
@@ -322,7 +375,7 @@ class Logger:
             "page": "unknown",
             "action": "unknown",
         }
-        
+
         # Use provided status or get default for this level
         log_entry["status"] = status if status else self._default_status.get(level, "")
 
@@ -332,29 +385,31 @@ class Logger:
                 # Create a copy of the extra dict to use as details
                 details_from_extra = {}
                 # Copy specific fields of interest
-                for key in ['error', 'traceback']:
+                for key in ["error", "traceback"]:
                     if key in extra:
                         details_from_extra[key] = extra[key]
                 # Only use this if we found useful keys
                 if details_from_extra:
                     details = details_from_extra
-            
+
             # Ensure details are JSON serializable if they are complex objects
-            if details is not None and not isinstance(details, (str, int, float, bool, list, dict, type(None))):
+            if details is not None and not isinstance(
+                details, (str, int, float, bool, list, dict, type(None))
+            ):
                 try:
                     details = json.dumps(details, default=str)
                 except (TypeError, OverflowError):
-                    details = str(details) # Fallback to string representation
+                    details = str(details)  # Fallback to string representation
 
             log_entry["details"] = details
-            
+
             # Construct the full log message string
             full_message = f"{message}"
             if event_type:
                 full_message += f" (Event: {event_type})"
             if details:
                 # Avoid duplicating details if they are already part of the main message for text logger
-                pass # Details are primarily for JSON output
+                pass  # Details are primarily for JSON output
             if status:
                 full_message += f" (Status: {status})"
 
@@ -366,31 +421,33 @@ class Logger:
                     level=level,
                     pathname="",
                     lineno=0,
-                    msg=full_message, # Use the constructed full_message
+                    msg=full_message,  # Use the constructed full_message
                     args=(),
-                    exc_info=exc_info, # Pass exc_info
+                    exc_info=exc_info,  # Pass exc_info
                     func="",
                 )
                 # Assign stack_info - it must be a string or None, not bool
                 if stack_info:
-                    record.stack_info = ''.join(traceback.format_stack())
+                    record.stack_info = "".join(traceback.format_stack())
                 else:
                     record.stack_info = None
-                
+
                 # Add other fields from log_entry if formatter expects them
                 for key, value in log_entry.items():
                     if not hasattr(record, key):
                         setattr(record, key, value)
-                
+
                 # Add fields from extra parameter if provided
                 if extra is not None and isinstance(extra, dict):
                     for key, value in extra.items():
-                        if not hasattr(record, key) or key == 'action':  # Allow overriding action
+                        if (
+                            not hasattr(record, key) or key == "action"
+                        ):  # Allow overriding action
                             setattr(record, key, value)
                             # If this is the action field, also update it in the log_entry
-                            if key == 'action':
-                                log_entry['action'] = value
-                
+                            if key == "action":
+                                log_entry["action"] = value
+
                 self.console_handler.handle(record)
 
             # Log to file handler (JSON output)
@@ -403,28 +460,30 @@ class Logger:
                     lineno=0,
                     msg=str(log_entry),  # Pass the whole dict for JSON
                     args=(),
-                    exc_info=exc_info, # Pass exc_info
+                    exc_info=exc_info,  # Pass exc_info
                     func="",
                 )
                 # Assign stack_info - it must be a string or None, not bool
                 if stack_info:
-                    record.stack_info = ''.join(traceback.format_stack())
+                    record.stack_info = "".join(traceback.format_stack())
                 else:
                     record.stack_info = None
-                
+
                 # Add fields from extra parameter to the file handler record too
                 if extra is not None and isinstance(extra, dict):
                     for key, value in extra.items():
-                        if not hasattr(record, key) or key == 'action':  # Allow overriding action
+                        if (
+                            not hasattr(record, key) or key == "action"
+                        ):  # Allow overriding action
                             setattr(record, key, value)
                             # If this is the action field, also update it in the log_entry
-                            if key == 'action' and 'action' in log_entry:
-                                log_entry['action'] = value
-                    
+                            if key == "action" and "action" in log_entry:
+                                log_entry["action"] = value
+
                     # Also add a full copy of the extra dict to the record as 'extra_data'
                     # This ensures we capture all the fields even if they're not explicitly handled
-                    setattr(record, 'extra_data', extra)
-                    
+                    setattr(record, "extra_data", extra)
+
                 self.file_handler.handle(record)
 
         except Exception as e:
@@ -433,6 +492,6 @@ class Logger:
 
 
 # Create a global logger instance
-print("!!! About to create global Logger instance !!!", file=sys.stderr) # DEBUG PRINT
+print("!!! About to create global Logger instance !!!", file=sys.stderr)  # DEBUG PRINT
 logger = Logger()
-print("!!! Global Logger instance created !!!", file=sys.stderr) # DEBUG PRINT
+print("!!! Global Logger instance created !!!", file=sys.stderr)  # DEBUG PRINT

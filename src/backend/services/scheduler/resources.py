@@ -15,7 +15,9 @@ if src_backend_dir not in sys.path:
     sys.path.insert(0, src_backend_dir)
 
 # Try to handle imports in different environments
-ModelImportError_Primary = None # To store potential error for logging if all attempts fail
+ModelImportError_Primary = (
+    None  # To store potential error for logging if all attempts fail
+)
 ModelImportError_Fallback1 = None
 ModelImportError_Fallback2 = None
 try:
@@ -67,18 +69,20 @@ except ImportError as e1:
             logging.getLogger(__name__).critical(
                 f"All model imports failed. Primary: {ModelImportError_Primary}, Fallback1: {ModelImportError_Fallback1}, Fallback2: {ModelImportError_Fallback2}. Resources module will likely fail."
             )
-            
+
             # Define necessary placeholder classes since all imports failed
             class MockSettings:
                 """Fallback Settings class for when imports fail"""
+
                 def __init__(self):
                     self.special_days = {}
                     self.special_hours = {}
                     self.id = 0
-                
+
             # Define placeholder for Coverage model
             class MockCoverage:
                 """Fallback Coverage class for when imports fail"""
+
                 def __init__(self):
                     self.id = 0
                     self.day_index = 0
@@ -87,25 +91,27 @@ except ImportError as e1:
                     self.min_employees = 1
                     self.max_employees = 3
                     self.requires_keyholder = False
-                
+
                 @staticmethod
                 def query():
                     class MockQuery:
                         @staticmethod
                         def all():
                             return []
+
                     return MockQuery()
-            
+
             # Define placeholder for Employee model
             class MockEmployee:
                 """Fallback Employee class for when imports fail"""
+
                 def __init__(self):
                     self.id = 0
                     self.name = "Mock Employee"
                     self.is_keyholder = False
                     self.is_active = True
                     self.employee_group = None
-                
+
                 @staticmethod
                 def query():
                     class MockQuery:
@@ -115,12 +121,15 @@ except ImportError as e1:
                                 @staticmethod
                                 def all():
                                     return []
+
                             return MockFilterResult()
+
                     return MockQuery()
-            
+
             # Define placeholder for ShiftTemplate model
             class MockShiftTemplate:
                 """Fallback ShiftTemplate class for when imports fail"""
+
                 def __init__(self):
                     self.id = 0
                     self.name = "Mock Shift"
@@ -128,35 +137,39 @@ except ImportError as e1:
                     self.end_time = "17:00"
                     self.active_days = [0, 1, 2, 3, 4]
                     self.shift_type = "STANDARD"
-                
+
                 @staticmethod
                 def query():
                     class MockQuery:
                         @staticmethod
                         def all():
                             return []
+
                     return MockQuery()
-            
+
             # Define placeholder for Absence model
             class MockAbsence:
                 """Fallback Absence class for when imports fail"""
+
                 def __init__(self):
                     self.id = 0
                     self.employee_id = 0
                     self.start_date = date.today()
                     self.end_date = date.today()
-                
+
                 @staticmethod
                 def query():
                     class MockQuery:
                         @staticmethod
                         def all():
                             return []
+
                     return MockQuery()
-            
+
             # Define placeholder for EmployeeAvailability model
             class MockEmployeeAvailability:
                 """Fallback EmployeeAvailability class for when imports fail"""
+
                 def __init__(self):
                     self.id = 0
                     self.employee_id = 0
@@ -164,18 +177,20 @@ except ImportError as e1:
                     self.hour = 9
                     self.is_available = True
                     self.availability_type = None
-                
+
                 @staticmethod
                 def query():
                     class MockQuery:
                         @staticmethod
                         def all():
                             return []
+
                     return MockQuery()
-            
+
             # Define placeholder for Schedule model
             class MockSchedule:
                 """Fallback Schedule class for when imports fail"""
+
                 def __init__(self):
                     self.id = 0
                     self.employee_id = 0
@@ -183,33 +198,37 @@ except ImportError as e1:
                     self.date = date.today()
                     self.status = "DRAFT"
                     self.version = 1
-            
+
             # Define placeholder for EmployeeGroup and AvailabilityType enums
             class MockEmployeeGroup:
                 """Fallback EmployeeGroup enum for when imports fail"""
+
                 VZ = "VZ"  # Full-time
                 TZ = "TZ"  # Part-time
                 GFB = "GFB"  # Mini-job
                 TL = "TL"  # Team leader
-            
+
             class MockAvailabilityType:
                 """Fallback AvailabilityType enum for when imports fail"""
+
                 AVAILABLE = "AVAILABLE"
                 PREFERRED = "PREFERRED"
                 UNAVAILABLE = "UNAVAILABLE"
                 FIXED = "FIXED"
-            
+
             # Define placeholders for database access
             class MockDb:
                 """Mock database class"""
+
                 class session:
                     @staticmethod
                     def add(obj):
                         pass
+
                     @staticmethod
                     def commit():
                         pass
-            
+
             # Assign the mocks to global scope
             Settings = MockSettings
             Coverage = MockCoverage
@@ -224,7 +243,7 @@ except ImportError as e1:
 
 # Configure logger
 # logger = logging.getLogger(__name__) # Original logger
-logger = logging.getLogger("schedule") # Explicitly use the 'schedule' logger
+logger = logging.getLogger("schedule")  # Explicitly use the 'schedule' logger
 
 
 class ScheduleResourceError(Exception):
@@ -253,14 +272,16 @@ class ScheduleResources:
 
     def is_loaded(self):
         """Check if resources have been loaded"""
-        return all([
-            self.settings is not None,
-            self.coverage is not None,
-            self.shifts is not None,
-            self.employees is not None,
-            self.absences is not None,
-            self.availabilities is not None,
-        ])
+        return all(
+            [
+                self.settings is not None,
+                self.coverage is not None,
+                self.shifts is not None,
+                self.employees is not None,
+                self.absences is not None,
+                self.availabilities is not None,
+            ]
+        )
 
     def load(self):
         """Loads all necessary resources from the database."""
@@ -272,16 +293,20 @@ class ScheduleResources:
             else:
                 try:
                     from flask import current_app
+
                     ctx = current_app.app_context()
                 except RuntimeError:
                     # If no current app is available, try to create one
                     from src.backend.app import create_app
+
                     app = create_app()
                     ctx = app.app_context()
-            
+
             # Properly use the context manager with 'with' statement
             with ctx:
-                self.logger.debug("Executing resource loading within Flask app context.")
+                self.logger.debug(
+                    "Executing resource loading within Flask app context."
+                )
                 self.settings = self._load_settings()
                 self.coverage = self._load_coverage()
                 self.shifts = self._load_shifts()
@@ -293,7 +318,7 @@ class ScheduleResources:
                 # This might be heavy, only do if necessary for initialization
                 # self.schedule_data = self._load_schedule_data() # Uncomment if needed
 
-                self.is_loaded = True # Mark as loaded after successful loading
+                self.is_loaded = True  # Mark as loaded after successful loading
 
             self.logger.info("Resource loading completed successfully.")
             # Verify resources *after* they are loaded and is_loaded is set
@@ -306,7 +331,10 @@ class ScheduleResources:
             raise
         except Exception as e:
             # Catch any other unexpected exceptions during loading
-            self.logger.error(f"An unexpected error occurred during resource loading: {e}", exc_info=True)
+            self.logger.error(
+                f"An unexpected error occurred during resource loading: {e}",
+                exc_info=True,
+            )
             raise ScheduleResourceError(f"An unexpected error occurred: {e}") from e
 
     def _load_settings(self):
@@ -318,21 +346,23 @@ class ScheduleResources:
             else:
                 try:
                     from flask import current_app
+
                     ctx = current_app.app_context()
                 except RuntimeError:
                     # If no current app is available, try to create one
                     from src.backend.app import create_app
+
                     app = create_app()
                     ctx = app.app_context()
-            
+
             # Properly use the context manager
             with ctx:
                 settings = Settings.query.first()
-                
+
             if not settings:
                 self.logger.error("No settings found in database, will use defaults")
                 return None
-                
+
             self.logger.info("Settings loaded successfully")
             return settings
         except Exception as e:
@@ -343,8 +373,12 @@ class ScheduleResources:
         """Load coverage with error handling"""
         try:
             self.logger.info("Starting to load coverage data...")
-            app_context = self.app_instance.app_context() if self.app_instance else current_app.app_context()
-            with app_context: # Wrap query in app context
+            app_context = (
+                self.app_instance.app_context()
+                if self.app_instance
+                else current_app.app_context()
+            )
+            with app_context:  # Wrap query in app context
                 coverage = Coverage.query.all()
 
             if not coverage:
@@ -355,26 +389,38 @@ class ScheduleResources:
                     from api.demo_data import generate_coverage_data
 
                     coverage_slots = generate_coverage_data()
-                    app_context = self.app_instance.app_context() if self.app_instance else current_app.app_context()
-                    with app_context: # Wrap session add/commit
+                    app_context = (
+                        self.app_instance.app_context()
+                        if self.app_instance
+                        else current_app.app_context()
+                    )
+                    with app_context:  # Wrap session add/commit
                         for slot in coverage_slots:
                             db.session.add(slot)
                         db.session.commit()
                     self.logger.info(
                         f"Successfully generated {len(coverage_slots)} demo coverage slots"
                     )
-                    app_context = self.app_instance.app_context() if self.app_instance else current_app.app_context()
-                    with app_context: # Wrap re-query
-                         coverage = Coverage.query.all() # Re-query after generating
-                    if not coverage: # Check again if demo data actually populated
-                        self.logger.error("Failed to load any coverage even after attempting to generate demo data.")
+                    app_context = (
+                        self.app_instance.app_context()
+                        if self.app_instance
+                        else current_app.app_context()
+                    )
+                    with app_context:  # Wrap re-query
+                        coverage = Coverage.query.all()  # Re-query after generating
+                    if not coverage:  # Check again if demo data actually populated
+                        self.logger.error(
+                            "Failed to load any coverage even after attempting to generate demo data."
+                        )
                         return []
-                except Exception as e: # Keep original exception handling for demo data generation
+                except (
+                    Exception
+                ) as e:  # Keep original exception handling for demo data generation
                     self.logger.error(
                         f"Failed to generate demo coverage data: {str(e)}"
                     )
-                    return [] # Important: if demo data gen fails, and initial was empty, return empty.
-            
+                    return []  # Important: if demo data gen fails, and initial was empty, return empty.
+
             self.logger.info(f"Loaded {len(coverage)} coverage records. Details:")
             for cov_idx, cov_item in enumerate(coverage):
                 self.logger.info(
@@ -390,9 +436,13 @@ class ScheduleResources:
             for day_idx in range(7):
                 day_name = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][day_idx]
                 # Filter coverage for the current day
-                day_specific_coverage = [c for c in coverage if getattr(c, 'day_index', -1) == day_idx]
+                day_specific_coverage = [
+                    c for c in coverage if getattr(c, "day_index", -1) == day_idx
+                ]
                 if day_specific_coverage:
-                    self.logger.info(f"  {day_name} ({day_idx}): {len(day_specific_coverage)} coverage blocks")
+                    self.logger.info(
+                        f"  {day_name} ({day_idx}): {len(day_specific_coverage)} coverage blocks"
+                    )
                     # for c_idx, c_item in enumerate(day_specific_coverage):
                     #    self.logger.debug(f"    {c_idx}: Start: {c_item.start_time}, End: {c_item.end_time}, MinEmp: {c_item.min_employees}, KeyH: {c_item.requires_keyholder}")
                 else:
@@ -402,7 +452,9 @@ class ScheduleResources:
             return coverage
 
         except Exception as e:
-            self.logger.error(f"Error loading coverage: {str(e)}", exc_info=True) # Added exc_info
+            self.logger.error(
+                f"Error loading coverage: {str(e)}", exc_info=True
+            )  # Added exc_info
             return []
 
     def _load_shifts(self) -> List[ShiftTemplate]:
@@ -414,43 +466,62 @@ class ScheduleResources:
             else:
                 try:
                     from flask import current_app
+
                     ctx = current_app.app_context()
                 except RuntimeError:
                     # If no current app is available, try to create one
                     from src.backend.app import create_app
+
                     app = create_app()
                     ctx = app.app_context()
-            
+
             # Properly use the context manager
             with ctx:
                 shifts = ShiftTemplate.query.all()
-                
+
             if not shifts:
                 self.logger.error("No shift templates found in database")
                 return []
 
-            self.logger.info(f"Successfully loaded {len(shifts)} shift templates. Verifying times...")
+            self.logger.info(
+                f"Successfully loaded {len(shifts)} shift templates. Verifying times..."
+            )
             for shift in shifts:
-                start_time_val = getattr(shift, 'start_time', 'MISSING_ATTRIBUTE')
-                end_time_val = getattr(shift, 'end_time', 'MISSING_ATTRIBUTE')
-                active_days_val = getattr(shift, 'active_days', 'MISSING_ATTRIBUTE')
-                shift_name = getattr(shift, 'name', 'N/A')
-                
+                start_time_val = getattr(shift, "start_time", "MISSING_ATTRIBUTE")
+                end_time_val = getattr(shift, "end_time", "MISSING_ATTRIBUTE")
+                active_days_val = getattr(shift, "active_days", "MISSING_ATTRIBUTE")
+                shift_name = getattr(shift, "name", "N/A")
+
                 self.logger.info(
                     f"Loaded ShiftTemplate: id={shift.id}, name='{shift_name}', "
                     f"raw_start_time='{start_time_val}' (type: {type(start_time_val)}), "
                     f"raw_end_time='{end_time_val}' (type: {type(end_time_val)}), "
                     f"active_days={active_days_val}"
                 )
-                
+
                 # Basic validation check for format (doesn't guarantee parseability by int)
-                is_start_time_valid_format = isinstance(start_time_val, str) and len(start_time_val) == 5 and ':' in start_time_val
-                is_end_time_valid_format = isinstance(end_time_val, str) and len(end_time_val) == 5 and ':' in end_time_val
-                
-                if not is_start_time_valid_format and start_time_val != 'MISSING_ATTRIBUTE':
-                    self.logger.warning(f"ShiftTemplate id={shift.id} name='{shift_name}' has an invalid start_time format or type: '{start_time_val}'")
-                if not is_end_time_valid_format and end_time_val != 'MISSING_ATTRIBUTE':
-                    self.logger.warning(f"ShiftTemplate id={shift.id} name='{shift_name}' has an invalid end_time format or type: '{end_time_val}'")
+                is_start_time_valid_format = (
+                    isinstance(start_time_val, str)
+                    and len(start_time_val) == 5
+                    and ":" in start_time_val
+                )
+                is_end_time_valid_format = (
+                    isinstance(end_time_val, str)
+                    and len(end_time_val) == 5
+                    and ":" in end_time_val
+                )
+
+                if (
+                    not is_start_time_valid_format
+                    and start_time_val != "MISSING_ATTRIBUTE"
+                ):
+                    self.logger.warning(
+                        f"ShiftTemplate id={shift.id} name='{shift_name}' has an invalid start_time format or type: '{start_time_val}'"
+                    )
+                if not is_end_time_valid_format and end_time_val != "MISSING_ATTRIBUTE":
+                    self.logger.warning(
+                        f"ShiftTemplate id={shift.id} name='{shift_name}' has an invalid end_time format or type: '{end_time_val}'"
+                    )
 
             return shifts
         except Exception as e:
@@ -466,21 +537,25 @@ class ScheduleResources:
             else:
                 try:
                     from flask import current_app
+
                     ctx = current_app.app_context()
                 except RuntimeError:
                     # If no current app is available, try to create one
                     from src.backend.app import create_app
+
                     app = create_app()
                     ctx = app.app_context()
-            
+
             # Properly use the context manager
             with ctx:
                 employees = Employee.query.filter_by(is_active=True).all()
-                
+
             self.logger.debug(f"Loaded {len(employees)} active employees from database")
             return employees
         except Exception as e:
-            self.logger.error(f"Error loading employees: {str(e)}", exc_info=True) # Added exc_info
+            self.logger.error(
+                f"Error loading employees: {str(e)}", exc_info=True
+            )  # Added exc_info
             return []
 
     def _load_absences(self) -> List[Absence]:
@@ -492,19 +567,23 @@ class ScheduleResources:
             else:
                 try:
                     from flask import current_app
+
                     ctx = current_app.app_context()
                 except RuntimeError:
                     # If no current app is available, try to create one
                     from src.backend.app import create_app
+
                     app = create_app()
                     ctx = app.app_context()
-            
+
             # Properly use the context manager
             with ctx:
                 return Absence.query.all()
-                
+
         except Exception as e:
-            self.logger.error(f"Error loading absences: {str(e)}", exc_info=True) # Added exc_info
+            self.logger.error(
+                f"Error loading absences: {str(e)}", exc_info=True
+            )  # Added exc_info
             return []
 
     def _load_availabilities(self) -> List[EmployeeAvailability]:
@@ -516,13 +595,15 @@ class ScheduleResources:
             else:
                 try:
                     from flask import current_app
+
                     ctx = current_app.app_context()
                 except RuntimeError:
                     # If no current app is available, try to create one
                     from src.backend.app import create_app
+
                     app = create_app()
                     ctx = app.app_context()
-            
+
             # Properly use the context manager
             with ctx:
                 availabilities = EmployeeAvailability.query.all()
@@ -533,7 +614,7 @@ class ScheduleResources:
                 if avail.employee_id not in by_employee:
                     by_employee[avail.employee_id] = []
                 by_employee[avail.employee_id].append(avail)
-                
+
             self.logger.info(f"Loaded {len(availabilities)} availability records")
             return availabilities
         except Exception as e:
@@ -542,11 +623,17 @@ class ScheduleResources:
 
     def get_keyholders(self) -> List[Employee]:
         """Return a list of keyholder employees"""
-        return [emp for emp in self.employees if getattr(emp, 'is_keyholder', False) is True]
+        return [
+            emp for emp in self.employees if getattr(emp, "is_keyholder", False) is True
+        ]
 
     def get_employees_by_group(self, group: EmployeeGroup) -> List[Employee]:
         """Return employees filtered by employee group"""
-        return [emp for emp in self.employees if getattr(emp, 'employee_group', None) == group]
+        return [
+            emp
+            for emp in self.employees
+            if getattr(emp, "employee_group", None) == group
+        ]
 
     @functools.lru_cache(maxsize=128)
     def get_daily_coverage(self, day: date) -> List[Coverage]:
@@ -557,7 +644,9 @@ class ScheduleResources:
             self._date_caches_cleared = True
 
         weekday = day.weekday()
-        return [cov for cov in self.coverage if getattr(cov, 'day_index', None) == weekday]
+        return [
+            cov for cov in self.coverage if getattr(cov, "day_index", None) == weekday
+        ]
 
     def get_employee_absences(
         self, employee_id: int, start_date: date, end_date: date
@@ -570,9 +659,9 @@ class ScheduleResources:
         absences_found = []
         for absence in self.absences:
             # Use getattr for safety
-            if getattr(absence, 'employee_id', None) == employee_id:
-                absence_end = getattr(absence, 'end_date', None)
-                absence_start = getattr(absence, 'start_date', None)
+            if getattr(absence, "employee_id", None) == employee_id:
+                absence_end = getattr(absence, "end_date", None)
+                absence_start = getattr(absence, "start_date", None)
                 # Ensure dates are valid before comparing
                 if isinstance(absence_end, date) and isinstance(absence_start, date):
                     if not (absence_end < start_date or absence_start > end_date):
@@ -600,14 +689,26 @@ class ScheduleResources:
         """Check if an employee is available for a time slot"""
         # First, check if this is a special day when the store is closed
         if self.settings:
-            date_str = day.strftime('%Y-%m-%d')
-            if hasattr(self.settings, 'special_days') and self.settings.special_days:
-                if date_str in self.settings.special_days and self.settings.special_days[date_str].get('is_closed', False):
-                    logger.info(f"Date {date_str} is a closed special day. No employee is available.")
+            date_str = day.strftime("%Y-%m-%d")
+            if hasattr(self.settings, "special_days") and self.settings.special_days:
+                if (
+                    date_str in self.settings.special_days
+                    and self.settings.special_days[date_str].get("is_closed", False)
+                ):
+                    logger.info(
+                        f"Date {date_str} is a closed special day. No employee is available."
+                    )
                     return False
-            elif hasattr(self.settings, 'special_hours') and self.settings.special_hours:
-                if date_str in self.settings.special_hours and self.settings.special_hours[date_str].get('is_closed', False):
-                    logger.info(f"Date {date_str} is closed via special_hours. No employee is available.")
+            elif (
+                hasattr(self.settings, "special_hours") and self.settings.special_hours
+            ):
+                if (
+                    date_str in self.settings.special_hours
+                    and self.settings.special_hours[date_str].get("is_closed", False)
+                ):
+                    logger.info(
+                        f"Date {date_str} is closed via special_hours. No employee is available."
+                    )
                     return False
         # Check for absences first
         if self.is_employee_on_leave(employee_id, day):
@@ -629,14 +730,17 @@ class ScheduleResources:
         for hour in range(start_hour, end_hour):
             hour_available = False
             for avail in availabilities:
-                if getattr(avail, 'hour', None) == hour:
-                    avail_type = getattr(avail, 'availability_type', None)
+                if getattr(avail, "hour", None) == hour:
+                    avail_type = getattr(avail, "availability_type", None)
                     # Accept AVAILABLE or PREFERRED as available
-                    if avail_type in (AvailabilityType.AVAILABLE, AvailabilityType.PREFERRED):
+                    if avail_type in (
+                        AvailabilityType.AVAILABLE,
+                        AvailabilityType.PREFERRED,
+                    ):
                         hour_available = True
                         break
                     # Fallback: if is_available is True, also accept
-                    if getattr(avail, 'is_available', False) is True:
+                    if getattr(avail, "is_available", False) is True:
                         hour_available = True
                         break
             if not hour_available:
@@ -677,8 +781,8 @@ class ScheduleResources:
     def get_employee(self, employee_id: int) -> Optional[Employee]:
         """Get an employee by ID (cached)"""
         # Always check self.employees if set, to support test mocks
-        for emp in getattr(self, 'employees', []):
-            if hasattr(emp, 'id') and emp.id == employee_id:
+        for emp in getattr(self, "employees", []):
+            if hasattr(emp, "id") and emp.id == employee_id:
                 self._employee_cache[employee_id] = emp
                 return emp
         if employee_id in self._employee_cache:
@@ -725,8 +829,18 @@ class ScheduleResources:
         """
         self.logger.info("Verifying loaded resources...")
         # Basic check: ensure core lists are not None and have some expected data
-        if not self.is_loaded or not self.settings or not self.employees or not self.shifts or not self.coverage or not self.availabilities or not self.absences:
-            self.logger.error("One or more core resource types are missing or not loaded.")
+        if (
+            not self.is_loaded
+            or not self.settings
+            or not self.employees
+            or not self.shifts
+            or not self.coverage
+            or not self.availabilities
+            or not self.absences
+        ):
+            self.logger.error(
+                "One or more core resource types are missing or not loaded."
+            )
             # More detailed logging:
             self.logger.error(f"Load status: is_loaded={self.is_loaded}")
             self.logger.error(f"Settings loaded: {self.settings is not None}")

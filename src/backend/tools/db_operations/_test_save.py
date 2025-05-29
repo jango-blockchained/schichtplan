@@ -27,19 +27,21 @@ app = create_app()
 # Push application context
 with app.app_context():
     print("Entered Flask app context")
-    
+
     # Create date range for testing
     today = date.today()
     start_date = today
     end_date = today + timedelta(days=6)  # One week
     version = 999  # Use a unique version for testing
-    
-    print(f"Test parameters: start_date={start_date}, end_date={end_date}, version={version}")
-    
+
+    print(
+        f"Test parameters: start_date={start_date}, end_date={end_date}, version={version}"
+    )
+
     # Check for existing data in test version
     existing_count = Schedule.query.filter_by(version=version).count()
     print(f"Found {existing_count} existing schedules for version {version}")
-    
+
     if existing_count > 0:
         print("Cleaning up existing test data")
         try:
@@ -49,43 +51,49 @@ with app.app_context():
         except Exception as e:
             print(f"Failed to delete existing test data: {e}")
             db.session.rollback()
-    
+
     try:
         # Initialize ScheduleGenerator
         resources = ScheduleResources()
         resources.load()
         generator = ScheduleGenerator(resources=resources)
-        
+
         print("ScheduleGenerator initialized")
-        
+
         # Generate schedule
         print("Generating schedule")
         result = generator.generate(
             start_date=start_date,
             end_date=end_date,
             create_empty_schedules=True,
-            version=version
+            version=version,
         )
-        
-        print(f"Schedule generation result: {len(result.get('schedules', []))} schedules generated")
-        
+
+        print(
+            f"Schedule generation result: {len(result.get('schedules', []))} schedules generated"
+        )
+
         # Test saving to database
         print("Calling _save_to_database")
         save_result = generator._save_to_database()
-        
+
         print(f"Save result: {save_result}")
-        
+
         # Verify data was saved
         saved_count = Schedule.query.filter_by(version=version).count()
         print(f"Found {saved_count} schedules in database for version {version}")
-        
+
         # Get breakdown of saved data
-        with_shift = Schedule.query.filter(Schedule.version == version, Schedule.shift_id != None).count()
-        without_shift = Schedule.query.filter(Schedule.version == version, Schedule.shift_id == None).count()
-        
+        with_shift = Schedule.query.filter(
+            Schedule.version == version, Schedule.shift_id != None
+        ).count()
+        without_shift = Schedule.query.filter(
+            Schedule.version == version, Schedule.shift_id == None
+        ).count()
+
         print(f"Schedules with shift assignments: {with_shift}")
         print(f"Schedules without shift assignments (empty): {without_shift}")
-        
+
         # Detailed verification
         if saved_count > 0:
             print("Schedule save test PASSED ✅")
@@ -93,9 +101,10 @@ with app.app_context():
         else:
             print("Schedule save test FAILED ❌")
             print("No schedules were saved to the database")
-            
+
     except Exception as e:
         import traceback
+
         print(f"Test failed with error: {e}")
         traceback.print_exc()
     finally:
@@ -103,5 +112,5 @@ with app.app_context():
         # Schedule.query.filter_by(version=version).delete()
         # db.session.commit()
         # print(f"Cleaned up test data for version {version}")
-        
-        print("Test completed") 
+
+        print("Test completed")

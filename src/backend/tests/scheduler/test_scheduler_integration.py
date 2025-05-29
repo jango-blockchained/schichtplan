@@ -23,6 +23,7 @@ from services.scheduler.serialization import ScheduleSerializer
 
 from models.employee import AvailabilityType, EmployeeGroup
 
+
 @pytest.fixture
 def scheduler_integration_fixture():
     # Create mock components
@@ -34,9 +35,7 @@ def scheduler_integration_fixture():
     mock_serializer = MagicMock(spec=ScheduleSerializer)
 
     # Set up the generator with mocked components
-    generator = ScheduleGenerator(
-        resources=mock_resources
-    )
+    generator = ScheduleGenerator(resources=mock_resources)
     generator.config = mock_config
     generator.constraint_checker = mock_constraints
     generator.availability_checker = mock_availability
@@ -124,6 +123,7 @@ def scheduler_integration_fixture():
             )
             assignments.append(assignment)
         return assignments
+
     mock_distribution.assign_employees_by_type.side_effect = mock_assign_employees
 
     # Mock serializer to return expected format
@@ -136,6 +136,7 @@ def scheduler_integration_fixture():
             entry.date = a.date
             entries.append(entry)
         return entries
+
     mock_serializer.create_schedule_entries.side_effect = mock_create_entries
 
     def mock_convert_schedule(schedule):
@@ -147,6 +148,7 @@ def scheduler_integration_fixture():
             "end_date": schedule.end_date.isoformat(),
             "entries": [{"id": i} for i in range(len(schedule.entries))],
         }
+
     mock_serializer.convert_schedule_to_dict.side_effect = mock_convert_schedule
 
     return {
@@ -154,6 +156,7 @@ def scheduler_integration_fixture():
         "start_date": start_date,
         "end_date": end_date,
     }
+
 
 def test_schedule_container_initialization(scheduler_integration_fixture):
     start_date = scheduler_integration_fixture["start_date"]
@@ -167,9 +170,15 @@ def test_schedule_container_initialization(scheduler_integration_fixture):
     assert container.version == 2
     assert container.get_assignments() == []
 
-@patch('services.scheduler.generator.DistributionManager')
-@patch('services.scheduler.generator.ConstraintChecker')
-def test_generate_schedule_calls_components(mock_constraint_checker_cls, mock_distribution_manager_cls, scheduler_integration_fixture, app):
+
+@patch("services.scheduler.generator.DistributionManager")
+@patch("services.scheduler.generator.ConstraintChecker")
+def test_generate_schedule_calls_components(
+    mock_constraint_checker_cls,
+    mock_distribution_manager_cls,
+    scheduler_integration_fixture,
+    app,
+):
     # Create mocks for the downstream managers
     mock_distribution_manager = MagicMock()
     mock_constraint_checker = MagicMock()
@@ -185,17 +194,23 @@ def test_generate_schedule_calls_components(mock_constraint_checker_cls, mock_di
     expected_calls = []
     current_date = start_date
     while current_date <= end_date:
-        expected_calls.append(
-            call(current_date, ANY, ANY)
-        )
+        expected_calls.append(call(current_date, ANY, ANY))
         current_date += timedelta(days=1)
-    assert mock_distribution_manager.assign_employees_by_type.call_count == len(expected_calls)
+    assert mock_distribution_manager.assign_employees_by_type.call_count == len(
+        expected_calls
+    )
     assert isinstance(result, dict)
     assert "assignments" in result or "entries" in result
 
-@patch('services.scheduler.generator.DistributionManager')
-@patch('services.scheduler.generator.ConstraintChecker')
-def test_constraint_and_availability_integration(mock_constraint_checker_cls, mock_distribution_manager_cls, scheduler_integration_fixture, app):
+
+@patch("services.scheduler.generator.DistributionManager")
+@patch("services.scheduler.generator.ConstraintChecker")
+def test_constraint_and_availability_integration(
+    mock_constraint_checker_cls,
+    mock_distribution_manager_cls,
+    scheduler_integration_fixture,
+    app,
+):
     mock_distribution_manager = MagicMock()
     mock_constraint_checker = MagicMock()
     mock_distribution_manager_cls.return_value = mock_distribution_manager
@@ -205,21 +220,25 @@ def test_constraint_and_availability_integration(mock_constraint_checker_cls, mo
     with app.app_context():
         generator.generate(
             scheduler_integration_fixture["start_date"],
-            scheduler_integration_fixture["end_date"]
+            scheduler_integration_fixture["end_date"],
         )
     assert mock_constraint_checker.set_schedule.called
     assert mock_distribution_manager.constraint_checker == mock_constraint_checker
 
+
 def test_error_handling_resources_not_loaded(scheduler_integration_fixture, app):
     """Test that an error is raised if resources fail to load"""
-    scheduler_integration_fixture["generator"].resources.load.side_effect = ScheduleResourceError("Failed to load")
+    scheduler_integration_fixture[
+        "generator"
+    ].resources.load.side_effect = ScheduleResourceError("Failed to load")
     with app.app_context():
         with pytest.raises(ScheduleGenerationError) as context:
             scheduler_integration_fixture["generator"].generate(
                 scheduler_integration_fixture["start_date"],
-                scheduler_integration_fixture["end_date"]
+                scheduler_integration_fixture["end_date"],
             )
     assert "Failed to load" in str(context.value)
+
 
 def test_validate_shift_durations(scheduler_integration_fixture, app):
     """Test validation of shift durations"""
@@ -233,18 +252,31 @@ def test_validate_shift_durations(scheduler_integration_fixture, app):
         with pytest.raises(ScheduleGenerationError) as context:
             scheduler_integration_fixture["generator"].generate(
                 scheduler_integration_fixture["start_date"],
-                scheduler_integration_fixture["end_date"]
+                scheduler_integration_fixture["end_date"],
             )
     assert "Schichtdauer fehlt" in str(context.value)
 
+
 # Skip tests for private/internal methods
 import pytest
-@pytest.mark.skip(reason="Depends on internal/private methods not present in current implementation.")
+
+
+@pytest.mark.skip(
+    reason="Depends on internal/private methods not present in current implementation."
+)
 def test_process_coverage_match_by_day(scheduler_integration_fixture):
     pass
-@pytest.mark.skip(reason="Depends on internal/private methods not present in current implementation.")
+
+
+@pytest.mark.skip(
+    reason="Depends on internal/private methods not present in current implementation."
+)
 def test_process_coverage_match_by_date(scheduler_integration_fixture):
     pass
-@pytest.mark.skip(reason="Depends on internal/private methods not present in current implementation.")
+
+
+@pytest.mark.skip(
+    reason="Depends on internal/private methods not present in current implementation."
+)
 def test_create_date_shifts(scheduler_integration_fixture):
     pass

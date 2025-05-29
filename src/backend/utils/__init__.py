@@ -1,1 +1,1 @@
-"""Utility functions and helpers for the application.""" 
+"""Utility functions and helpers for the application."""

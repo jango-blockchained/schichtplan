@@ -7,6 +7,7 @@ from src.backend.models.employee import AvailabilityType  # Import the enum
 
 class AvailabilityCreateRequest(BaseModel):
     """Schema for the availability creation request."""
+
     employee_id: int
     day_of_week: int = Field(..., ge=0, le=6)  # 0 for Monday, 6 for Sunday
     hour: int = Field(..., ge=0, le=23)
@@ -18,10 +19,9 @@ class AvailabilityCreateRequest(BaseModel):
 
 class AvailabilityUpdateRequest(BaseModel):
     """Schema for the availability update request."""
+
     employee_id: Optional[int] = None
-    day_of_week: Optional[int] = Field(
-        None, ge=0, le=6
-    )  # 0 for Monday, 6 for Sunday
+    day_of_week: Optional[int] = Field(None, ge=0, le=6)  # 0 for Monday, 6 for Sunday
     hour: Optional[int] = Field(None, ge=0, le=23)
     is_available: Optional[bool] = None
     availability_type: Optional[AvailabilityType] = None
@@ -29,6 +29,7 @@ class AvailabilityUpdateRequest(BaseModel):
 
 class AvailabilityCheckRequest(BaseModel):
     """Schema for checking employee availability."""
+
     employee_id: int
     date: date  # Pydantic handles date parsing
     hour: Optional[int] = Field(None, ge=0, le=23)
@@ -38,12 +39,11 @@ class AvailabilityCheckRequest(BaseModel):
 
 class EmployeeAvailabilityBase(BaseModel):
     """Base schema for employee availability."""
+
     day_of_week: int = Field(..., ge=0, le=6)  # 0 for Monday, 6 for Sunday
     hour: int = Field(..., ge=0, le=23)
     is_available: bool
-    availability_type: AvailabilityType = Field(
-        default=AvailabilityType.AVAILABLE
-    )
+    availability_type: AvailabilityType = Field(default=AvailabilityType.AVAILABLE)
 
 
 class EmployeeAvailabilitiesUpdateRequest(BaseModel):
@@ -52,6 +52,7 @@ class EmployeeAvailabilitiesUpdateRequest(BaseModel):
 
 class EmployeeStatusByDateRequest(BaseModel):
     """Schema for the employee status by date request."""
+
     date: date
 
 

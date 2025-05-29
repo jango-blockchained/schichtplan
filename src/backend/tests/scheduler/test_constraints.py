@@ -36,8 +36,10 @@ class TestConstraintChecker(unittest.TestCase):
         ]
         self.mock_config.max_hours_per_group = {"VZ": 40, "TZ": 20, "GFB": 10}
         self.mock_config.min_rest_hours = 11.0  # Explicitly set for new tests
-        self.mock_config.enforce_rest_periods = True # Explicitly set for new tests
-        self.mock_config.contracted_hours_limit_factor = 1.2 # Default from constraints.py
+        self.mock_config.enforce_rest_periods = True  # Explicitly set for new tests
+        self.mock_config.contracted_hours_limit_factor = (
+            1.2  # Default from constraints.py
+        )
 
         # Create a mock logger
         self.mock_logger = MagicMock(spec=logging.Logger)
@@ -62,7 +64,9 @@ class TestConstraintChecker(unittest.TestCase):
                 else EmployeeGroup.GFB
             )
             employee.is_keyholder = i == 0  # First employee is keyholder
-            employee.contracted_hours = 40.0 if i == 0 else 20.0 if i == 1 else 10.0 # Use contracted_hours
+            employee.contracted_hours = (
+                40.0 if i == 0 else 20.0 if i == 1 else 10.0
+            )  # Use contracted_hours
             employee.max_shifts_per_day = 1
             employee.min_time_between_shifts = 12  # hours
             self.mock_employees.append(employee)
@@ -127,25 +131,34 @@ class TestConstraintChecker(unittest.TestCase):
             self.test_schedule, self.test_schedule_by_date
         )
 
-    def _create_mock_assignment(self, employee_id: int, shift_date: date, start_time_str: str, end_time_str: str, shift_id: int = 1) -> dict:
+    def _create_mock_assignment(
+        self,
+        employee_id: int,
+        shift_date: date,
+        start_time_str: str,
+        end_time_str: str,
+        shift_id: int = 1,
+    ) -> dict:
         """Helper to create a single mock assignment dictionary."""
         # Ensure shift_date is a string for the dictionary
-        date_str = shift_date.isoformat() if isinstance(shift_date, date) else str(shift_date)
-        
+        date_str = (
+            shift_date.isoformat() if isinstance(shift_date, date) else str(shift_date)
+        )
+
         # Calculate duration - simplified for mock, real duration calc is in ConstraintChecker
-        start_h, start_m = map(int, start_time_str.split(':'))
-        end_h, end_m = map(int, end_time_str.split(':'))
+        start_h, start_m = map(int, start_time_str.split(":"))
+        end_h, end_m = map(int, end_time_str.split(":"))
         duration = (end_h - start_h) + (end_m - start_m) / 60.0
-        if duration < 0: # Handles overnight
+        if duration < 0:  # Handles overnight
             duration += 24
 
         return {
             "employee_id": employee_id,
-            "date": date_str, 
+            "date": date_str,
             "shift_id": shift_id,
             "start_time": start_time_str,
             "end_time": end_time_str,
-            "duration_hours": duration # Include for completeness, though not directly used by all constraint checks
+            "duration_hours": duration,  # Include for completeness, though not directly used by all constraint checks
         }
 
     def mock_get_availability(self, employee_id, current_date):
@@ -409,47 +422,69 @@ class TestConstraintChecker(unittest.TestCase):
     def test_check_max_consecutive_days_no_violation(self):
         """Test _check_max_consecutive_days when no violation occurs."""
         employee = self.mock_employees[0]
-        new_shift_date = date(2023, 3, 10) # Friday
+        new_shift_date = date(2023, 3, 10)  # Friday
         self.mock_config.max_consecutive_days = 5
 
         # Employee worked Mon, Tue
         existing_assignments = [
-            self._create_mock_assignment(employee.id, date(2023, 3, 6), "09:00", "17:00"), # Mon
-            self._create_mock_assignment(employee.id, date(2023, 3, 7), "09:00", "17:00")  # Tue
+            self._create_mock_assignment(
+                employee.id, date(2023, 3, 6), "09:00", "17:00"
+            ),  # Mon
+            self._create_mock_assignment(
+                employee.id, date(2023, 3, 7), "09:00", "17:00"
+            ),  # Tue
         ]
-        
+
         # New shift on Friday (3rd consecutive day if previous were Wed, Thu - but they are not)
         # In this setup, adding Friday makes it the 1st day of a new potential streak, or continues a streak from Thursday.
         # To test a streak of 3 with the new shift:
         existing_assignments_for_streak = [
-            self._create_mock_assignment(employee.id, date(2023, 3, 8), "09:00", "17:00"), # Wed
-            self._create_mock_assignment(employee.id, date(2023, 3, 9), "09:00", "17:00")  # Thu
+            self._create_mock_assignment(
+                employee.id, date(2023, 3, 8), "09:00", "17:00"
+            ),  # Wed
+            self._create_mock_assignment(
+                employee.id, date(2023, 3, 9), "09:00", "17:00"
+            ),  # Thu
         ]
 
         violation = self.constraint_checker._check_max_consecutive_days(
             employee, new_shift_date, existing_assignments_for_streak
         )
-        self.assertIsNone(violation, "Should be no violation for 3 consecutive days when limit is 5.")
+        self.assertIsNone(
+            violation, "Should be no violation for 3 consecutive days when limit is 5."
+        )
 
     def test_check_max_consecutive_days_violation(self):
         """Test _check_max_consecutive_days when a violation occurs."""
         employee = self.mock_employees[0]
-        new_shift_date = date(2023, 3, 10) # Friday
-        self.mock_config.max_consecutive_days = 3 # Lower limit for test
+        new_shift_date = date(2023, 3, 10)  # Friday
+        self.mock_config.max_consecutive_days = 3  # Lower limit for test
 
         # Employee worked Mon, Tue, Wed
         existing_assignments = [
-            self._create_mock_assignment(employee.id, date(2023, 3, 7), "09:00", "17:00"), # Tue (day before new potential streak starts)
-            self._create_mock_assignment(employee.id, date(2023, 3, 8), "09:00", "17:00"), # Wed (1st)
-            self._create_mock_assignment(employee.id, date(2023, 3, 9), "09:00", "17:00")  # Thu (2nd)
+            self._create_mock_assignment(
+                employee.id, date(2023, 3, 7), "09:00", "17:00"
+            ),  # Tue (day before new potential streak starts)
+            self._create_mock_assignment(
+                employee.id, date(2023, 3, 8), "09:00", "17:00"
+            ),  # Wed (1st)
+            self._create_mock_assignment(
+                employee.id, date(2023, 3, 9), "09:00", "17:00"
+            ),  # Thu (2nd)
         ]
         # New shift on Friday would be the 3rd consecutive day. If limit is 2, it violates. If 3, it's okay.
         # Let's make existing assignments form a streak of 3, new shift would be 4th.
         self.mock_config.max_consecutive_days = 3
         existing_assignments_for_violation = [
-            self._create_mock_assignment(employee.id, date(2023, 3, 7), "09:00", "17:00"), # Tue
-            self._create_mock_assignment(employee.id, date(2023, 3, 8), "09:00", "17:00"), # Wed
-            self._create_mock_assignment(employee.id, date(2023, 3, 9), "09:00", "17:00")  # Thu
+            self._create_mock_assignment(
+                employee.id, date(2023, 3, 7), "09:00", "17:00"
+            ),  # Tue
+            self._create_mock_assignment(
+                employee.id, date(2023, 3, 8), "09:00", "17:00"
+            ),  # Wed
+            self._create_mock_assignment(
+                employee.id, date(2023, 3, 9), "09:00", "17:00"
+            ),  # Thu
         ]
 
         violation = self.constraint_checker._check_max_consecutive_days(
@@ -459,23 +494,29 @@ class TestConstraintChecker(unittest.TestCase):
         # Add an explicit check for None to help the linter with type narrowing
         if violation is not None:
             self.assertEqual(violation["type"], "max_consecutive_days")
-            self.assertEqual(violation["value"], 4) # New shift makes it 4 consecutive
+            self.assertEqual(violation["value"], 4)  # New shift makes it 4 consecutive
             self.assertEqual(violation["limit"], 3)
         else:
             # This else block should ideally not be reached if assertIsNotNone works as expected
             # but it satisfies the linter's view that violation *could* be None here.
-            self.fail("_check_max_consecutive_days returned None when a violation was expected.")
+            self.fail(
+                "_check_max_consecutive_days returned None when a violation was expected."
+            )
 
     def test_check_max_consecutive_days_edge_case_at_limit(self):
         """Test _check_max_consecutive_days at the exact limit."""
         employee = self.mock_employees[0]
-        new_shift_date = date(2023, 3, 10) # Friday
+        new_shift_date = date(2023, 3, 10)  # Friday
         self.mock_config.max_consecutive_days = 3
 
         # Employee worked Wed, Thu. New shift on Friday makes it 3 consecutive.
         existing_assignments = [
-            self._create_mock_assignment(employee.id, date(2023, 3, 8), "09:00", "17:00"), # Wed
-            self._create_mock_assignment(employee.id, date(2023, 3, 9), "09:00", "17:00")  # Thu
+            self._create_mock_assignment(
+                employee.id, date(2023, 3, 8), "09:00", "17:00"
+            ),  # Wed
+            self._create_mock_assignment(
+                employee.id, date(2023, 3, 9), "09:00", "17:00"
+            ),  # Thu
         ]
         violation = self.constraint_checker._check_max_consecutive_days(
             employee, new_shift_date, existing_assignments
@@ -485,15 +526,19 @@ class TestConstraintChecker(unittest.TestCase):
     # --- Tests for _check_min_rest_between_shifts ---
     def test_check_min_rest_sufficient_rest(self):
         employee = self.mock_employees[0]
-        new_shift_start_dt = datetime(2023, 3, 8, 14, 0) # Wed 14:00
-        new_shift_end_dt = datetime(2023, 3, 8, 22, 0)   # Wed 22:00
+        new_shift_start_dt = datetime(2023, 3, 8, 14, 0)  # Wed 14:00
+        new_shift_end_dt = datetime(2023, 3, 8, 22, 0)  # Wed 22:00
         self.mock_config.min_rest_hours = 11.0
 
         existing_assignments = [
             # Previous shift ended long ago
-            self._create_mock_assignment(employee.id, date(2023, 3, 7), "10:00", "18:00"), # Tue
+            self._create_mock_assignment(
+                employee.id, date(2023, 3, 7), "10:00", "18:00"
+            ),  # Tue
             # Next shift starts much later
-            self._create_mock_assignment(employee.id, date(2023, 3, 9), "14:00", "22:00")  # Thu
+            self._create_mock_assignment(
+                employee.id, date(2023, 3, 9), "14:00", "22:00"
+            ),  # Thu
         ]
         violation = self.constraint_checker._check_min_rest_between_shifts(
             employee, new_shift_start_dt, new_shift_end_dt, existing_assignments
@@ -502,13 +547,15 @@ class TestConstraintChecker(unittest.TestCase):
 
     def test_check_min_rest_insufficient_before(self):
         employee = self.mock_employees[0]
-        new_shift_start_dt = datetime(2023, 3, 8, 9, 0) # Wed 09:00
+        new_shift_start_dt = datetime(2023, 3, 8, 9, 0)  # Wed 09:00
         new_shift_end_dt = datetime(2023, 3, 8, 17, 0)  # Wed 17:00
         self.mock_config.min_rest_hours = 11.0
 
         existing_assignments = [
             # Previous shift ended too recently: Tue 23:00 (10 hours before Wed 09:00)
-            self._create_mock_assignment(employee.id, date(2023, 3, 7), "15:00", "23:00"), 
+            self._create_mock_assignment(
+                employee.id, date(2023, 3, 7), "15:00", "23:00"
+            ),
         ]
         violation = self.constraint_checker._check_min_rest_between_shifts(
             employee, new_shift_start_dt, new_shift_end_dt, existing_assignments
@@ -520,13 +567,15 @@ class TestConstraintChecker(unittest.TestCase):
 
     def test_check_min_rest_insufficient_after(self):
         employee = self.mock_employees[0]
-        new_shift_start_dt = datetime(2023, 3, 8, 14, 0) # Wed 14:00
-        new_shift_end_dt = datetime(2023, 3, 8, 22, 0)   # Wed 22:00 (ends)
+        new_shift_start_dt = datetime(2023, 3, 8, 14, 0)  # Wed 14:00
+        new_shift_end_dt = datetime(2023, 3, 8, 22, 0)  # Wed 22:00 (ends)
         self.mock_config.min_rest_hours = 11.0
 
         existing_assignments = [
             # Next shift starts too soon: Thu 08:00 (10 hours after Wed 22:00)
-            self._create_mock_assignment(employee.id, date(2023, 3, 9), "08:00", "16:00"), 
+            self._create_mock_assignment(
+                employee.id, date(2023, 3, 9), "08:00", "16:00"
+            ),
         ]
         violation = self.constraint_checker._check_min_rest_between_shifts(
             employee, new_shift_start_dt, new_shift_end_dt, existing_assignments
@@ -538,62 +587,78 @@ class TestConstraintChecker(unittest.TestCase):
 
     def test_check_min_rest_not_enforced(self):
         employee = self.mock_employees[0]
-        new_shift_start_dt = datetime(2023, 3, 8, 9, 0) 
-        new_shift_end_dt = datetime(2023, 3, 8, 17, 0)  
+        new_shift_start_dt = datetime(2023, 3, 8, 9, 0)
+        new_shift_end_dt = datetime(2023, 3, 8, 17, 0)
         self.mock_config.min_rest_hours = 11.0
-        self.mock_config.enforce_rest_periods = False # Not enforced
+        self.mock_config.enforce_rest_periods = False  # Not enforced
 
         existing_assignments = [
-            self._create_mock_assignment(employee.id, date(2023, 3, 7), "15:00", "23:00"), 
+            self._create_mock_assignment(
+                employee.id, date(2023, 3, 7), "15:00", "23:00"
+            ),
         ]
         violation = self.constraint_checker._check_min_rest_between_shifts(
             employee, new_shift_start_dt, new_shift_end_dt, existing_assignments
         )
-        self.assertIsNone(violation, "Violation should be None if rest periods are not enforced.")
-        self.mock_config.enforce_rest_periods = True # Reset for other tests
+        self.assertIsNone(
+            violation, "Violation should be None if rest periods are not enforced."
+        )
+        self.mock_config.enforce_rest_periods = True  # Reset for other tests
 
     # --- Tests for _check_daily_hours_limit ---
     def test_check_daily_hours_limit_no_violation(self):
-        employee_vz = self.mock_employees[0] # VZ, default 8h limit from mock_config
+        employee_vz = self.mock_employees[0]  # VZ, default 8h limit from mock_config
         new_shift_duration = 7.5
-        violation = self.constraint_checker._check_daily_hours_limit(employee_vz, new_shift_duration)
+        violation = self.constraint_checker._check_daily_hours_limit(
+            employee_vz, new_shift_duration
+        )
         self.assertIsNone(violation, "7.5h shift should not violate 8h limit for VZ.")
 
     def test_check_daily_hours_limit_violation(self):
-        employee_gfb = self.mock_employees[2] # GFB, 6h limit from mock_config
+        employee_gfb = self.mock_employees[2]  # GFB, 6h limit from mock_config
         # Ensure mock_config is set as expected for this employee type
         self.mock_config.employee_types = [
             {"id": "VZ", "max_daily_hours": 8.0},
             {"id": "TZ", "max_daily_hours": 8.0},
-            {"id": "GFB", "max_daily_hours": 6.0} # GFB limit
+            {"id": "GFB", "max_daily_hours": 6.0},  # GFB limit
         ]
         # Re-initialize checker if config is changed per-test and not reset, or ensure config is stable.
         # For simplicity here, assume self.mock_config.employee_types in setUp is sufficient if not modified by other tests.
 
-        new_shift_duration = 6.5 # Exceeds 6h limit for GFB
-        violation = self.constraint_checker._check_daily_hours_limit(employee_gfb, new_shift_duration)
+        new_shift_duration = 6.5  # Exceeds 6h limit for GFB
+        violation = self.constraint_checker._check_daily_hours_limit(
+            employee_gfb, new_shift_duration
+        )
         self.assertIsNotNone(violation)
         if violation:
             self.assertEqual(violation["type"], "max_daily_hours")
             self.assertEqual(violation["limit"], 6.0)
             self.assertEqual(violation["value"], 6.5)
 
-    def test_check_daily_hours_limit_group_not_in_config_uses_default_no_violation(self):
+    def test_check_daily_hours_limit_group_not_in_config_uses_default_no_violation(
+        self,
+    ):
         employee_unknown_group = MagicMock(spec=Employee)
         employee_unknown_group.id = 99
-        employee_unknown_group.employee_group = "UNKNOWN_GROUP" # Not in mock_config.employee_types
-        
+        employee_unknown_group.employee_group = (
+            "UNKNOWN_GROUP"  # Not in mock_config.employee_types
+        )
+
         # Temporarily modify config to not include UNKNOWN_GROUP, relying on default
         original_employee_types = self.mock_config.employee_types
         self.mock_config.employee_types = [
-            {"id": "VZ", "max_daily_hours": 10.0} # Ensure default isn't hit due to VZ
+            {"id": "VZ", "max_daily_hours": 10.0}  # Ensure default isn't hit due to VZ
         ]
         # ConstraintChecker uses a default of 8.0 if group not found
-        
-        new_shift_duration = 7.0 
-        violation = self.constraint_checker._check_daily_hours_limit(employee_unknown_group, new_shift_duration)
-        self.assertIsNone(violation, "7h shift should not violate default 8h limit for unknown group.")
-        self.mock_config.employee_types = original_employee_types # Reset
+
+        new_shift_duration = 7.0
+        violation = self.constraint_checker._check_daily_hours_limit(
+            employee_unknown_group, new_shift_duration
+        )
+        self.assertIsNone(
+            violation, "7h shift should not violate default 8h limit for unknown group."
+        )
+        self.mock_config.employee_types = original_employee_types  # Reset
 
     def test_check_daily_hours_limit_group_not_in_config_uses_default_violation(self):
         employee_unknown_group = MagicMock(spec=Employee)
@@ -601,52 +666,60 @@ class TestConstraintChecker(unittest.TestCase):
         employee_unknown_group.employee_group = "UNKNOWN_GROUP"
 
         original_employee_types = self.mock_config.employee_types
-        self.mock_config.employee_types = [
-            {"id": "VZ", "max_daily_hours": 10.0} 
-        ]
+        self.mock_config.employee_types = [{"id": "VZ", "max_daily_hours": 10.0}]
         # ConstraintChecker uses a default of 8.0
 
-        new_shift_duration = 8.5 # Exceeds default 8h limit
-        violation = self.constraint_checker._check_daily_hours_limit(employee_unknown_group, new_shift_duration)
+        new_shift_duration = 8.5  # Exceeds default 8h limit
+        violation = self.constraint_checker._check_daily_hours_limit(
+            employee_unknown_group, new_shift_duration
+        )
         self.assertIsNotNone(violation)
         if violation:
             self.assertEqual(violation["type"], "max_daily_hours")
-            self.assertEqual(violation["limit"], 8.0) # Default limit
+            self.assertEqual(violation["limit"], 8.0)  # Default limit
             self.assertEqual(violation["value"], 8.5)
-        self.mock_config.employee_types = original_employee_types # Reset
+        self.mock_config.employee_types = original_employee_types  # Reset
 
     # --- Tests for _check_weekly_hours_limit ---
     def test_check_weekly_hours_limit_no_violation(self):
-        employee_vz = self.mock_employees[0] # VZ, 40h group limit, 40h contracted
+        employee_vz = self.mock_employees[0]  # VZ, 40h group limit, 40h contracted
         # self.mock_config.max_hours_per_group = {"VZ": 40, ...} (set in setUp)
         # employee_vz.contracted_hours = 40.0 (set in setUp)
         # self.mock_config.contracted_hours_limit_factor = 1.2 (set in setUp) -> 40*1.2 = 48h contract limit
-        
-        new_shift_start_dt = datetime(2023, 3, 8, 9, 0) # Wednesday
+
+        new_shift_start_dt = datetime(2023, 3, 8, 9, 0)  # Wednesday
         new_shift_duration = 6.0
         existing_assignments = [
-            self._create_mock_assignment(employee_vz.id, date(2023, 3, 6), "09:00", "17:00"), # Mon, 8h
-            self._create_mock_assignment(employee_vz.id, date(2023, 3, 7), "09:00", "17:00")  # Tue, 8h
-        ] # Total existing = 16h. New shift = 6h. Projected = 22h.
-          # Limit is min(40h group, 48h contract) = 40h.  22h < 40h. No violation.
-        
+            self._create_mock_assignment(
+                employee_vz.id, date(2023, 3, 6), "09:00", "17:00"
+            ),  # Mon, 8h
+            self._create_mock_assignment(
+                employee_vz.id, date(2023, 3, 7), "09:00", "17:00"
+            ),  # Tue, 8h
+        ]  # Total existing = 16h. New shift = 6h. Projected = 22h.
+        # Limit is min(40h group, 48h contract) = 40h.  22h < 40h. No violation.
+
         violation = self.constraint_checker._check_weekly_hours_limit(
             employee_vz, new_shift_start_dt, new_shift_duration, existing_assignments
         )
-        self.assertIsNone(violation, "Projected 22h should not violate 40h group/48h contract limits.")
+        self.assertIsNone(
+            violation, "Projected 22h should not violate 40h group/48h contract limits."
+        )
 
     def test_check_weekly_hours_limit_exceeds_group_limit(self):
-        employee_gfb = self.mock_employees[2] # GFB, 10h group limit, 10h contracted
-        # self.mock_config.max_hours_per_group = {..., "GFB": 10} 
+        employee_gfb = self.mock_employees[2]  # GFB, 10h group limit, 10h contracted
+        # self.mock_config.max_hours_per_group = {..., "GFB": 10}
         # employee_gfb.contracted_hours = 10.0
         # contract limit = 10*1.2 = 12h. Group limit is 10h.
 
-        new_shift_start_dt = datetime(2023, 3, 8, 9, 0) # Wednesday
-        new_shift_duration = 5.0 # New shift makes it 5h for the week for this test
+        new_shift_start_dt = datetime(2023, 3, 8, 9, 0)  # Wednesday
+        new_shift_duration = 5.0  # New shift makes it 5h for the week for this test
         existing_assignments = [
-            self._create_mock_assignment(employee_gfb.id, date(2023, 3, 6), "09:00", "15:00"), # Mon, 6h
-        ] # Total existing = 6h. New shift = 5h. Projected = 11h.
-          # Group limit 10h. 11h > 10h. Violation.
+            self._create_mock_assignment(
+                employee_gfb.id, date(2023, 3, 6), "09:00", "15:00"
+            ),  # Mon, 6h
+        ]  # Total existing = 6h. New shift = 5h. Projected = 11h.
+        # Group limit 10h. 11h > 10h. Violation.
 
         violation = self.constraint_checker._check_weekly_hours_limit(
             employee_gfb, new_shift_start_dt, new_shift_duration, existing_assignments
@@ -658,22 +731,28 @@ class TestConstraintChecker(unittest.TestCase):
             self.assertEqual(violation["value"], 11.0)
 
     def test_check_weekly_hours_limit_exceeds_contract_limit(self):
-        employee_tz = self.mock_employees[1] # TZ, 20h group limit, 20h contracted
+        employee_tz = self.mock_employees[1]  # TZ, 20h group limit, 20h contracted
         # self.mock_config.max_hours_per_group = {..., "TZ": 20}
         # employee_tz.contracted_hours = 20.0
         # contract limit factor 1.2 -> 20 * 1.2 = 24h contract limit.
         # For this test, let's assume group limit is higher, e.g., 30h, so contract limit is hit first.
         original_max_hours_group = self.mock_config.max_hours_per_group
-        self.mock_config.max_hours_per_group = {"VZ": 40, "TZ": 30, "GFB": 10} 
+        self.mock_config.max_hours_per_group = {"VZ": 40, "TZ": 30, "GFB": 10}
 
-        new_shift_start_dt = datetime(2023, 3, 10, 9, 0) # Friday
+        new_shift_start_dt = datetime(2023, 3, 10, 9, 0)  # Friday
         new_shift_duration = 5.0
         existing_assignments = [
-            self._create_mock_assignment(employee_tz.id, date(2023, 3, 6), "09:00", "17:00"), # Mon, 8h
-            self._create_mock_assignment(employee_tz.id, date(2023, 3, 7), "09:00", "17:00"), # Tue, 8h
-            self._create_mock_assignment(employee_tz.id, date(2023, 3, 8), "09:00", "13:00")  # Wed, 4h
-        ] # Total existing = 8+8+4 = 20h. New shift = 5h. Projected = 25h.
-          # Group limit 30h. Contract limit 24h. 25h > 24h. Violation.
+            self._create_mock_assignment(
+                employee_tz.id, date(2023, 3, 6), "09:00", "17:00"
+            ),  # Mon, 8h
+            self._create_mock_assignment(
+                employee_tz.id, date(2023, 3, 7), "09:00", "17:00"
+            ),  # Tue, 8h
+            self._create_mock_assignment(
+                employee_tz.id, date(2023, 3, 8), "09:00", "13:00"
+            ),  # Wed, 4h
+        ]  # Total existing = 8+8+4 = 20h. New shift = 5h. Projected = 25h.
+        # Group limit 30h. Contract limit 24h. 25h > 24h. Violation.
 
         violation = self.constraint_checker._check_weekly_hours_limit(
             employee_tz, new_shift_start_dt, new_shift_duration, existing_assignments
@@ -681,52 +760,68 @@ class TestConstraintChecker(unittest.TestCase):
         self.assertIsNotNone(violation)
         if violation:
             self.assertEqual(violation["type"], "max_weekly_hours_contract")
-            self.assertEqual(violation["limit"], 24.0) # 20 * 1.2
+            self.assertEqual(violation["limit"], 24.0)  # 20 * 1.2
             self.assertEqual(violation["value"], 25.0)
-        
-        self.mock_config.max_hours_per_group = original_max_hours_group # Reset
 
-    def test_check_weekly_hours_limit_no_specific_group_limit_no_contract_violation(self):
+        self.mock_config.max_hours_per_group = original_max_hours_group  # Reset
+
+    def test_check_weekly_hours_limit_no_specific_group_limit_no_contract_violation(
+        self,
+    ):
         employee_unknown_group = MagicMock(spec=Employee)
         employee_unknown_group.id = 100
         employee_unknown_group.employee_group = "CASUAL"
-        employee_unknown_group.contracted_hours = 5.0 # Low contracted hours
-        self.mock_resources.get_employee.side_effect = lambda eid: employee_unknown_group if eid == 100 else next((emp for emp in self.mock_employees if emp.id == eid), None)
+        employee_unknown_group.contracted_hours = 5.0  # Low contracted hours
+        self.mock_resources.get_employee.side_effect = (
+            lambda eid: employee_unknown_group
+            if eid == 100
+            else next((emp for emp in self.mock_employees if emp.id == eid), None)
+        )
 
         # Ensure "CASUAL" is not in max_hours_per_group, so no group limit applies from there
         original_max_hours_group = self.mock_config.max_hours_per_group
-        self.mock_config.max_hours_per_group = {"VZ": 40} 
+        self.mock_config.max_hours_per_group = {"VZ": 40}
         # Contract limit will be 5.0 * 1.2 = 6.0h
 
         new_shift_start_dt = datetime(2023, 3, 8, 9, 0)
         new_shift_duration = 3.0
         existing_assignments = [
-             self._create_mock_assignment(employee_unknown_group.id, date(2023, 3, 6), "09:00", "11:00"), # Mon, 2h
-        ] # Existing 2h. New 3h. Projected 5h. Contract limit 6h. No violation.
+            self._create_mock_assignment(
+                employee_unknown_group.id, date(2023, 3, 6), "09:00", "11:00"
+            ),  # Mon, 2h
+        ]  # Existing 2h. New 3h. Projected 5h. Contract limit 6h. No violation.
 
         violation = self.constraint_checker._check_weekly_hours_limit(
-            employee_unknown_group, new_shift_start_dt, new_shift_duration, existing_assignments
+            employee_unknown_group,
+            new_shift_start_dt,
+            new_shift_duration,
+            existing_assignments,
         )
-        self.assertIsNone(violation, "Projected 5h for CASUAL (contract limit 6h) should be no violation.")
-        
-        self.mock_config.max_hours_per_group = original_max_hours_group # Reset
+        self.assertIsNone(
+            violation,
+            "Projected 5h for CASUAL (contract limit 6h) should be no violation.",
+        )
+
+        self.mock_config.max_hours_per_group = original_max_hours_group  # Reset
         # Reset side_effect for get_employee if it was changed for this test only
         self.mock_resources.get_employee.side_effect = lambda employee_id: next(
             (emp for emp in self.mock_employees if emp.id == employee_id), None
-        ) 
+        )
 
     # --- Tests for check_all_constraints (integration) ---
     def test_check_all_constraints_no_violations(self):
-        employee = self.mock_employees[0] # VZ
-        new_shift_start_dt = datetime(2023, 3, 8, 9, 0) # Wed 09:00
-        new_shift_end_dt = datetime(2023, 3, 8, 17, 0)   # Wed 17:00 (8h duration)
+        employee = self.mock_employees[0]  # VZ
+        new_shift_start_dt = datetime(2023, 3, 8, 9, 0)  # Wed 09:00
+        new_shift_end_dt = datetime(2023, 3, 8, 17, 0)  # Wed 17:00 (8h duration)
         existing_assignments = [
-            self._create_mock_assignment(employee.id, date(2023, 3, 6), "09:00", "17:00") # Mon
+            self._create_mock_assignment(
+                employee.id, date(2023, 3, 6), "09:00", "17:00"
+            )  # Mon
         ]
         # Reset config to sensible defaults for no violation
         self.mock_config.max_consecutive_days = 5
         self.mock_config.min_rest_hours = 11.0
-        self.mock_config.employee_types = [ {"id": "VZ", "max_daily_hours": 8.0} ]
+        self.mock_config.employee_types = [{"id": "VZ", "max_daily_hours": 8.0}]
         self.mock_config.max_hours_per_group = {"VZ": 40}
         employee.contracted_hours = 40.0
         self.mock_config.contracted_hours_limit_factor = 1.2
@@ -734,19 +829,27 @@ class TestConstraintChecker(unittest.TestCase):
         violations = self.constraint_checker.check_all_constraints(
             employee.id, new_shift_start_dt, new_shift_end_dt, existing_assignments
         )
-        self.assertEqual(len(violations), 0, f"Expected no violations, got: {violations}")
+        self.assertEqual(
+            len(violations), 0, f"Expected no violations, got: {violations}"
+        )
 
     def test_check_all_constraints_single_violation_max_consecutive(self):
         employee = self.mock_employees[0]
-        new_shift_start_dt = datetime(2023, 3, 10, 9, 0) # Fri
+        new_shift_start_dt = datetime(2023, 3, 10, 9, 0)  # Fri
         new_shift_end_dt = datetime(2023, 3, 10, 17, 0)  # Fri
         self.mock_config.max_consecutive_days = 3
 
         existing_assignments = [
-            self._create_mock_assignment(employee.id, date(2023, 3, 7), "09:00", "17:00"), # Tue
-            self._create_mock_assignment(employee.id, date(2023, 3, 8), "09:00", "17:00"), # Wed
-            self._create_mock_assignment(employee.id, date(2023, 3, 9), "09:00", "17:00")  # Thu
-        ] # New shift on Fri makes it 4 consecutive days
+            self._create_mock_assignment(
+                employee.id, date(2023, 3, 7), "09:00", "17:00"
+            ),  # Tue
+            self._create_mock_assignment(
+                employee.id, date(2023, 3, 8), "09:00", "17:00"
+            ),  # Wed
+            self._create_mock_assignment(
+                employee.id, date(2023, 3, 9), "09:00", "17:00"
+            ),  # Thu
+        ]  # New shift on Fri makes it 4 consecutive days
 
         violations = self.constraint_checker.check_all_constraints(
             employee.id, new_shift_start_dt, new_shift_end_dt, existing_assignments
@@ -758,31 +861,41 @@ class TestConstraintChecker(unittest.TestCase):
     def test_check_all_constraints_multiple_violations(self):
         employee = self.mock_employees[0]
         new_shift_start_dt = datetime(2023, 3, 8, 9, 0)  # Wed 09:00
-        new_shift_end_dt = datetime(2023, 3, 8, 19, 0)    # Wed 19:00 (10h duration)
-        self.mock_config.max_consecutive_days = 1 # Will violate with any previous day
+        new_shift_end_dt = datetime(2023, 3, 8, 19, 0)  # Wed 19:00 (10h duration)
+        self.mock_config.max_consecutive_days = 1  # Will violate with any previous day
         self.mock_config.min_rest_hours = 12.0
-        self.mock_config.employee_types = [ {"id": "VZ", "max_daily_hours": 8.0} ] # 10h shift violates this
+        self.mock_config.employee_types = [
+            {"id": "VZ", "max_daily_hours": 8.0}
+        ]  # 10h shift violates this
 
         existing_assignments = [
             # Previous shift Mon, ends 23:00. New shift Wed 09:00. (34h rest, OK)
             # But let's make one that violates rest: Tue ends 22:00. New Wed 09:00 (11h rest, violates 12h limit)
-            self._create_mock_assignment(employee.id, date(2023, 3, 6), "09:00", "17:00"), # Mon (makes consecutive violation)
-            self._create_mock_assignment(employee.id, date(2023, 3, 7), "14:00", "22:00") # Tue, ends 22:00
+            self._create_mock_assignment(
+                employee.id, date(2023, 3, 6), "09:00", "17:00"
+            ),  # Mon (makes consecutive violation)
+            self._create_mock_assignment(
+                employee.id, date(2023, 3, 7), "14:00", "22:00"
+            ),  # Tue, ends 22:00
         ]
 
         violations = self.constraint_checker.check_all_constraints(
             employee.id, new_shift_start_dt, new_shift_end_dt, existing_assignments
         )
-        self.assertGreaterEqual(len(violations), 2, f"Expected at least 2 violations, got {violations}")
+        self.assertGreaterEqual(
+            len(violations), 2, f"Expected at least 2 violations, got {violations}"
+        )
         violation_types = [v["type"] for v in violations]
         self.assertIn("max_consecutive_days", violation_types)
-        self.assertIn("min_rest_before", violation_types) # Rest between Tue 22:00 and Wed 09:00 is 11h < 12h
-        self.assertIn("max_daily_hours", violation_types) # 10h shift vs 8h limit
+        self.assertIn(
+            "min_rest_before", violation_types
+        )  # Rest between Tue 22:00 and Wed 09:00 is 11h < 12h
+        self.assertIn("max_daily_hours", violation_types)  # 10h shift vs 8h limit
 
     def test_check_all_constraints_invalid_new_shift_duration(self):
         employee = self.mock_employees[0]
         new_shift_start_dt = datetime(2023, 3, 8, 9, 0)
-        new_shift_end_dt = datetime(2023, 3, 8, 8, 0) # End before start
+        new_shift_end_dt = datetime(2023, 3, 8, 8, 0)  # End before start
         existing_assignments = []
         violations = self.constraint_checker.check_all_constraints(
             employee.id, new_shift_start_dt, new_shift_end_dt, existing_assignments
@@ -797,24 +910,31 @@ class TestConstraintChecker(unittest.TestCase):
         new_shift_start_dt = datetime(2023, 3, 8, 9, 0)
         new_shift_end_dt = datetime(2023, 3, 8, 17, 0)
         existing_assignments = []
-        
+
         # Ensure get_employee returns None for this ID
         original_side_effect = self.mock_resources.get_employee.side_effect
+
         def side_effect_for_unknown(emp_id):
             if emp_id == unknown_employee_id:
                 return None
             return next((emp for emp in self.mock_employees if emp.id == emp_id), None)
+
         self.mock_resources.get_employee.side_effect = side_effect_for_unknown
 
         violations = self.constraint_checker.check_all_constraints(
-            unknown_employee_id, new_shift_start_dt, new_shift_end_dt, existing_assignments
+            unknown_employee_id,
+            new_shift_start_dt,
+            new_shift_end_dt,
+            existing_assignments,
         )
         self.assertEqual(len(violations), 1)
         if violations:
             self.assertEqual(violations[0]["type"], "resource_error")
-            self.assertIn(f"Employee {unknown_employee_id} not found", violations[0]["message"])
-        
-        self.mock_resources.get_employee.side_effect = original_side_effect # Reset
+            self.assertIn(
+                f"Employee {unknown_employee_id} not found", violations[0]["message"]
+            )
+
+        self.mock_resources.get_employee.side_effect = original_side_effect  # Reset
 
 
 if __name__ == "__main__":

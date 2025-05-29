@@ -3,14 +3,20 @@ from sqlalchemy import Column, Integer, String, JSON, DateTime, Float, Boolean
 from sqlalchemy.orm import deferred
 from sqlalchemy.ext.hybrid import hybrid_property
 from . import db
-from typing import Dict, Any, Tuple # Corrected Tuple import
+from typing import Dict, Any, Tuple  # Corrected Tuple import
 
 # Helper for opening_days key mapping
 DAY_NAME_TO_NUM_KEY = {
-    "monday": "0", "tuesday": "1", "wednesday": "2", "thursday": "3",
-    "friday": "4", "saturday": "5", "sunday": "6"
+    "monday": "0",
+    "tuesday": "1",
+    "wednesday": "2",
+    "thursday": "3",
+    "friday": "4",
+    "saturday": "5",
+    "sunday": "6",
 }
 NUM_KEY_TO_DAY_NAME = {v: k for k, v in DAY_NAME_TO_NUM_KEY.items()}
+
 
 class Settings(db.Model):
     __tablename__ = "settings"
@@ -21,8 +27,8 @@ class Settings(db.Model):
     store_name = Column(String(100), nullable=False, default="TEDi Store")
     store_address = Column(String(200), nullable=True)
     # store_contact = Column(String(100)) # Removed
-    store_phone = Column(String(50), nullable=True) # Added
-    store_email = Column(String(100), nullable=True) # Added
+    store_phone = Column(String(50), nullable=True)  # Added
+    store_email = Column(String(100), nullable=True)  # Added
     timezone = Column(String(50), nullable=False, default="Europe/Berlin")
     language = Column(String(10), nullable=False, default="de")
     date_format = Column(String(20), nullable=False, default="DD.MM.YYYY")
@@ -44,12 +50,19 @@ class Settings(db.Model):
         JSON,
         nullable=False,
         default=lambda: {
-            "0": True, "1": True, "2": True, "3": True,
-            "4": True, "5": True, "6": False,
+            "0": True,
+            "1": True,
+            "2": True,
+            "3": True,
+            "4": True,
+            "5": True,
+            "6": False,
         },
     )
-    
-    _special_days = Column('special_days', JSON, nullable=True, default=dict) # Ensure default is dict
+
+    _special_days = Column(
+        "special_days", JSON, nullable=True, default=dict
+    )  # Ensure default is dict
 
     # Availability Types
     availability_types = Column(
@@ -57,10 +70,38 @@ class Settings(db.Model):
         nullable=True,
         default=lambda: {
             "types": [
-                {"id": "AVAILABLE", "name": "Available", "description": "Available for work", "color": "#22c55e", "priority": 2, "is_available": True},
-                {"id": "FIXED", "name": "Fixed", "description": "Fixed working hours", "color": "#3b82f6", "priority": 1, "is_available": True},
-                {"id": "PREFERRED", "name": "Preferred", "description": "Preferred hours", "color": "#f59e0b", "priority": 3, "is_available": True},
-                {"id": "UNAVAILABLE", "name": "Unavailable", "description": "Not available for work", "color": "#ef4444", "priority": 4, "is_available": False},
+                {
+                    "id": "AVAILABLE",
+                    "name": "Available",
+                    "description": "Available for work",
+                    "color": "#22c55e",
+                    "priority": 2,
+                    "is_available": True,
+                },
+                {
+                    "id": "FIXED",
+                    "name": "Fixed",
+                    "description": "Fixed working hours",
+                    "color": "#3b82f6",
+                    "priority": 1,
+                    "is_available": True,
+                },
+                {
+                    "id": "PREFERRED",
+                    "name": "Preferred",
+                    "description": "Preferred hours",
+                    "color": "#f59e0b",
+                    "priority": 3,
+                    "is_available": True,
+                },
+                {
+                    "id": "UNAVAILABLE",
+                    "name": "Unavailable",
+                    "description": "Not available for work",
+                    "color": "#ef4444",
+                    "priority": 4,
+                    "is_available": False,
+                },
             ]
         },
     )
@@ -79,17 +120,28 @@ class Settings(db.Model):
         JSON,
         nullable=True,
         default=lambda: {
-            "enforce_minimum_coverage": True, "enforce_contracted_hours": True,
-            "enforce_keyholder_coverage": True, "enforce_rest_periods": True,
-            "enforce_early_late_rules": True, "enforce_employee_group_rules": True,
-            "enforce_break_rules": True, "enforce_max_hours": True,
-            "enforce_consecutive_days": True, "enforce_weekend_distribution": True,
-            "enforce_shift_distribution": True, "enforce_availability": True,
-            "enforce_qualifications": True, "enforce_opening_hours": True
-        }
+            "enforce_minimum_coverage": True,
+            "enforce_contracted_hours": True,
+            "enforce_keyholder_coverage": True,
+            "enforce_rest_periods": True,
+            "enforce_early_late_rules": True,
+            "enforce_employee_group_rules": True,
+            "enforce_break_rules": True,
+            "enforce_max_hours": True,
+            "enforce_consecutive_days": True,
+            "enforce_weekend_distribution": True,
+            "enforce_shift_distribution": True,
+            "enforce_availability": True,
+            "enforce_qualifications": True,
+            "enforce_opening_hours": True,
+        },
     )
-    scheduling_algorithm = Column(String(50), nullable=True, default='standard') # Must be 'standard' or 'optimized'
-    max_generation_attempts = Column(Integer, nullable=True, default=10) # Maximum attempts for schedule generation
+    scheduling_algorithm = Column(
+        String(50), nullable=True, default="standard"
+    )  # Must be 'standard' or 'optimized'
+    max_generation_attempts = Column(
+        Integer, nullable=True, default=10
+    )  # Maximum attempts for schedule generation
     # scheduling_advanced = Column(JSON, nullable=True, default=dict) # Removed
 
     # Display and Notification Settings
@@ -108,9 +160,9 @@ class Settings(db.Model):
     dark_theme_text_color = Column(String(7), nullable=False, default="#FFFFFF")
     show_sunday = Column(Boolean, nullable=False, default=False)
     show_weekdays = Column(Boolean, nullable=False, default=False)
-    start_of_week = Column(Integer, nullable=False, default=1) # 0=Sunday, 1=Monday
-    calendar_start_day = Column(String(10), nullable=True, default='monday') # Added
-    calendar_default_view = Column(String(10), nullable=True, default='month') # Added
+    start_of_week = Column(Integer, nullable=False, default=1)  # 0=Sunday, 1=Monday
+    calendar_start_day = Column(String(10), nullable=True, default="monday")  # Added
+    calendar_default_view = Column(String(10), nullable=True, default="month")  # Added
     email_notifications = Column(Boolean, nullable=False, default=True)
     schedule_published_notify = Column(Boolean, nullable=False, default=True)
     shift_changes_notify = Column(Boolean, nullable=False, default=True)
@@ -136,15 +188,30 @@ class Settings(db.Model):
     show_total_hours = Column(Boolean, nullable=False, default=True)
 
     # Employee Group Settings
-    employee_types = Column(JSON, nullable=False, default=lambda: []) # Default to empty list
-    _shift_types = deferred(Column("shift_types", JSON, nullable=True, default=lambda: [])) # Default to empty list
-    absence_types = Column(JSON, nullable=False, default=lambda: []) # Default to empty list
+    employee_types = Column(
+        JSON, nullable=False, default=lambda: []
+    )  # Default to empty list
+    _shift_types = deferred(
+        Column("shift_types", JSON, nullable=True, default=lambda: [])
+    )  # Default to empty list
+    absence_types = Column(
+        JSON, nullable=False, default=lambda: []
+    )  # Default to empty list
 
     # Actions Settings
-    _actions_demo_data = deferred(Column("actions_demo_data", JSON, nullable=True, default=lambda: {"selected_module": "", "last_execution": None}))
-    
+    _actions_demo_data = deferred(
+        Column(
+            "actions_demo_data",
+            JSON,
+            nullable=True,
+            default=lambda: {"selected_module": "", "last_execution": None},
+        )
+    )
+
     # AI Scheduling Settings
-    ai_scheduling = Column(JSON, nullable=True, default=lambda: {"enabled": False, "api_key": ""})
+    ai_scheduling = Column(
+        JSON, nullable=True, default=lambda: {"enabled": False, "api_key": ""}
+    )
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -152,7 +219,7 @@ class Settings(db.Model):
     @property
     def special_days(self):
         return self._special_days if self._special_days is not None else {}
-        
+
     @special_days.setter
     def special_days(self, value):
         self._special_days = value if value is not None else {}
@@ -160,50 +227,74 @@ class Settings(db.Model):
     def get_shift_types(self):
         try:
             return self._shift_types if self._shift_types is not None else []
-        except Exception: # Broad exception for uninitialized deferred column
+        except Exception:  # Broad exception for uninitialized deferred column
             return []
 
     def set_shift_types(self, value):
         self._shift_types = value if value is not None else []
+
     shift_types = hybrid_property(get_shift_types, set_shift_types)
 
     def get_actions_demo_data(self):
         try:
-            return self._actions_demo_data if self._actions_demo_data is not None else {"selected_module": "", "last_execution": None}
-        except: # Broad exception for uninitialized deferred column
+            return (
+                self._actions_demo_data
+                if self._actions_demo_data is not None
+                else {"selected_module": "", "last_execution": None}
+            )
+        except:  # Broad exception for uninitialized deferred column
             return {"selected_module": "", "last_execution": None}
 
     def set_actions_demo_data(self, value):
-        self._actions_demo_data = value if value is not None else {"selected_module": "", "last_execution": None}
+        self._actions_demo_data = (
+            value
+            if value is not None
+            else {"selected_module": "", "last_execution": None}
+        )
+
     actions_demo_data = hybrid_property(get_actions_demo_data, set_actions_demo_data)
-    
+
     # --- is_store_open and get_store_hours are illustrative and might need refinement based on exact frontend needs ---
     def is_store_open(self, date: datetime) -> bool:
         date_str = date.strftime("%Y-%m-%d")
         if self.special_days and date_str in self.special_days:
             return not self.special_days[date_str].get("is_closed", False)
-        weekday = str(date.weekday()) # Model uses "0" for Monday
+        weekday = str(date.weekday())  # Model uses "0" for Monday
         return self.opening_days.get(weekday, False)
 
-    def get_store_hours(self, date: datetime) -> Tuple[str, str]: # Ensure Tuple is imported
+    def get_store_hours(
+        self, date: datetime
+    ) -> Tuple[str, str]:  # Ensure Tuple is imported
         date_str = date.strftime("%Y-%m-%d")
-        if self.special_days and date_str in self.special_days and not self.special_days[date_str].get("is_closed", False):
+        if (
+            self.special_days
+            and date_str in self.special_days
+            and not self.special_days[date_str].get("is_closed", False)
+        ):
             special_day_info = self.special_days[date_str]
             custom_hours = special_day_info.get("custom_hours")
-            if custom_hours and custom_hours.get("opening") and custom_hours.get("closing"):
+            if (
+                custom_hours
+                and custom_hours.get("opening")
+                and custom_hours.get("closing")
+            ):
                 return custom_hours["opening"], custom_hours["closing"]
         return str(self.store_opening), str(self.store_closing)
 
     def to_dict(self) -> Dict[str, Any]:
         # Convert opening_days to use string day names
-        formatted_opening_days = {NUM_KEY_TO_DAY_NAME.get(k, k): v for k, v in self.opening_days.items()} if self.opening_days else {}
+        formatted_opening_days = (
+            {NUM_KEY_TO_DAY_NAME.get(k, k): v for k, v in self.opening_days.items()}
+            if self.opening_days
+            else {}
+        )
 
         return {
             "general": {
                 "store_name": self.store_name,
                 "store_address": self.store_address,
-                "store_phone": self.store_phone, # Added
-                "store_email": self.store_email, # Added
+                "store_phone": self.store_phone,  # Added
+                "store_email": self.store_email,  # Added
                 "timezone": self.timezone,
                 "language": self.language,
                 "date_format": self.date_format,
@@ -212,7 +303,7 @@ class Settings(db.Model):
                 "store_closing": self.store_closing,
                 "keyholder_before_minutes": self.keyholder_before_minutes,
                 "keyholder_after_minutes": self.keyholder_after_minutes,
-                "opening_days": formatted_opening_days, # Updated
+                "opening_days": formatted_opening_days,  # Updated
                 "special_days": self.special_days,
             },
             "scheduling": {
@@ -225,9 +316,10 @@ class Settings(db.Model):
                 "scheduling_period_weeks": self.scheduling_period_weeks,
                 "auto_schedule_preferences": self.auto_schedule_preferences,
                 "enable_diagnostics": self.enable_diagnostics,
-                "generation_requirements": self.generation_requirements or {}, # Ensure not None
-                "scheduling_algorithm": self.scheduling_algorithm, # Added
-                "max_generation_attempts": self.max_generation_attempts, # Added
+                "generation_requirements": self.generation_requirements
+                or {},  # Ensure not None
+                "scheduling_algorithm": self.scheduling_algorithm,  # Added
+                "max_generation_attempts": self.max_generation_attempts,  # Added
             },
             "display": {
                 "theme": self.theme,
@@ -248,8 +340,8 @@ class Settings(db.Model):
                 "show_sunday": self.show_sunday,
                 "show_weekdays": self.show_weekdays,
                 "start_of_week": self.start_of_week,
-                "calendar_start_day": self.calendar_start_day, # Added
-                "calendar_default_view": self.calendar_default_view, # Added
+                "calendar_start_day": self.calendar_start_day,  # Added
+                "calendar_default_view": self.calendar_default_view,  # Added
                 "email_notifications": self.email_notifications,
                 "schedule_published_notify": self.schedule_published_notify,
                 "shift_changes_notify": self.shift_changes_notify,
@@ -258,19 +350,46 @@ class Settings(db.Model):
             "pdf_layout": {
                 "page_size": self.page_size,
                 "orientation": self.orientation,
-                "margins": {"top": self.margin_top, "right": self.margin_right, "bottom": self.margin_bottom, "left": self.margin_left},
-                "table_style": {"header_bg_color": self.table_header_bg_color, "border_color": self.table_border_color, "text_color": self.table_text_color, "header_text_color": self.table_header_text_color},
-                "fonts": {"family": self.font_family, "size": self.font_size, "header_size": self.header_font_size},
-                "content": {"show_employee_id": self.show_employee_id, "show_position": self.show_position, "show_breaks": self.show_breaks, "show_total_hours": self.show_total_hours},
+                "margins": {
+                    "top": self.margin_top,
+                    "right": self.margin_right,
+                    "bottom": self.margin_bottom,
+                    "left": self.margin_left,
+                },
+                "table_style": {
+                    "header_bg_color": self.table_header_bg_color,
+                    "border_color": self.table_border_color,
+                    "text_color": self.table_text_color,
+                    "header_text_color": self.table_header_text_color,
+                },
+                "fonts": {
+                    "family": self.font_family,
+                    "size": self.font_size,
+                    "header_size": self.header_font_size,
+                },
+                "content": {
+                    "show_employee_id": self.show_employee_id,
+                    "show_position": self.show_position,
+                    "show_breaks": self.show_breaks,
+                    "show_total_hours": self.show_total_hours,
+                },
             },
             "employee_groups": {
-                "employee_types": self.employee_types or [], # Ensure not None
-                "shift_types": self.shift_types or [], # Ensure not None
-                "absence_types": self.absence_types or [], # Ensure not None
+                "employee_types": self.employee_types or [],  # Ensure not None
+                "shift_types": self.shift_types or [],  # Ensure not None
+                "absence_types": self.absence_types or [],  # Ensure not None
             },
-            "availability_types": self.availability_types if self.availability_types is not None else {"types": []}, # Ensure not None
-            "actions": {"demo_data": self.actions_demo_data if self.actions_demo_data is not None else {"selected_module": "", "last_execution": None}},
-            "ai_scheduling": self.ai_scheduling if self.ai_scheduling is not None else {"enabled": False, "api_key": ""},
+            "availability_types": self.availability_types
+            if self.availability_types is not None
+            else {"types": []},  # Ensure not None
+            "actions": {
+                "demo_data": self.actions_demo_data
+                if self.actions_demo_data is not None
+                else {"selected_module": "", "last_execution": None}
+            },
+            "ai_scheduling": self.ai_scheduling
+            if self.ai_scheduling is not None
+            else {"enabled": False, "api_key": ""},
         }
 
     @classmethod
@@ -278,8 +397,8 @@ class Settings(db.Model):
         settings = cls()
         settings.store_name = "ShiftWise Store"
         settings.store_address = ""
-        settings.store_phone = "" # Added
-        settings.store_email = "" # Added
+        settings.store_phone = ""  # Added
+        settings.store_email = ""  # Added
         settings.timezone = "Europe/Berlin"
         settings.language = "de"
         settings.date_format = "DD.MM.YYYY"
@@ -288,7 +407,15 @@ class Settings(db.Model):
         settings.store_closing = "20:00"
         settings.keyholder_before_minutes = 5
         settings.keyholder_after_minutes = 10
-        settings.opening_days = {"0": True, "1": True, "2": True, "3": True, "4": True, "5": True, "6": False}
+        settings.opening_days = {
+            "0": True,
+            "1": True,
+            "2": True,
+            "3": True,
+            "4": True,
+            "5": True,
+            "6": False,
+        }
         settings.special_days = {}
         settings.scheduling_resource_type = "shifts"
         settings.default_shift_duration = 8.0
@@ -300,14 +427,25 @@ class Settings(db.Model):
         settings.auto_schedule_preferences = True
         settings.enable_diagnostics = False
         settings.generation_requirements = {
-            "enforce_minimum_coverage": True, "enforce_contracted_hours": True, "enforce_keyholder_coverage": True,
-            "enforce_rest_periods": True, "enforce_early_late_rules": True, "enforce_employee_group_rules": True,
-            "enforce_break_rules": True, "enforce_max_hours": True, "enforce_consecutive_days": True,
-            "enforce_weekend_distribution": True, "enforce_shift_distribution": True, "enforce_availability": True,
-            "enforce_qualifications": True, "enforce_opening_hours": True
+            "enforce_minimum_coverage": True,
+            "enforce_contracted_hours": True,
+            "enforce_keyholder_coverage": True,
+            "enforce_rest_periods": True,
+            "enforce_early_late_rules": True,
+            "enforce_employee_group_rules": True,
+            "enforce_break_rules": True,
+            "enforce_max_hours": True,
+            "enforce_consecutive_days": True,
+            "enforce_weekend_distribution": True,
+            "enforce_shift_distribution": True,
+            "enforce_availability": True,
+            "enforce_qualifications": True,
+            "enforce_opening_hours": True,
         }
-        settings.scheduling_algorithm = "standard" # Default to standard algorithm
-        settings.max_generation_attempts = 10 # Maximum attempts for schedule generation
+        settings.scheduling_algorithm = "standard"  # Default to standard algorithm
+        settings.max_generation_attempts = (
+            10  # Maximum attempts for schedule generation
+        )
         settings.theme = "light"
         settings.primary_color = "#1976D2"
         settings.secondary_color = "#424242"
@@ -324,8 +462,8 @@ class Settings(db.Model):
         settings.show_sunday = False
         settings.show_weekdays = False
         settings.start_of_week = 1
-        settings.calendar_start_day = "monday" # Added
-        settings.calendar_default_view = "month" # Added
+        settings.calendar_start_day = "monday"  # Added
+        settings.calendar_default_view = "month"  # Added
         settings.email_notifications = True
         settings.schedule_published_notify = True
         settings.shift_changes_notify = True
@@ -358,14 +496,16 @@ class Settings(db.Model):
     def update_from_dict(self, data: Dict[str, Any]) -> None:
         for category, values in data.items():
             if not isinstance(values, dict):
-                continue # Skip if category value is not a dict
+                continue  # Skip if category value is not a dict
 
             if category == "general":
                 for key, value in values.items():
                     if key == "opening_days" and isinstance(value, dict):
                         # Convert string day names to numeric keys
-                        numeric_opening_days = {DAY_NAME_TO_NUM_KEY.get(day_name.lower(), day_name): enabled
-                                                for day_name, enabled in value.items()}
+                        numeric_opening_days = {
+                            DAY_NAME_TO_NUM_KEY.get(day_name.lower(), day_name): enabled
+                            for day_name, enabled in value.items()
+                        }
                         self.opening_days = numeric_opening_days
                     elif hasattr(self, key):
                         setattr(self, key, value)
@@ -387,31 +527,49 @@ class Settings(db.Model):
                     elif hasattr(self, key):
                         setattr(self, key, value)
             # For JSON blob fields (lists of objects or specific dict structures), direct assignment is appropriate
-            elif category in ["employee_groups", "availability_types", "actions", "ai_scheduling"]:
-                 # Assuming the Pydantic schema has validated the structure, directly assign
-                 if hasattr(self, category) and values is not None:
+            elif category in [
+                "employee_groups",
+                "availability_types",
+                "actions",
+                "ai_scheduling",
+            ]:
+                # Assuming the Pydantic schema has validated the structure, directly assign
+                if hasattr(self, category) and values is not None:
                     setattr(self, category, values)
 
-            elif category == "pdf_layout": # pdf_layout needs careful handling of nested structures
+            elif (
+                category == "pdf_layout"
+            ):  # pdf_layout needs careful handling of nested structures
                 for pdf_key, pdf_value in values.items():
                     if pdf_key == "margins" and isinstance(pdf_value, dict):
                         for m_key, m_value in pdf_value.items():
                             setattr(self, f"margin_{m_key}", m_value)
                     elif pdf_key == "table_style" and isinstance(pdf_value, dict):
                         for ts_key, ts_value in pdf_value.items():
-                            setattr(self, f"table_{ts_key}", ts_value) # Assumes model fields like table_header_bg_color
+                            setattr(
+                                self, f"table_{ts_key}", ts_value
+                            )  # Assumes model fields like table_header_bg_color
                     elif pdf_key == "fonts" and isinstance(pdf_value, dict):
                         for f_key, f_value in pdf_value.items():
-                            setattr(self, f"font_{f_key}" if f_key != "header_size" else "header_font_size", f_value) # font_family, font_size, header_font_size
+                            setattr(
+                                self,
+                                f"font_{f_key}"
+                                if f_key != "header_size"
+                                else "header_font_size",
+                                f_value,
+                            )  # font_family, font_size, header_font_size
                     elif pdf_key == "content" and isinstance(pdf_value, dict):
                         for c_key, c_value in pdf_value.items():
-                            setattr(self, c_key, c_value) # Assumes model fields like show_employee_id
-                    elif hasattr(self, pdf_key): # For direct fields like page_size, orientation
+                            setattr(
+                                self, c_key, c_value
+                            )  # Assumes model fields like show_employee_id
+                    elif hasattr(
+                        self, pdf_key
+                    ):  # For direct fields like page_size, orientation
                         setattr(self, pdf_key, pdf_value)
             # Other direct model attributes if any top-level keys come (not expected from new CompleteSettings)
             elif hasattr(self, category) and not isinstance(values, dict):
-                 setattr(self, category, values)
-
+                setattr(self, category, values)
 
     def __repr__(self):
         return f"<Settings {self.store_name}>"
@@ -425,7 +583,7 @@ class Settings(db.Model):
     def get_or_create_default(cls):
         settings = cls.query.first()
         if not settings:
-            settings = cls.get_default_settings() # Use the refined default settings
+            settings = cls.get_default_settings()  # Use the refined default settings
             db.session.add(settings)
             db.session.commit()
         return settings
@@ -440,7 +598,7 @@ class Settings(db.Model):
             # Fallback to a default structure if no settings exist
             default_settings = cls.get_default_settings()
             return default_settings.to_dict().get("pdf_layout", {})
-        return settings.to_dict().get("pdf_layout", {}) # Use to_dict for consistency
+        return settings.to_dict().get("pdf_layout", {})  # Use to_dict for consistency
 
     # ... other class methods like save_pdf_layout_config, preset handling ...
     # These might need careful review if their direct interaction with flat PDF columns
@@ -451,7 +609,6 @@ class Settings(db.Model):
     def get_default_pdf_presets(cls) -> Dict[str, Dict[str, Any]]:
         # Simplified default
         return {"Classic": cls.get_default_settings().to_dict().get("pdf_layout", {})}
-
 
     # The original model had many PDF preset and config methods.
     # These would need to be verified or adapted.

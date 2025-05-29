@@ -7,11 +7,11 @@ with app.app_context():
     # Drop all tables
     print("Dropping all tables...")
     db.drop_all()
-    
+
     # Create all tables
     print("Creating tables...")
     db.create_all()
-    
+
     # Create default settings
     print("Creating default settings...")
     settings = Settings.get_default_settings()
@@ -22,11 +22,11 @@ with app.app_context():
     except Exception as e:
         db.session.rollback()
         print(f"Error creating settings: {str(e)}")
-        
+
     # Verify settings
     settings = Settings.query.first()
     if settings:
         print("Settings verified in database!")
         print(f"min_employees_per_shift: {settings.min_employees_per_shift}")
     else:
-        print("Error: Settings not found in database after creation!") 
+        print("Error: Settings not found in database after creation!")

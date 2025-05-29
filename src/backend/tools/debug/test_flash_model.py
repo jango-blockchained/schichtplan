@@ -12,15 +12,16 @@ current_dir = Path(__file__).parent
 backend_dir = current_dir.parent.parent
 sys.path.insert(0, str(backend_dir.parent.parent))
 
+
 def test_gemini_flash():
     """Test the gemini-1.5-flash model for schedule generation"""
-    
+
     # API key and parameters
     api_key = "AIzaSyBHkmdaJzg4R249RunbNlbWo8HUjy425vM"
     model_name = "gemini-1.5-flash"
-    
+
     print(f"Testing {model_name} for schedule generation")
-    
+
     # Simple API parameters
     params = {
         "generationConfig": {
@@ -30,7 +31,7 @@ def test_gemini_flash():
             "maxOutputTokens": 2048,
         }
     }
-    
+
     # Prompt for schedule generation
     prompt = """
     Create a schedule for 3 employees (John, Mary, and Alex) working in a store for one week.
@@ -50,63 +51,64 @@ def test_gemini_flash():
     
     Output ONLY the CSV format with no additional text, explanations or markdown.
     """
-    
+
     # API endpoint
     api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
     headers = {"Content-Type": "application/json"}
-    
+
     # Build the payload
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": params.get("generationConfig")
+        "generationConfig": params.get("generationConfig"),
     }
-    
+
     try:
         print("Sending request...")
         response = requests.post(api_url, headers=headers, json=payload, timeout=30)
-        
+
         print(f"Status code: {response.status_code}")
-        
+
         if response.status_code == 200:
             response_json = response.json()
-            
+
             # Extract the text response
-            if (candidates := response_json.get("candidates")) and \
-               (content := candidates[0].get("content")) and \
-               (parts := content.get("parts")) and \
-               (text := parts[0].get("text")):
-                
+            if (
+                (candidates := response_json.get("candidates"))
+                and (content := candidates[0].get("content"))
+                and (parts := content.get("parts"))
+                and (text := parts[0].get("text"))
+            ):
                 print("\nSchedule CSV Response:")
                 print("-----------------------")
                 print(text.strip())
                 print("-----------------------")
-                
+
                 # Try to parse as CSV
                 try:
                     import csv
                     from io import StringIO
-                    
+
                     print("\nParsed entries:")
                     csvfile = StringIO(text.strip())
                     reader = csv.reader(csvfile)
-                    
+
                     # Print header
                     header = next(reader, None)
                     if header:
                         print(f"Header: {', '.join(header)}")
-                    
+
                     # Print first few rows
                     rows = list(reader)
                     for i, row in enumerate(rows[:5]):  # Show first 5 rows
-                        print(f"Row {i+1}: {', '.join(row)}")
-                    
+                        print(f"Row {i + 1}: {', '.join(row)}")
+
                     print(f"Total rows: {len(rows)}")
                 except Exception as csv_err:
                     print(f"Error parsing CSV: {str(csv_err)}")
             else:
                 print("Response format didn't match expected structure.")
                 print(json.dumps(response_json, indent=2))
-            
+
         else:
             print(f"API request failed with status code: {response.status_code}")
             try:
@@ -115,13 +117,15 @@ def test_gemini_flash():
                 print(json.dumps(error_details, indent=2))
             except json.JSONDecodeError:
                 print("Raw error response:", response.text)
-    
+
     except requests.exceptions.RequestException as e:
         print(f"Request error: {str(e)}")
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
         import traceback
+
         traceback.print_exc()
 
+
 if __name__ == "__main__":
-    test_gemini_flash() 
+    test_gemini_flash()

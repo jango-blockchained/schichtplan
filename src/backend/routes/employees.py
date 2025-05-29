@@ -49,11 +49,19 @@ def create_employee():
 
         return jsonify(employee.to_dict()), HTTPStatus.CREATED
 
-    except ValidationError as e: # Catch Pydantic validation errors
-        return jsonify({"status": "error", "message": "Invalid input.", "details": e.errors()}), HTTPStatus.BAD_REQUEST # Return validation details
-    except Exception as e: # Catch any other exceptions
+    except ValidationError as e:  # Catch Pydantic validation errors
+        return jsonify(
+            {"status": "error", "message": "Invalid input.", "details": e.errors()}
+        ), HTTPStatus.BAD_REQUEST  # Return validation details
+    except Exception as e:  # Catch any other exceptions
         db.session.rollback()
-        return jsonify({"status": "error", "message": "An internal server error occurred.", "details": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+        return jsonify(
+            {
+                "status": "error",
+                "message": "An internal server error occurred.",
+                "details": str(e),
+            }
+        ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 @employees.route("/employees/<int:employee_id>", methods=["PUT"])
@@ -61,7 +69,7 @@ def create_employee():
 def update_employee(employee_id):
     """Update an employee"""
     employee = Employee.query.get_or_404(employee_id)
-    
+
     try:
         data = request.get_json()
         # Validate data using Pydantic schema
@@ -88,11 +96,19 @@ def update_employee(employee_id):
         db.session.commit()
         return jsonify(employee.to_dict())
 
-    except ValidationError as e: # Catch Pydantic validation errors
-        return jsonify({"status": "error", "message": "Invalid input.", "details": e.errors()}), HTTPStatus.BAD_REQUEST # Return validation details
+    except ValidationError as e:  # Catch Pydantic validation errors
+        return jsonify(
+            {"status": "error", "message": "Invalid input.", "details": e.errors()}
+        ), HTTPStatus.BAD_REQUEST  # Return validation details
     except Exception as e:
         db.session.rollback()
-        return jsonify({"status": "error", "message": "An internal server error occurred.", "details": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+        return jsonify(
+            {
+                "status": "error",
+                "message": "An internal server error occurred.",
+                "details": str(e),
+            }
+        ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 @employees.route("/employees/<int:employee_id>", methods=["DELETE"])

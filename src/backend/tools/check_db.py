@@ -1,1 +1,0 @@
-from app import create_app; from models import db; app = create_app(); with app.app_context(): print('DB URI:', app.config.get('SQLALCHEMY_DATABASE_URI')); print('Tables:', [t for t in db.metadata.tables.keys()])
