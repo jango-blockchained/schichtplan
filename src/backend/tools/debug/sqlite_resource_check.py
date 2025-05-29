@@ -8,7 +8,7 @@ import os
 import sys
 import json
 import sqlite3
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 import random
 
 # Add the parent directories to path to resolve imports

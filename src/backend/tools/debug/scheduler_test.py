@@ -7,7 +7,7 @@ Used to verify the fixes for the distribution algorithm
 import sys
 import os
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from collections import defaultdict
 
 # Add parent directories to path

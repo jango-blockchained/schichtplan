@@ -1,8 +1,8 @@
 import pytest
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
-from services.scheduler.distribution import DistributionManager, ShiftScore
+from services.scheduler.distribution import DistributionManager
 from services.scheduler.constraints import ConstraintChecker
 from services.scheduler.availability import AvailabilityChecker
 from services.scheduler.resources import ScheduleResources

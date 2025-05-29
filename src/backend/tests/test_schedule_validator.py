@@ -1,7 +1,6 @@
 import unittest
 from unittest.mock import patch, MagicMock
 from datetime import date, timedelta, time, datetime
-from collections import defaultdict
 
 from src.backend.services.scheduler.validator import (
     ScheduleValidator,
@@ -9,10 +8,7 @@ from src.backend.services.scheduler.validator import (
     ValidationError,
 )
 from src.backend.services.scheduler.resources import ScheduleResources
-from src.backend.models.employee import Employee as ActualEmployee, EmployeeGroup
-from src.backend.services.scheduler.coverage_utils import (
-    get_required_staffing_for_interval,
-)
+from src.backend.models.employee import EmployeeGroup
 
 
 class MockScheduleEntry:

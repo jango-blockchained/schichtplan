@@ -20,14 +20,12 @@ import logging
 import csv
 import uuid
 from io import StringIO
-from datetime import datetime, date, time, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy import Date as SQLDate  # Added import
 from src.backend.schemas.ai_schedule import (
     AIScheduleFeedbackRequest,
 )  # Import the feedback schema
-from typing import List, Dict, Any  # Ensure List, Dict, Any are imported
 
 # Get src/logs path - fix for log location
 SRC_DIR = Path(__file__).resolve().parent.parent.parent

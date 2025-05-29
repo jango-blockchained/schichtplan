@@ -327,7 +327,7 @@ def diagnose_availability(
             )
 
             if is_on_leave:
-                available_by_employee[employee.id] = f"❌ On leave/absence"
+                available_by_employee[employee.id] = "❌ On leave/absence"
                 continue
 
             # Check availability for each shift
@@ -356,7 +356,7 @@ def diagnose_availability(
                 )
                 available_count += 1
             else:
-                available_by_employee[employee.id] = f"❌ Not available for any shifts"
+                available_by_employee[employee.id] = "❌ Not available for any shifts"
 
         print(
             f"✅ Found {available_count} available employees out of {len(active_employees)} active."

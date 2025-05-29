@@ -6,7 +6,7 @@ Test script to verify the ScheduleGenerator._save_to_database method works prope
 import os
 import sys
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 # Add parent directories to path
 current_dir = os.path.dirname(os.path.abspath(__file__))

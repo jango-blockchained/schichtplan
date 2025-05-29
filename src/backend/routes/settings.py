@@ -11,7 +11,6 @@ from pydantic import ValidationError
 from src.backend.schemas.settings import (
     TablesList,
     SettingValue,
-    CategorySettings,
     GenerationRequirements,
     CompleteSettings,
     GeneralSettings,  # Added
@@ -23,7 +22,6 @@ from src.backend.schemas.settings import (
     ActionsSettingsSchema,  # Added
     AISchedulingSettingsSchema,  # Added
 )
-from sqlalchemy.exc import IntegrityError
 
 settings = Blueprint("settings", __name__)
 

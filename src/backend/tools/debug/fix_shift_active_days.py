@@ -122,7 +122,7 @@ def main():
                             f"\nShift #{shift.id}: {shift.start_time}-{shift.end_time}"
                         )
                         days_input = input(
-                            f"Enter active days (comma-separated 0-6, e.g. '0,1,2,3,4' for weekdays): "
+                            "Enter active days (comma-separated 0-6, e.g. '0,1,2,3,4' for weekdays): "
                         )
                         try:
                             active_days = [

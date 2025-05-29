@@ -5,9 +5,8 @@ This bypasses the ORM to check the database directly.
 """
 
 import os
-import sys
 import sqlite3
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 import json
 
 

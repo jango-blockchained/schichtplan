@@ -1,6 +1,6 @@
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field
 from typing import Optional, List
-from datetime import date, time
+from datetime import date
 
 from src.backend.models.employee import AvailabilityType  # Import the enum
 

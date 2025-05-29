@@ -2,7 +2,6 @@ import logging
 from logging.handlers import RotatingFileHandler
 import json
 from pathlib import Path
-import os
 import sys  # Import sys for stderr
 import traceback  # Import traceback
 from datetime import datetime

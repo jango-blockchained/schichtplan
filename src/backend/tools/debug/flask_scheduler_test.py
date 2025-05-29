@@ -7,8 +7,7 @@ combines our previous test approach with proper database access.
 
 import os
 import sys
-import json
-from datetime import date, datetime, timedelta
+from datetime import date
 
 # Add the parent directories to path to resolve imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -46,7 +45,7 @@ def main():
             shift_count = ShiftTemplate.query.count()
             coverage_count = Coverage.query.count()
 
-            print(f"Database state:")
+            print("Database state:")
             print(f"  Active employees: {employee_count}")
             print(f"  Shift templates: {shift_count}")
             print(f"  Coverage records: {coverage_count}")
@@ -85,7 +84,7 @@ def main():
 
             # Force load resources from database
             resources.load()
-            print(f"Loaded resources:")
+            print("Loaded resources:")
             print(f"  Employees: {len(resources.employees)}")
             print(f"  Shifts: {len(resources.shifts)}")
             print(f"  Coverage: {len(resources.coverage)}")
@@ -149,7 +148,7 @@ def main():
                 entry for entry in schedule if entry.get("employee_id") is not None
             ]
 
-            print(f"Schedule generation complete:")
+            print("Schedule generation complete:")
             print(f"  Total entries: {len(schedule)}")
             print(f"  Assignments: {len(assignments)}")
 

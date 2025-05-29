@@ -11,9 +11,8 @@ This script checks all the components that affect shift assignment:
 import sys
 import os
 import traceback
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 import logging
-import json
 
 # Add the parent directories to the path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
@@ -83,7 +82,7 @@ def check_shift_templates(db):
             ]
             print(f"  Active days: {shift.active_days} ({', '.join(active_day_names)})")
         else:
-            print(f"  Active days: None or empty - THIS SHIFT WILL NEVER BE SCHEDULED")
+            print("  Active days: None or empty - THIS SHIFT WILL NEVER BE SCHEDULED")
             all_shifts_valid = False
 
         # Check for issues

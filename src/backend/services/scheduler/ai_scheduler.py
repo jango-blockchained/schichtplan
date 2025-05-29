@@ -1,4 +1,3 @@
-from src.backend.app import db
 from src.backend.models.employee import Employee, EmployeeAvailability
 from src.backend.models.coverage import Coverage
 from src.backend.models.settings import Settings
@@ -6,7 +5,7 @@ from src.backend.models.schedule import Schedule
 from src.backend.models.absence import Absence
 from src.backend.models.fixed_shift import ShiftTemplate
 from datetime import date, time, timedelta, datetime, timezone  # Import timezone
-from typing import Dict, Any, List  # Import List
+from typing import Dict, Any  # Import List
 
 # Assuming AvailabilityType is an Enum or similar accessible object
 # from your_models_or_utils import AvailabilityType # TODO: Import AvailabilityType
@@ -161,7 +160,7 @@ class AIScheduler:
                 current_interval_start_dt += scheduling_interval_timedelta
 
         constraints["hard"]["availability"] = availability_constraints
-        print(f"Processed availability constraints for scheduling period.")
+        print("Processed availability constraints for scheduling period.")
 
         # Absence Constraints
         # Structure: {employee_id: [(start_date, end_date), ...]}
@@ -267,7 +266,7 @@ class AIScheduler:
                 current_interval_start = interval_end
 
         constraints["hard"]["coverage"] = coverage_constraints
-        print(f"Processed coverage constraints for scheduling period.")
+        print("Processed coverage constraints for scheduling period.")
 
         # Keyholder Requirements
         # Structure: {date: {time_interval: requires_keyholder: bool}}
@@ -473,7 +472,7 @@ class AIScheduler:
                 current_interval_start_dt += scheduling_interval_timedelta
 
         constraints["soft"]["preference_satisfaction"] = preference_constraints
-        print(f"Processed preference satisfaction for scheduling period.")
+        print("Processed preference satisfaction for scheduling period.")
 
         # Fair Distribution
         # Structure: {employee_id: {shift_type: assigned_count}} or similar, aggregated over time

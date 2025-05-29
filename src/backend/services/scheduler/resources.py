@@ -1,7 +1,7 @@
 """Resource management for the scheduler"""
 
-from datetime import date, datetime, time, timedelta
-from typing import Dict, List, Optional, Set, Tuple, Union, Any
+from datetime import date
+from typing import Dict, List, Optional, Tuple, Any
 import logging
 import functools
 import sys

@@ -6,7 +6,7 @@ This script should be run from the project root where the Flask app is initializ
 
 import os
 import sys
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 print("Starting schedule generator database save test")
 print("==========================================")
@@ -17,7 +17,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "src", "backend"))
 
 # Import the Flask app creator function
 from app import create_app
-from models import db, Schedule, Employee
+from models import db, Schedule
 from services.scheduler.generator import ScheduleGenerator
 from services.scheduler.resources import ScheduleResources
 

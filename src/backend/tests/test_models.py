@@ -1,6 +1,5 @@
 from models import Employee, EmployeeGroup, Settings, db
-from models.settings import DAY_NAME_TO_NUM_KEY, NUM_KEY_TO_DAY_NAME
-from typing import Dict, Any
+from models.settings import DAY_NAME_TO_NUM_KEY
 
 
 def test_employee_creation(session):

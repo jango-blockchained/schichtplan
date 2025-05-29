@@ -10,11 +10,10 @@ from src.backend.models import (
 )
 from src.backend.models.employee import AvailabilityType
 from src.backend.models.schedule import ScheduleStatus, ScheduleVersionMeta
-from datetime import datetime, time, timedelta
+from datetime import datetime
 from http import HTTPStatus
-from sqlalchemy import desc, or_, and_
+from sqlalchemy import desc
 from flask import current_app
-from typing import List, Dict, Any, Tuple, Optional
 from pydantic import ValidationError
 from src.backend.schemas.availability import (
     AvailabilityCreateRequest,

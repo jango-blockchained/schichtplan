@@ -22,7 +22,7 @@ import sqlite3
 import argparse
 import traceback
 from datetime import date, datetime, timedelta, time
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Any, Optional, Tuple
 import logging  # Import logging module
 
 # Add the parent directories to path to resolve imports
@@ -92,7 +92,7 @@ def check_database(db_path: str) -> bool:
             cursor.execute(f"SELECT COUNT(*) FROM {table}")
             counts[table] = cursor.fetchone()[0]
 
-        print(f"Database contains:")
+        print("Database contains:")
         for table, count in counts.items():
             print(f"- {table}: {count} records")
 
@@ -342,15 +342,8 @@ def load_resources_from_db(db_path: str) -> Tuple[List[Any], List[Any], List[Any
             if row["active_days"]:
                 try:
                     days_list = json.loads(row["active_days"])
-                except (json.JSONDecodeError, TypeError):
-                    try:
-                        days_list = [
-                            int(day.strip())
-                            for day in row["active_days"].split(",")
-                            if day.strip()
-                        ]
-                    except:
-                        days_list = []
+                except (json.JSONDecodeError, ValueError):
+                    days_list = []
 
             shift = MockShiftTemplate(
                 id=row["id"],
@@ -405,7 +398,7 @@ def test_scheduler_components(db_path: str, test_date: date) -> None:
         print("\nInitializing scheduler components...")
         from src.backend.services.scheduler.generator import ScheduleGenerator
         from src.backend.services.scheduler.resources import ScheduleResources
-        from typing import Any, cast
+        from typing import Any
 
         # Configure logging for scheduler components
         logging.getLogger("schedule").setLevel(logging.DEBUG)
@@ -876,11 +869,9 @@ def test_scheduler_components(db_path: str, test_date: date) -> None:
                         active_days = s.active_days
                         # Convert to list if it's a string representation
                         if isinstance(active_days, str):
-                            import json
-
                             try:
                                 active_days = json.loads(active_days)
-                            except:
+                            except (json.JSONDecodeError, ValueError):
                                 active_days = []
 
                         # Now check if weekday is in the list

@@ -9,8 +9,8 @@ import os
 import sys
 import json
 import sqlite3
-from datetime import date, datetime, timedelta
-from typing import List, Dict, Any, Optional
+from datetime import date
+from typing import List, Any
 
 # Add the parent directories to path to resolve imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -294,7 +294,6 @@ def main():
         print("-" * 40)
 
         from backend.services.scheduler.generator import ScheduleGenerator
-        from backend.services.scheduler.resources import ScheduleResources
 
         # Create resource container with our pre-loaded data
         resources = CustomScheduleResources(

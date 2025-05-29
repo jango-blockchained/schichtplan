@@ -5,7 +5,6 @@ Simpler database cleanup script that works with Flask-SQLAlchemy.
 
 import os
 import sys
-from datetime import date
 
 # Add the current directory to the path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))

@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # test_flash_model.py - Test the gemini-1.5-flash model for schedule generation
 
-import os
 import sys
 import json
 import requests

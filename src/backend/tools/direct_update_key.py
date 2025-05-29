@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 """Script to directly update the Gemini API key in the SQLite database without Flask-SQLAlchemy"""
 
-import os
-import sys
 import json
 import sqlite3
 from pathlib import Path
@@ -105,7 +103,7 @@ def update_gemini_api_key_directly():
             )
             print(f"API Key: {masked_key}")
             print(f"Settings value: {verification[0]}")
-            print(f"\nPlease restart the backend server for changes to take effect.")
+            print("\nPlease restart the backend server for changes to take effect.")
             print("The KI generation feature should work after restarting.")
         else:
             print("Error: Failed to verify the update.")

@@ -8,18 +8,17 @@ from pathlib import Path
 import shutil  # For directory removal
 import traceback  # Added import
 
+# Import necessary classes (adjust paths if necessary)
+from services.scheduler import ScheduleGenerator  # Assumes src/backend is on path
+from services.scheduler.logging_utils import ProcessTracker  # Import ProcessTracker
+
 # Add project root to path to allow imports
-import sys
 
 current_dir = Path(__file__).parent
 # Go up 4 levels to reach the project root directory # Adjusted for test location
 # sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))) # Let conftest handle path
 # Add the 'src' directory to the Python path
 # sys.path.insert(0, str(project_root / "src")) # Let conftest handle path
-
-# Import necessary classes (adjust paths if necessary)
-from services.scheduler import ScheduleGenerator  # Assumes src/backend is on path
-from services.scheduler.logging_utils import ProcessTracker  # Import ProcessTracker
 
 # Define a temporary directory for test logs relative to this test file
 TEST_LOG_DIR_NAME = "test_scheduler_logs"
@@ -81,7 +80,7 @@ def test_diagnostic_log_creation_and_content(test_log_directory):
         assert os.path.exists(diagnostic_log_path), (
             f"Diagnostic log file should exist: {diagnostic_log_path}"
         )
-        print(f"\n[Test] Verified diagnostic log file exists initially.")
+        print("\n[Test] Verified diagnostic log file exists initially.")
 
         # Clear the log file before adding new test messages
         with open(diagnostic_log_path, "w") as f:

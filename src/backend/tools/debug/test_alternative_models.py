@@ -1,11 +1,7 @@
 #!/usr/bin/env python
 # test_alternative_models.py - Test alternative Gemini models for quota availability
 
-import os
-import sys
-import json
 import requests
-from pathlib import Path
 
 # Alternative Gemini models to try
 MODELS = [

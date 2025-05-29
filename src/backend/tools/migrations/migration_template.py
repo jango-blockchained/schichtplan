@@ -16,10 +16,8 @@ Author: [Your Name]
 Date: [Creation Date]
 """
 
-import os
 import sys
 import sqlite3
-import json
 import argparse
 from pathlib import Path
 

@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # update_ai_config.py - Update AI configuration using SQLite directly
 
-import os
-import sys
 import json
 import sqlite3
 from pathlib import Path
@@ -96,7 +94,7 @@ def update_ai_config():
                         if len(api_key) > 8
                         else "****"
                     )
-                    print(f"\nUpdated configuration:")
+                    print("\nUpdated configuration:")
                     print(f"API Key: {masked_key}")
                     print(f"Model: {updated_config.get('model')}")
                     print(f"Enabled: {updated_config.get('enabled')}")

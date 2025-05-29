@@ -1,8 +1,18 @@
-import pytest
-from unittest.mock import MagicMock, call, ANY, patch
-from datetime import date, timedelta
-import sys
 import os
+import pytest
+from backend.services.scheduler.definitions import (
+    ScheduleResourceError,
+    ScheduleGenerationError,
+)
+from backend.services.scheduler.models import (
+    ScheduleAssignment, ScheduleContainer
+)
+from backend.services.scheduler.resources import ScheduleResources
+from backend.services.scheduler.scheduler_types import AvailabilityType
+from datetime import date, timedelta
+from unittest.mock import MagicMock, patch, call
+from unittest.mock import ANY
+import sys
 
 # Add the src directory to the path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
@@ -258,7 +268,6 @@ def test_validate_shift_durations(scheduler_integration_fixture, app):
 
 
 # Skip tests for private/internal methods
-import pytest
 
 
 @pytest.mark.skip(

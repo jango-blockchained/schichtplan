@@ -8,7 +8,7 @@ for a specific date range and analyzes the results.
 import os
 import sys
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 # Add the parent directories to path to resolve imports
 current_dir = os.path.dirname(os.path.abspath(__file__))

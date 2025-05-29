@@ -8,7 +8,6 @@ import sys
 import time
 import traceback
 from datetime import date, timedelta
-from pathlib import Path
 
 # Print environment information
 print("\n==== ENVIRONMENT INFORMATION ====")
@@ -64,7 +63,7 @@ try:
             shift_count = ShiftTemplate.query.count()
             coverage_count = Coverage.query.count()
 
-            print(f"Database status:")
+            print("Database status:")
             print(f"  - Employee count: {employee_count}")
             print(f"  - Shift template count: {shift_count}")
             print(f"  - Coverage requirement count: {coverage_count}")

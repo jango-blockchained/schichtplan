@@ -2,7 +2,6 @@
 # test_ai_schedule_generation.py - Test script for AI schedule generation with diagnostics
 
 import sys
-import os
 import datetime
 import json
 from pathlib import Path
@@ -13,10 +12,8 @@ if src_path not in sys.path:
     sys.path.append(src_path)
 
 # Import models first, then app
-from src.backend.models import db
 from src.backend.app import create_app
 from src.backend.services.ai_scheduler_service import AISchedulerService
-from src.backend.utils.logger import logger
 
 
 def test_ai_schedule_generation():

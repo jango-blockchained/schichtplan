@@ -12,7 +12,7 @@ from reportlab.platypus import (
     NextPageTemplate,
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import mm, inch
+from reportlab.lib.units import mm
 from reportlab.lib.colors import black
 import math
 from src.backend.models import Schedule, Settings
