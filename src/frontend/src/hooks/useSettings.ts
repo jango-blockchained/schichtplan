@@ -220,7 +220,7 @@ export function useSettings() {
   const fetchSettings = async () => {
     try {
       setIsLoading(true);
-      const response = await axios.get<Settings>("/api/settings");
+      const response = await axios.get<Settings>("/api/v2/settings");
       
       // Transform numeric opening_days keys to day names if needed
       const data = response.data;
@@ -336,7 +336,7 @@ export function useSettings() {
       const payload = formatSettingsUpdate(settings, updatedFields);
       
       const response = await axios.put<Settings>(
-        "/api/settings",
+        "/api/v2/settings",
         payload, // Send the merged, complete settings object
       );
       setSettings(response.data); // Backend returns the full updated settings

@@ -5,7 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from services.auth_service import generate_token, login_required, role_required
 from utils.db_utils import session_manager
 
-bp = Blueprint("auth", __name__, url_prefix="/api/auth")
+bp = Blueprint("auth", __name__, url_prefix="/api/v2/auth")
 
 
 @bp.route("/register", methods=["POST"])

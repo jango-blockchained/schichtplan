@@ -117,7 +117,7 @@ class AISchedulerService:
         # Create a process tracker
         process_tracker = ProcessTracker(
             process_name=process_name,
-            schedule_logger=logger,
+            schedule_logger=logger.app_logger,
             diagnostic_logger=diagnostic_logger,
         )
 
@@ -157,7 +157,6 @@ class AISchedulerService:
                     "is_keyholder": emp.is_keyholder,
                     "max_weekly_hours": emp.get_max_weekly_hours()
                     or 40,  # Default to 40
-                    "default_availability": emp.default_availability or "Flexible",
                     "seniority": emp.seniority or 1,
                 }
                 employee_data.append(emp_dict)

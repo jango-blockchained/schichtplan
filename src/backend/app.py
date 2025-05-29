@@ -133,23 +133,23 @@ def create_app(config_class=Config):
     setup_logging(app)
 
     # Register blueprints
-    app.register_blueprint(shifts, url_prefix="/api")
-    app.register_blueprint(settings, url_prefix="/api")
-    app.register_blueprint(schedules, url_prefix="/api")
-    app.register_blueprint(employees, url_prefix="/api")
+    app.register_blueprint(shifts, url_prefix="/api/v2")
+    app.register_blueprint(settings, url_prefix="/api/v2")
+    app.register_blueprint(schedules, url_prefix="/api/v2")
+    app.register_blueprint(employees, url_prefix="/api/v2")
     app.register_blueprint(availability)
-    app.register_blueprint(absences_bp, url_prefix="/api")
-    app.register_blueprint(ai_schedule_bp, url_prefix="/api")
-    app.register_blueprint(holidays_bp, url_prefix="/api")
-    app.register_blueprint(holiday_import_bp, url_prefix="/api")
-    app.register_blueprint(special_days_bp, url_prefix="/api")
+    app.register_blueprint(absences_bp, url_prefix="/api/v2")
+    app.register_blueprint(ai_schedule_bp, url_prefix="/api/v2")
+    app.register_blueprint(holidays_bp, url_prefix="/api/v2")
+    app.register_blueprint(holiday_import_bp, url_prefix="/api/v2")
+    app.register_blueprint(special_days_bp, url_prefix="/api/v2")
     app.register_blueprint(auth_bp)  # Register auth blueprint
     app.register_blueprint(coverage_bp)
     app.register_blueprint(
         api_settings_bp, name="api_settings"
     )  # Register API settings blueprint
-    app.register_blueprint(demo_data_bp, url_prefix="/api/demo-data")
-    app.register_blueprint(logs.bp, url_prefix="/api/logs")
+    app.register_blueprint(demo_data_bp, url_prefix="/api/v2/demo-data")
+    app.register_blueprint(logs.bp, url_prefix="/api/v2/logs")
     app.register_blueprint(
         api_schedules_bp, name="api_schedules"
     )  # Register with unique name to avoid conflict
@@ -171,7 +171,7 @@ def create_app(config_class=Config):
         register_diagnostic_commands(app)
 
     # Health check endpoint for monitoring and port detection
-    @app.route("/api/health", methods=["GET"])
+    @app.route("/api/v2/health", methods=["GET"])
     def health_check():
         return jsonify(
             {

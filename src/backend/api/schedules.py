@@ -26,7 +26,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 logger = logging.getLogger(__name__)
 
-bp = Blueprint("schedules", __name__, url_prefix="/api/schedules")
+bp = Blueprint("schedules", __name__, url_prefix="/api/v2/schedules")
 
 
 def get_next_month_dates():

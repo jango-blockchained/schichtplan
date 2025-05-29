@@ -4,7 +4,7 @@ from sqlalchemy.exc import IntegrityError
 from http import HTTPStatus
 import logging
 
-bp = Blueprint("coverage", __name__, url_prefix="/api/coverage")
+bp = Blueprint("coverage", __name__, url_prefix="/api/v2/coverage")
 
 
 @bp.route("/", methods=["GET"])

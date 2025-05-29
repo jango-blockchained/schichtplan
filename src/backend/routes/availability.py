@@ -26,7 +26,7 @@ from src.backend.schemas.availability import (
 import traceback
 from sqlalchemy.exc import IntegrityError, DataError
 
-availability = Blueprint("availability", __name__, url_prefix="/api/availability")
+availability = Blueprint("availability", __name__, url_prefix="/api/v2/availability")
 
 
 @availability.route("/", methods=["GET"])
