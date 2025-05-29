@@ -1011,6 +1011,43 @@ def test_update_settings_scheduling_generation_api(client, session):
     assert persisted_data.get("enforce_rest_periods") is True # This was default True and not in payload
 
 
-# Ensure ensure_settings is properly defined or imported if not already present
-# It is present at the end of the file. Adding a forward declaration or moving it up might be cleaner for linters.
-# For now, assume it works as is.
+def test_update_settings_api_validation(client, session):
+    """Test PUT /api/settings/ endpoint with invalid data for validation."""
+    ensure_settings(session)
+
+    # Test case 1: Invalid type for 'enabled'
+    invalid_payload_enabled = {
+        "ai_scheduling": {
+            "enabled": "true" # Should be boolean, not string
+        }
+    }
+    response_enabled = client.put("/api/settings/", json=invalid_payload_enabled)
+    assert response_enabled.status_code == 400
+    assert "Invalid input: 'ai_scheduling.enabled' must be a boolean" in response_enabled.json["error"]
+
+    # Test case 2: Invalid type for 'api_key'
+    invalid_payload_api_key = {
+        "ai_scheduling": {
+            "api_key": 12345 # Should be string, not integer
+        }
+    }
+    response_api_key = client.put("/api/settings/", json=invalid_payload_api_key)
+    assert response_api_key.status_code == 400
+    assert "Invalid input: 'ai_scheduling.api_key' must be a string" in response_api_key.json["error"]
+
+    # Test case 3: Invalid type for 'general' section
+    invalid_payload_general = {
+        "general": "invalid_data" # Should be an object
+    }
+    response_general = client.put("/api/settings/", json=invalid_payload_general)
+    assert response_general.status_code == 400
+    assert "Invalid input: 'general' must be an object" in response_general.json["error"]
+
+    # Test case 4: Empty payload
+    response_empty = client.put("/api/settings/", json={})
+    assert response_empty.status_code == 200 # Empty payload is valid, should not return 400
+
+    # Test case 5: No payload (request.get_json() is None)
+    response_no_payload = client.put("/api/settings/", data=None, content_type=None)
+    assert response_no_payload.status_code == 400
+    assert "Invalid input: No data provided" in response_no_payload.json["error"]

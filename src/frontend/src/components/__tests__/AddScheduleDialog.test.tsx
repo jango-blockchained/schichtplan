@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   render,
   screen,
@@ -9,14 +9,12 @@ import {
 import "@testing-library/jest-dom";
 import { AddScheduleDialog } from "../Schedule/AddScheduleDialog"; // Adjust path as necessary
 import { useToast } from "../ui/use-toast"; // Mock this
-import * as scheduleService from "../../api/scheduleService"; // Mock this
-import * as availabilityService from "../../api/availabilityService"; // Mock this
+import * as apiService from "../../services/api"; // Use apiService for mocking
 import {
   EmployeeWithAvailability,
   ShiftForEmployee,
   ScheduleEntry,
 } from "../../types"; // Import the types
-import { createSchedule } from "../../services/api";
 
 // Mock dependencies
 const mockToast = jest.fn();
@@ -26,15 +24,9 @@ jest.mock("../ui/use-toast", () => ({
   }),
 }));
 
-jest.mock("../../api/scheduleService");
-jest.mock("../../api/availabilityService");
+jest.mock("../../services/api");
 
-const mockScheduleService = scheduleService as jest.Mocked<
-  typeof scheduleService
->;
-const mockAvailabilityService = availabilityService as jest.Mocked<
-  typeof availabilityService
->;
+const mockApiService = apiService as jest.Mocked<typeof apiService>;
 
 describe("AddScheduleDialog", () => {
   const mockOnOpenChange = jest.fn();
@@ -63,14 +55,14 @@ describe("AddScheduleDialog", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockAvailabilityService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue(
+    mockApiService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue(
       [availableEmployee],
     );
-    mockAvailabilityService.fetchApplicableShiftsForEmployee.mockResolvedValue([
+    mockApiService.fetchApplicableShiftsForEmployee.mockResolvedValue([
       availableShift,
       preferredShift,
     ]);
-    mockScheduleService.updateSchedule.mockResolvedValue({
+    mockApiService.updateSchedule.mockResolvedValue({
       id: "gen-1",
       employee_id: availableEmployee.employee_id,
       shift_id: preferredShift.shift_id,
@@ -116,7 +108,7 @@ describe("AddScheduleDialog", () => {
       status: "Absence: Vacation",
       is_active: true,
     };
-    mockAvailabilityService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue(
+    mockApiService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue(
       [availableEmployee, anotherEmployee],
     );
 
@@ -135,7 +127,7 @@ describe("AddScheduleDialog", () => {
 
     await waitFor(() => {
       expect(
-        mockAvailabilityService.fetchEmployeesWithAvailabilityByDate,
+        mockApiService.fetchEmployeesWithAvailabilityByDate,
       ).toHaveBeenCalledWith(testDefaultDateString);
     });
 
@@ -185,7 +177,7 @@ describe("AddScheduleDialog", () => {
 
     await waitFor(() => {
       expect(
-        mockAvailabilityService.fetchApplicableShiftsForEmployee,
+        mockApiService.fetchApplicableShiftsForEmployee,
       ).toHaveBeenCalledWith(
         testDefaultDateString,
         availableEmployee.employee_id,
@@ -243,8 +235,8 @@ describe("AddScheduleDialog", () => {
     fireEvent.click(saveButton);
 
     await waitFor(() => {
-      expect(mockScheduleService.updateSchedule).toHaveBeenCalledTimes(1);
-      expect(mockScheduleService.updateSchedule).toHaveBeenCalledWith(null, {
+      expect(mockApiService.updateSchedule).toHaveBeenCalledTimes(1);
+      expect(mockApiService.updateSchedule).toHaveBeenCalledWith(null, {
         employee_id: availableEmployee.employee_id,
         shift_id: preferredShift.shift_id,
         date: testDefaultDateString,
@@ -263,10 +255,10 @@ describe("AddScheduleDialog", () => {
   });
 
   test("handles pre-selected employee and shift values correctly", async () => {
-    mockAvailabilityService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue(
+    mockApiService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue(
       [availableEmployee],
     );
-    mockAvailabilityService.fetchApplicableShiftsForEmployee.mockResolvedValue([
+    mockApiService.fetchApplicableShiftsForEmployee.mockResolvedValue([
       availableShift,
       preferredShift,
     ]);
@@ -286,13 +278,13 @@ describe("AddScheduleDialog", () => {
 
     await waitFor(() => {
       expect(
-        mockAvailabilityService.fetchEmployeesWithAvailabilityByDate,
+        mockApiService.fetchEmployeesWithAvailabilityByDate,
       ).toHaveBeenCalledWith(testDefaultDateString);
     });
 
     await waitFor(() => {
       expect(
-        mockAvailabilityService.fetchApplicableShiftsForEmployee,
+        mockApiService.fetchApplicableShiftsForEmployee,
       ).toHaveBeenCalledWith(
         testDefaultDateString,
         availableEmployee.employee_id,
@@ -318,7 +310,7 @@ describe("AddScheduleDialog", () => {
     fireEvent.click(saveButton);
 
     await waitFor(() => {
-      expect(mockScheduleService.updateSchedule).toHaveBeenCalledWith(null, {
+      expect(mockApiService.updateSchedule).toHaveBeenCalledWith(null, {
         employee_id: availableEmployee.employee_id,
         shift_id: preferredShift.shift_id,
         date: testDefaultDateString,
@@ -332,7 +324,7 @@ describe("AddScheduleDialog", () => {
 
   test("shows loading state for employee dropdown", async () => {
     let resolveEmployees: any;
-    mockAvailabilityService.fetchEmployeesWithAvailabilityByDate.mockImplementationOnce(
+    mockApiService.fetchEmployeesWithAvailabilityByDate.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           resolveEmployees = resolve;
@@ -367,12 +359,12 @@ describe("AddScheduleDialog", () => {
   });
 
   test("shows loading state for shift dropdown", async () => {
-    mockAvailabilityService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue(
+    mockApiService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue(
       [availableEmployee],
     );
 
     let resolveShifts: any;
-    mockAvailabilityService.fetchApplicableShiftsForEmployee.mockImplementationOnce(
+    mockApiService.fetchApplicableShiftsForEmployee.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           resolveShifts = resolve;
@@ -419,7 +411,7 @@ describe("AddScheduleDialog", () => {
 
   test("shows error state for employee dropdown", async () => {
     const errorMessage = "Failed to fetch employees";
-    mockAvailabilityService.fetchEmployeesWithAvailabilityByDate.mockRejectedValueOnce(
+    mockApiService.fetchEmployeesWithAvailabilityByDate.mockRejectedValueOnce(
       new Error(errorMessage),
     );
 
@@ -452,12 +444,12 @@ describe("AddScheduleDialog", () => {
   });
 
   test("shows error state for shift dropdown", async () => {
-    mockAvailabilityService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue(
+    mockApiService.fetchEmployeesWithAvailabilityByDate.mockResolvedValue(
       [availableEmployee],
     );
 
     const errorMessage = "Failed to fetch shifts";
-    mockAvailabilityService.fetchApplicableShiftsForEmployee.mockRejectedValueOnce(
+    mockApiService.fetchApplicableShiftsForEmployee.mockRejectedValueOnce(
       new Error(errorMessage),
     );
 
@@ -500,7 +492,7 @@ describe("AddScheduleDialog", () => {
   test("handles error during form submission", async () => {
     const submissionErrorMessage = "Network Error";
     // Override updateSchedule for this test to make it fail
-    mockScheduleService.updateSchedule.mockRejectedValueOnce(
+    mockApiService.updateSchedule.mockRejectedValueOnce(
       new Error(submissionErrorMessage),
     );
 
