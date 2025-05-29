@@ -2,9 +2,24 @@ import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { DatePicker } from '@/components/ui/date-picker'; // Assuming this exists or will be created/imported
+import { DatePicker } from '@/components/ui/date-picker';
 
-const AIGenerationControls: React.FC = () => {
+/**
+ * @interface AIGenerationControlsProps
+ * @description Props for the AIGenerationControls component. Currently, it takes no props.
+ * Future props might include callbacks for initiating generation or default values.
+ */
+interface AIGenerationControlsProps {}
+
+/**
+ * @component AIGenerationControls
+ * @description A component that provides UI elements for controlling AI schedule generation.
+ * This includes selecting a date range and triggering the generation process.
+ *
+ * @param {AIGenerationControlsProps} props - The props for the component.
+ * @returns {React.ReactElement} The rendered AI generation controls.
+ */
+const AIGenerationControls: React.FC<AIGenerationControlsProps> = () => {
   return (
     <Card>
       <CardHeader>

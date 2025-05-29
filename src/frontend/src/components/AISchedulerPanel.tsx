@@ -6,7 +6,21 @@ import { ChevronsUpDown } from 'lucide-react';
 import AIGenerationControls from './AIGenerationControls';
 import AISuggestionView from './AISuggestionView';
 
-const AISchedulerPanel: React.FC = () => {
+/**
+ * @interface AISchedulerPanelProps
+ * @description Props for the AISchedulerPanel component. Currently, it takes no props.
+ */
+interface AISchedulerPanelProps {}
+
+/**
+ * @component AISchedulerPanel
+ * @description A collapsible panel that serves as the main container for AI scheduling features.
+ * It includes controls for AI generation, a view for AI suggestions, and a status area.
+ *
+ * @param {AISchedulerPanelProps} props - The props for the component.
+ * @returns {React.ReactElement} The rendered AI scheduler panel.
+ */
+const AISchedulerPanel: React.FC<AISchedulerPanelProps> = () => {
   const [isOpen, setIsOpen] = React.useState(false);
 
   return (

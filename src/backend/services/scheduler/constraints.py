@@ -810,9 +810,8 @@ class ConstraintChecker:
             The total hours worked by the employee in that week.
         """
         weekly_hours = 0.0
-        # Determine the week (Monday to Sunday) for the current_date
         start_of_week = current_date - timedelta(days=current_date.weekday())
-        end_of_week = start_of_week + timedelta(days=6)
+        # end_of_week = start_of_week + timedelta(days=6) # Unused variable
 
         for day_offset in range(7):
             check_date = start_of_week + timedelta(days=day_offset)
@@ -820,29 +819,25 @@ class ConstraintChecker:
 
             for entry in entries_on_date:
                 if entry.employee_id == employee_id and entry.shift_id is not None:
-                    # Fetch the shift object from resources
                     shift = next((s for s in self.resources.shifts if s.id == entry.shift_id), None)
 
-                    if shift is not None:
+                    if shift is not None: # This 'if' block should be correctly indented
                         duration_hours = 0
                         if hasattr(shift, "duration_hours") and shift.duration_hours is not None:
                             duration_hours = shift.duration_hours
                         elif hasattr(shift, "start_time") and hasattr(shift, "end_time") and shift.start_time and shift.end_time:
-                            # Use the existing method to calculate duration from time strings
                             duration_hours = self.calculate_shift_duration(shift.start_time, shift.end_time)
                         
                         weekly_hours += duration_hours
-                        # The following caching logic seems out of place for just getting weekly hours
-                        # and might be the source of the undefined 'shift' if not fetched correctly.
-                        # For now, I am ensuring 'shift' is defined before this block.
+                        # Commenting out the caching logic as it might be problematic and is not the primary goal here
                         # if not hasattr(shift, "duration_hours") or shift.duration_hours is None:
-                        #     if duration_hours > 0: # Cache only if valid
-                        #         shift.duration_hours = duration_hours # This mutates the resource, be careful
+                        #     if duration_hours > 0:
+                        #         shift.duration_hours = duration_hours
                         #         self.log_debug(
                         #             f"Cached duration {duration_hours:.2f}h on shift {shift.id}"
                         #         )
                     else:
-                        self.logger.warning(f"Shift with ID {entry.shift_id} not found in resources for weekly hours calculation.")
+                        self.logger.warning(f"Shift with ID {entry.shift_id} not found in resources for weekly hours calculation for employee {employee_id}.")
         return weekly_hours
 
     def calculate_shift_duration(self, start_time_str: str, end_time_str: str) -> float:

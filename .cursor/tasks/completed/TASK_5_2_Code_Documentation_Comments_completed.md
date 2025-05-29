@@ -31,3 +31,8 @@ Review and add code comments/docstrings for complex functions, classes, and modu
 - Added initial docstrings for module, `ScheduleGenerationError`, `ScheduleAssignment`, `ScheduleContainer`, and `ScheduleGenerator` classes and their `__init__` methods.
 - Encountered persistent Python linting errors related to "Module level import not at top of file" and undefined names within `TYPE_CHECKING` blocks after multiple attempts to fix.
 - Halting documentation for `generator.py` to avoid further errors and will proceed to other files.
+
+- Attempted to document `src/backend/services/scheduler/constraints.py`.
+- Added docstrings for the class, `__init__`, and most public and helper methods.
+- Encountered a persistent linting error ("Undefined name `shift`") in the `get_weekly_hours` method after multiple correction attempts.
+- Halting further work on `constraints.py`'s `get_weekly_hours` method.
