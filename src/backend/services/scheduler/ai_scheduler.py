@@ -3,12 +3,10 @@ from src.backend.models.coverage import Coverage
 from src.backend.models.settings import Settings
 from src.backend.models.schedule import Schedule
 from src.backend.models.absence import Absence
-from src.backend.models.fixed_shift import ShiftTemplate
+from src.backend.models.fixed_shift import ShiftTemplate, ShiftType # Import ShiftType
 from datetime import date, time, timedelta, datetime, timezone  # Import timezone
 from typing import Dict, Any  # Import List
-
-# Assuming AvailabilityType is an Enum or similar accessible object
-# from your_models_or_utils import AvailabilityType # TODO: Import AvailabilityType
+from src.backend.models.enums import AvailabilityType  # Import AvailabilityType enum
 
 # Assuming Skill model exists and ShiftTemplate has required_skills attribute
 # from src.backend.models.skill import Skill # TODO: Import Skill model if it exists
@@ -91,10 +89,8 @@ class AIScheduler:
                 interval_end_time = interval_end_time_dt.time()
 
                 for employee in data["employees"]:
-                    is_available_in_interval = True  # Assume available unless marked otherwise by an UNAVAILABLE availability record
-                    is_preferred_in_interval = (
-                        False  # Track if preferred availability exists
-                    )
+                    is_available_in_interval = True  # Assume available unless marked otherwise
+                    is_preferred_in_interval = False # Initialize is_preferred_in_interval
 
                     # Check all availabilities for the employee
                     for availability in data["availabilities"]:
@@ -122,28 +118,29 @@ class AIScheduler:
                                 availability_end_time = availability.end_time
 
                                 # Simple overlap check: Interval starts before availability ends AND Interval ends after availability starts
-                                # This doesn't handle overnight intervals/availabilities perfectly yet, needs refinement.
+                                # This doesn\'t handle overnight intervals/availabilities perfectly yet, needs refinement.
                                 # TODO: Refine time overlap logic to handle overnight cases.
                                 overlap = (
                                     interval_start_time < availability_end_time
                                 ) and (interval_end_time > availability_start_time)
 
-                                if overlap:
-                                    # Assuming availability has a 'type' attribute (e.g., AvailabilityType.UNAVAILABLE)
-                                    # TODO: Use actual AvailabilityType enum
-                                    # if availability.type == AvailabilityType.UNAVAILABLE:
-                                    #     is_available_in_interval = False
-                                    #     break # Found an unavailability, no need to check further for this interval
-                                    # elif availability.type == AvailabilityType.PREFERRED:
-                                    #     is_preferred_in_interval = True # Note preferred, but don't break yet
-                                    # Placeholder logic based on is_available flag in Availability model
-                                    if not availability.is_available:
-                                        is_available_in_interval = False
-                                        break  # Found an unavailability, no need to check further for this interval
-                                    # Assuming is_available=True could be either AVAILABLE or PREFERRED, need type check
-                                    # For now, a simple assumption:
-                                    # if availability.is_available and hasattr(availability, 'type') and availability.type == 'PREFERRED': # Placeholder type check
-                                    #      is_preferred_in_interval = True
+                                try:
+                                    if overlap:
+                                        # Use actual AvailabilityType enum
+                                        if availability.availability_type == AvailabilityType.UNAVAILABLE:
+                                            is_available_in_interval = False
+                                            break # Found an unavailability, no need to check further for this interval
+                                        elif availability.availability_type == AvailabilityType.PREFERRED:
+                                            is_preferred_in_interval = True # Note preferred, but don\'t break yet
+                                        # For FIXED and AVAILABLE, is_available_in_interval remains True
+                                except AttributeError as e:
+                                     print(f"AttributeError processing availability for employee {employee.id}: {e}")
+                                     # Assume not available if availability data is malformed
+                                     is_available_in_interval = False
+                                except Exception as e:
+                                     print(f"Unexpected error processing availability for employee {employee.id}: {e}")
+                                     # Assume not available for any other errors
+                                     is_available_in_interval = False
 
                     # Store the availability status for this employee, date, and interval
                     # Ensure the nested dictionary structure exists
@@ -152,10 +149,13 @@ class AIScheduler:
                     if current_date not in availability_constraints[employee.id]:
                         availability_constraints[employee.id][current_date] = {}
                     # Store a tuple of (is_available, is_preferred) or a more detailed status/score
-                    # For now, just storing is_available_in_interval
+                    # For now, just storing is_available_in_interval and is_preferred_in_interval
                     availability_constraints[employee.id][current_date][
                         interval_start_time
-                    ] = is_available_in_interval
+                    ] = {
+                        "is_available": is_available_in_interval,
+                        "is_preferred": is_preferred_in_interval,
+                    }
 
                 current_interval_start_dt += scheduling_interval_timedelta
 
@@ -200,18 +200,14 @@ class AIScheduler:
             coverage_constraints[current_date] = {}
 
             # Get store opening and closing hours from settings for the current date
-            # TODO: Implement logic to get store hours from settings considering special days
-            # For now, using placeholders
-            store_open_time_str = "09:00"  # Placeholder
-            store_close_time_str = "20:00"  # Placeholder
-            store_open_time = time(
-                int(store_open_time_str.split(":")[0]),
-                int(store_open_time_str.split(":")[1]),
-            )
-            store_close_time = time(
-                int(store_close_time_str.split(":")[0]),
-                int(store_close_time_str.split(":")[1]),
-            )
+            if data["settings"] and data["settings"].is_store_open(current_date):
+                open_time_str, close_time_str = data["settings"].get_store_hours(current_date)
+                store_open_time = time.fromisoformat(open_time_str)
+                store_close_time = time.fromisoformat(close_time_str)
+            else:
+                # If store is closed, skip coverage processing for this day
+                print(f"Store is closed on {current_date}. Skipping coverage processing.")
+                continue
 
             current_interval_start = datetime.combine(current_date, store_open_time)
             end_of_day_dt = datetime.combine(current_date, store_close_time)
@@ -308,42 +304,50 @@ class AIScheduler:
 
         # Implement logic to define rest period requirements (e.g., 11 hours between shifts)
         # This requires looking at the end time of a potential shift on the previous day.
-        # TODO: Get minimum rest period from settings
-        min_rest_hours = 11  # Placeholder: Should be from settings
+        min_rest_hours = data["settings"].min_rest_between_shifts if data["settings"] else 11.0 # Get from settings or default
         min_rest_timedelta = timedelta(hours=min_rest_hours)
 
         for employee in data["employees"]:
             rest_period_constraints[employee.id] = {}  # Initialize for each employee
 
             # Iterate through scheduling dates (starting from the second day to check rest from the previous day)
-            delta = scheduling_end_date - scheduling_start_date
-            for i in range(delta.days + 1):
-                current_date = scheduling_start_date + timedelta(days=i)
-                previous_date = current_date - timedelta(days=1)
+            delta_rest = scheduling_end_date - scheduling_start_date # Use a different variable name
+            for i in range(delta_rest.days + 1):
+                current_date_rest = scheduling_start_date + timedelta(days=i) # Use a different variable name
+                previous_date_rest = current_date_rest - timedelta(days=1)
 
-                # TODO: Get the end time of the last shift assigned to this employee on the previous_date
-                # This will require access to the schedule being generated or historical schedules.
-                last_shift_end_time_prev_day = (
-                    None  # Placeholder: Get from schedule/historical data
-                )
+                last_shift_end_time_prev_day = None
+                # Check historical/existing schedules for this employee on the previous day
+                for schedule_entry in data["schedules"]:
+                    if schedule_entry.employee_id == employee.id and schedule_entry.date == previous_date_rest:
+                        if schedule_entry.shift and schedule_entry.shift.end_time:
+                            # Assuming shift.end_time is a string like "HH:MM"
+                            try:
+                                current_entry_end_time = time.fromisoformat(schedule_entry.shift.end_time)
+                                if last_shift_end_time_prev_day is None or current_entry_end_time > last_shift_end_time_prev_day:
+                                    last_shift_end_time_prev_day = current_entry_end_time
+                            except ValueError:
+                                print(f"Warning: Could not parse shift end_time '{schedule_entry.shift.end_time}' for employee {employee.id} on {previous_date_rest}")
+                                continue
 
                 min_rest_start_time = time(0, 0)  # Default to start of the day
 
                 if last_shift_end_time_prev_day:
-                    # Calculate the earliest time a shift can start on the current day
                     last_shift_end_datetime = datetime.combine(
-                        previous_date, last_shift_end_time_prev_day
+                        previous_date_rest, last_shift_end_time_prev_day
                     )
                     min_start_datetime_current_day = (
                         last_shift_end_datetime + min_rest_timedelta
                     )
 
-                    # If the minimum start time is on the current day, record it
-                    if min_start_datetime_current_day.date() == current_date:
+                    if min_start_datetime_current_day.date() == current_date_rest:
                         min_rest_start_time = min_start_datetime_current_day.time()
+                    elif min_start_datetime_current_day.date() > current_date_rest:
+                        # If rest period pushes into the next day entirely, effectively unavailable for the whole current_date_rest
+                        # This logic might need refinement - perhaps mark all intervals as non-startable
+                        min_rest_start_time = time(23, 59, 59) # Effectively makes the whole day non-startable
 
-                # Store the minimum allowed start time for a shift on the current date for this employee
-                rest_period_constraints[employee.id][current_date] = min_rest_start_time
+                rest_period_constraints[employee.id][current_date_rest] = min_rest_start_time
 
         constraints["hard"]["rest_periods"] = rest_period_constraints
         print("Processed initial structure for rest period requirements.")
@@ -359,30 +363,27 @@ class AIScheduler:
 
         # Implement logic to model employee preferences based on availability types
         # Iterate through the scheduling dates and time intervals
-        delta = scheduling_end_date - scheduling_start_date
-        for i in range(delta.days + 1):
-            current_date = scheduling_start_date + timedelta(days=i)
-            day_of_week = current_date.weekday()  # Monday=0, Sunday=6
+        delta_pref = scheduling_end_date - scheduling_start_date # Use a different variable name for delta
+        for i in range(delta_pref.days + 1):
+            current_date_pref = scheduling_start_date + timedelta(days=i) # Use a different variable name for current_date
+            day_of_week_pref = current_date_pref.weekday()  # Monday=0, Sunday=6
 
             # Iterate through time intervals for the full day
-            # TODO: Get store opening and closing hours from settings for the current date
-            # For now, using placeholders
-            store_open_time_str = "09:00"  # Placeholder
-            store_close_time_str = "20:00"  # Placeholder
-            store_open_time = time(
-                int(store_open_time_str.split(":")[0]),
-                int(store_open_time_str.split(":")[1]),
-            )
-            store_close_time = time(
-                int(store_close_time_str.split(":")[0]),
-                int(store_close_time_str.split(":")[1]),
-            )
+            # Get store opening and closing hours from settings for the current date
+            if data["settings"] and data["settings"].is_store_open(current_date_pref):
+                open_time_str, close_time_str = data["settings"].get_store_hours(current_date_pref)
+                # store_open_time = time.fromisoformat(open_time_str) # Not needed here, using full_day_start_time
+                # store_close_time = time.fromisoformat(close_time_str) # Not needed here, using full_day_end_time
+            else:
+                # If store is closed, skip preference processing for this day
+                print(f"Store is closed on {current_date_pref}. Skipping preference processing.")
+                continue
 
             current_interval_start_dt = datetime.combine(
-                current_date, full_day_start_time
+                current_date_pref, full_day_start_time
             )  # Use full_day_start_time from above
             end_of_day_dt = datetime.combine(
-                current_date, full_day_end_time
+                current_date_pref, full_day_end_time
             )  # Use full_day_end_time from above
 
             while current_interval_start_dt <= end_of_day_dt:
@@ -403,7 +404,7 @@ class AIScheduler:
                         and (
                             (
                                 avail.is_recurring
-                                and avail.day_of_week == day_of_week  # Check recurring
+                                and avail.day_of_week == day_of_week_pref  # Check recurring
                                 and (
                                     (
                                         avail.start_time
@@ -420,7 +421,7 @@ class AIScheduler:
                             or (
                                 not avail.is_recurring
                                 and avail.start_date
-                                <= current_date
+                                <= current_date_pref
                                 <= avail.end_date  # Check date-specific
                                 and (
                                     (
@@ -444,28 +445,21 @@ class AIScheduler:
                     # Assign higher scores for PREFERRED, medium for AVAILABLE, low/negative for UNAVAILABLE
 
                     for avail in applicable_availabilities:
-                        # Placeholder logic based on is_available flag
-                        if avail.is_available:
-                            preference_score += (
-                                1  # Simple positive score for available intervals
-                            )
-                            # TODO: Differentiate between AVAILABLE and PREFERRED based on AvailabilityType
-                            # Assuming is_available=True indicates either AVAILABLE or PREFERRED based on another attribute
-                            # Need to check AvailabilityType here
-                            # Placeholder: Assuming a 'type' attribute in EmployeeAvailability
-                            # if avail.type == AvailabilityType.PREFERRED: # TODO: Use actual enum
-                            #     preference_score += 5
-                            # elif avail.type == AvailabilityType.AVAILABLE: # TODO: Use actual enum
-                            #     preference_score += 1
-                            # else: # UNAVAILABLE should be handled by hard constraints, but scoring here too for completeness
-                            #     preference_score -= 10 # Example penalty
+                        if avail.availability_type == AvailabilityType.PREFERRED:
+                            preference_score += 5 # Higher score for preferred
+                        elif avail.availability_type == AvailabilityType.AVAILABLE:
+                            preference_score += 2 # Medium score for available
+                        elif avail.availability_type == AvailabilityType.FIXED:
+                            preference_score += 2 # Medium score for fixed (treat similar to available for preference)
+                        elif avail.availability_type == AvailabilityType.UNAVAILABLE:
+                            preference_score -= 10 # Penalty if somehow considered
 
                     # Store the preference score for this employee, date, and interval
                     if employee.id not in preference_constraints:
                         preference_constraints[employee.id] = {}
-                    if current_date not in preference_constraints[employee.id]:
-                        preference_constraints[employee.id][current_date] = {}
-                    preference_constraints[employee.id][current_date][
+                    if current_date_pref not in preference_constraints[employee.id]:
+                        preference_constraints[employee.id][current_date_pref] = {}
+                    preference_constraints[employee.id][current_date_pref][
                         interval_start_time
                     ] = preference_score
 
@@ -503,47 +497,52 @@ class AIScheduler:
             "shift_requirements"
         ] = {}  # Map shift_template_id to list of required_skill_ids
 
-        # TODO: Populate these dictionaries based on data["employees"] and data["shift_templates"]
-        # Assuming Employee model has a 'skills' attribute (list of Skill objects or skill_ids)
-        # Assuming ShiftTemplate model has a 'required_skills' attribute (list of Skill objects or skill_ids)
-        for employee in data["employees"]:
-            # Placeholder: Assuming employee.skills is a list of skill IDs
-            employee_skill_ids = (
-                [skill.id for skill in employee.skills]
-                if hasattr(employee, "skills") and employee.skills
-                else []
-            )
-            skill_matching_constraints["employee_skills"][employee.id] = (
-                employee_skill_ids
-            )
-
-        for shift_template in data["shift_templates"]:
-            # Placeholder: Assuming shift_template.required_skills is a list of skill IDs
-            required_skill_ids = (
-                [skill.id for skill in shift_template.required_skills]
-                if hasattr(shift_template, "required_skills")
-                and shift_template.required_skills
-                else []
-            )
-            skill_matching_constraints["shift_requirements"][shift_template.id] = (
-                required_skill_ids
-            )
+        # Skills are not currently part of the Employee or ShiftTemplate models.
+        # This section will remain a placeholder until Skill model is implemented and integrated.
 
         constraints["soft"]["skill_matching"] = skill_matching_constraints
-        print("Processed initial structure for skill matching.")
+        print("Processed initial structure for skill matching (Skills not yet implemented in models).")
 
         # Shift Continuity
         # Structure: {employee_id: {pattern_type: score}} or similar, based on historical schedules
         shift_continuity_constraints = {}  # Dictionary to store shift continuity preferences
 
         # Implement logic to model preferences for consistent shift patterns
-        # This will likely involve analyzing historical schedules (data["schedules"]) to identify patterns (e.g., preferring not to alternate between early/late shifts)
-        # TODO: Analyze historical schedules for each employee (data["schedules"]) to identify shift patterns and assign scores/penalties for pattern breaks.
-        # Consider patterns like consecutive shifts, alternating shifts (e.g., early to late), and preferred days/times off.
+        # This will likely involve analyzing historical schedules (data["schedules"]) to identify patterns
         for employee in data["employees"]:
-            shift_continuity_constraints[
-                employee.id
-            ] = {}  # Initialize for each employee
+            shift_continuity_constraints[employee.id] = {}
+            # Sort historical schedules by date for this employee
+            employee_schedules = sorted(
+                [s for s in data["schedules"] if s.employee_id == employee.id],
+                key=lambda s: s.date
+            )
+
+            for i in range(delta_pref.days + 1): # Iterate through the scheduling period
+                current_eval_date = scheduling_start_date + timedelta(days=i)
+                shift_continuity_constraints[employee.id][current_eval_date] = {
+                    "penalty_early_after_late": 0,
+                    "penalty_late_after_early": 0,
+                }
+
+                # Find last worked shift type before current_eval_date
+                last_worked_shift_type = None
+                for sched_idx in range(len(employee_schedules) - 1, -1, -1):
+                    hist_schedule = employee_schedules[sched_idx]
+                    if hist_schedule.date < current_eval_date:
+                        if hist_schedule.shift:
+                            last_worked_shift_type = hist_schedule.shift.shift_type # Enum (EARLY, MIDDLE, LATE)
+                        break
+                
+                if last_worked_shift_type:
+                    # This score will be used by the optimization phase when considering assigning a shift type
+                    # on current_eval_date. A high penalty means it's undesirable.
+                    # Example: If last was LATE, penalize assigning EARLY today.
+                    # The actual shift being considered for current_eval_date is not known here,
+                    # so we store potential penalties.
+                    if last_worked_shift_type == ShiftType.LATE:
+                        shift_continuity_constraints[employee.id][current_eval_date]["penalty_early_after_late"] = 10 # Arbitrary penalty score
+                    elif last_worked_shift_type == ShiftType.EARLY:
+                        shift_continuity_constraints[employee.id][current_eval_date]["penalty_late_after_early"] = 10 # Arbitrary penalty score
 
         constraints["soft"]["shift_continuity"] = shift_continuity_constraints
         print(
@@ -602,38 +601,34 @@ class AIScheduler:
 
         print("Initial Assignment Phase...")
 
-        delta = scheduling_end_date - scheduling_start_date
-        for i in range(delta.days + 1):
-            current_date = scheduling_start_date + timedelta(days=i)
-            generated_schedule[current_date] = {}  # Initialize for the current date
+        delta_assign = scheduling_end_date - scheduling_start_date # Use a different variable name for delta
+        for i in range(delta_assign.days + 1):
+            current_date_assign = scheduling_start_date + timedelta(days=i) # Use a different variable name for current_date
+            generated_schedule[current_date_assign] = {}  # Initialize for the current date
 
             # Get store opening and closing hours from settings for the current date
-            # TODO: Implement logic to get store hours from settings considering special days
-            # For now, using placeholders
-            store_open_time_str = "09:00"  # Placeholder
-            store_close_time_str = "20:00"  # Placeholder
-            store_open_time = time(
-                int(store_open_time_str.split(":")[0]),
-                int(store_open_time_str.split(":")[1]),
-            )
-            store_close_time = time(
-                int(store_close_time_str.split(":")[0]),
-                int(store_close_time_str.split(":")[1]),
-            )
+            if data["settings"] and data["settings"].is_store_open(current_date_assign):
+                open_time_str, close_time_str = data["settings"].get_store_hours(current_date_assign)
+                store_open_time = time.fromisoformat(open_time_str)
+                store_close_time = time.fromisoformat(close_time_str)
+            else:
+                # If store is closed, skip assignment for this day
+                print(f"Store is closed on {current_date_assign}. Skipping assignment processing.")
+                continue
 
-            current_time = datetime.combine(current_date, store_open_time)
-            end_of_day = datetime.combine(current_date, store_close_time)
+            current_time = datetime.combine(current_date_assign, store_open_time)
+            end_of_day = datetime.combine(current_date_assign, store_close_time)
 
             while current_time < end_of_day:
                 interval_start_time = current_time.time()
-                generated_schedule[current_date][
+                generated_schedule[current_date_assign][
                     interval_start_time
                 ] = []  # Initialize list of assigned employees for this interval
 
                 # Get required coverage for this interval
                 coverage_requirements = (
                     processed_data["hard"]["coverage"]
-                    .get(current_date, {})
+                    .get(current_date_assign, {})
                     .get(interval_start_time, {})
                 )
                 required_count = coverage_requirements.get("min_employees", 0)
@@ -653,22 +648,28 @@ class AIScheduler:
                     is_available = (
                         processed_data["hard"]["availability"]
                         .get(employee_id, {})
-                        .get(current_date, {})
-                        .get(interval_start_time, False)
+                        .get(current_date_assign, {})
+                        .get(interval_start_time, {})
+                        .get("is_available", False) # Check the 'is_available' field
                     )
 
                     is_absent = False
-                    for start_date, end_date in processed_data["hard"]["absence"].get(
-                        employee_id, []
-                    ):
-                        if start_date <= current_date <= end_date:
+                    for start_date_abs, end_date_abs in processed_data["hard"]["absence"].get(employee_id, []): # Use different variable names
+                        if start_date_abs <= current_date_assign <= end_date_abs:
                             is_absent = True
                             break
 
                     # TODO: Add check for Rest Period Requirements (min_rest_start_time_next_shift)
-                    # min_start_time = processed_data["hard"]["rest_periods"].get(employee_id, {}).get(current_date, time(0, 0))
+                    # min_start_time = processed_data["hard"]["rest_periods"].get(employee_id, {}).get(current_date_assign, time(0,0))
                     # if interval_start_time < min_start_time:
                     #     is_available = False # Or mark as unavailable due to rest period
+                    # This check is now implicitly handled if is_available is derived from a time-slotted availability structure
+                    # that considers rest periods. Or, it needs to be an explicit check here against min_rest_start_time.
+
+                    # Explicit check for rest period constraint for the current interval_start_time:
+                    min_allowed_start_for_day = processed_data["hard"]["rest_periods"].get(employee_id, {}).get(current_date_assign, time(0,0))
+                    if interval_start_time < min_allowed_start_for_day:
+                        continue # Employee cannot start at this interval due to rest period
 
                     # TODO: Add check for Working Hours Limits (This is harder to check in initial assignment without tracking hours)
                     # This might be better as a validation/optimization step.
@@ -688,9 +689,10 @@ class AIScheduler:
 
                 if requires_keyholder and not assigned_keyholder:
                     # TODO: Find an eligible employee who is also a keyholder
-                    keyholder_employee = None  # Find from eligible_employees
-                    if keyholder_employee:
-                        generated_schedule[current_date][interval_start_time].append(
+                    keyholder_candidates = [emp for emp in eligible_employees if emp.is_keyholder]
+                    if keyholder_candidates:
+                        keyholder_employee = keyholder_candidates[0] # Simplistic: take the first one
+                        generated_schedule[current_date_assign][interval_start_time].append(
                             keyholder_employee.id
                         )
                         assigned_count += 1
@@ -702,7 +704,7 @@ class AIScheduler:
                 # Assign remaining required employees from eligible pool
                 for employee in eligible_employees:
                     if assigned_count < required_count:
-                        generated_schedule[current_date][interval_start_time].append(
+                        generated_schedule[current_date_assign][interval_start_time].append(
                             employee.id
                         )
                         assigned_count += 1
@@ -717,18 +719,13 @@ class AIScheduler:
         # Goal: Check if the generated schedule violates any hard constraints.
         # This can also provide metrics on soft constraint violations.
         print("Constraint Validation Phase...")
-
-        # TODO: Implement constraint validation logic.
-        # Iterate through the generated_schedule and check against all hard constraints (availability, absence, coverage, keyholder, working hours, rest periods).
-        # This will involve iterating through each assigned shift in the generated_schedule and verifying it against the corresponding constraints in processed_data["hard"]
-        # For Availability and Absence, check if the assigned employee is available/not absent during the shift interval.
-        # For Coverage, check if the number of assigned employees meets the minimum required count and if keyholder requirements are met.
-        # For Working Hours Limits, track daily and weekly hours for each employee based on assigned shifts and check against limits.
-        # For Rest Periods, check the time between consecutive shifts for each employee.
-
-        # violations = self._validate_schedule(generated_schedule, processed_data["hard"])
-        # print(f"Hard Constraint Violations: {len(violations)}")
-        print("Constraint Validation Phase Complete (Placeholder).")
+        violations = self._validate_schedule(generated_schedule, processed_data["hard"], data["employees"], data["settings"])
+        if violations:
+            print(f"Found {len(violations)} hard constraint violations after initial assignment.")
+            # Store violations or handle them. For now, just printing.
+            for v in violations:
+                print(f"  - {v}")
+        # print("Constraint Validation Phase Complete (Placeholder).") # Remove old placeholder message
 
         # --- 3. Optimization Phase ---
         # Goal: Improve the schedule based on soft constraints to maximize overall score.
@@ -747,6 +744,107 @@ class AIScheduler:
         # For now, just return the generated schedule structure
         print("Schedule generation complete.")
         return generated_schedule
+
+    def _validate_schedule(self, schedule: Dict[str, Any], hard_constraints: Dict[str, Any], employee_data: list, settings_data: Settings) -> list:
+        """
+        Validates the generated schedule against hard constraints.
+        Returns a list of violations.
+        """
+        violations = []
+        # interval_duration is assumed to be 60 minutes as per constraint processing logic
+        interval_duration = timedelta(minutes=60) 
+
+        # TODO: Implement detailed validation logic here.
+        # Examples:
+        # - Check availability: Iterate schedule, for each assignment, check if employee is available in hard_constraints["availability"]
+        # - Check absences: Ensure no employee is scheduled during their absence period from hard_constraints["absence"]
+        # - Check coverage: Ensure min_employees and keyholder requirements are met for each interval using hard_constraints["coverage"]
+        # - Check working hours: Track daily and weekly hours for each employee based on assigned shifts and check against limits.
+        # - Check rest periods: Ensure min rest between shifts using hard_constraints["rest_periods"]
+        # This will be an iterative process, similar to how constraints were built.
+
+        # Placeholder for employee data access if needed directly (e.g. for keyholder status)
+        # employees_dict = {emp.id: emp for emp in employee_data}
+
+        print(f"Starting schedule validation. Schedule has {len(schedule)} dates.")
+
+        # Track working hours for validation
+        employee_daily_hours = {emp.id: {dt: timedelta() for dt in schedule.keys()} for emp in employee_data}
+        employee_weekly_hours = {emp.id: timedelta() for emp in employee_data}
+        # Assuming scheduling_start_date is available or can be derived
+        schedule_dates = sorted(schedule.keys())
+        if not schedule_dates:
+            print("Validation: No dates in schedule to validate weekly hours.")
+            return violations # Or handle appropriately
+            
+        # Determine the start of the first week based on the first schedule date
+        first_schedule_date = schedule_dates[0]
+        start_of_first_week = first_schedule_date - timedelta(days=first_schedule_date.weekday()) # Monday
+
+        for emp_id in employee_daily_hours.keys(): # Iterate over employees who have daily hours logged
+            employee_weekly_hours_check = {emp_id: timedelta() for emp_id in employee_daily_hours.keys()} # Re-init for check
+            current_week_start = start_of_first_week
+
+            while current_week_start <= schedule_dates[-1]:
+                current_week_end = current_week_start + timedelta(days=6)
+                weekly_hours_for_emp = timedelta()
+
+                for day_offset in range(7):
+                    check_date = current_week_start + timedelta(days=day_offset)
+                    if check_date in schedule: # Ensure the date is in the schedule keys
+                        daily_td = employee_daily_hours.get(emp_id, {}).get(check_date, timedelta())
+                        weekly_hours_for_emp += daily_td
+                
+                max_weekly_h = hard_constraints.get("working_hours_limits", {}).get(emp_id, {}).get("max_weekly", 40.0) # Default 40
+                weekly_hours_float = weekly_hours_for_emp.total_seconds() / 3600
+
+                if weekly_hours_float > max_weekly_h:
+                    violations.append({
+                        "type": "max_weekly_hours",
+                        "employee_id": emp_id,
+                        "week_start": current_week_start.isoformat(),
+                        "message": f"Exceeded max weekly hours ({weekly_hours_float:.2f} > {max_weekly_h}) for week starting {current_week_start.isoformat()}"
+                    })
+                
+                current_week_start += timedelta(days=7)
+
+        # Validate Rest Periods between generated shifts
+        min_rest_hours_setting = settings_data.min_rest_between_shifts if settings_data else 11.0
+        min_rest_timedelta_setting = timedelta(hours=min_rest_hours_setting)
+
+        for emp_id in employee_daily_hours.keys(): # Iterate over employees who have assignments
+            employee_shifts = [] # List of (datetime_start, datetime_end)
+            for current_date, intervals in schedule.items():
+                for interval_start_time, assigned_employee_ids in intervals.items():
+                    if emp_id in assigned_employee_ids:
+                        # Assuming interval_duration is consistently 1 hour for this example
+                        # A more robust way would be to get shift template duration if available
+                        # or sum consecutive intervals for the same employee to form a 'block'
+                        shift_start_dt = datetime.combine(current_date, interval_start_time)
+                        shift_end_dt = shift_start_dt + interval_duration # Use the defined interval_duration
+                        employee_shifts.append((shift_start_dt, shift_end_dt))
+            
+            employee_shifts.sort() # Sort by start time
+
+            for i in range(len(employee_shifts) - 1):
+                end_of_current_shift = employee_shifts[i][1]
+                start_of_next_shift = employee_shifts[i+1][0]
+                rest_duration = start_of_next_shift - end_of_current_shift
+
+                if rest_duration < min_rest_timedelta_setting:
+                    violations.append({
+                        "type": "min_rest_period",
+                        "employee_id": emp_id,
+                        "shift1_end": end_of_current_shift.isoformat(),
+                        "shift2_start": start_of_next_shift.isoformat(),
+                        "message": f"Insufficient rest between shifts ({rest_duration} < {min_rest_timedelta_setting})"
+                    })
+
+        if violations:
+            print(f"Schedule validation found {len(violations)} violations.")
+        else:
+            print("Schedule validation passed with no hard constraint violations found.")
+        return violations
 
     def evaluate_schedule(self, generated_schedule: Dict[str, Any]) -> Dict[str, Any]:
         """

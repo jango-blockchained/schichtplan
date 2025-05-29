@@ -6,7 +6,7 @@ from models import db, Settings
 from http import HTTPStatus
 from sqlalchemy import inspect
 
-bp = Blueprint("settings", __name__, url_prefix="/api/settings")
+bp = Blueprint("settings", __name__, url_prefix="/api/v2/settings")
 
 
 @bp.route("/", methods=["GET"])
