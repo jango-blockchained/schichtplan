@@ -305,8 +305,9 @@ export interface Settings {
       name: string;
       description?: string | null;
       color: string;
-      priority: number;
+      priority?: number | null;
       is_available: boolean;
+      type?: "availability_type"; // Added optional type field
     }> | null;
   } | null;
   actions: {

@@ -235,9 +235,9 @@ export function AddScheduleDialog({
       !selectedAvailabilityType
     ) {
       toast({
-        title: "Fehlende Eingabe",
-        description: "Bitte wählen Sie Datum, Mitarbeiter und Schicht aus.",
-        variant: "warning",
+        title: "Missing Information",
+        description: "Please select a date, an employee, and a shift.",
+        variant: "default", // Changed from "warning"
       });
       return;
     }

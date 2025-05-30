@@ -39,7 +39,7 @@ export const EmployeeShiftDefinitionsSection: React.FC<
   settings,
   onUpdate,
   onImmediateUpdate,
-  isLoading, // Accept isLoading prop
+  isLoading, // isLoading is mutation.isPending from parent
 }) => {
   const employee_types_data = settings?.employee_types || [];
   const absence_types_data = settings?.absence_types || [];
@@ -100,9 +100,10 @@ export const EmployeeShiftDefinitionsSection: React.FC<
         <CardContent>
           {/* Ensure EmployeeSettingsEditor can handle the correct EmployeeType structure */}
           <EmployeeSettingsEditor
-            type="employee" // This prop might still be needed for internal logic/display within the editor
-            groups={memoizedEmployeeTypes as unknown as EditorEmployeeType[]} // Cast if needed, but ideally editor should accept EmployeeType[]
+            type="employee"
+            groups={memoizedEmployeeTypes as unknown as EditorEmployeeType[]}
             onChange={handleEmployeeTypesChange}
+            isLoading={isLoading} // Pass isLoading down
           />
         </CardContent>
       </Card>
@@ -117,9 +118,10 @@ export const EmployeeShiftDefinitionsSection: React.FC<
         <CardContent>
           {/* Ensure EmployeeSettingsEditor can handle the correct AbsenceType structure */}
           <EmployeeSettingsEditor
-            type="absence" // This prop might still be needed for internal logic/display within the editor
-            groups={memoizedAbsenceTypes as unknown as EditorAbsenceType[]} // Cast if needed, but ideally editor should accept AbsenceType[]
+            type="absence"
+            groups={memoizedAbsenceTypes as unknown as EditorAbsenceType[]}
             onChange={handleAbsenceTypesChange}
+            isLoading={isLoading} // Pass isLoading down
           />
         </CardContent>
       </Card>
@@ -134,8 +136,9 @@ export const EmployeeShiftDefinitionsSection: React.FC<
         <CardContent>
           {/* Ensure ShiftTypesEditor can handle the correct ShiftType structure */}
           <ShiftTypesEditor
-            shiftTypes={memoizedShiftTypes as unknown as EditorShiftType[]} // Cast if needed, but ideally editor should accept ShiftType[]
+            shiftTypes={memoizedShiftTypes as unknown as EditorShiftType[]}
             onChange={handleShiftTypesChange}
+            isLoading={isLoading} // Pass isLoading down
           />
         </CardContent>
       </Card>

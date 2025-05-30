@@ -5,7 +5,7 @@ from http import HTTPStatus
 from datetime import date, timedelta
 import io
 
-bp = Blueprint("pdf_settings", __name__, url_prefix="/api/pdf-settings")
+bp = Blueprint("pdf_settings", __name__, url_prefix="/api/v2/pdf-settings")
 
 
 @bp.route("/layout", methods=["GET"])

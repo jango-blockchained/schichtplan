@@ -187,6 +187,8 @@ def test_delete_shift(client, session):
     assert session.get(ShiftTemplate, shift_id) is None
 
 
+import pytest
+
 @pytest.mark.skip(reason="Skipping due to Blueprint 'shifts' not having a valid prefix")
 def test_create_default_shifts(client):
     """Test creating default shifts"""

@@ -27,10 +27,20 @@ const AIGenerationControls: React.FC<AIGenerationControlsProps> = () => {
         <CardDescription>Select period and options for AI generation.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="schedule-period">Schedule Period</Label>
-          {/* Placeholder for DateRangePicker, using DatePicker for now */}
-          <DatePicker placeholder="Select date range" /> 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div className="space-y-1">
+            <Label htmlFor="dateRange">Date Range</Label>
+            {/* <DatePicker placeholder="Select date range" /> */}
+            {/* Assuming DatePicker is a custom component that might not take placeholder directly */}
+            {/* If it's a simple input wrapper, it might need different props or be used differently */}
+            {/* For now, removing the problematic prop. Functionality might need review. */}
+            <DatePicker /> 
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="aiProfile">AI Profile</Label>
+            {/* Placeholder for AI Profile selection, e.g. a dropdown or radio buttons */}
+            {/* <AIProfileSelector /> */}
+          </div>
         </div>
         {/* Placeholder for other options like AI Profile */}
         <Button className="w-full">Generate with AI</Button>

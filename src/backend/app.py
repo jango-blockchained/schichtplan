@@ -82,6 +82,10 @@ def setup_logging(app):
 
 
 def create_app(config_class=Config):
+    if isinstance(config_class, str):
+        if config_class.lower() == 'testing':
+            from src.backend.testing import TestingConfig
+            config_class = TestingConfig
     app = Flask(__name__)
     app.config.from_object(config_class)
 

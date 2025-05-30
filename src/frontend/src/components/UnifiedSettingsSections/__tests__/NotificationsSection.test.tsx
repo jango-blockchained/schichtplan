@@ -1,14 +1,14 @@
-\
 import { describe, it, expect, mock, beforeEach } from "bun:test";
-import { render, screen, fireEvent } from "../../../test-utils/test-utils"; // Adjust path as needed
+import { render, screen, fireEvent } from "../../../test-utils/test-utils"; 
 import NotificationsSection from "../NotificationsSection";
-import type { Settings } from "../../../types"; // Adjust path as needed
+import type { Settings } from "../../../types"; 
 
 describe("NotificationsSection", () => {
-  let mockOnDisplaySettingChange: ReturnType<typeof mock.fn>;
+  let mockOnDisplaySettingChange: ReturnType<typeof mock>; // Simpler type for the mock object
 
   beforeEach(() => {
-    mockOnDisplaySettingChange = mock.fn();
+    // Create a new mock for each test to ensure isolation
+    mockOnDisplaySettingChange = mock(() => {}); // Simplest mock returning undefined
   });
 
   const initialDisplaySettings: Settings["display"] = {

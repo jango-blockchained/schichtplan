@@ -10,7 +10,7 @@ import {
   DialogFooter,
 } from "./ui/dialog";
 import { Alert, AlertDescription } from "./ui/alert";
-import { Trash2, Plus, Pencil } from "lucide-react";
+import { Trash2, Plus, Pencil, Loader2 } from "lucide-react";
 import ColorPicker from "./ColorPicker";
 import { EmployeeType, AbsenceType } from "@/types";
 import { useDebouncedCallback } from "use-debounce";
@@ -39,143 +39,130 @@ import {
 export type GroupType = EmployeeType | AbsenceType;
 
 // Define Zod schemas for validation
-const EmployeeTypeSchema = z.object({
+const EmployeeTypeSchemaRaw = z.object({
   id: z.string().min(1, "ID is required"),
   name: z.string().min(1, "Name is required"),
   min_hours: z.number().min(0, "Min hours cannot be negative"),
-  max_hours: z
-    .number()
-    .min(0, "Max hours cannot be negative")
-    .refine((max, data) => max >= data.min_hours, {
-      message: "Max hours cannot be less than min hours",
-      path: ["max_hours"], // Associate error with max_hours field
-    }),
-  type: z.literal("employee_type"), // Ensure type is correct
+  max_hours: z.number().min(0, "Max hours cannot be negative"),
+  type: z.literal("employee_type" as const),
 });
 
-const AbsenceTypeSchema = z.object({
+const AbsenceTypeSchemaRaw = z.object({
   id: z.string().min(1, "ID is required"),
   name: z.string().min(1, "Name is required"),
-  color: z.string().min(4, "Color is required"), // Basic color validation (e.g., #000)
-  type: z.literal("absence_type"), // Ensure type is correct
+  color: z.string().min(4, "Color is required"), 
+  type: z.literal("absence_type" as const),
 });
 
-// Union type for validation schema based on editor type
 const GroupTypeSchema = z.discriminatedUnion("type", [
-  EmployeeTypeSchema,
-  AbsenceTypeSchema,
-]);
+  EmployeeTypeSchemaRaw,
+  AbsenceTypeSchemaRaw,
+]).superRefine((data, ctx) => {
+  if (data.type === "employee_type") {
+    // data is now inferred as the EmployeeType part of the union
+    if (typeof data.max_hours === 'number' && typeof data.min_hours === 'number') {
+      if (data.max_hours < data.min_hours) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Max hours cannot be less than min hours",
+          path: ["max_hours"], 
+        });
+      }
+    }
+  }
+});
+
+// Infer type from Zod schema for react-hook-form
+type InferredGroupType = z.infer<typeof GroupTypeSchema>;
 
 interface EmployeeSettingsEditorProps {
   type: "employee" | "absence";
-  groups: GroupType[];
+  groups: GroupType[]; 
   onChange: (groups: GroupType[]) => void;
+  isLoading?: boolean;
 }
 
 export default function EmployeeSettingsEditor({
-  groups,
+  groups, 
   onChange,
   type,
+  isLoading,
 }: EmployeeSettingsEditorProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingGroup, setEditingGroup] = useState<GroupType | null>(null);
-  // Remove manual error state
-  // const [error, setError] = useState<string | null>(null);
+  const [editingGroup, setEditingGroup] = useState<GroupType | null>(null); 
   const [localGroups, setLocalGroups] = useState<GroupType[]>(groups);
 
-  // Initialize react-hook-form
-  const form = useForm<GroupType>({
-    // Use resolver to integrate Zod with react-hook-form
+  const getTypedDefaultGroup = useCallback((): InferredGroupType => {
+    if (type === "employee") {
+      return {
+        id: "", name: "", min_hours: 0, max_hours: 40, type: "employee_type",
+      } as Extract<InferredGroupType, { type: "employee_type" }>;
+    } else { // type === "absence"
+      return {
+        id: "", name: "", color: "#FF9800", type: "absence_type",
+      } as Extract<InferredGroupType, { type: "absence_type" }>;
+    }
+  }, [type]);
+
+  const form = useForm<InferredGroupType>({
     resolver: zodResolver(GroupTypeSchema),
-    // Set default values when editingGroup changes
-    values: editingGroup || undefined, // Use values for controlled form
+    defaultValues: getTypedDefaultGroup(),
   });
 
-  // Watch for changes in groups prop and update localGroups
   useEffect(() => {
     setLocalGroups(groups);
   }, [groups]);
 
-  // Debounced update function (keep for now, might refactor later)
+  useEffect(() => {
+    if (isModalOpen) {
+      form.reset(editingGroup ? (editingGroup as InferredGroupType) : getTypedDefaultGroup());
+    }
+  }, [isModalOpen, editingGroup, form, getTypedDefaultGroup]);
+
   const debouncedOnChange = useDebouncedCallback(
     (updatedGroups: GroupType[]) => {
       onChange(updatedGroups);
     },
-    1000, // 1 second delay
+    1000,
   );
 
-  function getDefaultGroup(): GroupType {
-    switch (type) {
-      case "employee":
-        return {
-          id: "",
-          name: "",
-          min_hours: 0,
-          max_hours: 40,
-          type: "employee_type",
-        } as EmployeeType;
-      case "absence":
-        return {
-          id: "",
-          name: "",
-          color: "#FF9800",
-          type: "absence_type",
-        } as AbsenceType;
-    }
-  }
-
   const handleOpenModal = (group?: GroupType) => {
-    const groupToEdit = group ? { ...group } : getDefaultGroup();
-    setEditingGroup(groupToEdit);
-    // Reset the form with the values of the group being edited or default values
-    form.reset(groupToEdit);
-    setIsModalOpen(true);
-    // Remove manual error state setting
-    // setError(null);
+    setEditingGroup(group || null); 
+    setIsModalOpen(true); // This will trigger the useEffect to reset the form
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    setEditingGroup(null);
-    // Reset form and clear errors on close
-    form.reset();
-    // Remove manual error state clearing
-    // setError(null);
+    setEditingGroup(null); 
+    // Form will be reset by useEffect when isModalOpen changes or editingGroup becomes null
+    // However, explicitly resetting to default on close might be cleaner if needed.
+    form.reset(getTypedDefaultGroup());
+    form.clearErrors(); 
   };
 
-  // Update handleSaveGroup to use react-hook-form's handleSubmit
-  const handleSaveGroup = (formData: GroupType) => {
-    // react-hook-form has already validated the data based on the schema
-    // Check for unique ID manually as it depends on existing groups
-    const existingIndex = localGroups.findIndex(
-      (g) => g.id === formData.id,
-    );
+  const handleSaveGroup = (formData: InferredGroupType) => {
+    const groupToSave = formData as GroupType; // Cast to imported GroupType for external state/prop
 
-    // If editing an existing group, allow saving with the same ID
-    if (editingGroup && editingGroup.id !== formData.id && existingIndex >= 0) {
-       // Check if the new ID conflicts with another *existing* group
-       // If editingGroup is null (adding), any ID conflict is an error
-       form.setError("id", { type: "manual", message: "Group ID must be unique" });
-       return;
-    } else if (!editingGroup && existingIndex >= 0) {
-        // If adding a new group and ID conflicts with an existing group
-        form.setError("id", { type: "manual", message: "Group ID must be unique" });
-        return;
+    const existingGroupInLocalById = localGroups.find(g => g.id === groupToSave.id);
+
+    if (editingGroup && editingGroup.id !== groupToSave.id && existingGroupInLocalById) {
+      form.setError("id", { type: "manual", message: "This ID is already in use by another group." });
+      return;
+    } else if (!editingGroup && existingGroupInLocalById) {
+      form.setError("id", { type: "manual", message: "Group ID must be unique." });
+      return;
     }
 
     let updatedGroups: GroupType[];
-
-    if (existingIndex >= 0 && editingGroup?.id === formData.id) {
-      // Update existing group
-      updatedGroups = [...localGroups];
-      updatedGroups[existingIndex] = formData; // Use validated form data
+    // If editing, find by original ID (editingGroup.id) and replace with groupToSave (which might have a new ID)
+    if (editingGroup && localGroups.some(g => g.id === editingGroup.id)) {
+      updatedGroups = localGroups.map(g => g.id === editingGroup.id ? groupToSave : g);
     } else {
-      // Add new group
-      updatedGroups = [...localGroups, formData]; // Use validated form data
+      // Adding new or handling case where original editingGroup ID wasn't found (should not happen if logic is correct)
+      updatedGroups = [...localGroups, groupToSave];
     }
-
     setLocalGroups(updatedGroups);
-    debouncedOnChange(updatedGroups); // Use debouncedOnChange
+    debouncedOnChange(updatedGroups);
     handleCloseModal();
   };
 
@@ -193,8 +180,8 @@ export default function EmployeeSettingsEditor({
         <h3 className="text-lg font-semibold">
           {type === "employee" ? "Employee Types" : "Absence Types"}
         </h3>
-        <Button onClick={() => handleOpenModal()} size="sm">
-          <Plus className="h-4 w-4 mr-1" />
+        <Button onClick={() => handleOpenModal()} size="sm" disabled={isLoading}> {/* Disable if loading */}
+          {isLoading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
           Add {type === "employee" ? "Employee Type" : "Absence Type"}
         </Button>
       </div>
@@ -283,72 +270,53 @@ export default function EmployeeSettingsEditor({
             {/* Handle form submission with react-hook-form's handleSubmit */}
             <form onSubmit={form.handleSubmit(handleSaveGroup)} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                {/* ID Field */}
                 <FormField
                   control={form.control}
                   name="id"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>ID</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
+                      <FormControl><Input {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-
-                {/* Name Field */}
                 <FormField
                   control={form.control}
                   name="name"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Name</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
+                      <FormControl><Input {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
 
-              {/* Conditional Fields for Employee Type */}
-              {type === "employee" && (
+              {form.watch("type") === "employee_type" && (
                  <div className="grid grid-cols-2 gap-4">
-                   {/* Min Hours Field */}
                    <FormField
                      control={form.control}
-                     name="min_hours"
+                     name={"min_hours"} // Name is string literal
                      render={({ field }) => (
                        <FormItem>
                          <FormLabel>Min Hours</FormLabel>
                          <FormControl>
-                           <Input
-                             type="number"
-                             {...field}
-                             onChange={(e) => field.onChange(Number(e.target.value))}
-                           />
+                           <Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
                          </FormControl>
                          <FormMessage />
                        </FormItem>
                      )}
                    />
-
-                   {/* Max Hours Field */}
                    <FormField
                      control={form.control}
-                     name="max_hours"
+                     name={"max_hours"} // Name is string literal
                      render={({ field }) => (
                        <FormItem>
                          <FormLabel>Max Hours</FormLabel>
                          <FormControl>
-                           <Input
-                             type="number"
-                             {...field}
-                             onChange={(e) => field.onChange(Number(e.target.value))}
-                           />
+                           <Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
                          </FormControl>
                          <FormMessage />
                        </FormItem>
@@ -357,19 +325,15 @@ export default function EmployeeSettingsEditor({
                  </div>
               )}
 
-              {/* Conditional Field for Absence Type */}
-              {type === "absence" && (
+              {form.watch("type") === "absence_type" && (
                 <FormField
                   control={form.control}
-                  name="color"
+                  name={"color"} // Name is string literal
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Color</FormLabel>
                       <FormControl>
-                         {/* ColorPicker needs to be integrated with react-hook-form manually if it's not a standard input */}
-                         {/* For now, using a basic Input for demonstration */} {/* TODO: Integrate ColorPicker properly */}
-                         <Input {...field} value={field.value || ''} onChange={field.onChange} />
-                         {/* <ColorPicker value={field.value} onChange={field.onChange} label={form.watch('name') || field.value} /> */}
+                         <ColorPicker color={(field.value as string) || ''} onChange={field.onChange} label={form.watch('name') || 'Selected Color'} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -377,13 +341,12 @@ export default function EmployeeSettingsEditor({
                 />
               )}
 
-              {/* Dialog Footer Buttons within the form */} {/* Moved footer inside form */}
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={handleCloseModal}>
+                <Button type="button" variant="outline" onClick={handleCloseModal} disabled={isLoading}> {/* Disable if loading */}
                   Cancel
                 </Button>
-                <Button type="submit">
-                  {editingGroup?.id ? "Save" : "Create"}
+                <Button type="submit" disabled={isLoading}> {/* Disable if loading */}
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingGroup?.id ? "Save" : "Create")}
                 </Button>
               </DialogFooter>
             </form>

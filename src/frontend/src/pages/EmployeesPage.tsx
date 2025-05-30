@@ -145,17 +145,15 @@ export const EmployeesPage = () => {
 
   const {
     data: employeesData,
-    isLoading,
-    error,
+    isLoading: isLoadingEmployees, // Renamed for clarity
+    error: errorEmployees, // Renamed for clarity
   } = useQuery({
     queryKey: ["employees"],
     queryFn: getEmployees,
   });
 
-  const { data: settings } = useQuery({
-    queryKey: ["settings"],
-    queryFn: getSettings,
-  });
+  // Settings are used by useEmployeeGroups hook internally
+  // We rely on employeeGroups.length to know if settings provided necessary data
 
   // Update employees state when data is loaded
   useEffect(() => {
@@ -436,21 +434,35 @@ export const EmployeesPage = () => {
     currentPage * ITEMS_PER_PAGE,
   );
 
-  if (error) {
+  if (errorEmployees) {
     return (
       <div className="rounded-md bg-destructive/15 p-4 text-destructive">
-        Fehler beim Laden der Mitarbeiter
+        Fehler beim Laden der Mitarbeiter: {errorEmployees.message}
       </div>
     );
   }
 
-  if (isLoading || !employeeGroups.length) {
+  // Show loader if employees are loading.
+  if (isLoadingEmployees) {
     return (
       <div className="flex justify-center p-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
+  
+  // After employees have loaded (or failed with errorEmployees), 
+  // if employeeGroups are still not available, it implies a settings issue or empty settings.
+  // This check should come after isLoadingEmployees is confirmed false.
+  if (!employeeGroups.length) {
+    return (
+      <div className="rounded-md bg-amber-100 p-4 text-amber-700">
+        Mitarbeitergruppen-Einstellungen konnten nicht geladen werden oder sind leer. Bitte überprüfen Sie die Einstellungen.
+      </div>
+    );
+  }
+
+  // If we reach here, isLoadingEmployees is false, errorEmployees is null, and employeeGroups has length.
 
   const sortedEmployees = getSortedEmployees(employees || []);
   const allSelected = employees?.length === selectedEmployees.size;
@@ -908,7 +920,7 @@ export const EmployeesPage = () => {
           employeeId={selectedEmployeeForAbsence.id}
           isOpen={!!selectedEmployeeForAbsence}
           onClose={() => setSelectedEmployeeForAbsence(null)}
-          absenceTypes={settings.employee_groups.absence_types}
+          absenceTypes={settings.employee_groups?.absence_types || []} // Provide default empty array
         />
       )}
     </div>

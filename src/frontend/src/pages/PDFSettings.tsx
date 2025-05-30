@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { PDFLayoutEditor } from "@/components/PDFLayoutEditor";
 import { PDFLayoutPresets } from "@/components/PDFLayoutPresets";
 import { useToast } from "@/components/ui/use-toast";
+import { PageHeader } from "@/components/PageHeader"; // Added PageHeader import
 
 export interface PDFLayoutConfig {
   page_size: string;
@@ -71,7 +72,7 @@ export default function PDFSettings() {
 
   const fetchPresets = async () => {
     try {
-      const response = await fetch("/pdf-settings/presets");
+      const response = await fetch("/api/v2/pdf-settings/presets");
       if (!response.ok) throw new Error("Failed to fetch presets");
       const data = await response.json();
       setPresets(data);
@@ -85,7 +86,7 @@ export default function PDFSettings() {
 
   const fetchCurrentConfig = async () => {
     try {
-      const response = await fetch("/pdf-settings/layout");
+      const response = await fetch("/api/v2/pdf-settings/layout");
       if (!response.ok) throw new Error("Failed to fetch current config");
       const data = await response.json();
       setConfig(data);
@@ -99,7 +100,7 @@ export default function PDFSettings() {
 
   const handleConfigChange = async (newConfig: PDFLayoutConfig) => {
     try {
-      const response = await fetch("/pdf-settings/layout", {
+      const response = await fetch("/api/v2/pdf-settings/layout", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newConfig),
@@ -122,7 +123,7 @@ export default function PDFSettings() {
     presetConfig: PDFLayoutConfig,
   ) => {
     try {
-      const response = await fetch(`/pdf-settings/presets/${name}`, {
+      const response = await fetch(`/api/v2/pdf-settings/presets/${name}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(presetConfig),
@@ -142,7 +143,7 @@ export default function PDFSettings() {
 
   const handleDeletePreset = async (name: string) => {
     try {
-      const response = await fetch(`/pdf-settings/presets/${name}`, {
+      const response = await fetch(`/api/v2/pdf-settings/presets/${name}`, {
         method: "DELETE",
       });
       if (!response.ok) throw new Error("Failed to delete preset");
@@ -160,7 +161,7 @@ export default function PDFSettings() {
 
   const handleApplyPreset = async (name: string) => {
     try {
-      const response = await fetch(`/pdf-settings/presets/${name}/apply`, {
+      const response = await fetch(`/api/v2/pdf-settings/presets/${name}/apply`, {
         method: "POST",
       });
       if (!response.ok) throw new Error("Failed to apply preset");
@@ -178,6 +179,12 @@ export default function PDFSettings() {
 
   return (
     <div className="container mx-auto py-6">
+      {/* Added PageHeader */}
+      <PageHeader 
+        title="PDF Layout Settings"
+        description="Customize the layout and appearance of generated PDF schedules. Manage presets for quick configurations."
+        className="mb-6"
+      />
       <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-6">
         <div className="space-y-4">
           <PDFLayoutPresets

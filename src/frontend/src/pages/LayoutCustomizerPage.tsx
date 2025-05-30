@@ -38,8 +38,8 @@ export default function LayoutCustomizerPage() {
 
   const handleSave = async (config: LayoutConfig) => {
     try {
-      const response = await fetch("/api/v2/settings/pdf-layout", {
-        method: "POST",
+      const response = await fetch("/api/v2/pdf-settings/layout", { // Corrected endpoint
+        method: "PUT", // Corrected method
         headers: {
           "Content-Type": "application/json",
         },

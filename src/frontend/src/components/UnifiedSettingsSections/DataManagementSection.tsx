@@ -36,7 +36,7 @@ import {
   backupDatabase,
   restoreDatabase,
   wipeTables,
-  getAvailableTables,
+  fetchTables, // Corrected import name
 } from "@/services/api"; // Using actual API imports
 
 const DataManagementSection: React.FC = () => {
@@ -52,10 +52,10 @@ const DataManagementSection: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const fetchTables = async () => {
+    const loadTables = async () => {
       setIsFetchingTables(true);
       try {
-        const tables = await getAvailableTables();
+        const tables = await fetchTables(); // Calling the imported function
         setAvailableTables(tables);
       } catch (error) {
         toast({
@@ -66,11 +66,11 @@ const DataManagementSection: React.FC = () => {
               : "Could not load table list.",
           variant: "destructive",
         });
-        setAvailableTables([]); // Ensure it's an empty array on error
+        setAvailableTables([]);
       }
       setIsFetchingTables(false);
     };
-    fetchTables();
+    loadTables(); // Calling the local function
   }, [toast]);
 
   const handleAction = async (
@@ -97,7 +97,7 @@ const DataManagementSection: React.FC = () => {
       toast({
         title: "No module selected",
         description: "Please select a module to generate demo data.",
-        variant: "warning",
+        variant: "destructive", // Corrected variant
       });
       return;
     }
@@ -184,7 +184,7 @@ const DataManagementSection: React.FC = () => {
       toast({
         title: "No tables selected",
         description: "Please select at least one table to wipe.",
-        variant: "warning",
+        variant: "default", // Changed from "warning"
       });
       return;
     }
