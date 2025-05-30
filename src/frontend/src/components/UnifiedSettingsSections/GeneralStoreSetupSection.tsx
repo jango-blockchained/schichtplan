@@ -25,7 +25,7 @@ interface GeneralStoreSetupSectionProps {
   onSpecialDaysChange?: (specialDays: SpecialDaysMap) => void;
   timeStringToDate: (timeStr: string | null | undefined) => Date;
   dateToTimeString: (date: Date | null | undefined) => string;
-  onImmediateUpdate: () => void;
+  onImmediateUpdate: () => void; // Add onImmediateUpdate prop back
   isLoading: boolean; // Add isLoading prop
 }
 
@@ -218,7 +218,7 @@ export const GeneralStoreSetupSection: React.FC<
             <SpecialDaysManagement
               specialDays={settings.special_days || {}} // Use settings directly
               onUpdate={handleSpecialDaysUpdate}
-              // onImmediateUpdate={onImmediateUpdate} // Assuming SpecialDaysManagement doesn't need this directly
+              onImmediateUpdate={onImmediateUpdate} // Assuming SpecialDaysManagement doesn't need this directly
             />
           </CardContent>
           <CardFooter className="flex justify-end">

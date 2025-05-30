@@ -471,3 +471,12 @@ export interface Absence {
   end_date: string;
   note?: string;
 }
+
+export interface SpecialDay {
+  description: string;
+  is_closed: boolean;
+  custom_hours?: {
+    opening: string; // HH:MM format
+    closing: string; // HH:MM format
+  };
+}

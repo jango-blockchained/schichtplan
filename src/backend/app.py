@@ -152,7 +152,7 @@ def create_app(config_class=Config):
     app.register_blueprint(
         api_settings_bp, name="api_settings"
     )  # Register API settings blueprint
-    app.register_blueprint(demo_data_bp, url_prefix="/api/v2/demo-data")
+    app.register_blueprint(demo_data_bp, url_prefix="/api/v2")
     app.register_blueprint(logs.bp, url_prefix="/api/v2/logs")
     app.register_blueprint(
         api_schedules_bp, name="api_schedules"
