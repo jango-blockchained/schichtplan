@@ -12,6 +12,7 @@ import FormularsPage from "./pages/FormularsPage";
 import LogsPage from "./pages/LogsPage";
 import CoveragePage from "./pages/CoveragePage";
 import LayoutCustomizerPage from "./pages/LayoutCustomizerPage";
+import CalendarPage from "./pages/CalendarPage";
 import { AxiosError } from "axios";
 
 const queryClient = new QueryClient({
@@ -53,6 +54,7 @@ const App: React.FC = () => {
                 <Route path="formulars" element={<FormularsPage />} />
                 <Route path="logs" element={<LogsPage />} />
                 <Route path="layout" element={<LayoutCustomizerPage />} />
+                <Route path="calendar" element={<CalendarPage />} />
               </Route>
             </Routes>
             <Toaster />

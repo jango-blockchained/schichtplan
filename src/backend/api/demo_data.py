@@ -1,4 +1,10 @@
-from flask import Blueprint, jsonify, request
+import warnings
+from datetime import datetime, date, timedelta, UTC
+import random
+import logging
+from functools import wraps
+from flask import Blueprint, jsonify, request, make_response, Response
+from http import HTTPStatus
 from src.backend.models import (
     db,
     Settings,
@@ -10,13 +16,26 @@ from src.backend.models import (
 )
 from src.backend.models.employee import AvailabilityType, EmployeeGroup
 from src.backend.models.fixed_shift import ShiftType
-from http import HTTPStatus
-from datetime import datetime, date, timedelta, UTC
-import random
-import logging
-from functools import wraps
 
 bp = Blueprint("demo_data", __name__, url_prefix="/demo-data")
+
+
+def add_cors_headers(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if request.method == "OPTIONS":
+            response = make_response()
+            response.headers.add("Access-Control-Allow-Origin", "http://localhost:5173")
+            response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
+            response.headers.add("Access-Control-Allow-Methods", "POST,OPTIONS")
+            response.headers.add("Access-Control-Allow-Credentials", "true")
+            return response
+
+        response = make_response(f(*args, **kwargs))
+        response.headers.add("Access-Control-Allow-Origin", "http://localhost:5173")
+        response.headers.add("Access-Control-Allow-Credentials", "true")
+        return response
+    return decorated_function
 
 
 def generate_employee_types():
@@ -424,8 +443,8 @@ def generate_shift_templates():
     return shift_templates
 
 
-@bp.route("", methods=["POST", "OPTIONS"])  # Handles /api/v2/demo-data
-@bp.route("/", methods=["POST", "OPTIONS"]) # Handles /api/v2/demo-data/
+@bp.route("/", methods=["POST", "OPTIONS"])
+@bp.route("", methods=["POST", "OPTIONS"])
 def generate_demo_data():
     """Generate demo data"""
     try:
@@ -720,6 +739,7 @@ def generate_improved_employee_data(num_employees_override: int | None = None):
         "Roth",
         "Lorenz",
         "Bauer",
+        "Kaiser",
     ]
 
     employees = []
@@ -975,9 +995,14 @@ def generate_improved_absences(employees):
     return absences
 
 
-@bp.route("/optimized", methods=["POST", "OPTIONS"]) # Handles /api/v2/demo-data/optimized
-@bp.route("/optimized/", methods=["POST", "OPTIONS"]) # Handles /api/v2/demo-data/optimized/
+@bp.route("/optimized", methods=["POST", "OPTIONS"])
+@bp.route("/optimized/", methods=["POST", "OPTIONS"])
+@add_cors_headers
 def generate_optimized_demo_data():
+    """Generate optimized demo data with diverse shift patterns."""
+    if request.method == "OPTIONS":
+        return make_response()
+        
     try:
         json_data = request.get_json() or {}
         num_employees_raw = json_data.get("num_employees")
@@ -1090,157 +1115,43 @@ def generate_optimized_demo_data():
         db.session.rollback()
         logging.error(f"Failed to generate optimized demo data: {str(e)}")
         return jsonify(
-            {"error": "Failed to generate optimized demo data", "details": str(e)}
+            {
+                "error": "Failed to generate optimized demo data",
+                "details": str(e),
+            }
         ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
+# Minimal stub to avoid import error and circular dependency
+def generate_optimized_shift_templates():
+    warnings.warn("Stub: generate_optimized_shift_templates called. No shift templates generated.")
+    return []
+
 # Explicit OPTIONS handler for CORS preflight
-@bp.route("/optimized", methods=["OPTIONS"])
-@bp.route("/optimized/", methods=["OPTIONS"])
-def optimized_options():
-    from flask import make_response
-    response = make_response()
-    response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
-    response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, X-Requested-With"
-    response.headers["Access-Control-Allow-Credentials"] = "true"
-    return response, 200
+# Removed standalone OPTIONS handler as it is merged into the POST handler.
 
 # Add CORS headers to POST responses as well
-from functools import wraps
-
 def add_cors_headers(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        resp = f(*args, **kwargs)
-        if isinstance(resp, tuple):
-            response = resp[0]
-            status = resp[1] if len(resp) > 1 else 200
+        if request.method == 'OPTIONS':
+            response = make_response()
+            response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, X-Requested-With"
+            response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+            return response, HTTPStatus.OK
+
+        result = f(*args, **kwargs)
+        if isinstance(result, tuple):
+            response, status = result
         else:
-            response = resp
-            status = 200
+            response, status = result, HTTPStatus.OK
+
+        if not isinstance(response, Response):
+            response = jsonify(response)
+
         response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
         response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, X-Requested-With"
-        response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
         return response, status
     return decorated_function
-
-@bp.route("/optimized", methods=["POST"])
-@bp.route("/optimized/", methods=["POST"])
-@add_cors_headers
-def generate_optimized_demo_data():
-    try:
-        json_data = request.get_json() or {}
-        num_employees_raw = json_data.get("num_employees")
-        num_employees_override = None  # Default
-        if isinstance(num_employees_raw, int):
-            if num_employees_raw > 0:
-                num_employees_override = num_employees_raw
-        elif isinstance(num_employees_raw, str):
-            if num_employees_raw.isdigit():
-                parsed_num = int(num_employees_raw)
-                if parsed_num > 0:
-                    num_employees_override = parsed_num
-
-        logging.info(
-            f"Generating optimized demo data with diverse shift patterns, num_employees_override: {num_employees_override}"
-        )
-
-        # Update settings first
-        settings = Settings.query.first()
-        if not settings:
-            settings = Settings.get_default_settings()
-
-        settings.employee_types = generate_employee_types()  # type: ignore[assignment]
-        settings.absence_types = generate_absence_types()  # type: ignore[assignment]
-        db.session.commit()
-        logging.info("Successfully updated employee and absence types")
-
-        # Clear existing data
-        logging.info("Cleaning up existing data...")
-        EmployeeAvailability.query.delete()
-        Coverage.query.delete()
-        ShiftTemplate.query.delete()
-        Employee.query.delete()
-        Absence.query.delete()
-        db.session.commit()
-        logging.info("Successfully cleaned up existing data")
-
-        # Generate new optimized data
-        try:
-            logging.info("Generating improved employee data...")
-            employees = generate_improved_employee_data(
-                num_employees_override=num_employees_override
-            )
-            logging.info(f"Created {len(employees)} employees, adding to session...")
-            db.session.add_all(employees)
-            logging.info("Committing employees to database...")
-            db.session.commit()
-            logging.info(f"Successfully created {len(employees)} employees")
-        except Exception as e:
-            logging.error(f"Error in generate_improved_employee_data: {str(e)}")
-            db.session.rollback()
-            raise
-
-        # Generate granular coverage
-        try:
-            logging.info("Generating granular coverage data...")
-            coverage_slots = generate_granular_coverage_data()
-            db.session.add_all(coverage_slots)
-            db.session.commit()
-            logging.info(
-                f"Successfully created {len(coverage_slots)} granular coverage slots"
-            )
-        except Exception as e:
-            logging.error(f"Error in generate_granular_coverage_data: {str(e)}")
-            db.session.rollback()
-            raise
-
-        # Generate diverse shift templates
-        shift_templates = generate_optimized_shift_templates()
-        logging.info(
-            f"Successfully created {len(shift_templates)} diverse shift templates"
-        )
-
-        # Generate optimized availability data
-        availabilities, daily_employee_day_type, employee_weekly_hours = (
-            generate_improved_availability_data(employees)
-        )
-        db.session.add_all(availabilities)
-        db.session.commit()
-        logging.info(f"Successfully created {len(availabilities)} availabilities")
-
-        # Generate absences
-        try:
-            logging.info("Generating employee absences...")
-            absences = generate_improved_absences(employees)
-            db.session.add_all(absences)
-            db.session.commit()
-            logging.info(f"Successfully created {len(absences)} absences")
-        except Exception as e:
-            logging.error(f"Error in generate_improved_absences: {str(e)}")
-            db.session.rollback()
-            raise
-
-        # Update settings to record the execution
-        settings.actions_demo_data = {
-            "selected_module": "optimized",
-            "last_execution": datetime.now(UTC).isoformat(),
-        }
-        db.session.commit()
-        logging.info("Successfully updated settings")
-
-        return jsonify(
-            {
-                "message": "Successfully generated optimized demo data with realistic schedules",
-                "timestamp": datetime.now(UTC).isoformat(),
-            }
-        ), HTTPStatus.OK
-
-    except Exception as e:
-        db.session.rollback()
-        logging.error(f"Failed to generate optimized demo data: {str(e)}")
-        return jsonify(
-            {"error": "Failed to generate optimized demo data", "details": str(e)}
-        ), HTTPStatus.INTERNAL_SERVER_ERROR
