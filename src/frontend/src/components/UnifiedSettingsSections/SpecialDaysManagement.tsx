@@ -157,8 +157,7 @@ export const SpecialDaysManagement: React.FC<SpecialDaysManagementProps> = ({
     const dateString = format(selectedDate, "yyyy-MM-dd");
 
     // Create special day object
-    const specialDay: SpecialDay = {
-      date: dateString,
+    const specialDay: Omit<SpecialDay, 'date'> = {
       description,
       is_closed: isClosed,
     };
@@ -231,7 +230,6 @@ export const SpecialDaysManagement: React.FC<SpecialDaysManagementProps> = ({
 
     selectedHolidays.forEach((holiday) => {
       updatedSpecialDays[holiday.date] = {
-        date: holiday.date,
         description: holiday.name,
         is_closed: true,
       };

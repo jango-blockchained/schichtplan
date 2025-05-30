@@ -14,6 +14,7 @@ from http import HTTPStatus
 from datetime import datetime, date, timedelta, UTC
 import random
 import logging
+from functools import wraps
 
 bp = Blueprint("demo_data", __name__, url_prefix="/demo-data")
 
@@ -423,7 +424,8 @@ def generate_shift_templates():
     return shift_templates
 
 
-@bp.route("/", methods=["POST"])
+@bp.route("", methods=["POST", "OPTIONS"])  # Handles /api/v2/demo-data
+@bp.route("/", methods=["POST", "OPTIONS"]) # Handles /api/v2/demo-data/
 def generate_demo_data():
     """Generate demo data"""
     try:
@@ -718,7 +720,6 @@ def generate_improved_employee_data(num_employees_override: int | None = None):
         "Roth",
         "Lorenz",
         "Bauer",
-        "Kaiser",
     ]
 
     employees = []
@@ -831,198 +832,6 @@ def generate_improved_employee_data(num_employees_override: int | None = None):
     return employees
 
 
-def generate_improved_coverage_data():
-    """Generate optimized coverage data with reasonable staffing requirements"""
-    # Get store settings
-    settings = Settings.query.first()
-    if not settings:
-        settings = Settings.get_default_settings()
-
-    coverage_slots = []
-    for day_index in range(0, 6):  # Monday (0) to Saturday (5)
-        # Morning slot (9:00-14:00)
-        coverage_slots.append(
-            Coverage(
-                day_index=day_index,
-                start_time="09:00",
-                end_time="14:00",
-                min_employees=2,  # Increased from 1
-                max_employees=4,
-                employee_types=["TL", "VZ", "TZ", "GFB"],  # Using string values
-                requires_keyholder=True,
-                keyholder_before_minutes=settings.keyholder_before_minutes,
-                keyholder_after_minutes=0,
-            )
-        )
-        # Afternoon slot (14:00-20:00)
-        coverage_slots.append(
-            Coverage(
-                day_index=day_index,
-                start_time="14:00",
-                end_time="20:00",
-                min_employees=2,  # Increased from 1
-                max_employees=4,
-                employee_types=["TL", "VZ", "TZ", "GFB"],  # Using string values
-                requires_keyholder=True,
-                keyholder_before_minutes=0,
-                keyholder_after_minutes=settings.keyholder_after_minutes,
-            )
-        )
-
-    return coverage_slots
-
-
-def generate_improved_shift_templates():
-    """Generate optimized shift templates aligned with coverage requirements"""
-    logging.info("Generating optimized shift templates...")
-
-    # Delete existing shift templates
-    ShiftTemplate.query.delete()
-    db.session.commit()
-
-    shift_templates = [
-        # Full-time shifts (8 hours) that align with coverage slots
-        ShiftTemplate(
-            start_time="09:00",
-            end_time="16:00",
-            requires_break=True,
-            shift_type=ShiftType.EARLY,
-            active_days={
-                "0": False,
-                "1": True,
-                "2": True,
-                "3": True,
-                "4": True,
-                "5": True,
-                "6": True,
-            },
-        ),
-        ShiftTemplate(
-            start_time="09:00",
-            end_time="17:00",
-            requires_break=True,
-            shift_type=ShiftType.MIDDLE,
-            active_days={
-                "0": False,
-                "1": True,
-                "2": True,
-                "3": True,
-                "4": True,
-                "5": True,
-                "6": True,
-            },
-        ),
-        ShiftTemplate(
-            start_time="12:00",
-            end_time="20:00",
-            requires_break=True,
-            shift_type=ShiftType.LATE,
-            active_days={
-                "0": False,
-                "1": True,
-                "2": True,
-                "3": True,
-                "4": True,
-                "5": True,
-                "6": True,
-            },
-        ),
-        # Part-time shifts (6 hours)
-        ShiftTemplate(
-            start_time="09:00",
-            end_time="14:00",
-            requires_break=False,
-            shift_type=ShiftType.EARLY,
-            active_days={
-                "0": False,
-                "1": True,
-                "2": True,
-                "3": True,
-                "4": True,
-                "5": True,
-                "6": True,
-            },
-        ),
-        ShiftTemplate(
-            start_time="11:00",
-            end_time="17:00",
-            requires_break=False,
-            shift_type=ShiftType.MIDDLE,
-            active_days={
-                "0": False,
-                "1": True,
-                "2": True,
-                "3": True,
-                "4": True,
-                "5": True,
-                "6": True,
-            },
-        ),
-        ShiftTemplate(
-            start_time="14:00",
-            end_time="20:00",
-            requires_break=False,
-            shift_type=ShiftType.LATE,
-            active_days={
-                "0": False,
-                "1": True,
-                "2": True,
-                "3": True,
-                "4": True,
-                "5": True,
-                "6": True,
-            },
-        ),
-        # Mini-job shifts (4 hours)
-        ShiftTemplate(
-            start_time="09:00",
-            end_time="13:00",
-            requires_break=False,
-            shift_type=ShiftType.EARLY,
-            active_days={
-                "0": False,
-                "1": True,
-                "2": True,
-                "3": True,
-                "4": True,
-                "5": True,
-                "6": True,
-            },
-        ),
-        ShiftTemplate(
-            start_time="16:00",
-            end_time="20:00",
-            requires_break=False,
-            shift_type=ShiftType.LATE,
-            active_days={
-                "0": False,
-                "1": True,
-                "2": True,
-                "3": True,
-                "4": True,
-                "5": True,
-                "6": True,
-            },
-        ),
-    ]
-
-    # Calculate durations and validate before adding
-    for template in shift_templates:
-        template._calculate_duration()
-        template.validate()
-        db.session.add(template)
-
-    try:
-        db.session.commit()
-        logging.info(f"Successfully created {len(shift_templates)} shift templates")
-    except Exception as e:
-        db.session.rollback()
-        logging.error(f"Error creating shift templates: {str(e)}")
-        raise
-
-    return shift_templates
-
-
 def generate_granular_coverage_data():
     """Generate more granular coverage requirements to support varied shift assignments"""
     # Get store settings
@@ -1077,119 +886,6 @@ def generate_granular_coverage_data():
         )
 
     return coverage_slots
-
-
-def generate_optimized_shift_templates():
-    """Generate diverse shift templates that align with granular coverage requirements"""
-    logging.info("Generating optimized and diverse shift templates...")
-
-    # Delete existing shift templates
-    ShiftTemplate.query.delete()
-    db.session.commit()
-
-    # Get store settings
-    settings = Settings.query.first()
-    if not settings:
-        settings = Settings.get_default_settings()
-
-    shift_templates = [
-        # Opening shifts (early morning)
-        ShiftTemplate(
-            start_time="09:00",
-            end_time="14:00",
-            requires_break=False,
-            shift_type=ShiftType.EARLY,
-            active_days={
-                str(i): i != 6 for i in range(7)
-            },  # All days except Sunday (Sunday is 6)
-        ),
-        # Mid-day shifts
-        ShiftTemplate(
-            start_time="11:00",
-            end_time="16:00",
-            requires_break=False,
-            shift_type=ShiftType.MIDDLE,
-            active_days={
-                str(i): i != 6 for i in range(7)
-            },  # All days except Sunday (Sunday is 6)
-        ),
-        # Closing shifts
-        ShiftTemplate(
-            start_time="15:00",
-            end_time="20:00",
-            requires_break=False,
-            shift_type=ShiftType.LATE,
-            active_days={
-                str(i): i != 6 for i in range(7)
-            },  # All days except Sunday (Sunday is 6)
-        ),
-        # Full-time morning to mid-afternoon
-        ShiftTemplate(
-            start_time="09:00",
-            end_time="17:00",
-            requires_break=True,
-            shift_type=ShiftType.EARLY,
-            active_days={
-                str(i): i != 6 for i in range(7)
-            },  # All days except Sunday (Sunday is 6)
-        ),
-        # Full-time mid-day to closing
-        ShiftTemplate(
-            start_time="12:00",
-            end_time="20:00",
-            requires_break=True,
-            shift_type=ShiftType.LATE,
-            active_days={
-                str(i): i != 6 for i in range(7)
-            },  # All days except Sunday (Sunday is 6)
-        ),
-        # Short opening shift (mini-job)
-        ShiftTemplate(
-            start_time="09:00",
-            end_time="12:00",
-            requires_break=False,
-            shift_type=ShiftType.EARLY,
-            active_days={
-                str(i): i != 6 for i in range(7)
-            },  # All days except Sunday (Sunday is 6)
-        ),
-        # Short mid-day shift (mini-job)
-        ShiftTemplate(
-            start_time="12:00",
-            end_time="16:00",
-            requires_break=False,
-            shift_type=ShiftType.MIDDLE,
-            active_days={
-                str(i): i != 6 for i in range(7)
-            },  # All days except Sunday (Sunday is 6)
-        ),
-        # Short closing shift (mini-job)
-        ShiftTemplate(
-            start_time="16:00",
-            end_time="20:00",
-            requires_break=False,
-            shift_type=ShiftType.LATE,
-            active_days={
-                str(i): i != 6 for i in range(7)
-            },  # All days except Sunday (Sunday is 6)
-        ),
-    ]
-
-    # Calculate durations and validate before adding
-    for template in shift_templates:
-        template._calculate_duration()
-        template.validate()
-        db.session.add(template)
-
-    try:
-        db.session.commit()
-        logging.info(f"Successfully created {len(shift_templates)} shift templates")
-    except Exception as e:
-        db.session.rollback()
-        logging.error(f"Error creating shift templates: {str(e)}")
-        raise
-
-    return shift_templates
 
 
 def generate_improved_absences(employees):
@@ -1279,9 +975,9 @@ def generate_improved_absences(employees):
     return absences
 
 
-@bp.route("/optimized/", methods=["POST"])
+@bp.route("/optimized", methods=["POST", "OPTIONS"]) # Handles /api/v2/demo-data/optimized
+@bp.route("/optimized/", methods=["POST", "OPTIONS"]) # Handles /api/v2/demo-data/optimized/
 def generate_optimized_demo_data():
-    """Generate optimized demo data with more diverse shifts and granular coverage"""
     try:
         json_data = request.get_json() or {}
         num_employees_raw = json_data.get("num_employees")
@@ -1356,9 +1052,158 @@ def generate_optimized_demo_data():
         )
 
         # Generate optimized availability data
-        # Note: The old generate_improved_availability_data is being replaced.
-        # The new one (defined as a string above) should be used here.
-        # For now, this call will use the OLD version from the file.
+        availabilities, daily_employee_day_type, employee_weekly_hours = (
+            generate_improved_availability_data(employees)
+        )
+        db.session.add_all(availabilities)
+        db.session.commit()
+        logging.info(f"Successfully created {len(availabilities)} availabilities")
+
+        # Generate absences
+        try:
+            logging.info("Generating employee absences...")
+            absences = generate_improved_absences(employees)
+            db.session.add_all(absences)
+            db.session.commit()
+            logging.info(f"Successfully created {len(absences)} absences")
+        except Exception as e:
+            logging.error(f"Error in generate_improved_absences: {str(e)}")
+            db.session.rollback()
+            raise
+
+        # Update settings to record the execution
+        settings.actions_demo_data = {
+            "selected_module": "optimized",
+            "last_execution": datetime.now(UTC).isoformat(),
+        }
+        db.session.commit()
+        logging.info("Successfully updated settings")
+
+        return jsonify(
+            {
+                "message": "Successfully generated optimized demo data with realistic schedules",
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+        ), HTTPStatus.OK
+
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Failed to generate optimized demo data: {str(e)}")
+        return jsonify(
+            {"error": "Failed to generate optimized demo data", "details": str(e)}
+        ), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+# Explicit OPTIONS handler for CORS preflight
+@bp.route("/optimized", methods=["OPTIONS"])
+@bp.route("/optimized/", methods=["OPTIONS"])
+def optimized_options():
+    from flask import make_response
+    response = make_response()
+    response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
+    response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, X-Requested-With"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response, 200
+
+# Add CORS headers to POST responses as well
+from functools import wraps
+
+def add_cors_headers(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        resp = f(*args, **kwargs)
+        if isinstance(resp, tuple):
+            response = resp[0]
+            status = resp[1] if len(resp) > 1 else 200
+        else:
+            response = resp
+            status = 200
+        response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, X-Requested-With"
+        response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        return response, status
+    return decorated_function
+
+@bp.route("/optimized", methods=["POST"])
+@bp.route("/optimized/", methods=["POST"])
+@add_cors_headers
+def generate_optimized_demo_data():
+    try:
+        json_data = request.get_json() or {}
+        num_employees_raw = json_data.get("num_employees")
+        num_employees_override = None  # Default
+        if isinstance(num_employees_raw, int):
+            if num_employees_raw > 0:
+                num_employees_override = num_employees_raw
+        elif isinstance(num_employees_raw, str):
+            if num_employees_raw.isdigit():
+                parsed_num = int(num_employees_raw)
+                if parsed_num > 0:
+                    num_employees_override = parsed_num
+
+        logging.info(
+            f"Generating optimized demo data with diverse shift patterns, num_employees_override: {num_employees_override}"
+        )
+
+        # Update settings first
+        settings = Settings.query.first()
+        if not settings:
+            settings = Settings.get_default_settings()
+
+        settings.employee_types = generate_employee_types()  # type: ignore[assignment]
+        settings.absence_types = generate_absence_types()  # type: ignore[assignment]
+        db.session.commit()
+        logging.info("Successfully updated employee and absence types")
+
+        # Clear existing data
+        logging.info("Cleaning up existing data...")
+        EmployeeAvailability.query.delete()
+        Coverage.query.delete()
+        ShiftTemplate.query.delete()
+        Employee.query.delete()
+        Absence.query.delete()
+        db.session.commit()
+        logging.info("Successfully cleaned up existing data")
+
+        # Generate new optimized data
+        try:
+            logging.info("Generating improved employee data...")
+            employees = generate_improved_employee_data(
+                num_employees_override=num_employees_override
+            )
+            logging.info(f"Created {len(employees)} employees, adding to session...")
+            db.session.add_all(employees)
+            logging.info("Committing employees to database...")
+            db.session.commit()
+            logging.info(f"Successfully created {len(employees)} employees")
+        except Exception as e:
+            logging.error(f"Error in generate_improved_employee_data: {str(e)}")
+            db.session.rollback()
+            raise
+
+        # Generate granular coverage
+        try:
+            logging.info("Generating granular coverage data...")
+            coverage_slots = generate_granular_coverage_data()
+            db.session.add_all(coverage_slots)
+            db.session.commit()
+            logging.info(
+                f"Successfully created {len(coverage_slots)} granular coverage slots"
+            )
+        except Exception as e:
+            logging.error(f"Error in generate_granular_coverage_data: {str(e)}")
+            db.session.rollback()
+            raise
+
+        # Generate diverse shift templates
+        shift_templates = generate_optimized_shift_templates()
+        logging.info(
+            f"Successfully created {len(shift_templates)} diverse shift templates"
+        )
+
+        # Generate optimized availability data
         availabilities, daily_employee_day_type, employee_weekly_hours = (
             generate_improved_availability_data(employees)
         )

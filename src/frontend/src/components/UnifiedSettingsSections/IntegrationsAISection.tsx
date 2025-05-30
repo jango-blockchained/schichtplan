@@ -14,16 +14,16 @@ import type { Settings } from "@/types"; // Assuming Settings type is in @/types
 interface IntegrationsAISectionProps {
   // Use a more specific type if ai_scheduling structure is well-defined
   settings: Settings["ai_scheduling"] | undefined;
-  onSettingChange: (
+  onAiSchedulingChange: (
     key: keyof NonNullable<Settings["ai_scheduling"]>,
     value: any,
-  ) => void;
+  ) => void; // Renamed prop
   onImmediateUpdate?: () => void; // Optional: if specific fields need immediate persistence on blur
 }
 
 const IntegrationsAISection: React.FC<IntegrationsAISectionProps> = ({
   settings,
-  onSettingChange,
+  onAiSchedulingChange, // Renamed prop here
   onImmediateUpdate,
 }) => {
   // Fallback to default values if settings or parts of it are undefined
@@ -53,7 +53,12 @@ const IntegrationsAISection: React.FC<IntegrationsAISectionProps> = ({
           <Switch
             id="ai-schedule-generation-enabled"
             checked={aiEnabled}
-            onCheckedChange={(checked) => onSettingChange("enabled", checked)}
+            onCheckedChange={(checked) => {
+              onAiSchedulingChange("enabled", checked);
+              if (onImmediateUpdate) {
+                onImmediateUpdate();
+              }
+            }}
           />
         </div>
         <div className="space-y-2">
@@ -63,7 +68,7 @@ const IntegrationsAISection: React.FC<IntegrationsAISectionProps> = ({
             type="password"
             placeholder="Enter your Gemini API Key"
             value={apiKey}
-            onChange={(e) => onSettingChange("api_key", e.target.value)}
+            onChange={(e) => onAiSchedulingChange("api_key", e.target.value)}
             onBlur={onImmediateUpdate} // Call immediate update on blur if provided
           />
           <p className="text-sm text-muted-foreground">

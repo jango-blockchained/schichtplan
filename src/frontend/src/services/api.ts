@@ -689,7 +689,7 @@ export const getAbsences = async (employeeId?: number): Promise<Absence[]> => {
     }
 
     // Use the employee-specific endpoint
-    const response = await api.get<Absence[]>(`/v2/absences/employees/${employeeId}/absences`);
+    const response = await api.get<Absence>(`/v2/absences/employees/${employeeId}/absences`);
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -1231,7 +1231,7 @@ export const generateOptimizedDemoData = async (
   try {
     // Assuming a POST endpoint like /api/v2/tools/generate-optimized-demo-data
     // Corrected endpoint based on backend routes
-    await api.post("/demo-data/", { num_employees });
+    await api.post("/v2/demo-data/optimized", { num_employees });
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(
@@ -1248,7 +1248,7 @@ export const updateCoverage = async (
   try {
     // Use the bulk update endpoint which accepts POST
     const response = await api.post<DailyCoverage[]>("/v2/coverage/bulk", coverageData);
-    return response.data;
+    return response.data as DailyCoverage[];
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to update coverage: ${error.message}`);
