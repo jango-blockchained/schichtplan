@@ -55,7 +55,7 @@ export interface ScheduleResponse {
 }
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+  import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -155,20 +155,20 @@ api.interceptors.response.use(
 
 // Settings
 export const getSettings = async (): Promise<Settings> => {
-  const response = await api.get("/v2/settings/");
+  const response = await api.get("/api/v2/settings/");
   return response.data;
 };
 
 export const updateSettings = async (
   settings: Partial<Settings>,
 ): Promise<Settings> => {
-  const response = await api.put("/v2/settings/", settings);
+  const response = await api.put("/api/v2/settings/", settings);
   return response.data;
 };
 
 export const resetSettings = async (): Promise<Settings> => {
   try {
-    const response = await api.post<Settings>("/v2/settings/reset/");
+    const response = await api.post<Settings>("/api/v2/settings/reset/");
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -181,7 +181,7 @@ export const resetSettings = async (): Promise<Settings> => {
 // Employees
 export const getEmployees = async (): Promise<Employee[]> => {
   try {
-    const response = await api.get<Employee[]>("/v2/employees/");
+    const response = await api.get<Employee[]>("/api/v2/employees/");
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -195,7 +195,7 @@ export const createEmployee = async (
   data: CreateEmployeeRequest,
 ): Promise<Employee> => {
   try {
-    const response = await api.post<Employee>("/v2/employees/", data);
+    const response = await api.post<Employee>("/api/v2/employees/", data);
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -210,7 +210,7 @@ export const updateEmployee = async (
   data: UpdateEmployeeRequest,
 ): Promise<Employee> => {
   try {
-    const response = await api.put<Employee>(`/v2/employees/${id}`, data);
+    const response = await api.put<Employee>(`/api/v2/employees/${id}`, data);
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -222,7 +222,7 @@ export const updateEmployee = async (
 
 export const deleteEmployee = async (id: number): Promise<void> => {
   try {
-    await api.delete(`/v2/employees/${id}`);
+    await api.delete(`/api/v2/employees/${id}`);
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to delete employee: ${error.message}`);
@@ -237,7 +237,7 @@ export const getEmployeeAvailabilityByDate = async (
 ): Promise<EmployeeAvailabilityStatus[]> => {
   try {
     const response = await api.get<EmployeeAvailabilityStatus[]>(
-      "/v2/availability/by_date",
+      "/api/v2/availability/by_date",
       {
         params: { date },
       },
@@ -260,7 +260,7 @@ export const getApplicableShiftsForEmployee = async (
 ): Promise<ApplicableShift[]> => {
   try {
     const response = await api.get<ApplicableShift[]>(
-      "/v2/availability/shifts_for_employee",
+      "/api/v2/availability/shifts_for_employee",
       {
         params: { date, employee_id: employeeId }, // Ensure param name matches backend (employee_id)
       },
@@ -291,7 +291,7 @@ export interface Shift {
 
 export const getShifts = async (): Promise<Shift[]> => {
   try {
-    const response = await api.get<Shift[]>("/v2/shifts/");
+    const response = await api.get<Shift[]>("/api/v2/shifts/");
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -305,7 +305,7 @@ export const createShift = async (
   data: Omit<Shift, "id" | "duration_hours" | "created_at" | "updated_at">,
 ): Promise<Shift> => {
   try {
-    const response = await api.post<Shift>("/v2/shifts/", data);
+    const response = await api.post<Shift>("/api/v2/shifts/", data);
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -343,7 +343,7 @@ export const deleteShift = async (shiftId: number): Promise<void> => {
 
 export const createDefaultShifts = async (): Promise<{ count: number }> => {
   try {
-    const response = await api.post<{ count: number }>("/v2/shifts/defaults/");
+    const response = await api.post<{ count: number }>("/api/v2/shifts/defaults/");
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -378,7 +378,7 @@ export const getSchedules = async (
   includeEmpty: boolean = false,
 ): Promise<ScheduleResponse> => {
   try {
-    const response = await api.get<ScheduleResponse>("/v2/schedules/", {
+    const response = await api.get<ScheduleResponse>("/api/v2/schedules/", {
       params: {
         start_date: startDate,
         end_date: endDate,
@@ -403,7 +403,7 @@ export const generateAiSchedule = async (
 ): Promise<ScheduleResponse> => {
   try {
     const response = await api.post<ScheduleResponse>(
-      "/v2/schedule/generate-ai",
+      "/api/v2/schedule/generate-ai",
       { start_date: startDate, end_date: endDate, version: version }
     );
     return response.data;
@@ -424,7 +424,7 @@ export const generateSchedule = async (
 ): Promise<ScheduleResponse> => {
   try {
     const response = await api.post<ScheduleResponse>(
-      "/v2/schedules/generate/",
+      "/api/v2/schedules/generate/",
       {
         start_date: startDate,
         end_date: endDate,
@@ -445,7 +445,7 @@ export const generateSchedule = async (
 export const importAiScheduleResponse = async (formData: FormData): Promise<AiImportResponse> => {
   try {
     const response = await api.post<AiImportResponse>(
-      "/v2/schedule/import-ai-response",
+      "/api/v2/schedule/import-ai-response",
       formData,
       {
         headers: { "Content-Type": "multipart/form-data" },
@@ -467,7 +467,7 @@ export const exportSchedule = async (
 ): Promise<Blob> => {
   try {
     const response = await api.post(
-      "/v2/schedules/export/pdf",
+      "/api/v2/schedules/export/pdf",
       { start_date: startDate, end_date: endDate, layout_config: layoutConfig },
       {
         responseType: "blob",
@@ -489,7 +489,7 @@ export const updateBreakNotes = async (
 ): Promise<ScheduleData> => {
   try {
     const response = await api.put<ScheduleData>(
-      `/v2/employees/${employeeId}/schedules/notes`,
+      `/api/v2/employees/${employeeId}/schedules/notes`,
       { date, notes }
     );
     return response.data;
@@ -509,7 +509,7 @@ export const updateShiftDay = async (
   toDate: string,
 ): Promise<void> => {
   try {
-    await api.put(`/v2/employees/${employeeId}/schedules/shift-day`, {
+    await api.put(`/api/v2/employees/${employeeId}/schedules/shift-day`, {
       from_date: fromDate,
       to_date: toDate,
     });
@@ -564,7 +564,7 @@ export const getEmployeeAvailabilities = async (
 ): Promise<EmployeeAvailability[]> => {
   try {
     const response = await api.get<EmployeeAvailability[]>(
-      `/v2/employees/${employeeId}/availability`,
+      `/api/v2/employees/${employeeId}/availability`,
     );
     return response.data;
   } catch (error) {
@@ -582,7 +582,7 @@ export const createAvailability = async (
 ): Promise<Availability> => {
   try {
     const response = await api.post<Availability>(
-      `/v2/employees/${availability.employee_id}/availability`,
+      `/api/v2/employees/${availability.employee_id}/availability`,
       availability,
     );
     return response.data;
@@ -600,7 +600,7 @@ export const updateAvailability = async (
 ): Promise<Availability> => {
   try {
     const response = await api.put<Availability>(
-      `/v2/availabilities/${id}`,
+      `/api/v2/availabilities/${id}`,
       availability,
     );
     return response.data;
@@ -616,7 +616,7 @@ export const updateAvailability = async (
 
 export const deleteAvailability = async (id: number): Promise<void> => {
   try {
-    await api.delete(`/v2/availabilities/${id}`);
+    await api.delete(`/api/v2/availabilities/${id}`);
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(
@@ -635,7 +635,7 @@ export const checkAvailability = async (
 ): Promise<AvailabilityCheck> => {
   try {
     const response = await api.get<AvailabilityCheck>(
-      `/v2/employees/${employeeId}/availability/check`,
+      `/api/v2/employees/${employeeId}/availability/check`,
       {
         params: {
           date,
@@ -689,7 +689,7 @@ export const getAbsences = async (employeeId?: number): Promise<Absence[]> => {
     }
 
     // Use the employee-specific endpoint
-    const response = await api.get<Absence>(`/v2/absences/employees/${employeeId}/absences`);
+    const response = await api.get<Absence[]>(`/api/v2/absences/employees/${employeeId}/absences`);
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -923,7 +923,7 @@ export const createNewVersion = async (
   data: CreateVersionRequest,
 ): Promise<CreateVersionResponse> => {
   try {
-    const response = await api.post<CreateVersionResponse>("/v2/versions", data);
+    const response = await api.post<CreateVersionResponse>("/api/v2/versions", data);
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -984,7 +984,7 @@ export const duplicateVersion = async (
 ): Promise<DuplicateVersionResponse> => {
   try {
     const response = await api.post<DuplicateVersionResponse>(
-      "/v2/versions/duplicate",
+      "/api/v2/versions/duplicate",
       data,
     );
     return response.data;
@@ -1017,7 +1017,7 @@ export const getVersionDetails = async (
 ): Promise<VersionDetailsResponse> => {
   try {
     const response = await api.get<VersionDetailsResponse>(
-      `/v2/versions/${version}/details`,
+      `/api/v2/versions/${version}/details`,
     );
     return response.data;
   } catch (error) {
@@ -1054,7 +1054,7 @@ export const compareVersions = async (
 ): Promise<CompareVersionsResponse> => {
   try {
     const response = await api.get<CompareVersionsResponse>(
-      `/v2/versions/${baseVersion}/compare/${compareVersion}`,
+      `/api/v2/versions/${baseVersion}/compare/${compareVersion}`,
     );
     return response.data;
   } catch (error) {
@@ -1083,7 +1083,7 @@ export const updateVersionNotes = async (
 ): Promise<UpdateVersionNotesResponse> => {
   try {
     const response = await api.put<UpdateVersionNotesResponse>(
-      `/v2/versions/${version}/notes`,
+      `/api/v2/versions/${version}/notes`,
       data,
     );
     return response.data;
@@ -1105,7 +1105,7 @@ export interface fixShiftDurationsResponse {
 export const fixShiftDurations = async (): Promise<fixShiftDurationsResponse> => {
   try {
     const response = await api.post<fixShiftDurationsResponse>(
-      "/v2/tools/fix-shift-durations",
+      "/api/v2/tools/fix-shift-durations",
     );
     return response.data;
   } catch (error) {
@@ -1126,7 +1126,7 @@ export const deleteVersion = async (
 ): Promise<DeleteVersionResponse> => {
   try {
     const response = await api.delete<DeleteVersionResponse>(
-      `/v2/versions/${version}`,
+      `/api/v2/versions/${version}`,
     );
     return response.data;
   } catch (error) {
@@ -1158,7 +1158,7 @@ export const createSchedule = async (data: {
   availability_type?: "AVAILABLE" | "FIXED" | "PREFERRED" | "UNAVAILABLE";
 }): Promise<Schedule> => {
   try {
-    const response = await api.post<Schedule>("/v2/schedules/", data);
+    const response = await api.post<Schedule>("/api/v2/schedules/", data);
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -1180,7 +1180,7 @@ export const fixScheduleDisplay = async (
 }> => {
   try {
     const response = await api.post(
-      "/v2/schedules/fix-display",
+      "/api/v2/schedules/fix-display",
       { start_date: startDate, end_date: endDate, version: version }
     );
     return response.data;
@@ -1198,7 +1198,7 @@ export const updateSchedule = async (
 ): Promise<Schedule> => {
   try {
     // Assuming a PUT endpoint like /api/v2/schedules/{id} exists on the backend
-    const response = await api.put<Schedule>(`/v2/schedules/${id}`, data);
+    const response = await api.put<Schedule>(`/api/v2/schedules/${id}`, data);
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -1214,7 +1214,7 @@ export const generateDemoData = async (
 ): Promise<void> => {
   try {
     // Assuming a POST endpoint like /api/v2/tools/generate-demo-data
-    await api.post("/v2/tools/generate-demo-data", { module, num_employees });
+    await api.post("/api/v2/tools/generate-demo-data", { module, num_employees });
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(
@@ -1229,9 +1229,7 @@ export const generateOptimizedDemoData = async (
   num_employees: number,
 ): Promise<void> => {
   try {
-    // Assuming a POST endpoint like /api/v2/tools/generate-optimized-demo-data
-    // Corrected endpoint based on backend routes
-    await api.post("/v2/demo-data/optimized", { num_employees });
+    await api.post("/api/v2/demo-data/optimized", { num_employees });
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(
@@ -1247,7 +1245,7 @@ export const updateCoverage = async (
 ): Promise<DailyCoverage[]> => {
   try {
     // Use the bulk update endpoint which accepts POST
-    const response = await api.post<DailyCoverage[]>("/v2/coverage/bulk", coverageData);
+    const response = await api.post<DailyCoverage[]>("/api/v2/coverage/bulk", coverageData);
     return response.data as DailyCoverage[];
   } catch (error) {
     if (error instanceof Error) {
@@ -1260,7 +1258,7 @@ export const updateCoverage = async (
 export const getAllCoverage = async (): Promise<DailyCoverage[]> => {
   try {
     // Assuming a GET endpoint like /api/v2/coverage/
-    const response = await api.get<DailyCoverage[]>("/v2/coverage/");
+    const response = await api.get<DailyCoverage[]>("/api/v2/coverage/");
     return response.data;
   } catch (error) {
     if (error instanceof Error) {

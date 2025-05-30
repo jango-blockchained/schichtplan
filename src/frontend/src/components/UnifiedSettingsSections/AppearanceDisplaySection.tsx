@@ -13,9 +13,8 @@ import type { Settings } from "@/types"; // Assuming Settings type is in @/types
 import { useTheme } from "@/hooks/use-theme";
 
 interface AppearanceDisplaySectionProps {
-  settings: Settings["display"] | undefined; // Settings for the display category
+  settings: Settings["display"] | undefined;
   onDisplaySettingChange: (key: keyof Settings["display"], value: any) => void;
-  // Removed onInputChange as we'll use a more specific handler
 }
 
 const AppearanceDisplaySection: React.FC<AppearanceDisplaySectionProps> = ({
@@ -44,69 +43,72 @@ const AppearanceDisplaySection: React.FC<AppearanceDisplaySectionProps> = ({
   };
 
   if (!settings) {
-    // Or some loading/fallback UI
-    return <div>Loading display settings...</div>;
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin mr-2" />
+        <span>Loading display settings...</span>
+      </div>
+    );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Appearance & Display</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Theme Selection */}
-          <div className="space-y-2">
-            <Label htmlFor="theme-select">Theme</Label>
-            <Select
-              value={settings.theme ?? "system"}
-              onValueChange={handleThemeChange}
-            >
-              <SelectTrigger id="theme-select">
-                <SelectValue placeholder="Select theme" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="light">Light</SelectItem>
-                <SelectItem value="dark">Dark</SelectItem>
-                <SelectItem value="system">System</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Spacer or next item */}
-          <div></div>
-
-          {/* Accent Color */}
-          <div className="space-y-2">
-            <Label htmlFor="accent-color-picker">Accent Color</Label>
-            <ColorPicker
-              id="accent-color-picker"
-              color={settings.accent_color ?? "#000000"}
-              onChange={(newColor) =>
-                handleColorChange("accent_color", newColor)
-              }
-              // Ensure ColorPicker props are correct
-            />
-          </div>
-
-          {/* Primary Color */}
-          <div className="space-y-2">
-            <Label htmlFor="primary-color-picker">Primary Color</Label>
-            <ColorPicker
-              id="primary-color-picker"
-              color={settings.primary_color ?? "#FFFFFF"}
-              onChange={(newColor) =>
-                handleColorChange("primary_color", newColor)
-              }
-              // Ensure ColorPicker props are correct
-            />
-          </div>
-        </div>
-
-        <div className="border-t pt-6 mt-6">
-          <h3 className="text-lg font-medium mb-4">Calendar Display</h3>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Theme & Colors</CardTitle>
+          <CardDescription>Customize the application's appearance</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Calendar Start Day */}
+            <div className="space-y-2">
+              <Label htmlFor="theme-select">Theme</Label>
+              <Select
+                value={settings.theme ?? "system"}
+                onValueChange={handleThemeChange}
+              >
+                <SelectTrigger id="theme-select">
+                  <SelectValue placeholder="Select theme" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="light">Light</SelectItem>
+                  <SelectItem value="dark">Dark</SelectItem>
+                  <SelectItem value="system">System</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="accent-color-picker">Accent Color</Label>
+              <ColorPicker
+                id="accent-color-picker"
+                color={settings.accent_color ?? "#000000"}
+                onChange={(newColor) =>
+                  handleColorChange("accent_color", newColor)
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="primary-color-picker">Primary Color</Label>
+              <ColorPicker
+                id="primary-color-picker"
+                color={settings.primary_color ?? "#FFFFFF"}
+                onChange={(newColor) =>
+                  handleColorChange("primary_color", newColor)
+                }
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Calendar Display</CardTitle>
+          <CardDescription>Configure how the calendar is displayed</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label htmlFor="calendar-start-day">Start Day of Week</Label>
               <Select
@@ -125,11 +127,8 @@ const AppearanceDisplaySection: React.FC<AppearanceDisplaySectionProps> = ({
               </Select>
             </div>
 
-            {/* Calendar Default View */}
             <div className="space-y-2">
-              <Label htmlFor="calendar-default-view">
-                Default Calendar View
-              </Label>
+              <Label htmlFor="calendar-default-view">Default Calendar View</Label>
               <Select
                 value={settings.calendar_default_view ?? "month"}
                 onValueChange={(value) =>
@@ -147,9 +146,9 @@ const AppearanceDisplaySection: React.FC<AppearanceDisplaySectionProps> = ({
               </Select>
             </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

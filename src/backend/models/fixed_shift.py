@@ -40,6 +40,7 @@ class ShiftTemplate(db.Model):
     __tablename__ = "shifts"
 
     id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), nullable=True)  # Add name field
     start_time = db.Column(db.String(5), nullable=False)  # Format: "HH:MM"
     end_time = db.Column(db.String(5), nullable=False)  # Format: "HH:MM"
     duration_hours = db.Column(db.Float, nullable=False)
@@ -66,6 +67,7 @@ class ShiftTemplate(db.Model):
         active_days=None,
         shift_type=None,
         shift_type_id=None,
+        name=None,
     ):
         self.start_time = start_time
         self.end_time = end_time
@@ -79,6 +81,7 @@ class ShiftTemplate(db.Model):
             5,
         ]  # Default to Monday-Saturday if not provided
         self.shift_type_id = shift_type_id
+        self.name = name
 
         # Determine shift type based on time if not provided
         if shift_type is None:
@@ -233,6 +236,7 @@ class ShiftTemplate(db.Model):
 
         return {
             "id": self.id,
+            "name": self.name or f"{self.start_time}-{self.end_time} {shift_type_value}",  # Generate name if not set
             "start_time": self.start_time,
             "end_time": self.end_time,
             "duration_hours": self.duration_hours,

@@ -27,7 +27,7 @@ type SectionId =
   | "appearance_display"
   | "integrations_ai"
   | "data_management"
-  | "notifications";
+;
 
 interface Section {
   id: SectionId;
@@ -64,10 +64,7 @@ const sections: Section[] = [
     id: "data_management",
     title: "Data Management" /*, component: PlaceholderContent*/,
   },
-  {
-    id: "notifications",
-    title: "Notifications" /*, component: PlaceholderContent*/,
-  },
+
 ];
 
 // Temporary Placeholder for other sections
@@ -490,26 +487,19 @@ export default function UnifiedSettingsPage() {
             isLoading={mutation.isPending} // Corrected to isPending
           />
         );
-      case "notifications":
-        return (
-          <NotificationsSection
-            settings={editableSettings.display} // Assuming display settings include notification toggles
-            onDisplaySettingChange={handleDisplaySettingChange}
-            onImmediateUpdate={handleImmediateUpdate}
-            isLoading={mutation.isPending} // Corrected to isPending
-          />
-        );
+
       default:
         return <PlaceholderContent title={currentSectionMeta.title} />;
     }
   };
 
+  // Main layout wrapper
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8">
       <PageHeader
         className="mb-6"
         title="Application Settings"
-        description="Manage your application settings across various modules. Select a category from the sidebar to view and edit specific settings. All changes are auto-saved with a short delay. You can monitor the save status at the top right."
+        description="Manage your application settings across various modules. Select a category from the sidebar to view and edit specific settings. All changes are auto-saved with a short delay."
         actions={
           mutation.isPending ? (
             <span className="ml-2 text-sm text-muted-foreground flex items-center">
@@ -532,8 +522,10 @@ export default function UnifiedSettingsPage() {
             </Button>
           ))}
         </nav>
-        <main className="md:w-3/4 lg:w-4/5 bg-card p-6 rounded-lg shadow min-h-[300px]">
-          {renderSectionContent()}
+        <main className="md:w-3/4 lg:w-4/5">
+          <div className="bg-card p-6 rounded-lg border shadow-sm min-h-[300px]">
+            {renderSectionContent()}
+          </div>
         </main>
       </div>
     </div>
