@@ -28,27 +28,24 @@ import { ScheduleGenerationSettings } from "@/components/ScheduleGenerationSetti
 import type { Settings } from "@/types/index";
 
 interface SchedulingEngineSectionProps {
-  settings: Settings["scheduling"]; // Changed to required
+  settings: Settings["scheduling"];
   onInputChange: (key: string, value: any, isNumeric?: boolean) => void;
   onDiagnosticsChange: (checked: boolean) => void;
-  onGenerationSettingsUpdate: (updates: Partial<Settings["scheduling"]["generation_requirements"]>) => void; // Typed updates
+  onGenerationSettingsUpdate: (updates: Partial<Settings["scheduling"]["generation_requirements"]>) => void;
   onImmediateUpdate: () => void;
 }
 
-export const SchedulingEngineSection: React.FC<
-  SchedulingEngineSectionProps
-> = ({
-  settings, // Use directly
+export const SchedulingEngineSection: React.FC<SchedulingEngineSectionProps> = ({
+  settings,
   onInputChange,
   onDiagnosticsChange,
   onGenerationSettingsUpdate,
   onImmediateUpdate,
 }) => {
-  const generationRequirements =
-    settings.generation_requirements || {}; 
+  const generationRequirements = settings.generation_requirements || {};
 
   return (
-    <div className="grid gap-6">
+    <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle>Scheduling Rules</CardTitle>
@@ -197,32 +194,46 @@ export const SchedulingEngineSection: React.FC<
                 <Switch
                   id="enable_diagnostics"
                   checked={!!settings.enable_diagnostics}
-                  onCheckedChange={onDiagnosticsChange} // This prop is directly for this switch
+                  onCheckedChange={onDiagnosticsChange}
                 />
-                <Label
-                  htmlFor="enable_diagnostics"
-                  className="flex items-center"
-                >
-                  Enable Scheduling Diagnostics
+                <div className="flex items-center">
+                  <Label htmlFor="enable_diagnostics" className="mr-2">
+                    Enable Schedule Diagnostics
+                  </Label>
                   <HoverCard>
-                    <HoverCardTrigger asChild>
-                      <Info className="h-4 w-4 text-muted-foreground cursor-help ml-1.5" />
+                    <HoverCardTrigger>
+                      <Info className="h-4 w-4 text-muted-foreground" />
                     </HoverCardTrigger>
-                    <HoverCardContent className="w-80 text-sm">
-                      Enables detailed logging during schedule generation.
-                      Useful for troubleshooting.
+                    <HoverCardContent className="w-80">
+                      <p>
+                        Schedule diagnostics help identify potential issues and
+                        optimization opportunities in your generated schedules.
+                      </p>
                     </HoverCardContent>
                   </HoverCard>
-                </Label>
+                </div>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
-      <ScheduleGenerationSettings
-        settings={generationRequirements} // This is settings.generation_requirements || {}
-        onUpdate={onGenerationSettingsUpdate}
-      />
+
+      {/* Schedule Generation Rules Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Generation Requirements</CardTitle>
+          <CardDescription>
+            Configure detailed requirements for schedule generation
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ScheduleGenerationSettings
+            generationRequirements={generationRequirements}
+            onUpdate={onGenerationSettingsUpdate}
+            onImmediateUpdate={onImmediateUpdate}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 };

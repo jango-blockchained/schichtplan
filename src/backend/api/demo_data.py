@@ -1,4 +1,3 @@
-import warnings
 from datetime import datetime, date, timedelta, UTC
 import random
 import logging
@@ -18,24 +17,6 @@ from src.backend.models.employee import AvailabilityType, EmployeeGroup
 from src.backend.models.fixed_shift import ShiftType
 
 bp = Blueprint("demo_data", __name__, url_prefix="/demo-data")
-
-
-def add_cors_headers(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if request.method == "OPTIONS":
-            response = make_response()
-            response.headers.add("Access-Control-Allow-Origin", "http://localhost:5173")
-            response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
-            response.headers.add("Access-Control-Allow-Methods", "POST,OPTIONS")
-            response.headers.add("Access-Control-Allow-Credentials", "true")
-            return response
-
-        response = make_response(f(*args, **kwargs))
-        response.headers.add("Access-Control-Allow-Origin", "http://localhost:5173")
-        response.headers.add("Access-Control-Allow-Credentials", "true")
-        return response
-    return decorated_function
 
 
 def generate_employee_types():
@@ -997,12 +978,8 @@ def generate_improved_absences(employees):
 
 @bp.route("/optimized", methods=["POST", "OPTIONS"])
 @bp.route("/optimized/", methods=["POST", "OPTIONS"])
-@add_cors_headers
 def generate_optimized_demo_data():
     """Generate optimized demo data with diverse shift patterns."""
-    if request.method == "OPTIONS":
-        return make_response()
-        
     try:
         json_data = request.get_json() or {}
         num_employees_raw = json_data.get("num_employees")
@@ -1126,32 +1103,3 @@ def generate_optimized_demo_data():
 def generate_optimized_shift_templates():
     warnings.warn("Stub: generate_optimized_shift_templates called. No shift templates generated.")
     return []
-
-# Explicit OPTIONS handler for CORS preflight
-# Removed standalone OPTIONS handler as it is merged into the POST handler.
-
-# Add CORS headers to POST responses as well
-def add_cors_headers(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if request.method == 'OPTIONS':
-            response = make_response()
-            response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, X-Requested-With"
-            response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-            return response, HTTPStatus.OK
-
-        result = f(*args, **kwargs)
-        if isinstance(result, tuple):
-            response, status = result
-        else:
-            response, status = result, HTTPStatus.OK
-
-        if not isinstance(response, Response):
-            response = jsonify(response)
-
-        response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        return response, status
-    return decorated_function

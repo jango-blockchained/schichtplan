@@ -19,19 +19,17 @@ import type { Settings } from "@/types";
 
 // Props that will be passed from UnifiedSettingsPage.tsx
 interface GeneralStoreSetupSectionProps {
-  settings: Settings["general"]; // Changed from settings? to settings
+  settings: Settings["general"];
   onInputChange: (key: string, value: any, isNumeric?: boolean) => void;
   onOpeningDaysChange: (dayIndex: number, checked: boolean) => void;
   onSpecialDaysChange?: (specialDays: SpecialDaysMap) => void;
   timeStringToDate: (timeStr: string | null | undefined) => Date;
   dateToTimeString: (date: Date | null | undefined) => string;
-  onImmediateUpdate: () => void; // Add onImmediateUpdate prop back
-  isLoading: boolean; // Add isLoading prop
+  onImmediateUpdate: () => void;
+  isLoading: boolean;
 }
 
-export const GeneralStoreSetupSection: React.FC<
-  GeneralStoreSetupSectionProps
-> = ({
+export const GeneralStoreSetupSection: React.FC<GeneralStoreSetupSectionProps> = ({
   settings,
   onInputChange,
   onOpeningDaysChange,
@@ -39,11 +37,8 @@ export const GeneralStoreSetupSection: React.FC<
   timeStringToDate,
   dateToTimeString,
   onImmediateUpdate,
-  isLoading, // Accept isLoading prop
+  isLoading,
 }) => {
-  // const generalSettings = settings || {}; // Removed this line, use settings prop directly
-
-  // Handle special days update
   const handleSpecialDaysUpdate = (specialDays: SpecialDaysMap) => {
     if (onSpecialDaysChange) {
       onSpecialDaysChange(specialDays);
@@ -60,12 +55,12 @@ export const GeneralStoreSetupSection: React.FC<
           <CardDescription>Basic information about your store</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
+          <div className="grid gap-4">
             <div className="space-y-2">
               <Label htmlFor="storeName">Store Name</Label>
               <Input
                 id="storeName"
-                value={settings.store_name || ""} // Use settings directly
+                value={settings.store_name || ""}
                 onChange={(e) => onInputChange("store_name", e.target.value)}
               />
             </div>
@@ -73,16 +68,15 @@ export const GeneralStoreSetupSection: React.FC<
               <Label htmlFor="storeAddress">Store Address</Label>
               <Input
                 id="storeAddress"
-                value={settings.store_address || ""} // Use settings directly
+                value={settings.store_address || ""}
                 onChange={(e) => onInputChange("store_address", e.target.value)}
               />
             </div>
-            {/* store_contact field removed */}
             <div className="space-y-2">
               <Label htmlFor="storePhone">Store Phone</Label>
               <Input
                 id="storePhone"
-                value={settings.store_phone || ""} 
+                value={settings.store_phone || ""}
                 onChange={(e) => onInputChange("store_phone", e.target.value)}
               />
             </div>
@@ -91,24 +85,19 @@ export const GeneralStoreSetupSection: React.FC<
               <Input
                 id="storeEmail"
                 type="email"
-                value={settings.store_email || ""} 
+                value={settings.store_email || ""}
                 onChange={(e) => onInputChange("store_email", e.target.value)}
               />
             </div>
           </div>
         </CardContent>
-        <CardFooter className="flex justify-end">
-          {/* Auto-save: Save button removed */}
-        </CardFooter>
       </Card>
 
       {/* Store Hours & Opening Days Card */}
       <Card>
         <CardHeader>
           <CardTitle>Store Hours & Opening Days</CardTitle>
-          <CardDescription>
-            Configure when your store is open for business
-          </CardDescription>
+          <CardDescription>Configure when your store is open for business</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -117,14 +106,14 @@ export const GeneralStoreSetupSection: React.FC<
               <div className="space-y-2">
                 <Label htmlFor="store-opening">Opening Time</Label>
                 <TimePicker
-                  value={settings.store_opening || "09:00"} // Use settings directly
+                  value={settings.store_opening || "09:00"}
                   onChange={(time) => onInputChange("store_opening", time)}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="store-closing">Closing Time</Label>
                 <TimePicker
-                  value={settings.store_closing || "20:00"} // Use settings directly
+                  value={settings.store_closing || "20:00"}
                   onChange={(time) => onInputChange("store_closing", time)}
                 />
               </div>
@@ -134,32 +123,25 @@ export const GeneralStoreSetupSection: React.FC<
             <div>
               <Label>Opening Days</Label>
               <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 mt-2">
-                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(
-                  (day, index) => (
-                    <div
-                      key={day}
-                      className="flex flex-col items-center space-y-1"
+                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, index) => (
+                  <div key={day} className="flex flex-col items-center space-y-1">
+                    <Label
+                      htmlFor={`opening-day-${day}`}
+                      className="text-sm font-normal"
                     >
-                      <Label
-                        htmlFor={`opening-day-${day}`}
-                        className="text-sm font-normal"
-                      >
-                        {day}
-                      </Label>
-                      <Switch
-                        id={`opening-day-${day}`}
-                        checked={
-                          (settings.opening_days || {})[ // Use settings directly
-                            ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"][index]
-                          ] || false
-                        }
-                        onCheckedChange={(checked) =>
-                          onOpeningDaysChange(index, checked)
-                        }
-                      />
-                    </div>
-                  ),
-                )}
+                      {day}
+                    </Label>
+                    <Switch
+                      id={`opening-day-${day}`}
+                      checked={
+                        (settings.opening_days || {})[
+                          ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"][index]
+                        ] || false
+                      }
+                      onCheckedChange={(checked) => onOpeningDaysChange(index, checked)}
+                    />
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -177,11 +159,7 @@ export const GeneralStoreSetupSection: React.FC<
                 max="120"
                 value={settings.keyholder_before_minutes ?? 30}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  onInputChange(
-                    "keyholder_before_minutes",
-                    e.target.value,
-                    true,
-                  )
+                  onInputChange("keyholder_before_minutes", e.target.value, true)
                 }
               />
             </div>
@@ -200,9 +178,6 @@ export const GeneralStoreSetupSection: React.FC<
             </div>
           </div>
         </CardContent>
-        <CardFooter className="flex justify-end">
-          {/* Auto-save: Save button removed */}
-        </CardFooter>
       </Card>
 
       {/* Special Days & Holidays Card */}
@@ -216,14 +191,11 @@ export const GeneralStoreSetupSection: React.FC<
           </CardHeader>
           <CardContent>
             <SpecialDaysManagement
-              specialDays={settings.special_days || {}} // Use settings directly
+              specialDays={settings.special_days || {}}
               onUpdate={handleSpecialDaysUpdate}
-              onImmediateUpdate={onImmediateUpdate} // Assuming SpecialDaysManagement doesn't need this directly
+              onImmediateUpdate={onImmediateUpdate}
             />
           </CardContent>
-          <CardFooter className="flex justify-end">
-            {/* Auto-save: Save button removed */}
-          </CardFooter>
         </Card>
       )}
     </div>

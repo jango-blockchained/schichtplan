@@ -264,7 +264,7 @@ wait_for_services() {
             # Check if port is listening first (quicker check)
             if check_port "$port"; then
                 # Try to connect to health endpoint and check HTTP status
-                http_status=$(curl -o /dev/null -s -w "%{http_code}" "http://localhost:$port/api/health")
+                http_status=$(curl -o /dev/null -s -w "%{http_code}" "http://localhost:$port/api/v2/health")
                 if [ "$http_status" -eq 200 ]; then
                     backend_ready=true
                     backend_port=$port
