@@ -37,7 +37,8 @@ export const DEFAULT_SETTINGS: Settings = {
         description: "Employee is not available for this shift",
         color: "#FF5252",
         priority: 4,
-        is_available: false
+        is_available: false,
+        type: "availability_type" as const, // Added type
       },
       {
         id: "AVAILABLE",
@@ -45,7 +46,8 @@ export const DEFAULT_SETTINGS: Settings = {
         description: "Employee is available for this shift",
         color: "#4CAF50",
         priority: 2,
-        is_available: true
+        is_available: true,
+        type: "availability_type" as const, // Added type
       },
       {
         id: "PREFERRED",
@@ -53,7 +55,8 @@ export const DEFAULT_SETTINGS: Settings = {
         description: "Employee prefers to work this shift",
         color: "#2196F3",
         priority: 3,
-        is_available: true
+        is_available: true,
+        type: "availability_type" as const, // Added type
       },
       {
         id: "FIXED",
@@ -61,7 +64,8 @@ export const DEFAULT_SETTINGS: Settings = {
         description: "Employee must work this shift",
         color: "#FFC107",
         priority: 1,
-        is_available: true
+        is_available: true,
+        type: "availability_type" as const, // Added type
       }
     ] 
   },
@@ -148,30 +152,19 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   employee_groups: {
     employee_types: [
-      {
-        id: "VZ",
-        name: "Vollzeit",
-        min_hours: 35,
-        max_hours: 40,
-        type: "employee_type",
-      },
+      { id: "VZ", name: "Vollzeit", min_hours: 35, max_hours: 40, type: "employee_type" as const },
+      { id: "TZ", name: "Teilzeit", min_hours: 20, max_hours: 30, type: "employee_type" as const },
+      { id: "GFB", name: "Geringfügig", min_hours: 10, max_hours: 15, type: "employee_type" as const },
     ],
     shift_types: [
-      {
-        id: "EARLY",
-        name: "Frühschicht",
-        color: "#4CAF50",
-        type: "shift_type",
-        autoAssignOnly: false, // Added default
-      },
+      { id: "EARLY", name: "Frühschicht", color: "#4CAF50", type: "shift_type" as const, autoAssignOnly: false },
+      { id: "MID", name: "Mittelschicht", color: "#2196F3", type: "shift_type" as const, autoAssignOnly: false },
+      { id: "LATE", name: "Spätschicht", color: "#FFC107", type: "shift_type" as const, autoAssignOnly: false },
     ],
     absence_types: [
-      {
-        id: "URL",
-        name: "Urlaub",
-        color: "#FF9800",
-        type: "absence_type",
-      },
+      { id: "URL", name: "Urlaub", color: "#FF9800", type: "absence_type" as const },
+      { id: "KRK", name: "Krank", color: "#F44336", type: "absence_type" as const },
+      { id: "SCH", name: "Schule", color: "#00BCD4", type: "absence_type" as const },
     ],
   },
   actions: {

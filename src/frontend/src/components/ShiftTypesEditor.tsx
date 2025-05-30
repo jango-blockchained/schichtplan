@@ -46,11 +46,13 @@ const defaultShiftTypes: ShiftType[] = [
 interface ShiftTypesEditorProps {
   shiftTypes: ShiftType[];
   onChange: (shiftTypes: ShiftType[]) => void;
+  isLoading?: boolean; // Add isLoading prop
 }
 
 export default function ShiftTypesEditor({
   shiftTypes = defaultShiftTypes,
   onChange,
+  isLoading, // Destructure isLoading
 }: ShiftTypesEditorProps) {
   const [localShiftTypes, setLocalShiftTypes] =
     useState<ShiftType[]>(shiftTypes);
@@ -122,8 +124,9 @@ export default function ShiftTypesEditor({
             setEditingType({ id: "EARLY", name: "", color: "#000000", type: "shift_type" });
             setShowDialog(true);
           }}
+          disabled={isLoading} // Disable if loading
         >
-          <Plus className="mr-2 h-4 w-4" />
+          {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
           Neuen Typ hinzufügen
         </Button>
       </div>
@@ -148,7 +151,7 @@ export default function ShiftTypesEditor({
                   {type.autoAssignOnly && (
                     <Lock
                       className="ml-2 h-4 w-4 text-gray-400"
-                      title="Nur für automatische Zuweisung"
+                      title="Nur für automatische Zuweisung" // Standard HTML title attribute
                     />
                   )}
                 </span>
@@ -251,7 +254,7 @@ export default function ShiftTypesEditor({
                 Farbe
               </Label>
               <ColorPicker
-                value={editingType?.color || "#000000"}
+                color={editingType?.color || "#000000"} // Changed 'value' to 'color'
                 onChange={(color) =>
                   setEditingType((prev) => (prev ? { ...prev, color } : null))
                 }
@@ -267,10 +270,13 @@ export default function ShiftTypesEditor({
                 setEditingType(null);
                 setError(null);
               }}
+              disabled={isLoading} // Disable if loading
             >
               Abbrechen
             </Button>
-            <Button onClick={handleSaveType}>Speichern</Button>
+            <Button onClick={handleSaveType} disabled={isLoading}> {/* Disable if loading */}
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Speichern"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

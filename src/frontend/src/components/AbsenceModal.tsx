@@ -27,10 +27,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/components/ui/use-toast";
-import { AbsenceType } from "@/types";
+import { AbsenceType, Absence } from "@/types"; // Changed: Imported Absence directly from @/types
 import { getAbsences, createAbsence, deleteAbsence } from "@/services/api";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
-import type { Absence } from "@/services/api";
 
 interface AbsenceModalProps {
   isOpen: boolean;

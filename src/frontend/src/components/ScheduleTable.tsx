@@ -1016,9 +1016,8 @@ export function ScheduleTable({
         {/* Add shift type legend and absence type legend */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-3 text-sm">
-            {settings?.shift_types ? (
-              // Use colors from settings if available
-              settings.shift_types.map((type: any) => (
+            {(settings && settings.employee_groups && settings.employee_groups.shift_types && settings.employee_groups.shift_types.length > 0) ? (
+              settings.employee_groups.shift_types.map((type) => (
                 <div key={type.id} className="flex items-center gap-1">
                   <div
                     className="w-4 h-4 rounded"
@@ -1028,33 +1027,13 @@ export function ScheduleTable({
                 </div>
               ))
             ) : (
-              // Fallback to hardcoded colors
-              <>
-                <div className="flex items-center gap-1">
-                  <div className="w-4 h-4 rounded bg-blue-500"></div>
-                  <span>Fest</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-4 h-4 rounded bg-green-500"></div>
-                  <span>Wunsch</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-4 h-4 rounded bg-amber-500"></div>
-                  <span>Verfügbarkeit</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-4 h-4 rounded bg-gray-300"></div>
-                  <span>Standard</span>
-                </div>
-              </>
+              <span className="text-xs text-muted-foreground">Shift types not loaded or empty</span>
             )}
           </div>
-
-          {/* Absence type legend */}
-          {absenceTypes && absenceTypes.length > 0 && (
-            <div className="flex items-center gap-3 text-sm">
-              <span className="text-muted-foreground mr-1">Absenz:</span>
-              {absenceTypes.map((type) => (
+          {/* Absence Type Legend (similar logic) */}
+          <div className="flex items-center gap-3 text-sm">
+            {(settings && settings.employee_groups && settings.employee_groups.absence_types && settings.employee_groups.absence_types.length > 0) ? (
+              settings.employee_groups.absence_types.map((type) => (
                 <div key={type.id} className="flex items-center gap-1">
                   <div
                     className="w-4 h-4 rounded"
@@ -1062,165 +1041,171 @@ export function ScheduleTable({
                   ></div>
                   <span>{type.name}</span>
                 </div>
-              ))}
-            </div>
-          )}
+              ))
+            ) : (
+              <span className="text-xs text-muted-foreground">Absence types not loaded or empty</span>
+            )}
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="p-0">
-        <div className="w-full overflow-x-auto" style={{ maxWidth: "100%" }}>
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="border-b">
-                <th className="w-[220px] sticky left-0 z-20 bg-background text-left p-4 font-medium text-muted-foreground">
-                  Mitarbeiter
-                </th>
-                {daysToDisplay.map((date) => (
-                  <th
-                    key={date.toISOString()}
-                    className="w-[160px] text-center p-4 font-medium text-muted-foreground"
-                  >
-                    <div className="font-semibold text-base">
-                      {weekdayAbbr[format(date, "EEEE")]}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {format(date, "dd.MM")}
-                    </div>
+      <CardContent className="p-0 overflow-x-auto">
+        {isLoading ? (
+          <Skeleton className="w-full h-[400px]" />
+        ) : (
+          <div className="w-full overflow-x-auto" style={{ maxWidth: "100%" }}>
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b">
+                  <th className="w-[220px] sticky left-0 z-20 bg-background text-left p-4 font-medium text-muted-foreground">
+                    Mitarbeiter
                   </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {uniqueEmployeeIds.map((employeeId) => {
-                const employeeSchedules = groupedSchedules[employeeId] || {};
-                const { contractedHours, employeeGroup } =
-                  getEmployeeDetails(employeeId);
-                const isExpanded = expandedEmployees.includes(employeeId);
+                  {daysToDisplay.map((date) => (
+                    <th
+                      key={date.toISOString()}
+                      className="w-[160px] text-center p-4 font-medium text-muted-foreground"
+                    >
+                      <div className="font-semibold text-base">
+                        {weekdayAbbr[format(date, "EEEE")]}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {format(date, "dd.MM")}
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {uniqueEmployeeIds.map((employeeId) => {
+                  const employeeSchedules = groupedSchedules[employeeId] || {};
+                  const { contractedHours, employeeGroup } =
+                    getEmployeeDetails(employeeId);
+                  const isExpanded = expandedEmployees.includes(employeeId);
 
-                return (
-                  <React.Fragment key={employeeId}>
-                    <tr className="hover:bg-muted/40 border-b">
-                      <td className="font-medium sticky left-0 z-10 bg-background w-[220px] p-2">
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => toggleEmployeeExpand(employeeId)}
-                          >
-                            {isExpanded ? (
-                              <ChevronDown className="h-3 w-3" />
-                            ) : (
-                              <ChevronRight className="h-3 w-3" />
-                            )}
-                          </Button>
-                          <span className="truncate max-w-[180px]">
-                            {formatEmployeeName(employeeId)}
-                          </span>
-                        </div>
-                      </td>
-                      {daysToDisplay.map((date) => {
-                        const dateString = format(date, "yyyy-MM-dd");
-                        // Find the schedule entry for this employee and date
-                        const schedule = employeeSchedules[employeeId]?.find(
-                          (sch) => sch.date === dateString,
-                        );
+                  return (
+                    <React.Fragment key={employeeId}>
+                      <tr className="hover:bg-muted/40 border-b">
+                        <td className="font-medium sticky left-0 z-10 bg-background w-[220px] p-2">
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => toggleEmployeeExpand(employeeId)}
+                            >
+                              {isExpanded ? (
+                                <ChevronDown className="h-3 w-3" />
+                              ) : (
+                                <ChevronRight className="h-3 w-3" />
+                              )}
+                            </Button>
+                            <span className="truncate max-w-[180px]">
+                              {formatEmployeeName(employeeId)}
+                            </span>
+                          </div>
+                        </td>
+                        {daysToDisplay.map((date) => {
+                          const dateString = format(date, "yyyy-MM-dd");
+                          // Find the schedule entry for this employee and date
+                          const schedule = employeeSchedules[employeeId]?.find(
+                            (sch) => sch.date === dateString,
+                          );
 
-                        // Check for absence on this specific date
-                        const hasAbsence = checkForAbsence(
-                          employeeId,
-                          dateString,
-                          employeeAbsences,
-                          absenceTypes,
-                        );
+                          // Check for absence on this specific date
+                          const hasAbsence = checkForAbsence(
+                            employeeId,
+                            dateString,
+                            employeeAbsences,
+                            absenceTypes,
+                          );
 
-                        const cellStyle = hasAbsence
-                          ? {
-                              backgroundColor: `${hasAbsence.type.color}15`, // 15 is hex for 10% opacity
-                              position: "relative" as const,
-                            }
-                          : {};
+                          const cellStyle = hasAbsence
+                            ? {
+                                backgroundColor: `${hasAbsence.type.color}15`, // 15 is hex for 10% opacity
+                                position: "relative" as const,
+                              }
+                            : {};
 
-                        return (
+                          return (
+                            <td
+                              key={`${employeeId}-${dateString}`}
+                              className={cn(
+                                "text-center p-0 w-[160px] h-[130px]", // Fixed height for consistency
+                                hasAbsence ? "relative" : "",
+                              )}
+                              style={{
+                                ...cellStyle,
+                                borderColor: hasAbsence
+                                  ? `${hasAbsence.type.color}`
+                                  : undefined,
+                              }}
+                              title={
+                                hasAbsence
+                                  ? `${hasAbsence.type.name}`
+                                  : undefined
+                              }
+                            >
+                              {hasAbsence && (
+                                <>
+                                  <div
+                                    className="absolute top-0 left-0 right-0 px-2 py-1 text-base font-semibold z-10 text-center"
+                                    style={{
+                                      backgroundColor: hasAbsence.type.color,
+                                      color: "#fff",
+                                      borderTopLeftRadius: "0.25rem",
+                                      borderTopRightRadius: "0.25rem",
+                                    }}
+                                  >
+                                    {hasAbsence.type.name}
+                                  </div>
+                                  <div className="absolute inset-0 mt-8 flex flex-col items-center justify-center space-y-2 pt-4">
+                                    <AlertTriangle className="h-5 w-5 text-amber-500" />
+                                    <span className="text-xs text-muted-foreground font-medium text-center px-2">
+                                      No shifts allowed
+                                      <br />
+                                      during absence
+                                    </span>
+                                  </div>
+                                </>
+                              )}
+                              <ScheduleCell
+                                schedule={schedule}
+                                onDrop={(scheduleId, newEmployeeId, newDate, newShiftId) =>
+                                  onDrop(scheduleId, newEmployeeId, newDate, newShiftId)
+                                }
+                                onUpdate={(scheduleId, updates) =>
+                                  onUpdate(scheduleId, updates)
+                                }
+                                hasAbsence={!!hasAbsence}
+                                employeeId={employeeId}
+                                date={date}
+                                currentVersion={currentVersion}
+                              />
+                            </td>
+                          );
+                        })}
+                      </tr>
+                      {isExpanded && (
+                        <tr>
                           <td
-                            key={`${employeeId}-${dateString}`}
-                            className={cn(
-                              "text-center p-0 w-[160px] h-[130px]", // Fixed height for consistency
-                              hasAbsence ? "relative" : "",
-                            )}
-                            style={{
-                              ...cellStyle,
-                              borderColor: hasAbsence
-                                ? `${hasAbsence.type.color}`
-                                : undefined,
-                            }}
-                            title={
-                              hasAbsence
-                                ? `${hasAbsence.type.name}`
-                                : undefined
-                            }
+                            colSpan={daysToDisplay.length + 1}
+                            className="bg-slate-50 p-4"
                           >
-                            {hasAbsence && (
-                              <>
-                                <div
-                                  className="absolute top-0 left-0 right-0 px-2 py-1 text-base font-semibold z-10 text-center"
-                                  style={{
-                                    backgroundColor: hasAbsence.type.color,
-                                    color: "#fff",
-                                    borderTopLeftRadius: "0.25rem",
-                                    borderTopRightRadius: "0.25rem",
-                                  }}
-                                >
-                                  {hasAbsence.type.name}
-                                </div>
-                                <div className="absolute inset-0 mt-8 flex flex-col items-center justify-center space-y-2 pt-4">
-                                  <AlertTriangle className="h-5 w-5 text-amber-500" />
-                                  <span className="text-xs text-muted-foreground font-medium text-center px-2">
-                                    No shifts allowed
-                                    <br />
-                                    during absence
-                                  </span>
-                                </div>
-                              </>
-                            )}
-                            <ScheduleCell
-                              schedule={schedule}
-                              onDrop={(scheduleId, newEmployeeId, newDate, newShiftId) =>
-                                onDrop(scheduleId, newEmployeeId, newDate, newShiftId)
-                              }
-                              onUpdate={(scheduleId, updates) =>
-                                onUpdate(scheduleId, updates)
-                              }
-                              hasAbsence={!!hasAbsence}
+                            <EmployeeStatistics
                               employeeId={employeeId}
-                              date={date}
-                              currentVersion={currentVersion}
+                              schedules={schedules}
+                              contractedHours={contractedHours}
+                              employeeGroup={employeeGroup}
                             />
                           </td>
-                        );
-                      })}
-                    </tr>
-                    {isExpanded && (
-                      <tr>
-                        <td
-                          colSpan={daysToDisplay.length + 1}
-                          className="bg-slate-50 p-4"
-                        >
-                          <EmployeeStatistics
-                            employeeId={employeeId}
-                            schedules={schedules}
-                            contractedHours={contractedHours}
-                            employeeGroup={employeeGroup}
-                          />
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

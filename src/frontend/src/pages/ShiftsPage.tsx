@@ -73,20 +73,28 @@ export const ShiftsPage: React.FC = () => {
   }, [toast]);
 
   const handleAddShift = async () => {
-    if (!settings) return;
+    if (!settings || !settings.employee_groups) {
+      toast({
+        title: "Error",
+        description: "Settings not loaded completely. Cannot add shift.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
-      // Get the first shift type from settings or use a default
       const defaultShiftTypeId =
-        settings.shift_types && settings.shift_types.length > 0
-          ? settings.shift_types[0].id
+        settings.employee_groups.shift_types && settings.employee_groups.shift_types.length > 0
+          ? settings.employee_groups.shift_types[0].id
           : "EARLY";
 
+      const generalSettings = settings.general || DEFAULT_SETTINGS.general;
+
       const defaultShift = {
-        start_time: settings.general.store_opening,
-        end_time: settings.general.store_closing,
+        start_time: generalSettings.store_opening || "09:00",
+        end_time: generalSettings.store_closing || "17:00",
         requires_break: true,
-        active_days: settings.general.opening_days,
+        active_days: generalSettings.opening_days || { monday: true, tuesday: true, wednesday: true, thursday: true, friday: true, saturday: false, sunday: false },
         shift_type_id: defaultShiftTypeId,
       };
 

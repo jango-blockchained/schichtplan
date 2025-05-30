@@ -4,6 +4,7 @@ from sqlalchemy.orm import deferred
 from sqlalchemy.ext.hybrid import hybrid_property
 from . import db
 from typing import Dict, Any, Tuple  # Corrected Tuple import
+from .generation_requirements_fields import GENERATION_REQUIREMENTS_FIELDS
 
 # Helper for opening_days key mapping
 DAY_NAME_TO_NUM_KEY = {
@@ -189,14 +190,37 @@ class Settings(db.Model):
 
     # Employee Group Settings
     employee_types = Column(
-        JSON, nullable=False, default=lambda: []
-    )  # Default to empty list
+        JSON,
+        nullable=False,
+        default=lambda: [
+            {"id": "VZ", "name": "Vollzeit", "min_hours": 35, "max_hours": 40, "type": "employee_type"},
+            {"id": "TZ", "name": "Teilzeit", "min_hours": 15, "max_hours": 34, "type": "employee_type"},
+            {"id": "GFB", "name": "Geringfügig Beschäftigt", "min_hours": 0, "max_hours": 14, "type": "employee_type"},
+            {"id": "TL", "name": "Teamleiter", "min_hours": 35, "max_hours": 40, "type": "employee_type"},
+        ],
+    )
     _shift_types = deferred(
-        Column("shift_types", JSON, nullable=True, default=lambda: [])
-    )  # Default to empty list
+        Column(
+            "shift_types",
+            JSON,
+            nullable=True,
+            default=lambda: [
+                {"id": "EARLY", "name": "Früh", "color": "#10B981", "type": "shift_type", "auto_assign_only": False},
+                {"id": "MIDDLE", "name": "Mittel", "color": "#3B82F6", "type": "shift_type", "auto_assign_only": False},
+                {"id": "LATE", "name": "Spät", "color": "#F59E0B", "type": "shift_type", "auto_assign_only": False},
+                {"id": "NO_WORK", "name": "Kein Dienst", "color": "#9E9E9E", "type": "shift_type", "auto_assign_only": True},
+            ],
+        )
+    )
     absence_types = Column(
-        JSON, nullable=False, default=lambda: []
-    )  # Default to empty list
+        JSON,
+        nullable=False,
+        default=lambda: [
+            {"id": "URL", "name": "Urlaub", "color": "#FF9800", "type": "absence_type"},
+            {"id": "KRANK", "name": "Krank", "color": "#F44336", "type": "absence_type"},
+            {"id": "SLG", "name": "Schulung", "color": "#4CAF50", "type": "absence_type"},
+        ],
+    )
 
     # Actions Settings
     _actions_demo_data = deferred(
@@ -222,7 +246,15 @@ class Settings(db.Model):
 
     @special_days.setter
     def special_days(self, value):
-        self._special_days = value if value is not None else {}
+        try:
+            # Ensure the deferred column is loaded before setting
+            _ = self._special_days
+        except AttributeError:
+            # This can happen if the attribute _special_days itself is not yet set
+            pass
+        except Exception:  # Catch other potential errors during access
+            pass # If it's not loaded or other error, that's fine, we're setting it now
+        self._special_days = value
 
     def get_shift_types(self):
         try:
@@ -395,29 +427,26 @@ class Settings(db.Model):
     @classmethod
     def get_default_settings(cls) -> "Settings":
         settings = cls()
-        settings.store_name = "ShiftWise Store"
-        settings.store_address = ""
-        settings.store_phone = ""  # Added
-        settings.store_email = ""  # Added
+        # General Settings
+        settings.store_name = "Mein Laden"
+        settings.store_address = "Hauptstraße 1, 12345 Musterstadt"
+        settings.store_phone = "01234/567890"
+        settings.store_email = "info@meinladen.de"
         settings.timezone = "Europe/Berlin"
         settings.language = "de"
         settings.date_format = "DD.MM.YYYY"
-        settings.time_format = "24h"
-        settings.store_opening = "09:00"
+        settings.time_format = "HH:mm"
+        settings.store_opening = "08:00"
         settings.store_closing = "20:00"
-        settings.keyholder_before_minutes = 5
-        settings.keyholder_after_minutes = 10
+        settings.keyholder_before_minutes = 30
+        settings.keyholder_after_minutes = 15
         settings.opening_days = {
-            "0": True,
-            "1": True,
-            "2": True,
-            "3": True,
-            "4": True,
-            "5": True,
-            "6": False,
+            "0": True, "1": True, "2": True, "3": True, "4": True, "5": True, "6": False
         }
         settings.special_days = {}
-        settings.scheduling_resource_type = "shifts"
+
+        # Scheduling Settings
+        settings.scheduling_resource_type = "coverage"
         settings.default_shift_duration = 8.0
         settings.min_break_duration = 30
         settings.max_daily_hours = 10.0
@@ -427,77 +456,113 @@ class Settings(db.Model):
         settings.auto_schedule_preferences = True
         settings.enable_diagnostics = False
         settings.generation_requirements = {
-            "enforce_minimum_coverage": True,
-            "enforce_contracted_hours": True,
-            "enforce_keyholder_coverage": True,
-            "enforce_rest_periods": True,
-            "enforce_early_late_rules": True,
-            "enforce_employee_group_rules": True,
-            "enforce_break_rules": True,
-            "enforce_max_hours": True,
-            "enforce_consecutive_days": True,
-            "enforce_weekend_distribution": True,
-            "enforce_shift_distribution": True,
-            "enforce_availability": True,
-            "enforce_qualifications": True,
-            "enforce_opening_hours": True,
+            "enforce_minimum_coverage": True, "enforce_contracted_hours": True,
+            "enforce_keyholder_coverage": True, "enforce_rest_periods": True,
+            "enforce_early_late_rules": True, "enforce_employee_group_rules": True,
+            "enforce_break_rules": True, "enforce_max_hours": True,
+            "enforce_consecutive_days": True, "enforce_weekend_distribution": True,
+            "enforce_shift_distribution": True, "enforce_availability": True,
+            "enforce_qualifications": True, "enforce_opening_hours": True,
         }
-        settings.scheduling_algorithm = "standard"  # Default to standard algorithm
-        settings.max_generation_attempts = (
-            10  # Maximum attempts for schedule generation
-        )
+        settings.scheduling_algorithm = "standard"
+        settings.max_generation_attempts = 100
+
+        # Display Settings
         settings.theme = "light"
-        settings.primary_color = "#1976D2"
-        settings.secondary_color = "#424242"
-        settings.accent_color = "#FF4081"
-        settings.background_color = "#FFFFFF"
-        settings.surface_color = "#F5F5F5"
-        settings.text_color = "#212121"
-        settings.dark_theme_primary_color = "#90CAF9"
-        settings.dark_theme_secondary_color = "#757575"
-        settings.dark_theme_accent_color = "#FF80AB"
-        settings.dark_theme_background_color = "#121212"
-        settings.dark_theme_surface_color = "#1E1E1E"
-        settings.dark_theme_text_color = "#FFFFFF"
+        settings.primary_color = "#3B82F6"
+        settings.secondary_color = "#1F2937"
+        settings.accent_color = "#10B981"
+        settings.background_color = "#F9FAFB"
+        settings.surface_color = "#FFFFFF"
+        settings.text_color = "#1F2937"
+        settings.dark_theme_primary_color = "#60A5FA"
+        settings.dark_theme_secondary_color = "#F3F4F6"
+        settings.dark_theme_accent_color = "#34D399"
+        settings.dark_theme_background_color = "#1F2937"
+        settings.dark_theme_surface_color = "#374151"
+        settings.dark_theme_text_color = "#F9FAFB"
         settings.show_sunday = False
-        settings.show_weekdays = False
-        settings.start_of_week = 1
-        settings.calendar_start_day = "monday"  # Added
-        settings.calendar_default_view = "month"  # Added
-        settings.email_notifications = True
-        settings.schedule_published_notify = True
-        settings.shift_changes_notify = True
-        settings.time_off_requests_notify = True
+        settings.show_weekdays = True
+        settings.start_of_week = 1  # Monday
+        settings.calendar_start_day = "monday"
+        settings.calendar_default_view = "week"
+
+        # Notification Settings
+        settings.email_notifications = False
+        settings.schedule_published_notify = False
+        settings.shift_changes_notify = False
+        settings.time_off_requests_notify = False
+
+        # PDF Layout Settings
         settings.page_size = "A4"
-        settings.orientation = "portrait"
-        settings.margin_top = 20.0
-        settings.margin_right = 20.0
-        settings.margin_bottom = 20.0
-        settings.margin_left = 20.0
-        settings.table_header_bg_color = "#f3f4f6"
-        settings.table_border_color = "#e5e7eb"
-        settings.table_text_color = "#111827"
+        settings.orientation = "landscape"
+        settings.margin_top = 15.0
+        settings.margin_right = 15.0
+        settings.margin_bottom = 15.0
+        settings.margin_left = 15.0
+        settings.table_header_bg_color = "#E5E7EB"
+        settings.table_border_color = "#D1D5DB"
+        settings.table_text_color = "#1F2937"
         settings.table_header_text_color = "#111827"
-        settings.font_family = "Helvetica"
-        settings.font_size = 10.0
-        settings.header_font_size = 12.0
-        settings.show_employee_id = True
+        settings.font_family = "Arial"
+        settings.font_size = 9.0
+        settings.header_font_size = 11.0
+        settings.show_employee_id = False
         settings.show_position = True
         settings.show_breaks = True
         settings.show_total_hours = True
-        settings.employee_types = []
-        settings.shift_types = []
-        settings.absence_types = []
-        settings.availability_types = {"types": []}
+
+        # Employee Group Settings (Defaults)
+        settings.employee_types = [
+            {"id": "VZ", "name": "Vollzeit", "min_hours": 35, "max_hours": 40, "type": "employee_type"},
+            {"id": "TZ", "name": "Teilzeit", "min_hours": 15, "max_hours": 34, "type": "employee_type"},
+            {"id": "GFB", "name": "Geringfügig Beschäftigt", "min_hours": 0, "max_hours": 14, "type": "employee_type"},
+            {"id": "TL", "name": "Teamleiter", "min_hours": 35, "max_hours": 40, "type": "employee_type"},
+        ]
+        settings.shift_types = [
+            {"id": "EARLY", "name": "Früh", "color": "#10B981", "type": "shift_type", "auto_assign_only": False},
+            {"id": "MIDDLE", "name": "Mittel", "color": "#3B82F6", "type": "shift_type", "auto_assign_only": False},
+            {"id": "LATE", "name": "Spät", "color": "#F59E0B", "type": "shift_type", "auto_assign_only": False},
+            {"id": "NO_WORK", "name": "Kein Dienst", "color": "#9E9E9E", "type": "shift_type", "auto_assign_only": True},
+        ]
+        settings.absence_types = [
+            {"id": "URL", "name": "Urlaub", "color": "#FF9800", "type": "absence_type"},
+            {"id": "KRANK", "name": "Krank", "color": "#F44336", "type": "absence_type"},
+            {"id": "SLG", "name": "Schulung", "color": "#4CAF50", "type": "absence_type"},
+        ]
+        settings.availability_types = {
+            "types": [
+                {
+                    "id": "AVAILABLE", "name": "Verfügbar", "description": "Mitarbeiter ist verfügbar",
+                    "color": "#22c55e", "priority": 2, "is_available": True,
+                },
+                {
+                    "id": "FIXED", "name": "Fix", "description": "Feste Arbeitszeiten",
+                    "color": "#3b82f6", "priority": 1, "is_available": True,
+                },
+                {
+                    "id": "PREFERRED", "name": "Bevorzugt", "description": "Bevorzugte Arbeitszeiten",
+                    "color": "#f59e0b", "priority": 3, "is_available": True,
+                },
+                {
+                    "id": "UNAVAILABLE", "name": "Nicht verfügbar", "description": "Mitarbeiter ist nicht verfügbar",
+                    "color": "#ef4444", "priority": 4, "is_available": False,
+                },
+            ]
+        }
+
+        # Actions Settings
         settings.actions_demo_data = {"selected_module": "", "last_execution": None}
+
+        # AI Scheduling Settings
         settings.ai_scheduling = {"enabled": False, "api_key": ""}
+
         return settings
 
-    def update_from_dict(self, data: Dict[str, Any]) -> None:
+    @classmethod
+    def update_from_dict(cls, data: Dict[str, Any]) -> None:
+        settings = cls.get_or_create_default() # Get the settings instance
         for category, values in data.items():
-            if not isinstance(values, dict):
-                continue  # Skip if category value is not a dict
-
             if category == "general":
                 for key, value in values.items():
                     if key == "opening_days" and isinstance(value, dict):
@@ -506,70 +571,80 @@ class Settings(db.Model):
                             DAY_NAME_TO_NUM_KEY.get(day_name.lower(), day_name): enabled
                             for day_name, enabled in value.items()
                         }
-                        self.opening_days = numeric_opening_days
-                    elif hasattr(self, key):
-                        setattr(self, key, value)
+                        settings.opening_days = numeric_opening_days
+                    elif hasattr(settings, key):
+                        setattr(settings, key, value)
             elif category == "scheduling":
                 for key, value in values.items():
                     if key == "generation_requirements" and isinstance(value, dict):
-                        if self.generation_requirements is None:
-                            self.generation_requirements = {}
-                        self.generation_requirements.update(value)
-                    elif hasattr(self, key):
-                        setattr(self, key, value)
+                        # Overwrite, not merge, and preserve explicit False values
+                        settings.generation_requirements = {k: bool(value.get(k)) if k in value else True for k in GENERATION_REQUIREMENTS_FIELDS}
+                    elif hasattr(settings, key):
+                        setattr(settings, key, value)
             elif category == "display":
                 for key, value in values.items():
                     if key == "dark_theme" and isinstance(value, dict):
                         for theme_key, theme_value in value.items():
                             attr_name = f"dark_theme_{theme_key}"
-                            if hasattr(self, attr_name):
-                                setattr(self, attr_name, theme_value)
-                    elif hasattr(self, key):
-                        setattr(self, key, value)
-            # For JSON blob fields (lists of objects or specific dict structures), direct assignment is appropriate
-            elif category in [
-                "employee_groups",
-                "availability_types",
-                "actions",
-                "ai_scheduling",
-            ]:
-                # Assuming the Pydantic schema has validated the structure, directly assign
-                if hasattr(self, category) and values is not None:
-                    setattr(self, category, values)
-
-            elif (
-                category == "pdf_layout"
-            ):  # pdf_layout needs careful handling of nested structures
+                            if hasattr(settings, attr_name):
+                                setattr(settings, attr_name, theme_value)
+                    elif hasattr(settings, key):
+                        setattr(settings, key, value)
+            elif category == "pdf_layout":
                 for pdf_key, pdf_value in values.items():
                     if pdf_key == "margins" and isinstance(pdf_value, dict):
                         for m_key, m_value in pdf_value.items():
-                            setattr(self, f"margin_{m_key}", m_value)
+                            setattr(settings, f"margin_{m_key}", m_value)
                     elif pdf_key == "table_style" and isinstance(pdf_value, dict):
                         for ts_key, ts_value in pdf_value.items():
                             setattr(
-                                self, f"table_{ts_key}", ts_value
-                            )  # Assumes model fields like table_header_bg_color
+                                settings, f"table_{ts_key}", ts_value
+                            )
                     elif pdf_key == "fonts" and isinstance(pdf_value, dict):
                         for f_key, f_value in pdf_value.items():
                             setattr(
-                                self,
+                                settings,
                                 f"font_{f_key}"
                                 if f_key != "header_size"
                                 else "header_font_size",
                                 f_value,
-                            )  # font_family, font_size, header_font_size
+                            )
                     elif pdf_key == "content" and isinstance(pdf_value, dict):
                         for c_key, c_value in pdf_value.items():
                             setattr(
-                                self, c_key, c_value
-                            )  # Assumes model fields like show_employee_id
+                                settings, c_key, c_value
+                            )
                     elif hasattr(
-                        self, pdf_key
-                    ):  # For direct fields like page_size, orientation
-                        setattr(self, pdf_key, pdf_value)
-            # Other direct model attributes if any top-level keys come (not expected from new CompleteSettings)
-            elif hasattr(self, category) and not isinstance(values, dict):
-                setattr(self, category, values)
+                        settings, pdf_key
+                    ): 
+                        setattr(settings, pdf_key, pdf_value)
+            elif category == "employee_groups":
+                if isinstance(values, dict):
+                    if "employee_types" in values and values["employee_types"] is not None:
+                        settings.employee_types = values["employee_types"]
+                    if "shift_types" in values and values["shift_types"] is not None:
+                        settings.shift_types = values["shift_types"] # Uses hybrid property setter
+                    if "absence_types" in values and values["absence_types"] is not None:
+                        settings.absence_types = values["absence_types"]
+            elif category == "availability_types":
+                # settings.availability_types is a JSON column expecting a dict like {"types": [...]}
+                # values is expected to be {"types": [...]}
+                if values is not None and hasattr(settings, category):
+                    setattr(settings, category, values)
+            elif category == "actions":
+                if isinstance(values, dict) and "demo_data" in values and values["demo_data"] is not None:
+                    settings.actions_demo_data = values["demo_data"] # Uses hybrid property setter
+            elif category == "ai_scheduling":
+                # settings.ai_scheduling is a JSON column expecting a dict like {"enabled": ..., "api_key": ...}
+                # values is expected to be {"enabled": ..., "api_key": ...}
+                if values is not None and hasattr(settings, category):
+                    setattr(settings, category, values)
+            # Fallback for other top-level keys that might be direct attributes
+            # (Not expected for complex dicts from frontend, but for simple values or future direct JSON fields)
+            elif hasattr(settings, category):
+                setattr(settings, category, values)
+                
+        db.session.commit() # Commit changes to the database
 
     def __repr__(self):
         return f"<Settings {self.store_name}>"
