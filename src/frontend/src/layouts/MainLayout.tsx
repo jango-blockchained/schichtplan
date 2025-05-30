@@ -10,6 +10,7 @@ import {
   BarChart,
   Cog,
   Layout,
+  CalendarDays, // Import CalendarDays icon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -35,6 +36,7 @@ export const MainLayout = () => {
   const mainNavItems = React.useMemo(
     () => [
       { label: "Schichtplan", path: "/", icon: LayoutDashboard },
+      { label: "Kalender", path: "/calendar", icon: CalendarDays }, // Add Calendar link
       { label: "Mitarbeiter", path: "/employees", icon: Users },
       { label: "Coverage", path: "/coverage", icon: BarChart },
       { label: "Schichten", path: "/shifts", icon: FileText },

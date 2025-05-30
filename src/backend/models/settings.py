@@ -635,10 +635,13 @@ class Settings(db.Model):
                 if isinstance(values, dict) and "demo_data" in values and values["demo_data"] is not None:
                     settings.actions_demo_data = values["demo_data"] # Uses hybrid property setter
             elif category == "ai_scheduling":
-                # settings.ai_scheduling is a JSON column expecting a dict like {"enabled": ..., "api_key": ...}
-                # values is expected to be {"enabled": ..., "api_key": ...}
+                # Merge incoming dict with existing ai_scheduling dict
                 if values is not None and hasattr(settings, category):
-                    setattr(settings, category, values)
+                    current = getattr(settings, category) or {}
+                    if not isinstance(current, dict):
+                        current = {}
+                    merged = {**current, **values}
+                    setattr(settings, category, merged)
             # Fallback for other top-level keys that might be direct attributes
             # (Not expected for complex dicts from frontend, but for simple values or future direct JSON fields)
             elif hasattr(settings, category):
