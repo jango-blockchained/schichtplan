@@ -1,5 +1,5 @@
 import { getDb } from "../db";
-import { Schedule, Employee, ShiftTemplate, ScheduleVersionMeta, ScheduleStatus } from "../db/schema"; // Import relevant interfaces
+import { Schedule, Employee, ShiftTemplate, ScheduleVersionMeta, ScheduleStatus, AvailabilityType } from "../db/schema"; // Import relevant interfaces
 import { SQLQueryBindings, Database } from "bun:sqlite";
 import { scheduleLogger } from "../logger"; // Import the specialized schedule logger
 
@@ -10,6 +10,11 @@ import { getAllCoverage } from './coverageService.js';
 import { getAllRecurringCoverage } from './recurringCoverageService.js';
 import { getAvailabilitiesInRange } from './employeeAvailabilityService.js';
 import { getAbsencesInRange } from './absenceService.js';
+
+// Import scheduler modules
+import { generateScheduleAssignments, SchedulerConfiguration } from '../scheduler/assignment.js';
+import { AIScoringConfig, DEFAULT_AI_CONFIG } from '../scheduler/aiScoring.js';
+import { parseISO, format, eachDayOfInterval, differenceInMinutes, addMinutes } from 'date-fns';
 
 // Define a type for the combined schedule entry data
 // This includes fields from Schedule, Employee (name), and ShiftTemplate (times)
@@ -179,42 +184,337 @@ export async function getScheduleVersions(startDate?: string, endDate?: string, 
 }
 
 // --- Schedule Generation Logic --- 
-export async function generateSchedule(startDate: string, endDate: string, dbInstance?: Database /*, options? */): Promise<any> {
+export async function generateSchedule(
+    startDate: string, 
+    endDate: string, 
+    createEmptySchedules: boolean = false,
+    version?: number,
+    dbInstance?: Database,
+    options?: {
+        schedulerConfig?: Partial<SchedulerConfiguration>;
+        aiConfig?: Partial<AIScoringConfig>;
+    }
+): Promise<any> {
     // Get database instance
     const db = dbInstance || getDb();
     
-    scheduleLogger.info(`Initiating schedule generation from ${startDate} to ${endDate}...`);
+    scheduleLogger.info(`Initiating AI-powered schedule generation from ${startDate} to ${endDate}...`);
 
     try {
-        // 1. Fetch necessary data
+        // 1. Create new version if not provided
+        let scheduleVersion = version;
+        if (!scheduleVersion) {
+            const versionResult = await createNewScheduleVersion({
+                start_date: startDate,
+                end_date: endDate,
+                notes: "AI-generated schedule"
+            }, db);
+            scheduleVersion = versionResult.new_version;
+            scheduleLogger.info(`Created new schedule version: ${scheduleVersion}`);
+        }
+
+        // 2. Fetch necessary data
         scheduleLogger.info("Fetching input data for generation...");
 
-        const employees = await getAllEmployees({ status: 'active' });
-        const shiftTemplates = await getAllShiftTemplates();
-        const coverages = await getAllCoverage();
-        const recurringCoverages = await getAllRecurringCoverage();
-        const availabilities = await getAvailabilitiesInRange(startDate, endDate);
-        const absences = await getAbsencesInRange(startDate, endDate);
+        const employees = await getAllEmployees({ status: 'active' }, db);
+        const shiftTemplates = await getAllShiftTemplates(db);
+        const coverages = await getAllCoverage(db);
+        const recurringCoverages = await getAllRecurringCoverage(db);
+        const availabilities = await getAvailabilitiesInRange(startDate, endDate, db);
+        const absences = await getAbsencesInRange(startDate, endDate, db);
 
         scheduleLogger.info(`Data fetched: ${employees.length} employees, ${shiftTemplates.length} templates, ${coverages.length} coverage rules, ${recurringCoverages.length} recurring patterns, ${availabilities.length} availabilities, ${absences.length} absences.`);
 
-        // Simple prototype response for now
-        return {
-            status: "PROTOTYPE_ONLY", 
-            message: "Schedule generation placeholder - implementation in progress",
+        // 3. Generate expanded coverage requirements (15-minute slots)
+        const expandedCoverage: any[] = [];
+        const slotCandidatesMap = new Map();
+        const dailyOperatingHours = new Map();
+        
+        // Get all dates in range
+        const dates = eachDayOfInterval({ 
+            start: parseISO(startDate), 
+            end: parseISO(endDate) 
+        });
+
+        // For each date, expand coverage requirements into 15-minute slots
+        for (const date of dates) {
+            const dateStr = format(date, 'yyyy-MM-dd');
+            
+            // Find applicable coverage rules for this date
+            const applicableCoverages = [...coverages, ...recurringCoverages].filter(cov => {
+                // TODO: Implement proper coverage date checking logic
+                return true; // Placeholder - apply all coverages for now
+            });
+
+            // Set default operating hours (TODO: get from settings/coverage)
+            dailyOperatingHours.set(dateStr, {
+                open: { hours: 8, minutes: 0 },
+                close: { hours: 20, minutes: 0 }
+            });
+
+            // Create 15-minute slots for the day (8:00 to 20:00 for now)
+            const dayStart = new Date(date);
+            dayStart.setHours(8, 0, 0, 0);
+            const dayEnd = new Date(date);
+            dayEnd.setHours(20, 0, 0, 0);
+
+            let slotTime = dayStart;
+            while (slotTime < dayEnd) {
+                const slotEnd = addMinutes(slotTime, 15);
+                const slotId = slotTime.toISOString();
+                
+                // Determine min/max employees needed for this slot
+                // TODO: Calculate from coverage rules
+                const requiredSlot = {
+                    id: slotId,
+                    startTime: new Date(slotTime),
+                    endTime: slotEnd,
+                    minEmployees: 2, // Placeholder
+                    maxEmployees: 4, // Placeholder
+                };
+                
+                expandedCoverage.push(requiredSlot);
+
+                // Determine available candidates for this slot
+                const candidates = employees
+                    .filter(emp => {
+                        // Check availability - need to check day_of_week and hour
+                        const slotDayOfWeek = slotTime.getDay();
+                        const slotHour = slotTime.getHours();
+                        
+                        const isAvailable = availabilities.some(avail => 
+                            avail.employee_id === emp.id &&
+                            avail.day_of_week === slotDayOfWeek &&
+                            avail.hour === slotHour &&
+                            avail.availability_type !== AvailabilityType.UNAVAILABLE
+                        );
+                        
+                        // Check absence
+                        const isAbsent = absences.some(absence =>
+                            absence.employee_id === emp.id &&
+                            parseISO(absence.start_date) <= slotTime &&
+                            parseISO(absence.end_date) >= slotTime
+                        );
+                        
+                        return isAvailable && !isAbsent;
+                    })
+                    .map(emp => ({ employeeId: emp.id.toString() }));
+
+                slotCandidatesMap.set(slotId, candidates);
+                
+                slotTime = slotEnd;
+            }
+        }
+
+        scheduleLogger.info(`Generated ${expandedCoverage.length} time slots for scheduling`);
+
+        // 4. Prepare employee data for scheduler
+        const schedulerEmployees = employees.map(emp => ({
+            id: emp.id.toString(),
+            name: `${emp.first_name} ${emp.last_name}`,
+            qualifications: [], // TODO: Load from database
+            unavailability: absences
+                .filter(a => a.employee_id === emp.id)
+                .map(a => ({
+                    start: parseISO(a.start_date),
+                    end: parseISO(a.end_date)
+                })),
+            maxHoursPerWeek: emp.contracted_hours, // Use contracted_hours instead
+            isKeyholderQualified: emp.can_be_keyholder || false,
+            preferences: {
+                dayPreferences: [],
+                timePreferences: []
+            }
+        }));
+
+        // 5. Configure scheduler
+        const schedulerConfig: SchedulerConfiguration = {
+            minShiftMinutes: 120,        // 2 hours
+            maxShiftMinutes: 600,        // 10 hours
+            slotIntervalMinutes: 15,
+            maxConsecutiveDays: 6,
+            defaultMinRestPeriodMinutes: 11 * 60, // 11 hours
+            defaultMaxDailyMinutes: 8 * 60,      // 8 hours
+            defaultAbsoluteMaxDailyMinutes: 10 * 60, // 10 hours
+            breakThresholdMinutes: 6 * 60, // 6 hours
+            breakDurationMinutes: 30,      // 30 minutes
+            enforceKeyholderRule: true,
+            openingLeadTimeMinutes: 5,
+            closingLagTimeMinutes: 15,
+            ...options?.schedulerConfig
+        };
+
+        // 6. Run AI-powered scheduler
+        scheduleLogger.info("Running AI-powered schedule optimization...");
+        
+        const scheduleResult = await generateScheduleAssignments(
+            expandedCoverage,
+            slotCandidatesMap,
+            schedulerEmployees,
+            dailyOperatingHours,
+            schedulerConfig,
+            options?.aiConfig ? { ...DEFAULT_AI_CONFIG, ...options.aiConfig } : undefined,
+            db
+        );
+
+        scheduleLogger.info(`AI Scheduler completed: ${scheduleResult.assignments.length} shifts assigned, ${scheduleResult.unfilledSlots.length} unfilled slots`);
+
+        // 7. Save assignments to database
+        if (scheduleResult.assignments.length > 0) {
+            scheduleLogger.info("Saving schedule assignments to database...");
+            
+            const insertStmt = db.prepare(`
+                INSERT INTO schedules (
+                    employee_id, shift_id, date, version,
+                    break_start, break_end, notes, shift_type, 
+                    availability_type, status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            `);
+
+            // Find appropriate shift templates for assignments
+            const shiftTemplateMap = new Map();
+            for (const template of shiftTemplates) {
+                const key = `${template.start_time}-${template.end_time}`;
+                shiftTemplateMap.set(key, template.id);
+            }
+
+            let savedCount = 0;
+            for (const assignment of scheduleResult.assignments) {
+                try {
+                    // Find matching shift template
+                    const startTime = format(assignment.startTime, 'HH:mm:ss');
+                    const endTime = format(assignment.endTime, 'HH:mm:ss');
+                    const templateKey = `${startTime}-${endTime}`;
+                    let shiftTemplateId = shiftTemplateMap.get(templateKey);
+
+                    // If no exact match, create a custom shift entry (null shift_id)
+                    if (!shiftTemplateId) {
+                        scheduleLogger.debug(`No template found for ${templateKey}, creating custom shift`);
+                        shiftTemplateId = null;
+                    }
+
+                    // Calculate break times if applicable
+                    let breakStart = null;
+                    let breakEnd = null;
+                    if (assignment.breakDurationMinutes) {
+                        // Place break in the middle of the shift
+                        const shiftMiddle = new Date(
+                            assignment.startTime.getTime() + 
+                            (assignment.durationMinutes / 2) * 60 * 1000
+                        );
+                        breakStart = format(shiftMiddle, 'HH:mm:ss');
+                        breakEnd = format(
+                            addMinutes(shiftMiddle, assignment.breakDurationMinutes),
+                            'HH:mm:ss'
+                        );
+                    }
+
+                    insertStmt.run(
+                        parseInt(assignment.employeeId), // Convert string back to number for DB
+                        shiftTemplateId,
+                        format(assignment.startTime, 'yyyy-MM-dd'),
+                        scheduleVersion,
+                        breakStart,
+                        breakEnd,
+                        'AI-generated',
+                        'work', // shift_type
+                        null, // availability_type
+                        ScheduleStatus.DRAFT
+                    );
+                    savedCount++;
+                } catch (error) {
+                    scheduleLogger.error(`Error saving assignment for employee ${assignment.employeeId}:`, error);
+                }
+            }
+
+            scheduleLogger.info(`Saved ${savedCount} schedule assignments to database`);
+        }
+
+        // 8. Create empty schedules if requested
+        if (createEmptySchedules) {
+            scheduleLogger.info("Creating empty schedule entries for all employees...");
+            
+            const emptyStmt = db.prepare(`
+                INSERT INTO schedules (
+                    employee_id, shift_id, date, version,
+                    shift_type, availability_type, status, 
+                    created_at, updated_at
+                ) VALUES (?, NULL, ?, ?, 'off', NULL, ?, datetime('now'), datetime('now'))
+            `);
+
+            let emptyCount = 0;
+            for (const date of dates) {
+                const dateStr = format(date, 'yyyy-MM-dd');
+                
+                // Check which employees already have assignments for this date
+                const assignedEmployees = new Set(
+                    scheduleResult.assignments
+                        .filter(a => format(a.startTime, 'yyyy-MM-dd') === dateStr)
+                        .map(a => a.employeeId)
+                );
+
+                // Create empty entries for unassigned employees
+                for (const employee of employees) {
+                    if (!assignedEmployees.has(employee.id.toString())) {
+                        try {
+                            emptyStmt.run(
+                                employee.id.toString(),
+                                dateStr,
+                                scheduleVersion,
+                                ScheduleStatus.DRAFT
+                            );
+                            emptyCount++;
+                        } catch (error) {
+                            scheduleLogger.debug(`Skipping empty entry for ${employee.id} on ${dateStr}:`, error);
+                        }
+                    }
+                }
+            }
+
+            scheduleLogger.info(`Created ${emptyCount} empty schedule entries`);
+        }
+
+        // 9. Prepare response
+        const response = {
+            status: "SUCCESS",
+            message: "AI-powered schedule generation completed",
+            version: scheduleVersion,
             dates: [startDate, endDate],
             counts: {
                 employees: employees.length,
-                templates: shiftTemplates.length,
-                coverages: coverages.length,
-                recurringCoverages: recurringCoverages.length,
-                availabilities: availabilities.length,
-                absences: absences.length,
-            }
+                assignments: scheduleResult.assignments.length,
+                unfilledSlots: scheduleResult.unfilledSlots.length,
+                warnings: scheduleResult.warnings.length,
+            },
+            warnings: scheduleResult.warnings,
+            logs: [
+                {
+                    timestamp: new Date().toISOString(),
+                    level: "info",
+                    message: `Generated ${scheduleResult.assignments.length} shift assignments`,
+                },
+                {
+                    timestamp: new Date().toISOString(),
+                    level: scheduleResult.unfilledSlots.length > 0 ? "warning" : "info",
+                    message: `${scheduleResult.unfilledSlots.length} time slots could not be filled`,
+                },
+            ],
+            // Include assignments for debugging/review
+            schedules: scheduleResult.assignments.map(a => ({
+                employee_id: a.employeeId,
+                shift_id: null, // Will be set when matched to template
+                date: format(a.startTime, 'yyyy-MM-dd'),
+                start_time: format(a.startTime, 'HH:mm:ss'),
+                end_time: format(a.endTime, 'HH:mm:ss'),
+                duration_hours: a.durationMinutes / 60,
+                break_duration_minutes: a.breakDurationMinutes,
+            })),
         };
+
+        return response;
     } catch (error) {
-        scheduleLogger.error("Error in schedule generation:", error);
-        throw new Error(`Schedule generation failed: ${error instanceof Error ? error.message : String(error)}`);
+        scheduleLogger.error("Error in AI schedule generation:", error);
+        throw new Error(`AI schedule generation failed: ${error instanceof Error ? error.message : String(error)}`);
     }
 }
 

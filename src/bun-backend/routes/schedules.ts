@@ -15,9 +15,37 @@ const versionParamSchema = t.Object({
 const generateScheduleBodySchema = t.Object({
     startDate: t.String({ format: 'date', error: "startDate is required (YYYY-MM-DD)." }),
     endDate: t.String({ format: 'date', error: "endDate is required (YYYY-MM-DD)." }),
-    // Add any other parameters needed for generation (e.g., specific constraints, version name?)
-    // versionName: t.Optional(t.String({minLength: 1})),
-    // options: t.Optional(t.Object({...}))
+    createEmptySchedules: t.Optional(t.Boolean()),
+    version: t.Optional(t.Numeric({ minimum: 1 })),
+    aiConfig: t.Optional(t.Object({
+        weights: t.Optional(t.Object({
+            availability: t.Optional(t.Number()),
+            preferences: t.Optional(t.Number()),
+            fairness: t.Optional(t.Number()),
+            history: t.Optional(t.Number()),
+            workload: t.Optional(t.Number()),
+            keyholder: t.Optional(t.Number()),
+            skills: t.Optional(t.Number()),
+            fatigue: t.Optional(t.Number()),
+        })),
+        fatigueThreshold: t.Optional(t.Number()),
+        workloadBalanceTarget: t.Optional(t.Number()),
+        historicalLookbackDays: t.Optional(t.Number()),
+    })),
+    schedulerConfig: t.Optional(t.Object({
+        minShiftMinutes: t.Optional(t.Number()),
+        maxShiftMinutes: t.Optional(t.Number()),
+        slotIntervalMinutes: t.Optional(t.Number()),
+        maxConsecutiveDays: t.Optional(t.Number()),
+        defaultMinRestPeriodMinutes: t.Optional(t.Number()),
+        defaultMaxDailyMinutes: t.Optional(t.Number()),
+        defaultAbsoluteMaxDailyMinutes: t.Optional(t.Number()),
+        breakThresholdMinutes: t.Optional(t.Number()),
+        breakDurationMinutes: t.Optional(t.Number()),
+        enforceKeyholderRule: t.Optional(t.Boolean()),
+        openingLeadTimeMinutes: t.Optional(t.Number()),
+        closingLagTimeMinutes: t.Optional(t.Number()),
+    }))
 });
 
 // Schema for creating a new version
@@ -434,26 +462,43 @@ const scheduleRoutes = new Elysia({ prefix: "/api/schedules" })
   // POST /api/schedules/generate
   .post("/generate", async ({ body, set }) => {
       try {
-          // Body is validated by Elysia
-          console.log(`Generating schedule from ${body.startDate} to ${body.endDate}...`);
-          // Call the service function to perform generation
-          const generationResult = await generateSchedule(body.startDate, body.endDate /*, pass other options */);
+          console.log(`Generating AI-powered schedule from ${body.startDate} to ${body.endDate}...`);
           
-          // Determine response based on result (e.g., new version ID, success message, list of entries?)
-          set.status = 200; // Or 201 if a new version resource is created
-          return { message: "Schedule generation initiated successfully.", result: generationResult }; // Placeholder result
+          // Call the enhanced service function with AI integration
+          const generationResult = await generateSchedule(
+              body.startDate, 
+              body.endDate,
+              body.createEmptySchedules || false,
+              body.version,
+              db,
+              {
+                  aiConfig: body.aiConfig,
+                  schedulerConfig: body.schedulerConfig
+              }
+          );
+          
+          // Return detailed results
+          set.status = generationResult.status === "SUCCESS" ? 200 : 207; // 207 for partial success with warnings
+          return generationResult;
 
       } catch (error: any) {
             console.error("Error in POST /api/schedules/generate:", error);
-            // Add specific error handling for generation failures (e.g., constraints not met)
-            set.status = 500; // Internal Server Error or maybe 400/409 depending on error
-            return { error: error.message || "Failed to generate schedule." };
+            set.status = 500;
+            return { 
+                error: error.message || "Failed to generate schedule.",
+                status: "ERROR",
+                logs: [{
+                    timestamp: new Date().toISOString(),
+                    level: "error",
+                    message: error.message || "Failed to generate schedule."
+                }]
+            };
       }
   }, {
       body: generateScheduleBodySchema, // Apply validation
       detail: { // Add Swagger details
-            summary: 'Generate Schedule',
-            description: 'Triggers the schedule generation process for a given date range.',
+            summary: 'Generate AI-Powered Schedule',
+            description: 'Triggers the AI-powered schedule generation process for a given date range with configurable scoring weights and scheduler settings.',
             tags: ['Schedules'],
         }
   });
