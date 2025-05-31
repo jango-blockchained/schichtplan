@@ -893,7 +893,7 @@ export const getAllVersions = async (
   endDate?: string,
 ): Promise<VersionResponse> => {
   try {
-    const response = await api.get<VersionResponse>("/v2/schedules/versions", {
+    const response = await api.get<VersionResponse>("/api/v2/schedules/versions", {
       params: { startDate, endDate },
     });
     return response.data;

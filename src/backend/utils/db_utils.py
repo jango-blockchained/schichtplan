@@ -7,7 +7,7 @@ from functools import wraps
 from contextlib import contextmanager
 from sqlalchemy.exc import SQLAlchemyError
 
-from models import db
+from src.backend.models import db
 from utils.logger import logger
 
 

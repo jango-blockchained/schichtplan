@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from models import db, Settings
+from src.backend.models import db, Settings
 from sqlalchemy.exc import IntegrityError
 from http import HTTPStatus
 from datetime import datetime

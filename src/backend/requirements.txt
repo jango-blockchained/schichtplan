@@ -1,17 +1,41 @@
-flask==3.0.0
+# For backend
+flask==3.1.0
 flask-sqlalchemy==3.1.1
-flask-migrate==4.0.5
-flask-cors==4.0.0
-python-dotenv==1.0.0
-pyjwt==2.8.0
-pillow==10.2.0
-reportlab==4.0.9
-pytest==8.0.0
-python-dateutil==2.8.2
-SQLAlchemy==2.0.25
-gunicorn==21.2.0
+flask-migrate==4.1.0
+flask-cors==5.0.1
+python-dotenv==1.1.0
+pyjwt==2.10.1
+pillow==11.2.1
+reportlab==4.4.0
+pytest==8.3.5
+black==25.1.0
+flake8==7.2.0
+mypy==1.15.0
+python-dateutil==2.9.0.post0
+SQLAlchemy==2.0.40
+gunicorn==23.0.0
 alembic==1.13.1
-ruff==0.11.2
-black==24.1.1
-flake8==7.0.0
-mypy==1.8.0
+ruff==0.11.9
+cloc==0.2.5
+flask-sse==1.0.0
+
+# For SQL
+harlequin==2.1.2
+
+# Implicitly updated via other packages (checked from pip list --outdated):
+charset-normalizer==3.4.2
+click==8.2.0
+google-ai-generativelanguage==0.6.15
+google-generativeai==0.8.5
+greenlet==3.2.2
+platformdirs==4.3.8
+pycodestyle==2.13.0
+
+
+# Note: Some dependencies like charset-normalizer, click, greenlet, platformdirs, pycodestyle, pydantic_core, pyflakes 
+# were listed as outdated but are not directly in requirements.txt. 
+# They are likely sub-dependencies and will be updated when their parent packages (e.g., flake8, other google libs) are updated.
+# I am only explicitly updating packages that are directly listed in requirements.txt for this step.
+pydantic==2.11.4
+pydantic_core==2.33.2
+email_validator==2.2.0

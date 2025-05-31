@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from http import HTTPStatus
-from models import db, Employee
+from src.backend.models import db, Employee
 from models.employee import EmployeeGroup
 from datetime import datetime
 

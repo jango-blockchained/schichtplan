@@ -41,7 +41,7 @@ except ImportError:
 
 # Import necessary models and classes
 try:
-    from models import db, Employee, Schedule, ShiftTemplate
+    from src.backend.models import db, Employee, Schedule, ShiftTemplate
     from services.scheduler.generator import ScheduleGenerator
     from services.scheduler.resources import ScheduleResources
 

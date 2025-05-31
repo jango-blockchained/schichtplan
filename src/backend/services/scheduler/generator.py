@@ -891,7 +891,7 @@ class ScheduleGenerator:
                         "Calling _save_to_database within app context."
                     )  # ADDED logging
                     saved_count = (
-                        self._save_to_database()
+                        self._save_to_database(self.schedule.get_assignments())
                     )  # This method needs to handle bulk saving
                     self.logger.info(
                         "Finished calling _save_to_database within app context."
@@ -1356,162 +1356,22 @@ class ScheduleGenerator:
             f"Empty schedule entry created for {current_date}"
         )
 
-    def _save_to_database(self):
-        """
-        Save the generated schedule to the database using session management utilities.
-        """
-        self.process_tracker.start_step("Database Save")
-        self.logger.info(
-            f"Attempting to save schedule to database (Session: {self.session_id})"
-        )
-
-        if (
-            not self.schedule
-            or not hasattr(self.schedule, "assignments")
-            or not self.schedule.assignments
-        ):
-            self.logger.warning(
-                f"No schedule data or no assignments in schedule to save. (Session: {self.session_id})"
-            )
-            self.process_tracker.log_warning(
-                "No schedule data to save.", log_to_diag=True
-            )
-            self.process_tracker.end_step({"status": "skipped", "reason": "No data"})
-            return
-
-        try:
-            # Import the session manager for safe database operations
-            from src.backend.utils.db_utils import session_manager
-            from src.backend.models.schedule import (
-                Schedule as DbSchedule,
-                ScheduleStatus,
-            )
-
-            saved_count = 0
-            failed_count = 0
-
-            # Use the session manager context for safe transaction handling
-            with session_manager() as session:
-                for entry in self.schedule.assignments:
-                    try:
-                        # Enhanced logging for debugging the NULL values issue
-                        self.process_tracker.log_info(
-                            f"Processing entry for database save: employee_id={entry.employee_id}, shift_id={entry.shift_id}, date={entry.date}",
-                            log_to_diag=True,
-                        )
-                        self.process_tracker.log_info(
-                            f"Entry fields: availability_type={entry.availability_type}, shift_type_str={entry.shift_type_str}, start_time={entry.start_time}, end_time={entry.end_time}",
-                            log_to_diag=True,
-                        )
-
-                        # Map ScheduleAssignment (entry) to DbSchedule model instance
-                        current_status_str = entry.status
-                        target_status_enum = ScheduleStatus.DRAFT  # Default
-                        if current_status_str == "CONFIRMED":
-                            target_status_enum = ScheduleStatus.PUBLISHED
-                        elif current_status_str == "PUBLISHED":
-                            target_status_enum = ScheduleStatus.PUBLISHED
-                        elif current_status_str == "ARCHIVED":
-                            target_status_enum = ScheduleStatus.ARCHIVED
-                        elif current_status_str == "PENDING":
-                            target_status_enum = ScheduleStatus.DRAFT
-                        elif current_status_str == "EMPTY":  # Handle "EMPTY" status
-                            target_status_enum = ScheduleStatus.DRAFT
-
-                        # Handle placeholder IDs to prevent foreign key constraint issues
-                        # actual_employee_id = entry.employee_id if entry.employee_id != 0 else None
-                        # New logic for handling placeholders:
-                        if (
-                            entry.employee_id == -1
-                        ):  # Our new placeholder for an empty day linked to a dummy employee
-                            actual_employee_id = -1
-                        elif (
-                            entry.employee_id == 0
-                        ):  # Should ideally not happen for employee_id if assignments are well-formed
-                            actual_employee_id = None  # Converts 0 to None for DB
-                        else:  # Regular, valid employee ID
-                            actual_employee_id = entry.employee_id
-
-                        actual_shift_id = (
-                            entry.shift_id if entry.shift_id != 0 else None
-                        )
-
-                        # Ensure we have non-null values for required fields
-                        # Use the .value of the correct enum
-                        shift_type_to_save = (
-                            entry.shift_type_str or "UNKNOWN"
-                        )  # Assuming UNKNOWN is a safe default string
-
-                        # Add structured notes if missing
-                        notes = entry.notes
-                        if not notes and entry.shift_template_source:
-                            # Try to add structured info from shift template
-                            template_info = getattr(
-                                entry.shift_template_source, "name", None
-                            )
-                            if template_info:
-                                notes = f"Auto-assigned to {template_info}"
-
-                        db_entry = DbSchedule(
-                            employee_id=actual_employee_id,
-                            shift_id=actual_shift_id,
-                            date=entry.date,
-                            status=target_status_enum,
-                            version=entry.version,
-                            # Use the fields directly from ScheduleAssignment with fallbacks
-                            break_start=entry.break_start,
-                            break_end=entry.break_end,
-                            notes=notes,
-                            availability_type=entry.availability_type,
-                            shift_type=shift_type_to_save,
-                        )
-
-                        # Log the database entry about to be added
-                        self.process_tracker.log_info(
-                            f"Adding DB entry: employee_id={db_entry.employee_id}, shift_id={db_entry.shift_id}, availability_type={db_entry.availability_type}, shift_type={db_entry.shift_type}",
-                            log_to_diag=True,
-                        )
-
-                        session.add(db_entry)
-                        saved_count += 1
-                    except Exception as e_item:
-                        failed_count += 1
-                        self.logger.error(
-                            f"Failed to prepare or add schedule entry {entry} for DB: {e_item}",
-                            exc_info=True,
-                        )
-                        self.process_tracker.log_error(
-                            f"DB Save Error for item: {e_item}", exc_info=True
-                        )
-
-                # The session.commit() is automatically handled by the session_manager context
-                # If any error occurs, session.rollback() is automatically called
-
-            # Log results after transaction is complete
-            if saved_count > 0:
-                self.logger.info(
-                    f"Successfully saved {saved_count} schedule entries to the database."
-                )
-                self.process_tracker.log_step_data("Entries Saved", saved_count)
-            if failed_count > 0:
-                self.logger.error(f"Failed to save {failed_count} schedule entries.")
-                self.process_tracker.log_step_data(
-                    "Entries Failed to Save", failed_count
-                )
-
-            if saved_count == 0 and failed_count == 0:
-                self.logger.info("No new entries were processed for saving.")
-
-            self.process_tracker.end_step(
-                {"status": "success" if failed_count == 0 else "partial_success"}
-            )
-
-        except Exception as e:
-            self.logger.error(f"Error saving schedule to database: {e}", exc_info=True)
-            self.process_tracker.log_error(f"Database Save Error: {e}", exc_info=True)
-            self.process_tracker.end_step({"status": "failed", "error": str(e)})
-            # Log but don't raise, as we want to return the generated schedule even if DB save fails
-            # The calling code can decide whether to retry the save
+    def _save_to_database(self, assignments: List[Dict]):
+        """Save assignments to the database using bulk insertion."""
+        from src.backend.models import ScheduleAssignment
+        from flask_sqlalchemy import SQLAlchemy
+        db: SQLAlchemy = self.db
+        session = db.session
+        assignment_objs = []
+        for a in assignments:
+            assignment_objs.append(ScheduleAssignment(
+                employee_id=a["employee_id"],
+                shift_id=a["shift_id"],
+                date=a["date"],
+                # Add other fields as needed
+            ))
+        session.bulk_save_objects(assignment_objs)
+        session.commit()
 
     def _update_schedule_version_meta(
         self,

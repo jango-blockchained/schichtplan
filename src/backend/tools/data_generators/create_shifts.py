@@ -1,5 +1,5 @@
 from app import create_app
-from models import db, ShiftTemplate
+from src.backend.models import db, ShiftTemplate
 
 
 def create_default_shifts():
