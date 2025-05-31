@@ -309,23 +309,46 @@ export async function generateSchedule(
         scheduleLogger.info(`Generated ${expandedCoverage.length} time slots for scheduling`);
 
         // 4. Prepare employee data for scheduler
-        const schedulerEmployees = employees.map(emp => ({
-            id: emp.id.toString(),
-            name: `${emp.first_name} ${emp.last_name}`,
-            qualifications: [], // TODO: Load from database
-            unavailability: absences
-                .filter(a => a.employee_id === emp.id)
-                .map(a => ({
-                    start: parseISO(a.start_date),
-                    end: parseISO(a.end_date)
-                })),
-            maxHoursPerWeek: emp.contracted_hours, // Use contracted_hours instead
-            isKeyholderQualified: emp.can_be_keyholder || false,
-            preferences: {
-                dayPreferences: [],
-                timePreferences: []
+        const schedulerEmployees = employees.map(emp => {
+            // Calculate seniority from hire_date if available
+            let seniority = 0;
+            if (emp.hire_date) {
+                const hireDate = parseISO(emp.hire_date);
+                const now = new Date();
+                // Calculate years of service
+                const yearsDiff = now.getFullYear() - hireDate.getFullYear();
+                const monthsDiff = now.getMonth() - hireDate.getMonth();
+                const daysDiff = now.getDate() - hireDate.getDate();
+                
+                // Adjust for partial years
+                let yearsOfService = yearsDiff;
+                if (monthsDiff < 0 || (monthsDiff === 0 && daysDiff < 0)) {
+                    yearsOfService -= 1;
+                }
+                // Add fractional year
+                const fractionalYear = (monthsDiff + (daysDiff / 30)) / 12;
+                seniority = Math.max(0, yearsOfService + fractionalYear);
             }
-        }));
+            
+            return {
+                id: emp.id.toString(),
+                name: `${emp.first_name} ${emp.last_name}`,
+                qualifications: [], // TODO: Load from database
+                unavailability: absences
+                    .filter(a => a.employee_id === emp.id)
+                    .map(a => ({
+                        start: parseISO(a.start_date),
+                        end: parseISO(a.end_date)
+                    })),
+                maxHoursPerWeek: emp.contracted_hours, // Use contracted_hours instead
+                isKeyholderQualified: emp.can_be_keyholder || false,
+                seniority, // Add calculated seniority
+                preferences: {
+                    dayPreferences: [],
+                    timePreferences: []
+                }
+            };
+        });
 
         // 5. Configure scheduler
         const schedulerConfig: SchedulerConfiguration = {

@@ -74,6 +74,7 @@ interface Employee {
   maxHoursPerWeek?: number;
   minRestMinutes?: number;
   maxConsecutiveDays?: number;
+  seniority?: number; // Years of service or seniority level
   // Add preferences field
   preferences?: {
       dayPreferences?: DayPreference[];
@@ -895,6 +896,7 @@ export async function generateScheduleAssignments(
                   currentWeekHours: (state.minutesScheduledByWeek.get(getWeekNumber(slot.startTime)) || 0) / 60,
                   consecutiveDays: state.consecutiveWorkDays,
                   teamAverageHours,
+                  seniority: employee.seniority, // Pass employee seniority
                   coverageNeeds: {
                       critical: needed > 0 && currentSlotStatus.assignedCount === 0,
                       understaffed: needed > 0,

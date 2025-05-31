@@ -2,13 +2,13 @@
 
 ## Overview
 
-The AI Schedule Integration has been successfully implemented to provide intelligent, optimized schedule generation for the Schichtplan application. This system uses multi-factor scoring algorithms to assign employees to shifts based on availability, preferences, fairness, historical performance, and other factors.
+The AI Schedule Integration has been successfully implemented to provide intelligent, optimized schedule generation for the Schichtplan application. This system uses multi-factor scoring algorithms to assign employees to shifts based on availability, preferences, fairness, historical performance, seniority, and other factors.
 
 ## Key Features
 
 ### 1. **AI-Powered Employee Scoring**
 - Multi-factor scoring system with configurable weights
-- Considers 8 key factors: availability, preferences, fairness, history, workload, keyholder requirements, skills, and fatigue
+- Considers 9 key factors: availability, preferences, fairness, history, workload, keyholder requirements, skills, fatigue, and seniority
 - Scores range from 0 to 1, where 1 indicates the best fit
 
 ### 2. **Employee Preferences Support**
@@ -26,7 +26,12 @@ The AI Schedule Integration has been successfully implemented to provide intelli
 - Uses historical data to inform future assignments
 - 30-day lookback window by default
 
-### 5. **Constraint Management**
+### 5. **Seniority Recognition**
+- Calculates years of service from hire date
+- Provides scoring boost for more experienced employees
+- Configurable weight for seniority importance
+
+### 6. **Constraint Management**
 - Respects all existing constraints (rest periods, max hours, consecutive days)
 - Keyholder requirements with opening/closing time adjustments
 - Skill/qualification matching
@@ -40,17 +45,20 @@ The AI Schedule Integration has been successfully implemented to provide intelli
    - Core AI scoring module
    - `AIScheduleScorer` class with configurable weights
    - ML feature extraction for future model integration
+   - Seniority scoring based on years of service
 
 2. **Enhanced `src/bun-backend/scheduler/assignment.ts`**
    - Integrated AI scoring into candidate selection
    - Asynchronous scoring for all eligible candidates
    - Maintains backward compatibility with non-AI mode
+   - Includes employee seniority in scoring context
 
 3. **Updated `src/bun-backend/services/scheduleService.ts`**
    - Complete implementation of `generateSchedule` function
    - Expansion of coverage rules into 15-minute slots
    - Integration with AI scheduler
    - Database persistence of generated schedules
+   - Automatic seniority calculation from hire dates
 
 4. **Enhanced API Endpoints**
    - `/api/schedules/generate` now accepts AI configuration
@@ -119,7 +127,8 @@ Content-Type: application/json
       "workload": 0.1,
       "keyholder": 0.05,
       "skills": 0.05,
-      "fatigue": 0.05
+      "fatigue": 0.05,
+      "seniority": 0.0  // Can be increased to favor senior employees
     },
     "fatigueThreshold": 4,
     "workloadBalanceTarget": 40,
@@ -169,6 +178,16 @@ Content-Type: application/json
 - **keyholder** (0.05): Weight for keyholder requirements
 - **skills** (0.05): Weight for skill/qualification matching
 - **fatigue** (0.05): Weight for fatigue/consecutive days factor
+- **seniority** (0.0): Weight for employee seniority (years of service)
+
+### Seniority Scoring Scale
+
+The seniority score is calculated based on years of service:
+- 0-1 year: 0.3
+- 1-3 years: 0.5
+- 3-5 years: 0.7
+- 5-10 years: 0.85
+- 10+ years: 1.0
 
 ### Scheduler Configuration
 
@@ -265,10 +284,19 @@ GROUP BY employee_id;
 
 ### Common Issues
 
-1. **No candidates available**: Check employee availability and absences
-2. **Low scores across board**: Review and adjust weight configuration
-3. **Unfilled slots**: May need to relax constraints or add employees
-4. **Performance issues**: Consider reducing historicalLookbackDays
+1. **"Employee object has no attribute 'seniority'"**: This has been fixed. The system now includes seniority calculation based on hire_date.
+2. **No candidates available**: Check employee availability and absences
+3. **Low scores across board**: Review and adjust weight configuration
+4. **Unfilled slots**: May need to relax constraints or add employees
+5. **Performance issues**: Consider reducing historicalLookbackDays
+
+### Employee Seniority
+
+Seniority is automatically calculated from the employee's hire_date field in the database. If an employee doesn't have a hire_date, their seniority defaults to 0. To enable seniority-based scheduling preferences:
+
+1. Ensure employees have hire_date values in the database
+2. Increase the seniority weight in the AI configuration (default is 0.0)
+3. Monitor the scoring logs to see seniority impact
 
 ### Debug Mode
 
@@ -279,4 +307,4 @@ scheduleLogger.level = 'debug';
 
 ## Conclusion
 
-The AI Schedule Integration provides a powerful, flexible system for generating optimal schedules. By considering multiple factors and using intelligent scoring, it creates schedules that balance operational needs with employee preferences and well-being.
+The AI Schedule Integration provides a powerful, flexible system for generating optimal schedules. By considering multiple factors including seniority, it creates schedules that balance operational needs with employee preferences, experience, and well-being.
