@@ -41,6 +41,16 @@ class MockEmployee:
     def __init__(self, **kwargs):
         for key, value in kwargs.items():
             setattr(self, key, value)
+        
+        # Add default attributes that the scheduler expects
+        if not hasattr(self, 'preferences'):
+            self.preferences = {}
+        if not hasattr(self, 'preferred_shift_types'):
+            self.preferred_shift_types = []
+        if not hasattr(self, 'skills'):
+            self.skills = []
+        if not hasattr(self, 'availability'):
+            self.availability = []
 
 
 class MockShiftTemplate:
@@ -326,6 +336,16 @@ def load_resources_from_db(db_path: str) -> Tuple[List[Any], List[Any], List[Any
                 is_keyholder=bool(row["is_keyholder"]),
                 is_active=bool(row["is_active"]),
                 name=f"{row['first_name']} {row['last_name']}",
+                # Add scheduler-expected attributes
+                preferences={
+                    "preferred_shifts": [],
+                    "avoid_shifts": [],
+                    "preferred_days": [],
+                    "avoid_days": []
+                },
+                preferred_shift_types=[],
+                skills=[],
+                availability=[]
             )
             employees.append(emp)
 
@@ -450,29 +470,18 @@ def test_scheduler_components(db_path: str, test_date: date) -> None:
                 """Mock implementation - no employees are on leave"""
                 return False
 
-            def is_employee_available(self, employee_id, date_to_check, shift):
+            def is_employee_available(self, employee_id, date_to_check, start_hour, end_hour):
                 """Mock implementation - check availability based on mock data"""
                 # Add logging for input parameters
                 self.logger.debug(
-                    f"[MockResources] is_employee_available called for employee_id={employee_id}, date={date_to_check}, shift_type={getattr(shift, 'shift_type', 'N/A')}, shift_time={getattr(shift, 'start_time', 'N/A')}-{getattr(shift, 'end_time', 'N/A')}"
+                    f"[MockResources] is_employee_available called for employee_id={employee_id}, date={date_to_check}, start_hour={start_hour}, end_hour={end_hour}"
                 )
 
                 day_of_week = date_to_check.weekday()
 
-                # Convert shift times to comparable format (e.g., total minutes from midnight)
-                # Assuming shift start/end times are strings like 'HH:MM'
-                try:
-                    shift_start_minutes = int(
-                        shift.start_time.split(":")[0]
-                    ) * 60 + int(shift.start_time.split(":")[1])
-                    shift_end_minutes = int(shift.end_time.split(":")[0]) * 60 + int(
-                        shift.end_time.split(":")[1]
-                    )
-                except AttributeError:
-                    self.logger.error(
-                        f"[MockResources] AttributeError parsing shift times: {getattr(shift, 'start_time', 'N/A')}-{getattr(shift, 'end_time', 'N/A')}"
-                    )
-                    return False, "ERROR: Shift time parsing failed"
+                # Convert hour range to minutes for comparison with availability records
+                shift_start_minutes = start_hour * 60
+                shift_end_minutes = end_hour * 60
 
                 # Check mock availabilities
                 for avail in self.availabilities:
@@ -519,7 +528,7 @@ def test_scheduler_components(db_path: str, test_date: date) -> None:
 
                             # Add detailed logging for comparison values
                             self.logger.debug(
-                                f"[MockResources]   Comparing shift {shift.start_time}-{shift.end_time} ({shift_start_minutes}-{shift_end_minutes} min) with availability {avail['start_time']}-{avail['end_time']} ({avail_start_minutes}-{avail_end_minutes} min)"
+                                f"[MockResources]   Comparing shift {start_hour}:00-{end_hour}:00 ({shift_start_minutes}-{shift_end_minutes} min) with availability {avail['start_time']}-{avail['end_time']} ({avail_start_minutes}-{avail_end_minutes} min)"
                             )
 
                             # Check for overlap between shift time and availability time
@@ -538,10 +547,7 @@ def test_scheduler_components(db_path: str, test_date: date) -> None:
                                 self.logger.debug(
                                     f"[MockResources]   Standard interval overlap found! Employee {employee_id} is {avail_type}"
                                 )
-                                return (
-                                    True,
-                                    avail_type,
-                                )  # Found overlapping availability
+                                return True  # Found overlapping availability
                         except (ValueError, TypeError, KeyError) as e:
                             self.logger.error(
                                 f"[MockResources] Error processing availability times for record {avail}: {e}"
@@ -549,7 +555,7 @@ def test_scheduler_components(db_path: str, test_date: date) -> None:
                             continue  # Skip this availability record but continue checking others
 
                 # If no overlapping availability is found after checking all records for the employee/day
-                return False, "UNAVAILABLE"  # No availability found for this shift/date
+                return False  # No availability found for this shift/date
 
             def get_employee_availability(
                 self, employee_id: int, day_of_week: int
@@ -832,6 +838,47 @@ def test_scheduler_components(db_path: str, test_date: date) -> None:
                 "start_time": "15:00",
                 "end_time": "20:00",
                 "availability_type": "PREFERRED",
+            },
+            # Add Saturday (day 5) availability for testing
+            {
+                "employee_id": 1,
+                "day_of_week": 5,
+                "start_time": "09:00",
+                "end_time": "14:00",
+                "availability_type": "AVAILABLE",
+                "notes": "Saturday EARLY shift",
+            },
+            {
+                "employee_id": 1,
+                "day_of_week": 5,
+                "start_time": "11:00",
+                "end_time": "16:00",
+                "availability_type": "AVAILABLE",
+                "notes": "Saturday MIDDLE shift",
+            },
+            {
+                "employee_id": 2,
+                "day_of_week": 5,
+                "start_time": "11:00",
+                "end_time": "16:00",
+                "availability_type": "AVAILABLE",
+                "notes": "Saturday MIDDLE shift",
+            },
+            {
+                "employee_id": 2,
+                "day_of_week": 5,
+                "start_time": "15:00",
+                "end_time": "20:00",
+                "availability_type": "AVAILABLE",
+                "notes": "Saturday LATE shift",
+            },
+            {
+                "employee_id": 3,
+                "day_of_week": 5,
+                "start_time": "15:00",
+                "end_time": "20:00",
+                "availability_type": "AVAILABLE",
+                "notes": "Saturday LATE shift",
             },
         ]
         resources = CustomScheduleResources(

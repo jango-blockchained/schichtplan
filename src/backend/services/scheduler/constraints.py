@@ -14,6 +14,7 @@ from datetime import date, timedelta, datetime
 import sys
 import os
 from typing import List, Dict, Optional, Union, Any  # Added Any
+import logging
 
 # Add parent directories to path if needed
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -21,33 +22,44 @@ src_backend_dir = os.path.abspath(os.path.join(current_dir, "..", ".."))
 if src_backend_dir not in sys.path:
     sys.path.insert(0, src_backend_dir)
 
-# Try to handle imports in different environments
+# Use centralized import utilities
+from .import_utils import safe_import_models, ModelImportError
+
+# Import models using the centralized utility
 try:
-    from models import Employee, ShiftTemplate
-except ImportError:
-    try:
-        from backend.models import Employee, ShiftTemplate
-    except ImportError:
-        try:
-            from src.backend.models import Employee, ShiftTemplate
-        except ImportError:
-            # Create type hint classes for standalone testing
-            class Employee:
-                """Type hint class for Employee"""
+    (Employee, ShiftTemplate, Settings, Coverage, db, 
+     Absence, EmployeeAvailability, Schedule, AvailabilityType, EmployeeGroup) = safe_import_models(use_mocks_on_failure=True)
+    import_logger = logging.getLogger(__name__)
+    import_logger.info("Successfully imported models for constraints module")
+except ModelImportError as e:
+    import_logger = logging.getLogger(__name__)
+    import_logger.critical(f"Failed to import models: {e}")
+    raise
 
-                id: int
-                employee_group: str
-                contracted_hours: float
 
-            class ShiftTemplate:
-                """Type hint class for ShiftTemplate"""
+class ConstraintError(Exception):
+    """Base exception for constraint-related errors"""
+    pass
 
-                id: int
-                start_time: str
-                end_time: str
-                shift_type: str
-                duration_hours: float
 
+class ConstraintValidationError(ConstraintError):
+    """Exception for constraint validation errors"""
+    pass
+
+
+class TimeParsingError(ConstraintError):
+    """Exception for time parsing errors"""
+    pass
+
+
+class EmployeeNotFoundError(ConstraintError):
+    """Exception when employee is not found"""
+    pass
+
+
+class ShiftDataError(ConstraintError):
+    """Exception for invalid shift data"""
+    pass
 
 class ConstraintChecker:
     """
@@ -269,6 +281,77 @@ class ConstraintChecker:
             violations.append(weekly_hours_violation)
 
         return violations
+
+    def validate_assignment(self, assignment: Dict, employee: Any, shift: Any) -> bool:
+        """
+        Validates whether an assignment is allowed based on all constraints.
+        
+        This is a convenience method that wraps check_all_constraints and returns
+        a simple boolean result.
+        
+        Args:
+            assignment: Assignment dictionary containing employee_id, shift_id, date, start_time, end_time
+            employee: Employee object or dict (used for fallback if resources lookup fails)
+            shift: Shift object or dict (used for extracting shift details)
+            
+        Returns:
+            True if the assignment is valid (no constraint violations), False otherwise
+        """
+        try:
+            # Extract required information from assignment
+            employee_id = assignment.get("employee_id")
+            shift_date = assignment.get("date")
+            start_time = assignment.get("start_time")
+            end_time = assignment.get("end_time")
+            
+            if not all([employee_id, shift_date, start_time, end_time]):
+                self.logger.warning(f"Assignment missing required fields: {assignment}")
+                return False
+            
+            # Convert date if it's a string
+            if isinstance(shift_date, str):
+                try:
+                    shift_date = date.fromisoformat(shift_date)
+                except ValueError:
+                    self.logger.warning(f"Invalid date format in assignment: {shift_date}")
+                    return False
+            
+            # Parse start and end times to create datetime objects
+            try:
+                start_dt = self._parse_assignment_datetime(assignment, "start_time", shift_date)
+                end_dt = self._parse_assignment_datetime(assignment, "end_time", shift_date)
+                
+                if not start_dt or not end_dt:
+                    self.logger.warning(f"Could not parse start/end times for assignment: {assignment}")
+                    return False
+                    
+            except Exception as e:
+                self.logger.warning(f"Error parsing assignment times: {e}")
+                return False
+            
+            # Get existing assignments for context (exclude the current assignment being validated)
+            existing_assignments = []
+            if hasattr(self, 'schedule') and self.schedule:
+                existing_assignments = [
+                    asn for asn in self.schedule 
+                    if asn.get("employee_id") == employee_id and asn != assignment
+                ]
+            
+            # Check all constraints
+            violations = self.check_all_constraints(
+                employee_id, start_dt, end_dt, existing_assignments
+            )
+            
+            # Log violations if any
+            if violations:
+                self.logger.debug(f"Assignment validation failed for employee {employee_id}: {violations}")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error validating assignment: {e}")
+            return False
 
     def _check_max_consecutive_days(
         self, employee: Employee, new_shift_date: date, existing_assignments: List[Dict]
@@ -751,9 +834,14 @@ class ConstraintChecker:
             # All constraints satisfied
             return False
 
-        except Exception as e:
+        except (ConstraintValidationError, TimeParsingError, EmployeeNotFoundError) as e:
             self.log_warning(
-                f"Error checking constraints for employee {employee.id}: {str(e)}"
+                f"Constraint validation error for employee {employee.id}: {str(e)}"
+            )
+            return True  # Safer to assume constraints are exceeded if check fails
+        except Exception as e:
+            self.log_error(
+                f"Unexpected error checking constraints for employee {employee.id}: {str(e)}"
             )
             return True  # Safer to assume constraints are exceeded if check fails
 
@@ -1043,20 +1131,14 @@ class ConstraintChecker:
             # Convert minutes to hours
             duration_hours = (end_minutes - start_minutes) / 60.0
 
-            # Cache the duration on the shift object if provided
-            if shift is not None:
-                if not hasattr(shift, "duration_hours") or shift.duration_hours is None:
-                    shift.duration_hours = duration_hours
-                    self.log_debug(
-                        f"Cached duration {duration_hours:.2f}h on shift {shift.id}"
-                    )
-
             self.log_debug(
                 f"Shift duration {start_time_str}-{end_time_str} = {duration_hours:.2f}h"
             )
             return duration_hours
+        except (ValueError, IndexError) as e:
+            raise TimeParsingError(f"Invalid time format in shift duration calculation: {start_time_str}-{end_time_str}: {e}")
         except Exception as e:
-            self.log_error(f"Error calculating shift duration: {str(e)}")
+            self.log_error(f"Unexpected error calculating shift duration: {str(e)}")
             return 0.0
 
     def calculate_rest_hours(

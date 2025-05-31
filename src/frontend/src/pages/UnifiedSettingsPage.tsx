@@ -212,7 +212,8 @@ export default function UnifiedSettingsPage() {
   const mutation: UseMutationResult<Settings, Error, Settings, unknown> = useMutation<Settings, Error, Settings>({
     mutationFn: updateSettings,
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["settings"] });
+      // Don't invalidate queries here to avoid conflicts with manual updates
+      // queryClient.invalidateQueries({ queryKey: ["settings"] });
       toast({
         title: "Settings Saved",
         description: "Your changes have been saved successfully.",
@@ -336,9 +337,24 @@ export default function UnifiedSettingsPage() {
       ...(editableSettings.display || DEFAULT_SETTINGS.display),
       [key]: value,
     };
-
-    handleSave("display", updatedDisplaySettings);
-    handleImmediateUpdate();
+    const updatedSettings = {
+      ...editableSettings,
+      display: updatedDisplaySettings,
+    };
+    setEditableSettings(updatedSettings);
+    
+    // Cancel any pending debounced updates and immediately save
+    debouncedUpdateSettings.cancel();
+    mutation.mutate(updatedSettings, {
+      onSuccess: (updatedData) => {
+        queryClient.setQueryData(["settings"], updatedData);
+        setEditableSettings(updatedData);
+        toast({
+          title: "Settings Saved",
+          description: "Display settings have been saved successfully.",
+        });
+      },
+    });
   };
 
   const handleAiSchedulingChange = (
@@ -349,7 +365,24 @@ export default function UnifiedSettingsPage() {
       ...(editableSettings.ai_scheduling || DEFAULT_SETTINGS.ai_scheduling),
       [key]: value,
     };
-    handleSave("ai_scheduling", updatedAiSettings);
+    const updatedSettings = {
+      ...editableSettings,
+      ai_scheduling: updatedAiSettings,
+    };
+    setEditableSettings(updatedSettings);
+    
+    // Cancel any pending debounced updates and immediately save
+    debouncedUpdateSettings.cancel();
+    mutation.mutate(updatedSettings, {
+      onSuccess: (updatedData) => {
+        queryClient.setQueryData(["settings"], updatedData);
+        setEditableSettings(updatedData);
+        toast({
+          title: "Settings Saved",
+          description: "AI scheduling settings have been saved successfully.",
+        });
+      },
+    });
   };
 
   const renderSectionContent = () => {

@@ -55,9 +55,6 @@ const IntegrationsAISection: React.FC<IntegrationsAISectionProps> = ({
             checked={aiEnabled}
             onCheckedChange={(checked) => {
               onAiSchedulingChange("enabled", checked);
-              if (onImmediateUpdate) {
-                onImmediateUpdate();
-              }
             }}
           />
         </div>

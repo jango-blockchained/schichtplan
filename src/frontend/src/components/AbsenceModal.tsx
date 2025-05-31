@@ -135,39 +135,45 @@ export default function AbsenceModal({
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Absence Type</Label>
-              <Select
-                value={newAbsence.absence_type_id}
-                onValueChange={(value) =>
-                  setNewAbsence({
-                    ...newAbsence,
-                    absence_type_id: value,
-                  })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select absence type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {absenceTypes.map((type) => (
-                    <SelectItem key={type.id} value={type.id}>
-                      <div className="flex items-center space-x-2">
-                        <div
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: type.color }}
-                        />
-                        <span>{type.name}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {absenceTypes.length === 0 ? (
+                <div className="text-sm text-muted-foreground p-2 border rounded">
+                  No absence types configured. Please configure absence types in settings first.
+                </div>
+              ) : (
+                <Select
+                  value={newAbsence.absence_type_id}
+                  onValueChange={(value) =>
+                    setNewAbsence({
+                      ...newAbsence,
+                      absence_type_id: value,
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select absence type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {absenceTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.id}>
+                        <div className="flex items-center space-x-2">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: type.color }}
+                          />
+                          <span>{type.name}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
             <div className="space-y-2">
               <Label>Start Date</Label>
               <DateTimePicker
                 date={
-                  newAbsence.start_date
+                  newAbsence.start_date && newAbsence.start_date.trim() !== ""
                     ? new Date(newAbsence.start_date)
                     : new Date()
                 }
@@ -184,7 +190,7 @@ export default function AbsenceModal({
               <Label>End Date</Label>
               <DateTimePicker
                 date={
-                  newAbsence.end_date
+                  newAbsence.end_date && newAbsence.end_date.trim() !== ""
                     ? new Date(newAbsence.end_date)
                     : new Date()
                 }
@@ -215,6 +221,7 @@ export default function AbsenceModal({
             <Button
               onClick={handleAddAbsence}
               disabled={
+                absenceTypes.length === 0 ||
                 !newAbsence.absence_type_id ||
                 !newAbsence.start_date ||
                 !newAbsence.end_date

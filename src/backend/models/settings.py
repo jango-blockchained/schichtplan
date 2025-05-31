@@ -269,20 +269,35 @@ class Settings(db.Model):
 
     def get_actions_demo_data(self):
         try:
-            return (
+            data = (
                 self._actions_demo_data
                 if self._actions_demo_data is not None
                 else {"selected_module": "", "last_execution": None}
             )
+            
+            # Handle any existing datetime objects that might be stored incorrectly
+            if isinstance(data, dict) and "last_execution" in data:
+                if isinstance(data["last_execution"], datetime):
+                    # Convert datetime to ISO string and update the stored value
+                    data["last_execution"] = data["last_execution"].isoformat()
+                    self._actions_demo_data = data
+                    
+            return data
         except:  # Broad exception for uninitialized deferred column
             return {"selected_module": "", "last_execution": None}
 
     def set_actions_demo_data(self, value):
-        self._actions_demo_data = (
-            value
-            if value is not None
-            else {"selected_module": "", "last_execution": None}
-        )
+        if value is not None:
+            # Handle datetime serialization for JSON storage
+            serialized_value = {}
+            for key, val in value.items():
+                if isinstance(val, datetime):
+                    serialized_value[key] = val.isoformat()
+                else:
+                    serialized_value[key] = val
+            self._actions_demo_data = serialized_value
+        else:
+            self._actions_demo_data = {"selected_module": "", "last_execution": None}
 
     actions_demo_data = hybrid_property(get_actions_demo_data, set_actions_demo_data)
 
@@ -577,8 +592,13 @@ class Settings(db.Model):
             elif category == "scheduling":
                 for key, value in values.items():
                     if key == "generation_requirements" and isinstance(value, dict):
-                        # Overwrite, not merge, and preserve explicit False values
-                        settings.generation_requirements = {k: bool(value.get(k)) if k in value else True for k in GENERATION_REQUIREMENTS_FIELDS}
+                        # Merge incoming values with existing values, don't reset unspecified fields to True
+                        current_requirements = settings.generation_requirements or {}
+                        # Start with current values
+                        updated_requirements = dict(current_requirements)
+                        # Update with incoming values
+                        updated_requirements.update(value)
+                        settings.generation_requirements = updated_requirements
                     elif hasattr(settings, key):
                         setattr(settings, key, value)
             elif category == "display":

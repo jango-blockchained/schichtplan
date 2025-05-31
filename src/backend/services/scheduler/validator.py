@@ -860,8 +860,28 @@ class ScheduleValidator:
                 contracted_hours_float = float(contracted_hours_val)
                 min_hours = contracted_hours_float * 0.75
                 if actual_hours < min_hours:
-                    # ... (append ValidationError) ...
-                    pass  # Placeholder for brevity
+                    # Get employee name for error message
+                    employee_name = f"Employee {emp_id}"
+                    if hasattr(employee, 'first_name') and hasattr(employee, 'last_name'):
+                        employee_name = f"{employee.first_name} {employee.last_name}"
+                    elif hasattr(employee, 'name'):
+                        employee_name = employee.name
+                    
+                    # Create validation error
+                    self.errors.append(
+                        ValidationError(
+                            error_type="contracted_hours",
+                            message=f"{employee_name} is scheduled for {actual_hours:.1f}h but should have at least {min_hours:.1f}h",
+                            severity="warning",
+                            details={
+                                "employee_id": emp_id,
+                                "employee_name": employee_name,
+                                "actual_hours": actual_hours,
+                                "contracted_hours": contracted_hours_float,
+                                "min_hours": min_hours,
+                            },
+                        )
+                    )
             except (ValueError, TypeError):
                 logger.warning(f"Could not compare hours for employee {emp_id}")
                 continue
@@ -924,8 +944,25 @@ class ScheduleValidator:
                     break
 
             if not has_keyholder:
-                # ... (append ValidationError) ...
-                pass  # Placeholder
+                # Get shift name for error message
+                shift_name = f"Shift {shift_id}"
+                if shift_template and hasattr(shift_template, 'name'):
+                    shift_name = shift_template.name
+                
+                # Create validation error
+                self.errors.append(
+                    ValidationError(
+                        error_type="keyholder",
+                        message=f"Shift {shift_name} on {shift_date} requires a keyholder but none is assigned",
+                        severity="critical",
+                        details={
+                            "shift_id": shift_id,
+                            "shift_name": shift_name,
+                            "date": shift_date.isoformat(),
+                            "employee_ids": employee_ids,
+                        },
+                    )
+                )
 
     def _validate_rest_periods(
         self, schedule_data: List[Union[Schedule, Dict[str, Any]]]

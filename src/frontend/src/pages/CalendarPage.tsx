@@ -289,7 +289,11 @@ const CalendarPage: React.FC = () => {
                     {schedule.shift_start && schedule.shift_end && (
                       <p className="text-xs text-muted-foreground"><strong>Time:</strong> {schedule.shift_start.substring(0,5)} - {schedule.shift_end.substring(0,5)}</p>
                     )}
-                    {schedule.notes && <p className="text-xs text-muted-foreground mt-1"><strong>Notes:</strong> {schedule.notes}</p>}
+                    {schedule.notes && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        <strong>Notes:</strong> {typeof schedule.notes === 'string' ? schedule.notes : JSON.stringify(schedule.notes)}
+                      </p>
+                    )}
                   </li>
                 ))}
               </ul>

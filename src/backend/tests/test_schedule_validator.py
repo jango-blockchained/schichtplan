@@ -98,6 +98,20 @@ class TestScheduleValidator(unittest.TestCase):
         self.mock_resources.get_employee = MagicMock(
             side_effect=get_employee_side_effect
         )
+        
+        # Mock for self.resources.get_shift used by _validate_contracted_hours
+        def get_shift_side_effect(shift_id):
+            # Return a mock shift with duration_hours
+            mock_shift = MagicMock()
+            mock_shift.id = shift_id
+            mock_shift.duration_hours = 8.0  # Default 8 hours
+            mock_shift.name = f"Shift {shift_id}"
+            mock_shift.requires_keyholder = (shift_id == 1)  # First shift requires keyholder
+            return mock_shift
+        
+        self.mock_resources.get_shift = MagicMock(
+            side_effect=get_shift_side_effect
+        )
 
     @patch(
         "src.backend.services.scheduler.validator.get_required_staffing_for_interval"
@@ -368,11 +382,22 @@ class TestScheduleValidator(unittest.TestCase):
         # Configure validation to only check contracted hours
         config = ScheduleConfig(
             enforce_min_coverage=False,
+            enforce_minimum_coverage=False,  # Disable both coverage flags
             enforce_contracted_hours=True,
             enforce_keyholder=False,
+            enforce_keyholder_coverage=False,
             enforce_rest_periods=False,
             enforce_max_shifts=False,
             enforce_max_hours=False,
+            enforce_early_late_rules=False,
+            enforce_employee_group_rules=False,
+            enforce_break_rules=False,
+            enforce_consecutive_days=False,
+            enforce_weekend_distribution=False,
+            enforce_shift_distribution=False,
+            enforce_availability=False,
+            enforce_qualifications=False,
+            enforce_opening_hours=False,
         )
 
         # Set up a schedule with insufficient hours for employee 1
@@ -409,11 +434,22 @@ class TestScheduleValidator(unittest.TestCase):
         # Configure validation to only check keyholders
         config = ScheduleConfig(
             enforce_min_coverage=False,
+            enforce_minimum_coverage=False,
             enforce_contracted_hours=False,
             enforce_keyholder=True,
+            enforce_keyholder_coverage=True,
             enforce_rest_periods=False,
             enforce_max_shifts=False,
             enforce_max_hours=False,
+            enforce_early_late_rules=False,
+            enforce_employee_group_rules=False,
+            enforce_break_rules=False,
+            enforce_consecutive_days=False,
+            enforce_weekend_distribution=False,
+            enforce_shift_distribution=False,
+            enforce_availability=False,
+            enforce_qualifications=False,
+            enforce_opening_hours=False,
         )
 
         # Set up a schedule without a keyholder for the shift requiring one
@@ -448,12 +484,23 @@ class TestScheduleValidator(unittest.TestCase):
         # Configure validation to only check rest periods
         config = ScheduleConfig(
             enforce_min_coverage=False,
+            enforce_minimum_coverage=False,
             enforce_contracted_hours=False,
             enforce_keyholder=False,
+            enforce_keyholder_coverage=False,
             enforce_rest_periods=True,
             enforce_max_shifts=False,
             enforce_max_hours=False,
             min_rest_hours=11,
+            enforce_early_late_rules=False,
+            enforce_employee_group_rules=False,
+            enforce_break_rules=False,
+            enforce_consecutive_days=False,
+            enforce_weekend_distribution=False,
+            enforce_shift_distribution=False,
+            enforce_availability=False,
+            enforce_qualifications=False,
+            enforce_opening_hours=False,
         )
 
         # Create a schedule with insufficient rest for employee 1

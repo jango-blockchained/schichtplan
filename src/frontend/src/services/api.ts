@@ -320,7 +320,7 @@ export const updateShift = async ({
   ...data
 }: Partial<Shift> & { id: number }): Promise<Shift> => {
   try {
-    const response = await api.put<Shift>(`/v2/shifts/${id}`, data);
+    const response = await api.put<Shift>(`/api/v2/shifts/${id}`, data);
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -332,7 +332,7 @@ export const updateShift = async ({
 
 export const deleteShift = async (shiftId: number): Promise<void> => {
   try {
-    await api.delete(`/v2/shifts/${shiftId}`);
+    await api.delete(`/api/v2/shifts/${shiftId}`);
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to delete shift: ${error.message}`);
@@ -665,7 +665,7 @@ export const updateEmployeeAvailability = async (
   try {
     const response = await api.put<
       EmployeeAvailability[]
-    >(`/v2/employees/${employeeId}/availability`, availabilities);
+    >(`/api/v2/employees/${employeeId}/availability`, availabilities);
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -705,7 +705,7 @@ export const createAbsence = async (
   data: Omit<Absence, "id">,
 ): Promise<Absence> => {
   try {
-    const response = await api.post<Absence>("/v2/absences/", data);
+    const response = await api.post<Absence>("/api/v2/absences/", data);
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -720,7 +720,7 @@ export const deleteAbsence = async (
   employeeId: number,
 ): Promise<void> => {
   try {
-    await api.delete(`/v2/absences/${id}`);
+    await api.delete(`/api/v2/absences/${id}`);
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(
@@ -734,7 +734,7 @@ export const deleteAbsence = async (
 // Database backup and restore
 export const backupDatabase = async (): Promise<Blob> => {
   try {
-    const response = await api.get("/v2/db/backup", {
+    const response = await api.get("/api/v2/db/backup", {
       responseType: "blob",
     });
     return response.data;
@@ -750,7 +750,7 @@ export const restoreDatabase = async (file: File): Promise<void> => {
   try {
     const formData = new FormData();
     formData.append("file", file);
-    await api.post("/v2/db/restore", formData, {
+    await api.post("/api/v2/db/restore", formData, {
       headers: {
         "Content-Type": "multipart/form-data",
       },
@@ -765,7 +765,7 @@ export const restoreDatabase = async (file: File): Promise<void> => {
 
 export const wipeTables = async (tables: string[]): Promise<void> => {
   try {
-    await api.post("/v2/db/wipe", { tables });
+    await api.post("/api/v2/db/wipe", { tables });
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to wipe tables: ${error.message}`);
@@ -776,7 +776,7 @@ export const wipeTables = async (tables: string[]): Promise<void> => {
 
 // Corrected endpoint based on backend routes
 export const fetchTables = async (): Promise<string[]> => {
-  const response = await api.get<{ tables: string[] }>("/v2/settings/tables");
+  const response = await api.get<{ tables: string[] }>("/api/v2/settings/tables");
   return response.data.tables;
 };
 
@@ -798,7 +798,7 @@ export interface LogContent {
 
 export const getLogs = async (): Promise<LogFile[]> => {
   try {
-    const response = await api.get<LogFile[]>("/v2/logs/");
+    const response = await api.get<LogFile[]>("/api/v2/logs/");
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -810,7 +810,7 @@ export const getLogs = async (): Promise<LogFile[]> => {
 
 export const getLogContent = async (filename: string): Promise<LogContent> => {
   try {
-    const response = await api.get<LogContent>(`/v2/logs/${filename}`);
+    const response = await api.get<LogContent>(`/api/v2/logs/${filename}`);
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -824,7 +824,7 @@ export const getLogContent = async (filename: string): Promise<LogContent> => {
 
 export const deleteLog = async (filename: string): Promise<void> => {
   try {
-    await api.delete(`/v2/logs/${filename}`);
+    await api.delete(`/api/v2/logs/${filename}`);
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to delete log ${filename}: ${error.message}`);
@@ -835,7 +835,7 @@ export const deleteLog = async (filename: string): Promise<void> => {
 
 export const clearAllLogs = async (): Promise<void> => {
   try {
-    await api.delete("/v2/logs/");
+    await api.delete("/api/v2/logs/");
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to clear all logs: ${error.message}`);
@@ -846,7 +846,7 @@ export const clearAllLogs = async (): Promise<void> => {
 
 export const publishSchedule = async (version: number) => {
   try {
-    const response = await api.post("/v2/schedules/publish", { version });
+    const response = await api.post("/api/v2/schedules/publish", { version });
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -858,7 +858,7 @@ export const publishSchedule = async (version: number) => {
 
 export const archiveSchedule = async (version: number) => {
   try {
-    const response = await api.post("/v2/schedules/archive", { version });
+    const response = await api.post("/api/v2/schedules/archive", { version });
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -923,7 +923,7 @@ export const createNewVersion = async (
   data: CreateVersionRequest,
 ): Promise<CreateVersionResponse> => {
   try {
-    const response = await api.post<CreateVersionResponse>("/api/v2/versions", data);
+    const response = await api.post<CreateVersionResponse>("/api/v2/schedules/version", data);
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -949,7 +949,7 @@ export const updateVersionStatus = async (
 ): Promise<UpdateVersionStatusResponse> => {
   try {
     const response = await api.put<UpdateVersionStatusResponse>(
-      `/v2/versions/${version}/status`,
+      `/api/v2/schedules/versions/${version}/status`,
       data,
     );
     return response.data;
@@ -984,7 +984,7 @@ export const duplicateVersion = async (
 ): Promise<DuplicateVersionResponse> => {
   try {
     const response = await api.post<DuplicateVersionResponse>(
-      "/api/v2/versions/duplicate",
+      "/api/v2/schedules/versions/duplicate",
       data,
     );
     return response.data;
@@ -1017,7 +1017,7 @@ export const getVersionDetails = async (
 ): Promise<VersionDetailsResponse> => {
   try {
     const response = await api.get<VersionDetailsResponse>(
-      `/api/v2/versions/${version}/details`,
+      `/api/v2/schedules/versions/${version}/details`,
     );
     return response.data;
   } catch (error) {
@@ -1054,7 +1054,7 @@ export const compareVersions = async (
 ): Promise<CompareVersionsResponse> => {
   try {
     const response = await api.get<CompareVersionsResponse>(
-      `/api/v2/versions/${baseVersion}/compare/${compareVersion}`,
+      `/api/v2/schedules/versions/${baseVersion}/compare/${compareVersion}`,
     );
     return response.data;
   } catch (error) {
@@ -1083,7 +1083,7 @@ export const updateVersionNotes = async (
 ): Promise<UpdateVersionNotesResponse> => {
   try {
     const response = await api.put<UpdateVersionNotesResponse>(
-      `/api/v2/versions/${version}/notes`,
+      `/api/v2/schedules/versions/${version}/notes`,
       data,
     );
     return response.data;
@@ -1126,7 +1126,7 @@ export const deleteVersion = async (
 ): Promise<DeleteVersionResponse> => {
   try {
     const response = await api.delete<DeleteVersionResponse>(
-      `/api/v2/versions/${version}`,
+      `/api/v2/schedules/versions/${version}`,
     );
     return response.data;
   } catch (error) {

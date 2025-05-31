@@ -1285,15 +1285,9 @@ class ScheduleGenerator:
             self.diagnostic_logger.info(f"  resources: {self.resources is not None}")
 
             # Call to DistributionManager - this will be the new core logic
-            # assignments_for_date = self.distribution_manager.generate_assignments_for_day(
-            #     current_date, date_shifts, available_employees
-            # )
-
-            # Temporary placeholder since generate_assignments_for_day is not in DistributionManager
-            assignments_for_date: List[Dict] = []  # Initialize as empty list
-
-            # TODO: Implement actual assignment logic using DistributionManager methods if available or rewrite
-            # For now, returning empty assignments to unblock.
+            assignments_for_date = self.distribution_manager.generate_assignments_for_day(
+                current_date, potential_daily_shifts, self.resources.employees
+            )
 
             if assignments_for_date:
                 self.logger.info(
@@ -1358,20 +1352,62 @@ class ScheduleGenerator:
 
     def _save_to_database(self, assignments: List[Dict]):
         """Save assignments to the database using bulk insertion."""
-        from src.backend.models import ScheduleAssignment
-        from flask_sqlalchemy import SQLAlchemy
-        db: SQLAlchemy = self.db
-        session = db.session
-        assignment_objs = []
-        for a in assignments:
-            assignment_objs.append(ScheduleAssignment(
-                employee_id=a["employee_id"],
-                shift_id=a["shift_id"],
-                date=a["date"],
-                # Add other fields as needed
-            ))
-        session.bulk_save_objects(assignment_objs)
-        session.commit()
+        if not assignments:
+            self.logger.info("No assignments to save to database")
+            return
+            
+        try:
+            from src.backend.models.schedule import ScheduleAssignment
+            from flask_sqlalchemy import SQLAlchemy
+            
+            # Get database session
+            if hasattr(self, 'db') and self.db:
+                db = self.db
+            elif hasattr(self, 'app_instance') and self.app_instance:
+                from flask_sqlalchemy import SQLAlchemy
+                db = SQLAlchemy(self.app_instance)
+            else:
+                self.logger.error("No database connection available for saving assignments")
+                return
+                
+            session = db.session
+            assignment_objs = []
+            
+            for assignment in assignments:
+                try:
+                    # Create ScheduleAssignment object with all available fields
+                    assignment_obj = ScheduleAssignment(
+                        employee_id=assignment["employee_id"],
+                        shift_id=assignment["shift_id"],
+                        date=assignment["date"],
+                        status=assignment.get("status", "PENDING"),
+                        version=assignment.get("version", 1),
+                        start_time=assignment.get("start_time"),
+                        end_time=assignment.get("end_time"),
+                        shift_type=assignment.get("shift_type"),
+                        break_start=assignment.get("break_start"),
+                        break_end=assignment.get("break_end"),
+                        notes=assignment.get("notes"),
+                    )
+                    assignment_objs.append(assignment_obj)
+                except Exception as e:
+                    self.logger.error(f"Error creating assignment object: {e}")
+                    self.logger.error(f"Assignment data: {assignment}")
+                    continue
+            
+            if assignment_objs:
+                # Use bulk insertion for better performance
+                session.bulk_save_objects(assignment_objs)
+                session.commit()
+                self.logger.info(f"Successfully saved {len(assignment_objs)} assignments to database")
+            else:
+                self.logger.warning("No valid assignment objects created for database save")
+                
+        except Exception as e:
+            self.logger.error(f"Error saving assignments to database: {str(e)}", exc_info=True)
+            if 'session' in locals():
+                session.rollback()
+            raise
 
     def _update_schedule_version_meta(
         self,

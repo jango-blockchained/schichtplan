@@ -99,6 +99,18 @@ class Employee(db.Model):
         self.email = email
         self.phone = phone
 
+        # Add scheduler-expected attributes
+        # These will be populated from separate preference models in the future
+        self.preferences = {
+            "preferred_shifts": [],
+            "avoid_shifts": [],
+            "preferred_days": [],
+            "avoid_days": []
+        }
+        self.preferred_shift_types = []
+        self.skills = []
+        self.availability = []
+
         # Validate the employee data
         if not self.validate_hours():
             raise ValueError("Invalid contracted hours for employee group")
@@ -200,6 +212,9 @@ class Employee(db.Model):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "max_daily_hours": self.get_max_daily_hours(),
             "max_weekly_hours": self.get_max_weekly_hours(),
+            "preferences": getattr(self, "preferences", {}),
+            "preferred_shift_types": getattr(self, "preferred_shift_types", []),
+            "skills": getattr(self, "skills", []),
         }
 
     def __repr__(self):

@@ -22,6 +22,8 @@ from src.backend.schemas.settings import (
     ActionsSettingsSchema,  # Added
     AISchedulingSettingsSchema,  # Added
 )
+from flask_cors import cross_origin
+from src.backend.api.demo_data import generate_demo_data
 
 settings = Blueprint("settings", __name__)
 
@@ -616,24 +618,25 @@ def update_generation_settings():
                 {"error": "Invalid input data", "details": e.errors()}
             ), HTTPStatus.BAD_REQUEST
 
-        # Get settings
+        # Use the proper update_from_dict method to handle generation requirements
+        Settings.update_from_dict({
+            "scheduling": {
+                "generation_requirements": validated_data
+            }
+        })
+
+        # Get the updated settings to return
         settings_obj = Settings.query.first()
         if not settings_obj:
-            settings_obj = Settings.get_default_settings()
-            db.session.add(settings_obj)
-            db.session.commit()
-
-        if settings_obj.generation_requirements is None or not isinstance(
-            settings_obj.generation_requirements, dict
-        ):
-            settings_obj.generation_requirements = {}
-
-        settings_obj.generation_requirements.update(
-            validated_data
-        )  # validated_data is already a dict from Pydantic
-        db.session.commit()
+            return jsonify({"error": "Settings not found"}), HTTPStatus.INTERNAL_SERVER_ERROR
 
         return jsonify(settings_obj.generation_requirements), HTTPStatus.OK
     except Exception as e:
         logging.error(f"Error updating generation settings: {str(e)}")
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@settings.route("/demo-data/optimized", methods=["POST", "OPTIONS"])
+@cross_origin(origins=["http://localhost:5173", "http://127.0.0.1:5173"], supports_credentials=True)
+def generate_optimized_demo_data():
+    return generate_demo_data()

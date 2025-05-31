@@ -1060,6 +1060,7 @@ def validate_schedule():
 
 
 @schedules.route("/schedules/versions", methods=["GET"])
+@schedules.route("/schedules/versions/", methods=["GET"])
 def get_all_versions():
     """Get all schedule versions with their metadata"""
     try:
