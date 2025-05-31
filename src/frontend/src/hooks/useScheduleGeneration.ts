@@ -44,6 +44,7 @@ export function useScheduleGeneration({
   const [generationSteps, setGenerationSteps] = useState<GenerationStep[]>([]);
   const [generationLogs, setGenerationLogs] = useState<GenerationLog[]>([]);
   const [showGenerationOverlay, setShowGenerationOverlay] = useState(false);
+  const [lastSessionId, setLastSessionId] = useState<string | null>(null);
 
   const addGenerationLog = (
     type: "info" | "warning" | "error",
@@ -209,6 +210,12 @@ export function useScheduleGeneration({
             addGenerationLog(logType, log);
           });
         }
+        
+        // Store session ID if available
+        if (result.session_id) {
+          setLastSessionId(result.session_id);
+          addGenerationLog("info", `Generation Session ID: ${result.session_id}`);
+        }
 
         updateGenerationStep("process", "completed");
 
@@ -373,6 +380,7 @@ export function useScheduleGeneration({
     updateGenerationStep,
     setGenerationSteps,
     setShowGenerationOverlay,
+    lastSessionId,
   };
 }
 
