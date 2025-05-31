@@ -3,6 +3,7 @@ import { scheduleLogger } from "../logger"; // Import the specialized schedule l
 import { isWithinInterval, parseISO, differenceInMinutes, addMinutes } from 'date-fns';
 import type { Database } from 'bun:sqlite';
 import type { Employee, ShiftTemplate, ScheduleEntry, Coverage, Settings } from '../db/schema';
+import { AIScheduleScorer, ScoringContext, AIScoringConfig, DEFAULT_AI_CONFIG } from './aiScoring';
 
 // --- Configuration Interface ---
 export interface SchedulerConfiguration {
@@ -652,12 +653,21 @@ export async function generateScheduleAssignments(
   employees: Employee[],
   // Add daily operating hours
   dailyOperatingHours: Map<string, { open: TimeOfDay; close: TimeOfDay }>,
-  config: SchedulerConfiguration = DEFAULT_SCHEDULER_CONFIG
+  config: SchedulerConfiguration = DEFAULT_SCHEDULER_CONFIG,
+  // Add optional AI scoring config and DB
+  aiConfig?: AIScoringConfig,
+  db?: Database
 ): Promise<ScheduleResult> {
 
   scheduleLogger.debug(`Starting assignment with config:`, config);
   if (config.enforceKeyholderRule) {
       scheduleLogger.debug(`Keyholder Rule Enabled.`);
+  }
+
+  // Initialize AI Scorer if database is provided
+  const aiScorer = db ? new AIScheduleScorer(aiConfig || DEFAULT_AI_CONFIG, db) : null;
+  if (aiScorer) {
+      scheduleLogger.info(`AI Scoring enabled for schedule optimization`);
   }
 
   // 1. Initialization
@@ -828,30 +838,89 @@ export async function generateScheduleAssignments(
           return state?.lastShiftEndTime?.getTime() !== slot.startTime.getTime();
       });
       // --- Update Sorting Logic (Fairness + Preference) --- 
-      const sortByPriority = (a: CandidateInfo, b: CandidateInfo) => {
-          const stateA = employeeStates.get(a.employeeId)!; // Assume state exists from filter
-          const stateB = employeeStates.get(b.employeeId)!;
-          const empA = employeeMap.get(a.employeeId)!;
-          const empB = employeeMap.get(b.employeeId)!;
+      const sortByPriority = async (candidates: CandidateInfo[]): Promise<CandidateInfo[]> => {
+          if (!aiScorer) {
+              // Fallback to original sorting if AI scorer not available
+              return candidates.sort((a, b) => {
+                  const stateA = employeeStates.get(a.employeeId)!;
+                  const stateB = employeeStates.get(b.employeeId)!;
+                  const empA = employeeMap.get(a.employeeId)!;
+                  const empB = employeeMap.get(b.employeeId)!;
 
-          // Primary sort: Fewer total minutes scheduled is better (ascending)
-          const minutesDiff = stateA.totalMinutesScheduled - stateB.totalMinutesScheduled;
-          if (minutesDiff !== 0) {
-              return minutesDiff;
+                  // Primary sort: Fewer total minutes scheduled is better (ascending)
+                  const minutesDiff = stateA.totalMinutesScheduled - stateB.totalMinutesScheduled;
+                  if (minutesDiff !== 0) {
+                      return minutesDiff;
+                  }
+
+                  // Secondary sort: Higher preference score (day + time) is better (descending)
+                  const prefScoreA = getPreferenceScoreForSlot(empA, slot);
+                  const prefScoreB = getPreferenceScoreForSlot(empB, slot);
+                  return prefScoreB - prefScoreA; // Descending order for score
+              });
           }
 
-          // Secondary sort: Higher preference score (day + time) is better (descending)
-          const prefScoreA = getPreferenceScoreForSlot(empA, slot);
-          const prefScoreB = getPreferenceScoreForSlot(empB, slot);
-          return prefScoreB - prefScoreA; // Descending order for score
+          // AI-powered scoring and sorting
+          const scoredCandidates: Array<{ candidate: CandidateInfo; score: number }> = [];
+          
+          // Calculate team average hours for fairness scoring
+          let totalTeamHours = 0;
+          let employeeCount = 0;
+          for (const state of employeeStates.values()) {
+              totalTeamHours += state.totalMinutesScheduled / 60;
+              employeeCount++;
+          }
+          const teamAverageHours = employeeCount > 0 ? totalTeamHours / employeeCount : 0;
+
+          // Score each candidate
+          for (const candidate of candidates) {
+              const state = employeeStates.get(candidate.employeeId)!;
+              const employee = employeeMap.get(candidate.employeeId)!;
+              
+              // Determine potential shift for scoring
+              const potentialEndTime = determinePotentialShiftEnd(
+                  slot, candidate.employeeId, employee, state, slotCoverageStatus, slotCandidatesMap, sortedSlots, config
+              );
+              
+              if (!potentialEndTime) continue;
+
+              // Build scoring context
+              const scoringContext: ScoringContext = {
+                  employeeId: candidate.employeeId,
+                  shiftStartTime: slot.startTime,
+                  shiftEndTime: potentialEndTime,
+                  shiftType: undefined, // TODO: Extract from shift template if available
+                  requiredSkills: [], // TODO: Extract from coverage requirements
+                  isKeyholderRequired: isOpeningSlot || (operatingHours && requiredClosingEndTime && potentialEndTime.getTime() >= requiredClosingEndTime.getTime()) || false,
+                  currentWeekHours: (state.minutesScheduledByWeek.get(getWeekNumber(slot.startTime)) || 0) / 60,
+                  consecutiveDays: state.consecutiveWorkDays,
+                  teamAverageHours,
+                  coverageNeeds: {
+                      critical: needed > 0 && currentSlotStatus.assignedCount === 0,
+                      understaffed: needed > 0,
+                      overstaffedRisk: currentSlotStatus.assignedCount >= slot.maxEmployees - 1,
+                  },
+              };
+
+              // Calculate AI score
+              const score = await aiScorer.calculateScore(scoringContext);
+              scoredCandidates.push({ candidate, score });
+              
+              scheduleLogger.debug(`AI Score for ${candidate.employeeId}: ${score.toFixed(3)}`);
+          }
+
+          // Sort by AI score (descending)
+          scoredCandidates.sort((a, b) => b.score - a.score);
+          
+          return scoredCandidates.map(sc => sc.candidate);
       };
 
-      extendableCandidates.sort(sortByPriority);
-      otherEligibleCandidates.sort(sortByPriority);
-      // --- End Sorting Logic Update ---
-
+      // Apply AI-powered sorting to candidates
+      const sortedExtendableCandidates = await sortByPriority(extendableCandidates);
+      const sortedOtherCandidates = await sortByPriority(otherEligibleCandidates);
+      
       // Combine prioritized list: sorted extendable first, then sorted others
-      const prioritizedCandidates = [...extendableCandidates, ...otherEligibleCandidates];
+      const prioritizedCandidates = [...sortedExtendableCandidates, ...sortedOtherCandidates];
        // Check if any candidates remain after filtering
        if (prioritizedCandidates.length === 0) {
            scheduleLogger.debug(`No eligible candidates found for slot ${slot.id} after filtering (including keyholder).`);
