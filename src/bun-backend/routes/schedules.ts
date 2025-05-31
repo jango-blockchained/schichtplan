@@ -27,6 +27,7 @@ const generateScheduleBodySchema = t.Object({
             keyholder: t.Optional(t.Number()),
             skills: t.Optional(t.Number()),
             fatigue: t.Optional(t.Number()),
+            seniority: t.Optional(t.Number()),
         })),
         fatigueThreshold: t.Optional(t.Number()),
         workloadBalanceTarget: t.Optional(t.Number()),
