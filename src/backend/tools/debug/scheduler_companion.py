@@ -312,7 +312,39 @@ def create_test_assignments(db_path: str, test_date: date) -> bool:
         conn.close()
 
 
-def load_resources_from_db(db_path: str) -> Tuple[List[Any], List[Any], List[Any]]:
+def load_availability_from_db(db_path: str) -> List[dict]:
+    """Load availability data from the database"""
+    try:
+        conn, cursor = get_connection(db_path)
+        
+        # Load availability data
+        cursor.execute("""
+            SELECT employee_id, day_of_week, start_time, end_time, 
+                   availability_type, notes
+            FROM employee_availability
+        """)
+        availabilities = []
+        for row in cursor.fetchall():
+            avail = {
+                "employee_id": row["employee_id"],
+                "day_of_week": row["day_of_week"],
+                "start_time": row["start_time"],
+                "end_time": row["end_time"],
+                "availability_type": row["availability_type"],
+                "notes": row["notes"] if row["notes"] else ""
+            }
+            availabilities.append(avail)
+        
+        return availabilities
+        
+    except sqlite3.Error as e:
+        print(f"Database error loading availability: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def load_resources_from_db(db_path: str) -> Tuple[List[Any], List[Any], List[Any], List[dict]]:
     """Load resources from the database"""
     try:
         conn, cursor = get_connection(db_path)
@@ -394,11 +426,14 @@ def load_resources_from_db(db_path: str) -> Tuple[List[Any], List[Any], List[Any
             )
             coverage_records.append(coverage)
 
-        return employees, shifts, coverage_records
+        # Load availability data
+        availabilities = load_availability_from_db(db_path)
+
+        return employees, shifts, coverage_records, availabilities
 
     except sqlite3.Error as e:
         print(f"Database error: {e}")
-        return [], [], []
+        return [], [], [], []
     finally:
         conn.close()
 
@@ -408,11 +443,12 @@ def test_scheduler_components(db_path: str, test_date: date) -> None:
     try:
         # Load resources
         print("\nLoading resources from database...")
-        employees, shifts, coverage = load_resources_from_db(db_path)
+        employees, shifts, coverage, availabilities = load_resources_from_db(db_path)
 
         print(f"Loaded {len(employees)} employees")
         print(f"Loaded {len(shifts)} shifts")
         print(f"Loaded {len(coverage)} coverage records")
+        print(f"Loaded {len(availabilities)} availability records")
 
         # Import scheduler components first to get types
         print("\nInitializing scheduler components...")
@@ -428,21 +464,16 @@ def test_scheduler_components(db_path: str, test_date: date) -> None:
         # Create custom resource container that inherits from ScheduleResources
         class CustomScheduleResources(ScheduleResources):
             def __init__(
-                self, employees, shifts, coverage, logger=None
-            ):  # Add logger parameter
+                self, employees, shifts, coverage, availabilities, logger=None
+            ):  # Add availabilities parameter
                 self.employees = employees
                 self.shifts = shifts
                 self.coverage = coverage
+                self.availabilities = availabilities  # Use real availability data
                 self.settings = {}
-                self.availabilities = []
                 self.resources_loaded = True
                 self.verification_passed = True
                 self.logger = logger or logging.getLogger(__name__)  # Store logger
-                self.coverage = coverage
-                self.settings = {}
-                self.availabilities = []
-                self.resources_loaded = True
-                self.verification_passed = True
 
             def load(self):
                 """No-op implementation"""
@@ -881,12 +912,13 @@ def test_scheduler_components(db_path: str, test_date: date) -> None:
                 "notes": "Saturday LATE shift",
             },
         ]
+        
+        # Use real availability data instead of mock data
         resources = CustomScheduleResources(
-            employees, shifts, coverage, logger=logging.getLogger("schedule")
+            employees, shifts, coverage, availabilities, logger=logging.getLogger("schedule")
         )
-        resources.availabilities = mock_availabilities  # Assign mock data
 
-        print("Created custom resource container with refined mock availability data")
+        print(f"Created custom resource container with {len(availabilities)} real availability records")
 
         # Create scheduler
         generator = ScheduleGenerator(resources=resources)
