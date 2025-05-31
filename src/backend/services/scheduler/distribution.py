@@ -248,7 +248,21 @@ class DistributionManager:
                     )
                     if employee_id:
                         self.assignments_by_employee[employee_id] = []
-            self.logger.info(f"Initialized assignments for {len(employees)} employees")
+                        # Initialize employee history
+                        self.employee_history[employee_id] = {
+                            "total": 0,
+                            "hours": 0.0,
+                            "weekend": 0,
+                            "EARLY": 0,
+                            "MIDDLE": 0,
+                            "LATE": 0,
+                        }
+                        # Load employee preferences
+                        self._load_employee_preferences(employee)
+                        
+                self.logger.info(f"Initialized assignments and preferences for {len(employees)} employees")
+            else:
+                self.logger.warning("No employees found in resources during initialization")
         except Exception as e:
             self.logger.error(f"Error initializing assignments: {str(e)}")
             self.logger.error("Stack trace:", exc_info=True)
@@ -558,18 +572,20 @@ class DistributionManager:
                 # Sort candidates by combined score (lower is better)
                 shift_candidates.sort(key=lambda x: x["combined_score"])
 
-                # Determine required staffing for this shift.
-                # This needs to consider coverage for the intervals covered by the shift.
-                # This is a simplification; proper implementation needs to handle interval coverage.
-                # TODO: Implement logic to get actual required staffing based on shift time and coverage rules.
-                # For now, using a placeholder minimum required staffing.
-                min_required_employees = 1 # Placeholder - needs to come from coverage data
+                # Determine required staffing for this shift based on coverage rules
+                staffing_info = self._get_required_staffing_info_for_shift(shift, current_date)
+                min_required_employees = staffing_info.get("min_employees", 1)
+                max_allowed_employees = staffing_info.get("max_employees", min_required_employees + 1)
+                requires_keyholder = staffing_info.get("requires_keyholder", False)
 
                 assigned_count = 0
+                keyholder_assigned = False
                 # Keep track of employees already assigned to this specific shift to prevent duplicates
                 employees_assigned_to_this_shift = set()
 
-                # Assign employees up to the minimum required staffing
+                self.logger.debug(f"Shift {shift_id} requires {min_required_employees}-{max_allowed_employees} employees, keyholder: {requires_keyholder}")
+
+                # Phase 1: Assign employees up to the minimum required staffing
                 for candidate in shift_candidates:
                     employee_id = candidate["employee_id"]
                     employee = candidate["employee"]
@@ -585,43 +601,113 @@ class DistributionManager:
 
                     # Check if we have met the minimum required staffing for this shift
                     if assigned_count >= min_required_employees:
-                         # TODO: Consider if there's a maximum staffing requirement to also check against.
                         self.logger.debug(f"Met minimum required staffing ({min_required_employees}) for shift {shift_id}.")
                         break # Stop assigning once minimum is met
 
-                    # Check availability again, just in case (though candidates should be available)
-                    # This is a safety check.
-                    # TODO: Integrate a robust availability check here if not already guaranteed by candidate generation.
+                    # Validate constraints before assignment
+                    if not self._validate_assignment_constraints(employee, shift, current_date):
+                        self.logger.debug(f"Employee {employee_id} failed constraint validation for shift {shift_id}")
+                        continue
+
+                    # Double-check availability as a safety measure
+                    if not self._validate_employee_availability(employee, current_date):
+                        self.logger.debug(f"Employee {employee_id} failed availability check for {current_date}")
+                        continue
 
                     # Create the assignment
-                    # Ensure required fields are present
-                    assignment_data = {
-                        "employee_id": employee_id,
-                        "shift_id": shift_id,
-                        "date": current_date,
-                        "status": "ASSIGNED", # Or PENDING, depending on flow
-                        # Add other necessary fields like version, start_time, end_time if available
-                        # TODO: Add version and actual start/end times from shift object/dict
-                    }
+                    assignment_data = self._create_assignment_data(employee, shift, current_date)
+                    if assignment_data is None:
+                        self.logger.warning(f"Failed to create assignment data for employee {employee_id}, shift {shift_id}")
+                        continue
+
                     assignments.append(assignment_data)
                     assigned_count += 1
                     shifts_assigned_today[employee_id] += 1
-                    employees_assigned_to_this_shift.add(employee_id) # Mark employee as assigned to this shift
-                    self.logger.info(f"Assigned employee {employee_id} to shift {shift_id} on {current_date}")
+                    employees_assigned_to_this_shift.add(employee_id)
+                    
+                    # Track keyholder assignment
+                    if getattr(employee, 'is_keyholder', False):
+                        keyholder_assigned = True
+                    
+                    self.logger.info(f"Assigned employee {employee_id} to shift {shift_id} on {current_date} (assignment {assigned_count}/{min_required_employees})")
 
-                # After assigning minimum, consider assigning more up to maximum if needed and possible.
-                # This part needs the maximum staffing requirement from coverage data.
-                # TODO: Implement logic to assign up to maximum staffing based on coverage.
+                # Phase 2: Check if minimum staffing was met
+                if assigned_count < min_required_employees:
+                    self.logger.warning(f"Could not meet minimum staffing for shift {shift_id}: {assigned_count}/{min_required_employees} assigned")
 
+                # Phase 3: Check keyholder requirement
+                if requires_keyholder and not keyholder_assigned:
+                    self.logger.warning(f"Shift {shift_id} requires a keyholder but none was assigned")
+                    # Try to find a keyholder among remaining candidates
+                    for candidate in shift_candidates:
+                        employee_id = candidate["employee_id"]
+                        employee = candidate["employee"]
+                        
+                        if (employee_id not in employees_assigned_to_this_shift and 
+                            getattr(employee, 'is_keyholder', False) and
+                            shifts_assigned_today.get(employee_id, 0) < max_shifts_per_day and
+                            assigned_count < max_allowed_employees):
+                            
+                            if (self._validate_assignment_constraints(employee, shift, current_date) and
+                                self._validate_employee_availability(employee, current_date)):
+                                
+                                assignment_data = self._create_assignment_data(employee, shift, current_date)
+                                if assignment_data:
+                                    assignments.append(assignment_data)
+                                    assigned_count += 1
+                                    shifts_assigned_today[employee_id] += 1
+                                    employees_assigned_to_this_shift.add(employee_id)
+                                    keyholder_assigned = True
+                                    self.logger.info(f"Assigned keyholder {employee_id} to shift {shift_id}")
+                                    break
+
+                # Phase 4: Assign additional employees up to maximum if beneficial
+                if assigned_count < max_allowed_employees:
+                    self.logger.debug(f"Considering additional assignments for shift {shift_id} (current: {assigned_count}, max: {max_allowed_employees})")
+                    
+                    for candidate in shift_candidates:
+                        employee_id = candidate["employee_id"]
+                        employee = candidate["employee"]
+
+                        # Check if we've reached maximum staffing
+                        if assigned_count >= max_allowed_employees:
+                            break
+
+                        # Skip if already assigned or at daily limit
+                        if (employee_id in employees_assigned_to_this_shift or 
+                            shifts_assigned_today.get(employee_id, 0) >= max_shifts_per_day):
+                            continue
+
+                        # Only assign additional employees if their score is good enough
+                        # (to avoid overstaffing with poorly suited employees)
+                        if candidate["combined_score"] > 10.0:  # Threshold for additional assignments
+                            self.logger.debug(f"Employee {employee_id} score too high for additional assignment: {candidate['combined_score']}")
+                            continue
+
+                        # Validate constraints and availability
+                        if (self._validate_assignment_constraints(employee, shift, current_date) and
+                            self._validate_employee_availability(employee, current_date)):
+                            
+                            assignment_data = self._create_assignment_data(employee, shift, current_date)
+                            if assignment_data:
+                                assignments.append(assignment_data)
+                                assigned_count += 1
+                                shifts_assigned_today[employee_id] += 1
+                                employees_assigned_to_this_shift.add(employee_id)
+                                self.logger.info(f"Assigned additional employee {employee_id} to shift {shift_id} (total: {assigned_count})")
+
+                self.logger.info(f"Completed assignment for shift {shift_id}: {assigned_count} employees assigned (min: {min_required_employees}, max: {max_allowed_employees})")
 
             # --- End Core Assignment Logic ---
 
-
             self.logger.info(f"Finished assigning employees for shift type {shift_type}. Total assignments: {len(assignments)}")
 
-            # TODO: Update self.assignments_by_employee with the new assignments if needed for downstream steps within this manager.
-            # This method currently returns a list of assignments, so updating the internal state might not be necessary here,
-            # but depends on the overall flow of the scheduler.
+            # Update self.assignments_by_employee with the new assignments for downstream steps
+            for assignment in assignments:
+                employee_id = assignment["employee_id"]
+                if employee_id not in self.assignments_by_employee:
+                    self.assignments_by_employee[employee_id] = []
+                self.assignments_by_employee[employee_id].append(assignment)
 
             return assignments
 
@@ -631,6 +717,311 @@ class DistributionManager:
                 exc_info=True,
             )
             return []
+
+    def _get_required_staffing_info_for_shift(self, shift: Any, shift_date: date) -> Dict[str, Any]:
+        """Get the complete staffing information for a specific shift based on coverage rules."""
+        try:
+            # Extract shift timing information
+            start_time = getattr(shift, 'start_time', None) or (shift.get('start_time') if isinstance(shift, dict) else None)
+            end_time = getattr(shift, 'end_time', None) or (shift.get('end_time') if isinstance(shift, dict) else None)
+            
+            if not start_time:
+                self.logger.warning(f"No start_time found for shift, using default staffing")
+                return {
+                    "min_employees": 1,
+                    "max_employees": 2,
+                    "requires_keyholder": False,
+                    "coverage_id": None,
+                    "has_coverage": False
+                }
+                
+            # Convert start_time to time object if it's a string
+            if isinstance(start_time, str):
+                start_time_obj = _time_str_to_datetime_time(start_time)
+            else:
+                start_time_obj = start_time
+                
+            # Get required staffing from coverage rules
+            if self.resources:
+                staffing_info = get_required_staffing_for_interval(
+                    shift_date,
+                    start_time_obj,
+                    self.resources,
+                    interval_duration_minutes=15
+                )
+                return staffing_info
+            else:
+                return {
+                    "min_employees": 1,
+                    "max_employees": 2,
+                    "requires_keyholder": False,
+                    "coverage_id": None,
+                    "has_coverage": False
+                }
+                
+        except Exception as e:
+            self.logger.warning(f"Error getting required staffing for shift: {e}")
+            return {
+                "min_employees": 1,
+                "max_employees": 2,
+                "requires_keyholder": False,
+                "coverage_id": None,
+                "has_coverage": False
+            }
+
+    def _validate_assignment_constraints(self, employee: Any, shift: Any, shift_date: date) -> bool:
+        """Validate that an employee can be assigned to a shift based on constraints."""
+        try:
+            if not self.constraint_checker:
+                # If no constraint checker available, perform basic validation
+                return self._basic_constraint_validation(employee, shift, shift_date)
+            
+            # Use the constraint checker to validate the assignment
+            employee_id = self.get_id(employee, ["id", "employee_id"])
+            shift_id = self.get_id(shift, ["id", "shift_id", "shift_template_id"])
+            
+            if employee_id is None or shift_id is None:
+                self.logger.warning(f"Cannot validate constraints: missing employee_id ({employee_id}) or shift_id ({shift_id})")
+                return False
+            
+            # Create a temporary assignment for validation
+            temp_assignment = {
+                "employee_id": employee_id,
+                "shift_id": shift_id,
+                "date": shift_date,
+                "start_time": getattr(shift, 'start_time', None) or (shift.get('start_time') if isinstance(shift, dict) else None),
+                "end_time": getattr(shift, 'end_time', None) or (shift.get('end_time') if isinstance(shift, dict) else None),
+            }
+            
+            # Check constraints
+            is_valid = self.constraint_checker.validate_assignment(temp_assignment, employee, shift)
+            
+            if not is_valid:
+                self.logger.debug(f"Constraint validation failed for employee {employee_id}, shift {shift_id}")
+            
+            return is_valid
+            
+        except Exception as e:
+            self.logger.warning(f"Error validating assignment constraints: {e}")
+            return False
+
+    def _basic_constraint_validation(self, employee: Any, shift: Any, shift_date: date) -> bool:
+        """Perform basic constraint validation when no constraint checker is available."""
+        try:
+            # Check if employee is active
+            if not getattr(employee, 'is_active', True):
+                return False
+            
+            # Check if shift has required fields
+            start_time = getattr(shift, 'start_time', None) or (shift.get('start_time') if isinstance(shift, dict) else None)
+            if not start_time:
+                return False
+            
+            # Add more basic validations as needed
+            return True
+            
+        except Exception as e:
+            self.logger.warning(f"Error in basic constraint validation: {e}")
+            return False
+
+    def _validate_employee_availability(self, employee: Any, shift_date: date) -> bool:
+        """Double-check employee availability for the given date."""
+        try:
+            if not self.availability_checker:
+                # If no availability checker, assume available if employee is active
+                return getattr(employee, 'is_active', True)
+            
+            # Use availability checker to validate
+            employee_id = self.get_id(employee, ["id", "employee_id"])
+            if employee_id is None:
+                return False
+            
+            available_employees = self.availability_checker.get_available_employees(
+                shift_date, [employee]
+            )
+            
+            return len(available_employees) > 0
+            
+        except Exception as e:
+            self.logger.warning(f"Error validating employee availability: {e}")
+            return False
+
+    def _create_assignment_data(self, employee: Any, shift: Any, shift_date: date) -> Optional[Dict[str, Any]]:
+        """Create assignment data dictionary with all required fields."""
+        try:
+            employee_id = self.get_id(employee, ["id", "employee_id"])
+            shift_id = self.get_id(shift, ["id", "shift_id", "shift_template_id"])
+            
+            if employee_id is None or shift_id is None:
+                self.logger.error(f"Cannot create assignment: missing employee_id ({employee_id}) or shift_id ({shift_id})")
+                return None
+            
+            # Extract shift details
+            start_time = getattr(shift, 'start_time', None) or (shift.get('start_time') if isinstance(shift, dict) else None)
+            end_time = getattr(shift, 'end_time', None) or (shift.get('end_time') if isinstance(shift, dict) else None)
+            shift_type = getattr(shift, 'shift_type', None) or (shift.get('shift_type') if isinstance(shift, dict) else None)
+            
+            # Create assignment data with validation
+            assignment_data = {
+                "employee_id": employee_id,
+                "shift_id": shift_id,
+                "date": shift_date,
+                "status": "ASSIGNED",
+                "version": getattr(self, 'version', 1),
+                "start_time": start_time,
+                "end_time": end_time,
+                "shift_type": shift_type,
+                "break_start": getattr(shift, 'break_start', None) or (shift.get('break_start') if isinstance(shift, dict) else None),
+                "break_end": getattr(shift, 'break_end', None) or (shift.get('break_end') if isinstance(shift, dict) else None),
+                "notes": None,  # Can be populated later if needed
+            }
+            
+            # Validate required fields
+            if not start_time:
+                self.logger.warning(f"Assignment created without start_time for employee {employee_id}, shift {shift_id}")
+            
+            return assignment_data
+            
+        except Exception as e:
+            self.logger.error(f"Error creating assignment data: {e}")
+            return None
+
+    def generate_assignments_for_day(
+        self,
+        current_date: date,
+        date_shifts: List[Dict],
+        available_employees: Optional[List[Any]] = None
+    ) -> List[Dict]:
+        """
+        Main entry point for generating assignments for a single day.
+        
+        Args:
+            current_date: The date to generate assignments for
+            date_shifts: List of shift instances/templates for the day
+            available_employees: Optional list of available employees (if None, will get from resources)
+            
+        Returns:
+            List of assignment dictionaries
+        """
+        try:
+            self.logger.info(f"Generating assignments for {current_date}")
+            self.logger.info(f"Processing {len(date_shifts)} shifts")
+            
+            # Get available employees if not provided
+            if available_employees is None:
+                if self.availability_checker and self.resources:
+                    available_employees = self.availability_checker.get_available_employees(
+                        current_date, self.resources.employees
+                    )
+                elif self.resources and hasattr(self.resources, 'employees'):
+                    # Fallback: use all active employees
+                    available_employees = [
+                        e for e in self.resources.employees 
+                        if getattr(e, 'is_active', True)
+                    ]
+                else:
+                    self.logger.error("No employees available and no resources to get them from")
+                    return []
+            
+            self.logger.info(f"Found {len(available_employees)} available employees")
+            
+            if not available_employees:
+                self.logger.warning(f"No available employees for {current_date}")
+                return []
+                
+            if not date_shifts:
+                self.logger.warning(f"No shifts to assign for {current_date}")
+                return []
+            
+            # Group shifts by type for more efficient assignment
+            shifts_by_type = defaultdict(list)
+            for shift in date_shifts:
+                shift_type = getattr(shift, 'shift_type', None) or (
+                    shift.get('shift_type') if isinstance(shift, dict) else 'UNKNOWN'
+                )
+                shifts_by_type[shift_type].append(shift)
+            
+            self.logger.info(f"Grouped shifts into {len(shifts_by_type)} types: {list(shifts_by_type.keys())}")
+            
+            # Generate assignments for each shift type
+            all_assignments = []
+            for shift_type, shifts in shifts_by_type.items():
+                self.logger.info(f"Processing {len(shifts)} shifts of type {shift_type}")
+                
+                # Get employees available for this shift type
+                type_available_employees = self._filter_employees_for_shift_type(
+                    available_employees, shift_type, current_date
+                )
+                
+                if not type_available_employees:
+                    self.logger.warning(f"No employees available for shift type {shift_type}")
+                    continue
+                
+                # Assign employees to shifts of this type
+                type_assignments = self.assign_employees_by_type(
+                    current_date, shifts, type_available_employees, shift_type
+                )
+                
+                all_assignments.extend(type_assignments)
+                self.logger.info(f"Created {len(type_assignments)} assignments for shift type {shift_type}")
+            
+            self.logger.info(f"Generated {len(all_assignments)} total assignments for {current_date}")
+            return all_assignments
+            
+        except Exception as e:
+            self.logger.error(f"Error generating assignments for {current_date}: {str(e)}", exc_info=True)
+            return []
+
+    def _filter_employees_for_shift_type(
+        self, 
+        employees: List[Any], 
+        shift_type: str, 
+        shift_date: date
+    ) -> List[Any]:
+        """
+        Filter employees based on their suitability for a specific shift type.
+        
+        Args:
+            employees: List of employee objects
+            shift_type: The type of shift (e.g., 'EARLY', 'LATE', 'MIDDLE')
+            shift_date: The date of the shift
+            
+        Returns:
+            List of employees suitable for this shift type
+        """
+        suitable_employees = []
+        
+        for employee in employees:
+            try:
+                employee_id = self.get_id(employee, ["id", "employee_id"])
+                if employee_id is None:
+                    continue
+                
+                # Check if employee has preferences against this shift type
+                preferences = self.employee_preferences.get(employee_id, {})
+                avoid_shifts = preferences.get("avoid_shifts", [])
+                
+                if shift_type in avoid_shifts:
+                    self.logger.debug(f"Employee {employee_id} avoids shift type {shift_type}")
+                    continue
+                
+                # Check if employee is available for this day of week
+                day_of_week = shift_date.weekday()
+                avoid_days = preferences.get("avoid_days", [])
+                
+                if day_of_week in avoid_days:
+                    self.logger.debug(f"Employee {employee_id} avoids day {day_of_week}")
+                    continue
+                
+                # Additional checks can be added here (skills, certifications, etc.)
+                
+                suitable_employees.append(employee)
+                
+            except Exception as e:
+                self.logger.warning(f"Error filtering employee {employee}: {e}")
+                continue
+        
+        return suitable_employees
 
     def _calculate_history_adjustment_v2(self, employee_id: int, shift_template: Any, shift_date: date) -> float:
         """Calculate a penalty/bonus based on historical assignment distribution for fairness."""
@@ -864,11 +1255,29 @@ class DistributionManager:
         if emp_id is None:
             return
         preferences = getattr(employee, "preferences", {}) or {}
-        # Fallback to attributes if preferences dict is missing
+        
+        # Ensure all preference values are simple lists, not complex objects
         preferred_shifts = preferences.get("preferred_shifts") or getattr(employee, "preferred_shifts", [])
         avoid_shifts = preferences.get("avoid_shifts") or getattr(employee, "avoid_shifts", [])
         preferred_days = preferences.get("preferred_days") or getattr(employee, "preferred_days", [])
         avoid_days = preferences.get("avoid_days") or getattr(employee, "avoid_days", [])
+        
+        # Convert to simple lists if they're not already
+        if not isinstance(preferred_shifts, list):
+            preferred_shifts = []
+        if not isinstance(avoid_shifts, list):
+            avoid_shifts = []
+        if not isinstance(preferred_days, list):
+            preferred_days = []
+        if not isinstance(avoid_days, list):
+            avoid_days = []
+            
+        # Ensure all items in lists are simple types (strings/ints)
+        preferred_shifts = [str(item) for item in preferred_shifts if item is not None]
+        avoid_shifts = [str(item) for item in avoid_shifts if item is not None]
+        preferred_days = [int(item) if isinstance(item, (int, str)) and str(item).isdigit() else item for item in preferred_days if item is not None]
+        avoid_days = [int(item) if isinstance(item, (int, str)) and str(item).isdigit() else item for item in avoid_days if item is not None]
+        
         self.employee_preferences[emp_id] = {
             "preferred_shifts": preferred_shifts,
             "avoid_shifts": avoid_shifts,
@@ -1331,12 +1740,12 @@ class DistributionManager:
         if isinstance(obj, dict):
             for field in id_fields:
                 if field in obj and obj[field] is not None:
-                    return {field: obj[field]}
+                    return obj[field]
 
         # Then try attribute access
         for field in id_fields:
             if hasattr(obj, field) and getattr(obj, field) is not None:
-                return {field: getattr(obj, field)}
+                return getattr(obj, field)
 
         # If no ID found, log warning and return None
         self.logger.warning(f"Could not extract ID from object: {obj}")

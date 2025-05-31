@@ -228,7 +228,7 @@ export const SchedulingEngineSection: React.FC<SchedulingEngineSectionProps> = (
         </CardHeader>
         <CardContent>
           <ScheduleGenerationSettings
-            generationRequirements={generationRequirements}
+            settings={generationRequirements}
             onUpdate={onGenerationSettingsUpdate}
             onImmediateUpdate={onImmediateUpdate}
           />

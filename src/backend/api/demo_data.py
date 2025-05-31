@@ -1,6 +1,7 @@
 from datetime import datetime, date, timedelta, UTC
 import random
 import logging
+import os
 from functools import wraps
 from flask import Blueprint, jsonify, request, make_response, Response
 from http import HTTPStatus
@@ -17,6 +18,33 @@ from src.backend.models.employee import AvailabilityType, EmployeeGroup
 from src.backend.models.fixed_shift import ShiftType
 
 bp = Blueprint("demo_data", __name__, url_prefix="/demo-data")
+
+
+def production_safeguard(f):
+    """Decorator to prevent demo data generation in production environment"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Check environment variables for production indicators
+        env = os.environ.get("FLASK_ENV", "development").lower()
+        app_env = os.environ.get("APP_ENV", "development").lower()
+        
+        # Block in production environments
+        if env in ["production", "prod"] or app_env in ["production", "prod"]:
+            return jsonify({
+                "error": "Demo data generation is disabled in production environment",
+                "status": "forbidden"
+            }), HTTPStatus.FORBIDDEN
+        
+        # Additional check for production database URLs
+        db_url = os.environ.get("DATABASE_URL", "")
+        if any(prod_indicator in db_url.lower() for prod_indicator in ["prod", "production"]):
+            return jsonify({
+                "error": "Demo data generation is disabled for production databases",
+                "status": "forbidden"
+            }), HTTPStatus.FORBIDDEN
+        
+        return f(*args, **kwargs)
+    return decorated_function
 
 
 def generate_employee_types():
@@ -276,74 +304,348 @@ def validate_availability_vs_contracted(employee, blocks, days_available):
 
 def generate_improved_availability_data(employees):
     """
-    Generate optimized availability data using hourly slots.
-    - All employees with >35 hours get only FIXED slots.
-    - All employees get 50% more availability overall.
+    Generate realistic availability data that respects contracted hours and creates
+    more realistic availability patterns based on employee types and real-world scenarios.
     """
     availabilities = []
     daily_employee_day_type = {}
     employee_weekly_hours = {emp.id: 0.0 for emp in employees}
-    working_days_indices = list(range(0, 6))
+    working_days_indices = list(range(0, 6))  # Monday to Saturday
     today = date.today()
     start_of_week_date = today - timedelta(days=today.weekday())
 
-    # Employees with >35 hours: assign only FIXED slots
-    high_hour_employees = [e for e in employees if e.contracted_hours > 35]
-    for emp in high_hour_employees:
-        total_hours = int(emp.contracted_hours * 1.5)
-        hours_per_day = total_hours // len(working_days_indices)
-        extra_hours = total_hours % len(working_days_indices)
-        for i, day_idx in enumerate(working_days_indices):
-            day_date_obj = start_of_week_date + timedelta(days=day_idx)
-            daily_employee_day_type[(emp.id, day_idx)] = AvailabilityType.FIXED
-            hours_today = hours_per_day + (1 if i < extra_hours else 0)
-            start_hour = 9
-            for h in range(start_hour, start_hour + hours_today):
-                avail_slot = EmployeeAvailability(
-                    employee_id=emp.id,
-                    day_of_week=day_idx,
-                    hour=h,
-                    is_available=True,
-                    availability_type=AvailabilityType.FIXED,
-                    start_date=day_date_obj,
-                    end_date=day_date_obj,
-                    is_recurring=False,
-                )
-                availabilities.append(avail_slot)
-        employee_weekly_hours[emp.id] = total_hours
-
-    # All other employees (<=35 hours)
-    other_employees = [e for e in employees if e.contracted_hours <= 35]
-    for employee in other_employees:
-        target_weekly_hours = int(employee.contracted_hours * 1.5)
-        num_available_days = random.randint(4, 6)
-        chosen_days_indices = random.sample(working_days_indices, num_available_days)
-        chosen_days_indices.sort()
-        remaining_target_hours = target_weekly_hours
-        for day_idx in chosen_days_indices:
-            if remaining_target_hours <= 0:
-                break
-            day_date_obj = start_of_week_date + timedelta(days=day_idx)
-            days_left = len(chosen_days_indices) - chosen_days_indices.index(day_idx)
-            hours_for_this_day_total = min(
-                8, max(4, remaining_target_hours // days_left)
-            )
-            for h in range(9, 9 + hours_for_this_day_total):
-                avail_slot = EmployeeAvailability(
-                    employee_id=employee.id,
-                    day_of_week=day_idx,
-                    hour=h,
-                    is_available=True,
-                    availability_type=AvailabilityType.AVAILABLE,
-                    start_date=day_date_obj,
-                    end_date=day_date_obj,
-                    is_recurring=False,
-                )
-                availabilities.append(avail_slot)
-            remaining_target_hours -= hours_for_this_day_total
-        employee_weekly_hours[employee.id] = target_weekly_hours
+    for employee in employees:
+        contracted_hours = employee.contracted_hours
+        employee_type = employee.employee_group
+        
+        # Calculate realistic availability based on employee type
+        if contracted_hours >= 35:  # Full-time employees (VZ, TL)
+            # Full-time employees: mostly FIXED with some PREFERRED
+            fixed_hours = min(contracted_hours, 40)  # Don't exceed contracted hours for FIXED
+            preferred_hours = max(0, min(10, contracted_hours * 0.3))  # Up to 30% extra as PREFERRED
+            total_availability_hours = fixed_hours + preferred_hours
+            
+            # Distribute across 5-6 days
+            num_work_days = 5 if contracted_hours <= 37 else 6
+            work_days = random.sample(working_days_indices, num_work_days)
+            
+            # Distribute FIXED hours first (respecting contracted hours)
+            fixed_hours_per_day = fixed_hours // num_work_days
+            extra_fixed_hours = int(fixed_hours % num_work_days)
+            
+            for i, day_idx in enumerate(work_days):
+                day_date_obj = start_of_week_date + timedelta(days=day_idx)
+                daily_employee_day_type[(employee.id, day_idx)] = AvailabilityType.FIXED
+                
+                # Calculate hours for this day
+                daily_fixed = fixed_hours_per_day + (1 if i < extra_fixed_hours else 0)
+                daily_preferred = preferred_hours // num_work_days + (1 if i < (preferred_hours % num_work_days) else 0)
+                
+                # Add FIXED availability (core working hours)
+                start_hour = random.choice([8, 9, 10])  # Varied start times
+                for h in range(start_hour, start_hour + int(daily_fixed)):
+                    if h < 24:  # Don't exceed 24 hours
+                        avail_slot = EmployeeAvailability(
+                            employee_id=employee.id,
+                            day_of_week=day_idx,
+                            hour=h,
+                            is_available=True,
+                            availability_type=AvailabilityType.FIXED,
+                            start_date=day_date_obj,
+                            end_date=day_date_obj,
+                            is_recurring=False,
+                        )
+                        availabilities.append(avail_slot)
+                
+                # Add PREFERRED availability (flexible extra hours)
+                if daily_preferred > 0:
+                    # Add preferred hours before or after fixed hours
+                    if random.choice([True, False]) and start_hour > 8:  # Before
+                        for h in range(max(8, start_hour - int(daily_preferred)), start_hour):
+                            avail_slot = EmployeeAvailability(
+                                employee_id=employee.id,
+                                day_of_week=day_idx,
+                                hour=h,
+                                is_available=True,
+                                availability_type=AvailabilityType.PREFERRED,
+                                start_date=day_date_obj,
+                                end_date=day_date_obj,
+                                is_recurring=False,
+                            )
+                            availabilities.append(avail_slot)
+                    else:  # After
+                        end_hour = start_hour + int(daily_fixed)
+                        for h in range(end_hour, min(20, end_hour + int(daily_preferred))):
+                            avail_slot = EmployeeAvailability(
+                                employee_id=employee.id,
+                                day_of_week=day_idx,
+                                hour=h,
+                                is_available=True,
+                                availability_type=AvailabilityType.PREFERRED,
+                                start_date=day_date_obj,
+                                end_date=day_date_obj,
+                                is_recurring=False,
+                            )
+                            availabilities.append(avail_slot)
+            
+            employee_weekly_hours[employee.id] = total_availability_hours
+            
+        elif contracted_hours >= 15:  # Part-time employees (TZ)
+            # Part-time: mix of FIXED, PREFERRED, and AVAILABLE
+            fixed_hours = min(contracted_hours * 0.7, contracted_hours)  # 70% as fixed, but not exceeding contracted
+            preferred_hours = contracted_hours * 0.3  # 30% as preferred
+            available_hours = contracted_hours * 0.5  # 50% extra as available
+            total_availability_hours = fixed_hours + preferred_hours + available_hours
+            
+            # Work 3-5 days
+            num_work_days = random.randint(3, 5)
+            work_days = random.sample(working_days_indices, num_work_days)
+            
+            # Distribute hours across days
+            hours_per_day = total_availability_hours / num_work_days
+            
+            for day_idx in work_days:
+                day_date_obj = start_of_week_date + timedelta(days=day_idx)
+                daily_hours = int(hours_per_day) + random.choice([0, 1])  # Some variation
+                
+                # Mix of availability types for part-time
+                fixed_today = min(daily_hours // 2, int(fixed_hours / num_work_days))
+                preferred_today = min((daily_hours - fixed_today) // 2, int(preferred_hours / num_work_days))
+                available_today = daily_hours - fixed_today - preferred_today
+                
+                start_hour = random.choice([9, 10, 11, 13, 14])  # More flexible start times
+                current_hour = start_hour
+                
+                # Add FIXED hours first
+                for _ in range(int(fixed_today)):
+                    if current_hour < 20:
+                        avail_slot = EmployeeAvailability(
+                            employee_id=employee.id,
+                            day_of_week=day_idx,
+                            hour=current_hour,
+                            is_available=True,
+                            availability_type=AvailabilityType.FIXED,
+                            start_date=day_date_obj,
+                            end_date=day_date_obj,
+                            is_recurring=False,
+                        )
+                        availabilities.append(avail_slot)
+                        current_hour += 1
+                
+                # Add PREFERRED hours
+                for _ in range(int(preferred_today)):
+                    if current_hour < 20:
+                        avail_slot = EmployeeAvailability(
+                            employee_id=employee.id,
+                            day_of_week=day_idx,
+                            hour=current_hour,
+                            is_available=True,
+                            availability_type=AvailabilityType.PREFERRED,
+                            start_date=day_date_obj,
+                            end_date=day_date_obj,
+                            is_recurring=False,
+                        )
+                        availabilities.append(avail_slot)
+                        current_hour += 1
+                
+                # Add AVAILABLE hours
+                for _ in range(int(available_today)):
+                    if current_hour < 20:
+                        avail_slot = EmployeeAvailability(
+                            employee_id=employee.id,
+                            day_of_week=day_idx,
+                            hour=current_hour,
+                            is_available=True,
+                            availability_type=AvailabilityType.AVAILABLE,
+                            start_date=day_date_obj,
+                            end_date=day_date_obj,
+                            is_recurring=False,
+                        )
+                        availabilities.append(avail_slot)
+                        current_hour += 1
+            
+            employee_weekly_hours[employee.id] = total_availability_hours
+            
+        else:  # Low-hour employees (GFB, students, etc.)
+            # Low-hour employees: mostly AVAILABLE with some PREFERRED, minimal FIXED
+            fixed_hours = min(contracted_hours * 0.5, contracted_hours)  # 50% as fixed, but not exceeding contracted
+            preferred_hours = contracted_hours * 0.3  # 30% as preferred
+            available_hours = contracted_hours * 1.5  # 150% extra as available (they're very flexible)
+            total_availability_hours = fixed_hours + preferred_hours + available_hours
+            
+            # Work 2-4 days (very flexible)
+            num_work_days = random.randint(2, 4)
+            work_days = random.sample(working_days_indices, num_work_days)
+            
+            for day_idx in work_days:
+                day_date_obj = start_of_week_date + timedelta(days=day_idx)
+                daily_hours = int(total_availability_hours / num_work_days) + random.choice([0, 1, 2])
+                
+                # Mostly available hours for flexibility
+                fixed_today = min(1, int(fixed_hours / num_work_days)) if fixed_hours > 0 else 0
+                preferred_today = min(2, int(preferred_hours / num_work_days)) if preferred_hours > 0 else 0
+                available_today = max(0, daily_hours - fixed_today - preferred_today)
+                
+                # Very flexible start times
+                start_hour = random.choice([10, 11, 12, 13, 14, 15, 16])
+                current_hour = start_hour
+                
+                # Add small amount of FIXED hours
+                for _ in range(fixed_today):
+                    if current_hour < 20:
+                        avail_slot = EmployeeAvailability(
+                            employee_id=employee.id,
+                            day_of_week=day_idx,
+                            hour=current_hour,
+                            is_available=True,
+                            availability_type=AvailabilityType.FIXED,
+                            start_date=day_date_obj,
+                            end_date=day_date_obj,
+                            is_recurring=False,
+                        )
+                        availabilities.append(avail_slot)
+                        current_hour += 1
+                
+                # Add PREFERRED hours
+                for _ in range(preferred_today):
+                    if current_hour < 20:
+                        avail_slot = EmployeeAvailability(
+                            employee_id=employee.id,
+                            day_of_week=day_idx,
+                            hour=current_hour,
+                            is_available=True,
+                            availability_type=AvailabilityType.PREFERRED,
+                            start_date=day_date_obj,
+                            end_date=day_date_obj,
+                            is_recurring=False,
+                        )
+                        availabilities.append(avail_slot)
+                        current_hour += 1
+                
+                # Add lots of AVAILABLE hours (high flexibility)
+                for _ in range(available_today):
+                    if current_hour < 20:
+                        avail_slot = EmployeeAvailability(
+                            employee_id=employee.id,
+                            day_of_week=day_idx,
+                            hour=current_hour,
+                            is_available=True,
+                            availability_type=AvailabilityType.AVAILABLE,
+                            start_date=day_date_obj,
+                            end_date=day_date_obj,
+                            is_recurring=False,
+                        )
+                        availabilities.append(avail_slot)
+                        current_hour += 1
+                
+                # Add some scattered available hours on other time slots for maximum flexibility
+                if available_today > 0:
+                    extra_hours = random.randint(1, 3)
+                    for _ in range(extra_hours):
+                        extra_hour = random.choice([9, 10, 17, 18, 19])
+                        if extra_hour not in range(start_hour, current_hour):
+                            avail_slot = EmployeeAvailability(
+                                employee_id=employee.id,
+                                day_of_week=day_idx,
+                                hour=extra_hour,
+                                is_available=True,
+                                availability_type=AvailabilityType.AVAILABLE,
+                                start_date=day_date_obj,
+                                end_date=day_date_obj,
+                                is_recurring=False,
+                            )
+                            availabilities.append(avail_slot)
+            
+            employee_weekly_hours[employee.id] = total_availability_hours
 
     return availabilities, daily_employee_day_type, employee_weekly_hours
+
+
+def validate_and_log_availability_distribution(employees, availabilities):
+    """
+    Validate and log the availability distribution to ensure it's realistic.
+    This helps with debugging and transparency.
+    """
+    logging.info("=== Availability Distribution Analysis ===")
+    
+    # Group availabilities by employee
+    employee_availabilities = {}
+    for avail in availabilities:
+        if avail.employee_id not in employee_availabilities:
+            employee_availabilities[avail.employee_id] = {
+                'FIXED': 0,
+                'PREFERRED': 0,
+                'AVAILABLE': 0,
+                'total': 0
+            }
+        employee_availabilities[avail.employee_id][avail.availability_type.value] += 1
+        employee_availabilities[avail.employee_id]['total'] += 1
+    
+    # Analyze by employee type
+    type_stats = {}
+    for employee in employees:
+        emp_type = employee.employee_group
+        contracted_hours = employee.contracted_hours
+        
+        if emp_type not in type_stats:
+            type_stats[emp_type] = {
+                'count': 0,
+                'avg_contracted_hours': 0,
+                'avg_fixed_hours': 0,
+                'avg_preferred_hours': 0,
+                'avg_available_hours': 0,
+                'avg_total_hours': 0,
+                'fixed_exceeds_contracted': 0
+            }
+        
+        type_stats[emp_type]['count'] += 1
+        type_stats[emp_type]['avg_contracted_hours'] += contracted_hours
+        
+        if employee.id in employee_availabilities:
+            avail_data = employee_availabilities[employee.id]
+            fixed_hours = avail_data['FIXED']
+            preferred_hours = avail_data['PREFERRED']
+            available_hours = avail_data['AVAILABLE']
+            total_hours = avail_data['total']
+            
+            type_stats[emp_type]['avg_fixed_hours'] += fixed_hours
+            type_stats[emp_type]['avg_preferred_hours'] += preferred_hours
+            type_stats[emp_type]['avg_available_hours'] += available_hours
+            type_stats[emp_type]['avg_total_hours'] += total_hours
+            
+            # Check if fixed hours exceed contracted hours (this should not happen)
+            if fixed_hours > contracted_hours:
+                type_stats[emp_type]['fixed_exceeds_contracted'] += 1
+                logging.warning(
+                    f"Employee {employee.employee_id} ({emp_type}) has {fixed_hours} FIXED hours "
+                    f"but only {contracted_hours} contracted hours!"
+                )
+    
+    # Calculate averages and log results
+    for emp_type, stats in type_stats.items():
+        count = stats['count']
+        if count > 0:
+            avg_contracted = stats['avg_contracted_hours'] / count
+            avg_fixed = stats['avg_fixed_hours'] / count
+            avg_preferred = stats['avg_preferred_hours'] / count
+            avg_available = stats['avg_available_hours'] / count
+            avg_total = stats['avg_total_hours'] / count
+            
+            logging.info(f"\n{emp_type} employees ({count} total):")
+            logging.info(f"  Average contracted hours: {avg_contracted:.1f}")
+            logging.info(f"  Average FIXED hours: {avg_fixed:.1f}")
+            logging.info(f"  Average PREFERRED hours: {avg_preferred:.1f}")
+            logging.info(f"  Average AVAILABLE hours: {avg_available:.1f}")
+            logging.info(f"  Average total availability: {avg_total:.1f}")
+            logging.info(f"  Fixed/Contracted ratio: {(avg_fixed/avg_contracted)*100:.1f}%")
+            
+            if stats['fixed_exceeds_contracted'] > 0:
+                logging.error(f"  ⚠️  {stats['fixed_exceeds_contracted']} employees have FIXED hours exceeding contracted hours!")
+            else:
+                logging.info(f"  ✅ All employees have FIXED hours within contracted limits")
+    
+    logging.info(f"\nTotal availability records created: {len(availabilities)}")
+    logging.info("=== End Availability Analysis ===\n")
 
 
 def generate_shift_templates():
@@ -426,6 +728,7 @@ def generate_shift_templates():
 
 @bp.route("/", methods=["POST", "OPTIONS"])
 @bp.route("", methods=["POST", "OPTIONS"])
+@production_safeguard
 def generate_demo_data():
     """Generate demo data"""
     try:
@@ -503,7 +806,11 @@ def generate_demo_data():
             if module == "all":
                 # Generate availability for new employees
                 logging.info("Generating availabilities...")
-                availabilities = generate_improved_availability_data(employees)
+                availabilities, _, _ = generate_improved_availability_data(employees)
+                
+                # Validate and log the availability distribution
+                validate_and_log_availability_distribution(employees, availabilities)
+                
                 db.session.add_all(availabilities)
                 try:
                     db.session.commit()
@@ -540,6 +847,10 @@ def generate_demo_data():
             logging.info("Generating availabilities for existing employees...")
             employees = Employee.query.all()
             availabilities, _, _ = generate_improved_availability_data(employees)
+            
+            # Validate and log the availability distribution
+            validate_and_log_availability_distribution(employees, availabilities)
+            
             db.session.add_all(availabilities)
             try:
                 db.session.commit()
@@ -978,6 +1289,7 @@ def generate_improved_absences(employees):
 
 @bp.route("/optimized", methods=["POST", "OPTIONS"])
 @bp.route("/optimized/", methods=["POST", "OPTIONS"])
+@production_safeguard
 def generate_optimized_demo_data():
     """Generate optimized demo data with diverse shift patterns."""
     try:
@@ -1057,6 +1369,10 @@ def generate_optimized_demo_data():
         availabilities, daily_employee_day_type, employee_weekly_hours = (
             generate_improved_availability_data(employees)
         )
+        
+        # Validate and log the availability distribution
+        validate_and_log_availability_distribution(employees, availabilities)
+        
         db.session.add_all(availabilities)
         db.session.commit()
         logging.info(f"Successfully created {len(availabilities)} availabilities")

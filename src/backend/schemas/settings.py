@@ -425,9 +425,9 @@ class DemoDataSettingsSchema(BaseModel):
     selected_module: Optional[str] = Field(
         None, description="Module for which to generate demo data."
     )
-    last_execution: Optional[datetime] = Field(
-        None, description="Timestamp of the last demo data generation."
-    )  # Changed to datetime
+    last_execution: Optional[str] = Field(
+        None, description="Timestamp of the last demo data generation (ISO format string)."
+    )  # Changed back to string for JSON serialization
 
 
 class ActionsSettingsSchema(BaseModel):

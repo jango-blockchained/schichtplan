@@ -1,6 +1,7 @@
 import React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Loader2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -15,17 +16,22 @@ import { useTheme } from "@/hooks/use-theme";
 interface AppearanceDisplaySectionProps {
   settings: Settings["display"] | undefined;
   onDisplaySettingChange: (key: keyof Settings["display"], value: any) => void;
+  onImmediateUpdate: () => void;
+  isLoading: boolean;
 }
 
 const AppearanceDisplaySection: React.FC<AppearanceDisplaySectionProps> = ({
   settings,
   onDisplaySettingChange,
+  onImmediateUpdate,
+  isLoading,
 }) => {
   const { setTheme } = useTheme();
 
   const handleThemeChange = (value: "light" | "dark" | "system") => {
     setTheme(value);
     onDisplaySettingChange("theme", value);
+    onImmediateUpdate();
   };
 
   const handleColorChange = (
@@ -33,6 +39,7 @@ const AppearanceDisplaySection: React.FC<AppearanceDisplaySectionProps> = ({
     color: string,
   ) => {
     onDisplaySettingChange(key, color);
+    onImmediateUpdate();
   };
 
   const handleCalendarSettingChange = (
@@ -40,9 +47,10 @@ const AppearanceDisplaySection: React.FC<AppearanceDisplaySectionProps> = ({
     value: string,
   ) => {
     onDisplaySettingChange(key, value);
+    onImmediateUpdate();
   };
 
-  if (!settings) {
+  if (!settings || isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
         <Loader2 className="h-8 w-8 animate-spin mr-2" />
@@ -92,7 +100,7 @@ const AppearanceDisplaySection: React.FC<AppearanceDisplaySectionProps> = ({
               <Label htmlFor="primary-color-picker">Primary Color</Label>
               <ColorPicker
                 id="primary-color-picker"
-                color={settings.primary_color ?? "#FFFFFF"}
+                color={settings.primary_color ?? "#3B82F6"}
                 onChange={(newColor) =>
                   handleColorChange("primary_color", newColor)
                 }

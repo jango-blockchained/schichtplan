@@ -54,6 +54,4 @@ def handle_exception(e):
 
 @api_bp.errorhandler(404)
 def handle_not_found(e):
-    if request.path.startswith("/api/"):
-        return jsonify({"error": "Resource not found"}), 404
-    return e
+    return jsonify({"error": "Resource not found"}), 404

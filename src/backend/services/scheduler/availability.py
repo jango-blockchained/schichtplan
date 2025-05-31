@@ -12,54 +12,32 @@ src_backend_dir = os.path.abspath(os.path.join(current_dir, "..", ".."))
 if src_backend_dir not in sys.path:
     sys.path.insert(0, src_backend_dir)
 
-# Try to handle imports in different environments
+# Use centralized import utilities
+from .import_utils import safe_import_models, import_availability_type, ModelImportError
+
+# Import models using the centralized utility
 try:
-    from models.employee import AvailabilityType
-except ImportError:
+    (Employee, ShiftTemplate, Settings, Coverage, db, 
+     Absence, EmployeeAvailability, Schedule, AvailabilityType, EmployeeGroup) = safe_import_models(use_mocks_on_failure=True)
+    import_logger = logging.getLogger(__name__)
+    import_logger.info("Successfully imported models for availability module")
+except ModelImportError as e:
+    import_logger = logging.getLogger(__name__)
+    import_logger.critical(f"Failed to import models: {e}")
+    # Try to import just AvailabilityType as fallback
     try:
-        from backend.models.employee import AvailabilityType
-    except ImportError:
-        try:
-            from src.backend.models.employee import AvailabilityType
-        except ImportError:
-            # Create a placeholder enum for standalone testing
-            from enum import Enum
+        AvailabilityType = import_availability_type()
+    except ModelImportError:
+        # Create a placeholder enum for standalone testing
+        from enum import Enum
 
-            class AvailabilityType(str, Enum):
-                """Mock enum for availability types"""
-
-                AVAILABLE = "AVAILABLE"
-                FIXED = "FIXED"
-                PREFERRED = "PREFERRED"
-                UNAVAILABLE = "UNAVAILABLE"
-
-
-# Try to handle imports in different environments
-try:
-    from models import Employee, ShiftTemplate, Schedule
-except ImportError:
-    try:
-        from backend.models import Employee, ShiftTemplate, Schedule
-    except ImportError:
-        try:
-            from src.backend.models import Employee, ShiftTemplate, Schedule
-        except ImportError:
-            # Create type hint classes for standalone testing
-            class Employee:
-                """Type hint class for Employee"""
-
-                id: int
-
-            class ShiftTemplate:
-                """Type hint class for ShiftTemplate"""
-
-                id: int
-                name: str
-                start_time: str
-                end_time: str
-                shift_type: str
-                duration_hours: float
-
+        class AvailabilityType(str, Enum):
+            """Mock enum for availability types"""
+            AVAILABLE = "AVAILABLE"
+            FIXED = "FIXED"
+            PREFERRED = "PREFERRED"
+            UNAVAILABLE = "UNAVAILABLE"
+    raise
 
 class AvailabilityChecker:
     """
@@ -404,5 +382,58 @@ class AvailabilityChecker:
 
     # Logging methods
     def log_error(self, message):
-        if hasattr(self.logger, "error"):
+        """Utility method for error logging"""
+        if self.logger:
             self.logger.error(message)
+
+    def get_available_employees(self, check_date: date, employees: List[Any]) -> List[Any]:
+        """
+        Get a list of employees who are available on the given date.
+        
+        Args:
+            check_date: The date to check availability for
+            employees: List of employee objects to filter
+            
+        Returns:
+            List of employees who are available on the given date
+        """
+        available_employees = []
+        
+        if not employees:
+            self.log_warning(f"No employees provided to check availability for {check_date}")
+            return available_employees
+        
+        self.log_debug(f"Checking availability for {len(employees)} employees on {check_date}")
+        
+        for employee in employees:
+            try:
+                # Get employee ID
+                employee_id = getattr(employee, 'id', None) or getattr(employee, 'employee_id', None)
+                if employee_id is None:
+                    self.log_warning(f"Employee has no ID: {employee}")
+                    continue
+                
+                # Check if employee is active
+                is_active = getattr(employee, 'is_active', True)
+                if not is_active:
+                    self.log_debug(f"Employee {employee_id} is not active")
+                    continue
+                
+                # Check if employee is on leave
+                if self.is_employee_on_leave(employee_id, check_date):
+                    self.log_debug(f"Employee {employee_id} is on leave on {check_date}")
+                    continue
+                
+                # Check basic availability (not shift-specific)
+                if self.check_availability(employee_id, check_date):
+                    available_employees.append(employee)
+                    self.log_debug(f"Employee {employee_id} is available on {check_date}")
+                else:
+                    self.log_debug(f"Employee {employee_id} is not available on {check_date}")
+                    
+            except Exception as e:
+                self.log_warning(f"Error checking availability for employee {employee}: {e}")
+                continue
+        
+        self.log_info(f"Found {len(available_employees)} available employees out of {len(employees)} on {check_date}")
+        return available_employees

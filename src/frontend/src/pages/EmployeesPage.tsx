@@ -134,6 +134,12 @@ export const EmployeesPage = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { employeeGroups, getGroup, getHoursRange } = useEmployeeGroups();
+  
+  // Load settings for absence types
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: getSettings,
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const [filters, setFilters] = useState<FilterState>({
     search: "",
@@ -915,12 +921,12 @@ export const EmployeesPage = () => {
       )}
 
       {/* Add AbsenceModal */}
-      {selectedEmployeeForAbsence && settings && (
+      {selectedEmployeeForAbsence && (
         <AbsenceModal
           employeeId={selectedEmployeeForAbsence.id}
           isOpen={!!selectedEmployeeForAbsence}
           onClose={() => setSelectedEmployeeForAbsence(null)}
-          absenceTypes={settings.employee_groups?.absence_types || []} // Provide default empty array
+          absenceTypes={settings?.employee_groups?.absence_types || []} // Provide default empty array
         />
       )}
     </div>
