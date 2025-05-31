@@ -65,6 +65,7 @@ class SchedulerConfig:
             "NIGHT": 1,
         }
         self.max_shifts_per_day = 2  # Maximum number of shifts per day for any employee
+        self.seniority_weight = 0.5  # Weight for seniority scoring (0-1)
 
         # Update with provided config if any
         if config_dict:
@@ -111,4 +112,5 @@ class SchedulerConfig:
             "employee_types": self.employee_types,
             "keyholder_requirements": self.keyholder_requirements,
             "max_shifts_per_day": self.max_shifts_per_day,
+            "seniority_weight": self.seniority_weight,
         }
