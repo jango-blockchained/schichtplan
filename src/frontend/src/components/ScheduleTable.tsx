@@ -1106,9 +1106,7 @@ export function ScheduleTable({
                         {daysToDisplay.map((date) => {
                           const dateString = format(date, "yyyy-MM-dd");
                           // Find the schedule entry for this employee and date
-                          const schedule = employeeSchedules[employeeId]?.find(
-                            (sch) => sch.date === dateString,
-                          );
+                          const schedule = employeeSchedules[dateString];
 
                           // Check for absence on this specific date
                           const hasAbsence = checkForAbsence(

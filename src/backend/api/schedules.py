@@ -1238,6 +1238,30 @@ def create_schedule():
             # Use session_manager context for automatic transaction handling
             with session_manager() as session:
                 session.add(schedule)
+                # Flush to get the ID and ensure all data is available
+                session.flush()
+                # Create a simple dict without accessing relationships to avoid session binding issues
+                schedule_dict = {
+                    "id": schedule.id,
+                    "employee_id": schedule.employee_id,
+                    "shift_id": schedule.shift_id,
+                    "date": schedule.date.isoformat() if schedule.date is not None else None,
+                    "version": schedule.version,
+                    "break_start": schedule.break_start,
+                    "break_end": schedule.break_end,
+                    "notes": schedule.notes,
+                    "shift_type": schedule.shift_type,
+                    "availability_type": schedule.availability_type.value
+                    if hasattr(schedule.availability_type, 'value') and schedule.availability_type is not None
+                    else schedule.availability_type,
+                    "status": schedule.status.value if schedule.status is not None else "DRAFT",
+                    "created_at": schedule.created_at.isoformat()
+                    if schedule.created_at is not None
+                    else None,
+                    "updated_at": schedule.updated_at.isoformat()
+                    if schedule.updated_at is not None
+                    else None,
+                }
                 # Commit happens automatically at the end of the context
                 # Rollback happens automatically if an exception occurs
 
@@ -1245,7 +1269,7 @@ def create_schedule():
             f"Created new schedule for employee {data['employee_id']} on {data['date']}"
         )
 
-        return jsonify(schedule.to_dict()), HTTPStatus.CREATED
+        return jsonify(schedule_dict), HTTPStatus.CREATED
 
     except SQLAlchemyError as e:
         # Database-specific errors (already handled by session_manager)
