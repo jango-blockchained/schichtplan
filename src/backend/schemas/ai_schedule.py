@@ -19,6 +19,12 @@ class AIScheduleGenerateRequest(BaseModel):
     ai_model_params: Optional[Dict[str, Any]] = Field(
         {}, description="Optional dictionary of parameters for the AI model."
     )
+    seniority_weight: Optional[float] = Field(
+        0.5, 
+        ge=0.0, 
+        le=1.0,
+        description="Weight for seniority scoring (0-1). Higher values prioritize senior employees more."
+    )
 
     class Config:
         schema_extra = {
@@ -28,6 +34,7 @@ class AIScheduleGenerateRequest(BaseModel):
                     "end_date": "2023-11-01",
                     "version_id": 5,
                     "ai_model_params": {"temperature": 0.7, "max_tokens": 1500},
+                    "seniority_weight": 0.5
                 }
             ]
         }

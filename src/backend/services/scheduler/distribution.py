@@ -1567,6 +1567,23 @@ class DistributionManager:
         score += self._calculate_preference_adjustment_v2(
             employee_id, shift_template, shift_date, availability_type_override
         )
+        
+        # 3.5. Seniority Adjustment
+        # Higher seniority employees get priority (positive score adjustment)
+        employee_seniority = getattr(employee, "seniority", 1)  # Default to 1 if not set
+        if employee_seniority > 0:
+            # Normalize seniority score (assuming seniority ranges 1-10, adjust as needed)
+            max_seniority = 10  # Adjust based on your seniority scale
+            normalized_seniority = min(employee_seniority / max_seniority, 1.0)
+            
+            # Apply seniority bonus weighted by configuration
+            seniority_bonus = normalized_seniority * 50.0 * self.seniority_weight
+            score += seniority_bonus
+            
+            self.logger.debug(
+                f"Employee {employee_id} seniority: {employee_seniority}, "
+                f"normalized: {normalized_seniority:.2f}, bonus: {seniority_bonus:.2f}"
+            )
 
         # 4. Shift Desirability Penalty
         cached_shift_info = self.shift_scores.get(shift_template_id)
