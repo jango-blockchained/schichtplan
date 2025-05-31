@@ -128,6 +128,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { DiagnosticsDialog } from "@/components/Schedule/DiagnosticsDialog";
 
 function getErrorMessage(error: any): string {
   if (error && typeof error === "object" && "message" in error) {
@@ -168,6 +169,7 @@ export function SchedulePage() {
   } | null>(null);
   const [isAiDataPreviewOpen, setIsAiDataPreviewOpen] = useState<boolean>(false);
   const [aiPreviewData, setAiPreviewData] = useState<any>(null);
+  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState<boolean>(false);
 
   // 2. Other React hooks
   const { toast } = useToast();
@@ -270,6 +272,7 @@ export function SchedulePage() {
     updateGenerationStep,
     setGenerationSteps,
     setShowGenerationOverlay,
+    lastSessionId,
   } = useScheduleGeneration({
     dateRange,
     selectedVersion: versionControlSelectedVersion,
@@ -1308,6 +1311,19 @@ export function SchedulePage() {
       />
 
       <GenerationLogs logs={generationLogs} clearLogs={clearGenerationLogs} />
+      
+      {lastSessionId && enableDiagnostics && (
+        <div className="mt-4">
+          <Button
+            variant="outline"
+            onClick={() => setIsDiagnosticsOpen(true)}
+            className="gap-2"
+          >
+            <FileText className="h-4 w-4" />
+            Show Full Diagnostics
+          </Button>
+        </div>
+      )}
 
       {settingsQuery.data && (
         <Dialog
@@ -1355,6 +1371,12 @@ export function SchedulePage() {
           defaultDate={dateRange?.from}
         />
       )}
+      
+      <DiagnosticsDialog
+        sessionId={lastSessionId}
+        isOpen={isDiagnosticsOpen}
+        onClose={() => setIsDiagnosticsOpen(false)}
+      />
 
       {confirmDeleteMessage && (
         <AlertDialog

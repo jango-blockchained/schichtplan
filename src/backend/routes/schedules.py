@@ -481,6 +481,11 @@ def generate_schedule():
                 }
             ), HTTPStatus.INTERNAL_SERVER_ERROR
 
+        # Add session_id to the result for diagnostic log retrieval
+        if hasattr(generator, 'session_id'):
+            result['session_id'] = generator.session_id
+            logger.info(f"Schedule generation successful with session_id: {generator.session_id}")
+
         logger.info("Schedule generation successful")
         # Assuming generate_schedule returns a dict suitable for jsonify
         return jsonify(result), HTTPStatus.OK
@@ -2251,6 +2256,67 @@ def generate_ai_schedule():
         logger.error(
             f"An error occurred during AI schedule generation: {str(e)}", exc_info=True
         )
+        return jsonify(
+            {"status": "error", "message": "An internal error occurred"}
+        ), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@schedules.route("/schedules/diagnostics/<session_id>", methods=["GET"])
+def get_schedule_diagnostics(session_id):
+    """Get diagnostic logs for a specific schedule generation session"""
+    try:
+        from pathlib import Path
+        
+        # Get the diagnostic log path
+        diagnostic_dir = Path("src/logs/diagnostics")
+        log_file = diagnostic_dir / f"schedule_diagnostic_{session_id}.log"
+        
+        if not log_file.exists():
+            return jsonify(
+                {"status": "error", "message": "Diagnostic log not found for this session"}
+            ), HTTPStatus.NOT_FOUND
+        
+        # Read the log file
+        try:
+            with open(log_file, 'r', encoding='utf-8') as f:
+                log_content = f.read()
+                
+            # Parse the log content into structured format
+            log_lines = log_content.strip().split('\n')
+            diagnostic_logs = []
+            
+            for line in log_lines:
+                if line.strip():
+                    # Determine log level based on markers in the line
+                    log_type = "info"
+                    if "ERROR" in line or "Failed" in line:
+                        log_type = "error"
+                    elif "WARNING" in line or "Warning" in line:
+                        log_type = "warning"
+                    elif "SUCCESS" in line or "✓" in line:
+                        log_type = "success"
+                        
+                    diagnostic_logs.append({
+                        "type": log_type,
+                        "message": line,
+                        "timestamp": datetime.now().isoformat()  # Could parse from log if available
+                    })
+                    
+            return jsonify({
+                "status": "success",
+                "session_id": session_id,
+                "diagnostic_logs": diagnostic_logs,
+                "log_count": len(diagnostic_logs)
+            }), HTTPStatus.OK
+            
+        except Exception as e:
+            logger.error(f"Error reading diagnostic log file: {str(e)}", exc_info=True)
+            return jsonify(
+                {"status": "error", "message": f"Failed to read diagnostic log: {str(e)}"}
+            ), HTTPStatus.INTERNAL_SERVER_ERROR
+            
+    except Exception as e:
+        logger.error(f"Error fetching diagnostic logs: {str(e)}", exc_info=True)
         return jsonify(
             {"status": "error", "message": "An internal error occurred"}
         ), HTTPStatus.INTERNAL_SERVER_ERROR

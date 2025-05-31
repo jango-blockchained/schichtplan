@@ -52,6 +52,7 @@ export interface ScheduleResponse {
   filtered_schedules?: number;
   logs?: string[];
   diagnostic_logs?: string[];
+  session_id?: string;
 }
 
 const API_BASE_URL =
@@ -437,6 +438,27 @@ export const generateSchedule = async (
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to generate schedule: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
+export const getScheduleDiagnostics = async (sessionId: string): Promise<{
+  status: string;
+  session_id: string;
+  diagnostic_logs: Array<{
+    type: 'info' | 'warning' | 'error' | 'success';
+    message: string;
+    timestamp: string;
+  }>;
+  log_count: number;
+}> => {
+  try {
+    const response = await api.get(`/api/v2/schedules/diagnostics/${sessionId}`);
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to fetch diagnostics: ${error.message}`);
     }
     throw error;
   }
