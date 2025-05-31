@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, request
 from http import HTTPStatus
 import logging
 from datetime import datetime
-from models import db, Settings
+from src.backend.models import db, Settings
 
 holiday_import = Blueprint("holiday_import", __name__)
 

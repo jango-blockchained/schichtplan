@@ -9,7 +9,7 @@ import json
 from datetime import date, datetime, timedelta
 from services.scheduler.generator import ScheduleGenerator
 from models.schedule import ScheduleStatus
-from models import db
+from src.backend.models import db
 from flask import Flask
 import logging
 

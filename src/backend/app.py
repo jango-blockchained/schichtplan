@@ -107,6 +107,14 @@ def create_app(config_class=Config):
                  "expose_headers": ["Content-Type", "Authorization"],
                  "supports_credentials": True,
                  "max_age": 86400,
+             },
+             r"/v2/*": {  # Added block for /v2/* endpoints
+                 "origins": ["http://localhost:5173", "http://127.0.0.1:5173"],
+                 "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                 "allow_headers": ["Content-Type", "Authorization", "Accept", "X-Requested-With"],
+                 "expose_headers": ["Content-Type", "Authorization"],
+                 "supports_credentials": True,
+                 "max_age": 86400,
              }
          }
     )

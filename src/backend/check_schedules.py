@@ -1,5 +1,5 @@
 from app import create_app
-from models import db, Schedule, ScheduleStatus
+from src.backend.models import db, Schedule, ScheduleStatus
 
 app = create_app()
 
