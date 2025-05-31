@@ -14,6 +14,7 @@ export interface AIScoringConfig {
         keyholder: number;        // Keyholder qualification bonus
         skills: number;           // Skill matching
         fatigue: number;          // Consecutive days/fatigue factor
+        seniority: number;        // Seniority/experience level
     };
     
     // Thresholds
@@ -33,6 +34,7 @@ export const DEFAULT_AI_CONFIG: AIScoringConfig = {
         keyholder: 0.05,
         skills: 0.05,
         fatigue: 0.05,
+        seniority: 0.0,  // Default to 0 weight for backward compatibility
     },
     fatigueThreshold: 4,
     workloadBalanceTarget: 40,
@@ -64,6 +66,7 @@ export interface ScoringContext {
     consecutiveDays: number;
     employeeHistory?: EmployeeHistory;
     teamAverageHours: number;
+    seniority?: number; // Years of service
     coverageNeeds: {
         critical: boolean;
         understaffed: boolean;
@@ -133,6 +136,7 @@ export class AIScheduleScorer {
             keyholder: this.calculateKeyholderScore(context),
             skills: await this.calculateSkillScore(context),
             fatigue: this.calculateFatigueScore(context),
+            seniority: this.calculateSeniorityScore(context),
         };
         
         // Apply weights and calculate final score
@@ -322,6 +326,32 @@ export class AIScheduleScorer {
         return Math.max(0.2, 1.0 - (daysOverThreshold * 0.2));
     }
     
+    private calculateSeniorityScore(context: ScoringContext): number {
+        // If no seniority data, return neutral score
+        if (context.seniority === undefined || context.seniority === null) {
+            return 0.5;
+        }
+        
+        // Score based on years of service
+        // 0-1 year: 0.3
+        // 1-3 years: 0.5
+        // 3-5 years: 0.7
+        // 5-10 years: 0.85
+        // 10+ years: 1.0
+        
+        if (context.seniority < 1) {
+            return 0.3;
+        } else if (context.seniority < 3) {
+            return 0.5;
+        } else if (context.seniority < 5) {
+            return 0.7;
+        } else if (context.seniority < 10) {
+            return 0.85;
+        } else {
+            return 1.0;
+        }
+    }
+    
     // Helper methods
     
     private async loadEmployeeHistory(employeeId: string, referenceDate: Date): Promise<EmployeeHistory> {
@@ -449,6 +479,7 @@ export class AIScheduleScorer {
             keyholder: this.calculateKeyholderScore(context),
             skills: await this.calculateSkillScore(context),
             fatigue: this.calculateFatigueScore(context),
+            seniority: this.calculateSeniorityScore(context),
         };
         
         const weightedScores: Record<string, number> = {};
