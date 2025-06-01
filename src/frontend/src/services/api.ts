@@ -55,6 +55,17 @@ export interface ScheduleResponse {
   session_id?: string;
 }
 
+export interface AiGenerationResponse {
+  status: string;
+  message: string;
+  generated_assignments_count: number;
+  session_id: string;
+  diagnostic_log: string;
+  version: number;
+  start_date: string;
+  end_date: string;
+}
+
 const API_BASE_URL =
   import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -401,11 +412,11 @@ export const generateAiSchedule = async (
   endDate: string,
   version: number,
   // Add any AI-specific parameters here if needed in the future
-): Promise<ScheduleResponse> => {
+): Promise<AiGenerationResponse> => {
   try {
-    const response = await api.post<ScheduleResponse>(
+    const response = await api.post<AiGenerationResponse>(
       "/api/v2/schedule/generate-ai",
-      { start_date: startDate, end_date: endDate, version: version }
+      { start_date: startDate, end_date: endDate, version_id: version }
     );
     return response.data;
   } catch (error) {
