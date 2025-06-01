@@ -2207,7 +2207,7 @@ def generate_ai_schedule():
 
         # Generate AI prompt based on options
         ai_prompt = generate_ai_prompt_from_options(priority_settings, constraint_overrides, employee_options)
-
+        
         # Placeholder for AI model response (replace with actual API call result)
         ai_response_data = {
             "generated_assignments": [],
