@@ -3,7 +3,7 @@ flask==3.1.0
 flask-sqlalchemy==3.1.1
 flask-migrate==4.1.0
 flask-cors==5.0.1
-python-dotenv==1.1.0
+python-dotenv==1.1.1
 pyjwt==2.10.1
 pillow==11.2.1
 reportlab==4.4.0
@@ -18,6 +18,9 @@ alembic==1.13.1
 ruff==0.11.9
 cloc==0.2.5
 flask-sse==1.0.0
+
+# FastMCP integration
+fastmcp>=2.5.0
 
 # For SQL
 harlequin==2.1.2
