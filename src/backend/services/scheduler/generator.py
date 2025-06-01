@@ -677,6 +677,32 @@ class ScheduleGenerator:
                             f"Generated {len(assignments)} assignments for {loop_date_str}"
                         )
                         date_count += 1
+                        
+                        # Add assignments to the schedule container
+                        for assignment_dict in assignments:
+                            # Get shift template for creating ScheduleAssignment
+                            shift_template = None
+                            if 'shift_id' in assignment_dict and assignment_dict['shift_id']:
+                                shift_template = self.resources.get_shift(assignment_dict['shift_id'])
+                            
+                            # Create ScheduleAssignment object
+                            schedule_assignment = ScheduleAssignment(
+                                employee_id=assignment_dict.get('employee_id'),
+                                shift_id=assignment_dict.get('shift_id'),
+                                date_val=assignment_dict.get('date', current_date),
+                                shift_template=shift_template,
+                                availability_type=assignment_dict.get('availability_type'),
+                                status=assignment_dict.get('status', 'PENDING'),
+                                version=self.schedule.version,
+                                break_start=assignment_dict.get('break_start'),
+                                break_end=assignment_dict.get('break_end'),
+                                notes=assignment_dict.get('notes'),
+                                logger_instance=self.diagnostic_logger,
+                            )
+                            
+                            # Add to schedule container
+                            self.schedule.add_assignment(schedule_assignment)
+                            self.logger.debug(f"Added assignment to schedule: Employee {schedule_assignment.employee_id}, Shift {schedule_assignment.shift_id}, Date {schedule_assignment.date}")
                     elif create_empty_schedules:
                         self.logger.warning(
                             f"No coverage or shifts applicable for {loop_date_str}. Creating empty entry."
@@ -1025,6 +1051,42 @@ class ScheduleGenerator:
         )
         return not missing_durations  # Return True if validation passes
 
+    def _process_coverage(self, process_date: date) -> Dict[str, List[Dict]]:
+        """
+        Process coverage requirements for a specific date.
+        Returns a dictionary mapping time intervals to required staffing.
+        """
+        self.diagnostic_logger.debug(f"Processing coverage for date {process_date}")
+        
+        # Get coverage requirements for this day
+        weekday = process_date.weekday()
+        day_coverage = []
+        
+        for coverage in self.resources.coverage:
+            if hasattr(coverage, 'day_index') and coverage.day_index == weekday:
+                day_coverage.append(coverage)
+        
+        self.logger.info(f"Found {len(day_coverage)} coverage blocks for {process_date} (weekday {weekday})")
+        
+        # Group coverage by time intervals
+        coverage_by_interval = {}
+        for coverage in day_coverage:
+            interval_key = f"{coverage.start_time}-{coverage.end_time}"
+            if interval_key not in coverage_by_interval:
+                coverage_by_interval[interval_key] = []
+            
+            coverage_dict = {
+                "start_time": coverage.start_time,
+                "end_time": coverage.end_time,
+                "min_employees": getattr(coverage, "min_employees", 1),
+                "max_employees": getattr(coverage, "max_employees", None),
+                "requires_keyholder": getattr(coverage, "requires_keyholder", False),
+                "employee_types": getattr(coverage, "employee_types", []),
+            }
+            coverage_by_interval[interval_key].append(coverage_dict)
+        
+        return coverage_by_interval
+
     def _create_date_shifts(self, date_to_create: date) -> List[Dict]:
         """Create shift instances for a specific date based on shift templates"""
         date_shifts = []
@@ -1033,8 +1095,20 @@ class ScheduleGenerator:
         self.logger.info(
             f"Creating shifts for date {date_to_create} (weekday {weekday})"
         )
+        
+        # First, get coverage requirements for this date
+        coverage_by_interval = self._process_coverage(date_to_create)
+        if not coverage_by_interval:
+            self.logger.warning(f"No coverage requirements found for {date_to_create}")
+            return []
+        
+        # Log coverage requirements
+        for interval, requirements in coverage_by_interval.items():
+            for req in requirements:
+                self.logger.info(f"Coverage needed {interval}: {req['min_employees']} employees")
 
         # Find all shift templates active on this day
+        active_shift_templates = []
         for shift_template in self.resources.shifts:
             shift_active_days = []  # Default to empty list
 
@@ -1113,56 +1187,136 @@ class ScheduleGenerator:
                     f"Shift template has no ID, skipping: {shift_template}"
                 )
                 continue
+                
+            # Add to active templates
+            active_shift_templates.append(shift_template)
+        
+        self.logger.info(f"Found {len(active_shift_templates)} active shift templates for weekday {weekday}")
+        
+        # Now match active shifts to coverage intervals
+        shifts_created = set()  # Track which shifts we've already created
+        
+        for interval_key, coverage_requirements in coverage_by_interval.items():
+            # Parse interval times
+            interval_parts = interval_key.split('-')
+            if len(interval_parts) != 2:
+                self.logger.warning(f"Invalid interval format: {interval_key}")
+                continue
+                
+            coverage_start = interval_parts[0]
+            coverage_end = interval_parts[1]
+            
+            # Find shifts that match this coverage interval
+            matching_shifts = []
+            for shift_template in active_shift_templates:
+                shift_start = getattr(shift_template, "start_time", "")
+                shift_end = getattr(shift_template, "end_time", "")
+                
+                # Check if shift times match the coverage interval
+                if shift_start == coverage_start and shift_end == coverage_end:
+                    matching_shifts.append(shift_template)
+                    self.logger.debug(f"Shift {shift_template.id} matches coverage interval {interval_key}")
+            
+            if not matching_shifts:
+                self.logger.warning(f"No shifts found matching coverage interval {interval_key}")
+                continue
+            
+            # Create shift instances for each matching shift template
+            for coverage_req in coverage_requirements:
+                min_employees = coverage_req.get('min_employees', 1)
+                
+                # For each matching shift, create instances based on required staffing
+                for shift_template in matching_shifts:
+                    shift_id = shift_template.id
+                    
+                    # Skip if we've already created this shift
+                    if shift_id in shifts_created:
+                        continue
+                    
+                    shifts_created.add(shift_id)
+                    
+                    # Get the active days for this shift template
+                    shift_active_days = []
+                    if hasattr(shift_template, "active_days") and shift_template.active_days:
+                        if isinstance(shift_template.active_days, list):
+                            shift_active_days = shift_template.active_days
+                        elif isinstance(shift_template.active_days, dict):
+                            shift_active_days = [
+                                int(day_str)
+                                for day_str, is_active in shift_template.active_days.items()
+                                if is_active
+                            ]
+                        elif isinstance(shift_template.active_days, str):
+                            try:
+                                import json
+                                loaded_days = json.loads(shift_template.active_days)
+                                if isinstance(loaded_days, list):
+                                    shift_active_days = loaded_days
+                                elif isinstance(loaded_days, dict):
+                                    shift_active_days = [
+                                        int(day_str)
+                                        for day_str, is_active in loaded_days.items()
+                                        if is_active
+                                    ]
+                            except (json.JSONDecodeError, ValueError):
+                                try:
+                                    shift_active_days = [
+                                        int(d.strip())
+                                        for d in shift_template.active_days.split(",")
+                                        if d.strip()
+                                    ]
+                                except ValueError:
+                                    pass
 
-            # Get shift type - try multiple attributes
-            shift_type = None
-            if hasattr(shift_template, "shift_type_id"):
-                stid = shift_template.shift_type_id
-                # If it's a MagicMock (from test), treat as not set
-                if isinstance(stid, str):
-                    shift_type = stid
-                else:
+                    # Get shift type - try multiple attributes
                     shift_type = None
-            elif hasattr(shift_template, "shift_type"):
-                # Handle both string and enum values
-                if hasattr(shift_template.shift_type, "value"):
-                    shift_type = shift_template.shift_type.value
-                else:
-                    shift_type = shift_template.shift_type
-            # Default to a shift type based on start time if none specified
-            if not shift_type:
-                start_time = getattr(shift_template, "start_time", "09:00")
-                try:
-                    start_hour = int(start_time.split(":")[0])
-                    if start_hour < 11:
-                        shift_type = "EARLY"
-                    elif start_hour >= 14:
-                        shift_type = "LATE"
-                    else:
-                        shift_type = "MIDDLE"
-                except (ValueError, IndexError):
-                    shift_type = "MIDDLE"  # Default
+                    if hasattr(shift_template, "shift_type_id"):
+                        stid = shift_template.shift_type_id
+                        # If it's a MagicMock (from test), treat as not set
+                        if isinstance(stid, str):
+                            shift_type = stid
+                        else:
+                            shift_type = None
+                    elif hasattr(shift_template, "shift_type"):
+                        # Handle both string and enum values
+                        if hasattr(shift_template.shift_type, "value"):
+                            shift_type = shift_template.shift_type.value
+                        else:
+                            shift_type = shift_template.shift_type
+                    # Default to a shift type based on start time if none specified
+                    if not shift_type:
+                        start_time = getattr(shift_template, "start_time", "09:00")
+                        try:
+                            start_hour = int(start_time.split(":")[0])
+                            if start_hour < 11:
+                                shift_type = "EARLY"
+                            elif start_hour >= 14:
+                                shift_type = "LATE"
+                            else:
+                                shift_type = "MIDDLE"
+                        except (ValueError, IndexError):
+                            shift_type = "MIDDLE"  # Default
 
-            # Create shift instance
-            shift_instance = {
-                "id": shift_id,  # Original shift template ID
-                "shift_id": shift_id,  # Duplicate for compatibility
-                "date": date_to_create,
-                "start_time": getattr(shift_template, "start_time", "09:00"),
-                "end_time": getattr(shift_template, "end_time", "17:00"),
-                "duration_hours": getattr(shift_template, "duration_hours", 8.0),
-                "shift_type": shift_type,
-                "shift_type_id": shift_type,  # Always use the resolved string, not MagicMock
-                "requires_keyholder": getattr(
-                    shift_template, "requires_keyholder", False
-                ),
-                "active_days": shift_active_days,
-            }
+                    # Create shift instance
+                    shift_instance = {
+                        "id": shift_id,  # Original shift template ID
+                        "shift_id": shift_id,  # Duplicate for compatibility
+                        "date": date_to_create,
+                        "start_time": getattr(shift_template, "start_time", "09:00"),
+                        "end_time": getattr(shift_template, "end_time", "17:00"),
+                        "duration_hours": getattr(shift_template, "duration_hours", 8.0),
+                        "shift_type": shift_type,
+                        "shift_type_id": shift_type,  # Always use the resolved string, not MagicMock
+                        "requires_keyholder": coverage_req.get("requires_keyholder", False),
+                        "active_days": shift_active_days,
+                        "min_employees": min_employees,  # Add coverage requirement
+                        "coverage_interval": interval_key,  # Track which coverage this is for
+                    }
 
-            self.logger.info(
-                f"Created shift instance: ID={shift_id}, type={shift_type}, time={shift_instance['start_time']}-{shift_instance['end_time']}"
-            )
-            date_shifts.append(shift_instance)
+                    self.logger.info(
+                        f"Created shift instance: ID={shift_id}, type={shift_type}, time={shift_instance['start_time']}-{shift_instance['end_time']}, coverage={interval_key}, min_employees={min_employees}"
+                    )
+                    date_shifts.append(shift_instance)
 
         self.logger.info(
             f"Created {len(date_shifts)} shift instances for {date_to_create}"
@@ -1354,59 +1508,74 @@ class ScheduleGenerator:
         """Save assignments to the database using bulk insertion."""
         if not assignments:
             self.logger.info("No assignments to save to database")
-            return
+            return 0
             
         try:
-            from src.backend.models.schedule import ScheduleAssignment
+            from src.backend.models.schedule import Schedule
+            from flask import current_app
             from flask_sqlalchemy import SQLAlchemy
             
-            # Get database session
-            if hasattr(self, 'db') and self.db:
-                db = self.db
-            elif hasattr(self, 'app_instance') and self.app_instance:
-                from flask_sqlalchemy import SQLAlchemy
-                db = SQLAlchemy(self.app_instance)
+            # Get database instance
+            if hasattr(current_app, 'extensions') and 'sqlalchemy' in current_app.extensions:
+                db = current_app.extensions['sqlalchemy']
             else:
-                self.logger.error("No database connection available for saving assignments")
-                return
-                
-            session = db.session
-            assignment_objs = []
+                # Fallback: create new instance
+                db = SQLAlchemy(current_app)
+            
+            saved_count = 0
             
             for assignment in assignments:
                 try:
-                    # Create ScheduleAssignment object with all available fields
-                    assignment_obj = ScheduleAssignment(
-                        employee_id=assignment["employee_id"],
-                        shift_id=assignment["shift_id"],
-                        date=assignment["date"],
-                        status=assignment.get("status", "PENDING"),
-                        version=assignment.get("version", 1),
-                        start_time=assignment.get("start_time"),
-                        end_time=assignment.get("end_time"),
-                        shift_type=assignment.get("shift_type"),
-                        break_start=assignment.get("break_start"),
-                        break_end=assignment.get("break_end"),
-                        notes=assignment.get("notes"),
-                    )
-                    assignment_objs.append(assignment_obj)
+                    # Handle both ScheduleAssignment objects and dictionaries
+                    if isinstance(assignment, ScheduleAssignment):
+                        # Create Schedule model instance from ScheduleAssignment
+                        schedule_obj = Schedule(
+                            employee_id=assignment.employee_id,
+                            shift_id=assignment.shift_id,
+                            date=assignment.date,
+                            status=assignment.status,
+                            version=assignment.version,
+                            shift_type=assignment.shift_type_str,
+                            availability_type=assignment.availability_type,
+                            break_start=assignment.break_start,
+                            break_end=assignment.break_end,
+                            notes=assignment.notes,
+                        )
+                    else:
+                        # Handle dictionary format
+                        schedule_obj = Schedule(
+                            employee_id=assignment["employee_id"],
+                            shift_id=assignment["shift_id"],
+                            date=assignment["date"],
+                            status=assignment.get("status", "PENDING"),
+                            version=assignment.get("version", 1),
+                            shift_type=assignment.get("shift_type"),
+                            availability_type=assignment.get("availability_type"),
+                            break_start=assignment.get("break_start"),
+                            break_end=assignment.get("break_end"),
+                            notes=assignment.get("notes"),
+                        )
+                    
+                    db.session.add(schedule_obj)
+                    saved_count += 1
+                    
                 except Exception as e:
-                    self.logger.error(f"Error creating assignment object: {e}")
+                    self.logger.error(f"Error creating schedule object: {e}")
                     self.logger.error(f"Assignment data: {assignment}")
                     continue
             
-            if assignment_objs:
-                # Use bulk insertion for better performance
-                session.bulk_save_objects(assignment_objs)
-                session.commit()
-                self.logger.info(f"Successfully saved {len(assignment_objs)} assignments to database")
+            if saved_count > 0:
+                # Commit all at once
+                db.session.commit()
+                self.logger.info(f"Successfully saved {saved_count} assignments to database")
             else:
                 self.logger.warning("No valid assignment objects created for database save")
+            
+            return saved_count
                 
         except Exception as e:
             self.logger.error(f"Error saving assignments to database: {str(e)}", exc_info=True)
-            if 'session' in locals():
-                session.rollback()
+            db.session.rollback()
             raise
 
     def _update_schedule_version_meta(
