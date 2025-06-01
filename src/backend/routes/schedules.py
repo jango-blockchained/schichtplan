@@ -242,6 +242,8 @@ def get_schedules():
                     # Add shift details to the schedule dict
                     schedule_dict["shift_start"] = shift.start_time
                     schedule_dict["shift_end"] = shift.end_time
+                    schedule_dict["duration_hours"] = shift.duration_hours
+                    schedule_dict["requires_break"] = shift.requires_break
                     schedule_dict["shift_type_id"] = shift.shift_type_id
                     schedule_dict["shift_type_name"] = (
                         shift.shift_type.value if shift.shift_type else None
@@ -2007,6 +2009,8 @@ def fix_schedule_display():
                     # Add shift details to the schedule dict
                     schedule_dict["shift_start"] = shift.start_time
                     schedule_dict["shift_end"] = shift.end_time
+                    schedule_dict["duration_hours"] = shift.duration_hours
+                    schedule_dict["requires_break"] = shift.requires_break
                     schedule_dict["shift_type_id"] = shift.shift_type_id
                     schedule_dict["shift_type_name"] = (
                         shift.shift_type.value if shift.shift_type else None
