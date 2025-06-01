@@ -18,6 +18,9 @@ export const DayRow: React.FC<DayRowProps> = ({
   isEditing,
   gridWidth,
   storeConfig,
+  selectedBlocks,
+  onBlockSelect,
+  selectionMode,
 }) => {
   // Calculate grid dimensions using exact store hours
   const gridStartMinutes = timeToMinutes(storeConfig.store_opening);
@@ -115,21 +118,30 @@ export const DayRow: React.FC<DayRowProps> = ({
           />
         ))}
       </div>
-      {slots.map((slot, index) => (
-        <CoverageBlock
-          key={`${dayIndex}-${slot.startTime}-${slot.endTime}-${index}`}
-          slot={slot}
-          dayIndex={dayIndex}
-          onUpdate={(updates) => onUpdateSlot(index, updates)}
-          onDelete={() => onDeleteSlot(index)}
-          isEditing={isEditing}
-          gridWidth={gridWidth}
-          storeConfig={storeConfig}
-          hours={hours}
-          gridStartMinutes={gridStartMinutes}
-          totalGridMinutes={totalGridMinutes}
-        />
-      ))}
+      {slots.map((slot, index) => {
+        const blockKey = `${dayIndex}-${index}`;
+        const isSelected = selectedBlocks.has(blockKey);
+        
+        return (
+          <CoverageBlock
+            key={`${dayIndex}-${slot.startTime}-${slot.endTime}-${index}`}
+            slot={slot}
+            dayIndex={dayIndex}
+            slotIndex={index}
+            onUpdate={(updates) => onUpdateSlot(index, updates)}
+            onDelete={() => onDeleteSlot(index)}
+            isEditing={isEditing}
+            gridWidth={gridWidth}
+            storeConfig={storeConfig}
+            hours={hours}
+            gridStartMinutes={gridStartMinutes}
+            totalGridMinutes={totalGridMinutes}
+            isSelected={isSelected}
+            onSelect={(selected) => onBlockSelect(dayIndex, index, selected)}
+            selectionMode={selectionMode}
+          />
+        );
+      })}
     </div>
   );
 };

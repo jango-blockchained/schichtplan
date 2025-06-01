@@ -161,8 +161,8 @@ export function EnhancedDateRangeSelector({
 
   return (
     <>
-      <Card className="mb-4 border border-border/30 shadow-lg bg-card">
-        <CardHeader className="py-4 border-b border-border/30">
+      <Card className="mb-4 border border-border shadow-lg bg-card">
+        <CardHeader className="py-4 border-b border-border">
           <div className="flex items-center justify-between">
             <CardTitle className="text-xl flex items-center font-medium">
               <Calendar className="h-6 w-6 mr-2 text-primary" />

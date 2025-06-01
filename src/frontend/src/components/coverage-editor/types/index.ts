@@ -40,6 +40,29 @@ export interface DailyCoverage {
   timeSlots: CoverageTimeSlot[];
 }
 
+// New interface for identifying a specific coverage block
+export interface BlockIdentifier {
+  dayIndex: number;
+  slotIndex: number;
+}
+
+// New interface for bulk editing operations
+export interface BulkEditData {
+  minEmployees?: number;
+  maxEmployees?: number;
+  employeeTypes?: string[];
+  requiresKeyholder?: boolean;
+}
+
+export interface BulkEditDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  selectedBlocks: BlockIdentifier[];
+  coverage: DailyCoverage[];
+  onBulkUpdate: (updates: BulkEditData) => void;
+  storeConfig: StoreConfigProps;
+}
+
 export interface BlockEditorProps {
   slot: CoverageTimeSlot;
   onSave: (updates: CoverageTimeSlot) => void;
@@ -50,6 +73,7 @@ export interface BlockEditorProps {
 export interface CoverageBlockProps {
   slot: CoverageTimeSlot;
   dayIndex: number;
+  slotIndex: number;
   onUpdate: (updates: Partial<CoverageTimeSlot>) => void;
   onDelete: () => void;
   isEditing: boolean;
@@ -58,6 +82,10 @@ export interface CoverageBlockProps {
   hours: string[];
   gridStartMinutes: number;
   totalGridMinutes: number;
+  // New selection-related props
+  isSelected: boolean;
+  onSelect: (selected: boolean) => void;
+  selectionMode: boolean;
 }
 
 export interface DayRowProps {
@@ -71,6 +99,10 @@ export interface DayRowProps {
   isEditing: boolean;
   gridWidth: number;
   storeConfig: StoreConfigProps;
+  // New selection-related props
+  selectedBlocks: Set<string>;
+  onBlockSelect: (dayIndex: number, slotIndex: number, selected: boolean) => void;
+  selectionMode: boolean;
 }
 
 export interface TimeGridCellProps {

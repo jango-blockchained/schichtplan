@@ -248,7 +248,7 @@ export function VersionTable({
   return (
     <Card>
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CardHeader className="flex flex-row items-center justify-between border-b border-border/30">
+        <CardHeader className="flex flex-row items-center justify-between border-b border-border">
           <CollapsibleTrigger asChild>
             <Button variant="ghost" className="flex items-center gap-2 p-0 hover:bg-muted/50">
               {isOpen ? (
@@ -264,7 +264,7 @@ export function VersionTable({
               variant="outline"
               size="sm"
               onClick={onCreateNewVersion}
-              className="ml-auto border-border/30 hover:border-primary/40"
+              className="ml-auto"
             >
               <Plus className="h-4 w-4 mr-2" />
               Neue Version
@@ -273,10 +273,10 @@ export function VersionTable({
         </CardHeader>
         <CollapsibleContent>
           <CardContent className="p-0">
-            <div className="border border-border/30 rounded-lg m-4">
+            <div className="border border-border rounded-lg m-4">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-b border-border/30">
+                  <TableRow className="border-b border-border">
                     <TableHead className="font-medium">Version</TableHead>
                     <TableHead className="font-medium">Zeitraum</TableHead>
                     <TableHead className="font-medium">Status</TableHead>
@@ -296,7 +296,7 @@ export function VersionTable({
                     return (
                       <TableRow
                         key={version.version}
-                        className={`${isSelected ? "bg-primary/10 border-primary/20" : "hover:bg-muted/30"} ${isNew ? "bg-green-500/10 border-green-500/20" : ""} border-b border-border/30`}
+                        className={`${isSelected ? "bg-primary/10 border-primary/20" : "hover:bg-muted/30"} ${isNew ? "bg-green-500/10 border-green-500/20" : ""} border-b border-border`}
                       >
                         <TableCell className="font-medium">
                           <Button
@@ -445,14 +445,14 @@ export function VersionTable({
                 </TableBody>
               </Table>
 
-              <div className="flex items-center justify-between mt-4 px-4 py-3 border-t border-border/30">
+              <div className="flex items-center justify-between mt-4 px-4 py-3 border-t border-border">
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">Zeige</span>
                   <Select
                     value={itemsPerPage.toString()}
                     onValueChange={handleItemsPerPageChange}
                   >
-                    <SelectTrigger className="w-[80px] h-8 border-border/30">
+                    <SelectTrigger className="w-[80px] h-8">
                       <SelectValue placeholder={itemsPerPage.toString()} />
                     </SelectTrigger>
                     <SelectContent>

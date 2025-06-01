@@ -108,7 +108,7 @@ export function ScheduleManager({
 
   if (isEmptyState) {
     return (
-      <Card className="mb-4 border-dashed border-2 border-muted">
+      <Card className="mb-4 border-dashed border-2 border-border">
         <CardContent className="flex flex-col items-center justify-center py-8">
           <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium mb-2">Keine Einträge gefunden</h3>

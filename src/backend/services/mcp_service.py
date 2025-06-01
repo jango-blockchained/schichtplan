@@ -12,14 +12,13 @@ from typing import Dict, List, Optional, Any, Union
 import json
 import traceback
 
-from fastmcp import FastMCP, Context
-from fastmcp.types import Image
+from fastmcp import FastMCP, Context, Image
 from flask import Flask
 
 # Import Schichtplan models and services
 from src.backend.models import (
-    db, Employee, ShiftTemplate, Schedule, ScheduleAssignment, 
-    Coverage, Availability, AbsenceRecord, Settings
+    db, Employee, ShiftTemplate, Schedule, 
+    Coverage, EmployeeAvailability, Absence, Settings
 )
 from src.backend.services.schedule_generator import ScheduleGenerator
 from src.backend.services.ai_scheduler_service import AISchedulerService
@@ -334,12 +333,11 @@ class SchichtplanMCPService:
                             'active': ShiftTemplate.query.filter_by(is_active=True).count()
                         },
                         'schedules': {
-                            'total': Schedule.query.count(),
-                            'assignments': ScheduleAssignment.query.count()
+                            'total': Schedule.query.count()
                         },
                         'coverage_requirements': Coverage.query.count(),
-                        'availability_records': Availability.query.count(),
-                        'absence_records': AbsenceRecord.query.count()
+                        'availability_records': EmployeeAvailability.query.count(),
+                        'absence_records': Absence.query.count()
                     }
                     
                     await ctx.info("System status retrieved successfully")
@@ -382,8 +380,8 @@ class SchichtplanMCPService:
                         return json.dumps({'error': 'Employee not found'})
                     
                     # Get availability and absence data
-                    availability = Availability.query.filter_by(employee_id=employee_id).all()
-                    absences = AbsenceRecord.query.filter_by(employee_id=employee_id).all()
+                    availability = EmployeeAvailability.query.filter_by(employee_id=employee_id).all()
+                    absences = Absence.query.filter_by(employee_id=employee_id).all()
                     
                     data = {
                         'id': employee.id,

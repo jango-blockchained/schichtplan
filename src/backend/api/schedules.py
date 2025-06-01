@@ -129,7 +129,11 @@ def get_schedules():
         # Get schedules only if a valid version is specified or exists
         schedules = []
         if version is not None:
-            schedule_query = Schedule.query.filter(Schedule.version == version)  # type: ignore
+            from sqlalchemy.orm import joinedload
+            schedule_query = Schedule.query.options(
+                joinedload(Schedule.shift),  # Eagerly load shift relationship
+                joinedload(Schedule.employee)  # Eagerly load employee relationship
+            ).filter(Schedule.version == version)  # type: ignore
             if start_date_obj is not None:
                 schedule_query = schedule_query.filter(Schedule.date >= start_date_obj)  # type: ignore
             if end_date_obj is not None:
@@ -148,29 +152,51 @@ def get_schedules():
             if meta:
                 current_version_meta = meta.to_dict()
 
+        # Enrich schedule data with shift details
+        enriched_schedules = []
+        for schedule in schedules:
+            schedule_data = {
+                "id": schedule.id,
+                "date": schedule.date.strftime("%Y-%m-%d"),
+                "employee_id": schedule.employee.id,
+                "employee_name": f"{schedule.employee.first_name} {schedule.employee.last_name}",
+                "shift_id": schedule.shift.id if schedule.shift else None,
+                "break_start": schedule.break_start,
+                "break_end": schedule.break_end,
+                "notes": schedule.notes,
+                "version": schedule.version,
+                "is_empty": not bool(schedule.shift_id),
+            }
+            
+            # Add enriched shift data
+            if schedule.shift:
+                schedule_data.update({
+                    "shift_start": schedule.shift.start_time,
+                    "shift_end": schedule.shift.end_time,
+                    "duration_hours": schedule.shift.duration_hours,
+                    "requires_break": schedule.shift.requires_break,
+                    "shift_type_id": schedule.shift.shift_type_id,
+                    "shift_type_name": schedule.shift.shift_type.value if schedule.shift.shift_type else None,
+                })
+            elif schedule.shift_id:
+                # Fallback: fetch shift data directly if relationship is missing
+                from ..models.fixed_shift import ShiftTemplate
+                shift = ShiftTemplate.query.get(schedule.shift_id)
+                if shift:
+                    schedule_data.update({
+                        "shift_start": shift.start_time,
+                        "shift_end": shift.end_time,
+                        "duration_hours": shift.duration_hours,
+                        "requires_break": shift.requires_break,
+                        "shift_type_id": shift.shift_type_id,
+                        "shift_type_name": shift.shift_type.value if shift.shift_type else None,
+                    })
+            
+            enriched_schedules.append(schedule_data)
+
         return jsonify(
             {
-                "schedules": [
-                    {
-                        "id": schedule.id,
-                        "date": schedule.date.strftime("%Y-%m-%d"),
-                        "employee_id": schedule.employee.id,
-                        "employee_name": f"{schedule.employee.first_name} {schedule.employee.last_name}",
-                        "shift_id": schedule.shift.id if schedule.shift else None,
-                        "shift_start": schedule.shift.start_time
-                        if schedule.shift
-                        else None,
-                        "shift_end": schedule.shift.end_time
-                        if schedule.shift
-                        else None,
-                        "break_start": schedule.break_start,
-                        "break_end": schedule.break_end,
-                        "notes": schedule.notes,
-                        "version": schedule.version,
-                        "is_empty": not bool(schedule.shift_id),
-                    }
-                    for schedule in schedules
-                ],
+                "schedules": enriched_schedules,
                 "versions": version_numbers,
                 "version_statuses": version_statuses,
                 "current_version": version,
@@ -1228,8 +1254,14 @@ def create_schedule():
                 shift_id=data.get("shift_id"),
                 date=date_obj,
                 version=data["version"],
+                shift_start=data.get("shift_start"),
+                shift_end=data.get("shift_end"),
+                duration_hours=data.get("duration_hours"),
+                requires_break=data.get("requires_break"),
+                shift_type_id=data.get("shift_type_id"),
                 break_start=data.get("break_start"),
                 break_end=data.get("break_end"),
+                break_duration=data.get("break_duration"),
                 notes=data.get("notes"),
                 shift_type=data.get("shift_type"),
                 status=ScheduleStatus.DRAFT,
@@ -1240,28 +1272,10 @@ def create_schedule():
                 session.add(schedule)
                 # Flush to get the ID and ensure all data is available
                 session.flush()
-                # Create a simple dict without accessing relationships to avoid session binding issues
-                schedule_dict = {
-                    "id": schedule.id,
-                    "employee_id": schedule.employee_id,
-                    "shift_id": schedule.shift_id,
-                    "date": schedule.date.isoformat() if schedule.date is not None else None,
-                    "version": schedule.version,
-                    "break_start": schedule.break_start,
-                    "break_end": schedule.break_end,
-                    "notes": schedule.notes,
-                    "shift_type": schedule.shift_type,
-                    "availability_type": schedule.availability_type.value
-                    if hasattr(schedule.availability_type, 'value') and schedule.availability_type is not None
-                    else schedule.availability_type,
-                    "status": schedule.status.value if schedule.status is not None else "DRAFT",
-                    "created_at": schedule.created_at.isoformat()
-                    if schedule.created_at is not None
-                    else None,
-                    "updated_at": schedule.updated_at.isoformat()
-                    if schedule.updated_at is not None
-                    else None,
-                }
+                
+                # Use the schedule's to_dict() method which includes all timing fields
+                schedule_dict = schedule.to_dict()
+                
                 # Commit happens automatically at the end of the context
                 # Rollback happens automatically if an exception occurs
 
