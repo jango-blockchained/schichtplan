@@ -563,8 +563,8 @@ class ScheduleGenerator:
 
     def generate(
         self,
-        start_date: date,
-        end_date: date,
+        start_date: Union[date, str],
+        end_date: Union[date, str],
         external_config_dict: Optional[Dict] = None,
         create_empty_schedules: bool = False,
         version: Optional[int] = None,
@@ -573,12 +573,17 @@ class ScheduleGenerator:
         Generate a schedule for the given date range
 
         Args:
-            start_date: The start date of the schedule
-            end_date: The end date of the schedule
+            start_date: The start date of the schedule (date object or ISO string)
+            end_date: The end date of the schedule (date object or ISO string)
             config: Optional configuration dictionary
             create_empty_schedules: Whether to create empty schedule entries for days with no coverage
             version: Optional version of the schedule
         """
+        # Convert string dates to date objects if needed
+        if isinstance(start_date, str):
+            start_date = datetime.fromisoformat(start_date).date()
+        if isinstance(end_date, str):
+            end_date = datetime.fromisoformat(end_date).date()
         # Ensure the entire generation process runs within a Flask application context
         try:
             # Try to get the current app context
