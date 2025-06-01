@@ -1,0 +1,342 @@
+---
+description: Documentation of the Schichtplan API endpoints and data structures
+globs: src/backend/routes/**/*.py, src/backend/models/**/*.py, src/frontend/src/services/**/*.ts
+alwaysApply: false
+---
+# Schichtplan API Documentation
+
+## API Overview
+
+The Schichtplan API follows RESTful principles and uses JSON for data exchange. All endpoints are prefixed with `/api`.
+
+## Authentication
+
+Authentication is handled through session cookies. Users must log in through the `/api/auth/login` endpoint before accessing protected resources.
+
+## Common Response Structure
+
+```json
+{
+  "success": true|false,
+  "data": {...},  // Present on successful requests
+  "error": "...",  // Present on failed requests
+  "message": "..." // Optional message
+}
+```
+
+## Employee Endpoints
+
+### `GET /api/employees`
+
+List all employees.
+
+**Parameters:**
+- `?status=active|inactive|all` (optional, default: active)
+- `?group=VZ|TZ|GfB|TL|all` (optional, default: all)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "name": "John Doe",
+      "employee_id": "EMP001",
+      "group": "VZ",
+      "status": "active",
+      "hours_per_week": 40,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    },
+    // ...
+  ]
+}
+```
+
+### `POST /api/employees`
+
+Create a new employee.
+
+**Request Body:**
+```json
+{
+  "name": "John Doe",
+  "employee_id": "EMP001",
+  "group": "VZ",
+  "status": "active",
+  "hours_per_week": 40
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "name": "John Doe",
+    "employee_id": "EMP001",
+    "group": "VZ",
+    "status": "active",
+    "hours_per_week": 40,
+    "created_at": "2023-01-01T00:00:00Z",
+    "updated_at": "2023-01-01T00:00:00Z"
+  }
+}
+```
+
+### `GET /api/employees/:id`
+
+Get details for a specific employee.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "name": "John Doe",
+    "employee_id": "EMP001",
+    "group": "VZ",
+    "status": "active",
+    "hours_per_week": 40,
+    "created_at": "2023-01-01T00:00:00Z",
+    "updated_at": "2023-01-01T00:00:00Z"
+  }
+}
+```
+
+### `PUT /api/employees/:id`
+
+Update an employee.
+
+**Request Body:**
+```json
+{
+  "name": "John Doe",
+  "employee_id": "EMP001",
+  "group": "TZ",
+  "status": "active",
+  "hours_per_week": 30
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "name": "John Doe",
+    "employee_id": "EMP001",
+    "group": "TZ",
+    "status": "active",
+    "hours_per_week": 30,
+    "created_at": "2023-01-01T00:00:00Z",
+    "updated_at": "2023-01-02T00:00:00Z"
+  }
+}
+```
+
+### `DELETE /api/employees/:id`
+
+Delete an employee.
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Employee deleted successfully"
+}
+```
+
+## ShiftTemplate Endpoints
+
+### `GET /api/shifts`
+
+List all shift templates.
+
+**Parameters:**
+- `?type=early|middle|late|all` (optional, default: all)
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "name": "Early Shift",
+      "start_time": "06:00:00",
+      "end_time": "14:30:00",
+      "type": "early",
+      "break_duration": 30,
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    },
+    // ...
+  ]
+}
+```
+
+### `POST /api/shifts`
+
+Create a new shift template.
+
+**Request Body:**
+```json
+{
+  "name": "Early Shift",
+  "start_time": "06:00:00",
+  "end_time": "14:30:00",
+  "type": "early",
+  "break_duration": 30
+}
+```
+
+### Other ShiftTemplate endpoints:
+- `GET /api/shifts/:id`
+- `PUT /api/shifts/:id`
+- `DELETE /api/shifts/:id`
+
+## Schedule Endpoints
+
+### `GET /api/schedules`
+
+List all schedules.
+
+### `POST /api/schedules/generate`
+
+Generate a new schedule.
+
+**Request Body:**
+```json
+{
+  "start_date": "2023-03-01",
+  "end_date": "2023-03-28",
+  "store_id": 1
+}
+```
+
+### `GET /api/schedules/:id`
+
+Get a specific schedule.
+
+### `PUT /api/schedules/:id`
+
+Update a schedule.
+
+### `POST /api/schedules/export`
+
+Export a schedule as PDF.
+
+**Request Body:**
+```json
+{
+  "schedule_id": 1,
+  "format": "pdf",
+  "include_breaks": true
+}
+```
+
+## Store Configuration Endpoints
+
+### `GET /api/store/config`
+
+Get store configuration.
+
+### `PUT /api/store/config`
+
+Update store configuration.
+
+**Request Body:**
+```json
+{
+  "name": "Main Store",
+  "address": "123 Main St",
+  "opening_hours": {
+    "monday": { "open": "08:00:00", "close": "20:00:00" },
+    "tuesday": { "open": "08:00:00", "close": "20:00:00" },
+    // ...
+  },
+  "min_staff_required": {
+    "monday": { "morning": 3, "afternoon": 4, "evening": 2 },
+    "tuesday": { "morning": 3, "afternoon": 4, "evening": 2 },
+    // ...
+  }
+}
+```
+
+## Data Models
+
+### Employee
+```
+id: Integer (Primary Key)
+name: String
+employee_id: String (Unique)
+group: Enum ('VZ', 'TZ', 'GfB', 'TL')
+status: Enum ('active', 'inactive')
+hours_per_week: Float
+created_at: DateTime
+updated_at: DateTime
+```
+
+### ShiftTemplate
+```
+id: Integer (Primary Key)
+name: String
+start_time: Time
+end_time: Time
+type: Enum ('early', 'middle', 'late')
+break_duration: Integer (minutes)
+created_at: DateTime
+updated_at: DateTime
+```
+
+### Schedule
+```
+id: Integer (Primary Key)
+name: String
+start_date: Date
+end_date: Date
+status: Enum ('draft', 'published', 'archived')
+store_id: Integer (Foreign Key)
+created_at: DateTime
+updated_at: DateTime
+```
+
+### ScheduleEntry
+```
+id: Integer (Primary Key)
+schedule_id: Integer (Foreign Key)
+employee_id: Integer (Foreign Key)
+shift_template_id: Integer (Foreign Key)
+date: Date
+start_time: Time
+end_time: Time
+break_start: Time
+break_end: Time
+created_at: DateTime
+updated_at: DateTime
+```
+
+### StoreConfiguration
+```
+id: Integer (Primary Key)
+name: String
+address: String
+opening_hours: JSON
+min_staff_required: JSON
+created_at: DateTime
+updated_at: DateTime
+```
+
+## Error Codes
+
+- `400` - Bad Request
+- `401` - Unauthorized
+- `403` - Forbidden
+- `404` - Not Found
+- `409` - Conflict
+- `500` - Internal Server Error
