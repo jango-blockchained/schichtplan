@@ -109,12 +109,10 @@ class ScheduleResources:
                 # This might be heavy, only do if necessary for initialization
                 # self.schedule_data = self._load_schedule_data() # Uncomment if needed
 
-                self.is_loaded = True  # Mark as loaded after successful loading
-
             self.logger.info("Resource loading completed successfully.")
-            # Verify resources *after* they are loaded and is_loaded is set
-            # Ensure the verification logic uses self.is_loaded if it checks loaded status
-            self.verify_loaded_resources()
+            # Verify resources *after* they are loaded
+            if not self.verify_loaded_resources():
+                raise ScheduleResourceError("Resource verification failed")
 
         except ScheduleResourceError as e:
             # Catch specific resource errors and re-raise after logging
@@ -621,7 +619,7 @@ class ScheduleResources:
         self.logger.info("Verifying loaded resources...")
         # Basic check: ensure core lists are not None and have some expected data
         if (
-            not self.is_loaded
+            not self.is_loaded()
             or not self.settings
             or not self.employees
             or not self.shifts
@@ -633,8 +631,14 @@ class ScheduleResources:
                 "One or more core resource types are missing or not loaded."
             )
             # More detailed logging:
-            self.logger.error(f"Load status: is_loaded={self.is_loaded}")
+            self.logger.error(f"Load status: is_loaded={self.is_loaded()}")
             self.logger.error(f"Settings loaded: {self.settings is not None}")
+            self.logger.error(f"Employees count: {len(self.employees) if self.employees else 0}")
+            self.logger.error(f"Shifts count: {len(self.shifts) if self.shifts else 0}")
+            self.logger.error(f"Coverage count: {len(self.coverage) if self.coverage else 0}")
+            self.logger.error(f"Availabilities count: {len(self.availabilities) if self.availabilities else 0}")
+            self.logger.error(f"Absences count: {len(self.absences) if self.absences else 0}")
             return False
 
+        self.logger.info(f"Resource verification passed - Employees: {len(self.employees)}, Shifts: {len(self.shifts)}, Coverage: {len(self.coverage)}")
         return True
