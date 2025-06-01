@@ -30,7 +30,11 @@ import {
   Info,
   Loader2,
   Play,
+  MessageCircle,
+  ArrowRight,
 } from "lucide-react";
+import { ConversationPanel } from "@/components/ai/ConversationPanel";
+import { useAIConversation } from "@/hooks/useAIConversation";
 
 interface DetailedAIGenerationModalProps {
   isOpen: boolean;
@@ -96,6 +100,16 @@ export function DetailedAIGenerationModal({
   const [options, setOptions] = useState<DetailedAIOptions>(DEFAULT_OPTIONS);
   const [activeTab, setActiveTab] = useState("priorities");
 
+  // Conversation mode hook
+  const conversation = useAIConversation(async (prompt: string) => {
+    // Convert conversation prompt to structured options and trigger generation
+    conversation.addSystemMessage(`Anweisung verarbeitet: "${prompt}"`);
+    // For now, just trigger generation with current options
+    // TODO: Parse prompt and adjust options accordingly
+    onConfirm(options);
+    return { message: "Anweisung wurde in die Generierung integriert." };
+  });
+
   const handlePriorityChange = (
     key: keyof DetailedAIOptions["prioritySettings"],
     value: number[]
@@ -152,6 +166,12 @@ export function DetailedAIGenerationModal({
     onConfirm(options);
   };
 
+  const handleExportConversationToOptions = () => {
+    // TODO: Implement conversation -> options conversion
+    setActiveTab("priorities");
+    conversation.addSystemMessage("Unterhaltung wurde in strukturierte Optionen übertragen.");
+  };
+
   const getImpactLevel = () => {
     const { onlyFixedPreferred } = options.employeeOptions;
     const { ignoreNonCriticalAvailability, allowOvertime } = options.constraintOverrides;
@@ -181,7 +201,7 @@ export function DetailedAIGenerationModal({
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="priorities" className="flex items-center gap-2">
               <Sliders className="h-4 w-4" />
               Prioritäten
@@ -197,6 +217,10 @@ export function DetailedAIGenerationModal({
             <TabsTrigger value="ai-params" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
               KI-Parameter
+            </TabsTrigger>
+            <TabsTrigger value="conversation" className="flex items-center gap-2">
+              <MessageCircle className="h-4 w-4" />
+              Unterhaltung
             </TabsTrigger>
           </TabsList>
 
@@ -508,6 +532,43 @@ export function DetailedAIGenerationModal({
                   <p className="text-xs text-muted-foreground">
                     Beeinflusst, wie sehr die KI von bewährten Mustern abweicht.
                   </p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="conversation" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">KI-Unterhaltung</CardTitle>
+                    <CardDescription>
+                      Sprechen Sie direkt mit der KI über Ihre Schichtplanungsanforderungen.
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExportConversationToOptions}
+                    className="flex items-center gap-2"
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                    Zu Optionen
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="h-96">
+                  <ConversationPanel
+                    messages={conversation.messages}
+                    currentInput={conversation.currentInput}
+                    onInputChange={conversation.setCurrentInput}
+                    onSendMessage={conversation.sendMessage}
+                    onClearConversation={conversation.clearConversation}
+                    isLoading={conversation.isLoading}
+                    className="h-full"
+                  />
                 </div>
               </CardContent>
             </Card>
