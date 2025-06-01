@@ -1,0 +1,5 @@
+{
+  "agentCanUpdateSnapshot": true,
+  "install": "cd ./src/backend && python3 -m venv .venv && . ./.venv/bin/activate && pip install -r requirments.txt && deactivate",
+  "start": " . ./src/backend/.venv/bin/activate && python3 -m src.backend.run runserver && cd ../frontend && bun run --hot --dev"
+}
