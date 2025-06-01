@@ -163,6 +163,10 @@ def create_app(config_class=Config):
     app.register_blueprint(
         api_schedules_bp, name="api_schedules"
     )  # Register with unique name to avoid conflict
+    
+    # Register MCP routes
+    from src.backend.routes.mcp_routes import bp as mcp_bp
+    app.register_blueprint(mcp_bp, url_prefix="/api/v2")
 
     # Register SSE blueprint for /sse endpoint if available
     if has_sse:
