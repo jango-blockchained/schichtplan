@@ -1,0 +1,9 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Replacement of Logging
+
+- Always replace console logging (console.log(), console.error(), console.info(), console.warning()) with the project based file logger
