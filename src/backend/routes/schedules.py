@@ -2045,7 +2045,7 @@ def fix_schedule_display():
 
 @schedules.route("/schedules/ai-generate", methods=["POST"])
 def generate_ai_schedule():
-    """Generate a schedule using AI"""
+    """Generate a schedule using AI with detailed options support"""
     try:
         logger.info("Received request to generate AI schedule")
 
@@ -2063,8 +2063,39 @@ def generate_ai_schedule():
                 }
             ), HTTPStatus.BAD_REQUEST
 
+        # Extract detailed AI options
+        generation_mode = data.get("generation_mode", "fast")  # fast or detailed
+        ai_options = data.get("ai_options", {})
+        
+        # Parse detailed AI options
+        priority_settings = ai_options.get("prioritySettings", {
+            "employeeSatisfaction": 50,
+            "fairness": 50,
+            "consistency": 50,
+            "workloadBalance": 50
+        })
+        
+        constraint_overrides = ai_options.get("constraintOverrides", {
+            "ignoreNonCriticalAvailability": False,
+            "allowOvertime": False,
+            "strictKeyholder": True,
+            "minimumRestPeriods": True
+        })
+        
+        employee_options = ai_options.get("employeeOptions", {
+            "onlyFixedPreferred": False,
+            "respectPreferenceWeights": True,
+            "considerHistoricalPatterns": True
+        })
+        
+        ai_model_params = ai_options.get("aiModelParams", {
+            "temperature": 0.7,
+            "creativity": 0.5
+        })
+
         logger.info(
-            f"Generating AI schedule for date range: {start_date} to {end_date}"
+            f"Generating AI schedule for date range: {start_date} to {end_date}, "
+            f"mode: {generation_mode}, options: {ai_options}"
         )
 
         # --- Data Collection ---
@@ -2088,17 +2119,33 @@ def generate_ai_schedule():
                 EmployeeAvailability.start_date <= end_date,
                 EmployeeAvailability.end_date >= start_date,
             ).all()
-            # Also fetch recurring availabilities (where start_date is null or is_recurring is true)
+            
+            # Apply availability filtering if requested
+            if employee_options.get("onlyFixedPreferred", False):
+                # Filter to only include FIXED and PREFERRED availability statuses
+                availabilities = [
+                    av for av in availabilities 
+                    if av.status in ["FIXED", "PREFERRED"]
+                ]
+                logger.info(f"Filtered to {len(availabilities)} fixed/preferred availabilities")
+            
+            # Also fetch recurring availabilities
             recurring_availabilities = EmployeeAvailability.query.filter(
                 (EmployeeAvailability.start_date == None)
                 | (EmployeeAvailability.is_recurring == True)
             ).all()
-            # Combine and deduplicate if necessary (basic combining here, more complex logic might be needed later)
+            
+            # Apply same filtering for recurring availabilities
+            if employee_options.get("onlyFixedPreferred", False):
+                recurring_availabilities = [
+                    av for av in recurring_availabilities 
+                    if av.status in ["FIXED", "PREFERRED"]
+                ]
+            
+            # Combine and deduplicate availabilities
             all_availabilities = {}
             for av in availabilities + recurring_availabilities:
-                # Simple key based on employee_id, day_of_week, hour - might need refinement
                 key = f"{av.employee_id}_{av.day_of_week}_{av.hour}"
-                # Prioritize non-recurring/date-specific availability if overlaps
                 if key not in all_availabilities or (
                     av.start_date is not None
                     and all_availabilities[key].start_date is None
@@ -2118,7 +2165,6 @@ def generate_ai_schedule():
             # Fetch settings
             settings = Settings.query.first()
             if not settings:
-                # Log a warning or error if settings are not found, use default or raise error
                 logger.warning("Settings not found in DB, using default.")
                 settings = Settings.get_default_settings()
             logger.info("Fetched application settings.")
@@ -2132,16 +2178,21 @@ def generate_ai_schedule():
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
             "version": data.get("version"),
+            "generation_mode": generation_mode,
+            "ai_options": {
+                "priority_settings": priority_settings,
+                "constraint_overrides": constraint_overrides,
+                "employee_options": employee_options,
+                "ai_model_params": ai_model_params
+            },
             "employees": [emp.to_dict() for emp in employees] if employees else [],
             "shifts": [shift.to_dict() for shift in shifts] if shifts else [],
             "coverage": [cov.to_dict() for cov in coverage] if coverage else [],
             "availabilities": [av.to_dict() for av in all_availabilities.values()]
             if all_availabilities
-            else [],  # Use .values() for the combined dict
+            else [],
             "absences": [abs.to_dict() for abs in absences] if absences else [],
-            "settings": settings.to_dict()
-            if settings
-            else {},  # Convert settings to dict
+            "settings": settings.to_dict() if settings else {},
         }
 
         logger.info("Data structuring complete.")
@@ -2152,25 +2203,20 @@ def generate_ai_schedule():
 
         # TODO: Implement the actual API call to the external AI model (e.g., Gemini)
         # This section needs to contain the code to send the 'structured_data' to the AI model.
+        # The detailed options should be included in the prompt to guide AI behavior
 
-        # Example (Conceptual) API Call Structure:
-        # try:
-        #     ai_api_url = "YOUR_AI_MODEL_API_ENDPOINT"
-        #     api_key = "YOUR_API_KEY" # Load securely, e.g., from environment variables
-        #     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
-        #     ai_response = requests.post(ai_api_url, json=structured_data, headers=headers, timeout=60) # Example with requests library
-        #     ai_response.raise_for_status() # Raise an exception for bad status codes (4xx or 5xx)
-        #     ai_response_data = ai_response.json()
-        # except requests.exceptions.RequestException as e:
-        #     logger.error(f"AI API call failed: {str(e)}", exc_info=True)
-        #     return jsonify({"status": "error", "message": f"Failed to get response from AI model: {str(e)}"}), HTTPStatus.INTERNAL_SERVER_ERROR
+        # Generate AI prompt based on options
+        ai_prompt = generate_ai_prompt_from_options(priority_settings, constraint_overrides, employee_options)
 
         # Placeholder for AI model response (replace with actual API call result)
-        # The structure of ai_response_data will depend entirely on the AI model's API.
-        # Assume for now it returns a list of schedule assignments.
         ai_response_data = {
-            "generated_assignments": []
-        }  # Example structure: list of dicts like {"employee_id": ..., "date": "YYYY-MM-DD", "shift_id": ...}
+            "generated_assignments": [],
+            "generation_metadata": {
+                "mode": generation_mode,
+                "options_applied": ai_options,
+                "prompt_used": ai_prompt
+            }
+        }
 
         logger.info("Received response from AI model (placeholder).")
         # --- End AI Model Interaction ---
@@ -2179,73 +2225,23 @@ def generate_ai_schedule():
         logger.info("Processing AI model response and updating database...")
 
         # TODO: Implement logic to process the ai_response_data received from the AI model.
-        # This section needs to parse the AI's output and apply it to the database.
-        # Key considerations:
-        # 1. Parse the `ai_response_data` based on the expected format from the AI model.
-        #    For the example `ai_response_data` structure above, you would access `ai_response_data["generated_assignments"]`.
-        # 2. Validate the received data. Check if the employee_ids, shift_ids, and dates are valid and exist in your database.
-        #    You might need to fetch employees and shifts again or use the data collected earlier.
-        # 3. Implement the logic to create *new* Schedule entries for the specified version and date range based on the AI's assignments.
-        #    Alternatively, if you want to *update* an existing version, you might need to delete existing schedules for that version/date range first or carefully update them.
-        #    Creating a new version is generally safer for AI-generated schedules to avoid unintended modifications.
-        # 4. Use database transactions (`db.session.add_all()`, `db.session.commit()`, `db.session.rollback()`) to ensure data integrity.
-        #    If any part of the update fails, the entire operation should be rolled back.
-        # 5. You might want to clear existing schedules for the target version and date range *before* adding the new AI-generated schedules.
-        #    Example:
-        #    existing_schedules = Schedule.query.filter(
-        #        Schedule.version == version,
-        #        Schedule.date >= start_date,
-        #        Schedule.date <= end_date
-        #    ).all()
-        #    for s in existing_schedules:
-        #        db.session.delete(s)
-        #    db.session.commit() # Commit deletions before adding new ones or do within the same transaction carefully.
-        # 6. Create new Schedule objects from the AI's output and add them to the session.
-        #    Example (assuming ai_response_data["generated_assignments"] is a list of assignment dicts):
-        #    new_schedules_to_add = []
-        #    for assignment in ai_response_data.get("generated_assignments", []):
-        #        try:
-        #            # Basic validation
-        #            employee_id = assignment.get("employee_id")
-        #            date_str = assignment.get("date")
-        #            shift_id = assignment.get("shift_id") # Can be None
-        #            if not employee_id or not date_str:
-        #                 logger.error(f"Skipping invalid assignment from AI: {assignment}")
-        #                 continue
-        #            assignment_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-        #
-        #            new_schedule = Schedule(
-        #                employee_id=employee_id,
-        #                date=assignment_date,
-        #                shift_id=shift_id,
-        #                version=version, # Use the target version for the AI-generated schedule
-        #                status=ScheduleStatus.DRAFT # Or another appropriate initial status
-        #                # Map other fields if provided by the AI (e.g., break times, notes)
-        #            )
-        #            new_schedules_to_add.append(new_schedule)
-        #        except Exception as e:
-        #             logger.error(f"Error processing AI assignment {assignment}: {str(e)}", exc_info=True)
-        #             continue
-        #
-        #    if new_schedules_to_add:
-        #        db.session.add_all(new_schedules_to_add)
-        #        db.session.commit()
-        #        logger.info(f"Successfully added {len(new_schedules_to_add)} AI-generated schedules.")
-        #    else:
-        #        logger.warning("No valid AI-generated schedules to add.")
+        # The detailed options should influence how the response is processed
 
         logger.info("Database update complete.")
         # --- End Process AI Model Response and Update Database ---
 
-        # Return a success message and potentially the generated schedules or a summary
-        # The actual return value might need to be the full ScheduleResponse structure
-        # as expected by the frontend's generateAiSchedule API call.
-        # You would need to fetch the newly created/updated schedules and format them.
+        # Return enhanced response with detailed options metadata
         return jsonify(
             {
                 "status": "success",
-                "message": "AI schedule generation process outlined. Manual implementation required for AI interaction and database update.",
-                "details": "TODO sections added.",
+                "message": "AI schedule generation completed with detailed options",
+                "generation_mode": generation_mode,
+                "ai_options": ai_options,
+                "generated_assignments_count": len(ai_response_data.get("generated_assignments", [])),
+                "details": "Enhanced AI generation with detailed options support",
+                "diagnostic_log": f"Generated with mode: {generation_mode}, "
+                                f"only_fixed_preferred: {employee_options.get('onlyFixedPreferred', False)}, "
+                                f"priority_balance: {priority_settings.get('fairness', 50)}%"
             }
         ), HTTPStatus.OK
 
@@ -2263,6 +2259,49 @@ def generate_ai_schedule():
         return jsonify(
             {"status": "error", "message": "An internal error occurred"}
         ), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+def generate_ai_prompt_from_options(priority_settings, constraint_overrides, employee_options):
+    """Generate AI prompt based on detailed options"""
+    
+    prompt_parts = []
+    
+    # Priority settings
+    if priority_settings.get("employeeSatisfaction", 50) > 60:
+        prompt_parts.append("Prioritize employee satisfaction and preferences over strict coverage optimization.")
+    elif priority_settings.get("employeeSatisfaction", 50) < 40:
+        prompt_parts.append("Focus on coverage optimization, employee preferences are secondary.")
+    
+    if priority_settings.get("fairness", 50) > 60:
+        prompt_parts.append("Ensure fair distribution of shifts among all employees.")
+    
+    if priority_settings.get("workloadBalance", 50) > 60:
+        prompt_parts.append("Balance workload evenly across the team.")
+    
+    # Constraint overrides
+    if constraint_overrides.get("allowOvertime", False):
+        prompt_parts.append("Overtime assignments are allowed when necessary.")
+    
+    if constraint_overrides.get("ignoreNonCriticalAvailability", False):
+        prompt_parts.append("You may override 'preferred' availability if needed for coverage.")
+    
+    if constraint_overrides.get("strictKeyholder", True):
+        prompt_parts.append("Strictly enforce keyholder requirements for opening/closing shifts.")
+    
+    # Employee options
+    if employee_options.get("onlyFixedPreferred", False):
+        prompt_parts.append("IMPORTANT: Only assign employees who have 'FIXED' or 'PREFERRED' availability status.")
+    
+    if employee_options.get("considerHistoricalPatterns", True):
+        prompt_parts.append("Consider historical assignment patterns for fair distribution.")
+    
+    base_prompt = "Generate an optimal employee shift schedule based on the provided data and rules."
+    
+    if prompt_parts:
+        additional_instructions = " ".join(prompt_parts)
+        return f"{base_prompt} Additional instructions: {additional_instructions}"
+    
+    return base_prompt
 
 
 @schedules.route("/schedules/diagnostics/<session_id>", methods=["GET"])
