@@ -6,6 +6,7 @@ import {
 } from "@/services/api";
 import { Schedule, ScheduleError } from "@/types";
 import { AxiosError } from "axios";
+import React from "react";
 
 export interface UseScheduleDataResult {
   scheduleData: Schedule[];
@@ -41,26 +42,30 @@ export function useScheduleData(
   version?: number,
   includeEmpty: boolean = true,
 ): UseScheduleDataResult {
+  // Stabilize date strings to prevent query key from changing on every render
+  const startDateStr = React.useMemo(() => startDate.toISOString().split("T")[0], [startDate.getTime()]);
+  const endDateStr = React.useMemo(() => endDate.toISOString().split("T")[0], [endDate.getTime()]);
+
   const { data, isLoading, error, refetch } = useQuery<ScheduleResponse>({
     queryKey: [
       "schedules",
-      startDate.toISOString(),
-      endDate.toISOString(),
+      startDateStr, // Use stable string instead of calling toISOString() in query key
+      endDateStr,   // Use stable string instead of calling toISOString() in query key
       version,
       includeEmpty,
     ] as const,
     queryFn: async () => {
       try {
         console.log("🔄 useScheduleData fetching schedules with params:", {
-          startDate: startDate.toISOString().split("T")[0],
-          endDate: endDate.toISOString().split("T")[0],
+          startDate: startDateStr,
+          endDate: endDateStr,
           version,
           includeEmpty,
         });
 
         const response = await getSchedules(
-          startDate.toISOString().split("T")[0],
-          endDate.toISOString().split("T")[0],
+          startDateStr,
+          endDateStr,
           version,
           includeEmpty,
         );
@@ -118,11 +123,13 @@ export function useScheduleData(
         throw error;
       }
     },
-    gcTime: 30 * 60 * 1000, // Keep unused data in cache for 30 minutes
-    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
-    refetchOnMount: true, // Always refetch when component mounts
-    refetchOnWindowFocus: true, // Refetch when window regains focus
-    retry: 2, // Retry failed requests up to 2 times
+    gcTime: 10 * 60 * 1000, // Keep unused data in cache for 10 minutes (reduced from 30)
+    staleTime: 2 * 60 * 1000, // Consider data fresh for 2 minutes (reduced from 5)
+    refetchOnMount: false, // Don't always refetch on mount to reduce rapid updates
+    refetchOnWindowFocus: false, // Don't refetch on window focus to reduce rapid updates
+    refetchOnReconnect: true, // Still refetch when connection is restored
+    retry: 1, // Reduce retry attempts from 2 to 1
+    retryDelay: 1000, // Add 1 second delay between retries
   });
 
   // Convert API Schedule objects to frontend Schedule objects
@@ -136,9 +143,15 @@ export function useScheduleData(
   console.log("🔄 useScheduleData returning:", {
     scheduleCount: scheduleData.length,
     shiftsWithId: scheduleData.filter((s) => s.shift_id !== null).length,
-    date_range: `${startDate.toISOString().split("T")[0]} to ${endDate.toISOString().split("T")[0]}`,
+    date_range: `${startDateStr} to ${endDateStr}`,
     hasError: !!errorMessage,
   });
+
+  // Memoize the refetch function to prevent it from changing on every render
+  const stableRefetch = React.useCallback(async () => {
+    console.log("🔄 useScheduleData manual refetch triggered");
+    await refetch();
+  }, [refetch]);
 
   return {
     scheduleData,
@@ -146,9 +159,6 @@ export function useScheduleData(
     errors: data?.errors ?? [],
     loading: isLoading,
     error: errorMessage,
-    refetch: async () => {
-      console.log("🔄 useScheduleData manual refetch triggered");
-      await refetch();
-    },
+    refetch: stableRefetch,
   };
 }
