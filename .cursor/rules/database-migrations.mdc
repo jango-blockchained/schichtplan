@@ -1,0 +1,92 @@
+---
+description: Database Schema Management for Bun Backend
+globs: src/bun-backend/db/**/*.sql, src/bun-backend/db/migrate.ts, src/bun-backend/package.json
+alwaysApply: false
+---
+# Database Schema Management Guide (Bun/SQLite)
+
+## Overview
+
+The Bun backend uses a manual approach for managing the SQLite database schema. Instead of an automated migration tool like Alembic, changes are managed through SQL scripts executed via Bun scripts.
+
+## Project Structure
+
+- **Backend Root**: `src/bun-backend/`
+- **Database File**: `src/bun-backend/db/schichtplan.db` (or as configured)
+- **Schema Definition**: TypeScript interfaces in `src/bun-backend/db/schema.ts` (defines the *intended* structure).
+- **Initial Schema SQL**: `src/bun-backend/db/init-schema.sql` (SQL to create tables from scratch).
+- **Migration SQL Scripts**: Potentially stored in `src/bun-backend/db/migrations/` (e.g., `001_add_users_table.sql`).
+- **Migration Runner Script**: `src/bun-backend/db/migrate.ts` (Bun script to apply SQL changes).
+- **Package Script**: `bun run db:init` or `bun run db:migrate` defined in `src/bun-backend/package.json`.
+
+## Important Notes
+
+1. **Directory Location**: Run schema management commands from the `src/bun-backend` directory.
+2. **Manual SQL**: You are responsible for writing correct SQL for schema changes.
+3. **Idempotency**: Aim to make migration scripts idempotent (safe to run multiple times) if possible, although this can be difficult with SQLite's limited DDL capabilities.
+4. **Backup**: Always back up your database file (`schichtplan.db`) before applying schema changes, especially in production.
+
+## Common Tasks
+
+### Initializing the Database (First Time Setup)
+
+This usually involves running a script that executes `init-schema.sql`.
+
+```bash
+# From src/bun-backend directory
+cd src/bun-backend
+bun run db:init # Check package.json for the exact script name
+```
+This command should create the `schichtplan.db` file (if it doesn't exist) and execute the SQL in `init-schema.sql` to create all tables and indexes.
+
+### Making Schema Changes
+
+1.  **Update TypeScript Schema**: Modify the interfaces in `src/bun-backend/db/schema.ts` to reflect the new desired structure.
+2.  **Write SQL Migration Script**: Create a new SQL file (e.g., `src/bun-backend/db/migrations/002_add_column_xyz.sql`) containing the `ALTER TABLE`, `CREATE TABLE`, or other DDL statements needed to apply the change.
+3.  **Update Migration Runner (if needed)**: Modify `src/bun-backend/db/migrate.ts` to include logic for executing the new SQL script(s) in the correct order.
+4.  **Define Package Script (if needed)**: Add or update a script in `src/bun-backend/package.json` (e.g., `bun run db:migrate`) to execute the `migrate.ts` script.
+5.  **Run Migration**: Execute the package script.
+    ```bash
+    # From src/bun-backend directory
+    cd src/bun-backend
+    bun run db:migrate # Or the relevant script name
+    ```
+
+### Resetting the Database (Development Only)
+
+If you need to start fresh during development:
+
+```bash
+# From src/bun-backend directory
+cd src/bun-backend
+rm db/schichtplan.db # Delete the existing database
+bun run db:init     # Reinitialize from scratch
+```
+**Warning**: Do *not* do this on a production database!
+
+## Troubleshooting
+
+### SQL Errors
+- Carefully check the syntax in your `.sql` files.
+- Ensure the changes are compatible with the existing schema state.
+- Test SQL statements directly using a SQLite client if needed.
+
+### Migration Script Errors
+- Debug the `migrate.ts` script using `console.log` or Bun's debugger.
+- Check file paths and permissions.
+
+## Best Practices
+
+1.  **Version Control**: Commit `schema.ts`, all `.sql` files, `migrate.ts`, and `package.json` to Git.
+2.  **Incremental Changes**: Apply schema changes in small, logical steps.
+3.  **Naming Convention**: Use a clear naming convention for migration SQL files (e.g., sequential numbers like `001_...`, `002_...`).
+4.  **Test Changes**: Test schema changes thoroughly in a development environment before applying them elsewhere.
+5.  **Document Changes**: Add comments to SQL files explaining *why* a change is being made.
+
+## Production Considerations
+
+1.  **BACKUP DATABASE**: *Always* back up the production database before applying any schema changes.
+2.  **Test Thoroughly**: Test migrations on a staging environment that mirrors production as closely as possible.
+3.  **Downtime**: Plan for potential downtime while applying migrations.
+4.  **Rollback Plan**: Have a plan to revert changes if something goes wrong (often involves restoring from backup).
+5.  **Monitor**: Monitor the application closely after applying schema changes. 
