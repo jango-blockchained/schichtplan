@@ -884,12 +884,17 @@ class AISchedulerService:
                 f"AI Schedule Generation completed. Diagnostic log: {diagnostic_log_path}"
             )
 
+            # Return success response - let the frontend fetch the schedules separately
+            # This avoids circular import issues and keeps the AI service focused
             return {
                 "status": "success",
                 "message": f"Schedule generated and stored successfully. {store_result.get('count', 0)} assignments created.",
                 "generated_assignments_count": store_result.get("count", 0),
                 "session_id": self.session_id,
                 "diagnostic_log": diagnostic_log_path,
+                "version": version_id,
+                "start_date": start_date_str,
+                "end_date": end_date_str,
             }
         except RuntimeError as e:
             tracker.log_error(f"Failed to store assignments: {e}")

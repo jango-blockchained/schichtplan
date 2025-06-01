@@ -1608,9 +1608,6 @@ class DistributionManager:
                     start_t_for_workload = assignment_dict_for_workload.get(
                         "start_time"
                     )
-                    start_t_for_workload = datetime.strptime(
-                        start_t_for_workload, "%I:%M"
-                    )
                     end_t_for_workload = assignment_dict_for_workload.get("end_time")
                     if start_t_for_workload and end_t_for_workload:
                         duration_for_workload = self.calculate_duration(

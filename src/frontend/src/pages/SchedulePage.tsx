@@ -842,10 +842,10 @@ export function SchedulePage() {
       updateGenerationStep("ai-generate", "in-progress");
       await new Promise((r) => setTimeout(r, 500));
       addGenerationLog("info", "AI schedule generation API call successful");
-      if (result.schedules)
+      if (result.generated_assignments_count)
         addGenerationLog(
           "info",
-          `Generated ${result.schedules.length} schedule entries`,
+          `Generated ${result.generated_assignments_count} schedule entries`,
         );
       updateGenerationStep("ai-generate", "completed");
       updateGenerationStep("ai-finalize", "in-progress");
@@ -857,17 +857,9 @@ export function SchedulePage() {
         title: "AI Generation Complete",
         description: "AI schedule generated successfully.",
       });
-      if (result.logs?.length)
-        result.logs.forEach((log) => addGenerationLog("info", "AI Log:", log));
-      if (result.errors?.length) {
-        result.errors.forEach((err) =>
-          addGenerationLog("error", "AI Error:", getErrorMessage(err)),
-        );
-        toast({
-          title: "AI Generation Warnings",
-          description: `Completed with ${result.errors.length} issues.`,
-          variant: "destructive",
-        });
+      // Log diagnostic information if available
+      if (result.diagnostic_log) {
+        addGenerationLog("info", "Diagnostic log available:", result.diagnostic_log);
       }
       setTimeout(() => setIsAiGenerating(false), 2000);
     } catch (err: unknown) {
