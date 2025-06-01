@@ -145,6 +145,20 @@ export const SchedulingEngineSection: React.FC<SchedulingEngineSectionProps> = (
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="total_weekly_working_hours">Total Weekly Working Hours</Label>
+                <Input
+                  id="total_weekly_working_hours"
+                  type="number"
+                  value={settings.total_weekly_working_hours ?? 165}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    onInputChange("total_weekly_working_hours", e.target.value, true)
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  Total weekly working hours constraint for all employees combined
+                </p>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="scheduling_period_weeks">
                   Scheduling Period (weeks)
                 </Label>

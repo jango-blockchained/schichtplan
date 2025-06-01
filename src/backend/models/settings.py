@@ -113,6 +113,7 @@ class Settings(db.Model):
     min_break_duration = Column(Integer, nullable=False, default=30)
     max_daily_hours = Column(Float, nullable=False, default=10.0)
     max_weekly_hours = Column(Float, nullable=False, default=40.0)
+    total_weekly_working_hours = Column(Float, nullable=False, default=165.0)
     min_rest_between_shifts = Column(Float, nullable=False, default=11.0)
     scheduling_period_weeks = Column(Integer, nullable=False, default=4)
     auto_schedule_preferences = Column(Boolean, nullable=False, default=True)
@@ -359,6 +360,7 @@ class Settings(db.Model):
                 "min_break_duration": self.min_break_duration,
                 "max_daily_hours": self.max_daily_hours,
                 "max_weekly_hours": self.max_weekly_hours,
+                "total_weekly_working_hours": self.total_weekly_working_hours,
                 "min_rest_between_shifts": self.min_rest_between_shifts,
                 "scheduling_period_weeks": self.scheduling_period_weeks,
                 "auto_schedule_preferences": self.auto_schedule_preferences,
@@ -466,6 +468,7 @@ class Settings(db.Model):
         settings.min_break_duration = 30
         settings.max_daily_hours = 10.0
         settings.max_weekly_hours = 40.0
+        settings.total_weekly_working_hours = 165.0
         settings.min_rest_between_shifts = 11.0
         settings.scheduling_period_weeks = 4
         settings.auto_schedule_preferences = True

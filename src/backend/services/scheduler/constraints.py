@@ -280,6 +280,18 @@ class ConstraintChecker:
         if weekly_hours_violation:
             violations.append(weekly_hours_violation)
 
+        # 5. Total Weekly Working Hours Constraint
+        # Calculate the week boundaries for the new shift
+        new_shift_date = new_shift_start_dt.date()
+        week_start_date = new_shift_date - timedelta(days=new_shift_date.weekday())
+        week_end_date = week_start_date + timedelta(days=6)
+        
+        total_weekly_hours_violation = self._check_total_weekly_hours_constraint(
+            new_shift_duration, existing_assignments, week_start_date, week_end_date
+        )
+        if total_weekly_hours_violation:
+            violations.append(total_weekly_hours_violation)
+
         return violations
 
     def validate_assignment(self, assignment: Dict, employee: Any, shift: Any) -> bool:
@@ -736,6 +748,100 @@ class ConstraintChecker:
                     "limit": absolute_contracted_limit,
                     "value": projected_weekly_hours,
                 }
+
+        return None
+
+    def _check_total_weekly_hours_constraint(
+        self,
+        new_shift_duration: float,
+        existing_assignments: List[Dict],
+        week_start_date: date,
+        week_end_date: date,
+    ) -> Optional[Dict]:
+        """
+        Checks if adding the new shift would cause the total weekly working hours
+        for all employees to exceed the configured constraint.
+
+        Args:
+            new_shift_duration: The duration (in hours) of the potential new shift.
+            existing_assignments: A list of all existing assignment dictionaries.
+            week_start_date: The start date of the week to check.
+            week_end_date: The end date of the week to check.
+
+        Returns:
+            A dictionary describing the violation if the total weekly hours constraint
+            is exceeded, or None if the constraint is satisfied.
+            Violation dict: {"type": "total_weekly_hours_constraint", "message": ..., "limit": ..., "value": ...}.
+        """
+        # Get the total weekly working hours constraint from settings
+        try:
+            from models.settings import Settings
+            settings = Settings.query.first()
+            if not settings or not hasattr(settings, 'total_weekly_working_hours'):
+                # No constraint configured, so no violation
+                return None
+            
+            total_weekly_hours_limit = settings.total_weekly_working_hours
+            if total_weekly_hours_limit is None or total_weekly_hours_limit <= 0:
+                # Invalid or disabled constraint
+                return None
+        except Exception as e:
+            self.logger.warning(f"Could not fetch total weekly hours constraint from settings: {e}")
+            return None
+
+        # Calculate current total weekly hours for all employees
+        current_total_weekly_hours = 0.0
+
+        for assignment in existing_assignments:
+            assignment_date_val = assignment.get("date")
+            assignment_date_obj = None
+            
+            if isinstance(assignment_date_val, date):
+                assignment_date_obj = assignment_date_val
+            elif isinstance(assignment_date_val, str):
+                try:
+                    assignment_date_obj = date.fromisoformat(assignment_date_val)
+                except ValueError:
+                    self.logger.warning(
+                        f"Invalid date string '{assignment_date_val}' in total weekly hours check"
+                    )
+                    continue
+            else:
+                self.logger.debug(
+                    f"Skipping assignment with invalid date type ({type(assignment_date_val)}) for total weekly hours calc"
+                )
+                continue
+
+            # Check if assignment is within the week
+            if week_start_date <= assignment_date_obj <= week_end_date:
+                assignment_start_dt = self._parse_assignment_datetime(
+                    assignment, "start_time", assignment_date_obj
+                )
+                assignment_end_dt = self._parse_assignment_datetime(
+                    assignment, "end_time", assignment_date_obj
+                )
+                if assignment_start_dt and assignment_end_dt:
+                    current_total_weekly_hours += self._calculate_shift_duration_from_datetimes(
+                        assignment_start_dt, assignment_end_dt
+                    )
+
+        # Add the new shift duration
+        projected_total_weekly_hours = current_total_weekly_hours + new_shift_duration
+
+        # Check if it exceeds the constraint
+        if projected_total_weekly_hours > total_weekly_hours_limit:
+            message = (
+                f"Projected total weekly hours {projected_total_weekly_hours:.2f}h "
+                f"(current: {current_total_weekly_hours:.2f}h + new: {new_shift_duration:.2f}h) "
+                f"would exceed total weekly hours constraint of {total_weekly_hours_limit}h."
+            )
+            self.logger.debug(f"Total weekly hours constraint violation: {message}")
+            return {
+                "type": "total_weekly_hours_constraint",
+                "message": message,
+                "limit": total_weekly_hours_limit,
+                "value": projected_total_weekly_hours,
+            }
 
         return None
 
