@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Schedule, Employee } from "@/types";
 import {
   Card,
@@ -29,9 +29,15 @@ import {
   startOfWeek,
   endOfWeek,
   differenceInMinutes,
+  startOfMonth,
+  endOfMonth,
+  isWithinInterval,
+  eachWeekOfInterval,
+  eachMonthOfInterval,
 } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { getEmployees } from "@/services/api";
+import { cn } from "@/lib/utils";
 
 interface EmployeeStatisticsProps {
   employeeId: number;
@@ -190,98 +196,189 @@ export function EmployeeStatistics({
 
   maxConsecutiveDays = Math.max(maxConsecutiveDays, currentConsecutiveDays);
 
+  // Calculate weekly and monthly hours breakdown
+  const weeklyHoursBreakdown = useMemo(() => {
+    const breakdown: { week: string; hours: number; percentage: number }[] = [];
+    
+    if (employeeSchedules.length === 0) return breakdown;
+    
+    // Get date range from schedules
+    const dates = employeeSchedules
+      .map(s => s.date ? parseISO(s.date) : null)
+      .filter((d): d is Date => d !== null)
+      .sort((a, b) => a.getTime() - b.getTime());
+    
+    if (dates.length === 0) return breakdown;
+    
+    const firstDate = dates[0];
+    const lastDate = dates[dates.length - 1];
+    
+    // Get all weeks in the range
+    const weeks = eachWeekOfInterval(
+      { start: firstDate, end: lastDate },
+      { weekStartsOn: 1 } // Monday
+    );
+    
+    weeks.forEach(weekStart => {
+      const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
+      let weekHours = 0;
+      
+      employeeSchedules.forEach(schedule => {
+        if (!schedule.date || !schedule.shift_start || !schedule.shift_end) return;
+        
+        const scheduleDate = parseISO(schedule.date);
+        if (isWithinInterval(scheduleDate, { start: weekStart, end: weekEnd })) {
+          weekHours += calculateShiftDuration(schedule);
+        }
+      });
+      
+      breakdown.push({
+        week: format(weekStart, "dd.MM"),
+        hours: weekHours,
+        percentage: effectiveContractedHours > 0 ? (weekHours / effectiveContractedHours) * 100 : 0
+      });
+    });
+    
+    return breakdown;
+  }, [employeeSchedules, effectiveContractedHours]);
+
+  // Calculate cumulative monthly hours
+  const monthlyHoursCumulative = useMemo(() => {
+    const cumulative: { month: string; hours: number; cumulative: number }[] = [];
+    
+    if (employeeSchedules.length === 0) return cumulative;
+    
+    // Get date range from schedules
+    const dates = employeeSchedules
+      .map(s => s.date ? parseISO(s.date) : null)
+      .filter((d): d is Date => d !== null)
+      .sort((a, b) => a.getTime() - b.getTime());
+    
+    if (dates.length === 0) return cumulative;
+    
+    const firstDate = dates[0];
+    const lastDate = dates[dates.length - 1];
+    
+    // Get all months in the range
+    const months = eachMonthOfInterval({ start: firstDate, end: lastDate });
+    
+    let cumulativeTotal = 0;
+    
+    months.forEach(monthStart => {
+      const monthEnd = endOfMonth(monthStart);
+      let monthHours = 0;
+      
+      employeeSchedules.forEach(schedule => {
+        if (!schedule.date || !schedule.shift_start || !schedule.shift_end) return;
+        
+        const scheduleDate = parseISO(schedule.date);
+        if (isWithinInterval(scheduleDate, { start: monthStart, end: monthEnd })) {
+          monthHours += calculateShiftDuration(schedule);
+        }
+      });
+      
+      cumulativeTotal += monthHours;
+      
+      cumulative.push({
+        month: format(monthStart, "MMM yyyy"),
+        hours: monthHours,
+        cumulative: cumulativeTotal
+      });
+    });
+    
+    return cumulative;
+  }, [employeeSchedules]);
+
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <Card className="shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Stunden</CardTitle>
-            <CardDescription>
-              {totalHours.toFixed(1)} / {effectiveContractedHours} h
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Progress value={hoursCoverage} className="h-2" />
-            <div className="flex justify-between mt-1 text-xs text-muted-foreground">
-              <span>{hoursCoverage.toFixed(0)}%</span>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <InfoIcon className="h-3 w-3" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Geplante Stunden im Verhältnis zu Vertragsstunden</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Schichten</CardTitle>
-            <CardDescription>{totalShifts} Schichten gesamt</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex justify-between items-center">
-              <div className="space-y-1">
-                <Badge variant="outline" className="bg-yellow-50">
-                  <span className="mr-1">F</span> {earlyShifts}
-                </Badge>
-              </div>
-              <div className="space-y-1">
-                <Badge variant="outline" className="bg-blue-50">
-                  <span className="mr-1">M</span> {midShifts}
-                </Badge>
-              </div>
-              <div className="space-y-1">
-                <Badge variant="outline" className="bg-purple-50">
-                  <span className="mr-1">S</span> {lateShifts}
-                </Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+    <div className="space-y-3">
+      {/* Summary Row */}
+      <div className="flex items-center justify-between pb-2 border-b">
+        <div>
+          <div className="text-sm font-medium">Gesamtstunden</div>
+          <div className="text-2xl font-bold">{totalHours.toFixed(1)}h</div>
+        </div>
+        <div className="text-right">
+          <div className="text-sm text-muted-foreground">von {effectiveContractedHours}h</div>
+          <Progress value={hoursCoverage} className="h-2 w-20" />
+          <div className="text-xs text-muted-foreground mt-1">{hoursCoverage.toFixed(0)}%</div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <Card className="shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Pausen</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">
-                {shiftsWithBreaks} von {totalShifts}
-              </span>
-              <span className="text-sm text-muted-foreground">
-                {breaksPercentage.toFixed(0)}%
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Arbeitstage</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <Badge
-                variant={maxConsecutiveDays > 6 ? "destructive" : "outline"}
-              >
-                {maxConsecutiveDays > 6 ? (
-                  <AlertCircle className="h-3 w-3 mr-1" />
-                ) : (
-                  <CheckCircle className="h-3 w-3 mr-1" />
-                )}
-                Max. {maxConsecutiveDays} in Folge
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Shift Distribution */}
+      <div>
+        <div className="text-sm font-medium mb-2">Schichtverteilung</div>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="bg-yellow-50 rounded p-2">
+            <div className="text-xs text-muted-foreground">Früh</div>
+            <div className="font-semibold">{earlyShifts}</div>
+          </div>
+          <div className="bg-blue-50 rounded p-2">
+            <div className="text-xs text-muted-foreground">Mitte</div>
+            <div className="font-semibold">{midShifts}</div>
+          </div>
+          <div className="bg-purple-50 rounded p-2">
+            <div className="text-xs text-muted-foreground">Spät</div>
+            <div className="font-semibold">{lateShifts}</div>
+          </div>
+        </div>
       </div>
+
+      {/* Key Metrics */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex items-center justify-between p-2 bg-slate-50 rounded">
+          <span className="text-xs text-muted-foreground">Pausen</span>
+          <span className="text-sm font-medium">{breaksPercentage.toFixed(0)}%</span>
+        </div>
+        <div className="flex items-center justify-between p-2 bg-slate-50 rounded">
+          <span className="text-xs text-muted-foreground">Max. Folgetage</span>
+          <Badge
+            variant={maxConsecutiveDays > 6 ? "destructive" : "secondary"}
+            className="text-xs"
+          >
+            {maxConsecutiveDays}
+          </Badge>
+        </div>
+      </div>
+
+      {/* Weekly Hours - Compact View */}
+      {weeklyHoursBreakdown.length > 0 && weeklyHoursBreakdown.length <= 4 && (
+        <div>
+          <div className="text-sm font-medium mb-2">Wochenstunden</div>
+          <div className="space-y-1">
+            {weeklyHoursBreakdown.map((week, index) => (
+              <div key={index} className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">KW {week.week}</span>
+                <div className="flex items-center gap-2">
+                  <span>{week.hours.toFixed(1)}h</span>
+                  <span className={cn(
+                    "font-medium",
+                    week.percentage > 100 ? "text-red-600" : 
+                    week.percentage < 90 ? "text-amber-600" : 
+                    "text-green-600"
+                  )}>
+                    ({week.percentage.toFixed(0)}%)
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Monthly Summary - Only show if we have data */}
+      {monthlyHoursCumulative.length > 0 && monthlyHoursCumulative.length <= 2 && (
+        <div className="pt-2 border-t">
+          <div className="text-sm font-medium mb-1">Monatssumme</div>
+          {monthlyHoursCumulative.map((month, index) => (
+            <div key={index} className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">{month.month}</span>
+              <span className="font-medium text-blue-600">
+                {month.cumulative.toFixed(1)}h
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

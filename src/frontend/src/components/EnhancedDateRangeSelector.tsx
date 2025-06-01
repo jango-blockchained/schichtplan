@@ -47,6 +47,7 @@ interface EnhancedDateRangeSelectorProps {
   onCreateNewVersionWithSpecificDateRange: (options: {
     dateRange: DateRange;
   }) => void;
+  currentVersion?: number;
 }
 
 export function EnhancedDateRangeSelector({
@@ -57,6 +58,7 @@ export function EnhancedDateRangeSelector({
   hasVersions,
   onCreateNewVersion,
   onCreateNewVersionWithSpecificDateRange,
+  currentVersion,
 }: EnhancedDateRangeSelectorProps) {
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
 
@@ -159,27 +161,38 @@ export function EnhancedDateRangeSelector({
 
   return (
     <>
-      <Card className="mb-4">
-        <CardHeader className="py-4 border-b">
-          <CardTitle className="text-lg flex items-center">
-            <Calendar className="h-5 w-5 mr-2" />
-            Zeitraumauswahl
-          </CardTitle>
+      <Card className="mb-4 border border-border/30 shadow-lg bg-card">
+        <CardHeader className="py-4 border-b border-border/30">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-xl flex items-center font-medium">
+              <Calendar className="h-6 w-6 mr-2 text-primary" />
+              Zeitraumauswahl
+            </CardTitle>
+            {currentVersion && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-muted-foreground">Aktuelle Version:</span>
+                <div className="px-4 py-2 bg-primary text-primary-foreground rounded-full text-sm font-medium shadow-sm border border-primary/20">
+                  V{currentVersion}
+                </div>
+              </div>
+            )}
+          </div>
         </CardHeader>
-        <CardContent className="py-4">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
+        <CardContent className="py-6">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-3">
               <Button
                 variant="outline"
                 size="icon"
                 onClick={() => handleWeekChange(-1)}
                 title="Vorherige Woche"
+                className="border-border/30 hover:border-primary/50 hover:bg-primary/10"
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <div className="flex flex-col items-center min-w-[180px]">
-                <span className="font-semibold">{formatWeekLabel()}</span>
-                <span className="text-sm text-muted-foreground">
+              <div className="flex flex-col items-center min-w-[220px] px-6 py-3 bg-primary/15 rounded-lg border border-primary/30 shadow-sm">
+                <span className="font-medium text-lg text-primary">{formatWeekLabel()}</span>
+                <span className="text-sm font-medium text-primary/90">
                   {formatDateRangeLabel()}
                 </span>
               </div>
@@ -188,18 +201,19 @@ export function EnhancedDateRangeSelector({
                 size="icon"
                 onClick={() => handleWeekChange(1)}
                 title="Nächste Woche"
+                className="border-border/30 hover:border-primary/50 hover:bg-primary/10"
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               <span className="text-sm font-medium">Anzahl Wochen:</span>
               <Select
                 value={scheduleDuration.toString()}
                 onValueChange={(value) => handleDurationChange(parseInt(value))}
               >
-                <SelectTrigger className="w-[100px]">
+                <SelectTrigger className="w-[120px] border-border/30 hover:border-primary/50">
                   <SelectValue placeholder="Wochen" />
                 </SelectTrigger>
                 <SelectContent>

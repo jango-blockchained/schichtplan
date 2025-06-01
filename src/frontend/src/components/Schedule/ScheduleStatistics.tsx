@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Schedule, Employee } from "@/types";
 import {
   Card,
@@ -14,11 +14,17 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
-import { InfoIcon, AlertCircle, Users, Clock } from "lucide-react";
+import { InfoIcon, AlertCircle, Users, Clock, ChevronDown, ChevronRight } from "lucide-react";
 import { parseISO, format, differenceInDays } from "date-fns";
 import { de } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
-import { getEmployees } from "@/services/api";
+import { getEmployees, getSettings } from "@/services/api";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { Button } from "@/components/ui/button";
 
 interface ScheduleStatisticsProps {
   schedules: Schedule[];
@@ -93,6 +99,7 @@ export function ScheduleStatistics({
   endDate,
   version,
 }: ScheduleStatisticsProps) {
+  const [isOpen, setIsOpen] = useState(true);
   // Validate inputs and provide defaults if needed
   const validatedSchedules = Array.isArray(schedules) ? schedules : [];
   const validatedStartDate =
@@ -150,6 +157,12 @@ export function ScheduleStatistics({
     propEmployees && propEmployees.length > 0
       ? propEmployees
       : fetchedEmployees || [];
+
+  // Fetch settings to get total weekly working hours constraint
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: getSettings,
+  });
 
   // Analyze schedule data for version integrity
   const schedulesWithVersion = validatedSchedules.filter(
@@ -329,188 +342,249 @@ export function ScheduleStatistics({
       : 0;
 
   return (
-    <div className="space-y-4">
-      <Card className="shadow-sm">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">
-            Übersicht Schichtplan
-          </CardTitle>
-          <CardDescription>
-            {dateRangeText} ({daysDifference} Tage)
-          </CardDescription>
+    <Card className="shadow-sm border-border/30">
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <CardHeader className="flex flex-row items-center justify-between pb-2 border-b border-border/30">
+          <div>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" className="flex items-center gap-2 p-0 hover:bg-muted/50">
+                {isOpen ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+                <CardTitle className="text-lg font-medium">
+                  Übersicht Schichtplan
+                </CardTitle>
+              </Button>
+            </CollapsibleTrigger>
+            <CardDescription className="text-muted-foreground">
+              {dateRangeText} ({daysDifference} Tage)
+            </CardDescription>
+          </div>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <div className="flex flex-col items-center">
-              <span className="text-2xl font-bold">{totalShifts}</span>
-              <span className="text-xs text-muted-foreground">Schichten</span>
+        <CollapsibleContent>
+          <CardContent className="p-6">
+          <div className="grid grid-cols-3 gap-6 mb-6">
+            <div className="flex flex-col items-center p-4 bg-muted/20 rounded-lg border border-border/30">
+              <span className="text-3xl font-medium text-primary">{totalShifts}</span>
+              <span className="text-sm text-muted-foreground font-medium">Schichten</span>
             </div>
-            <div className="flex flex-col items-center">
-              <span className="text-2xl font-bold">
+            <div className="flex flex-col items-center p-4 bg-muted/20 rounded-lg border border-border/30">
+              <span className="text-3xl font-medium text-primary">
                 {totalHours.toFixed(0)}
               </span>
-              <span className="text-xs text-muted-foreground">Stunden</span>
+              <span className="text-sm text-muted-foreground font-medium">Stunden</span>
             </div>
-            <div className="flex flex-col items-center">
-              <span className="text-2xl font-bold">
+            <div className="flex flex-col items-center p-4 bg-muted/20 rounded-lg border border-border/30">
+              <span className="text-3xl font-medium text-primary">
                 {scheduledEmployeesCount}/{totalEmployeesCount}
               </span>
-              <span className="text-xs text-muted-foreground">Mitarbeiter</span>
+              <span className="text-sm text-muted-foreground font-medium">Mitarbeiter</span>
             </div>
           </div>
 
+          {/* Total Weekly Working Hours Constraint */}
+          {settings?.total_weekly_working_hours && (
+            <div className="mt-6 pt-6 border-t border-border/30">
+              <div className="p-4 bg-muted/20 rounded-lg border border-border/30">
+                <h4 className="text-sm font-medium mb-3 text-foreground">Gesamtstunden-Constraint</h4>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">
+                    {totalHours.toFixed(0)} / {(settings.total_weekly_working_hours * weekCount).toFixed(0)} h
+                  </span>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <InfoIcon className="h-4 w-4 text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>
+                          Geplante Stunden vs. maximale Gesamtstunden-Constraint ({settings.total_weekly_working_hours}h/Woche)
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                <Progress 
+                  value={Math.min(100, (totalHours / (settings.total_weekly_working_hours * weekCount)) * 100)} 
+                  className={`h-3 mt-2 ${
+                    totalHours > (settings.total_weekly_working_hours * weekCount) ? "bg-red-200" : ""
+                  }`}
+                />
+                <div className="flex justify-between mt-2 text-xs">
+                  <span className={
+                    totalHours > (settings.total_weekly_working_hours * weekCount) 
+                      ? "text-red-400 font-medium" 
+                      : "text-muted-foreground"
+                  }>
+                    {((totalHours / (settings.total_weekly_working_hours * weekCount)) * 100).toFixed(0)}%
+                    {totalHours > (settings.total_weekly_working_hours * weekCount) && " (Überschritten)"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* NEW: Interval Coverage Stats */}
-          <div className="mt-4 pt-4 border-t">
-            <h4 className="text-sm font-medium mb-2 flex items-center">
-              <AlertCircle className="h-4 w-4 mr-1.5 text-orange-500" />{" "}
-              Intervall-Abdeckung (Platzhalter)
-            </h4>
-            <div className="grid grid-cols-2 gap-4">
-              {/* Placeholder Value - Needs real data */}
-              {/* MIN EMPLOYEE COVERAGE */}
-              <div>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger className="text-left w-full">
-                      <span className="text-lg font-bold">-- %</span>
-                      <div className="text-xs text-muted-foreground">
-                        Min. Besetzung
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>
-                        Prozent der Zeitintervalle, die die Mindestbesetzung
-                        erfüllen.
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+          <div className="mt-6 pt-6 border-t border-border/30">
+            <div className="p-4 bg-muted/20 rounded-lg border border-border/30">
+              <h4 className="text-sm font-medium mb-3 flex items-center text-foreground">
+                <AlertCircle className="h-4 w-4 mr-2 text-orange-400" />{" "}
+                Intervall-Abdeckung (Platzhalter)
+              </h4>
+              <div className="grid grid-cols-2 gap-4">
+                {/* Placeholder Value - Needs real data */}
+                {/* MIN EMPLOYEE COVERAGE */}
+                <div className="p-3 bg-background/50 rounded border border-border/30">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger className="text-left w-full">
+                        <span className="text-xl font-medium text-primary">-- %</span>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Min. Besetzung
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>
+                          Prozent der Zeitintervalle, die die Mindestbesetzung
+                          erfüllen.
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                {/* KEYHOLDER COVERAGE */}
+                <div className="p-3 bg-background/50 rounded border border-border/30">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger className="text-left w-full">
+                        <span className="text-xl font-medium text-primary">-- %</span>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Schlüsselträger
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>
+                          Prozent der Zeitintervalle, die einen benötigten
+                          Schlüsselträger haben.
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                {/* TODO: Add more metrics like Understaffed Intervals, Missing Employee Type Intervals */}
               </div>
-              {/* KEYHOLDER COVERAGE */}
-              <div>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger className="text-left w-full">
-                      <span className="text-lg font-bold">-- %</span>
-                      <div className="text-xs text-muted-foreground">
-                        Schlüsselträger
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>
-                        Prozent der Zeitintervalle, die einen benötigten
-                        Schlüsselträger haben.
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-              {/* TODO: Add more metrics like Understaffed Intervals, Missing Employee Type Intervals */}
             </div>
           </div>
 
           {/* Existing: Shift Distribution */}
-          <div className="mt-4 pt-4 border-t">
-            <h4 className="text-sm font-medium mb-2">Schichtverteilung</h4>
-            <div className="space-y-3">
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span>Frühschichten</span>
-                  <span>
-                    {earlyShifts} ({earlyPercentage.toFixed(0)}%)
-                  </span>
+          <div className="mt-6 pt-6 border-t border-border/30">
+            <div className="p-4 bg-muted/20 rounded-lg border border-border/30">
+              <h4 className="text-sm font-medium mb-4 text-foreground">Schichtverteilung</h4>
+              <div className="space-y-4">
+                <div>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="font-medium">Frühschichten</span>
+                    <span className="font-medium">
+                      {earlyShifts} ({earlyPercentage.toFixed(0)}%)
+                    </span>
+                  </div>
+                  <Progress value={earlyPercentage} className="h-3" />
                 </div>
-                <Progress value={earlyPercentage} className="h-2" />
-              </div>
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span>Mittelschichten</span>
-                  <span>
-                    {midShifts} ({midPercentage.toFixed(0)}%)
-                  </span>
+                <div>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="font-medium">Mittelschichten</span>
+                    <span className="font-medium">
+                      {midShifts} ({midPercentage.toFixed(0)}%)
+                    </span>
+                  </div>
+                  <Progress value={midPercentage} className="h-3" />
                 </div>
-                <Progress value={midPercentage} className="h-2" />
-              </div>
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span>Spätschichten</span>
-                  <span>
-                    {lateShifts} ({latePercentage.toFixed(0)}%)
-                  </span>
+                <div>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="font-medium">Spätschichten</span>
+                    <span className="font-medium">
+                      {lateShifts} ({latePercentage.toFixed(0)}%)
+                    </span>
+                  </div>
+                  <Progress value={latePercentage} className="h-3" />
                 </div>
-                <Progress value={latePercentage} className="h-2" />
               </div>
             </div>
           </div>
 
           {/* Hours Utilization */}
-          <div className="mt-4 pt-4 border-t">
-            <h4 className="text-sm font-medium mb-2">Stundenabdeckung</h4>
-            <CardDescription>
-              {totalHours.toFixed(0)} / {contractedHoursForPeriod.toFixed(0)}{" "}
-              Stunden
-            </CardDescription>
-            <Progress
-              value={hoursUtilization > 100 ? 100 : hoursUtilization}
-              className={`h-2 ${hoursUtilization > 100 ? "bg-amber-200" : ""}`}
-            />
-            <div className="flex justify-between mt-2 text-xs">
-              <span
-                className={
-                  hoursUtilization > 100 ? "text-amber-600 font-medium" : ""
-                }
-              >
-                {hoursUtilization.toFixed(0)}% Auslastung
-                {hoursUtilization > 100 && " (Überbesetzt)"}
-              </span>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <InfoIcon className="h-3 w-3" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>
-                      Geplante Stunden im Verhältnis zu verfügbaren
-                      Vertragsstunden
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
+          <div className="mt-6 pt-6 border-t border-border/30">
+            <div className="p-4 bg-muted/20 rounded-lg border border-border/30">
+              <h4 className="text-sm font-medium mb-3 text-foreground">Stundenabdeckung</h4>
+              <CardDescription className="mb-3">
+                {totalHours.toFixed(0)} / {contractedHoursForPeriod.toFixed(0)}{" "}
+                Stunden
+              </CardDescription>
+              <Progress
+                value={hoursUtilization > 100 ? 100 : hoursUtilization}
+                className={`h-3 ${hoursUtilization > 100 ? "bg-amber-200" : ""}`}
+              />
+              <div className="flex justify-between mt-3 text-sm">
+                <span
+                  className={
+                    hoursUtilization > 100 ? "text-amber-400 font-medium" : "font-medium"
+                  }
+                >
+                  {hoursUtilization.toFixed(0)}% Auslastung
+                  {hoursUtilization > 100 && " (Überbesetzt)"}
+                </span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <InfoIcon className="h-4 w-4 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>
+                        Geplante Stunden im Verhältnis zu verfügbaren
+                        Vertragsstunden
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
 
-            <div className="grid grid-cols-2 gap-2 mt-4">
-              {(
-                Object.entries(employeeGroups) as [
-                  EmployeeGroupKey,
-                  EmployeeGroupData,
-                ][]
-              ).map(
-                ([group, data]) =>
-                  data.employees > 0 && (
-                    <div
-                      key={group}
-                      className="flex items-center justify-between text-xs"
-                    >
-                      <span>{group}:</span>
-                      <span>
-                        {data.hours.toFixed(0)} /{" "}
-                        {(data.contractedHours * weekCount).toFixed(0)} h (
-                        {data.contractedHours > 0
-                          ? (
-                              (data.hours /
-                                (data.contractedHours * weekCount)) *
-                              100
-                            ).toFixed(0)
-                          : 0}
-                        %)
-                      </span>
-                    </div>
-                  ),
-              )}
+              <div className="grid grid-cols-2 gap-3 mt-4 p-3 bg-background/50 rounded border border-border/30">
+                {(
+                  Object.entries(employeeGroups) as [
+                    EmployeeGroupKey,
+                    EmployeeGroupData,
+                  ][]
+                ).map(
+                  ([group, data]) =>
+                    data.employees > 0 && (
+                      <div
+                        key={group}
+                        className="flex items-center justify-between text-sm"
+                      >
+                        <span className="font-medium">{group}:</span>
+                        <span className="text-muted-foreground">
+                          {data.hours.toFixed(0)} /{" "}
+                          {(data.contractedHours * weekCount).toFixed(0)} h (
+                          {data.contractedHours > 0
+                            ? (
+                                (data.hours /
+                                  (data.contractedHours * weekCount)) *
+                                100
+                              ).toFixed(0)
+                            : 0}
+                          %)
+                        </span>
+                      </div>
+                    ),
+                )}
+              </div>
             </div>
           </div>
         </CardContent>
-      </Card>
-    </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </Card>
   );
 }

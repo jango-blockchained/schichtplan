@@ -2,6 +2,7 @@ from datetime import datetime, date, timedelta, UTC
 import random
 import logging
 import os
+import warnings
 from functools import wraps
 from flask import Blueprint, jsonify, request, make_response, Response
 from http import HTTPStatus
@@ -228,7 +229,7 @@ def generate_employee_data(num_employees: int = 30):
             last_name=last_name,
             employee_group=emp_type["id"],
             contracted_hours=contracted_hours,
-            is_keyholder=i < 3,
+            is_keyholder=emp_type["id"] != "GFB",
             is_active=True,
             email=f"employee{i + 1}@example.com",
             phone=f"+49 {random.randint(100, 999)} {random.randint(1000000, 9999999)}",
@@ -304,8 +305,11 @@ def validate_availability_vs_contracted(employee, blocks, days_available):
 
 def generate_improved_availability_data(employees):
     """
-    Generate realistic availability data that respects contracted hours and creates
-    more realistic availability patterns based on employee types and real-world scenarios.
+    Generate realistic availability data that looks like real employee availability patterns:
+    - Start with mostly AVAILABLE for business hours
+    - Add strategic UNAVAILABLE blocks (lunch, personal commitments)
+    - Add FIXED/PREFERRED blocks for specific regular commitments
+    - Make patterns day-based and block-based, not scattered individual hours
     """
     availabilities = []
     daily_employee_day_type = {}
@@ -314,240 +318,198 @@ def generate_improved_availability_data(employees):
     today = date.today()
     start_of_week_date = today - timedelta(days=today.weekday())
 
+    # Define business hours (when the store is typically open)
+    business_start = 9
+    business_end = 20
+
     for employee in employees:
         contracted_hours = employee.contracted_hours
         employee_type = employee.employee_group
         
-        # Calculate realistic availability based on employee type
+        # Determine working days based on employee type
         if contracted_hours >= 35:  # Full-time employees (VZ, TL)
-            # Full-time employees: mostly FIXED with some PREFERRED
-            fixed_hours = min(contracted_hours, 40)  # Don't exceed contracted hours for FIXED
-            preferred_hours = max(0, min(10, contracted_hours * 0.3))  # Up to 30% extra as PREFERRED
-            total_availability_hours = fixed_hours + preferred_hours
-            
-            # Distribute across 5-6 days
-            num_work_days = 5 if contracted_hours <= 37 else 6
-            work_days = random.sample(working_days_indices, num_work_days)
-            
-            # Distribute FIXED hours first (respecting contracted hours)
-            fixed_hours_per_day = fixed_hours // num_work_days
-            extra_fixed_hours = int(fixed_hours % num_work_days)
-            
-            for i, day_idx in enumerate(work_days):
-                day_date_obj = start_of_week_date + timedelta(days=day_idx)
-                daily_employee_day_type[(employee.id, day_idx)] = AvailabilityType.FIXED
-                
-                # Calculate hours for this day
-                daily_fixed = fixed_hours_per_day + (1 if i < extra_fixed_hours else 0)
-                daily_preferred = preferred_hours // num_work_days + (1 if i < (preferred_hours % num_work_days) else 0)
-                
-                # Add FIXED availability (core working hours)
-                start_hour = random.choice([8, 9, 10])  # Varied start times
-                for h in range(start_hour, start_hour + int(daily_fixed)):
-                    if h < 24:  # Don't exceed 24 hours
-                        avail_slot = EmployeeAvailability(
-                            employee_id=employee.id,
-                            day_of_week=day_idx,
-                            hour=h,
-                            is_available=True,
-                            availability_type=AvailabilityType.FIXED,
-                            start_date=day_date_obj,
-                            end_date=day_date_obj,
-                            is_recurring=False,
-                        )
-                        availabilities.append(avail_slot)
-                
-                # Add PREFERRED availability (flexible extra hours)
-                if daily_preferred > 0:
-                    # Add preferred hours before or after fixed hours
-                    if random.choice([True, False]) and start_hour > 8:  # Before
-                        for h in range(max(8, start_hour - int(daily_preferred)), start_hour):
-                            avail_slot = EmployeeAvailability(
-                                employee_id=employee.id,
-                                day_of_week=day_idx,
-                                hour=h,
-                                is_available=True,
-                                availability_type=AvailabilityType.PREFERRED,
-                                start_date=day_date_obj,
-                                end_date=day_date_obj,
-                                is_recurring=False,
-                            )
-                            availabilities.append(avail_slot)
-                    else:  # After
-                        end_hour = start_hour + int(daily_fixed)
-                        for h in range(end_hour, min(20, end_hour + int(daily_preferred))):
-                            avail_slot = EmployeeAvailability(
-                                employee_id=employee.id,
-                                day_of_week=day_idx,
-                                hour=h,
-                                is_available=True,
-                                availability_type=AvailabilityType.PREFERRED,
-                                start_date=day_date_obj,
-                                end_date=day_date_obj,
-                                is_recurring=False,
-                            )
-                            availabilities.append(avail_slot)
-            
-            employee_weekly_hours[employee.id] = total_availability_hours
-            
+            work_days = random.sample(working_days_indices, 5)  # 5 days per week
         elif contracted_hours >= 15:  # Part-time employees (TZ)
-            # Part-time: mix of FIXED, PREFERRED, and AVAILABLE
-            fixed_hours = min(contracted_hours * 0.7, contracted_hours)  # 70% as fixed, but not exceeding contracted
-            preferred_hours = contracted_hours * 0.3  # 30% as preferred
-            available_hours = contracted_hours * 0.5  # 50% extra as available
-            total_availability_hours = fixed_hours + preferred_hours + available_hours
+            work_days = random.sample(working_days_indices, random.randint(3, 5))  # 3-5 days
+        else:  # Low-hour employees (GFB)
+            work_days = random.sample(working_days_indices, random.randint(2, 4))  # 2-4 days
+        
+        for day_idx in range(6):  # Process all days Monday-Saturday
+            day_date_obj = start_of_week_date + timedelta(days=day_idx)
             
-            # Work 3-5 days
-            num_work_days = random.randint(3, 5)
-            work_days = random.sample(working_days_indices, num_work_days)
+            if day_idx in work_days:
+                # This is a working day - create realistic availability pattern
+                
+                # Step 1: Start with AVAILABLE for most business hours
+                for hour in range(business_start, business_end):
+                    avail_slot = EmployeeAvailability(
+                        employee_id=employee.id,
+                        day_of_week=day_idx,
+                        hour=hour,
+                        is_available=True,
+                        availability_type=AvailabilityType.AVAILABLE,
+                        start_date=day_date_obj,
+                        end_date=day_date_obj,
+                        is_recurring=False,
+                    )
+                    availabilities.append(avail_slot)
+                
+                # Step 2: Keep most hours as AVAILABLE (minimal unavailable blocks)
+                unavailable_blocks = []
+                
+                # Only add occasional unavailable blocks for variety (10% chance)
+                if random.random() < 0.1:
+                    block_start = random.choice([10, 11, 14, 15, 16])
+                    block_duration = random.choice([1, 2])
+                    if block_start + block_duration <= business_end:
+                        unavailable_blocks.append((block_start, block_start + block_duration))
+                
+                # Apply unavailable blocks
+                for start_hour, end_hour in unavailable_blocks:
+                    for hour in range(start_hour, end_hour):
+                        if business_start <= hour < business_end:
+                            # Find and remove the AVAILABLE slot for this hour
+                            availabilities = [a for a in availabilities if not (
+                                a.employee_id == employee.id and 
+                                a.day_of_week == day_idx and 
+                                a.hour == hour
+                            )]
+                            # Add UNAVAILABLE slot
+                            unavail_slot = EmployeeAvailability(
+                                employee_id=employee.id,
+                                day_of_week=day_idx,
+                                hour=hour,
+                                is_available=False,
+                                availability_type=AvailabilityType.UNAVAILABLE,
+                                start_date=day_date_obj,
+                                end_date=day_date_obj,
+                                is_recurring=False,
+                            )
+                            availabilities.append(unavail_slot)
+                
+                # Step 3: Add FIXED blocks for regular commitments
+                fixed_blocks = []
+                
+                if contracted_hours >= 35:  # Full-time employees
+                    # 60% chance of having a fixed block (regular shift pattern)
+                    if random.random() < 0.6:
+                        # Fixed morning or afternoon block
+                        if random.choice([True, False]):  # Morning fixed block
+                            fixed_start = random.choice([9, 10])
+                            fixed_duration = random.randint(3, 5)
+                            fixed_blocks.append((fixed_start, fixed_start + fixed_duration))
+                        else:  # Afternoon fixed block
+                            fixed_start = random.choice([13, 14])
+                            fixed_duration = random.randint(3, 5)
+                            fixed_blocks.append((fixed_start, fixed_start + fixed_duration))
+                
+                elif contracted_hours >= 15:  # Part-time employees
+                    # 40% chance of having a fixed block
+                    if random.random() < 0.4:
+                        fixed_start = random.choice([10, 11, 13, 14])
+                        fixed_duration = random.randint(2, 4)
+                        fixed_blocks.append((fixed_start, fixed_start + fixed_duration))
+                
+                # Apply fixed blocks (only if not conflicting with unavailable)
+                for start_hour, end_hour in fixed_blocks:
+                    conflict = False
+                    for unavail_start, unavail_end in unavailable_blocks:
+                        if not (end_hour <= unavail_start or start_hour >= unavail_end):
+                            conflict = True
+                            break
+                    
+                    if not conflict:
+                        for hour in range(start_hour, end_hour):
+                            if business_start <= hour < business_end:
+                                # Find and replace AVAILABLE with FIXED
+                                availabilities = [a for a in availabilities if not (
+                                    a.employee_id == employee.id and 
+                                    a.day_of_week == day_idx and 
+                                    a.hour == hour
+                                )]
+                                fixed_slot = EmployeeAvailability(
+                                    employee_id=employee.id,
+                                    day_of_week=day_idx,
+                                    hour=hour,
+                                    is_available=True,
+                                    availability_type=AvailabilityType.FIXED,
+                                    start_date=day_date_obj,
+                                    end_date=day_date_obj,
+                                    is_recurring=False,
+                                )
+                                availabilities.append(fixed_slot)
+                
+                # Step 4: Add PREFERRED blocks for flexible preferences
+                preferred_blocks = []
+                
+                # 30% chance of having preferred hours
+                if random.random() < 0.3:
+                    # Preferred early morning or late evening
+                    if random.choice([True, False]) and business_start > 8:  # Early morning
+                        pref_start = 8
+                        pref_duration = random.randint(1, 2)
+                        preferred_blocks.append((pref_start, pref_start + pref_duration))
+                    else:  # Late evening
+                        pref_start = random.choice([18, 19])
+                        pref_duration = random.randint(1, 2)
+                        if pref_start + pref_duration <= 21:  # Don't go too late
+                            preferred_blocks.append((pref_start, pref_start + pref_duration))
+                
+                # Apply preferred blocks (extend beyond business hours if needed)
+                for start_hour, end_hour in preferred_blocks:
+                    for hour in range(start_hour, end_hour):
+                        if 8 <= hour <= 21:  # Extended hours for preferred
+                            # Check if this hour already has availability
+                            existing = [a for a in availabilities if (
+                                a.employee_id == employee.id and 
+                                a.day_of_week == day_idx and 
+                                a.hour == hour
+                            )]
+                            
+                            if not existing:  # Only add if no existing availability
+                                pref_slot = EmployeeAvailability(
+                                    employee_id=employee.id,
+                                    day_of_week=day_idx,
+                                    hour=hour,
+                                    is_available=True,
+                                    availability_type=AvailabilityType.PREFERRED,
+                                    start_date=day_date_obj,
+                                    end_date=day_date_obj,
+                                    is_recurring=False,
+                                )
+                                availabilities.append(pref_slot)
             
-            # Distribute hours across days
-            hours_per_day = total_availability_hours / num_work_days
-            
-            for day_idx in work_days:
-                day_date_obj = start_of_week_date + timedelta(days=day_idx)
-                daily_hours = int(hours_per_day) + random.choice([0, 1])  # Some variation
+            else:
+                # This is a non-working day - mostly unavailable with some flexibility
                 
-                # Mix of availability types for part-time
-                fixed_today = min(daily_hours // 2, int(fixed_hours / num_work_days))
-                preferred_today = min((daily_hours - fixed_today) // 2, int(preferred_hours / num_work_days))
-                available_today = daily_hours - fixed_today - preferred_today
-                
-                start_hour = random.choice([9, 10, 11, 13, 14])  # More flexible start times
-                current_hour = start_hour
-                
-                # Add FIXED hours first
-                for _ in range(int(fixed_today)):
-                    if current_hour < 20:
-                        avail_slot = EmployeeAvailability(
+                # 80% chance of being completely unavailable on non-working days
+                if random.random() < 0.8:
+                    for hour in range(business_start, business_end):
+                        unavail_slot = EmployeeAvailability(
                             employee_id=employee.id,
                             day_of_week=day_idx,
-                            hour=current_hour,
-                            is_available=True,
-                            availability_type=AvailabilityType.FIXED,
+                            hour=hour,
+                            is_available=False,
+                            availability_type=AvailabilityType.UNAVAILABLE,
                             start_date=day_date_obj,
                             end_date=day_date_obj,
                             is_recurring=False,
                         )
-                        availabilities.append(avail_slot)
-                        current_hour += 1
-                
-                # Add PREFERRED hours
-                for _ in range(int(preferred_today)):
-                    if current_hour < 20:
-                        avail_slot = EmployeeAvailability(
-                            employee_id=employee.id,
-                            day_of_week=day_idx,
-                            hour=current_hour,
-                            is_available=True,
-                            availability_type=AvailabilityType.PREFERRED,
-                            start_date=day_date_obj,
-                            end_date=day_date_obj,
-                            is_recurring=False,
-                        )
-                        availabilities.append(avail_slot)
-                        current_hour += 1
-                
-                # Add AVAILABLE hours
-                for _ in range(int(available_today)):
-                    if current_hour < 20:
-                        avail_slot = EmployeeAvailability(
-                            employee_id=employee.id,
-                            day_of_week=day_idx,
-                            hour=current_hour,
-                            is_available=True,
-                            availability_type=AvailabilityType.AVAILABLE,
-                            start_date=day_date_obj,
-                            end_date=day_date_obj,
-                            is_recurring=False,
-                        )
-                        availabilities.append(avail_slot)
-                        current_hour += 1
-            
-            employee_weekly_hours[employee.id] = total_availability_hours
-            
-        else:  # Low-hour employees (GFB, students, etc.)
-            # Low-hour employees: mostly AVAILABLE with some PREFERRED, minimal FIXED
-            fixed_hours = min(contracted_hours * 0.5, contracted_hours)  # 50% as fixed, but not exceeding contracted
-            preferred_hours = contracted_hours * 0.3  # 30% as preferred
-            available_hours = contracted_hours * 1.5  # 150% extra as available (they're very flexible)
-            total_availability_hours = fixed_hours + preferred_hours + available_hours
-            
-            # Work 2-4 days (very flexible)
-            num_work_days = random.randint(2, 4)
-            work_days = random.sample(working_days_indices, num_work_days)
-            
-            for day_idx in work_days:
-                day_date_obj = start_of_week_date + timedelta(days=day_idx)
-                daily_hours = int(total_availability_hours / num_work_days) + random.choice([0, 1, 2])
-                
-                # Mostly available hours for flexibility
-                fixed_today = min(1, int(fixed_hours / num_work_days)) if fixed_hours > 0 else 0
-                preferred_today = min(2, int(preferred_hours / num_work_days)) if preferred_hours > 0 else 0
-                available_today = max(0, daily_hours - fixed_today - preferred_today)
-                
-                # Very flexible start times
-                start_hour = random.choice([10, 11, 12, 13, 14, 15, 16])
-                current_hour = start_hour
-                
-                # Add small amount of FIXED hours
-                for _ in range(fixed_today):
-                    if current_hour < 20:
-                        avail_slot = EmployeeAvailability(
-                            employee_id=employee.id,
-                            day_of_week=day_idx,
-                            hour=current_hour,
-                            is_available=True,
-                            availability_type=AvailabilityType.FIXED,
-                            start_date=day_date_obj,
-                            end_date=day_date_obj,
-                            is_recurring=False,
-                        )
-                        availabilities.append(avail_slot)
-                        current_hour += 1
-                
-                # Add PREFERRED hours
-                for _ in range(preferred_today):
-                    if current_hour < 20:
-                        avail_slot = EmployeeAvailability(
-                            employee_id=employee.id,
-                            day_of_week=day_idx,
-                            hour=current_hour,
-                            is_available=True,
-                            availability_type=AvailabilityType.PREFERRED,
-                            start_date=day_date_obj,
-                            end_date=day_date_obj,
-                            is_recurring=False,
-                        )
-                        availabilities.append(avail_slot)
-                        current_hour += 1
-                
-                # Add lots of AVAILABLE hours (high flexibility)
-                for _ in range(available_today):
-                    if current_hour < 20:
-                        avail_slot = EmployeeAvailability(
-                            employee_id=employee.id,
-                            day_of_week=day_idx,
-                            hour=current_hour,
-                            is_available=True,
-                            availability_type=AvailabilityType.AVAILABLE,
-                            start_date=day_date_obj,
-                            end_date=day_date_obj,
-                            is_recurring=False,
-                        )
-                        availabilities.append(avail_slot)
-                        current_hour += 1
-                
-                # Add some scattered available hours on other time slots for maximum flexibility
-                if available_today > 0:
-                    extra_hours = random.randint(1, 3)
-                    for _ in range(extra_hours):
-                        extra_hour = random.choice([9, 10, 17, 18, 19])
-                        if extra_hour not in range(start_hour, current_hour):
+                        availabilities.append(unavail_slot)
+                else:
+                    # 20% chance of some availability (flexible employees)
+                    # Add a few available hours scattered throughout the day
+                    available_hours = random.sample(
+                        range(business_start, business_end), 
+                        random.randint(2, 5)
+                    )
+                    
+                    for hour in range(business_start, business_end):
+                        if hour in available_hours:
                             avail_slot = EmployeeAvailability(
                                 employee_id=employee.id,
                                 day_of_week=day_idx,
-                                hour=extra_hour,
+                                hour=hour,
                                 is_available=True,
                                 availability_type=AvailabilityType.AVAILABLE,
                                 start_date=day_date_obj,
@@ -555,8 +517,22 @@ def generate_improved_availability_data(employees):
                                 is_recurring=False,
                             )
                             availabilities.append(avail_slot)
-            
-            employee_weekly_hours[employee.id] = total_availability_hours
+                        else:
+                            unavail_slot = EmployeeAvailability(
+                                employee_id=employee.id,
+                                day_of_week=day_idx,
+                                hour=hour,
+                                is_available=False,
+                                availability_type=AvailabilityType.UNAVAILABLE,
+                                start_date=day_date_obj,
+                                end_date=day_date_obj,
+                                is_recurring=False,
+                            )
+                            availabilities.append(unavail_slot)
+        
+        # Calculate total weekly hours for this employee
+        weekly_hours = len([a for a in availabilities if a.employee_id == employee.id and a.is_available])
+        employee_weekly_hours[employee.id] = weekly_hours
 
     return availabilities, daily_employee_day_type, employee_weekly_hours
 
@@ -576,6 +552,7 @@ def validate_and_log_availability_distribution(employees, availabilities):
                 'FIXED': 0,
                 'PREFERRED': 0,
                 'AVAILABLE': 0,
+                'UNAVAILABLE': 0,
                 'total': 0
             }
         employee_availabilities[avail.employee_id][avail.availability_type.value] += 1
@@ -649,71 +626,86 @@ def validate_and_log_availability_distribution(employees, availabilities):
 
 
 def generate_shift_templates():
-    """Generate demo shift templates"""
+    """Generate demo shift templates with preset times"""
     logging.info("Generating shift templates...")
 
     # Delete existing shift templates
     ShiftTemplate.query.delete()
     db.session.commit()
 
-    shift_templates = [
-        # Full-time shifts (8 hours)
-        ShiftTemplate(
-            start_time="08:00",
-            end_time="16:00",
-            requires_break=True,
-            shift_type=ShiftType.EARLY,
-        ),
-        ShiftTemplate(
-            start_time="09:00",
-            end_time="17:00",
-            requires_break=True,
-            shift_type=ShiftType.MIDDLE,
-        ),
-        ShiftTemplate(
-            start_time="10:00",
-            end_time="18:00",
-            requires_break=True,
-            shift_type=ShiftType.MIDDLE,
-        ),
-        ShiftTemplate(
-            start_time="11:00",
-            end_time="19:00",
-            requires_break=True,
-            shift_type=ShiftType.LATE,
-        ),
-        ShiftTemplate(
-            start_time="12:00",
-            end_time="20:00",
-            requires_break=True,
-            shift_type=ShiftType.LATE,
-        ),
-        # Part-time shifts (4-6 hours)
-        ShiftTemplate(
-            start_time="08:00",
-            end_time="13:00",
-            requires_break=False,
-            shift_type=ShiftType.EARLY,
-        ),
-        ShiftTemplate(
-            start_time="13:00",
-            end_time="18:00",
-            requires_break=False,
-            shift_type=ShiftType.MIDDLE,
-        ),
-        ShiftTemplate(
-            start_time="15:00",
-            end_time="20:00",
-            requires_break=False,
-            shift_type=ShiftType.LATE,
-        ),
+    # Preset shift times as requested
+    preset_shifts = [
+        ("09:00", "14:00"),  # 5h - no break
+        ("10:00", "14:00"),  # 4h - no break
+        ("11:00", "14:00"),  # 3h - no break
+        ("09:00", "12:00"),  # 3h - no break
+        ("09:00", "13:00"),  # 4h - no break
+        ("14:00", "20:00"),  # 6h - no break
+        ("14:00", "19:00"),  # 5h - no break
+        ("14:00", "18:00"),  # 4h - no break
+        ("14:00", "17:00"),  # 3h - no break
+        ("17:00", "20:00"),  # 3h - no break
+        ("16:00", "20:00"),  # 4h - no break
+        ("15:00", "20:00"),  # 5h - no break
+        ("09:00", "20:00"),  # 11h - requires break
+        ("09:00", "16:00"),  # 7h - requires break
+        ("09:00", "19:00"),  # 10h - requires break
+        ("09:00", "18:00"),  # 9h - requires break
     ]
 
-    # Calculate durations and validate before adding
-    for template in shift_templates:
+    def determine_shift_type(start_time, end_time):
+        """Determine shift type based on start and end times"""
+        start_hour = int(start_time.split(':')[0])
+        end_hour = int(end_time.split(':')[0])
+        
+        # EARLY: starting from 9 or 10
+        if start_hour in [9, 10]:
+            return ShiftType.EARLY
+        # LATE: ending 19 or 20
+        elif end_hour in [19, 20]:
+            return ShiftType.LATE
+        # MIDDLE: not EARLY and not LATE
+        else:
+            return ShiftType.MIDDLE
+
+    def calculate_duration_hours(start_time, end_time):
+        """Calculate duration in hours"""
+        start_hour, start_min = map(int, start_time.split(':'))
+        end_hour, end_min = map(int, end_time.split(':'))
+        
+        start_total_min = start_hour * 60 + start_min
+        end_total_min = end_hour * 60 + end_min
+        
+        # Handle overnight shifts (though none in our preset)
+        if end_total_min <= start_total_min:
+            end_total_min += 24 * 60
+        
+        duration_min = end_total_min - start_total_min
+        return duration_min / 60.0
+
+    shift_templates = []
+    for start_time, end_time in preset_shifts:
+        duration = calculate_duration_hours(start_time, end_time)
+        requires_break = duration > 6.0  # Break required for shifts longer than 6h
+        shift_type = determine_shift_type(start_time, end_time)
+        
+        template = ShiftTemplate(
+            start_time=start_time,
+            end_time=end_time,
+            requires_break=requires_break,
+            shift_type=shift_type,
+        )
+        
+        # Calculate duration and validate
         template._calculate_duration()
         template.validate()
-        db.session.add(template)
+        shift_templates.append(template)
+        
+        logging.info(f"Created shift template: {start_time}-{end_time} ({duration:.1f}h, "
+                    f"break: {requires_break}, type: {shift_type.value})")
+
+    # Add all templates to session
+    db.session.add_all(shift_templates)
 
     try:
         db.session.commit()
@@ -793,7 +785,7 @@ def generate_demo_data():
             # Clear existing employees
             logging.info("Generating employees...")
             Employee.query.delete()
-            employees = generate_employee_data(num_employees=num_employees)
+            employees = generate_improved_employee_data(num_employees_override=num_employees)
             db.session.add_all(employees)
             try:
                 db.session.commit()
@@ -1201,89 +1193,115 @@ def generate_granular_coverage_data():
 
 
 def generate_improved_absences(employees):
-    """Generate realistic absences for employees"""
-    logging.info("Generating improved absences...")
+    """Generate realistic absences for 20% of employees with dates surrounding current date"""
+    logging.info("Generating improved absences for 20% of employees...")
 
     absences = []
     today = date.today()
-    # Generate absences for the next 3 months
-    date_range = 90
+    
+    # Generate absences in a range surrounding the current date (2 months before to 2 months after)
+    date_range_start = today - timedelta(days=60)  # 2 months before
+    date_range_end = today + timedelta(days=60)    # 2 months after
+    total_date_range = (date_range_end - date_range_start).days
 
-    # Define absence types with their probabilities and typical durations
+    # Define absence types with their typical durations
     absence_types = {
         "URL": {  # Vacation
-            "prob": 0.7,  # 70% of employees will have vacation
             "min_duration": 5,
             "max_duration": 14,
-            "instances": (1, 2),  # 1-2 vacation periods
+            "weight": 0.5,  # 50% of absences will be vacation
         },
         "ABW": {  # Absent
-            "prob": 0.3,  # 30% chance of being absent
             "min_duration": 1,
             "max_duration": 3,
-            "instances": (0, 2),  # 0-2 absences
+            "weight": 0.3,  # 30% of absences will be sick/absent
         },
         "SLG": {  # Training
-            "prob": 0.4,  # 40% chance of training
             "min_duration": 1,
             "max_duration": 3,
-            "instances": (0, 1),  # 0-1 training periods
+            "weight": 0.2,  # 20% of absences will be training
         },
     }
 
-    for employee in employees:
-        # Process each absence type
-        for absence_type, config in absence_types.items():
-            if random.random() < config["prob"]:
-                # Determine number of instances for this absence type
-                num_instances = random.randint(*config["instances"])
+    # Select 20% of employees to have absences
+    num_employees_with_absences = max(1, int(len(employees) * 0.2))
+    employees_with_absences = random.sample(employees, num_employees_with_absences)
+    
+    logging.info(f"Selected {num_employees_with_absences} out of {len(employees)} employees to have absences")
+    logging.info(f"Date range: {date_range_start} to {date_range_end} ({total_date_range} days)")
 
-                for _ in range(num_instances):
-                    # Determine duration
-                    duration = random.randint(
-                        config["min_duration"], config["max_duration"]
+    for employee in employees_with_absences:
+        # Each selected employee gets 1-2 absence periods
+        num_absences = random.randint(1, 2)
+        logging.info(f"Processing employee {employee.employee_id} for {num_absences} absences")
+        
+        for _ in range(num_absences):
+            # Select absence type based on weights
+            absence_type = random.choices(
+                list(absence_types.keys()),
+                weights=[config["weight"] for config in absence_types.values()],
+                k=1
+            )[0]
+            
+            config = absence_types[absence_type]
+            
+            # Determine duration
+            duration = random.randint(config["min_duration"], config["max_duration"])
+
+            # Find a suitable start date
+            attempts = 0
+            max_attempts = 20
+            valid_date_found = False
+
+            while attempts < max_attempts and not valid_date_found:
+                # Random start date within the surrounding date range
+                max_offset = max(0, total_date_range - duration)
+                if max_offset <= 0:
+                    logging.warning(f"Duration {duration} is too long for date range {total_date_range}")
+                    break
+                    
+                days_offset = random.randint(0, max_offset)
+                start_date_obj = date_range_start + timedelta(days=days_offset)
+                end_date_obj = start_date_obj + timedelta(days=duration - 1)
+
+                # Ensure we don't go beyond our date range
+                if end_date_obj > date_range_end:
+                    attempts += 1
+                    continue
+
+                # Check if this period overlaps with existing absences for this employee
+                overlaps = False
+                for existing in absences:
+                    if existing.employee_id == employee.id and not (
+                        end_date_obj < existing.start_date
+                        or start_date_obj > existing.end_date
+                    ):
+                        overlaps = True
+                        break
+
+                if not overlaps:
+                    valid_date_found = True
+                    absence = Absence(
+                        employee_id=employee.id,
+                        absence_type_id=absence_type,
+                        start_date=start_date_obj,
+                        end_date=end_date_obj,
+                        note=f"Generated {absence_type} absence",
+                    )
+                    absences.append(absence)
+                    logging.info(
+                        f"Created {absence_type} absence for {employee.employee_id} "
+                        f"from {start_date_obj} to {end_date_obj}"
                     )
 
-                    # Find a suitable start date
-                    attempts = 0
-                    max_attempts = 10
-                    valid_date_found = False
+                attempts += 1
 
-                    while attempts < max_attempts and not valid_date_found:
-                        # Random start date within next 3 months
-                        start_date_obj = today + timedelta(  # Renamed to avoid conflict
-                            days=random.randint(1, date_range - duration)
-                        )
-                        end_date_obj = start_date_obj + timedelta(
-                            days=duration - 1
-                        )  # Renamed
+            if not valid_date_found:
+                logging.warning(
+                    f"Could not find valid date for {absence_type} absence for employee {employee.employee_id}"
+                )
 
-                        # Check if this period overlaps with existing absences
-                        overlaps = False
-                        for existing in absences:
-                            if existing.employee_id == employee.id and not (
-                                end_date_obj < existing.start_date  # Use renamed var
-                                or start_date_obj > existing.end_date  # Use renamed var
-                            ):
-                                overlaps = True
-                                break
-
-                        if not overlaps:
-                            valid_date_found = True
-                            absence = Absence(
-                                employee_id=employee.id,  # noqa
-                                absence_type_id=absence_type,  # noqa
-                                start_date=start_date_obj,  # Use renamed var # noqa
-                                end_date=end_date_obj,  # Use renamed var # noqa
-                                note=f"Generated {absence_type} absence",  # noqa
-                            )
-                            absences.append(absence)
-                            logging.info(
-                                f"Created {absence_type} absence for {employee.employee_id} "
-                                f"from {start_date_obj} to {end_date_obj}"  # Use renamed vars
-                            )
-
-                        attempts += 1
+    logging.info(f"Generated {len(absences)} total absences for {num_employees_with_absences} employees")
     return absences
 
 
@@ -1380,7 +1398,10 @@ def generate_optimized_demo_data():
         # Generate absences
         try:
             logging.info("Generating employee absences...")
-            absences = generate_improved_absences(employees)
+            # Refresh employees from database to ensure they have proper IDs
+            fresh_employees = Employee.query.all()
+            logging.info(f"Fetched {len(fresh_employees)} employees from database for absence generation")
+            absences = generate_improved_absences(fresh_employees)
             db.session.add_all(absences)
             db.session.commit()
             logging.info(f"Successfully created {len(absences)} absences")
@@ -1415,7 +1436,6 @@ def generate_optimized_demo_data():
         ), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
-# Minimal stub to avoid import error and circular dependency
 def generate_optimized_shift_templates():
-    warnings.warn("Stub: generate_optimized_shift_templates called. No shift templates generated.")
-    return []
+    """Generate optimized shift templates with preset times"""
+    return generate_shift_templates()

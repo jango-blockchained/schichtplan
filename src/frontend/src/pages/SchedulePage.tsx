@@ -1170,15 +1170,9 @@ export function SchedulePage() {
     isPending ||
     exportMutation.isPending ||
     isAiGenerating;
-  const canFix =
-    !!dateRange?.from && !!dateRange?.to && !!versionControlSelectedVersion;
 
   return (
     <div className="container mx-auto py-4 space-y-4">
-      <div className="bg-red-200 p-4 text-xl font-bold text-center mb-4">
-        DEBUG: SchedulePage rendering. Schedules: {scheduleData?.length || 0},
-        Version: {selectedVersion ?? "N/A"}
-      </div>
       <PageHeader title="Dienstplan" className="mb-4">
         <ScheduleControls
           onRefresh={handleRetryFetch}
@@ -1196,6 +1190,7 @@ export function SchedulePage() {
         onCreateNewVersionWithSpecificDateRange={
           handleCreateNewVersionFromDialog
         }
+        currentVersion={versionControlSelectedVersion}
       />
 
       {!isLoadingVersions &&
@@ -1233,12 +1228,9 @@ export function SchedulePage() {
           onGenerateStandardSchedule={handleGenerateStandardSchedule}
           onGenerateAiSchedule={handleGenerateAiSchedule}
           onOpenGenerationSettings={() => setIsGenerationSettingsOpen(true)}
-          onFixDisplay={handleFixDisplay}
-          onFixTimeData={checkAndFixMissingTimeData}
-          canFix={canFix}
           isAiEnabled={!!settingsQuery.data?.ai_scheduling?.enabled}
           onPreviewAiData={handlePreviewAiData}
-          onImportAiResponse={handleImportAiResponse} // Pass the new prop
+          onImportAiResponse={handleImportAiResponse}
         />
       </div>
 

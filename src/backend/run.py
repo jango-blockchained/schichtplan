@@ -52,8 +52,14 @@ if str(src_backend_dir) not in sys.path:
     sys.path.append(str(src_backend_dir))
 
 # Change from relative import to absolute import
-from src.backend.app import create_app
-from src.backend.config import Config
+try:
+    # Try importing as if we're in the project root
+    from src.backend.app import create_app
+    from src.backend.config import Config
+except ModuleNotFoundError:
+    # If that fails, try importing as if we're in src/backend
+    from app import create_app
+    from config import Config
 
 from werkzeug.serving import is_running_from_reloader
 

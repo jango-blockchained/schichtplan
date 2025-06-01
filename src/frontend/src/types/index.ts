@@ -204,6 +204,7 @@ export interface Settings {
     scheduling_period_weeks: number | null;
     auto_schedule_preferences: boolean | null;
     enable_diagnostics?: boolean | null;
+    total_weekly_working_hours?: number | null;
     generation_requirements: {
       enforce_minimum_coverage: boolean;
       enforce_contracted_hours: boolean;

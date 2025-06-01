@@ -35,8 +35,6 @@ interface ScheduleActionsProps {
   onGenerateStandardSchedule: () => void;
   onGenerateAiSchedule: () => void;
   onOpenGenerationSettings: () => void;
-  onFixDisplay: () => Promise<void>;
-  onFixTimeData: () => Promise<void>;
   onPreviewAiData: () => void;
   onImportAiResponse: () => void;
   isLoading: boolean;
@@ -44,7 +42,6 @@ interface ScheduleActionsProps {
   canAdd: boolean;
   canDelete: boolean;
   canGenerate: boolean;
-  canFix: boolean;
   isAiEnabled: boolean;
 }
 
@@ -54,8 +51,6 @@ export function ScheduleActions({
   onGenerateStandardSchedule,
   onGenerateAiSchedule,
   onOpenGenerationSettings,
-  onFixDisplay,
-  onFixTimeData,
   onPreviewAiData,
   onImportAiResponse,
   isLoading,
@@ -63,7 +58,6 @@ export function ScheduleActions({
   canAdd,
   canDelete,
   canGenerate,
-  canFix,
   isAiEnabled,
 }: ScheduleActionsProps) {
   const [isDeleting, setIsDeleting] = useState(false);
@@ -191,31 +185,6 @@ export function ScheduleActions({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Add Fix dropdown menu */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            className="flex items-center gap-1"
-            disabled={isLoading || !canFix}
-          >
-            <Settings className="h-4 w-4" />
-            <span>Reparieren</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuItem onClick={() => onFixDisplay()} disabled={isLoading}>
-            <span>Anzeigeprobleme beheben</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => onFixTimeData()}
-            disabled={isLoading}
-          >
-            <span>Zeitdaten reparieren</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
     </div>
   );
 }

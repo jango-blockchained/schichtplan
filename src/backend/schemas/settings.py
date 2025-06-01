@@ -175,6 +175,9 @@ class SchedulingSettingsSchema(BaseModel):
     max_weekly_hours: Optional[float] = Field(
         None, description="Maximum weekly working hours for an employee."
     )
+    total_weekly_working_hours: Optional[float] = Field(
+        None, description="Total weekly working hours constraint for all employees."
+    )
     min_rest_between_shifts: Optional[float] = Field(
         None, description="Minimum rest period between shifts in hours."
     )

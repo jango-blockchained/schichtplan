@@ -157,10 +157,6 @@ export function ScheduleManager({
   return (
     <Card>
       <CardContent className="p-0">
-        <div className="bg-yellow-200 p-4 text-center font-bold">
-          DEBUG: ScheduleManager is rendering (Schedules: {schedules.length})
-        </div>
-
         <ScheduleTable
           schedules={schedules}
           dateRange={dateRange}
