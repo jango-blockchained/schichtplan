@@ -33,6 +33,8 @@ export interface Schedule {
   is_empty?: boolean;
   shift_start?: string | null;
   shift_end?: string | null;
+  duration_hours?: number;
+  requires_break?: boolean;
   availability_type?: AvailabilityTypeStrings;
   shift_type_id?: string; // EARLY, MIDDLE, LATE
   shift_type_name?: string; // early, middle, late

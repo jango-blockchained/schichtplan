@@ -32,12 +32,16 @@ const { TIME_COLUMN_WIDTH, CELL_HEIGHT, BLOCK_VERTICAL_PADDING } =
 export const CoverageBlock: React.FC<CoverageBlockProps> = ({
   slot,
   dayIndex,
+  slotIndex,
   onUpdate,
   onDelete,
   isEditing,
   gridWidth,
   storeConfig,
   hours,
+  isSelected,
+  onSelect,
+  selectionMode,
 }) => {
   const blockRef = useRef<HTMLDivElement>(null);
   const [isResizing, setIsResizing] = useState(false);
@@ -136,13 +140,20 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
   });
 
   useEffect(() => {
-    if (blockRef.current) {
+    if (blockRef.current && !selectionMode) {
       drag(blockRef.current);
     }
-  }, [drag]);
+  }, [drag, selectionMode]);
+
+  const handleBlockClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (selectionMode) {
+      onSelect(!isSelected);
+    }
+  };
 
   const handleResizeStart = (e: React.MouseEvent) => {
-    if (!isEditing) return;
+    if (!isEditing || selectionMode) return;
     e.preventDefault();
     e.stopPropagation();
     setIsResizing(true);
@@ -262,15 +273,21 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
           opacity: isDragging ? 0.5 : 1,
           zIndex: isResizing ? 10 : isDragging ? 20 : 1,
           transform: isDragging ? "scale(1.02)" : "scale(1)",
-          pointerEvents: isEditing ? "all" : "none",
+          pointerEvents: (isEditing || selectionMode) ? "all" : "none",
         }}
         className={cn(
-          "bg-primary/5 border border-primary/20 rounded-md px-2.5 py-1.5 cursor-move flex group relative",
-          isEditing ? "hover:bg-primary/10 hover:border-primary/30" : "",
+          "border rounded-md px-2.5 py-1.5 flex group relative",
+          selectionMode ? "cursor-pointer" : "cursor-move",
+          isSelected
+            ? "bg-blue-500/20 border-blue-500/50 ring-2 ring-blue-400/50"
+            : "bg-primary/5 border-primary/20",
+          isEditing && !selectionMode ? "hover:bg-primary/10 hover:border-primary/30" : "",
+          selectionMode ? "hover:bg-primary/10" : "",
           "shadow-sm hover:shadow transition-all duration-200 ease-in-out",
           isDragging && "ring-2 ring-primary/30 shadow-lg",
           isResizing && "ring-2 ring-primary/50",
         )}
+        onClick={handleBlockClick}
       >
         {isEarlyShift && keyholderBeforeMinutes > 0 && (
           <div
@@ -343,7 +360,7 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
                 </Tooltip>
               </TooltipProvider>
             )}
-            {isEditing && (
+            {isEditing && !selectionMode && (
               <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                 <TooltipProvider>
                   <Tooltip>
@@ -379,9 +396,16 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
                 </TooltipProvider>
               </div>
             )}
+            {selectionMode && isSelected && (
+              <div className="flex items-center gap-1">
+                <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-xs">✓</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-        {isEditing && (
+        {isEditing && !selectionMode && (
           <div
             className={cn(
               "absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize rounded-r-md transition-colors",

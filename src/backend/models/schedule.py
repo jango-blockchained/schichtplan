@@ -20,13 +20,24 @@ class Schedule(db.Model):
 
     id = Column(Integer, primary_key=True)
     employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False)
-    shift_id = Column(Integer, ForeignKey("shifts.id"), nullable=True)
+    shift_id = Column(Integer, ForeignKey("shifts.id"), nullable=True)  # Reference to template
     date = Column(DateTime, nullable=False)
     version = Column(Integer, nullable=False, default=1)
+    
+    # Independent shift timing fields (copied from template but can be modified)
+    shift_start = Column(db.String(5), nullable=True)  # Format: "HH:MM"
+    shift_end = Column(db.String(5), nullable=True)    # Format: "HH:MM"
+    duration_hours = Column(db.Float, nullable=True)
+    requires_break = Column(db.Boolean, nullable=True, default=False)
+    shift_type_id = Column(db.String(50), nullable=True)  # EARLY, MIDDLE, LATE
+    
+    # Break timing fields
     break_start = Column(db.String(5), nullable=True)
     break_end = Column(db.String(5), nullable=True)
+    break_duration = Column(db.Integer, nullable=True)  # Duration in minutes
+    
     notes = Column(db.Text, nullable=True)
-    shift_type = Column(db.String(20), nullable=True)
+    shift_type = Column(db.String(20), nullable=True)  # Legacy field, keep for compatibility
     availability_type = Column(
         SQLEnum(AvailabilityType), nullable=True, default=AvailabilityType.AVAILABLE
     )  # AVAILABLE, FIXED, PREFERRED, UNAVAILABLE
@@ -50,8 +61,14 @@ class Schedule(db.Model):
         shift_id,
         date,
         version=1,
+        shift_start=None,
+        shift_end=None,
+        duration_hours=None,
+        requires_break=None,
+        shift_type_id=None,
         break_start=None,
         break_end=None,
+        break_duration=None,
         notes=None,
         shift_type=None,
         availability_type=AvailabilityType.AVAILABLE,
@@ -61,31 +78,102 @@ class Schedule(db.Model):
         self.shift_id = shift_id
         self.date = date
         self.version = version
+        
+        # Independent shift timing fields
+        self.shift_start = shift_start
+        self.shift_end = shift_end
+        self.duration_hours = duration_hours
+        self.requires_break = requires_break
+        self.shift_type_id = shift_type_id
+        
+        # Break timing fields
         self.break_start = break_start
         self.break_end = break_end
+        self.break_duration = break_duration
+        
         self.notes = notes
-        self.shift_type = shift_type
+        self.shift_type = shift_type  # Legacy field
         self.availability_type = (
             availability_type.value
             if isinstance(availability_type, AvailabilityType)
             else availability_type
         )
         self.status = status
+        
+        # If shift_id is provided but timing fields are not, copy from template
+        if shift_id and not shift_start:
+            self._copy_from_template()
+
+    def _copy_from_template(self):
+        """Copy timing data from the shift template to make this assignment independent"""
+        if not self.shift_id:
+            return
+            
+        try:
+            from .fixed_shift import ShiftTemplate
+            template = db.session.get(ShiftTemplate, self.shift_id)
+            if template:
+                self.shift_start = template.start_time
+                self.shift_end = template.end_time
+                self.duration_hours = template.duration_hours
+                self.requires_break = template.requires_break
+                self.shift_type_id = template.shift_type_id
+                
+                # Calculate break duration if break times are set
+                if self.break_start and self.break_end:
+                    self._calculate_break_duration()
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error copying from template for schedule {self.id}: {e}")
+
+    def _calculate_break_duration(self):
+        """Calculate break duration in minutes from break_start and break_end"""
+        if not self.break_start or not self.break_end:
+            self.break_duration = None
+            return
+            
+        try:
+            start_hour, start_min = map(int, self.break_start.split(":"))
+            end_hour, end_min = map(int, self.break_end.split(":"))
+            
+            start_minutes = start_hour * 60 + start_min
+            end_minutes = end_hour * 60 + end_min
+            
+            # Handle breaks that cross midnight
+            if end_minutes < start_minutes:
+                end_minutes += 24 * 60
+                
+            self.break_duration = end_minutes - start_minutes
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error calculating break duration for schedule {self.id}: {e}")
+            self.break_duration = None
 
     def to_dict(self):
         """Convert schedule to dictionary for API response"""
-        from .fixed_shift import ShiftTemplate  # Import here to avoid circular imports
-
         data = {
             "id": self.id,
             "employee_id": self.employee_id,
             "shift_id": self.shift_id,
             "date": self.date.isoformat() if self.date is not None else None,
             "version": self.version,
+            
+            # Use schedule's own timing fields (independent from template)
+            "shift_start": self.shift_start,
+            "shift_end": self.shift_end,
+            "duration_hours": self.duration_hours,
+            "requires_break": self.requires_break,
+            "shift_type_id": self.shift_type_id,
+            
+            # Break timing fields
             "break_start": self.break_start,
             "break_end": self.break_end,
+            "break_duration": self.break_duration,
+            
             "notes": self.notes,
-            "shift_type": self.shift_type,
+            "shift_type": self.shift_type,  # Legacy field
             "availability_type": self.availability_type.value
             if isinstance(self.availability_type, AvailabilityType)
             else self.availability_type,
@@ -98,46 +186,24 @@ class Schedule(db.Model):
             else None,
         }
 
-        # Add shift details if available through relationship
-        if hasattr(self, "shift") and self.shift:
-            data.update(
-                {
-                    "shift_start": self.shift.start_time,
-                    "shift_end": self.shift.end_time,
-                    "duration_hours": self.shift.duration_hours
-                    if hasattr(self.shift, "duration_hours")
-                    else 0.0,
-                    "shift_type_id": self.shift.shift_type_id,
-                    "shift_type_name": self.shift.shift_type.value
-                    if self.shift.shift_type
-                    else None,
-                }
+        # Get shift type name from template if available
+        if self.shift_id and hasattr(self, "shift") and self.shift:
+            data["shift_type_name"] = (
+                self.shift.shift_type.value if self.shift.shift_type else None
             )
-        # If no relationship but we have a shift_id, fetch the shift data
-        elif self.shift_id is not None:
+        elif self.shift_id:
+            # Fallback: get shift type name from template
             try:
-                # Try to get the shift directly from the database
+                from .fixed_shift import ShiftTemplate
                 shift = db.session.get(ShiftTemplate, self.shift_id)
                 if shift:
-                    data.update(
-                        {
-                            "shift_start": shift.start_time,
-                            "shift_end": shift.end_time,
-                            "duration_hours": shift.duration_hours
-                            if hasattr(shift, "duration_hours")
-                            else 0.0,
-                            "shift_type_id": shift.shift_type_id,
-                            "shift_type_name": shift.shift_type.value
-                            if shift.shift_type
-                            else None,
-                        }
+                    data["shift_type_name"] = (
+                        shift.shift_type.value if shift.shift_type else None
                     )
             except Exception as e:
-                # Log the error but don't fail the whole response
                 import logging
-
                 logger = logging.getLogger(__name__)
-                logger.error(f"Error fetching shift data for schedule {self.id}: {e}")
+                logger.error(f"Error fetching shift type name for schedule {self.id}: {e}")
 
         # Add employee name if available (for convenience)
         if hasattr(self, "employee") and self.employee:

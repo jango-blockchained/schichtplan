@@ -54,36 +54,22 @@ check_port() {
 # Function to kill process using a port
 kill_port() {
     local port=$1
-    local pids
     
-    # Get all PIDs using the port, handling multiple PIDs correctly
-    pids=$(lsof -t -i:"$port" 2>/dev/null)
-    
-    if [ -n "$pids" ]; then
-        log "INFO" "Found process(es) on port $port (PIDs: $pids)"
-        for pid in $pids; do
-            # Try SIGTERM first, then SIGKILL if needed
-            if kill -15 "$pid" 2>/dev/null; then
-                log "INFO" "Sent SIGTERM to PID $pid"
-                sleep 1
-                # Check if process is still running
-                if kill -0 "$pid" 2>/dev/null; then
-                    log "WARN" "Process $pid did not respond to SIGTERM, using SIGKILL"
-                    kill -9 "$pid" 2>/dev/null
-                fi
+    if check_port "$port"; then
+        log "INFO" "Found process(es) on port $port, killing with npx kill-port"
+        if sudo npx kill-port "$port" 2>/dev/null; then
+            log "INFO" "Successfully killed process(es) on port $port"
+            sleep 1
+            # Verify port is actually free
+            if check_port "$port"; then
+                log "ERROR" "Port $port is still in use after killing processes"
+                return 1
             else
-                log "WARN" "Failed to terminate PID $pid gracefully, using SIGKILL"
-                kill -9 "$pid" 2>/dev/null
+                log "INFO" "Successfully freed port $port"
             fi
-        done
-        
-        # Verify port is actually free
-        sleep 1
-        if check_port "$port"; then
-            log "ERROR" "Port $port is still in use after killing processes"
-            return 1
         else
-            log "INFO" "Successfully freed port $port"
+            log "ERROR" "Failed to kill process(es) on port $port using npx kill-port"
+            return 1
         fi
     else
         log "INFO" "No processes found using port $port"

@@ -130,6 +130,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { DiagnosticsDialog } from "@/components/Schedule/DiagnosticsDialog";
+import { ScheduleDock } from "@/components/ScheduleDock";
 
 function getErrorMessage(error: any): string {
   if (error && typeof error === "object" && "message" in error) {
@@ -640,106 +641,7 @@ export function SchedulePage() {
     }
   }, [absenceData]);
 
-  // Conditional returns are now AFTER all hooks and necessary handler definitions
-  if (isLoadingSchedule) {
-    return (
-      <div className="container mx-auto py-6 space-y-6">
-        <div className="flex justify-between items-center">
-          <Skeleton className="h-10 w-48" />
-          <div className="flex items-center gap-4">
-            <Skeleton className="h-10 w-64" />
-            <Skeleton className="h-10 w-40" />
-            <Skeleton className="h-10 w-40" />
-            <Skeleton className="h-10 w-32" />
-          </div>
-        </div>
-        <Card className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableCell>
-                  <Skeleton className="h-6 w-32" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-6 w-20" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-6 w-24" />
-                </TableCell>
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <TableCell key={i}>
-                    <Skeleton className="h-6 w-24" />
-                  </TableCell>
-                ))}
-                <TableCell>
-                  <Skeleton className="h-6 w-24" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-6 w-24" />
-                </TableCell>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell>
-                    <Skeleton className="h-24 w-32" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-24 w-20" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-24 w-24" />
-                  </TableCell>
-                  {Array.from({ length: 6 }).map((_, j) => (
-                    <TableCell key={j}>
-                      <Skeleton className="h-24 w-24" />
-                    </TableCell>
-                  ))}
-                  <TableCell>
-                    <Skeleton className="h-24 w-24" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-24 w-24" />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
-      </div>
-    );
-  }
-
-  if (scheduleErrorObj) {
-    return (
-      <div className="container mx-auto py-4 space-y-4">
-        <PageHeader title="Dienstplan" className="mb-4">
-          <ScheduleControls
-            onRefresh={handleRetryFetch}
-            onExport={handleExportSchedule}
-          />
-        </PageHeader>
-        <Alert variant="destructive" className="mb-4">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Fehler beim Laden des Dienstplans</AlertTitle>
-          <AlertDescription className="flex flex-col">
-            <div>
-              Failed to fetch schedules: {getErrorMessage(scheduleErrorObj)}
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-2 w-fit"
-              onClick={handleRetryFetch}
-            >
-              <RefreshCw className="h-4 w-4 mr-2" /> Erneut versuchen
-            </Button>
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
+  // Define handlers that might depend on the fully initialized state and hooks
 
   // Define other handlers that might depend on the fully initialized state and hooks
   const handleGenerateStandardSchedule = () => {
@@ -1121,6 +1023,66 @@ export function SchedulePage() {
     }
   };
 
+  const handleDockDrop = useCallback(async (employeeId: number, date: Date, shiftId: number) => {
+    if (!versionControlSelectedVersion) {
+      toast({
+        title: "Fehler",
+        description: "Keine Version ausgewählt.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Extract just the version number from the version control object
+    const versionNumber = typeof versionControlSelectedVersion === 'object' 
+      ? versionControlSelectedVersion.version 
+      : versionControlSelectedVersion;
+
+    console.log("🔧 handleDockDrop:", {
+      employeeId,
+      date: format(date, "yyyy-MM-dd"), 
+      shiftId,
+      versionControlSelectedVersion,
+      extractedVersionNumber: versionNumber
+    });
+
+    try {
+      await createSchedule({
+        employee_id: employeeId,
+        date: format(date, "yyyy-MM-dd"),
+        shift_id: shiftId,
+        version: versionNumber,
+      });
+      await refetchScheduleData();
+      toast({
+        title: "Schicht hinzugefügt",
+        description: "Schicht erfolgreich aus dem Dock zugewiesen.",
+      });
+    } catch (error) {
+      console.error("🚨 Dock drop error:", error);
+      toast({
+        title: "Fehler beim Hinzufügen",
+        description: getErrorMessage(error),
+        variant: "destructive",
+      });
+    }
+  }, [versionControlSelectedVersion, refetchScheduleData, toast]);
+
+  // Add event listener for dock drops from schedule cells
+  useEffect(() => {
+    const handleDockDropEvent = (event: CustomEvent) => {
+      const { employeeId, date, shiftId } = event.detail;
+      console.log("🎯 Received dock drop event:", { employeeId, date, shiftId });
+      handleDockDrop(employeeId, date, shiftId);
+    };
+
+    window.addEventListener('dockDrop', handleDockDropEvent as EventListener);
+    
+    return () => {
+      window.removeEventListener('dockDrop', handleDockDropEvent as EventListener);
+    };
+  }, [handleDockDrop]);
+
   const handleShiftUpdate = async (update: ScheduleUpdate) => {
     if (update.id === undefined || update.id === null) {
       toast({
@@ -1180,32 +1142,55 @@ export function SchedulePage() {
         />
       </PageHeader>
 
-      <EnhancedDateRangeSelector
-        dateRange={dateRange}
-        scheduleDuration={weekAmount}
-        onWeekChange={handleWeekChange}
-        onDurationChange={handleDurationChange}
-        hasVersions={versionMetas.length > 0} // Use versionMetas from useVersionControl
-        onCreateNewVersion={handleCreateNewVersionPage} // Use page-level handler
-        onCreateNewVersionWithSpecificDateRange={
-          handleCreateNewVersionFromDialog
-        }
-        currentVersion={versionControlSelectedVersion}
-      />
+      {/* 1. Date Selection */}
+      <div className="mb-4">
+        <EnhancedDateRangeSelector
+          dateRange={dateRange}
+          scheduleDuration={weekAmount}
+          onWeekChange={handleWeekChange}
+          onDurationChange={handleDurationChange}
+          hasVersions={versionMetas.length > 0}
+          onCreateNewVersion={handleCreateNewVersionPage}
+          onCreateNewVersionWithSpecificDateRange={
+            handleCreateNewVersionFromDialog
+          }
+          currentVersion={versionControlSelectedVersion}
+        />
+      </div>
 
+      {/* 2. Version Table */}
+      {versionMetas && versionMetas.length > 0 && (
+        <div className="mb-4">
+          <VersionTable
+            versions={versionMetas}
+            selectedVersion={versionControlSelectedVersion}
+            onSelectVersion={handleVersionChange}
+            onPublishVersion={handlePublishVersion}
+            onArchiveVersion={handleArchiveVersion}
+            onDeleteVersion={triggerDeleteVersionHook}
+            onDuplicateVersion={triggerDuplicateVersionHook}
+            onCreateNewVersion={handleCreateNewVersionPage}
+          />
+        </div>
+      )}
+
+      {/* 3. Statistics */}
       {!isLoadingVersions &&
         scheduleData?.length > 0 &&
         dateRange?.from &&
         dateRange?.to && (
-          <ScheduleStatistics
-            schedules={scheduleData}
-            employees={employees || []}
-            startDate={format(dateRange.from, "yyyy-MM-dd")}
-            endDate={format(dateRange.to, "yyyy-MM-dd")}
-            version={versionControlSelectedVersion}
-          />
+          <div className="mb-4">
+            <ScheduleStatistics
+              schedules={scheduleData}
+              employees={employees || []}
+              startDate={format(dateRange.from, "yyyy-MM-dd")}
+              endDate={format(dateRange.to, "yyyy-MM-dd")}
+              version={versionControlSelectedVersion}
+            />
+          </div>
         )}
 
+      {/* 4. Actions */}
       <div className="flex justify-start gap-2 mb-4">
         <ScheduleActions
           isLoading={isUpdating}
@@ -1234,25 +1219,92 @@ export function SchedulePage() {
         />
       </div>
 
-      {versionMetas && versionMetas.length > 0 && (
-        <VersionTable
-          versions={versionMetas}
-          selectedVersion={versionControlSelectedVersion}
-          onSelectVersion={handleVersionChange} // from useVersionControl
-          onPublishVersion={handlePublishVersion} // from useVersionControl
-          onArchiveVersion={handleArchiveVersion} // from useVersionControl
-          onDeleteVersion={triggerDeleteVersionHook} // Renamed from useVersionControl
-          onDuplicateVersion={triggerDuplicateVersionHook} // Renamed from useVersionControl
-          onCreateNewVersion={handleCreateNewVersionPage} // Page-level handler
-        />
-      )}
-
       <DndProvider backend={HTML5Backend}>
 
         {isLoadingSchedule ? (
-          <div className="space-y-4">
-            {/* Skeleton already defined earlier in this block */}
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <Skeleton className="h-10 w-48" />
+              <div className="flex items-center gap-4">
+                <Skeleton className="h-10 w-64" />
+                <Skeleton className="h-10 w-40" />
+                <Skeleton className="h-10 w-40" />
+                <Skeleton className="h-10 w-32" />
+              </div>
+            </div>
+            <Card className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableCell>
+                      <Skeleton className="h-6 w-32" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-6 w-20" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-6 w-24" />
+                    </TableCell>
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <TableCell key={i}>
+                        <Skeleton className="h-6 w-24" />
+                      </TableCell>
+                    ))}
+                    <TableCell>
+                      <Skeleton className="h-6 w-24" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-6 w-24" />
+                    </TableCell>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell>
+                        <Skeleton className="h-24 w-32" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-24 w-20" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-24 w-24" />
+                      </TableCell>
+                      {Array.from({ length: 6 }).map((_, j) => (
+                        <TableCell key={j}>
+                          <Skeleton className="h-24 w-24" />
+                        </TableCell>
+                      ))}
+                      <TableCell>
+                        <Skeleton className="h-24 w-24" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="h-24 w-24" />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
           </div>
+        ) : scheduleErrorObj ? (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Fehler beim Laden des Dienstplans</AlertTitle>
+            <AlertDescription className="flex flex-col">
+              <div>
+                Failed to fetch schedules: {getErrorMessage(scheduleErrorObj)}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2 w-fit"
+                onClick={handleRetryFetch}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" /> Erneut versuchen
+              </Button>
+            </AlertDescription>
+          </Alert>
         ) : (
           <>
             {errors.length > 0 && <ScheduleErrors errors={errors} />}
@@ -1281,6 +1333,13 @@ export function SchedulePage() {
             </div>
           </>
         )}
+        
+        {/* Schedule Dock - Sticky bottom dock for drag and drop */}
+        <ScheduleDock
+          currentVersion={versionControlSelectedVersion}
+          selectedDate={dateRange?.from}
+          onDrop={handleDockDrop}
+        />
       </DndProvider>
 
       <GenerationOverlay

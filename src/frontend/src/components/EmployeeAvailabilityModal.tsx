@@ -370,19 +370,25 @@ export const EmployeeAvailabilityModal: React.FC<
     return stats;
   };
 
-  const calculateCumulativeHours = (day: string, currentHour: number) => {
-    const stats = new Map<string, number>();
-    timeSlots.forEach(({ time }) => {
-      const [startTime] = time.split(" - ")[0].split(":").map(Number);
-      if (startTime <= currentHour) {
-        const cellId = `${day}-${time}`;
-        const type = selectedCells.get(cellId);
-        if (type) {
-          stats.set(type, (stats.get(type) || 0) + 1);
+  const calculateSequentialNumber = (day: string, currentHour: number, targetType: string) => {
+    // Sort time slots by hour to ensure correct sequential counting
+    const sortedTimeSlots = [...timeSlots].sort((a, b) => a.hour - b.hour);
+    
+    let sequentialNumber = 0;
+    
+    for (const { time, hour } of sortedTimeSlots) {
+      const cellId = `${day}-${time}`;
+      const type = selectedCells.get(cellId);
+      
+      if (type === targetType) {
+        sequentialNumber++;
+        if (hour === currentHour) {
+          return sequentialNumber;
         }
       }
-    });
-    return stats;
+    }
+    
+    return 0;
   };
 
   return (
@@ -488,11 +494,8 @@ export const EmployeeAvailabilityModal: React.FC<
                             (t) => t.id === "UNAVAILABLE",
                           )?.color || "#ef4444";
 
-                      // Calculate cumulative hours for this day up to current hour for the selected type
-                      const cumulativeHours = calculateCumulativeHours(
-                        day,
-                        hour,
-                      );
+                      // Get the sequential number for this specific cell type within this day
+                      const sequentialNumber = isSelected ? calculateSequentialNumber(day, hour, cellType) : 0;
 
                       return (
                         <TableCell
@@ -515,12 +518,7 @@ export const EmployeeAvailabilityModal: React.FC<
                             <>
                               <Check className="h-4 w-4 mx-auto text-white" />
                               <div className="absolute bottom-0 right-1 text-[10px] text-white">
-                                {Array.from(cumulativeHours)
-                                  .map(([type, count]) =>
-                                    type === cellType ? count : null,
-                                  )
-                                  .filter(Boolean)
-                                  .join("")}
+                                {sequentialNumber}
                               </div>
                             </>
                           ) : (

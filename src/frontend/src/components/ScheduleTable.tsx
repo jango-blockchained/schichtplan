@@ -23,6 +23,10 @@ import {
   ChevronRight,
   AlertTriangle,
   Info,
+  RotateCcw,
+  Maximize2,
+  Minimize2,
+  GripVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ShiftEditModal } from "./ShiftEditModal";
@@ -60,6 +64,13 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
+import { Switch } from "@/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface ScheduleTableProps {
   schedules: Schedule[];
@@ -85,11 +96,12 @@ interface ScheduleTableProps {
 
 interface DragItem {
   type: "SCHEDULE";
-  scheduleId: number;
+  scheduleId?: number;
   employeeId: number;
   shiftId: number | null;
   date: string;
   shift_type_id?: string; // EARLY, MIDDLE, LATE
+  isDockItem?: boolean; // Flag to indicate this is from the dock
 }
 
 // Define an extended type for Schedule that includes the break duration
@@ -147,100 +159,104 @@ const TimeSlotDisplay = ({
   const displayStartTime = startTime || "??:??";
   const displayEndTime = endTime || "??:??";
 
+  // Get shift type color matching dock items
+  const getShiftTypeColor = (shiftType?: string) => {
+    switch (shiftType) {
+      case "EARLY": return "bg-blue-500/20 text-blue-300 border-blue-500/30";
+      case "MIDDLE": return "bg-green-500/20 text-green-300 border-green-500/30";
+      case "LATE": return "bg-amber-500/20 text-amber-300 border-amber-500/30";
+      default: return "bg-slate-500/20 text-slate-300 border-slate-500/30";
+    }
+  };
+
+  const getShiftTypeName = (shiftType?: string) => {
+    switch (shiftType) {
+      case "EARLY": return "Früh";
+      case "MIDDLE": return "Mitte";
+      case "LATE": return "Spät";
+      default: return "Schicht";
+    }
+  };
+
   // Handle the case where we have a schedule with ID but no time data
   if (hasMissingTimeData) {
-    // Try to extract more information from the shift type
-    const shiftTypeName =
-      schedule?.shift_type_name ||
-      (shiftType === "EARLY"
-        ? "Früh"
-        : shiftType === "MIDDLE"
-          ? "Mitte"
-          : shiftType === "LATE"
-            ? "Spät"
-            : `Schicht #${schedule?.shift_id}`);
+    const shiftTypeName = schedule?.shift_type_name || getShiftTypeName(shiftType);
 
     return (
-      <div className="flex flex-col items-center gap-1">
-        <div className="px-4 py-2 rounded-full text-sm font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30 w-fit shadow-sm">
+      <div className="flex flex-col items-center p-3 rounded-lg border border-border bg-card min-w-[100px] select-none">
+        <GripVertical className="h-4 w-4 text-muted-foreground mb-1" />
+        <div className="text-sm font-medium text-center mb-2">
           {shiftTypeName}
         </div>
-        <div className="text-xs text-amber-400 font-medium">
-          ID: {schedule?.shift_id} (Zeiten fehlen)
+        <div className="flex flex-col gap-1 items-center">
+          <Badge
+            variant="secondary"
+            className={cn("text-xs", getShiftTypeColor(shiftType))}
+          >
+            {getShiftTypeName(shiftType)}
+          </Badge>
+          <div className="text-xs text-muted-foreground">
+            Zeiten fehlen
+          </div>
+          {schedule?.duration_hours && (
+            <div className="text-xs text-muted-foreground">
+              {schedule.duration_hours}h
+            </div>
+          )}
+          {schedule?.requires_break && (
+            <Badge variant="outline" className="text-xs">
+              ☕ Break
+            </Badge>
+          )}
         </div>
       </div>
     );
   }
 
-  // This function determines the background color of the time slot pill
-  // Based on shift type (EARLY, MIDDLE, LATE)
-  const getBackgroundColor = () => {
-    if (typeof shiftType === "string") {
-      // First check if we have a valid shift type
-      if (["EARLY", "MIDDLE", "LATE"].includes(shiftType)) {
-        switch (shiftType) {
-          case "EARLY":
-            return "#3b82f6"; // Blue for early shifts
-          case "MIDDLE":
-            return "#22c55e"; // Green for middle shifts
-          case "LATE":
-            return "#f59e0b"; // Amber for late shifts
-        }
-      }
-    }
 
-    // Fallback to using the time slot to determine the shift type
-    const timeSlot = `${displayStartTime}-${displayEndTime}`;
-    if (timeSlot === "09:00-14:00") return "#3b82f6"; // Early shift (blue)
-    if (timeSlot === "15:00-20:00") return "#f59e0b"; // Late shift (amber)
-    if (timeSlot === "12:00-16:00") return "#22c55e"; // Mid shift (green)
 
-    return "#64748b"; // Default slate gray
-  };
-
-  // Helper function to get a formatted display name for the shift type
-  const getShiftTypeDisplay = () => {
-    if (schedule?.shift_type_name) {
-      return schedule.shift_type_name;
-    }
-
-    if (typeof shiftType === "string") {
-      // Map shift types to display names
-      switch (shiftType) {
-        case "EARLY":
-          return "Früh";
-        case "LATE":
-          return "Spät";
-        case "MIDDLE":
-          return "Mitte";
-        default:
-          return shiftType;
-      }
-    }
-    return null;
-  };
-
-  const bgColor = getBackgroundColor();
-  const shiftTypeDisplay = getShiftTypeDisplay();
+  // Determine shift type from multiple sources
+  const effectiveShiftType = shiftType || schedule?.shift_type_id || 
+    (schedule?.shift_type_name ? 
+      (schedule.shift_type_name === "Früh" ? "EARLY" :
+       schedule.shift_type_name === "Mitte" ? "MIDDLE" :
+       schedule.shift_type_name === "Spät" ? "LATE" : undefined) : 
+      undefined);
 
   return (
-    <div className="flex flex-col items-center">
-      <div
-        className="px-4 py-2 rounded-full text-sm font-medium text-white w-fit shadow-sm border border-white/20"
-        style={{ backgroundColor: bgColor }}
-      >
+    <div className="flex flex-col items-center p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-all min-w-[100px] select-none">
+      <GripVertical className="h-4 w-4 text-muted-foreground mb-1" />
+      <div className="text-sm font-medium text-center mb-2">
         {displayStartTime} - {displayEndTime}
       </div>
-      {shiftTypeDisplay && (
-        <div className="text-xs mt-1 font-medium" style={{ color: bgColor }}>
-          {shiftTypeDisplay}
-        </div>
-      )}
-      {schedule?.shift_id && (
-        <div className="text-xs mt-1 text-muted-foreground font-medium">
-          ID: {schedule.shift_id}
-        </div>
-      )}
+      <div className="flex flex-col gap-1 items-center">
+        {effectiveShiftType && (
+          <Badge
+            variant="secondary"
+            className={cn("text-xs", getShiftTypeColor(effectiveShiftType))}
+          >
+            {getShiftTypeName(effectiveShiftType)}
+          </Badge>
+        )}
+        {schedule?.shift_type_name && !effectiveShiftType && (
+          <Badge
+            variant="secondary"
+            className={cn("text-xs", "bg-slate-500/20 text-slate-300 border-slate-500/30")}
+          >
+            {schedule.shift_type_name}
+          </Badge>
+        )}
+        {schedule?.duration_hours && (
+          <div className="text-xs text-muted-foreground">
+            {schedule.duration_hours}h
+          </div>
+        )}
+        {schedule?.requires_break && (
+          <Badge variant="outline" className="text-xs">
+            ☕ Break
+          </Badge>
+        )}
+      </div>
     </div>
   );
 };
@@ -268,9 +284,77 @@ const ScheduleCell = ({
   date: Date;
   currentVersion?: number;
 }) => {
+  // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL LOGIC OR EARLY RETURNS
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [showActions, setShowActions] = useState(false);
+  
+  // Add drag functionality for existing schedules
+  const [{ isDragging }, drag] = useDrag({
+    type: "SCHEDULE",
+    item: (): DragItem | null => {
+      if (!schedule || schedule.shift_id === null) return null;
+      return {
+        type: "SCHEDULE",
+        scheduleId: schedule.id,
+        employeeId: schedule.employee_id,
+        shiftId: schedule.shift_id,
+        date: schedule.date,
+        shift_type_id: schedule.shift_type_id,
+        isDockItem: false,
+      };
+    },
+    collect: (monitor) => ({
+      isDragging: monitor.isDragging(),
+    }),
+    canDrag: () => !isEmptySchedule(schedule),
+  });
+
+  // Add drop zone functionality for dock items - ALWAYS call this hook second
+  const [{ isOver, canDrop }, drop] = useDrop({
+    accept: "SCHEDULE",
+    drop: (item: DragItem) => {
+      console.log("🎯 ScheduleCell drop:", { item, employeeId, date, currentVersion });
+      
+      // Handle dock items differently than existing schedule items
+      if (item.isDockItem) {
+        // For dock items, we need to create a new schedule
+        if (item.shiftId && item.shiftId > 0) {
+          // This is a shift being dropped from the dock onto an employee cell
+          console.log("📋 Creating new schedule from dock shift:", {
+            employeeId,
+            shiftId: item.shiftId,
+            date: format(date, "yyyy-MM-dd")
+          });
+          
+          // Call the dock drop handler through a global mechanism or context
+          // For now, we'll use a custom event to communicate with the parent
+          const dockDropEvent = new CustomEvent('dockDrop', {
+            detail: { employeeId, date, shiftId: item.shiftId }
+          });
+          window.dispatchEvent(dockDropEvent);
+        } else if (item.employeeId && item.employeeId > 0) {
+          // This is an employee being dropped from the dock (not yet implemented)
+          console.log("👤 Employee dock drop not yet implemented");
+        }
+      } else {
+        // Handle existing schedule items (original behavior)
+        if (item.scheduleId) {
+          onDrop(item.scheduleId, employeeId, date, item.shiftId || 0);
+        }
+      }
+    },
+    collect: (monitor) => ({
+      isOver: monitor.isOver(),
+      canDrop: monitor.canDrop(),
+    }),
+  });
+
+  // Combine drag and drop refs
+  const dragDropRef = (node: HTMLDivElement | null) => {
+    drag(node);
+    drop(node);
+  };
 
   // Log debug info for all schedules to diagnose rendering issues
   useEffect(() => {
@@ -296,7 +380,12 @@ const ScheduleCell = ({
     // Render empty cell with + button on hover
     return (
       <div
-        className="relative h-full min-h-[80px] p-2"
+        ref={drop}
+        className={cn(
+          "relative h-full min-h-[80px] p-2 transition-colors",
+          isOver && canDrop && "bg-primary/10 border-primary/30",
+          isOver && !canDrop && "bg-destructive/10 border-destructive/30"
+        )}
         onMouseEnter={() => setShowActions(true)}
         onMouseLeave={() => setShowActions(false)}
       >
@@ -360,52 +449,27 @@ const ScheduleCell = ({
     );
   }
 
-  // Handle the case where we have a schedule with a shift_id but no times
-  const hasShiftIdOnly =
-    schedule &&
-    schedule.shift_id !== null &&
-    (!schedule.shift_start || !schedule.shift_end);
-
   return (
     <div
-      className="relative h-full min-h-[80px] p-2"
+      ref={dragDropRef}
+      className={cn(
+        "relative h-full min-h-[80px] p-2 transition-colors",
+        isOver && canDrop && "bg-primary/10 border-primary/30",
+        isOver && !canDrop && "bg-destructive/10 border-destructive/30",
+        isDragging && "opacity-50 scale-95",
+        !isEmptySchedule(schedule) && "cursor-move"
+      )}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
-      {hasShiftIdOnly ? (
-        // Display a clear indicator when we have a shift ID but no time data
-        <div className="flex flex-col items-center justify-center h-full">
-          <div className="px-4 py-2 rounded-lg text-sm font-medium bg-muted/30 text-foreground w-fit border border-border/30 shadow-sm">
-            Schicht #{schedule.shift_id}
-          </div>
-          {schedule.shift_type_name && (
-            <div className="text-xs mt-2 text-muted-foreground font-medium">
-              {schedule.shift_type_name}
-            </div>
-          )}
-          {!schedule.shift_type_name && schedule.shift_type_id && (
-            <div className="text-xs mt-2 text-muted-foreground font-medium">
-              {schedule.shift_type_id === "EARLY"
-                ? "Früh"
-                : schedule.shift_type_id === "MIDDLE"
-                  ? "Mitte"
-                  : schedule.shift_type_id === "LATE"
-                    ? "Spät"
-                    : "Unbekannt"}
-            </div>
-          )}
-        </div>
-      ) : (
-        // Normal display for schedules with time data
-        <div className="flex flex-col items-center justify-center h-full">
-          <TimeSlotDisplay
-            startTime={schedule?.shift_start}
-            endTime={schedule?.shift_end}
-            shiftType={schedule?.shift_type_id}
-            schedule={schedule}
-          />
-        </div>
-      )}
+      <div className="flex flex-col items-center justify-center h-full">
+        <TimeSlotDisplay
+          startTime={schedule?.shift_start}
+          endTime={schedule?.shift_end}
+          shiftType={schedule?.shift_type_id}
+          schedule={schedule}
+        />
+      </div>
 
       {/* Actions buttons on hover */}
       {showActions && (
@@ -772,6 +836,8 @@ export function ScheduleTable({
   currentVersion,
   openingDays,
 }: ScheduleTableProps) {
+  const [isAxisSwitched, setIsAxisSwitched] = useState(false);
+  const [isFullWidth, setIsFullWidth] = useState(false);
   const queryClient = useQueryClient();
   
   // Enhanced debugging for schedule data
@@ -1075,231 +1141,796 @@ export function ScheduleTable({
   }
 
   return (
-    <Card className="border-0 shadow-sm">
-      <CardHeader className="flex flex-row items-center justify-between sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/30">
-        <div>
-          <CardTitle className="text-xl font-medium">Schichtplan</CardTitle>
-          {dateRange?.from && dateRange?.to && (
-            <div className="text-sm text-muted-foreground mt-1 font-medium">
-              {format(dateRange.from, "dd.MM.yyyy")} -{" "}
-              {format(dateRange.to, "dd.MM.yyyy")}
+    <div className={cn("w-full", isFullWidth && "fixed inset-0 z-50 bg-background")}>
+      <Card className="border border-border shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
+          <div>
+            <CardTitle className="text-xl font-medium">Schichtplan</CardTitle>
+            {dateRange?.from && dateRange?.to && (
+              <div className="text-sm text-muted-foreground mt-1 font-medium">
+                {format(dateRange.from, "dd.MM.yyyy")} -{" "}
+                {format(dateRange.to, "dd.MM.yyyy")}
+              </div>
+            )}
+          </div>
+
+          {/* Table Controls */}
+          <div className="flex items-center gap-4">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="axis-switch"
+                      checked={isAxisSwitched}
+                      onCheckedChange={setIsAxisSwitched}
+                    />
+                    <Label htmlFor="axis-switch" className="text-sm">
+                      Achsen tauschen
+                    </Label>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Zwischen Mitarbeiter-pro-Tag und Tag-pro-Mitarbeiter wechseln</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsFullWidth(!isFullWidth)}
+                    className="gap-2"
+                  >
+                    {isFullWidth ? (
+                      <Minimize2 className="h-4 w-4" />
+                    ) : (
+                      <Maximize2 className="h-4 w-4" />
+                    )}
+                    {isFullWidth ? "Minimieren" : "Vollbild"}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{isFullWidth ? "Normale Ansicht" : "Vollbild-Ansicht für bessere Übersicht"}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-0 overflow-x-auto">
+          {isLoading ? (
+            <Skeleton className="w-full h-[400px]" />
+          ) : (
+            <div className="w-full overflow-x-auto" style={{ maxWidth: "100%" }}>
+              {isAxisSwitched ? (
+                <ScheduleTableSwitched
+                  schedules={schedules}
+                  dateRange={dateRange}
+                  onDrop={onDrop}
+                  onUpdate={onUpdate}
+                  employeeAbsences={employeeAbsences}
+                  absenceTypes={absenceTypes}
+                  currentVersion={currentVersion}
+                  openingDays={openingDays}
+                />
+              ) : (
+                <ScheduleTableNormal
+                  schedules={schedules}
+                  dateRange={dateRange}
+                  onDrop={onDrop}
+                  onUpdate={onUpdate}
+                  employeeAbsences={employeeAbsences}
+                  absenceTypes={absenceTypes}
+                  currentVersion={currentVersion}
+                  openingDays={openingDays}
+                />
+              )}
             </div>
           )}
-        </div>
+        </CardContent>
 
-        {/* Add shift type legend and absence type legend */}
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-4 text-sm">
-            {(settings && settings.employee_groups && settings.employee_groups.shift_types && settings.employee_groups.shift_types.length > 0) ? (
-              settings.employee_groups.shift_types.map((type) => (
-                <div key={type.id} className="flex items-center gap-2">
-                  <div
-                    className="w-4 h-4 rounded border border-border/30"
-                    style={{ backgroundColor: type.color }}
-                  ></div>
-                  <span className="font-medium">{type.name}</span>
-                </div>
-              ))
-            ) : (
-              <span className="text-xs text-muted-foreground">Shift types not loaded or empty</span>
-            )}
-          </div>
-          {/* Absence Type Legend (similar logic) */}
-          <div className="flex items-center gap-4 text-sm">
-            {(settings && settings.employee_groups && settings.employee_groups.absence_types && settings.employee_groups.absence_types.length > 0) ? (
-              settings.employee_groups.absence_types.map((type) => (
-                <div key={type.id} className="flex items-center gap-2">
-                  <div
-                    className="w-4 h-4 rounded border border-border/30"
-                    style={{ backgroundColor: type.color }}
-                  ></div>
-                  <span className="font-medium">{type.name}</span>
-                </div>
-              ))
-            ) : (
-              <span className="text-xs text-muted-foreground">Absence types not loaded or empty</span>
-            )}
-          </div>
+        {/* Color Legend - Moved to bottom */}
+        <div className="border-t border-border p-4 bg-muted/20">
+          <ScheduleColorLegend absenceTypes={absenceTypes} />
         </div>
-      </CardHeader>
-      <CardContent className="p-0 overflow-x-auto">
-        {isLoading ? (
-          <Skeleton className="w-full h-[400px]" />
-        ) : (
-          <div className="w-full overflow-x-auto" style={{ maxWidth: "100%" }}>
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b border-border/30">
-                  <th className="w-[220px] sticky left-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 text-left p-4 font-medium text-foreground border-r border-border/30">
-                    Mitarbeiter
-                  </th>
-                  {daysToDisplay.map((date) => (
-                    <th
-                      key={date.toISOString()}
-                      className="w-[160px] text-center p-4 font-medium text-foreground border-r border-border/30 last:border-r-0"
-                    >
-                      <div className="font-medium text-base">
-                        {weekdayAbbr[format(date, "EEEE")]}
-                      </div>
-                      <div className="text-sm text-muted-foreground font-medium">
-                        {format(date, "dd.MM")}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {uniqueEmployeeIds.map((employeeId) => {
-                  const employeeSchedules = groupedSchedules[employeeId] || {};
-                  const { contractedHours, employeeGroup } =
-                    getEmployeeDetails(employeeId);
+      </Card>
+    </div>
+  );
+}
 
-                  return (
-                    <tr key={employeeId} className="hover:bg-muted/20 border-b border-border/30 transition-colors">
-                      <td className="font-medium sticky left-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 w-[220px] p-3 border-r border-border/30">
-                        <div className="flex items-center gap-2">
-                          <HoverCard>
-                            <HoverCardTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 hover:bg-muted/50"
-                              >
-                                <Info className="h-4 w-4" />
-                              </Button>
-                            </HoverCardTrigger>
-                            <HoverCardContent className="w-80" align="start">
-                              <EmployeeStatistics
-                                employeeId={employeeId}
-                                schedules={schedules}
-                                contractedHours={contractedHours}
-                                employeeGroup={employeeGroup}
-                              />
-                            </HoverCardContent>
-                          </HoverCard>
-                          <div className="flex-1">
-                            <span className="truncate max-w-[180px] block font-medium">
-                              {formatEmployeeName(employeeId)}
-                            </span>
-                            {/* Add hours display */}
-                            <div className="text-xs text-muted-foreground mt-2 space-y-1 p-2 bg-muted/20 rounded border border-border/30">
-                              {(() => {
-                                const hours = calculateEmployeeHours(employeeId, schedules, dateRange);
-                                const employee = employeeLookup[employeeId];
-                                const contractedHours = employee?.contracted_hours || 40;
-                                
-                                return (
-                                  <div className="space-y-1">
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-medium">Vertrag: {contractedHours}h/Woche</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <span>Woche: {hours.weeklyHours.toFixed(1)}h</span>
-                                      <span className={cn(
-                                        "font-medium px-1 rounded",
-                                        hours.weeklyHours > contractedHours ? "text-red-400 bg-red-500/10" : 
-                                        hours.weeklyHours < contractedHours * 0.9 ? "text-amber-400 bg-amber-500/10" : 
-                                        "text-green-400 bg-green-500/10"
-                                      )}>
-                                        ({((hours.weeklyHours / contractedHours) * 100).toFixed(0)}%)
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <span>Monat: {hours.monthlyHours.toFixed(1)}h</span>
-                                    </div>
-                                  </div>
-                                );
-                              })()}
+// Normal table view (Employee rows, Date columns)
+function ScheduleTableNormal({
+  schedules,
+  dateRange,
+  onDrop,
+  onUpdate,
+  employeeAbsences,
+  absenceTypes,
+  currentVersion,
+  openingDays,
+}: Omit<ScheduleTableProps, 'isLoading'>) {
+  const queryClient = useQueryClient();
+  
+  // Get employees data
+  const { data: employees } = useQuery({
+    queryKey: ["employees"],
+    queryFn: getEmployees,
+  });
+
+  // Get settings data
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: getSettings,
+  });
+
+  // Employee lookup for quick access
+  const employeeLookup = useMemo(() => {
+    if (!employees) return {};
+
+    return employees.reduce(
+      (acc, employee) => {
+        acc[employee.id] = employee;
+        return acc;
+      },
+      {} as Record<number, Employee>,
+    );
+  }, [employees]);
+
+  const formatEmployeeName = (employeeId: number | undefined) => {
+    // Handle undefined employee ID
+    if (!employeeId || !employeeLookup[employeeId]) return "-";
+
+    const employee = employeeLookup[employeeId];
+    const firstName = employee.first_name;
+    const lastName = employee.last_name;
+
+    // Create abbreviation from first letters of first and last name
+    const abbr = (firstName[0] + lastName[0] + lastName[1]).toUpperCase();
+
+    return (
+      <>
+        {`${lastName}, ${firstName}`}
+        <br />
+        {`(${abbr})`}
+      </>
+    );
+  };
+
+  const daysToDisplay = useMemo(() => {
+    if (!dateRange?.from || !dateRange?.to) {
+      return [];
+    }
+    const start = dateRange.from;
+    const end = dateRange.to;
+    const days: Date[] = [];
+    let currentDate = new Date(start);
+    while (currentDate <= end) {
+      // Check if the current day's index is in the openingDays array
+      const dayIndex = currentDate.getDay(); // Sunday=0, Monday=1, ..., Saturday=6
+      // Convert Sunday=0 to 6, Monday=1 to 0, ..., Saturday=6 to 5 to match openingDays
+      const adjustedDayIndex = dayIndex === 0 ? 6 : dayIndex - 1;
+      if (openingDays.includes(adjustedDayIndex)) {
+        days.push(new Date(currentDate));
+      }
+      currentDate = addDays(currentDate, 1);
+    }
+    return days;
+  }, [dateRange, openingDays]);
+
+  // Map for German weekday abbreviations
+  const weekdayAbbr: { [key: string]: string } = {
+    Monday: "Mo",
+    Tuesday: "Di",
+    Wednesday: "Mi",
+    Thursday: "Do",
+    Friday: "Fr",
+    Saturday: "Sa",
+    Sunday: "So",
+  };
+
+  // Group schedules by employee ID and then by date for quick lookup
+  const groupedSchedules = useMemo(() => {
+    const grouped: Record<number, Record<string, Schedule>> = {};
+
+    if (!schedules || schedules.length === 0) {
+      return grouped;
+    }
+
+    const uniqueEmployeeIds = [...new Set(schedules.map((s) => s.employee_id))];
+
+    uniqueEmployeeIds.forEach((employeeId) => {
+      const employeeSchedules = schedules.filter(
+        (s) => s.employee_id === employeeId,
+      );
+      grouped[employeeId] = {};
+
+      employeeSchedules.forEach((schedule) => {
+        const dateKey = schedule.date.split("T")[0];
+        const existingSchedule = grouped[employeeId][dateKey];
+        if (
+          !existingSchedule ||
+          (schedule.shift_id !== null &&
+            (existingSchedule.shift_id === null ||
+              (!existingSchedule.shift_start && schedule.shift_start)))
+        ) {
+          grouped[employeeId][dateKey] = schedule;
+        }
+      });
+    });
+
+    return grouped;
+  }, [schedules]);
+
+  // Get unique employees from schedules
+  const uniqueEmployeeIds = useMemo(() => {
+    const ids = [...new Set(schedules.map((s) => s.employee_id))];
+    return ids;
+  }, [schedules]);
+
+  // Improve the employee details lookup with fallbacks
+  const getEmployeeDetails = (employeeId: number) => {
+    const employee = employees?.find((e) => e.id === employeeId);
+
+    if (!employee) {
+      return {
+        contractedHours: 40,
+        employeeGroup: "VZ",
+      };
+    }
+
+    return {
+      contractedHours: employee.contracted_hours || 40,
+      employeeGroup: employee.employee_group || "VZ",
+    };
+  };
+
+  const calculateEmployeeHours = (employeeId: number, schedules: Schedule[], dateRange: DateRange | undefined) => {
+    if (!dateRange?.from || !dateRange?.to) {
+      return { weeklyHours: 0, monthlyHours: 0 };
+    }
+
+    const employeeSchedules = schedules.filter(s => s.employee_id === employeeId && s.shift_id !== null);
+    let totalHours = 0;
+
+    employeeSchedules.forEach(schedule => {
+      if (schedule.shift_start && schedule.shift_end) {
+        const startTime = parseISO(`2000-01-01T${schedule.shift_start}`);
+        const endTime = parseISO(`2000-01-01T${schedule.shift_end}`);
+        const hours = differenceInMinutes(endTime, startTime) / 60;
+        totalHours += hours;
+      }
+    });
+
+    return {
+      weeklyHours: totalHours,
+      monthlyHours: totalHours, // Simplified for now
+    };
+  };
+
+  const checkForAbsence = (
+    employeeId: number,
+    dateString: string,
+    employeeAbsences?: Record<number, any[]>,
+    absenceTypes?: Array<{ id: string; name: string; color: string; type: "absence" }>,
+  ) => {
+    if (!employeeAbsences || !absenceTypes) return null;
+
+    const absences = employeeAbsences[employeeId];
+    if (!absences) return null;
+
+    const targetDate = new Date(dateString);
+    
+    for (const absence of absences) {
+      const startDate = new Date(absence.start_date);
+      const endDate = new Date(absence.end_date);
+      
+      if (isWithinInterval(targetDate, { start: startDate, end: endDate })) {
+        const absenceType = absenceTypes.find(type => type.id === absence.absence_type_id);
+        if (absenceType) {
+          return { type: absenceType };
+        }
+      }
+    }
+
+    return null;
+  };
+
+  return (
+    <table className="w-full border-collapse">
+      <thead>
+        <tr className="border-b border-border">
+          <th className="w-[220px] sticky left-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 text-left p-4 font-medium text-foreground border-r border-border">
+            Mitarbeiter
+          </th>
+          {daysToDisplay.map((date) => (
+            <th
+              key={date.toISOString()}
+              className="w-[160px] text-center p-4 font-medium text-foreground border-r border-border last:border-r-0"
+            >
+              <div className="font-medium text-base">
+                {weekdayAbbr[format(date, "EEEE")]}
+              </div>
+              <div className="text-sm text-muted-foreground font-medium">
+                {format(date, "dd.MM")}
+              </div>
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {uniqueEmployeeIds.map((employeeId) => {
+          const employeeSchedules = groupedSchedules[employeeId] || {};
+          const { contractedHours, employeeGroup } = getEmployeeDetails(employeeId);
+
+          return (
+            <tr key={employeeId} className="hover:bg-muted/20 border-b border-border transition-colors">
+              <td className="font-medium sticky left-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 w-[220px] p-3 border-r border-border">
+                <div className="flex items-center gap-2">
+                  <HoverCard>
+                    <HoverCardTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 hover:bg-muted/50"
+                      >
+                        <Info className="h-4 w-4" />
+                      </Button>
+                    </HoverCardTrigger>
+                    <HoverCardContent className="w-80" align="start">
+                      <EmployeeStatistics
+                        employeeId={employeeId}
+                        schedules={schedules}
+                        contractedHours={contractedHours}
+                        employeeGroup={employeeGroup}
+                      />
+                    </HoverCardContent>
+                  </HoverCard>
+                  <div className="flex-1">
+                    <span className="truncate max-w-[180px] block font-medium">
+                      {formatEmployeeName(employeeId)}
+                    </span>
+                    <div className="text-xs text-muted-foreground mt-2 space-y-1 p-2 bg-muted/20 rounded border border-border">
+                      {(() => {
+                        const hours = calculateEmployeeHours(employeeId, schedules, dateRange);
+                        const employee = employeeLookup[employeeId];
+                        const contractedHours = employee?.contracted_hours || 40;
+                        
+                        return (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">Vertrag: {contractedHours}h/Woche</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span>Woche: {hours.weeklyHours.toFixed(1)}h</span>
+                              <span className={cn(
+                                "font-medium px-1 rounded",
+                                hours.weeklyHours > contractedHours ? "text-red-400 bg-red-500/10" : 
+                                hours.weeklyHours < contractedHours * 0.9 ? "text-amber-400 bg-amber-500/10" : 
+                                "text-green-400 bg-green-500/10"
+                              )}>
+                                ({((hours.weeklyHours / contractedHours) * 100).toFixed(0)}%)
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span>Monat: {hours.monthlyHours.toFixed(1)}h</span>
                             </div>
                           </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              </td>
+              {daysToDisplay.map((date) => {
+                const dateString = format(date, "yyyy-MM-dd");
+                const schedule = employeeSchedules[dateString];
+
+                const hasAbsence = checkForAbsence(
+                  employeeId,
+                  dateString,
+                  employeeAbsences,
+                  absenceTypes,
+                );
+
+                const cellStyle = hasAbsence
+                  ? {
+                      backgroundColor: `${hasAbsence.type.color}15`,
+                      position: "relative" as const,
+                    }
+                  : {};
+
+                return (
+                  <td
+                    key={`${employeeId}-${dateString}`}
+                    className={cn(
+                      "text-center p-0 w-[160px] h-[130px] border-r border-border last:border-r-0 transition-colors",
+                      hasAbsence ? "relative" : "",
+                    )}
+                    style={{
+                      ...cellStyle,
+                      borderColor: hasAbsence
+                        ? `${hasAbsence.type.color}`
+                        : undefined,
+                    }}
+                    title={
+                      hasAbsence
+                        ? `${hasAbsence.type.name}`
+                        : undefined
+                    }
+                  >
+                    {hasAbsence && (
+                      <>
+                        <div
+                          className="absolute top-0 left-0 right-0 px-2 py-1 text-sm font-bold z-10 text-center"
+                          style={{
+                            backgroundColor: hasAbsence.type.color,
+                            color: "#fff",
+                            borderTopLeftRadius: "0.25rem",
+                            borderTopRightRadius: "0.25rem",
+                          }}
+                        >
+                          {hasAbsence.type.name}
                         </div>
-                      </td>
-                      {daysToDisplay.map((date) => {
-                        const dateString = format(date, "yyyy-MM-dd");
-                        // Find the schedule entry for this employee and date
-                        const schedule = employeeSchedules[dateString];
+                        <div className="absolute inset-0 mt-8 flex flex-col items-center justify-center space-y-2 pt-4">
+                          <AlertTriangle className="h-5 w-5 text-amber-400" />
+                          <span className="text-xs text-muted-foreground font-medium text-center px-2">
+                            No shifts allowed
+                            <br />
+                            during absence
+                          </span>
+                        </div>
+                      </>
+                    )}
+                    <ScheduleCell
+                      schedule={schedule}
+                      onDrop={(scheduleId, newEmployeeId, newDate, newShiftId) =>
+                        onDrop(scheduleId, newEmployeeId, newDate, newShiftId)
+                      }
+                      onUpdate={(scheduleId, updates) =>
+                        onUpdate(scheduleId, updates)
+                      }
+                      hasAbsence={!!hasAbsence}
+                      employeeId={employeeId}
+                      date={date}
+                      currentVersion={currentVersion}
+                    />
+                  </td>
+                );
+              })}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
 
-                        // Check for absence on this specific date
-                        const hasAbsence = checkForAbsence(
-                          employeeId,
-                          dateString,
-                          employeeAbsences,
-                          absenceTypes,
-                        );
+// Switched table view (Date rows, Employee columns)
+function ScheduleTableSwitched({
+  schedules,
+  dateRange,
+  onDrop,
+  onUpdate,
+  employeeAbsences,
+  absenceTypes,
+  currentVersion,
+  openingDays,
+}: Omit<ScheduleTableProps, 'isLoading'>) {
+  const queryClient = useQueryClient();
+  
+  // Get employees data
+  const { data: employees } = useQuery({
+    queryKey: ["employees"],
+    queryFn: getEmployees,
+  });
 
-                        const cellStyle = hasAbsence
-                          ? {
-                              backgroundColor: `${hasAbsence.type.color}15`, // 15 is hex for 10% opacity
-                              position: "relative" as const,
-                            }
-                          : {};
+  // Employee lookup for quick access
+  const employeeLookup = useMemo(() => {
+    if (!employees) return {};
+    return employees.reduce(
+      (acc, employee) => {
+        acc[employee.id] = employee;
+        return acc;
+      },
+      {} as Record<number, Employee>,
+    );
+  }, [employees]);
 
-                        return (
-                          <td
-                            key={`${employeeId}-${dateString}`}
-                            className={cn(
-                              "text-center p-0 w-[160px] h-[130px] border-r border-border/30 last:border-r-0 transition-colors", // Fixed height for consistency
-                              hasAbsence ? "relative" : "",
-                            )}
-                            style={{
-                              ...cellStyle,
-                              borderColor: hasAbsence
-                                ? `${hasAbsence.type.color}`
-                                : undefined,
-                            }}
-                            title={
-                              hasAbsence
-                                ? `${hasAbsence.type.name}`
-                                : undefined
-                            }
-                          >
-                            {hasAbsence && (
-                              <>
-                                <div
-                                  className="absolute top-0 left-0 right-0 px-2 py-1 text-sm font-bold z-10 text-center"
-                                  style={{
-                                    backgroundColor: hasAbsence.type.color,
-                                    color: "#fff",
-                                    borderTopLeftRadius: "0.25rem",
-                                    borderTopRightRadius: "0.25rem",
-                                  }}
-                                >
-                                  {hasAbsence.type.name}
-                                </div>
-                                <div className="absolute inset-0 mt-8 flex flex-col items-center justify-center space-y-2 pt-4">
-                                  <AlertTriangle className="h-5 w-5 text-amber-400" />
-                                  <span className="text-xs text-muted-foreground font-medium text-center px-2">
-                                    No shifts allowed
-                                    <br />
-                                    during absence
-                                  </span>
-                                </div>
-                              </>
-                            )}
-                            <ScheduleCell
-                              schedule={schedule}
-                              onDrop={(scheduleId, newEmployeeId, newDate, newShiftId) =>
-                                onDrop(scheduleId, newEmployeeId, newDate, newShiftId)
-                              }
-                              onUpdate={(scheduleId, updates) =>
-                                onUpdate(scheduleId, updates)
-                              }
-                              hasAbsence={!!hasAbsence}
-                              employeeId={employeeId}
-                              date={date}
-                              currentVersion={currentVersion}
-                            />
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+  const formatEmployeeName = (employeeId: number | undefined) => {
+    if (!employeeId || !employeeLookup[employeeId]) return "-";
+    const employee = employeeLookup[employeeId];
+    const firstName = employee.first_name;
+    const lastName = employee.last_name;
+    const abbr = (firstName[0] + lastName[0] + lastName[1]).toUpperCase();
+    return `${lastName}, ${firstName} (${abbr})`;
+  };
+
+  const daysToDisplay = useMemo(() => {
+    if (!dateRange?.from || !dateRange?.to) {
+      return [];
+    }
+    const start = dateRange.from;
+    const end = dateRange.to;
+    const days: Date[] = [];
+    let currentDate = new Date(start);
+    while (currentDate <= end) {
+      const dayIndex = currentDate.getDay();
+      const adjustedDayIndex = dayIndex === 0 ? 6 : dayIndex - 1;
+      if (openingDays.includes(adjustedDayIndex)) {
+        days.push(new Date(currentDate));
+      }
+      currentDate = addDays(currentDate, 1);
+    }
+    return days;
+  }, [dateRange, openingDays]);
+
+  // Map for German weekday abbreviations
+  const weekdayAbbr: { [key: string]: string } = {
+    Monday: "Mo",
+    Tuesday: "Di",
+    Wednesday: "Mi",
+    Thursday: "Do",
+    Friday: "Fr",
+    Saturday: "Sa",
+    Sunday: "So",
+  };
+
+  // Get unique employees from schedules
+  const uniqueEmployeeIds = useMemo(() => {
+    const ids = [...new Set(schedules.map((s) => s.employee_id))];
+    return ids;
+  }, [schedules]);
+
+  // Group schedules by date and then by employee for quick lookup
+  const groupedSchedulesByDate = useMemo(() => {
+    const grouped: Record<string, Record<number, Schedule>> = {};
+
+    if (!schedules || schedules.length === 0) {
+      return grouped;
+    }
+
+    schedules.forEach((schedule) => {
+      const dateKey = schedule.date.split("T")[0];
+      
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = {};
+      }
+
+      const existingSchedule = grouped[dateKey][schedule.employee_id];
+      if (
+        !existingSchedule ||
+        (schedule.shift_id !== null &&
+          (existingSchedule.shift_id === null ||
+            (!existingSchedule.shift_start && schedule.shift_start)))
+      ) {
+        grouped[dateKey][schedule.employee_id] = schedule;
+      }
+    });
+
+    return grouped;
+  }, [schedules]);
+
+  const checkForAbsence = (
+    employeeId: number,
+    dateString: string,
+    employeeAbsences?: Record<number, any[]>,
+    absenceTypes?: Array<{ id: string; name: string; color: string; type: "absence" }>,
+  ) => {
+    if (!employeeAbsences || !absenceTypes) return null;
+
+    const absences = employeeAbsences[employeeId];
+    if (!absences) return null;
+
+    const targetDate = new Date(dateString);
+    
+    for (const absence of absences) {
+      const startDate = new Date(absence.start_date);
+      const endDate = new Date(absence.end_date);
+      
+      if (isWithinInterval(targetDate, { start: startDate, end: endDate })) {
+        const absenceType = absenceTypes.find(type => type.id === absence.absence_type_id);
+        if (absenceType) {
+          return { type: absenceType };
+        }
+      }
+    }
+
+    return null;
+  };
+
+  return (
+    <table className="w-full border-collapse">
+      <thead>
+        <tr className="border-b border-border">
+          <th className="w-[160px] sticky left-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 text-left p-4 font-medium text-foreground border-r border-border">
+            Datum
+          </th>
+          {uniqueEmployeeIds.map((employeeId) => (
+            <th
+              key={employeeId}
+              className="w-[180px] text-center p-4 font-medium text-foreground border-r border-border last:border-r-0"
+            >
+              <div className="text-sm font-medium">
+                {formatEmployeeName(employeeId)}
+              </div>
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {daysToDisplay.map((date) => {
+          const dateString = format(date, "yyyy-MM-dd");
+          const schedulesByEmployee = groupedSchedulesByDate[dateString] || {};
+
+          return (
+            <tr key={dateString} className="hover:bg-muted/20 border-b border-border transition-colors">
+              <td className="font-medium sticky left-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 w-[160px] p-3 border-r border-border">
+                <div className="text-center">
+                  <div className="font-medium text-base">
+                    {weekdayAbbr[format(date, "EEEE")]}
+                  </div>
+                  <div className="text-sm text-muted-foreground font-medium">
+                    {format(date, "dd.MM")}
+                  </div>
+                </div>
+              </td>
+              {uniqueEmployeeIds.map((employeeId) => {
+                const schedule = schedulesByEmployee[employeeId];
+
+                const hasAbsence = checkForAbsence(
+                  employeeId,
+                  dateString,
+                  employeeAbsences,
+                  absenceTypes,
+                );
+
+                const cellStyle = hasAbsence
+                  ? {
+                      backgroundColor: `${hasAbsence.type.color}15`,
+                      position: "relative" as const,
+                    }
+                  : {};
+
+                return (
+                  <td
+                    key={`${dateString}-${employeeId}`}
+                    className={cn(
+                      "text-center p-0 w-[180px] h-[130px] border-r border-border last:border-r-0 transition-colors",
+                      hasAbsence ? "relative" : "",
+                    )}
+                    style={{
+                      ...cellStyle,
+                      borderColor: hasAbsence
+                        ? `${hasAbsence.type.color}`
+                        : undefined,
+                    }}
+                    title={
+                      hasAbsence
+                        ? `${hasAbsence.type.name}`
+                        : undefined
+                    }
+                  >
+                    {hasAbsence && (
+                      <>
+                        <div
+                          className="absolute top-0 left-0 right-0 px-2 py-1 text-sm font-bold z-10 text-center"
+                          style={{
+                            backgroundColor: hasAbsence.type.color,
+                            color: "#fff",
+                            borderTopLeftRadius: "0.25rem",
+                            borderTopRightRadius: "0.25rem",
+                          }}
+                        >
+                          {hasAbsence.type.name}
+                        </div>
+                        <div className="absolute inset-0 mt-8 flex flex-col items-center justify-center space-y-2 pt-4">
+                          <AlertTriangle className="h-5 w-5 text-amber-400" />
+                          <span className="text-xs text-muted-foreground font-medium text-center px-2">
+                            No shifts allowed
+                            <br />
+                            during absence
+                          </span>
+                        </div>
+                      </>
+                    )}
+                    <ScheduleCell
+                      schedule={schedule}
+                      onDrop={(scheduleId, newEmployeeId, newDate, newShiftId) =>
+                        onDrop(scheduleId, newEmployeeId, newDate, newShiftId)
+                      }
+                      onUpdate={(scheduleId, updates) =>
+                        onUpdate(scheduleId, updates)
+                      }
+                      hasAbsence={!!hasAbsence}
+                      employeeId={employeeId}
+                      date={date}
+                      currentVersion={currentVersion}
+                    />
+                  </td>
+                );
+              })}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+// Color Legend Component
+function ScheduleColorLegend({ 
+  absenceTypes 
+}: { 
+  absenceTypes?: Array<{
+    id: string;
+    name: string;
+    color: string;
+    type: "absence";
+  }>;
+}) {
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: getSettings,
+  });
+
+  return (
+    <div className="space-y-4">
+      <h4 className="text-sm font-medium text-foreground">Legende</h4>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Shift Types Legend */}
+        <div>
+          <h5 className="text-xs font-medium text-muted-foreground mb-2">Schichttypen</h5>
+          <div className="flex flex-wrap gap-3 text-sm">
+            {settings?.employee_groups?.shift_types?.map((type) => (
+              <div key={type.id} className="flex items-center gap-2">
+                <div
+                  className="w-4 h-4 rounded border border-border"
+                  style={{ backgroundColor: type.color }}
+                />
+                <span className="text-sm">{type.name}</span>
+              </div>
+            )) || (
+              <>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded border border-border bg-blue-500" />
+                  <span className="text-sm">Früh</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded border border-border bg-green-500" />
+                  <span className="text-sm">Mitte</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded border border-border bg-amber-500" />
+                  <span className="text-sm">Spät</span>
+                </div>
+              </>
+            )}
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </div>
+
+        {/* Absence Types Legend */}
+        <div>
+          <h5 className="text-xs font-medium text-muted-foreground mb-2">Abwesenheitstypen</h5>
+          <div className="flex flex-wrap gap-3 text-sm">
+            {absenceTypes?.map((type) => (
+              <div key={type.id} className="flex items-center gap-2">
+                <div
+                  className="w-4 h-4 rounded border border-border"
+                  style={{ backgroundColor: type.color }}
+                />
+                <span className="text-sm">{type.name}</span>
+              </div>
+            )) || (
+              <span className="text-xs text-muted-foreground">Keine Abwesenheitstypen verfügbar</span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
