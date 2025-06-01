@@ -130,7 +130,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { DiagnosticsDialog } from "@/components/Schedule/DiagnosticsDialog";
-import { ScheduleDock } from "@/components/ScheduleDock";
+import { ActionDock } from "@/components/dock/ActionDock";
 import { DetailedAIGenerationModal } from "@/components/modals/DetailedAIGenerationModal";
 
 function getErrorMessage(error: any): string {
@@ -1336,6 +1336,36 @@ export function SchedulePage() {
     }
   };
 
+  const handleAIPrompt = async (prompt: string) => {
+    if (!dateRange?.from || !dateRange?.to) {
+      toast({
+        title: "KI-Anweisung nicht möglich",
+        description: "Bitte Zeitraum wählen.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!versionControlSelectedVersion) {
+      toast({
+        title: "KI-Anweisung nicht möglich",
+        description: "Bitte Version wählen.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // For now, use the detailed AI generation with the prompt
+    // In the future, this could be a separate conversation API
+    toast({
+      title: "KI-Anweisung verarbeitet",
+      description: `Anweisung: "${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}"`,
+    });
+
+    // TODO: Implement conversation mode endpoint
+    // For now, trigger detailed AI generation
+    handleGenerateAiDetailedSchedule();
+  };
+
   const isUpdating =
     isLoadingVersions ||
     isPending ||
@@ -1547,10 +1577,11 @@ export function SchedulePage() {
         )}
         
         {/* Schedule Dock - Sticky bottom dock for drag and drop */}
-        <ScheduleDock
+        <ActionDock
           currentVersion={versionControlSelectedVersion}
           selectedDate={dateRange?.from}
           onDrop={handleDockDrop}
+          onAIPrompt={handleAIPrompt}
         />
       </DndProvider>
 
