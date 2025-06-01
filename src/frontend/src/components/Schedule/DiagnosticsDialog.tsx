@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { getScheduleDiagnostics } from "@/services/api";
-import { Loader2, AlertCircle, Info, AlertTriangle, CheckCircle, FileText, Download } from "lucide-react";
+import { Loader2, AlertCircle, Info, AlertTriangle, CheckCircle, FileTextIcon, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface DiagnosticsDialogProps {
@@ -108,7 +108,7 @@ export function DiagnosticsDialog({ sessionId, isOpen, onClose }: DiagnosticsDia
       <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
+            <FileTextIcon className="h-5 w-5" />
             Schedule Generation Diagnostics
           </DialogTitle>
           <DialogDescription>
@@ -136,7 +136,7 @@ export function DiagnosticsDialog({ sessionId, isOpen, onClose }: DiagnosticsDia
           ) : diagnosticLogs.length === 0 ? (
             <div className="flex items-center justify-center h-64">
               <div className="text-center">
-                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <FileTextIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <p className="text-sm text-muted-foreground">No diagnostic logs available</p>
               </div>
             </div>
