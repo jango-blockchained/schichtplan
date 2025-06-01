@@ -157,7 +157,7 @@ class AISchedulerService:
                     "is_keyholder": emp.is_keyholder,
                     "max_weekly_hours": emp.get_max_weekly_hours()
                     or 40,  # Default to 40
-                    "seniority": emp.seniority or 1,
+                    "seniority": getattr(emp, "seniority", 1),
                 }
                 employee_data.append(emp_dict)
 
@@ -174,14 +174,9 @@ class AISchedulerService:
                 shift_dict = {
                     "id": shift.id,
                     "name": shift.name,
-                    "start_time": shift.start_time.strftime("%H:%M")
-                    if shift.start_time
-                    else None,
-                    "end_time": shift.end_time.strftime("%H:%M")
-                    if shift.end_time
-                    else None,
+                    "start_time": shift.start_time if shift.start_time else None,
+                    "end_time": shift.end_time if shift.end_time else None,
                     "active_days": shift.active_days,
-                    "requires_keyholder": shift.requires_keyholder,
                 }
                 shift_data.append(shift_dict)
 
