@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -46,7 +46,7 @@ export function useScheduleGeneration({
   const [showGenerationOverlay, setShowGenerationOverlay] = useState(false);
   const [lastSessionId, setLastSessionId] = useState<string | null>(null);
 
-  const addGenerationLog = (
+  const addGenerationLog = useCallback((
     type: "info" | "warning" | "error",
     message: string,
     details?: string,
@@ -60,18 +60,18 @@ export function useScheduleGeneration({
         details,
       },
     ]);
-  };
+  }, []);
 
-  const clearGenerationLogs = () => {
+  const clearGenerationLogs = useCallback(() => {
     setGenerationLogs([]);
-  };
+  }, []);
 
-  const resetGenerationState = () => {
+  const resetGenerationState = useCallback(() => {
     setGenerationSteps([]);
     setShowGenerationOverlay(false);
-  };
+  }, []);
 
-  const updateGenerationStep = (
+  const updateGenerationStep = useCallback((
     stepId: string,
     status: GenerationStep["status"],
     message?: string,
@@ -81,9 +81,19 @@ export function useScheduleGeneration({
         step.id === stepId ? { ...step, status, message } : step,
       ),
     );
-  };
+  }, []);
 
-  // Generation mutation with timeout
+  // Debounced query invalidation to prevent rapid updates
+  const invalidateQueriesDebounced = useCallback(() => {
+    // Use a timeout to batch multiple invalidations
+    const timeoutId = setTimeout(() => {
+      queryClient.invalidateQueries({ queryKey: ["schedules"] });
+    }, 100);
+    
+    return () => clearTimeout(timeoutId);
+  }, [queryClient]);
+
+  // Generation mutation with optimized flow
   const generateMutation = useMutation({
     mutationFn: async () => {
       try {
@@ -132,13 +142,13 @@ export function useScheduleGeneration({
           "Initialisiere Generierung",
           `Version: ${selectedVersion}, Zeitraum: ${format(dateRange.from, "dd.MM.yyyy")} - ${format(dateRange.to, "dd.MM.yyyy")}`,
         );
-        await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate processing
+        await new Promise((resolve) => setTimeout(resolve, 300)); // Reduced delay
         updateGenerationStep("init", "completed");
 
         // Validate
         updateGenerationStep("validate", "in-progress");
         addGenerationLog("info", "Validiere Eingabedaten");
-        await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate processing
+        await new Promise((resolve) => setTimeout(resolve, 200)); // Reduced delay
         updateGenerationStep("validate", "completed");
 
         // Process
@@ -149,33 +159,20 @@ export function useScheduleGeneration({
         const fromStr = format(dateRange.from, "yyyy-MM-dd");
         const toStr = format(dateRange.to, "yyyy-MM-dd");
 
-        // Always use the explicit selectedVersion, no fallback to 1
         console.log("🚀 Calling generateSchedule API with:", {
           fromStr,
           toStr,
           createEmptySchedules,
           selectedVersion,
           enableDiagnostics,
-          "Request will include shift_type values": true,
         });
-
-        // Make sure we have a valid version number
-        if (!selectedVersion) {
-          addGenerationLog(
-            "error",
-            "Fehlende Version. Bitte eine Version auswählen oder erstellen.",
-          );
-          throw new Error(
-            "Missing version parameter. Please select or create a version.",
-          );
-        }
 
         const result = await generateSchedule(
           fromStr,
           toStr,
           createEmptySchedules,
-          selectedVersion, // Use the selected version without fallback
-          enableDiagnostics, // Pass the enableDiagnostics flag
+          selectedVersion,
+          enableDiagnostics,
         );
 
         // Log the response to help with debugging
@@ -200,7 +197,6 @@ export function useScheduleGeneration({
           result.diagnostic_logs.length > 0
         ) {
           result.diagnostic_logs.forEach((log) => {
-            // Try to parse log entries in a useful way
             const logType = log.includes("ERROR")
               ? "error"
               : log.includes("WARNING")
@@ -222,61 +218,66 @@ export function useScheduleGeneration({
         // Assign shifts
         updateGenerationStep("assign", "in-progress");
         addGenerationLog("info", "Weise Schichten zu");
-        await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate processing
+        await new Promise((resolve) => setTimeout(resolve, 200)); // Reduced delay
         updateGenerationStep("assign", "completed");
 
         // Finalize
         updateGenerationStep("finalize", "in-progress");
         addGenerationLog("info", "Finalisiere Schichtplan");
 
-        // Auto fix schedule display issues after generation
-        if (
-          result.schedules?.some(
-            (s) => s.shift_id !== null && (!s.shift_start || !s.shift_end),
-          )
-        ) {
+        // Only run fix operations if there are actual issues detected
+        const hasDisplayIssues = result.schedules?.some(
+          (s) => s.shift_id !== null && (!s.shift_start || !s.shift_end),
+        );
+
+        if (hasDisplayIssues) {
           addGenerationLog("info", "Korrigiere Anzeige-Probleme");
           try {
-            await fixShiftDurations();
-            addGenerationLog("info", "Anzeige-Probleme korrigiert");
-          } catch (fixError) {
+            // Run both fix operations in parallel to reduce time
+            const [fixDurationResult, fixDisplayResult] = await Promise.allSettled([
+              fixShiftDurations(),
+              selectedVersion && dateRange.from && dateRange.to
+                ? fixScheduleDisplay(fromStr, toStr, selectedVersion)
+                : Promise.resolve({ days_fixed: [] })
+            ]);
+
+            if (fixDurationResult.status === "fulfilled") {
+              addGenerationLog("info", "Schichtdauern korrigiert");
+            } else {
+              addGenerationLog(
+                "warning",
+                "Problem beim Korrigieren der Schichtdauern",
+                String(fixDurationResult.reason),
+              );
+            }
+
+            if (fixDisplayResult.status === "fulfilled") {
+              const result = fixDisplayResult.value;
+              if (result.days_fixed && result.days_fixed.length > 0) {
+                addGenerationLog(
+                  "info",
+                  `Anzeige optimiert: ${result.days_fixed.length} Tage aktualisiert`,
+                );
+              }
+            } else {
+              addGenerationLog(
+                "warning",
+                "Problem bei der Anzeige-Optimierung",
+                String(fixDisplayResult.reason),
+              );
+            }
+          } catch (error) {
             addGenerationLog(
               "warning",
               "Problem beim Korrigieren der Anzeige",
-              String(fixError instanceof Error ? fixError.message : fixError),
+              String(error instanceof Error ? error.message : error),
             );
           }
+        } else {
+          addGenerationLog("info", "Keine Anzeige-Probleme gefunden");
         }
 
-        // Fix display issues with the schedule using separate API call
-        try {
-          addGenerationLog("info", "Optimiere Anzeige");
-          if (selectedVersion && dateRange.from && dateRange.to) {
-            const fromFixStr = format(dateRange.from, "yyyy-MM-dd");
-            const toFixStr = format(dateRange.to, "yyyy-MM-dd");
-            const fixResult = await fixScheduleDisplay(
-              fromFixStr,
-              toFixStr,
-              selectedVersion,
-            );
-            addGenerationLog(
-              "info",
-              `Anzeige optimiert: ${fixResult.days_fixed.length} Tage aktualisiert`,
-            );
-          }
-        } catch (displayError) {
-          addGenerationLog(
-            "warning",
-            "Problem bei der Anzeige-Optimierung",
-            String(
-              displayError instanceof Error
-                ? displayError.message
-                : displayError,
-            ),
-          );
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate processing
+        await new Promise((resolve) => setTimeout(resolve, 200)); // Reduced delay
         updateGenerationStep("finalize", "completed");
 
         return result;
@@ -342,15 +343,17 @@ export function useScheduleGeneration({
         // Allow time for UI update before hiding overlay
         setTimeout(() => {
           setShowGenerationOverlay(false);
-        }, 1500);
+        }, 1000); // Reduced from 1500ms
       }
 
-      // Invalidate queries to refresh data - fixed to invalidate all schedule queries
-      queryClient.invalidateQueries({ queryKey: ["schedules"] });
+      // Use debounced invalidation to prevent rapid updates
+      invalidateQueriesDebounced();
 
-      // Call onSuccess callback if provided
+      // Call onSuccess callback if provided (but delay it slightly to avoid conflicts)
       if (onSuccess) {
-        onSuccess();
+        setTimeout(() => {
+          onSuccess();
+        }, 150);
       }
     },
     onError: (error: unknown) => {

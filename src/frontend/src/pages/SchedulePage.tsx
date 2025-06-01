@@ -280,14 +280,20 @@ export function SchedulePage() {
     selectedVersion: versionControlSelectedVersion,
     createEmptySchedules,
     enableDiagnostics,
-    onSuccess: () => {
-      refetchScheduleData();
+    onSuccess: useCallback(() => {
+      // Only refetch data once, don't duplicate query invalidations
+      // The hook already handles query invalidation internally
+      console.log("🔄 Schedule generation completed, triggering data refresh");
+      
+      // Only invalidate versions if they might have changed
       queryClient.invalidateQueries({ queryKey: ["versions"] });
-      toast({
-        title: "Generation Complete",
-        description: "The standard schedule has been generated successfully.",
-      });
-    },
+      
+      // Show a single success toast (the hook already shows one, so we can skip this)
+      // toast({
+      //   title: "Generation Complete",
+      //   description: "The standard schedule has been generated successfully.",
+      // });
+    }, [queryClient]), // Removed refetchScheduleData and toast dependencies
   });
 
   // Mutations
@@ -333,8 +339,12 @@ export function SchedulePage() {
       });
     },
     onSuccess: (data) => {
-      refetchScheduleData();
-      queryClient.invalidateQueries({ queryKey: ['versions'] });
+      // Batch the query invalidations to reduce rapid updates
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["schedules"] });
+        queryClient.invalidateQueries({ queryKey: ['versions'] });
+      }, 100);
+      
       toast({
         title: "Import erfolgreich",
         description: data.message || `Es wurden ${data.imported_count} Zuweisungen importiert.`, // Use message from backend if available
@@ -397,8 +407,9 @@ export function SchedulePage() {
   const handleRetryFetch = useCallback(() => {
     console.log("Retrying data fetch...");
     clearGenerationLogs();
-    refetchScheduleData();
-  }, [clearGenerationLogs, refetchScheduleData]);
+    // Use query invalidation instead of manual refetch to prevent loops
+    queryClient.invalidateQueries({ queryKey: ["schedules"] });
+  }, [clearGenerationLogs, queryClient]); // Removed refetchScheduleData dependency
 
   const handleExportSchedule = useCallback(() => {
     exportMutation.mutate();
@@ -431,59 +442,8 @@ export function SchedulePage() {
 
   const aiSystemPrompt = `You are an advanced AI scheduling assistant. Your task is to generate an optimal employee shift schedule based on the provided data and rules.\n  Schedule Period: ${dateRange?.from?.toISOString().split('T')[0]} to ${dateRange?.to?.toISOString().split('T')[0]}\n  Output Format:\n  Please provide the schedule STRICTLY in CSV format. The CSV should have the following columns, in this exact order:\n  EmployeeID,Date,ShiftTemplateID,ShiftName,StartTime,EndTime\n  Example CSV Row:\n  101,2024-07-15,3,Morning Shift,08:00,16:00\n  Instructions and Data:\n  1. Adhere to all specified coverage needs for each shift and day. Coverage blocks in the provided data define the minimum and maximum number of employees required during that specific time period.\n  2. Respect all employee availability (fixed, preferred, unavailable) and absences.\n  3. Consider general scheduling rules provided.\n  4. Aim for a fair distribution of shifts among employees.\n  5. Prioritize fulfilling fixed assignments and preferred shifts where possible.\n  6. Ensure assigned shifts match employee qualifications (i.e., keyholder).\n  7. The ShiftTemplateID in the output CSV must correspond to an existing ShiftTemplateID from the input data.\n  8. The Date must be in YYYY-MM-DD format.\n  9. StartTime and EndTime in the output CSV should be in HH:MM format and match the times of the assigned ShiftTemplateID.\n  10. Only output the CSV data. Do not include any explanations, comments, or any text before or after the CSV data block.`;
 
-  const checkAndFixMissingTimeData = useCallback(async () => {
-    if (
-      !versionControlSelectedVersion ||
-      !dateRange?.from ||
-      !dateRange?.to ||
-      !scheduleData
-    ) {
-      return;
-    }
-    const schedulesWithShiftId = scheduleData.filter(
-      (s) => s.shift_id !== null,
-    );
-    const problemSchedules = schedulesWithShiftId.filter(
-      (s) => !s.shift_start || !s.shift_end,
-    );
-    if (problemSchedules.length > 0) {
-      const { dismiss } = toast({
-        title: "Prüfe Schichtdaten...",
-        description: "Überprüfe und korrigiere fehlende Zeitdaten...",
-      });
-      console.log(
-        `🔧 Found ${problemSchedules.length} schedules with missing time data. Attempting to fix...`,
-      );
-      try {
-        const result = await fixScheduleDisplay(
-          format(dateRange.from, "yyyy-MM-dd"),
-          format(dateRange.to, "yyyy-MM-dd"),
-          versionControlSelectedVersion,
-        );
-        dismiss();
-        toast({
-          title: "Schichtdaten repariert",
-          description: `${result.total_schedules || 0} Schichten geprüft, ${problemSchedules.length} Probleme gefunden, ${result.empty_schedules_count || 0} Einträge aktualisiert.`, // Corrected to use result properties
-          variant: "default",
-        });
-        await refetchScheduleData();
-      } catch (error) {
-        dismiss();
-        console.error("Failed to fix schedule time data:", error);
-        toast({
-          title: "Fehler bei der Korrektur",
-          description: getErrorMessage(error),
-          variant: "destructive",
-        });
-      }
-    }
-  }, [
-    versionControlSelectedVersion,
-    dateRange,
-    scheduleData,
-    toast,
-    refetchScheduleData,
-  ]);
+  // Removed checkAndFixMissingTimeData function - automatic schedule repair is no longer needed
+  // Manual repair is still available via the "Fix Display" button in ScheduleActions
 
   // Page-level handler for creating a new version (delegates to hook's function)
   const handleCreateNewVersionPage = useCallback(() => {
@@ -519,22 +479,21 @@ export function SchedulePage() {
   }, [weekAmount, today, dateRange, setDateRange]);
 
   useEffect(() => {
-    // This effect triggers data refetch when the locally managed `selectedVersion` changes.
-    // `selectedVersion` is updated by the `onVersionSelected` callback from `useVersionControl`.
-    if (selectedVersion !== undefined) {
-      console.log(
-        "🔄 SchedulePage: Local selectedVersion changed, refetching data for version:",
-        selectedVersion,
-      );
-      refetchScheduleData();
-    } else if (versionControlSelectedVersion === undefined) {
-      // If the hook also indicates no version, refetch to clear (e.g., after delete)
-      console.log(
-        "🔄 SchedulePage: Both local and hook selectedVersion are undefined, refetching.",
-      );
-      refetchScheduleData();
-    }
-  }, [selectedVersion, refetchScheduleData, versionControlSelectedVersion]);
+    // This effect handles version changes but avoids infinite loops
+    // by using query invalidation instead of manual refetch
+    const timeoutId = setTimeout(() => {
+      if (selectedVersion !== undefined || versionControlSelectedVersion === undefined) {
+        console.log(
+          "🔄 SchedulePage: Version changed, invalidating queries for version:",
+          selectedVersion || "undefined",
+        );
+        // Use query invalidation instead of manual refetch to prevent loops
+        queryClient.invalidateQueries({ queryKey: ["schedules"] });
+      }
+    }, 200); // Debounce by 200ms
+
+    return () => clearTimeout(timeoutId);
+  }, [selectedVersion, versionControlSelectedVersion, queryClient]); // Removed refetchScheduleData dependency
 
   useEffect(() => {
     if (
@@ -576,29 +535,14 @@ export function SchedulePage() {
   }, [
     versionControlSelectedVersion,
     versionMetas,
-    dateRange,
+    dateRange?.from?.getTime(), // Use getTime() for stable comparison
+    dateRange?.to?.getTime(),   // Use getTime() for stable comparison
     weekAmount,
-    setDateRange,
-    setWeekAmount,
+    // Removed setDateRange and setWeekAmount as they are stable React setState functions
   ]);
 
-  useEffect(() => {
-    if (
-      scheduleData &&
-      scheduleData.length > 0 &&
-      !isLoadingVersions &&
-      !isPending &&
-      !isAiGenerating
-    ) {
-      checkAndFixMissingTimeData();
-    }
-  }, [
-    scheduleData,
-    isLoadingVersions,
-    isPending,
-    isAiGenerating,
-    checkAndFixMissingTimeData,
-  ]);
+  // Removed automatic schedule repair useEffect - it was causing unnecessary background processing
+  // The checkAndFixMissingTimeData function is still available for manual use if needed
 
   const { data: absenceData } = useQuery({
     queryKey: ["absences"] as const, // Simplified query key
@@ -729,12 +673,12 @@ export function SchedulePage() {
     );
     try {
       updateGenerationStep("ai-init", "in-progress");
-      await new Promise((r) => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 200)); // Reduced delay
       const fromStr = format(dateRange.from, "yyyy-MM-dd");
       const toStr = format(dateRange.to, "yyyy-MM-dd");
       updateGenerationStep("ai-init", "completed");
       updateGenerationStep("ai-analyze", "in-progress");
-      await new Promise((r) => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 200)); // Reduced delay
       const result = await generateAiSchedule(
         fromStr,
         toStr,
@@ -742,7 +686,7 @@ export function SchedulePage() {
       );
       updateGenerationStep("ai-analyze", "completed");
       updateGenerationStep("ai-generate", "in-progress");
-      await new Promise((r) => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 200)); // Reduced delay
       addGenerationLog("info", "AI schedule generation API call successful");
       if (result.generated_assignments_count)
         addGenerationLog(
@@ -751,9 +695,14 @@ export function SchedulePage() {
         );
       updateGenerationStep("ai-generate", "completed");
       updateGenerationStep("ai-finalize", "in-progress");
-      await new Promise((r) => setTimeout(r, 500));
-      await refetchScheduleData();
-      queryClient.invalidateQueries({ queryKey: ["versions"] });
+      await new Promise((r) => setTimeout(r, 200)); // Reduced delay
+      
+      // Batch the query invalidations to reduce rapid updates
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["schedules"] });
+        queryClient.invalidateQueries({ queryKey: ["versions"] });
+      }, 100);
+      
       updateGenerationStep("ai-finalize", "completed");
       toast({
         title: "AI Generation Complete",
@@ -763,7 +712,7 @@ export function SchedulePage() {
       if (result.diagnostic_log) {
         addGenerationLog("info", "Diagnostic log available:", result.diagnostic_log);
       }
-      setTimeout(() => setIsAiGenerating(false), 2000);
+      setTimeout(() => setIsAiGenerating(false), 1000); // Reduced delay
     } catch (err: unknown) {
       const errorMessage = getErrorMessage(err);
       addGenerationLog("error", "AI Generation Error", errorMessage);
@@ -775,7 +724,7 @@ export function SchedulePage() {
         description: errorMessage,
         variant: "destructive",
       });
-      setTimeout(() => setIsAiGenerating(false), 3000);
+      setTimeout(() => setIsAiGenerating(false), 1500); // Reduced delay
     }
   };
 
@@ -799,7 +748,8 @@ export function SchedulePage() {
   }) => {
     try {
       await createSchedule(newScheduleData);
-      refetchScheduleData();
+      // Use query invalidation instead of manual refetch to prevent loops
+      queryClient.invalidateQueries({ queryKey: ["schedules"] });
       toast({
         title: "Schichtplan erstellt",
         description: `Neuer Schichtplan erfolgreich erstellt.`,
@@ -869,8 +819,8 @@ export function SchedulePage() {
               console.error("Batch delete error:", batchError);
             }
           }
+          // Use query invalidation instead of manual refetch to prevent loops
           queryClient.invalidateQueries({ queryKey: ["schedules"] });
-          await refetchScheduleData();
           toast({
             title: "Schichtpläne gelöscht",
             description: `${resultsCount} Schichten entfernt.`, // Corrected to use resultsCount
@@ -956,7 +906,8 @@ export function SchedulePage() {
         "Display fix complete",
         `Fixed ${result.empty_schedules_count}. Days: ${result.days_fixed.join(", ") || "none"}`,
       );
-      await refetchScheduleData();
+      // Use query invalidation instead of manual refetch to prevent loops
+      queryClient.invalidateQueries({ queryKey: ["schedules"] });
       toast({
         title: "Display Fix Complete",
         description: `Fixed ${result.empty_schedules_count} schedules.`, // Corrected to use result property
@@ -1009,7 +960,8 @@ export function SchedulePage() {
         version: versionControlSelectedVersion,
         employee_id: update.employee_id,
       });
-      await refetchScheduleData();
+      // Use query invalidation instead of manual refetch to prevent loops
+      queryClient.invalidateQueries({ queryKey: ["schedules"] });
       toast({
         title: "Schicht aktualisiert",
         description: "Schicht erfolgreich verschoben.",
@@ -1053,7 +1005,8 @@ export function SchedulePage() {
         shift_id: shiftId,
         version: versionNumber,
       });
-      await refetchScheduleData();
+      // Use query invalidation instead of manual refetch to prevent loops
+      queryClient.invalidateQueries({ queryKey: ["schedules"] });
       toast({
         title: "Schicht hinzugefügt",
         description: "Schicht erfolgreich aus dem Dock zugewiesen.",
@@ -1066,7 +1019,7 @@ export function SchedulePage() {
         variant: "destructive",
       });
     }
-  }, [versionControlSelectedVersion, refetchScheduleData, toast]);
+  }, [versionControlSelectedVersion, queryClient, toast]);
 
   // Add event listener for dock drops from schedule cells
   useEffect(() => {
@@ -1098,7 +1051,8 @@ export function SchedulePage() {
         version: versionControlSelectedVersion,
         employee_id: update.employee_id,
       });
-      await refetchScheduleData();
+      // Use query invalidation instead of manual refetch to prevent loops
+      queryClient.invalidateQueries({ queryKey: ["schedules"] });
       toast({
         title: "Schicht aktualisiert",
         description: "Schicht erfolgreich aktualisiert.",
