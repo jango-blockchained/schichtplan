@@ -1,3 +1,14 @@
+export interface StoreConfig {
+    store_opening: string;
+    store_closing: string;
+    opening_days: { [key: string]: boolean };
+    min_employees_per_shift: number;
+    max_employees_per_shift: number;
+    employee_types: Array<{ id: string; name: string }>;
+    keyholder_before_minutes?: number;
+    keyholder_after_minutes?: number;
+}
+
 export interface StoreConfigProps {
   store_opening: string;
   store_closing: string;
