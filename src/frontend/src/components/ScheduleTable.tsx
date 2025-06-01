@@ -137,6 +137,77 @@ const TimeSlotDisplay = ({
   settings,
   schedule,
 }: TimeSlotDisplayProps) => {
+  // Calculate duration from start and end times if not provided
+  const calculateDuration = (start: string, end: string): number => {
+    try {
+      const [startHours, startMinutes] = start.split(":").map(Number);
+      const [endHours, endMinutes] = end.split(":").map(Number);
+      
+      let startTotalMinutes = startHours * 60 + startMinutes;
+      let endTotalMinutes = endHours * 60 + endMinutes;
+      
+      // Handle overnight shifts
+      if (endTotalMinutes < startTotalMinutes) {
+        endTotalMinutes += 24 * 60;
+      }
+      
+      return (endTotalMinutes - startTotalMinutes) / 60;
+    } catch (error) {
+      console.error("Error calculating duration:", error);
+      return 0;
+    }
+  };
+
+  // Get duration from schedule or calculate it
+  const getDuration = (): number => {
+    if (schedule?.duration_hours) {
+      return schedule.duration_hours;
+    }
+    if (startTime && endTime) {
+      return calculateDuration(startTime, endTime);
+    }
+    return 0;
+  };
+
+  // Determine shift type from multiple sources with enhanced logic
+  const getEffectiveShiftType = (): string => {
+    // Priority: explicit shiftType > schedule.shift_type_id > calculated from times
+    if (shiftType) return shiftType;
+    if (schedule?.shift_type_id) return schedule.shift_type_id;
+    
+    // Calculate from shift_type_name
+    if (schedule?.shift_type_name) {
+      const name = schedule.shift_type_name.toLowerCase();
+      if (name.includes("früh") || name.includes("early")) return "EARLY";
+      if (name.includes("spät") || name.includes("late")) return "LATE";
+      if (name.includes("mitte") || name.includes("middle")) return "MIDDLE";
+    }
+    
+    // Calculate from start and end times using user rules:
+    // EARLY: if start time is 09:00 or 10:00
+    // LATE: if end time is 19:00 or 20:00
+    // MIDDLE: for any shift that is neither EARLY nor LATE
+    if (startTime && endTime) {
+      const [startHours] = startTime.split(":").map(Number);
+      const [endHours] = endTime.split(":").map(Number);
+      
+      // Check for EARLY shift (start time is 09:00 or 10:00)
+      if (startHours === 9 || startHours === 10) {
+        return "EARLY";
+      }
+      
+      // Check for LATE shift (end time is 19:00 or 20:00)
+      if (endHours === 19 || endHours === 20) {
+        return "LATE";
+      }
+      
+      // Everything else is MIDDLE
+      return "MIDDLE";
+    }
+    
+    return "MIDDLE"; // Default fallback
+  };
+
   // Add a more visible diagnostic indicator for missing time data
   const hasMissingTimeData = (!startTime || !endTime) && schedule?.shift_id;
 
@@ -158,18 +229,20 @@ const TimeSlotDisplay = ({
   // Handle missing time data by using default placeholder times
   const displayStartTime = startTime || "??:??";
   const displayEndTime = endTime || "??:??";
+  const effectiveShiftType = getEffectiveShiftType();
+  const duration = getDuration();
 
   // Get shift type color matching dock items
-  const getShiftTypeColor = (shiftType?: string) => {
+  const getShiftTypeColor = (shiftType: string) => {
     switch (shiftType) {
-      case "EARLY": return "bg-blue-500/20 text-blue-300 border-blue-500/30";
-      case "MIDDLE": return "bg-green-500/20 text-green-300 border-green-500/30";
-      case "LATE": return "bg-amber-500/20 text-amber-300 border-amber-500/30";
-      default: return "bg-slate-500/20 text-slate-300 border-slate-500/30";
+      case "EARLY": return "bg-blue-500/20 text-blue-700 border-blue-500/30";
+      case "MIDDLE": return "bg-green-500/20 text-green-700 border-green-500/30";
+      case "LATE": return "bg-amber-500/20 text-amber-700 border-amber-500/30";
+      default: return "bg-slate-500/20 text-slate-700 border-slate-500/30";
     }
   };
 
-  const getShiftTypeName = (shiftType?: string) => {
+  const getShiftTypeName = (shiftType: string) => {
     switch (shiftType) {
       case "EARLY": return "Früh";
       case "MIDDLE": return "Mitte";
@@ -178,9 +251,23 @@ const TimeSlotDisplay = ({
     }
   };
 
+  // Format duration for display
+  const formatDuration = (hours: number): string => {
+    if (hours === 0) return "";
+    if (hours === Math.floor(hours)) {
+      return `${hours}h`;
+    }
+    const wholeHours = Math.floor(hours);
+    const minutes = Math.round((hours - wholeHours) * 60);
+    if (minutes === 0) {
+      return `${wholeHours}h`;
+    }
+    return `${wholeHours}h ${minutes}m`;
+  };
+
   // Handle the case where we have a schedule with ID but no time data
   if (hasMissingTimeData) {
-    const shiftTypeName = schedule?.shift_type_name || getShiftTypeName(shiftType);
+    const shiftTypeName = schedule?.shift_type_name || getShiftTypeName(effectiveShiftType);
 
     return (
       <div className="flex flex-col items-center p-3 rounded-lg border border-border bg-card min-w-[100px] select-none">
@@ -191,37 +278,32 @@ const TimeSlotDisplay = ({
         <div className="flex flex-col gap-1 items-center">
           <Badge
             variant="secondary"
-            className={cn("text-xs", getShiftTypeColor(shiftType))}
+            className={cn("text-xs font-medium", getShiftTypeColor(effectiveShiftType))}
           >
-            {getShiftTypeName(shiftType)}
+            {getShiftTypeName(effectiveShiftType)}
           </Badge>
           <div className="text-xs text-muted-foreground">
             Zeiten fehlen
           </div>
-          {schedule?.duration_hours && (
-            <div className="text-xs text-muted-foreground">
-              {schedule.duration_hours}h
-            </div>
-          )}
-          {schedule?.requires_break && (
-            <Badge variant="outline" className="text-xs">
-              ☕ Break
-            </Badge>
-          )}
+                  {duration > 0 && (
+          <div className="text-xs text-muted-foreground font-medium">
+            {formatDuration(duration)}
+          </div>
+        )}
+        {schedule?.requires_break && (
+          <Badge variant="outline" className="text-xs">
+            ☕ Break
+          </Badge>
+        )}
+        {schedule?.break_start && schedule?.break_end && (
+          <div className="text-xs text-muted-foreground">
+            Pause: {schedule.break_start} - {schedule.break_end}
+          </div>
+        )}
         </div>
       </div>
     );
   }
-
-
-
-  // Determine shift type from multiple sources
-  const effectiveShiftType = shiftType || schedule?.shift_type_id || 
-    (schedule?.shift_type_name ? 
-      (schedule.shift_type_name === "Früh" ? "EARLY" :
-       schedule.shift_type_name === "Mitte" ? "MIDDLE" :
-       schedule.shift_type_name === "Spät" ? "LATE" : undefined) : 
-      undefined);
 
   return (
     <div className="flex flex-col items-center p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-all min-w-[100px] select-none">
@@ -230,36 +312,31 @@ const TimeSlotDisplay = ({
         {displayStartTime} - {displayEndTime}
       </div>
       <div className="flex flex-col gap-1 items-center">
-        {effectiveShiftType && (
-          <Badge
-            variant="secondary"
-            className={cn("text-xs", getShiftTypeColor(effectiveShiftType))}
-          >
-            {getShiftTypeName(effectiveShiftType)}
-          </Badge>
-        )}
-        {schedule?.shift_type_name && !effectiveShiftType && (
-          <Badge
-            variant="secondary"
-            className={cn("text-xs", "bg-slate-500/20 text-slate-300 border-slate-500/30")}
-          >
-            {schedule.shift_type_name}
-          </Badge>
-        )}
-        {schedule?.duration_hours && (
-          <div className="text-xs text-muted-foreground">
-            {schedule.duration_hours}h
+        <Badge
+          variant="secondary"
+          className={cn("text-xs font-medium", getShiftTypeColor(effectiveShiftType))}
+        >
+          {getShiftTypeName(effectiveShiftType)}
+        </Badge>
+        {duration > 0 && (
+          <div className="text-xs text-muted-foreground font-medium">
+            {formatDuration(duration)}
           </div>
         )}
-        {schedule?.requires_break && (
-          <Badge variant="outline" className="text-xs">
-            ☕ Break
-          </Badge>
-        )}
+                  {schedule?.requires_break && (
+            <Badge variant="outline" className="text-xs">
+              ☕ Break
+            </Badge>
+          )}
+          {schedule?.break_start && schedule?.break_end && (
+            <div className="text-xs text-muted-foreground">
+              Pause: {schedule.break_start} - {schedule.break_end}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
 // ScheduleCell component with improved shift data handling
 const ScheduleCell = ({
@@ -550,13 +627,32 @@ const determineShiftType = (schedule: Schedule): ShiftType => {
     return schedule.shift_type_id;
   }
 
+  // Fall back to determining from start and end times using user rules:
+  // EARLY: if start time is 09:00 or 10:00
+  // LATE: if end time is 19:00 or 20:00
+  // MIDDLE: for any shift that is neither EARLY nor LATE
   const startTime = schedule.shift_start;
-  if (!startTime) return "EARLY";
-
-  const hour = parseInt(startTime.split(":")[0]);
-  if (hour < 10) return "EARLY";
-  if (hour < 14) return "MIDDLE";
-  return "LATE";
+  const endTime = schedule.shift_end;
+  
+  if (startTime && endTime) {
+    const startHour = parseInt(startTime.split(":")[0]);
+    const endHour = parseInt(endTime.split(":")[0]);
+    
+    // Check for EARLY shift (start time is 09:00 or 10:00)
+    if (startHour === 9 || startHour === 10) {
+      return "EARLY";
+    }
+    
+    // Check for LATE shift (end time is 19:00 or 20:00)
+    if (endHour === 19 || endHour === 20) {
+      return "LATE";
+    }
+    
+    // Everything else is MIDDLE
+    return "MIDDLE";
+  }
+  
+  return "EARLY"; // Default fallback
 };
 
 const getShiftTypeDisplay = (shiftType: ShiftType): string => {
