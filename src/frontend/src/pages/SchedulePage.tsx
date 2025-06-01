@@ -70,6 +70,7 @@ import {
   XCircle,
   RefreshCw,
   Plus,
+  FileTextIcon,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent } from "@/components/ui/card";
@@ -1319,7 +1320,7 @@ export function SchedulePage() {
             onClick={() => setIsDiagnosticsOpen(true)}
             className="gap-2"
           >
-            <FileText className="h-4 w-4" />
+            <FileTextIcon className="h-4 w-4" />
             Show Full Diagnostics
           </Button>
         </div>
