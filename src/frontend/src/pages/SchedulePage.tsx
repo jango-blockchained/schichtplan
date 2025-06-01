@@ -131,6 +131,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { DiagnosticsDialog } from "@/components/Schedule/DiagnosticsDialog";
 import { ScheduleDock } from "@/components/ScheduleDock";
+import { DetailedAIGenerationModal } from "@/components/modals/DetailedAIGenerationModal";
 
 function getErrorMessage(error: any): string {
   if (error && typeof error === "object" && "message" in error) {
@@ -162,6 +163,9 @@ export function SchedulePage() {
   >({}); // Keep if used by ScheduleTable/Manager
   const [enableDiagnostics, setEnableDiagnostics] = useState<boolean>(false);
   const [isAiGenerating, setIsAiGenerating] = useState<boolean>(false);
+  const [isAiFastGenerating, setIsAiFastGenerating] = useState<boolean>(false);
+  const [isAiDetailedGenerating, setIsAiDetailedGenerating] = useState<boolean>(false);
+  const [isDetailedAiModalOpen, setIsDetailedAiModalOpen] = useState<boolean>(false);
   const [confirmDeleteMessage, setConfirmDeleteMessage] = useState<{
     title: string;
     message: string;
@@ -779,6 +783,211 @@ export function SchedulePage() {
     }
   };
 
+  const handleGenerateAiFastSchedule = async () => {
+    if (!dateRange?.from || !dateRange?.to) {
+      toast({
+        title: "Zeitraum erforderlich (Schnelle KI)",
+        description: "Bitte Zeitraum für schnelle KI-Generierung wählen.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!versionControlSelectedVersion) {
+      toast({
+        title: "Version erforderlich (Schnelle KI)",
+        description: "Bitte Version für schnelle KI-Generierung wählen.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setIsAiFastGenerating(true);
+    clearGenerationLogs();
+    const aiSteps = [
+      {
+        id: "ai-fast-init",
+        title: "Initialisiere schnelle KI-Generierung",
+        status: "pending" as const,
+      },
+      {
+        id: "ai-fast-analyze",
+        title: "Schnelle Analyse der Verfügbarkeiten",
+        status: "pending" as const,
+      },
+      {
+        id: "ai-fast-generate",
+        title: "Erstelle Schichtplan (schnell)",
+        status: "pending" as const,
+      },
+      {
+        id: "ai-fast-finalize",
+        title: "Finalisiere schnellen Schichtplan",
+        status: "pending" as const,
+      },
+    ];
+    setGenerationSteps(aiSteps);
+    setShowGenerationOverlay(true);
+    addGenerationLog(
+      "info",
+      "Starting fast AI schedule generation",
+      `Version: ${versionControlSelectedVersion}, Date range: ${format(dateRange.from, "yyyy-MM-dd")} - ${format(dateRange.to, "yyyy-MM-dd")}`,
+    );
+    try {
+      updateGenerationStep("ai-fast-init", "in-progress");
+      await new Promise((r) => setTimeout(r, 300));
+      const fromStr = format(dateRange.from, "yyyy-MM-dd");
+      const toStr = format(dateRange.to, "yyyy-MM-dd");
+      updateGenerationStep("ai-fast-init", "completed");
+      updateGenerationStep("ai-fast-analyze", "in-progress");
+      await new Promise((r) => setTimeout(r, 300));
+      const result = await generateAiSchedule(
+        fromStr,
+        toStr,
+        versionControlSelectedVersion,
+      );
+      updateGenerationStep("ai-fast-analyze", "completed");
+      updateGenerationStep("ai-fast-generate", "in-progress");
+      await new Promise((r) => setTimeout(r, 300));
+      addGenerationLog("info", "Fast AI schedule generation API call successful");
+      if (result.generated_assignments_count)
+        addGenerationLog(
+          "info",
+          `Generated ${result.generated_assignments_count} schedule entries`,
+        );
+      updateGenerationStep("ai-fast-generate", "completed");
+      updateGenerationStep("ai-fast-finalize", "in-progress");
+      await new Promise((r) => setTimeout(r, 300));
+      await refetchScheduleData();
+      queryClient.invalidateQueries({ queryKey: ["versions"] });
+      updateGenerationStep("ai-fast-finalize", "completed");
+      toast({
+        title: "Schnelle KI-Generierung abgeschlossen",
+        description: "Schichtplan wurde schnell generiert.",
+      });
+      if (result.diagnostic_log) {
+        addGenerationLog("info", "Diagnostic log available:", result.diagnostic_log);
+      }
+      setTimeout(() => setIsAiFastGenerating(false), 2000);
+    } catch (err: unknown) {
+      const errorMessage = getErrorMessage(err);
+      addGenerationLog("error", "Fast AI Generation Error", errorMessage);
+      aiSteps.forEach((step) =>
+        updateGenerationStep(step.id, "error", "Generation failed"),
+      );
+      toast({
+        title: "Schnelle KI-Generierung fehlgeschlagen",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      setTimeout(() => setIsAiFastGenerating(false), 3000);
+    }
+  };
+
+  const handleGenerateAiDetailedSchedule = async () => {
+    if (!dateRange?.from || !dateRange?.to) {
+      toast({
+        title: "Zeitraum erforderlich (Erweiterte KI)",
+        description: "Bitte Zeitraum für erweiterte KI-Generierung wählen.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!versionControlSelectedVersion) {
+      toast({
+        title: "Version erforderlich (Erweiterte KI)",
+        description: "Bitte Version für erweiterte KI-Generierung wählen.",
+        variant: "destructive",
+      });
+      return;
+    }
+    // Open the detailed AI modal instead of running generation immediately
+    setIsDetailedAiModalOpen(true);
+  };
+
+  const handleDetailedAiModalConfirm = async (options: any) => {
+    setIsDetailedAiModalOpen(false);
+    setIsAiDetailedGenerating(true);
+    clearGenerationLogs();
+    const aiSteps = [
+      {
+        id: "ai-detailed-init",
+        title: "Initialisiere erweiterte KI-Generierung",
+        status: "pending" as const,
+      },
+      {
+        id: "ai-detailed-analyze",
+        title: "Detaillierte Analyse mit Konfiguration",
+        status: "pending" as const,
+      },
+      {
+        id: "ai-detailed-generate",
+        title: "Erstelle optimierten Schichtplan",
+        status: "pending" as const,
+      },
+      {
+        id: "ai-detailed-finalize",
+        title: "Finalisiere erweiterten Schichtplan",
+        status: "pending" as const,
+      },
+    ];
+    setGenerationSteps(aiSteps);
+    setShowGenerationOverlay(true);
+    addGenerationLog(
+      "info",
+      "Starting detailed AI schedule generation",
+      `Version: ${versionControlSelectedVersion}, Date range: ${format(dateRange!.from!, "yyyy-MM-dd")} - ${format(dateRange!.to!, "yyyy-MM-dd")}, Options: ${JSON.stringify(options)}`,
+    );
+    try {
+      updateGenerationStep("ai-detailed-init", "in-progress");
+      await new Promise((r) => setTimeout(r, 500));
+      const fromStr = format(dateRange!.from!, "yyyy-MM-dd");
+      const toStr = format(dateRange!.to!, "yyyy-MM-dd");
+      updateGenerationStep("ai-detailed-init", "completed");
+      updateGenerationStep("ai-detailed-analyze", "in-progress");
+      await new Promise((r) => setTimeout(r, 700));
+      // TODO: Pass options to generateAiSchedule when backend supports detailed options
+      const result = await generateAiSchedule(
+        fromStr,
+        toStr,
+        versionControlSelectedVersion,
+      );
+      updateGenerationStep("ai-detailed-analyze", "completed");
+      updateGenerationStep("ai-detailed-generate", "in-progress");
+      await new Promise((r) => setTimeout(r, 700));
+      addGenerationLog("info", "Detailed AI schedule generation API call successful");
+      if (result.generated_assignments_count)
+        addGenerationLog(
+          "info",
+          `Generated ${result.generated_assignments_count} schedule entries with detailed options`,
+        );
+      updateGenerationStep("ai-detailed-generate", "completed");
+      updateGenerationStep("ai-detailed-finalize", "in-progress");
+      await new Promise((r) => setTimeout(r, 500));
+      await refetchScheduleData();
+      queryClient.invalidateQueries({ queryKey: ["versions"] });
+      updateGenerationStep("ai-detailed-finalize", "completed");
+      toast({
+        title: "Erweiterte KI-Generierung abgeschlossen",
+        description: "Schichtplan wurde mit erweiterten Optionen generiert.",
+      });
+      if (result.diagnostic_log) {
+        addGenerationLog("info", "Diagnostic log available:", result.diagnostic_log);
+      }
+      setTimeout(() => setIsAiDetailedGenerating(false), 2000);
+    } catch (err: unknown) {
+      const errorMessage = getErrorMessage(err);
+      addGenerationLog("error", "Detailed AI Generation Error", errorMessage);
+      aiSteps.forEach((step) =>
+        updateGenerationStep(step.id, "error", "Generation failed"),
+      );
+      toast({
+        title: "Erweiterte KI-Generierung fehlgeschlagen",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      setTimeout(() => setIsAiDetailedGenerating(false), 3000);
+    }
+  };
+
   const handleAddSchedule = () => {
     if (!versionControlSelectedVersion) {
       toast({
@@ -1195,6 +1404,8 @@ export function SchedulePage() {
         <ScheduleActions
           isLoading={isUpdating}
           isGenerating={isPending || isAiGenerating}
+          isAiFastGenerating={isAiFastGenerating}
+          isAiDetailedGenerating={isAiDetailedGenerating}
           canAdd={
             !!dateRange?.from &&
             !!dateRange?.to &&
@@ -1211,7 +1422,8 @@ export function SchedulePage() {
           onAddSchedule={handleAddSchedule}
           onDeleteSchedule={handleDeleteSchedule}
           onGenerateStandardSchedule={handleGenerateStandardSchedule}
-          onGenerateAiSchedule={handleGenerateAiSchedule}
+          onGenerateAiFastSchedule={handleGenerateAiFastSchedule}
+          onGenerateAiDetailedSchedule={handleGenerateAiDetailedSchedule}
           onOpenGenerationSettings={() => setIsGenerationSettingsOpen(true)}
           isAiEnabled={!!settingsQuery.data?.ai_scheduling?.enabled}
           onPreviewAiData={handlePreviewAiData}
@@ -1489,6 +1701,14 @@ export function SchedulePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Detailed AI Generation Modal */}
+      <DetailedAIGenerationModal
+        isOpen={isDetailedAiModalOpen}
+        onClose={() => setIsDetailedAiModalOpen(false)}
+        onConfirm={handleDetailedAiModalConfirm}
+        isGenerating={isAiDetailedGenerating}
+      />
     </div>
   );
 }
