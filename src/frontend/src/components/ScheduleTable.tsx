@@ -21,6 +21,7 @@ import {
   Plus,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   AlertTriangle,
   Info,
   RotateCcw,
@@ -160,9 +161,6 @@ const TimeSlotDisplay = ({
 
   // Get duration from schedule or calculate it
   const getDuration = (): number => {
-    if (schedule?.duration_hours) {
-      return schedule.duration_hours;
-    }
     if (startTime && endTime) {
       return calculateDuration(startTime, endTime);
     }
@@ -285,21 +283,11 @@ const TimeSlotDisplay = ({
           <div className="text-xs text-muted-foreground">
             Zeiten fehlen
           </div>
-                  {duration > 0 && (
-          <div className="text-xs text-muted-foreground font-medium">
-            {formatDuration(duration)}
-          </div>
-        )}
-        {schedule?.requires_break && (
-          <Badge variant="outline" className="text-xs">
-            ☕ Break
-          </Badge>
-        )}
-        {schedule?.break_start && schedule?.break_end && (
-          <div className="text-xs text-muted-foreground">
-            Pause: {schedule.break_start} - {schedule.break_end}
-          </div>
-        )}
+          {duration > 0 && (
+            <div className="text-xs text-muted-foreground font-medium">
+              {formatDuration(duration)}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -323,20 +311,15 @@ const TimeSlotDisplay = ({
             {formatDuration(duration)}
           </div>
         )}
-                  {schedule?.requires_break && (
-            <Badge variant="outline" className="text-xs">
-              ☕ Break
-            </Badge>
-          )}
-          {schedule?.break_start && schedule?.break_end && (
-            <div className="text-xs text-muted-foreground">
-              Pause: {schedule.break_start} - {schedule.break_end}
-            </div>
-          )}
-        </div>
+        {schedule?.break_start && schedule?.break_end && (
+          <div className="text-xs text-muted-foreground">
+            Pause: {schedule.break_start} - {schedule.break_end}
+          </div>
+        )}
       </div>
-    );
-  };
+    </div>
+  );
+};
 
 // ScheduleCell component with improved shift data handling
 const ScheduleCell = ({
@@ -365,6 +348,7 @@ const ScheduleCell = ({
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [showActions, setShowActions] = useState(false);
+  const queryClient = useQueryClient();
   
   // Add drag functionality for existing schedules
   const [{ isDragging }, drag] = useDrag({
@@ -605,7 +589,7 @@ const ScheduleCell = ({
         isOpen={isEditModalOpen && !!schedule && !!currentVersion}
         onClose={() => setIsEditModalOpen(false)}
         schedule={schedule!}
-        onUpdate={async (updates) => {
+        onSave={async (updates) => {
           // Need null/undefined check for schedule.id here as schedule might be undefined
           if (schedule?.id) {
             await onUpdate(schedule.id, updates);
@@ -934,6 +918,7 @@ export function ScheduleTable({
 }: ScheduleTableProps) {
   const [isAxisSwitched, setIsAxisSwitched] = useState(false);
   const [isFullWidth, setIsFullWidth] = useState(false);
+  const [currentDayOffset, setCurrentDayOffset] = useState(0);
   const queryClient = useQueryClient();
   
   // Enhanced debugging for schedule data
@@ -1045,6 +1030,36 @@ export function ScheduleTable({
     }
     return days;
   }, [dateRange, openingDays]);
+
+  // Calculate max days to show based on full-screen mode and show_sunday setting
+  const maxDaysToShow = useMemo(() => {
+    const showSunday = settings?.display?.show_sunday ?? false;
+    const baseLimit = isFullWidth ? 12 : 6;
+    return showSunday ? baseLimit + 2 : baseLimit;
+  }, [isFullWidth, settings]);
+
+  // Calculate visible days for current page
+  const visibleDaysToDisplay = useMemo(() => {
+    return daysToDisplay.slice(currentDayOffset, currentDayOffset + maxDaysToShow);
+  }, [daysToDisplay, currentDayOffset, maxDaysToShow]);
+
+  // Navigation handlers
+  const handlePrevDays = () => {
+    setCurrentDayOffset(Math.max(0, currentDayOffset - maxDaysToShow));
+  };
+
+  const handleNextDays = () => {
+    const maxOffset = Math.max(0, daysToDisplay.length - maxDaysToShow);
+    setCurrentDayOffset(Math.min(maxOffset, currentDayOffset + maxDaysToShow));
+  };
+
+  // Reset day offset when date range or max days changes
+  useEffect(() => {
+    setCurrentDayOffset(0);
+  }, [dateRange, maxDaysToShow]);
+
+  // Check if navigation is needed
+  const showNavigation = daysToDisplay.length > maxDaysToShow;
 
   // Map for German weekday abbreviations
   const weekdayAbbr: { [key: string]: string } = {
@@ -1312,6 +1327,13 @@ export function ScheduleTable({
                   absenceTypes={absenceTypes}
                   currentVersion={currentVersion}
                   openingDays={openingDays}
+                  daysToDisplay={visibleDaysToDisplay}
+                  showNavigation={showNavigation}
+                  onPrevDays={handlePrevDays}
+                  onNextDays={handleNextDays}
+                  canNavigatePrev={currentDayOffset > 0}
+                  canNavigateNext={currentDayOffset + maxDaysToShow < daysToDisplay.length}
+                  isFullWidth={isFullWidth}
                 />
               ) : (
                 <ScheduleTableNormal
@@ -1323,6 +1345,13 @@ export function ScheduleTable({
                   absenceTypes={absenceTypes}
                   currentVersion={currentVersion}
                   openingDays={openingDays}
+                  daysToDisplay={visibleDaysToDisplay}
+                  showNavigation={showNavigation}
+                  onPrevDays={handlePrevDays}
+                  onNextDays={handleNextDays}
+                  canNavigatePrev={currentDayOffset > 0}
+                  canNavigateNext={currentDayOffset + maxDaysToShow < daysToDisplay.length}
+                  isFullWidth={isFullWidth}
                 />
               )}
             </div>
@@ -1348,7 +1377,22 @@ function ScheduleTableNormal({
   absenceTypes,
   currentVersion,
   openingDays,
-}: Omit<ScheduleTableProps, 'isLoading'>) {
+  daysToDisplay,
+  showNavigation,
+  onPrevDays,
+  onNextDays,
+  canNavigatePrev,
+  canNavigateNext,
+  isFullWidth,
+}: Omit<ScheduleTableProps, 'isLoading'> & {
+  daysToDisplay: Date[];
+  showNavigation: boolean;
+  onPrevDays: () => void;
+  onNextDays: () => void;
+  canNavigatePrev: boolean;
+  canNavigateNext: boolean;
+  isFullWidth: boolean;
+}) {
   const queryClient = useQueryClient();
   
   // Get employees data
@@ -1395,27 +1439,6 @@ function ScheduleTableNormal({
       </>
     );
   };
-
-  const daysToDisplay = useMemo(() => {
-    if (!dateRange?.from || !dateRange?.to) {
-      return [];
-    }
-    const start = dateRange.from;
-    const end = dateRange.to;
-    const days: Date[] = [];
-    let currentDate = new Date(start);
-    while (currentDate <= end) {
-      // Check if the current day's index is in the openingDays array
-      const dayIndex = currentDate.getDay(); // Sunday=0, Monday=1, ..., Saturday=6
-      // Convert Sunday=0 to 6, Monday=1 to 0, ..., Saturday=6 to 5 to match openingDays
-      const adjustedDayIndex = dayIndex === 0 ? 6 : dayIndex - 1;
-      if (openingDays.includes(adjustedDayIndex)) {
-        days.push(new Date(currentDate));
-      }
-      currentDate = addDays(currentDate, 1);
-    }
-    return days;
-  }, [dateRange, openingDays]);
 
   // Map for German weekday abbreviations
   const weekdayAbbr: { [key: string]: string } = {
@@ -1540,7 +1563,31 @@ function ScheduleTableNormal({
       <thead>
         <tr className="border-b border-border">
           <th className="w-[220px] sticky left-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 text-left p-4 font-medium text-foreground border-r border-border">
-            Mitarbeiter
+            <div className="flex items-center justify-between">
+              <span>Mitarbeiter</span>
+              {showNavigation && (
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onPrevDays}
+                    disabled={!canNavigatePrev}
+                    className="h-6 w-6 p-0"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onNextDays}
+                    disabled={!canNavigateNext}
+                    className="h-6 w-6 p-0"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
           </th>
           {daysToDisplay.map((date) => (
             <th
@@ -1715,7 +1762,22 @@ function ScheduleTableSwitched({
   absenceTypes,
   currentVersion,
   openingDays,
-}: Omit<ScheduleTableProps, 'isLoading'>) {
+  daysToDisplay,
+  showNavigation,
+  onPrevDays,
+  onNextDays,
+  canNavigatePrev,
+  canNavigateNext,
+  isFullWidth,
+}: Omit<ScheduleTableProps, 'isLoading'> & {
+  daysToDisplay: Date[];
+  showNavigation: boolean;
+  onPrevDays: () => void;
+  onNextDays: () => void;
+  canNavigatePrev: boolean;
+  canNavigateNext: boolean;
+  isFullWidth: boolean;
+}) {
   const queryClient = useQueryClient();
   
   // Get employees data
@@ -1744,25 +1806,6 @@ function ScheduleTableSwitched({
     const abbr = (firstName[0] + lastName[0] + lastName[1]).toUpperCase();
     return `${lastName}, ${firstName} (${abbr})`;
   };
-
-  const daysToDisplay = useMemo(() => {
-    if (!dateRange?.from || !dateRange?.to) {
-      return [];
-    }
-    const start = dateRange.from;
-    const end = dateRange.to;
-    const days: Date[] = [];
-    let currentDate = new Date(start);
-    while (currentDate <= end) {
-      const dayIndex = currentDate.getDay();
-      const adjustedDayIndex = dayIndex === 0 ? 6 : dayIndex - 1;
-      if (openingDays.includes(adjustedDayIndex)) {
-        days.push(new Date(currentDate));
-      }
-      currentDate = addDays(currentDate, 1);
-    }
-    return days;
-  }, [dateRange, openingDays]);
 
   // Map for German weekday abbreviations
   const weekdayAbbr: { [key: string]: string } = {
@@ -1839,121 +1882,157 @@ function ScheduleTableSwitched({
   };
 
   return (
-    <table className="w-full border-collapse">
-      <thead>
-        <tr className="border-b border-border">
-          <th className="w-[160px] sticky left-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 text-left p-4 font-medium text-foreground border-r border-border">
-            Datum
-          </th>
-          {uniqueEmployeeIds.map((employeeId) => (
-            <th
-              key={employeeId}
-              className="w-[180px] text-center p-4 font-medium text-foreground border-r border-border last:border-r-0"
-            >
-              <div className="text-sm font-medium">
-                {formatEmployeeName(employeeId)}
+    <div className={cn(
+      "w-full",
+      isFullWidth && "h-full overflow-hidden flex flex-col"
+    )}>
+      <table className="w-full border-collapse">
+        <thead>
+          <tr className="border-b border-border">
+            <th className="w-[160px] sticky left-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 text-left p-4 font-medium text-foreground border-r border-border">
+              <div className="flex items-center justify-between">
+                <span>Datum</span>
+                {showNavigation && (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={onPrevDays}
+                      disabled={!canNavigatePrev}
+                      className="h-6 w-6 p-0"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={onNextDays}
+                      disabled={!canNavigateNext}
+                      className="h-6 w-6 p-0"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
             </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {daysToDisplay.map((date) => {
-          const dateString = format(date, "yyyy-MM-dd");
-          const schedulesByEmployee = groupedSchedulesByDate[dateString] || {};
-
-          return (
-            <tr key={dateString} className="hover:bg-muted/20 border-b border-border transition-colors">
-              <td className="font-medium sticky left-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 w-[160px] p-3 border-r border-border">
-                <div className="text-center">
-                  <div className="font-medium text-base">
-                    {weekdayAbbr[format(date, "EEEE")]}
-                  </div>
-                  <div className="text-sm text-muted-foreground font-medium">
-                    {format(date, "dd.MM")}
-                  </div>
+            {uniqueEmployeeIds.map((employeeId) => (
+              <th
+                key={employeeId}
+                className="w-[180px] text-center p-4 font-medium text-foreground border-r border-border last:border-r-0"
+              >
+                <div className="text-sm font-medium">
+                  {formatEmployeeName(employeeId)}
                 </div>
-              </td>
-              {uniqueEmployeeIds.map((employeeId) => {
-                const schedule = schedulesByEmployee[employeeId];
+              </th>
+            ))}
+          </tr>
+        </thead>
+      </table>
+      <div className={cn(
+        "w-full overflow-auto",
+        isFullWidth && "flex-1 max-h-[calc(100vh-180px)]"
+      )}>
+        <table className="w-full border-collapse">
+          <tbody>
+            {daysToDisplay.map((date) => {
+              const dateString = format(date, "yyyy-MM-dd");
+              const schedulesByEmployee = groupedSchedulesByDate[dateString] || {};
 
-                const hasAbsence = checkForAbsence(
-                  employeeId,
-                  dateString,
-                  employeeAbsences,
-                  absenceTypes,
-                );
-
-                const cellStyle = hasAbsence
-                  ? {
-                      backgroundColor: `${hasAbsence.type.color}15`,
-                      position: "relative" as const,
-                    }
-                  : {};
-
-                return (
-                  <td
-                    key={`${dateString}-${employeeId}`}
-                    className={cn(
-                      "text-center p-0 w-[180px] h-[130px] border-r border-border last:border-r-0 transition-colors",
-                      hasAbsence ? "relative" : "",
-                    )}
-                    style={{
-                      ...cellStyle,
-                      borderColor: hasAbsence
-                        ? `${hasAbsence.type.color}`
-                        : undefined,
-                    }}
-                    title={
-                      hasAbsence
-                        ? `${hasAbsence.type.name}`
-                        : undefined
-                    }
-                  >
-                    {hasAbsence && (
-                      <>
-                        <div
-                          className="absolute top-0 left-0 right-0 px-2 py-1 text-sm font-bold z-10 text-center"
-                          style={{
-                            backgroundColor: hasAbsence.type.color,
-                            color: "#fff",
-                            borderTopLeftRadius: "0.25rem",
-                            borderTopRightRadius: "0.25rem",
-                          }}
-                        >
-                          {hasAbsence.type.name}
-                        </div>
-                        <div className="absolute inset-0 mt-8 flex flex-col items-center justify-center space-y-2 pt-4">
-                          <AlertTriangle className="h-5 w-5 text-amber-400" />
-                          <span className="text-xs text-muted-foreground font-medium text-center px-2">
-                            No shifts allowed
-                            <br />
-                            during absence
-                          </span>
-                        </div>
-                      </>
-                    )}
-                    <ScheduleCell
-                      schedule={schedule}
-                      onDrop={(scheduleId, newEmployeeId, newDate, newShiftId) =>
-                        onDrop(scheduleId, newEmployeeId, newDate, newShiftId)
-                      }
-                      onUpdate={(scheduleId, updates) =>
-                        onUpdate(scheduleId, updates)
-                      }
-                      hasAbsence={!!hasAbsence}
-                      employeeId={employeeId}
-                      date={date}
-                      currentVersion={currentVersion}
-                    />
+              return (
+                <tr key={dateString} className="hover:bg-muted/20 border-b border-border transition-colors">
+                  <td className="font-medium sticky left-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 w-[160px] p-3 border-r border-border">
+                    <div className="text-center">
+                      <div className="font-medium text-base">
+                        {weekdayAbbr[format(date, "EEEE")]}
+                      </div>
+                      <div className="text-sm text-muted-foreground font-medium">
+                        {format(date, "dd.MM")}
+                      </div>
+                    </div>
                   </td>
-                );
-              })}
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+                  {uniqueEmployeeIds.map((employeeId) => {
+                    const schedule = schedulesByEmployee[employeeId];
+
+                    const hasAbsence = checkForAbsence(
+                      employeeId,
+                      dateString,
+                      employeeAbsences,
+                      absenceTypes,
+                    );
+
+                    const cellStyle = hasAbsence
+                      ? {
+                          backgroundColor: `${hasAbsence.type.color}15`,
+                          position: "relative" as const,
+                        }
+                      : {};
+
+                    return (
+                      <td
+                        key={`${dateString}-${employeeId}`}
+                        className={cn(
+                          "text-center p-0 w-[180px] h-[130px] border-r border-border last:border-r-0 transition-colors",
+                          hasAbsence ? "relative" : "",
+                        )}
+                        style={{
+                          ...cellStyle,
+                          borderColor: hasAbsence
+                            ? `${hasAbsence.type.color}`
+                            : undefined,
+                        }}
+                        title={
+                          hasAbsence
+                            ? `${hasAbsence.type.name}`
+                            : undefined
+                        }
+                      >
+                        {hasAbsence && (
+                          <>
+                            <div
+                              className="absolute top-0 left-0 right-0 px-2 py-1 text-sm font-bold z-10 text-center"
+                              style={{
+                                backgroundColor: hasAbsence.type.color,
+                                color: "#fff",
+                                borderTopLeftRadius: "0.25rem",
+                                borderTopRightRadius: "0.25rem",
+                              }}
+                            >
+                              {hasAbsence.type.name}
+                            </div>
+                            <div className="absolute inset-0 mt-8 flex flex-col items-center justify-center space-y-2 pt-4">
+                              <AlertTriangle className="h-5 w-5 text-amber-400" />
+                              <span className="text-xs text-muted-foreground font-medium text-center px-2">
+                                No shifts allowed
+                                <br />
+                                during absence
+                              </span>
+                            </div>
+                          </>
+                        )}
+                        <ScheduleCell
+                          schedule={schedule}
+                          onDrop={(scheduleId, newEmployeeId, newDate, newShiftId) =>
+                            onDrop(scheduleId, newEmployeeId, newDate, newShiftId)
+                          }
+                          onUpdate={(scheduleId, updates) =>
+                            onUpdate(scheduleId, updates)
+                          }
+                          hasAbsence={!!hasAbsence}
+                          employeeId={employeeId}
+                          date={date}
+                          currentVersion={currentVersion}
+                        />
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
