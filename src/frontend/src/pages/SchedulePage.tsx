@@ -132,6 +132,9 @@ import {
 import { DiagnosticsDialog } from "@/components/Schedule/DiagnosticsDialog";
 import { ActionDock } from "@/components/dock/ActionDock";
 import { DetailedAIGenerationModal } from "@/components/modals/DetailedAIGenerationModal";
+import { MEPDataService } from "@/services/mepDataService";
+import { MEPTemplate } from "@/components/Schedule/MEPTemplate";
+import ReactDOM from "react-dom/client";
 
 function getErrorMessage(error: any): string {
   if (error && typeof error === "object" && "message" in error) {
@@ -301,22 +304,33 @@ export function SchedulePage() {
   });
 
   // Mutations
-  const exportMutation = useMutation<Blob, Error>({
-    mutationFn: async () => {
+  const exportMutation = useMutation<Blob, Error, { format: 'standard' | 'mep' | 'mep-html', filiale?: string }>({
+    mutationFn: async ({ format: exportFormat, filiale }) => {
       if (!dateRange?.from || !dateRange?.to) {
         throw new Error("Bitte wählen Sie einen Zeitraum aus");
       }
-      addGenerationLog("info", "Starting PDF export");
+      const exportType = exportFormat === 'mep' ? 'MEP' : 'Standard';
+      addGenerationLog("info", `Starting ${exportType} PDF export`);
+      
       const response = await exportSchedule(
         format(dateRange.from, "yyyy-MM-dd"),
         format(dateRange.to, "yyyy-MM-dd"),
+        undefined, // layoutConfig
+        exportFormat,
+        filiale
       );
-      addGenerationLog("info", "PDF export completed");
+      
+      addGenerationLog("info", `${exportType} PDF export completed`);
       const blob = new Blob([response], { type: "application/pdf" });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Schichtplan_${format(dateRange.from, "yyyy-MM-dd")}_${format(dateRange.to, "yyyy-MM-dd")}.pdf`;
+      
+      // Generate appropriate filename based on format
+      const prefix = exportFormat === 'mep' ? 'MEP' : 'Schichtplan';
+      const dateStr = `${format(dateRange.from, "yyyy-MM-dd")}_${format(dateRange.to, "yyyy-MM-dd")}`;
+      a.download = `${prefix}_${dateStr}.pdf`;
+      
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -415,9 +429,109 @@ export function SchedulePage() {
     queryClient.invalidateQueries({ queryKey: ["schedules"] });
   }, [clearGenerationLogs, queryClient]); // Removed refetchScheduleData dependency
 
-  const handleExportSchedule = useCallback(() => {
-    exportMutation.mutate();
-  }, [exportMutation]);
+  const handleHTMLMEPExport = useCallback((filiale: string) => {
+    if (!dateRange?.from || !dateRange?.to || !scheduleData || !employees) {
+      toast({
+        title: "Export nicht möglich",
+        description: "Bitte stellen Sie sicher, dass Zeitraum und Daten geladen sind.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Process the data for MEP template
+      const mepData = MEPDataService.processSchedulesForMEP(
+        scheduleData,
+        employees,
+        dateRange.from,
+        dateRange.to,
+        filiale
+      );
+
+      // Create a new window/tab for the MEP template
+      const newWindow = window.open('', '_blank', 'width=1200,height=800');
+      if (!newWindow) {
+        throw new Error('Popup blockiert. Bitte erlauben Sie Popups für diese Seite.');
+      }
+
+      // Write the HTML structure
+      newWindow.document.write(`
+        <!DOCTYPE html>
+        <html lang="de">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>MEP - ${mepData.filiale} - ${mepData.dateInfo.weekFrom} bis ${mepData.dateInfo.weekTo}</title>
+          <style>
+            body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+            #mep-root { width: 100%; height: 100vh; }
+          </style>
+        </head>
+        <body>
+          <div id="mep-root"></div>
+        </body>
+        </html>
+      `);
+      newWindow.document.close();
+
+      // Load the CSS file content and inject it
+      const loadCSS = async () => {
+        try {
+          const response = await fetch('/src/components/Schedule/MEPTemplate.css');
+          const cssContent = await response.text();
+          
+          const style = newWindow.document.createElement('style');
+          style.textContent = cssContent;
+          newWindow.document.head.appendChild(style);
+          
+          // Now render the MEP component
+          renderMEPComponent();
+        } catch (error) {
+          console.warn('Could not load CSS file, using inline styles');
+          renderMEPComponent();
+        }
+      };
+
+      const renderMEPComponent = () => {
+        // Create React element
+        const mepElement = React.createElement(MEPTemplate, {
+          data: mepData,
+          onPrint: () => newWindow.print()
+        });
+
+        // Render it in the new window
+        const root = ReactDOM.createRoot(newWindow.document.getElementById('mep-root')!);
+        root.render(mepElement);
+      };
+
+      // Load CSS and render
+      loadCSS();
+
+      addGenerationLog("info", "MEP Template in neuem Fenster geöffnet");
+      toast({
+        title: "MEP Export erfolgreich",
+        description: "Das MEP-Template wurde in einem neuen Fenster geöffnet. Verwenden Sie Strg+P zum Drucken.",
+      });
+
+    } catch (error) {
+      addGenerationLog("error", "HTML MEP export failed", getErrorMessage(error));
+      toast({
+        title: "Fehler beim MEP Export", 
+        description: getErrorMessage(error),
+        variant: "destructive",
+      });
+    }
+  }, [dateRange, scheduleData, employees, addGenerationLog, toast]);
+
+  const handleExportSchedule = useCallback(async (format: 'standard' | 'mep' | 'mep-html', filiale?: string) => {
+    if (format === 'mep-html') {
+      // Handle HTML MEP export differently - open in new tab
+      handleHTMLMEPExport(filiale || '');
+    } else {
+      exportMutation.mutate({ format, filiale });
+    }
+  }, [exportMutation, handleHTMLMEPExport]);
 
   const handlePreviewAiData = useCallback(() => {
     if (!dateRange?.from || !dateRange?.to || !versionControlSelectedVersion) {
@@ -1332,6 +1446,7 @@ export function SchedulePage() {
         <ScheduleControls
           onRefresh={handleRetryFetch}
           onExport={handleExportSchedule}
+          isExporting={exportMutation.isPending}
         />
       </PageHeader>
 

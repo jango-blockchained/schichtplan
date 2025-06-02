@@ -499,11 +499,27 @@ export const exportSchedule = async (
   startDate: string,
   endDate: string,
   layoutConfig?: any,
+  format?: 'standard' | 'mep' | 'mep-html',
+  filiale?: string,
 ): Promise<Blob> => {
   try {
+    const payload: any = { 
+      start_date: startDate, 
+      end_date: endDate, 
+      layout_config: layoutConfig 
+    };
+
+    // Add MEP-specific parameters if MEP format is requested
+    if (format) {
+      payload.format = format;
+    }
+    if (filiale) {
+      payload.filiale = filiale;
+    }
+
     const response = await api.post(
-      "/api/v2/schedules/export/pdf",
-      { start_date: startDate, end_date: endDate, layout_config: layoutConfig },
+      "/api/v2/schedules/export",
+      payload,
       {
         responseType: "blob",
       }

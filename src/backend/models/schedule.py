@@ -13,6 +13,7 @@ class ScheduleStatus(str, Enum):
     PUBLISHED = "PUBLISHED"  # Published to employees, can't be modified
     ARCHIVED = "ARCHIVED"  # Old schedule, kept for records
     PENDING = "PENDING"  # Added to fix version 1 database records
+    ASSIGNED = "ASSIGNED"  # Legacy status for assigned schedules (treated as DRAFT)
 
 
 class Schedule(db.Model):
