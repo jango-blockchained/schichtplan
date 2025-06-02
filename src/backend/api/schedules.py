@@ -720,15 +720,33 @@ def test_schedule_generation(client, app):
 def get_all_versions():
     """Get all schedule versions with their metadata"""
     try:
-        # Get date range from query parameters
+        # Get query parameters
         start_date = request.args.get("start_date")
         end_date = request.args.get("end_date")
+        week_identifier = request.args.get("week_identifier")  # New: week-based query
+        include_legacy = request.args.get("include_legacy", "true").lower() == "true"
 
+        # Support week-based querying
+        if week_identifier:
+            from ..services.week_version_service import WeekVersionService
+            from ..utils.week_utils import get_week_from_identifier
+            
+            try:
+                week_info = get_week_from_identifier(week_identifier)
+                start_of_week = week_info.start_date
+                end_of_week = week_info.end_date
+            except ValueError:
+                return jsonify(
+                    {"error": f"Invalid week identifier: {week_identifier}"}
+                ), HTTPStatus.BAD_REQUEST
+        
         # If no date range provided, use current week
-        if not start_date or not end_date:
-            today = date.today()
-            start_of_week = today - timedelta(days=today.weekday())
-            end_of_week = start_of_week + timedelta(days=6)
+        elif not start_date or not end_date:
+            from ..utils.week_utils import get_current_week_identifier, get_week_from_identifier
+            current_week = get_current_week_identifier()
+            week_info = get_week_from_identifier(current_week)
+            start_of_week = week_info.start_date
+            end_of_week = week_info.end_date
         else:
             try:
                 start_of_week = datetime.strptime(start_date, "%Y-%m-%d").date()
@@ -738,12 +756,25 @@ def get_all_versions():
                     {"error": "Invalid date format, expected YYYY-MM-DD"}
                 ), HTTPStatus.BAD_REQUEST
 
-        # Get all version metadata
+        # Get all version metadata with enhanced filtering
         version_metas_query = ScheduleVersionMeta.query.filter(  # type: ignore
             ScheduleVersionMeta.date_range_start <= end_of_week,  # type: ignore
             ScheduleVersionMeta.date_range_end >= start_of_week,
-        ).order_by(ScheduleVersionMeta.version.desc())  # type: ignore  # type: ignore
-        version_metas = version_metas_query.all()
+        )
+        
+        # Filter by version type if requested
+        if not include_legacy:
+            version_metas_query = version_metas_query.filter(
+                ScheduleVersionMeta.is_week_based == True
+            )
+        
+        # If querying by specific week identifier
+        if week_identifier:
+            version_metas_query = version_metas_query.filter(
+                ScheduleVersionMeta.week_identifier == week_identifier
+            )
+        
+        version_metas = version_metas_query.order_by(ScheduleVersionMeta.version.desc()).all()
 
         # If no versions exist, return empty list
         if not version_metas:
@@ -827,9 +858,35 @@ def create_new_version():
         data = request.get_json()
         start_date = data.get("start_date")
         end_date = data.get("end_date")
+        week_identifier = data.get("week_identifier")  # New: week-based identifier
         base_version = data.get("base_version")
         notes = data.get("notes", "")
         create_empty = data.get("create_empty_schedules", True)
+        
+        # Support week-based creation
+        if week_identifier:
+            from ..services.week_version_service import WeekVersionService
+            service = WeekVersionService()
+            
+            # Check if version already exists for this week
+            existing = service.get_version_by_week(week_identifier)
+            if existing:
+                return jsonify({
+                    "error": f"Version already exists for week {week_identifier}",
+                    "existing_version": existing.to_dict()
+                }), HTTPStatus.CONFLICT
+            
+            # Create week-based version
+            try:
+                version_meta = service.create_week_version(
+                    week_identifier=week_identifier,
+                    base_version=base_version,
+                    notes=notes,
+                    create_empty_schedules=create_empty
+                )
+                return jsonify(version_meta.to_dict()), HTTPStatus.CREATED
+            except Exception as e:
+                return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
         # Validate required parameters
         if not start_date or not end_date:

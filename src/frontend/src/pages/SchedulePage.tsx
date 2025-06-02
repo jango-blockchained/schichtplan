@@ -39,6 +39,7 @@ import {
   parseISO,
 } from "date-fns";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   exportSchedule,
@@ -111,6 +112,7 @@ import ScheduleErrors from "@/components/Schedule/ScheduleErrors";
 import ScheduleControls from "@/components/Schedule/ScheduleControls";
 import useScheduleGeneration from "@/hooks/useScheduleGeneration";
 import useVersionControl from "@/hooks/useVersionControl";
+import { useWeekBasedVersionControl } from "@/hooks/useWeekBasedVersionControl";
 import { DateRange } from "react-day-picker";
 import { ScheduleActions } from "@/components/Schedule/ScheduleActions";
 // import { ScheduleFixActions } from '@/components/Schedule/ScheduleFixActions'; // Original, might be unused
@@ -119,6 +121,9 @@ import { ScheduleStatistics } from "@/components/Schedule/ScheduleStatistics";
 import { EnhancedDateRangeSelector } from "@/components/EnhancedDateRangeSelector";
 import { VersionTable } from "@/components/Schedule/VersionTable";
 import { ScheduleManager } from "@/components/ScheduleManager";
+import { WeekNavigator } from "@/components/WeekNavigator";
+import { WeekVersionDisplay } from "@/components/WeekVersionDisplay";
+import { WeekSettings } from "@/components/WeekSettings";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -229,6 +234,9 @@ export function SchedulePage() {
       .sort((a, b) => a - b);
   }, [effectiveSettingsData]);
 
+  // Week-based navigation toggle state
+  const [useWeekBasedNavigation, setUseWeekBasedNavigation] = useState(false);
+
   // Custom Hook for Version Control
   const {
     selectedVersion: versionControlSelectedVersion,
@@ -251,6 +259,18 @@ export function SchedulePage() {
         version,
       );
       setSelectedVersion(version); // Update local state, an effect will handle refetching
+    },
+  });
+
+  // Week-based Version Control Hook (Alternative to legacy version control)
+  const weekBasedVersionControl = useWeekBasedVersionControl({
+    onWeekChanged: (weekIdentifier) => {
+      console.log("🔄 SchedulePage: Week changed to:", weekIdentifier);
+      // The hook handles date range updates internally
+    },
+    onVersionSelected: (version) => {
+      console.log("🔄 SchedulePage: Week-based version selected:", version);
+      setSelectedVersion(version);
     },
   });
 
@@ -1450,21 +1470,78 @@ export function SchedulePage() {
         />
       </PageHeader>
 
-      {/* 1. Date Selection */}
+      {/* Navigation Mode Toggle */}
       <div className="mb-4">
-        <EnhancedDateRangeSelector
-          dateRange={dateRange}
-          scheduleDuration={weekAmount}
-          onWeekChange={handleWeekChange}
-          onDurationChange={handleDurationChange}
-          hasVersions={versionMetas.length > 0}
-          onCreateNewVersion={handleCreateNewVersionPage}
-          onCreateNewVersionWithSpecificDateRange={
-            handleCreateNewVersionFromDialog
-          }
-          currentVersion={versionControlSelectedVersion}
-        />
+        <Card>
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <div className="text-sm font-medium">Navigation Modus</div>
+                <div className="text-xs text-muted-foreground">
+                  {useWeekBasedNavigation 
+                    ? 'Wochenbasierte Navigation (Beta) - ISO Kalenderwochen' 
+                    : 'Standard Datumsbereich Navigation'}
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm">Standard</span>
+                <Switch
+                  checked={useWeekBasedNavigation}
+                  onCheckedChange={setUseWeekBasedNavigation}
+                />
+                <span className="text-sm">Wochenbasiert</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* 1. Date Selection - Conditional based on navigation mode */}
+      {useWeekBasedNavigation ? (
+        <div className="mb-4 space-y-4">
+          <WeekNavigator
+            currentWeekInfo={weekBasedVersionControl.currentWeekInfo}
+            onNavigatePrevious={weekBasedVersionControl.navigateNext}
+            onNavigateNext={weekBasedVersionControl.navigatePrevious}
+            isLoading={weekBasedVersionControl.navigationState.isLoading}
+            hasVersion={weekBasedVersionControl.navigationState.hasVersions}
+          />
+          
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2">
+              <WeekVersionDisplay
+                currentWeekInfo={weekBasedVersionControl.currentWeekInfo}
+                onCreateVersion={() => weekBasedVersionControl.createVersionForWeek(
+                  weekBasedVersionControl.navigationState.currentWeek
+                )}
+              />
+            </div>
+            <div>
+              <WeekSettings
+                weekendStart={weekBasedVersionControl.navigationState.weekendStart}
+                monthBoundaryMode={weekBasedVersionControl.navigationState.monthBoundaryMode}
+                onWeekendStartChange={(weekendStart) => console.log('Weekend start changed:', weekendStart)}
+                onMonthBoundaryModeChange={(mode) => console.log('Month boundary mode changed:', mode)}
+              />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="mb-4">
+          <EnhancedDateRangeSelector
+            dateRange={dateRange}
+            scheduleDuration={weekAmount}
+            onWeekChange={handleWeekChange}
+            onDurationChange={handleDurationChange}
+            hasVersions={versionMetas.length > 0}
+            onCreateNewVersion={handleCreateNewVersionPage}
+            onCreateNewVersionWithSpecificDateRange={
+              handleCreateNewVersionFromDialog
+            }
+            currentVersion={versionControlSelectedVersion}
+          />
+        </div>
+      )}
 
       {/* 2. Version Table */}
       {versionMetas && versionMetas.length > 0 && (

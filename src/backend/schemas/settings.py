@@ -104,6 +104,9 @@ class GeneralSettings(BaseModel):  # Modified as per plan
     time_format: Optional[str] = Field(
         None, description="Preferred time format (e.g., 12h or 24h)."
     )
+    weekend_start: Optional[int] = Field(
+        None, description="Weekend start preference (0=Sunday, 1=Monday)."
+    )
     store_opening: Optional[str] = Field(
         None, description="Default store opening time (HH:MM)."
     )  # For general reference

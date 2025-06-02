@@ -239,6 +239,11 @@ class ScheduleVersionMeta(db.Model):
     date_range_end = Column(db.Date, nullable=False)
     base_version = Column(Integer, nullable=True)
     notes = Column(db.Text, nullable=True)
+    
+    # Week-based versioning fields
+    week_identifier = Column(db.String(20), nullable=True, index=True)
+    month_boundary_mode = Column(db.String(20), nullable=False, default="keep_intact")
+    is_week_based = Column(db.Boolean, nullable=False, default=False)
 
     def __init__(
         self,
@@ -252,6 +257,9 @@ class ScheduleVersionMeta(db.Model):
         date_range_end=None,
         base_version=None,
         notes=None,
+        week_identifier=None,
+        month_boundary_mode="keep_intact",
+        is_week_based=False,
     ):
         self.version = version
         self.created_at = created_at or datetime.now(UTC)
@@ -263,6 +271,9 @@ class ScheduleVersionMeta(db.Model):
         self.date_range_end = date_range_end
         self.base_version = base_version
         self.notes = notes
+        self.week_identifier = week_identifier
+        self.month_boundary_mode = month_boundary_mode
+        self.is_week_based = is_week_based
 
     def to_dict(self):
         return {
@@ -286,4 +297,7 @@ class ScheduleVersionMeta(db.Model):
             },
             "base_version": self.base_version,
             "notes": self.notes,
+            "week_identifier": self.week_identifier,
+            "month_boundary_mode": self.month_boundary_mode,
+            "is_week_based": self.is_week_based,
         }
