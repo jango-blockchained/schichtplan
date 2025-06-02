@@ -45,10 +45,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python development tools
-RUN pip3 install --upgrade pip setuptools wheel
+RUN pip3 install --break-system-packages --upgrade pip setuptools wheel
 
 # Install common Python packages for development
-RUN pip3 install \
+# Use --break-system-packages to handle conflicts with system packages
+RUN pip3 install --break-system-packages \
     black \
     flake8 \
     mypy \
@@ -87,7 +88,7 @@ RUN npm install -g \
     kill-port
 
 # Set up Python environment
-RUN python3 -m pip install --user pipx && \
+RUN python3 -m pip install --break-system-packages --user pipx && \
     python3 -m pipx ensurepath
 
 # Create common development directories
