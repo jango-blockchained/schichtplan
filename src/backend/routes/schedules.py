@@ -875,36 +875,68 @@ def export_schedule():
             Schedule.date >= start_date.date(), Schedule.date <= end_date.date()
         ).all()
 
+        # Check if MEP format is requested
+        export_format = data.get("format", "standard")  # default to standard
+        filiale = data.get("filiale", "")  # branch/store name for MEP
+        
         # Generate PDF
-        generator = PDFGenerator()
-        try:
-            pdf_buffer = generator.generate_schedule_pdf(
-                schedules, start_date, end_date, layout_config
-            )
+        if export_format.lower() == "mep":
+            from ..services.mep_pdf_generator import MEPPDFGenerator
+            generator = MEPPDFGenerator()
+            try:
+                pdf_buffer = generator.generate_mep_pdf(
+                    schedules, start_date, end_date, filiale, layout_config
+                )
+            except Exception as e:
+                import traceback
+                error_msg = f"MEP PDF generation error: {str(e)}"
+                logger.error(
+                    error_msg,
+                    extra={
+                        "action": "mep_pdf_generation_error",
+                        "error": str(e),
+                        "traceback": traceback.format_exc(),
+                    },
+                    exc_info=True,
+                )
+                return jsonify(
+                    {"status": "error", "message": error_msg}
+                ), HTTPStatus.INTERNAL_SERVER_ERROR
+        else:
+            # Use standard PDF generator
+            generator = PDFGenerator()
+            try:
+                pdf_buffer = generator.generate_schedule_pdf(
+                    schedules, start_date, end_date, layout_config
+                )
+            except Exception as e:
+                import traceback
+                error_msg = f"Standard PDF generation error: {str(e)}"
+                logger.error(
+                    error_msg,
+                    extra={
+                        "action": "pdf_generation_error",
+                        "error": str(e),
+                        "traceback": traceback.format_exc(),
+                    },
+                    exc_info=True,
+                )
+                return jsonify(
+                    {"status": "error", "message": error_msg}
+                ), HTTPStatus.INTERNAL_SERVER_ERROR
 
-            return send_file(
-                pdf_buffer,
-                mimetype="application/pdf",
-                as_attachment=True,
-                download_name=f"schedule_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.pdf",
-            )
-        except Exception as e:
-            import traceback
-
-            error_msg = f"PDF generation error: {str(e)}"
-            logger.error(
-                error_msg,
-                extra={
-                    "action": "pdf_generation_error",
-                    "error": str(e),
-                    "traceback": traceback.format_exc(),
-                },
-                exc_info=True,
-            )
-            return jsonify(
-                {"status": "error", "message": error_msg}
-            ), HTTPStatus.INTERNAL_SERVER_ERROR
-
+        # Determine filename based on format
+        if export_format.lower() == "mep":
+            filename_prefix = "MEP"
+        else:
+            filename_prefix = "schedule"
+            
+        return send_file(
+            pdf_buffer,
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=f"{filename_prefix}_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.pdf",
+        )
     except (KeyError, ValueError) as e:
         return jsonify(
             {"status": "error", "message": f"Invalid input: {str(e)}"}
@@ -912,7 +944,7 @@ def export_schedule():
     except Exception as e:
         import traceback
 
-        error_msg = f"Unexpected error: {str(e)}"
+        error_msg = f"PDF export error: {str(e)}"
         logger.error(
             error_msg,
             extra={
@@ -937,7 +969,7 @@ def publish_schedule(version):
             ), HTTPStatus.NOT_FOUND
 
         for schedule in schedules:
-            schedule.status = "published"
+            schedule.status = ScheduleStatus.PUBLISHED
 
         db.session.commit()
         return jsonify(
@@ -961,7 +993,7 @@ def archive_schedule(version):
             ), HTTPStatus.NOT_FOUND
 
         for schedule in schedules:
-            schedule.status = "archived"
+            schedule.status = ScheduleStatus.ARCHIVED
 
         db.session.commit()
         return jsonify(

@@ -866,7 +866,7 @@ class DistributionManager:
                 "employee_id": employee_id,
                 "shift_id": shift_id,
                 "date": shift_date,
-                "status": "ASSIGNED",
+                "status": "DRAFT",
                 "version": getattr(self, 'version', 1),
                 "start_time": start_time,
                 "end_time": end_time,

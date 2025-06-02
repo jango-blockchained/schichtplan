@@ -407,7 +407,7 @@ def validate_assignment_data(assignment: Dict[str, Any]) -> Dict[str, Any]:
     
     # Validate status
     if data.get('status'):
-        valid_statuses = ['PENDING', 'ASSIGNED', 'CONFIRMED', 'CANCELLED', 'EMPTY']
+        valid_statuses = ['PENDING', 'DRAFT', 'PUBLISHED', 'ARCHIVED']
         if data['status'] not in valid_statuses:
             warnings.append(f"Unusual status: {data['status']}")
     

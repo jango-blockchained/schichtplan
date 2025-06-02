@@ -490,87 +490,102 @@ def export_schedule():
     """Export schedule as PDF"""
     try:
         data = request.get_json()
-        start_date = datetime.strptime(data["start_date"], "%Y-%m-%d").date()
-        end_date = datetime.strptime(data["end_date"], "%Y-%m-%d").date()
+        start_date = datetime.strptime(data["start_date"], "%Y-%m-%d")
+        end_date = datetime.strptime(data["end_date"], "%Y-%m-%d")
 
         # Get schedules for the period
         schedules = (
             Schedule.query.filter(
-                Schedule.date >= start_date, Schedule.date <= end_date
+                Schedule.date >= start_date.date(), Schedule.date <= end_date.date()
             )  # type: ignore
             .order_by(Schedule.date, Schedule.shift_id)  # type: ignore
             .all()
         )
 
-        # Create PDF
-        buffer = BytesIO()
-        p = canvas.Canvas(buffer, pagesize=pagesizes.landscape(pagesizes.A4))
+        # Check if MEP format is requested
+        export_format = data.get("format", "standard")  # default to standard
+        filiale = data.get("filiale", "")  # branch/store name for MEP
+        layout_config = data.get("layout_config")
 
-        # Add header
-        p.setFont("Helvetica-Bold", 14)
-        p.drawString(1 * inch, 7.5 * inch, f"Schedule: {start_date} to {end_date}")
-
-        # Add column headers
-        p.setFont("Helvetica-Bold", 12)
-        headers = ["Date", "Employee", "Shift", "Time", "Break"]
-        x_positions = [1 * inch, 2.5 * inch, 4.5 * inch, 6 * inch, 7.5 * inch]
-        y_position = 7 * inch
-
-        for header, x in zip(headers, x_positions):
-            p.drawString(x, y_position, header)
-
-        # Add schedule entries
-        p.setFont("Helvetica", 10)
-        entries_per_page = 30
-        entry_count = 0
-
-        for schedule in schedules:
-            if entry_count >= entries_per_page:
-                p.showPage()
-                entry_count = 0
-                y_position = 7 * inch
-
-                # Add headers to new page
-                p.setFont("Helvetica-Bold", 12)
-                for header, x in zip(headers, x_positions):
-                    p.drawString(x, y_position, header)
-                p.setFont("Helvetica", 10)
-
-            y_position -= 0.3 * inch
-            entry_count += 1
-
-            # Date
-            p.drawString(1 * inch, y_position, schedule.date.strftime("%Y-%m-%d"))
-
-            # Employee
-            p.drawString(
-                2.5 * inch,
-                y_position,
-                f"{schedule.employee.first_name} {schedule.employee.last_name}",
-            )
-
-            # Shift
-            p.drawString(4.5 * inch, y_position, schedule.shift.shift_type.value)
-
-            # Time
-            p.drawString(
-                6 * inch,
-                y_position,
-                f"{schedule.shift.start_time.strftime('%H:%M')}-"
-                f"{schedule.shift.end_time.strftime('%H:%M')}",
-            )
-
-            # Break
-            if schedule.break_start and schedule.break_end:
-                p.drawString(
-                    7.5 * inch,
-                    y_position,
-                    f"{schedule.break_start.strftime('%H:%M')}-"
-                    f"{schedule.break_end.strftime('%H:%M')}",
+        # Generate PDF based on format
+        if export_format.lower() == "mep":
+            from ..services.mep_pdf_generator import MEPPDFGenerator
+            generator = MEPPDFGenerator()
+            try:
+                buffer = generator.generate_mep_pdf(
+                    schedules, start_date, end_date, filiale, layout_config
                 )
+                filename_prefix = "MEP"
+            except Exception as e:
+                return jsonify(
+                    {"error": "Could not generate MEP PDF", "details": str(e)}
+                ), HTTPStatus.INTERNAL_SERVER_ERROR
+        else:
+            # Use legacy simple PDF generation for backward compatibility
+            buffer = BytesIO()
+            p = canvas.Canvas(buffer, pagesize=pagesizes.landscape(pagesizes.A4))
+            filename_prefix = "schedule"
 
-        p.save()
-        buffer.seek(0)
+            # Add header (only for legacy format)
+            p.setFont("Helvetica-Bold", 14)
+            p.drawString(1 * inch, 7.5 * inch, f"Schedule: {start_date.date()} to {end_date.date()}")
+
+            # Add column headers (only for legacy format)
+            p.setFont("Helvetica-Bold", 12)
+            headers = ["Date", "Employee", "Shift", "Time", "Break"]
+            x_positions = [1 * inch, 2.5 * inch, 4.5 * inch, 6 * inch, 7.5 * inch]
+            y_position = 7 * inch
+
+            for header, x in zip(headers, x_positions):
+                p.drawString(x, y_position, header)
+
+            # Add schedule entries (only for legacy format)
+            p.setFont("Helvetica", 10)
+            entries_per_page = 30
+            entry_count = 0
+
+            for schedule in schedules:
+                if entry_count >= entries_per_page:
+                    p.showPage()
+                    entry_count = 0
+                    y_position = 7 * inch
+
+                    # Add headers to new page
+                    p.setFont("Helvetica-Bold", 12)
+                    for header, x in zip(headers, x_positions):
+                        p.drawString(x, y_position, header)
+                    p.setFont("Helvetica", 10)
+
+                y_position -= 0.3 * inch
+                entry_count += 1
+
+                # Date
+                p.drawString(1 * inch, y_position, schedule.date.strftime("%Y-%m-%d"))
+
+                # Employee
+                if schedule.employee:
+                    p.drawString(
+                        2.5 * inch,
+                        y_position,
+                        f"{schedule.employee.first_name} {schedule.employee.last_name}",
+                    )
+
+                # Shift
+                if schedule.shift:
+                    p.drawString(4.5 * inch, y_position, schedule.shift.shift_type.value if schedule.shift.shift_type else "")
+
+                    # Time
+                    start_time = schedule.shift_start or (schedule.shift.start_time if schedule.shift else "")
+                    end_time = schedule.shift_end or (schedule.shift.end_time if schedule.shift else "")
+                    if start_time and end_time:
+                        p.drawString(6 * inch, y_position, f"{start_time}-{end_time}")
+
+                # Break
+                if schedule.break_start and schedule.break_end:
+                    p.drawString(7.5 * inch, y_position, f"{schedule.break_start}-{schedule.break_end}")
+
+            p.save()
+            buffer.seek(0)
 
         return send_file(
             buffer,
