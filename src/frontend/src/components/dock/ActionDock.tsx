@@ -303,7 +303,7 @@ export const ActionDock: React.FC<ActionDockProps> = ({
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90 border-t border-border shadow-lg">
+    <div className="fixed bottom-0 left-0 right-0 z-60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90 border-t border-border shadow-lg">
       {/* Dock Header */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-border">
         <div className="flex items-center gap-2">
