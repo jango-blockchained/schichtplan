@@ -144,7 +144,7 @@ def get_versions_for_date_range(start_date, end_date):
 
     except Exception as e:
         logger.error(f"Error in get_versions_for_date_range: {str(e)}", exc_info=True)
-        return None  # Return None instead of re-raising to prevent cascading errors
+        return []  # Return empty list instead of None to prevent iteration errors
 
 
 @schedules.route("/schedules", methods=["GET"])
@@ -185,6 +185,10 @@ def get_schedules():
 
         # Get all versions for this date range
         available_versions = get_versions_for_date_range(start_date, end_date)
+        
+        # Ensure available_versions is not None (defensive programming)
+        if available_versions is None:
+            available_versions = []
 
         # If no version specified, use the latest available version
         if version is None:
@@ -1126,6 +1130,10 @@ def get_all_versions():
 
         # Get versions for the specified date range
         available_versions = get_versions_for_date_range(start_of_week, end_of_week)
+        
+        # Ensure available_versions is not None (defensive programming)
+        if available_versions is None:
+            available_versions = []
 
         # If no versions exist for this week, create initial version
         if not available_versions:
