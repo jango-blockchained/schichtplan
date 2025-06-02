@@ -45,22 +45,21 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python development tools
-RUN pip3 install --break-system-packages --upgrade pip setuptools wheel
+# First upgrade pip to get newer features, then install tools
+RUN pip3 install --upgrade pip setuptools wheel
 
 # Install common Python packages for development
-# Use --break-system-packages to handle conflicts with system packages
-RUN pip3 install --break-system-packages \
+# Use pip install with --user to avoid system package conflicts
+RUN pip3 install --user \
     black \
     flake8 \
     mypy \
     pytest \
     ipython \
     jupyter \
-    # Flask and SQLAlchemy for Schichtplan backend
     flask \
     flask-sqlalchemy \
     alembic \
-    # Testing and development tools
     pytest-flask \
     requests
 
@@ -88,7 +87,7 @@ RUN npm install -g \
     kill-port
 
 # Set up Python environment
-RUN python3 -m pip install --break-system-packages --user pipx && \
+RUN python3 -m pip install --user pipx && \
     python3 -m pipx ensurepath
 
 # Create common development directories
@@ -98,7 +97,8 @@ RUN mkdir -p /home/ubuntu/workspace && \
 # Switch to ubuntu user
 USER ubuntu
 
-# Set up shell environment
+# Set up shell environment and add local bin to PATH
+ENV PATH="/home/ubuntu/.local/bin:$PATH"
 RUN echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && \
     echo 'export PATH="$HOME/.bun/bin:$PATH"' >> ~/.bashrc && \
     echo 'alias ll="ls -la"' >> ~/.bashrc && \
