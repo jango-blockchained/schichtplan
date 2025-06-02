@@ -34,6 +34,7 @@ class Settings(db.Model):
     language = Column(String(10), nullable=False, default="de")
     date_format = Column(String(20), nullable=False, default="DD.MM.YYYY")
     time_format = Column(String(10), nullable=False, default="24h")
+    weekend_start = Column(Integer, nullable=False, default=1)  # 0=Sunday, 1=Monday
 
     # Store Hours
     store_opening = Column(String(5), nullable=False, default="09:00")
