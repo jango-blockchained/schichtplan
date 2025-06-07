@@ -197,24 +197,28 @@ setup_tmux_session() {
         exit 1
     }
     
-    # Configure backend pane
+    # Configure backend pane - start the backend service in background and show tail
     tmux send-keys -t "$TMUX_SESSION" "source $VENV_PATH/bin/activate" C-m
     tmux send-keys -t "$TMUX_SESSION" "export FLASK_APP=src.backend.run" C-m
     tmux send-keys -t "$TMUX_SESSION" "export FLASK_ENV=development" C-m
     tmux send-keys -t "$TMUX_SESSION" "export DEBUG_MODE=1" C-m
-    tmux send-keys -t "$TMUX_SESSION" "echo 'Starting Backend...'" C-m
-    tmux send-keys -t "$TMUX_SESSION" "python3 -m src.backend.run runserver > src/logs/tmux_backend_output.log 2>&1" C-m
+    tmux send-keys -t "$TMUX_SESSION" "echo 'Starting Backend in background...'" C-m
+    tmux send-keys -t "$TMUX_SESSION" "python3 -m src.backend.run runserver > src/logs/tmux_backend_output.log 2>&1 &" C-m
+    tmux send-keys -t "$TMUX_SESSION" "echo 'Backend started. Showing output log:'" C-m
+    tmux send-keys -t "$TMUX_SESSION" "tail -f src/logs/tmux_backend_output.log" C-m
     
     # Split window for frontend
     tmux split-window -h
     
-    # Configure frontend pane
+    # Configure frontend pane - start the frontend service in background and show tail
     if [ -f "src/frontend/package.json" ]; then
         tmux send-keys -t "$TMUX_SESSION" "cd src/frontend" C-m
         tmux send-keys -t "$TMUX_SESSION" "echo 'Installing frontend dependencies...'" C-m
         tmux send-keys -t "$TMUX_SESSION" "bun install" C-m
-        tmux send-keys -t "$TMUX_SESSION" "echo 'Starting Frontend...'" C-m
-        tmux send-keys -t "$TMUX_SESSION" "npx vite > \"$SCRIPT_DIR/$LOG_DIR/tmux_frontend_output.log\" 2>&1" C-m
+        tmux send-keys -t "$TMUX_SESSION" "echo 'Starting Frontend in background...'" C-m
+        tmux send-keys -t "$TMUX_SESSION" "npx vite > \"$SCRIPT_DIR/$LOG_DIR/tmux_frontend_output.log\" 2>&1 &" C-m
+        tmux send-keys -t "$TMUX_SESSION" "echo 'Frontend started. Showing output log:'" C-m
+        tmux send-keys -t "$TMUX_SESSION" "tail -f \"$SCRIPT_DIR/$LOG_DIR/tmux_frontend_output.log\"" C-m
     else
         log "ERROR" "Frontend package.json not found"
         cleanup
@@ -240,9 +244,13 @@ wait_for_services() {
     local backend_ready=false
     local backend_port=""
     
-    # Add a small delay before starting checks
-    log "INFO" "Allowing 1 seconds for backend to initialize..."
-    sleep 1 
+    # Add a small delay before starting checks and ensure log files exist
+    log "INFO" "Allowing 3 seconds for services to initialize and create log files..."
+    sleep 3
+    
+    # Ensure log files exist for tail -f
+    touch "$SCRIPT_DIR/$LOG_DIR/tmux_backend_output.log"
+    touch "$SCRIPT_DIR/$LOG_DIR/tmux_frontend_output.log"
     
     # Wait for backend
     while [ $attempt -lt $max_attempts ] && [ "$backend_ready" = false ]; do
@@ -271,7 +279,7 @@ wait_for_services() {
     
     if [ "$backend_ready" = false ]; then
         log "ERROR" "Backend did not start successfully within the timeout period."
-        log "ERROR" "Check the backend logs at $LOG_DIR/backend.log or in the tmux pane for errors."
+        log "ERROR" "Check the backend logs at $LOG_DIR/tmux_backend_output.log or in the tmux pane for errors."
         cleanup
         exit 1
     fi
@@ -317,10 +325,10 @@ wait_for_services() {
     echo -e "\nAccess URLs:"
     echo "Backend: http://localhost:$backend_port"
     echo "Frontend: http://localhost:$FRONTEND_PORT"
-    echo "Logs location: $LOG_DIR/backend.log"
+    echo "Logs location: $LOG_DIR/tmux_backend_output.log and $LOG_DIR/tmux_frontend_output.log"
     echo -e "\nTmux session '$TMUX_SESSION' created:"
-    echo "- Left pane: Backend"
-    echo "- Right pane: Frontend"
+    echo "- Left pane: Backend (tail -f backend log)"
+    echo "- Right pane: Frontend (tail -f frontend log)"
     echo "- Bottom pane: Service Control Menu"
     echo -e "\nTo attach to tmux session: tmux attach-session -t $TMUX_SESSION"
     echo "To detach from tmux: press Ctrl+B, then D"

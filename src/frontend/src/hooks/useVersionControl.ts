@@ -166,7 +166,10 @@ export function useVersionControl({
         throw new Error("Date range is required to create a version");
       }
 
-      return createNewVersion(startDate, endDate);
+      return createNewVersion({
+        start_date: startDate,
+        end_date: endDate,
+      });
     },
     onSuccess: (data, variables) => {
       console.log(
