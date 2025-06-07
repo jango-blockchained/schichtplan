@@ -1543,21 +1543,19 @@ export function SchedulePage() {
         </div>
       )}
 
-      {/* 2. Version Table */}
-      {versionMetas && versionMetas.length > 0 && (
-        <div className="mb-4">
-          <VersionTable
-            versions={versionMetas}
-            selectedVersion={versionControlSelectedVersion}
-            onSelectVersion={handleVersionChange}
-            onPublishVersion={handlePublishVersion}
-            onArchiveVersion={handleArchiveVersion}
-            onDeleteVersion={triggerDeleteVersionHook}
-            onDuplicateVersion={triggerDuplicateVersionHook}
-            onCreateNewVersion={handleCreateNewVersionPage}
-          />
-        </div>
-      )}
+      {/* 2. Version Table - Always show to provide default navigation */}
+      <div className="mb-4">
+        <VersionTable
+          versions={versionMetas || []}
+          selectedVersion={versionControlSelectedVersion}
+          onSelectVersion={handleVersionChange}
+          onPublishVersion={handlePublishVersion}
+          onArchiveVersion={handleArchiveVersion}
+          onDeleteVersion={triggerDeleteVersionHook}
+          onDuplicateVersion={triggerDuplicateVersionHook}
+          onCreateNewVersion={handleCreateNewVersionPage}
+        />
+      </div>
 
       {/* 3. Statistics */}
       {!isLoadingVersions &&

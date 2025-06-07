@@ -612,7 +612,15 @@ class AISchedulerService:
         # Parse the CSV data
         try:
             csv_reader = csv.reader(StringIO(csv_text))
-            header = next(csv_reader)
+            header = next(csv_reader, None)
+            
+            # Handle empty CSV
+            if header is None:
+                if tracker:
+                    tracker.log_warning("CSV response is empty or contains no header.")
+                else:
+                    logger.app_logger.warning("CSV response is empty or contains no header.")
+                return []
 
             # Verify the header matches expected format
             expected_header = [
@@ -642,7 +650,7 @@ class AISchedulerService:
 
             parsed_data = []
             date_format = "%Y-%m-%d"
-            row_count = 0
+            row_count = 1  # Start at 1 since row 1 is the header
             error_count = 0
 
             for row in csv_reader:
@@ -685,6 +693,31 @@ class AISchedulerService:
                     start_time = row[4].strip()
                     end_time = row[5].strip()
 
+                    # Validate IDs
+                    if employee_id <= 0:
+                        if tracker:
+                            tracker.log_warning(
+                                f"Row {row_count}: Invalid EmployeeID {employee_id}. Must be > 0. Row: {row}"
+                            )
+                        else:
+                            logger.app_logger.warning(
+                                f"Row {row_count}: Invalid EmployeeID {employee_id}. Must be > 0. Row: {row}"
+                            )
+                        error_count += 1
+                        continue
+
+                    if shift_template_id <= 0:
+                        if tracker:
+                            tracker.log_warning(
+                                f"Row {row_count}: Invalid ShiftTemplateID {shift_template_id}. Must be > 0. Row: {row}"
+                            )
+                        else:
+                            logger.app_logger.warning(
+                                f"Row {row_count}: Invalid ShiftTemplateID {shift_template_id}. Must be > 0. Row: {row}"
+                            )
+                        error_count += 1
+                        continue
+
                     # Validate date format
                     try:
                         schedule_date = datetime.strptime(date_str, date_format).date()
@@ -695,12 +728,14 @@ class AISchedulerService:
                         ):
                             if tracker:
                                 tracker.log_warning(
-                                    f"Row {row_count}: Date {date_str} is outside expected range"
+                                    f"Row {row_count}: Assignment date {date_str} out of range. Row: {row}"
                                 )
                             else:
                                 logger.app_logger.warning(
-                                    f"Row {row_count}: Date {date_str} is outside expected range"
+                                    f"Row {row_count}: Assignment date {date_str} out of range. Row: {row}"
                                 )
+                            error_count += 1
+                            continue
                     except ValueError:
                         if tracker:
                             tracker.log_warning(
@@ -713,12 +748,25 @@ class AISchedulerService:
                         error_count += 1
                         continue
 
+                    # Validate shift name
+                    if not shift_name or shift_name.strip() == "":
+                        if tracker:
+                            tracker.log_warning(
+                                f"Row {row_count}: ShiftName is empty. Row: {row}"
+                            )
+                        else:
+                            logger.app_logger.warning(
+                                f"Row {row_count}: ShiftName is empty. Row: {row}"
+                            )
+                        error_count += 1
+                        continue
+
                     # Create a structured record for each assignment
                     assignment = {
                         "employee_id": employee_id,
                         "date": schedule_date,
                         "shift_template_id": shift_template_id,
-                        "shift_name": shift_name,
+                        "shift_name_from_ai": shift_name,
                         "start_time": start_time,
                         "end_time": end_time,
                     }
@@ -754,6 +802,10 @@ class AISchedulerService:
                 logger.app_logger.info(
                     f"Parsed {len(parsed_data)} valid assignments from {row_count} rows with {error_count} errors"
                 )
+                if error_count > 0:
+                    logger.app_logger.warning(
+                        f"Finished parsing CSV. Total malformed/skipped rows: {error_count}"
+                    )
 
             return parsed_data
 
