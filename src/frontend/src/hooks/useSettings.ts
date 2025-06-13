@@ -177,6 +177,12 @@ export const DEFAULT_SETTINGS: Settings = {
     enabled: false,
     api_key: "",
   },
+  week_navigation: {
+    enable_week_navigation: false,
+    week_weekend_start: "MONDAY",
+    week_month_boundary_mode: "keep_intact",
+    week_navigation_default: false,
+  },
 };
 
 // Add this mapping

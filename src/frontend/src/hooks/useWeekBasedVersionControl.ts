@@ -19,13 +19,15 @@ import {
   MonthBoundaryMode 
 } from '@/types/weekVersion';
 import {
-  getISOWeekInfo,
   getWeekFromIdentifier,
   getCurrentWeekIdentifier,
-  getNextWeek,
-  getPreviousWeek,
-  dateRangeToWeekIdentifier
 } from '@/utils/weekUtils';
+import {
+  getWeekInfo,
+  getNextWeek as apiGetNextWeek,
+  getPreviousWeek as apiGetPreviousWeek,
+  createWeekVersion as apiCreateWeekVersion,
+} from '@/services/api';
 
 interface UseWeekBasedVersionControlProps {
   initialWeek?: string;
@@ -35,60 +37,10 @@ interface UseWeekBasedVersionControlProps {
   monthBoundaryMode?: MonthBoundaryMode;
 }
 
-interface WeekNavigationAPI {
-  getCurrentWeek: () => Promise<any>;
-  getWeekInfo: (weekIdentifier: string) => Promise<any>;
-  getNextWeek: (weekIdentifier: string) => Promise<any>;
-  getPreviousWeek: (weekIdentifier: string) => Promise<any>;
-  createWeekVersion: (data: any) => Promise<any>;
-  getVersions: (params: any) => Promise<any>;
-}// Mock API functions - these would be replaced with actual API calls
-const weekNavigationAPI: WeekNavigationAPI = {
-  getCurrentWeek: async () => {
-    const currentWeek = getCurrentWeekIdentifier();
-    const weekInfo = getWeekFromIdentifier(currentWeek);
-    return {
-      week_identifier: currentWeek,
-      ...weekInfo,
-      start_date: weekInfo.startDate.toISOString(),
-      end_date: weekInfo.endDate.toISOString()
-    };
-  },
-  
-  getWeekInfo: async (weekIdentifier: string) => {
-    const weekInfo = getWeekFromIdentifier(weekIdentifier);
-    return {
-      week_identifier: weekIdentifier,
-      ...weekInfo,
-      start_date: weekInfo.startDate.toISOString(),
-      end_date: weekInfo.endDate.toISOString(),
-      has_version: false
-    };
-  },
-  
-  getNextWeek: async (weekIdentifier: string) => {
-    const nextWeek = getNextWeek(weekIdentifier);
-    return weekNavigationAPI.getWeekInfo(nextWeek);
-  },
-  
-  getPreviousWeek: async (weekIdentifier: string) => {
-    const prevWeek = getPreviousWeek(weekIdentifier);
-    return weekNavigationAPI.getWeekInfo(prevWeek);
-  },
-  
-  createWeekVersion: async (data: any) => {
-    return { version: 1, week_identifier: data.week_identifier };
-  },
-  
-  getVersions: async (params: any) => {
-    return { versions: [] };
-  }
-};
-
 export function useWeekBasedVersionControl({
   initialWeek,
   onWeekChanged,
-  onVersionSelected,
+  onVersionSelected, // TODO: Implement version selection functionality
   weekendStart = WeekendStart.MONDAY,
   monthBoundaryMode = MonthBoundaryMode.KEEP_INTACT
 }: UseWeekBasedVersionControlProps = {}) {
@@ -101,14 +53,16 @@ export function useWeekBasedVersionControl({
   );
   
   const [selectedVersion, setSelectedVersion] = useState<VersionIdentifier | undefined>();
-  const [isLoading, setIsLoading] = useState(false);  // Navigation functions
+  const [isLoading, setIsLoading] = useState(false);
+
   const navigateToWeek = useCallback(async (weekIdentifier: string) => {
     try {
       setIsLoading(true);
-      await weekNavigationAPI.getWeekInfo(weekIdentifier);
+      await getWeekInfo(weekIdentifier);
       setCurrentWeek(weekIdentifier);
       onWeekChanged?.(weekIdentifier);
     } catch (error) {
+      console.error('Week navigation error:', error);
       toast({
         title: "Navigation Error",
         description: `Failed to navigate to week ${weekIdentifier}`,
@@ -120,20 +74,47 @@ export function useWeekBasedVersionControl({
   }, [onWeekChanged, toast]);
 
   const navigateNext = useCallback(async () => {
-    const nextWeek = getNextWeek(currentWeek);
-    await navigateToWeek(nextWeek);
-  }, [currentWeek, navigateToWeek]);
+    try {
+      setIsLoading(true);
+      const nextWeekInfo = await apiGetNextWeek(currentWeek);
+      setCurrentWeek(nextWeekInfo.week_identifier);
+      onWeekChanged?.(nextWeekInfo.week_identifier);
+    } catch (error) {
+      console.error('Next week navigation error:', error);
+      toast({
+        title: "Navigation Error",
+        description: "Failed to navigate to next week",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentWeek, onWeekChanged, toast]);
 
   const navigatePrevious = useCallback(async () => {
-    const prevWeek = getPreviousWeek(currentWeek);
-    await navigateToWeek(prevWeek);
-  }, [currentWeek, navigateToWeek]);
+    try {
+      setIsLoading(true);
+      const prevWeekInfo = await apiGetPreviousWeek(currentWeek);
+      setCurrentWeek(prevWeekInfo.week_identifier);
+      onWeekChanged?.(prevWeekInfo.week_identifier);
+    } catch (error) {
+      console.error('Previous week navigation error:', error);
+      toast({
+        title: "Navigation Error",
+        description: "Failed to navigate to previous week",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentWeek, onWeekChanged, toast]);
 
   const createVersionForWeek = useCallback(async (weekIdentifier: string) => {
     try {
       setIsLoading(true);
-      const result = await weekNavigationAPI.createWeekVersion({
-        week_identifier: weekIdentifier
+      const result = await apiCreateWeekVersion({
+        week_identifier: weekIdentifier,
+        create_empty_schedules: true
       });
       
       toast({
@@ -147,6 +128,7 @@ export function useWeekBasedVersionControl({
       
       return result;
     } catch (error) {
+      console.error('Week version creation error:', error);
       toast({
         title: "Creation Error", 
         description: `Failed to create version for week ${weekIdentifier}`,

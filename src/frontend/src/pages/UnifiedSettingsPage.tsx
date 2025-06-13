@@ -19,12 +19,14 @@ import AppearanceDisplaySection from "@/components/UnifiedSettingsSections/Appea
 import IntegrationsAISection from "@/components/UnifiedSettingsSections/IntegrationsAISection";
 import DataManagementSection from "@/components/UnifiedSettingsSections/DataManagementSection";
 import NotificationsSection from "@/components/UnifiedSettingsSections/NotificationsSection";
+import WeekNavigationSection from "@/components/UnifiedSettingsSections/WeekNavigationSection";
 
 type SectionId =
   | "general_store_setup"
   | "scheduling_engine"
   | "employee_shift_definitions"
   | "availability_configuration"
+  | "week_navigation"
   | "appearance_display"
   | "integrations_ai"
   | "data_management"
@@ -52,6 +54,10 @@ const sections: Section[] = [
   {
     id: "availability_configuration",
     title: "Availability Configuration" /*, component: PlaceholderContent*/,
+  },
+  {
+    id: "week_navigation",
+    title: "Week Navigation" /*, component: PlaceholderContent*/,
   },
   {
     id: "appearance_display",
@@ -385,6 +391,34 @@ export default function UnifiedSettingsPage() {
     });
   };
 
+  const handleWeekNavigationChange = (
+    key: keyof NonNullable<Settings["week_navigation"]>,
+    value: boolean | string,
+  ) => {
+    const updatedWeekNavSettings = {
+      ...(editableSettings.week_navigation || DEFAULT_SETTINGS.week_navigation),
+      [key]: value,
+    };
+    const updatedSettings = {
+      ...editableSettings,
+      week_navigation: updatedWeekNavSettings,
+    };
+    setEditableSettings(updatedSettings);
+    
+    // Cancel any pending debounced updates and immediately save
+    debouncedUpdateSettings.cancel();
+    mutation.mutate(updatedSettings, {
+      onSuccess: (updatedData) => {
+        queryClient.setQueryData(["settings"], updatedData);
+        setEditableSettings(updatedData);
+        toast({
+          title: "Settings Saved",
+          description: "Week navigation settings have been saved successfully.",
+        });
+      },
+    });
+  };
+
   const renderSectionContent = () => {
     const currentSectionMeta = sections.find((sec) => sec.id === activeSection);
     if (!currentSectionMeta) {
@@ -494,6 +528,19 @@ export default function UnifiedSettingsPage() {
             }
             onImmediateUpdate={handleImmediateUpdate}
             isLoading={isLoadingSettings || mutation.isPending} // Corrected: use isPending for mutation
+          />
+        );
+      case "week_navigation":
+        return (
+          <WeekNavigationSection
+            settings={editableSettings.week_navigation || {
+              enable_week_navigation: false,
+              week_weekend_start: "MONDAY",
+              week_month_boundary_mode: "keep_intact",
+              week_navigation_default: false,
+            }}
+            onChange={handleWeekNavigationChange}
+            onImmediateUpdate={handleImmediateUpdate}
           />
         );
       case "appearance_display":

@@ -123,7 +123,6 @@ import { VersionTable } from "@/components/Schedule/VersionTable";
 import { ScheduleManager } from "@/components/ScheduleManager";
 import { WeekNavigator } from "@/components/WeekNavigator";
 import { WeekVersionDisplay } from "@/components/WeekVersionDisplay";
-import { WeekSettings } from "@/components/WeekSettings";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1507,24 +1506,12 @@ export function SchedulePage() {
             hasVersion={weekBasedVersionControl.navigationState.hasVersions}
           />
           
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2">
-              <WeekVersionDisplay
-                currentWeekInfo={weekBasedVersionControl.currentWeekInfo}
-                onCreateVersion={() => weekBasedVersionControl.createVersionForWeek(
-                  weekBasedVersionControl.navigationState.currentWeek
-                )}
-              />
-            </div>
-            <div>
-              <WeekSettings
-                weekendStart={weekBasedVersionControl.navigationState.weekendStart}
-                monthBoundaryMode={weekBasedVersionControl.navigationState.monthBoundaryMode}
-                onWeekendStartChange={(weekendStart) => console.log('Weekend start changed:', weekendStart)}
-                onMonthBoundaryModeChange={(mode) => console.log('Month boundary mode changed:', mode)}
-              />
-            </div>
-          </div>
+          <WeekVersionDisplay
+            currentWeekInfo={weekBasedVersionControl.currentWeekInfo}
+            onCreateVersion={() => weekBasedVersionControl.createVersionForWeek(
+              weekBasedVersionControl.navigationState.currentWeek
+            )}
+          />
         </div>
       ) : (
         <div className="mb-4">
@@ -1543,19 +1530,21 @@ export function SchedulePage() {
         </div>
       )}
 
-      {/* 2. Version Table - Always show to provide default navigation */}
-      <div className="mb-4">
-        <VersionTable
-          versions={versionMetas || []}
-          selectedVersion={versionControlSelectedVersion}
-          onSelectVersion={handleVersionChange}
-          onPublishVersion={handlePublishVersion}
-          onArchiveVersion={handleArchiveVersion}
-          onDeleteVersion={triggerDeleteVersionHook}
-          onDuplicateVersion={triggerDuplicateVersionHook}
-          onCreateNewVersion={handleCreateNewVersionPage}
-        />
-      </div>
+      {/* 2. Version Table - Only show when NOT using week-based navigation */}
+      {!useWeekBasedNavigation && (
+        <div className="mb-4">
+          <VersionTable
+            versions={versionMetas || []}
+            selectedVersion={versionControlSelectedVersion}
+            onSelectVersion={handleVersionChange}
+            onPublishVersion={handlePublishVersion}
+            onArchiveVersion={handleArchiveVersion}
+            onDeleteVersion={triggerDeleteVersionHook}
+            onDuplicateVersion={triggerDuplicateVersionHook}
+            onCreateNewVersion={handleCreateNewVersionPage}
+          />
+        </div>
+      )}
 
       {/* 3. Statistics */}
       {!isLoadingVersions &&
