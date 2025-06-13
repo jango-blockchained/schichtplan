@@ -42,6 +42,8 @@ from src.backend.api.coverage import bp as coverage_bp
 from src.backend.api.schedules import bp as api_schedules_bp
 from src.backend.api.settings import bp as api_settings_bp
 from src.backend.api.demo_data import bp as demo_data_bp
+# TODO: Fix syntax errors in week_navigation before enabling
+# from src.backend.api.week_navigation import bp as week_navigation_bp
 from src.backend.routes import logs
 from src.backend.utils.logger import (
     logger as global_logger,
@@ -163,6 +165,8 @@ def create_app(config_class=Config):
     app.register_blueprint(
         api_schedules_bp, name="api_schedules"
     )  # Register with unique name to avoid conflict
+    # TODO: Re-enable after fixing syntax errors
+    # app.register_blueprint(week_navigation_bp)  # Register week navigation
     
     # Register MCP routes
     from src.backend.routes.mcp_routes import bp as mcp_bp

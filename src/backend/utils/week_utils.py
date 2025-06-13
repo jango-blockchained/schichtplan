@@ -135,7 +135,9 @@ def get_week_from_identifier(week_identifier: str) -> WeekInfo:
         end_date=end_date,
         spans_months=spans_months,
         months=months
-    )def create_week_identifier(year: int, week_number: int) -> str:
+    )
+
+def create_week_identifier(year: int, week_number: int) -> str:
     """
     Create a week identifier string from year and week number.
     
@@ -182,7 +184,9 @@ def get_week_range(start_week: str, end_week: str) -> WeekRange:
         end_week=end_info,
         total_weeks=total_weeks,
         identifier=identifier
-    )def handle_month_boundary(week_info: WeekInfo, mode: MonthBoundaryMode) -> List[Tuple[date, date]]:
+    )
+
+def handle_month_boundary(week_info: WeekInfo, mode: MonthBoundaryMode) -> List[Tuple[date, date]]:
     """
     Handle month boundary splitting based on the specified mode.
     

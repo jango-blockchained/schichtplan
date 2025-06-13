@@ -13,6 +13,7 @@ import type {
   Absence, // Import Absence type
 } from "@/types/index";
 import { CreateEmployeeRequest, UpdateEmployeeRequest } from "../types";
+import { getWeekFromIdentifier } from '../utils/weekUtils';
 
 interface APIErrorResponse {
   error?: string;
@@ -740,7 +741,7 @@ export const getAbsences = async (employeeId?: number): Promise<Absence[]> => {
     }
 
     // Use the employee-specific endpoint
-    const response = await api.get<Absence[]>(`/api/v2/absences/employees/${employeeId}/absences`);
+    const response = await api.get<Absence>(`/api/v2/absences/employees/${employeeId}/absences`);
     return response.data;
   } catch (error) {
     if (error instanceof Error) {
@@ -1314,6 +1315,139 @@ export const getAllCoverage = async (): Promise<DailyCoverage[]> => {
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to get all coverage data: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
+// Week Version Management API Functions
+export interface WeekInfo {
+  week_identifier: string;
+  weekNumber: number;
+  year: number;
+  startDate: string;
+  endDate: string;
+  has_version?: boolean;
+}
+
+export interface CreateWeekVersionRequest {
+  week_identifier: string;
+  base_version?: number;
+  notes?: string;
+  create_empty_schedules?: boolean;
+}
+
+export interface CreateWeekVersionResponse {
+  version: number;
+  created_at: string;
+  status: string;
+  date_range_start: string;
+  date_range_end: string;
+  week_identifier: string;
+  is_week_based: boolean;
+  notes?: string;
+}
+
+export const getCurrentWeekInfo = async (): Promise<WeekInfo> => {
+  try {
+    const response = await api.get<WeekInfo>("/api/weeks/current");
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to get current week info: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
+export const getWeekInfo = async (weekIdentifier: string): Promise<WeekInfo> => {
+  try {
+    const response = await api.get<WeekInfo>(`/api/weeks/${weekIdentifier}`);
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to get week info for ${weekIdentifier}: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
+export const getNextWeek = async (weekIdentifier: string): Promise<WeekInfo> => {
+  try {
+    const response = await api.get<WeekInfo>(`/api/weeks/${weekIdentifier}/next`);
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to get next week after ${weekIdentifier}: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
+export const getPreviousWeek = async (weekIdentifier: string): Promise<WeekInfo> => {
+  try {
+    const response = await api.get<WeekInfo>(`/api/weeks/${weekIdentifier}/previous`);
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to get previous week before ${weekIdentifier}: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
+export const createWeekVersion = async (
+  data: CreateWeekVersionRequest,
+): Promise<CreateWeekVersionResponse> => {
+  try {
+    // Use the existing utility to get week info
+    const weekInfo = getWeekFromIdentifier(data.week_identifier);
+    
+    // Format dates as YYYY-MM-DD
+    const formatDate = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    
+    const requestData = {
+      start_date: formatDate(weekInfo.startDate),
+      end_date: formatDate(weekInfo.endDate),
+      base_version: data.base_version,
+      notes: data.notes,
+      create_empty_schedules: data.create_empty_schedules ?? true
+    };
+    
+    const response = await api.post("/api/v2/schedules/version", requestData);
+    
+    // Transform backend response to match frontend interface
+    const backendResponse = response.data;
+    return {
+      version: backendResponse.version,
+      created_at: backendResponse.version_meta?.created_at || new Date().toISOString(),
+      status: backendResponse.status_code || backendResponse.status,
+      date_range_start: formatDate(weekInfo.startDate),
+      date_range_end: formatDate(weekInfo.endDate),
+      week_identifier: data.week_identifier,
+      is_week_based: true,
+      notes: data.notes
+    };
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to create week version for ${data.week_identifier}: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
+export const getWeekVersions = async (weekIdentifier: string): Promise<CreateWeekVersionResponse[]> => {
+  try {
+    const response = await api.get<CreateWeekVersionResponse[]>(`/api/weeks/${weekIdentifier}/versions`);
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to get versions for week ${weekIdentifier}: ${error.message}`);
     }
     throw error;
   }

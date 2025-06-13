@@ -147,6 +147,12 @@ class Settings(db.Model):
     )  # Maximum attempts for schedule generation
     # scheduling_advanced = Column(JSON, nullable=True, default=dict) # Removed
 
+    # Week-based Navigation Settings
+    enable_week_navigation = Column(Boolean, nullable=False, default=False)
+    week_weekend_start = Column(String(20), nullable=False, default="MONDAY")  # MONDAY or SUNDAY
+    week_month_boundary_mode = Column(String(30), nullable=False, default="keep_intact")  # keep_intact, split_by_month
+    week_navigation_default = Column(Boolean, nullable=False, default=False)  # Whether to default to week navigation
+
     # Display and Notification Settings
     theme = Column(String(20), nullable=False, default="light")
     primary_color = Column(String(7), nullable=False, default="#1976D2")

@@ -103,7 +103,9 @@ class WeekVersionService:
         except Exception as e:
             self.session.rollback()
             logger.error(f"Error creating week version: {str(e)}")
-            raise    def _get_next_version_number(self) -> int:
+            raise
+    
+    def _get_next_version_number(self) -> int:
         """Get the next available version number."""
         max_schedule_version = self.session.query(
             db.func.max(Schedule.version)
