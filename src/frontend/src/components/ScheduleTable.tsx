@@ -1031,17 +1031,13 @@ export function ScheduleTable({
     return days;
   }, [dateRange, openingDays]);
 
-  // Calculate max days to show based on full-screen mode and show_sunday setting
-  const maxDaysToShow = useMemo(() => {
-    const showSunday = settings?.display?.show_sunday ?? false;
-    const baseLimit = isFullWidth ? 12 : 6;
-    return showSunday ? baseLimit + 2 : baseLimit;
-  }, [isFullWidth, settings]);
+  // Calculate max days to show: always 7 for week view
+  const maxDaysToShow = 7;
 
   // Calculate visible days for current page
   const visibleDaysToDisplay = useMemo(() => {
     return daysToDisplay.slice(currentDayOffset, currentDayOffset + maxDaysToShow);
-  }, [daysToDisplay, currentDayOffset, maxDaysToShow]);
+  }, [daysToDisplay, currentDayOffset]);
 
   // Navigation handlers
   const handlePrevDays = () => {
@@ -1053,10 +1049,10 @@ export function ScheduleTable({
     setCurrentDayOffset(Math.min(maxOffset, currentDayOffset + maxDaysToShow));
   };
 
-  // Reset day offset when date range or max days changes
+  // Reset day offset when date range changes
   useEffect(() => {
     setCurrentDayOffset(0);
-  }, [dateRange, maxDaysToShow]);
+  }, [dateRange]);
 
   // Check if navigation is needed
   const showNavigation = daysToDisplay.length > maxDaysToShow;
