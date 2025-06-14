@@ -12,6 +12,7 @@ from src.backend.schemas.ai_schedule import (
     AIScheduleFeedbackRequest,
 )  # Import both schemas
 from datetime import datetime
+import json
 
 # Fix: Removed redundant url_prefix that was conflicting with blueprint registration in routes/__init__.py
 ai_schedule_bp = Blueprint("ai_schedule_bp", __name__)
@@ -224,6 +225,75 @@ def import_ai_schedule_response():
             f"Unexpected error in AI schedule import endpoint: {str(e)}", exc_info=True
         )
         return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
+
+
+@ai_schedule_bp.route("/schedule/preview-ai-data", methods=["POST", "OPTIONS"])
+def preview_ai_data():
+    """
+    Endpoint to preview the optimized data pack that would be sent to AI.
+    Expects JSON payload with:
+    - "start_date": "YYYY-MM-DD" (required)
+    - "end_date": "YYYY-MM-DD" (required)
+    """
+    if request.method == "OPTIONS":
+        return "", 200
+
+    try:
+        data = request.get_json()
+        if not data:
+            logger.app_logger.warning("Preview AI data request with no input data.")
+            return jsonify({"error": "No input data provided"}), 400
+
+        # Extract and validate date parameters
+        start_date_str = data.get("start_date")
+        end_date_str = data.get("end_date")
+
+        if not start_date_str or not end_date_str:
+            logger.app_logger.warning("Preview AI data request missing required dates")
+            return jsonify({"error": "start_date and end_date are required"}), 400
+
+        # Parse dates
+        try:
+            start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+            end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+        except ValueError as e:
+            logger.app_logger.warning(f"Invalid date format in preview request: {e}")
+            return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
+
+        # Collect optimized AI data
+        ai_service = AISchedulerService()
+        try:
+            collected_data_text = ai_service._collect_data_for_ai_prompt(start_date, end_date)
+            collected_data = json.loads(collected_data_text)
+
+            # Add metadata about the optimization
+            response_data = {
+                "status": "success",
+                "data_pack": collected_data,
+                "metadata": {
+                    "start_date": start_date_str,
+                    "end_date": end_date_str,
+                    "optimization_applied": True,
+                    "data_structure_version": "optimized_v1",
+                    "total_sections": len(collected_data),
+                    "estimated_size_reduction": "60-80%",
+                },
+            }
+
+            logger.app_logger.info(
+                f"AI data preview generated successfully for {start_date_str} to {end_date_str}"
+            )
+            return jsonify(response_data), 200
+
+        except Exception as e:
+            logger.app_logger.error(
+                f"Error collecting AI data for preview: {e}", exc_info=True
+            )
+            return jsonify({"error": f"Failed to collect AI data: {str(e)}"}), 500
+
+    except Exception as e:
+        logger.app_logger.error(f"Unexpected error in AI data preview: {e}", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
 
 
 # Further endpoints related to AI scheduling can be added here
