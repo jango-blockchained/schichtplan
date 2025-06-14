@@ -175,25 +175,59 @@ class AISchedulerService:
         return summary
 
     def _collect_data_for_ai_prompt(self, start_date, end_date, tracker=None):
-        """Collect data for AI prompt generation with diagnostic tracking"""
+        """Collect optimized data for AI prompt generation with reduced redundancy"""
         if tracker:
             tracker.start_step("Collect Data for AI Prompt")
             tracker.log_info(
-                f"Collecting data for AI prompt from {start_date} to {end_date}."
+                f"Collecting optimized data for AI prompt from {start_date} to {end_date}."
             )
         else:
             logger.app_logger.info(
-                f"Collecting data for AI prompt from {start_date} to {end_date}."
+                f"Collecting optimized data for AI prompt from {start_date} to {end_date}."
             )
 
         try:
             # Initialize an empty dictionary to hold collected data
             collected_data = {}
 
-            # 1. Get active employees - optimized for scheduling
+            # Get target weekdays for filtering
+            target_weekdays = set()
+            current_date = start_date
+            while current_date <= end_date:
+                target_weekdays.add(current_date.weekday())
+                current_date += timedelta(days=1)
+
+            # 1. Get active employees with availability pre-filtering
             employees = Employee.query.filter_by(is_active=True).all()
-            employee_data = []
+            
+            # Pre-filter employees who have some availability or no blocking absences
+            filtered_employees = []
             for emp in employees:
+                # Check if employee has any availability during the period
+                has_availability = EmployeeAvailability.query.filter(
+                    EmployeeAvailability.employee_id == emp.id,
+                    db.or_(
+                        EmployeeAvailability.is_recurring.is_(True),
+                        db.and_(
+                            db.or_(EmployeeAvailability.start_date.is_(None), EmployeeAvailability.start_date <= end_date),
+                            db.or_(EmployeeAvailability.end_date.is_(None), EmployeeAvailability.end_date >= start_date)
+                        )
+                    )
+                ).first() is not None
+                
+                # Check if employee has blocking absences for entire period
+                blocking_absence = Absence.query.filter(
+                    Absence.employee_id == emp.id,
+                    Absence.start_date <= start_date,
+                    Absence.end_date >= end_date
+                ).first() is not None
+                
+                # Include employee if they have availability and no blocking absence
+                if has_availability and not blocking_absence:
+                    filtered_employees.append(emp)
+
+            employee_data = []
+            for emp in filtered_employees:
                 emp_dict = {
                     "id": emp.id,
                     "name": f"{emp.first_name} {emp.last_name}",
@@ -206,155 +240,153 @@ class AISchedulerService:
             collected_data["employees"] = employee_data
 
             if tracker:
-                tracker.log_step_data("Employees", employee_data)
-                tracker.log_info(f"Collected {len(employee_data)} employees")
+                tracker.log_info(f"Collected {len(employee_data)} filtered employees (from {len(employees)} total)")
 
-            # 2. Get shift templates with comprehensive information
+            # 2. Get shift templates - optimized with only essential fields
             shifts = ShiftTemplate.query.all()
             shift_data = []
             for shift in shifts:
-                # Ensure duration is calculated
-                if not hasattr(shift, 'duration_hours') or shift.duration_hours is None:
-                    shift._calculate_duration()
-                
-                shift_dict = {
-                    "id": shift.id,
-                    "name": shift.name or f"{shift.shift_type.value if shift.shift_type else 'Unknown'} Shift",
-                    "start_time": shift.start_time,
-                    "end_time": shift.end_time,
-                    "duration_hours": shift.duration_hours,
-                    "shift_type": shift.shift_type.value if shift.shift_type else None,
-                    "shift_type_id": shift.shift_type_id,
-                    "requires_break": shift.requires_break,
-                    "active_days": shift.active_days,
-                }
-                shift_data.append(shift_dict)
+                # Filter shifts that are active on target weekdays
+                if shift.active_days and any(str(day) in shift.active_days and shift.active_days[str(day)] for day in target_weekdays):
+                    shift_dict = {
+                        "id": shift.id,
+                        "start_time": shift.start_time,
+                        "end_time": shift.end_time,
+                        "active_days": [day for day in range(7) if str(day) in shift.active_days and shift.active_days[str(day)]],
+                        "requires_keyholder": getattr(shift, 'requires_keyholder', False),
+                    }
+                    shift_data.append(shift_dict)
 
             collected_data["shifts"] = shift_data
 
             if tracker:
-                tracker.log_step_data("Shift Templates", shift_data)
-                tracker.log_info(f"Collected {len(shift_data)} shift templates")
-                # Log shift template summary for debugging
-                shift_summary = self._get_shift_template_summary(shift_data)
-                tracker.log_info(f"Shift Template Summary:\n{shift_summary}")
-            else:
-                logger.app_logger.info(f"Collected {len(shift_data)} shift templates")
-                shift_summary = self._get_shift_template_summary(shift_data)
-                logger.app_logger.info(f"Shift Template Summary:\n{shift_summary}")
+                tracker.log_info(f"Collected {len(shift_data)} relevant shift templates")
 
-            # 3. Get coverage needs - optimized structure
+            # 3. Get coverage needs - optimized with pattern-based structure
             coverage_needs = Coverage.query.all()
-
-            coverage_data = []
-            for coverage in coverage_needs:
-                # Get coverage for all days in the date range that match the day_index
-                current_date = start_date
-                while current_date <= end_date:
-                    # Check if current_date's weekday matches coverage day_index
-                    if current_date.weekday() == coverage.day_index:
-                        coverage_dict = {
-                            "date": current_date.strftime("%Y-%m-%d"),
-                            "time_period": f"{coverage.start_time}-{coverage.end_time}",
-                            "min_employees": coverage.min_employees,
-                            "max_employees": coverage.max_employees,
-                            "requires_keyholder": coverage.requires_keyholder,
-                        }
-                        coverage_data.append(coverage_dict)
-                    current_date += timedelta(days=1)
-
-            collected_data["coverage"] = coverage_data
-
-            if tracker:
-                tracker.log_step_data("Coverage Needs", coverage_data)
-                tracker.log_info(f"Collected {len(coverage_data)} coverage records")
-
-            # Validate shift template and coverage alignment
-            self._validate_shift_coverage_alignment(shift_data, coverage_data, tracker)
+            coverage_rules = []
             
-            # Analyze coverage fulfillment potential
-            self._analyze_coverage_fulfillment_potential(shift_data, coverage_data, tracker)
+            for coverage in coverage_needs:
+                # Only include coverage rules for relevant weekdays
+                if coverage.day_index in target_weekdays:
+                    coverage_rule = {
+                        "day_index": coverage.day_index,  # 0=Monday, 6=Sunday
+                        "time_period": f"{coverage.start_time}-{coverage.end_time}",
+                        "min_employees": coverage.min_employees,
+                        "max_employees": coverage.max_employees,
+                        "requires_keyholder": coverage.requires_keyholder,
+                    }
+                    coverage_rules.append(coverage_rule)
 
-            # 4. Get employee availability - optimized to reduce redundancy
-            availabilities = EmployeeAvailability.query.filter(
-                # Either it's recurring OR it overlaps with our date range
-                db.or_(
-                    EmployeeAvailability.is_recurring == True,
-                    db.and_(
-                        db.or_(
-                            EmployeeAvailability.start_date == None,
-                            EmployeeAvailability.start_date <= end_date,
-                        ),
-                        db.or_(
-                            EmployeeAvailability.end_date == None,
-                            EmployeeAvailability.end_date >= start_date,
-                        ),
-                    ),
-                )
-            ).all()
-
-            # Aggregate availability by employee and date to reduce redundancy
-            availability_by_employee_date = {}
-            current_date = start_date
-            while current_date <= end_date:
-                for avail in availabilities:
-                    if avail.is_available_for_date(current_date):
-                        key = f"{avail.employee_id}_{current_date.strftime('%Y-%m-%d')}"
-                        if key not in availability_by_employee_date:
-                            availability_by_employee_date[key] = {
-                                "employee_id": avail.employee_id,
-                                "date": current_date.strftime("%Y-%m-%d"),
-                                "availability_hours": []
-                            }
-                        
-                        availability_by_employee_date[key]["availability_hours"].append({
-                            "hour": avail.hour,
-                            "type": avail.availability_type.value
-                        })
-                current_date += timedelta(days=1)
-
-            # Convert to list and sort availability hours
-            availability_data = []
-            for avail_data in availability_by_employee_date.values():
-                # Sort hours for better readability
-                avail_data["availability_hours"].sort(key=lambda x: x["hour"])
-                availability_data.append(avail_data)
-
-            collected_data["availability"] = availability_data
+            collected_data["coverage_rules"] = coverage_rules
+            
+            # Also provide the date range for context
+            collected_data["schedule_period"] = {
+                "start_date": start_date.strftime("%Y-%m-%d"),
+                "end_date": end_date.strftime("%Y-%m-%d"),
+                "target_weekdays": sorted(list(target_weekdays))
+            }
 
             if tracker:
-                tracker.log_step_data("Employee Availability", availability_data)
-                tracker.log_info(
-                    f"Collected {len(availability_data)} availability records"
-                )
+                tracker.log_info(f"Collected {len(coverage_rules)} coverage rules for weekdays {sorted(target_weekdays)}")
 
-            # 5. Get absences
+            # 4. Get employee availability - optimized with time windows instead of hour-by-hour
+            employee_ids = [emp["id"] for emp in employee_data]
+            if employee_ids:
+                availabilities = EmployeeAvailability.query.filter(
+                    EmployeeAvailability.employee_id.in_(employee_ids),
+                    db.or_(
+                        EmployeeAvailability.is_recurring.is_(True),
+                        db.and_(
+                            db.or_(EmployeeAvailability.start_date.is_(None), EmployeeAvailability.start_date <= end_date),
+                            db.or_(EmployeeAvailability.end_date.is_(None), EmployeeAvailability.end_date >= start_date)
+                        )
+                    )
+                ).all()
+
+                # Convert to time windows per employee per day
+                availability_windows = {}
+                for avail in availabilities:
+                    current_date = start_date
+                    while current_date <= end_date:
+                        if avail.is_available_for_date(current_date):
+                            key = f"{avail.employee_id}_{current_date.weekday()}"
+                            if key not in availability_windows:
+                                availability_windows[key] = {
+                                    "employee_id": avail.employee_id,
+                                    "day_index": current_date.weekday(),
+                                    "available_hours": [],
+                                    "preferred_hours": [],
+                                    "fixed_hours": []
+                                }
+                            
+                            # Categorize by availability type
+                            hour_info = avail.hour
+                            if avail.availability_type.value == "FIXED":
+                                availability_windows[key]["fixed_hours"].append(hour_info)
+                            elif avail.availability_type.value == "PREFERRED":
+                                availability_windows[key]["preferred_hours"].append(hour_info)
+                            else:  # AVAILABLE
+                                availability_windows[key]["available_hours"].append(hour_info)
+                        current_date += timedelta(days=1)
+
+                # Convert to time ranges and create simplified availability data
+                availability_data = []
+                for window_data in availability_windows.values():
+                    # Convert hour lists to time ranges
+                    simplified_window = {
+                        "employee_id": window_data["employee_id"],
+                        "day_index": window_data["day_index"],
+                    }
+                    
+                    # Create time ranges for each availability type
+                    for avail_type in ["fixed_hours", "preferred_hours", "available_hours"]:
+                        hours = sorted(window_data[avail_type])
+                        if hours:
+                            # Convert hours to time ranges (simplified)
+                            time_range = f"{min(hours):02d}:00-{max(hours)+1:02d}:00"
+                            simplified_window[avail_type.replace("_hours", "_time_range")] = time_range
+                    
+                    availability_data.append(simplified_window)
+
+                collected_data["availability"] = availability_data
+
+                if tracker:
+                    tracker.log_info(f"Collected {len(availability_data)} availability windows")
+
+            # 5. Get absences - already optimized, only overlapping dates
             absences = Absence.query.filter(
-                Absence.start_date <= end_date, Absence.end_date >= start_date
+                Absence.employee_id.in_(employee_ids) if employee_ids else False,
+                Absence.start_date <= end_date, 
+                Absence.end_date >= start_date
             ).all()
 
             absence_data = []
             for absence in absences:
                 absence_dict = {
-                    "id": absence.id,
                     "employee_id": absence.employee_id,
                     "start_date": absence.start_date.strftime("%Y-%m-%d"),
                     "end_date": absence.end_date.strftime("%Y-%m-%d"),
-                    "reason": absence.note,  # Using note field based on the model
+                    "reason": absence.note or "Absence",
                 }
                 absence_data.append(absence_dict)
 
             collected_data["absences"] = absence_data
 
             if tracker:
-                tracker.log_step_data("Employee Absences", absence_data)
                 tracker.log_info(f"Collected {len(absence_data)} absence records")
 
             # Convert the collected data to a structured text format for the prompt
             collected_data_text = json.dumps(collected_data, indent=2)
 
             if tracker:
-                tracker.end_step({"data_count": len(collected_data)})
+                tracker.end_step({
+                    "employees": len(employee_data),
+                    "shifts": len(shift_data), 
+                    "coverage_rules": len(coverage_rules),
+                    "availability_windows": len(availability_data) if 'availability_data' in locals() else 0,
+                    "absences": len(absence_data)
+                })
 
             return collected_data_text
 
@@ -379,18 +411,26 @@ class AISchedulerService:
         Schedule Period: {start_date.isoformat()} to {end_date.isoformat()}
 
         CRITICAL UNDERSTANDING - COVERAGE vs SHIFT TEMPLATES:
-        1. COVERAGE BLOCKS define staffing requirements for time periods (e.g., "Friday 14:00-18:00 needs 1-3 employees")
+        1. COVERAGE RULES define staffing requirements by day and time (e.g., "Monday 14:00-18:00 needs 1-3 employees")
         2. SHIFT TEMPLATES are the available work shifts employees can be assigned to
-        3. Use shift templates to FULFILL coverage requirements - they don't need to match exactly
-        4. A shift template may cover multiple coverage periods or partial coverage periods
-        5. Multiple shift templates may be needed to cover one coverage period
+        3. Use shift templates to FULFILL coverage requirements for the dates in the schedule period
+        4. Apply coverage rules to the corresponding weekdays in the schedule period
+        5. Multiple shift templates may be needed to cover one coverage requirement
 
-        SHIFT SELECTION STRATEGY:
-        1. Review ALL available shift templates - use the full variety
-        2. For each coverage requirement, select appropriate shift templates that overlap the time period
-        3. Assign employees to shifts that help fulfill the min_employees requirement for each coverage period
-        4. Distribute different shift types (EARLY/MIDDLE/LATE) across employees for fairness
-        5. Consider shift duration_hours for balanced workload distribution
+        DATA STRUCTURE:
+        - employees: Available staff with basic info and constraints
+        - shifts: Available shift templates (filtered for relevant days only)
+        - coverage_rules: Staffing requirements by weekday pattern (apply to matching dates in period)
+        - schedule_period: Date range and target weekdays to schedule
+        - availability: Employee availability windows by day (simplified time ranges)
+        - absences: Employee unavailability periods (exact dates)
+
+        SCHEDULING LOGIC:
+        1. For each date in the schedule period, apply coverage rules that match the weekday
+        2. Select appropriate shift templates that overlap with coverage time periods
+        3. Assign employees based on their availability windows and absence constraints
+        4. Ensure minimum staffing levels are met for each coverage requirement
+        5. Distribute workload fairly across employees and shift types
 
         OUTPUT FORMAT:
         Provide the schedule STRICTLY in CSV format with these columns in exact order:
@@ -401,39 +441,22 @@ class AISchedulerService:
 
         SCHEDULING INSTRUCTIONS:
         1. COVERAGE FULFILLMENT: 
-           - Each coverage block shows: date, time_period, min_employees, max_employees
-           - Ensure sufficient employees are working during each coverage time period
-           - Use any shift templates that overlap with coverage periods
-        2. SHIFT TEMPLATE SELECTION: 
-           - Choose from ALL available shift templates
-           - Templates have: id, start_time, end_time, duration_hours, shift_type, active_days
-           - Select templates that provide coverage for required time periods
-        3. EMPLOYEE CONSTRAINTS: 
-           - Respect availability (FIXED=must work, PREFERRED=should work, AVAILABLE=can work)
-           - Avoid scheduling during absences
-        4. FAIR DISTRIBUTION: 
+           - Apply coverage rules to matching weekdays in the schedule period
+           - Ensure sufficient employees work during each required time period
+           - Use overlapping shift templates to fulfill coverage needs
+        2. EMPLOYEE CONSTRAINTS: 
+           - Respect availability time ranges (fixed > preferred > available)
+           - Avoid scheduling during absence periods
+           - Stay within max_weekly_hours limits
+        3. FAIR DISTRIBUTION: 
            - Rotate different shift types across employees
-           - Balance workload using duration_hours
-           - Distribute weekend and evening shifts fairly
-        5. KEYHOLDER REQUIREMENTS: Assign keyholders when coverage requires_keyholder=true
-        6. DATA VALIDATION: 
+           - Balance workload and weekend/evening assignments
+        4. KEYHOLDER REQUIREMENTS: Assign keyholders when coverage requires_keyholder=true
+        5. DATA VALIDATION: 
            - ShiftTemplateID must exist in provided shift templates
-           - Date format: YYYY-MM-DD
+           - Date format: YYYY-MM-DD within schedule period
            - Time format: HH:MM matching the selected shift template
-        7. OUTPUT ONLY: Return ONLY the CSV data, no explanations or additional text
-
-        EXAMPLE SCENARIO:
-        If coverage requires "2024-01-15, 09:00-17:00, min_employees=2", you could assign:
-        - Employee 1 to shift template "09:00-17:00" (covers full period)
-        - Employee 2 to shift template "10:00-18:00" (covers most of period)
-        This fulfills the requirement even though shifts don't match coverage exactly.
-
-        DATA STRUCTURE SUMMARY:
-        - employees: List of available staff with roles, keyholder status, max hours
-        - shifts: Available shift templates with times, types, duration, active days
-        - coverage: Staffing requirements by date and time period (min/max employees needed)
-        - availability: Employee availability by date and hour (FIXED/PREFERRED/AVAILABLE)
-        - absences: Employee unavailability periods
+        6. OUTPUT ONLY: Return ONLY the CSV data, no explanations or additional text
 
         Provided Data:
         {collected_data_text}
@@ -748,18 +771,18 @@ class AISchedulerService:
                         error_count += 1
                         continue
 
-                    # Validate shift name
+                    # Validate shift name (generate if empty since we simplified the data)
                     if not shift_name or shift_name.strip() == "":
+                        # Generate a name from the shift template data
+                        shift_name = self._generate_shift_name(shift_template_id, start_time, end_time)
                         if tracker:
-                            tracker.log_warning(
-                                f"Row {row_count}: ShiftName is empty. Row: {row}"
+                            tracker.log_info(
+                                f"Row {row_count}: Generated shift name '{shift_name}' for empty ShiftName"
                             )
                         else:
-                            logger.app_logger.warning(
-                                f"Row {row_count}: ShiftName is empty. Row: {row}"
+                            logger.app_logger.info(
+                                "Row %d: Generated shift name '%s' for empty ShiftName", row_count, shift_name
                             )
-                        error_count += 1
-                        continue
 
                     # Create a structured record for each assignment
                     assignment = {
@@ -1267,6 +1290,25 @@ class AISchedulerService:
                             tracker.log_info(f"      - {shift['name']} ({shift['start_time']}-{shift['end_time']})")
                     else:
                         tracker.log_warning(f"    No overlapping shift templates found!")
+
+    def _generate_shift_name(self, shift_template_id, start_time, end_time):
+        """Generate a descriptive shift name from shift template data"""
+        try:
+            # Try to get the actual shift template for a proper name
+            shift = ShiftTemplate.query.get(shift_template_id)
+            if shift and shift.name:
+                return shift.name
+            
+            # Generate name based on time pattern
+            start_hour = int(start_time.split(':')[0])
+            if start_hour < 11:
+                return f"Early Shift ({start_time}-{end_time})"
+            elif start_hour >= 15:
+                return f"Late Shift ({start_time}-{end_time})"
+            else:
+                return f"Middle Shift ({start_time}-{end_time})"
+        except (ValueError, AttributeError):
+            return f"Shift ({start_time}-{end_time})"
 
 
 # Helper function for testing (optional, can be removed or moved)
