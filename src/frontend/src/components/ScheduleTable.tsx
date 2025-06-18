@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, Fragment } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { format, addDays, parseISO, startOfWeek, endOfWeek, differenceInMinutes, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 import { useDrag, useDrop } from "react-dnd";
 import { Schedule, Employee, ScheduleUpdate, ShiftType } from "@/types";
@@ -19,33 +19,19 @@ import {
   Edit2,
   Trash2,
   Plus,
-  ChevronDown,
   ChevronRight,
   ChevronLeft,
   AlertTriangle,
   Info,
-  RotateCcw,
   Maximize2,
   Minimize2,
   GripVertical,
+  Key,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ShiftEditModal } from "./ShiftEditModal";
 import { AddScheduleDialog } from "./Schedule/AddScheduleDialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { EmployeeStatistics } from "./Schedule/EmployeeStatistics";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import {
   Dialog,
   DialogContent,
@@ -129,6 +115,7 @@ interface TimeSlotDisplayProps {
   shiftType?: string;
   settings?: any;
   schedule?: Schedule;
+  employee?: Employee; // Add employee data
 }
 
 const TimeSlotDisplay = ({
@@ -137,6 +124,7 @@ const TimeSlotDisplay = ({
   shiftType,
   settings,
   schedule,
+  employee,
 }: TimeSlotDisplayProps) => {
   // Calculate duration from start and end times if not provided
   const calculateDuration = (start: string, end: string): number => {
@@ -144,7 +132,7 @@ const TimeSlotDisplay = ({
       const [startHours, startMinutes] = start.split(":").map(Number);
       const [endHours, endMinutes] = end.split(":").map(Number);
       
-      let startTotalMinutes = startHours * 60 + startMinutes;
+      const startTotalMinutes = startHours * 60 + startMinutes;
       let endTotalMinutes = endHours * 60 + endMinutes;
       
       // Handle overnight shifts
@@ -159,12 +147,48 @@ const TimeSlotDisplay = ({
     }
   };
 
-  // Get duration from schedule or calculate it
-  const getDuration = (): number => {
-    if (startTime && endTime) {
-      return calculateDuration(startTime, endTime);
+  // Check if this is a keyholder shift
+  const isKeyholderShift = employee?.is_keyholder && schedule?.shift_id;
+  
+  // Calculate adjusted times for keyholder shifts
+  const getAdjustedTimes = () => {
+    if (!isKeyholderShift || !startTime || !endTime || !settings?.general) {
+      return { adjustedStartTime: startTime, adjustedEndTime: endTime };
     }
-    return 0;
+
+    const keyholderBeforeMinutes = settings.general.keyholder_before_minutes || 5;
+    const keyholderAfterMinutes = settings.general.keyholder_after_minutes || 10;
+    const storeOpening = settings.general.store_opening;
+    const storeClosing = settings.general.store_closing;
+
+    let adjustedStartTime = startTime;
+    let adjustedEndTime = endTime;
+
+    // Check if this is an opening shift (starts at store opening time)
+    if (startTime === storeOpening) {
+      const [hours, minutes] = startTime.split(":").map(Number);
+      const adjustedMinutes = hours * 60 + minutes - keyholderBeforeMinutes;
+      const newHours = Math.floor(adjustedMinutes / 60);
+      const newMinutes = adjustedMinutes % 60;
+      adjustedStartTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
+    }
+
+    // Check if this is a closing shift (ends at store closing time)
+    if (endTime === storeClosing) {
+      const [hours, minutes] = endTime.split(":").map(Number);
+      const adjustedMinutes = hours * 60 + minutes + keyholderAfterMinutes;
+      const newHours = Math.floor(adjustedMinutes / 60);
+      const newMinutes = adjustedMinutes % 60;
+      adjustedEndTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
+    }
+
+    return { adjustedStartTime, adjustedEndTime };
+  };
+
+  const getDuration = () => {
+    const { adjustedStartTime, adjustedEndTime } = getAdjustedTimes();
+    if (!adjustedStartTime || !adjustedEndTime) return 0;
+    return calculateDuration(adjustedStartTime, adjustedEndTime);
   };
 
   // Determine shift type from multiple sources with enhanced logic
@@ -224,9 +248,12 @@ const TimeSlotDisplay = ({
     }
   }, [hasMissingTimeData, schedule, startTime, endTime, shiftType]);
 
+  // Get adjusted times for display
+  const { adjustedStartTime, adjustedEndTime } = getAdjustedTimes();
+  
   // Handle missing time data by using default placeholder times
-  const displayStartTime = startTime || "??:??";
-  const displayEndTime = endTime || "??:??";
+  const displayStartTime = adjustedStartTime || startTime || "??:??";
+  const displayEndTime = adjustedEndTime || endTime || "??:??";
   const effectiveShiftType = getEffectiveShiftType();
   const duration = getDuration();
 
@@ -295,14 +322,23 @@ const TimeSlotDisplay = ({
 
   return (
     <div className="flex flex-col items-center p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-all min-w-[100px] select-none">
-      <GripVertical className="h-4 w-4 text-muted-foreground mb-1" />
+      <div className="flex items-center gap-1 mb-1">
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
+        {isKeyholderShift && (
+          <Key className="h-4 w-4 text-amber-600" />
+        )}
+      </div>
       <div className="text-sm font-medium text-center mb-2">
         {displayStartTime} - {displayEndTime}
       </div>
       <div className="flex flex-col gap-1 items-center">
         <Badge
           variant="secondary"
-          className={cn("text-xs font-medium", getShiftTypeColor(effectiveShiftType))}
+          className={cn(
+            "text-xs font-medium", 
+            getShiftTypeColor(effectiveShiftType),
+            isKeyholderShift && "ring-1 ring-amber-500"
+          )}
         >
           {getShiftTypeName(effectiveShiftType)}
         </Badge>
@@ -349,6 +385,20 @@ const ScheduleCell = ({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const queryClient = useQueryClient();
+  
+  // Get employee data
+  const { data: employees } = useQuery({
+    queryKey: ["employees"],
+    queryFn: getEmployees,
+  });
+
+  // Get settings for keyholder calculations
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: getSettings,
+  });
+
+  const employee = employees?.find(emp => emp.id === employeeId);
   
   // Add drag functionality for existing schedules
   const [{ isDragging }, drag] = useDrag({
@@ -529,6 +579,8 @@ const ScheduleCell = ({
           endTime={schedule?.shift_end}
           shiftType={schedule?.shift_type_id}
           schedule={schedule}
+          employee={employee}
+          settings={settings}
         />
       </div>
 
@@ -589,7 +641,8 @@ const ScheduleCell = ({
         isOpen={isEditModalOpen && !!schedule && !!currentVersion}
         onClose={() => setIsEditModalOpen(false)}
         schedule={schedule!}
-        onSave={async (updates) => {
+        currentVersion={currentVersion}
+        onSave={async (scheduleId, updates) => {
           // Need null/undefined check for schedule.id here as schedule might be undefined
           if (schedule?.id) {
             await onUpdate(schedule.id, updates);
@@ -599,7 +652,6 @@ const ScheduleCell = ({
             setIsEditModalOpen(false); // Close modal even on error
           }
         }}
-        currentVersion={currentVersion!}
       />
     </div>
   );
@@ -1248,9 +1300,9 @@ export function ScheduleTable({
   }
 
   return (
-    <div className={cn("w-full", isFullWidth && "fixed inset-0 z-50 bg-background")}>
-      <Card className="border border-border shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
+    <div className={cn("w-full", isFullWidth && "fixed inset-0 z-[55] bg-background flex flex-col")}>
+      <Card className={cn("border border-border shadow-sm", isFullWidth && "flex-1 flex flex-col h-full")}>
+        <CardHeader className="flex flex-row items-center justify-between sticky top-0 z-[35] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border flex-shrink-0">
           <div>
             <CardTitle className="text-xl font-medium">Schichtplan</CardTitle>
             {dateRange?.from && dateRange?.to && (
@@ -1308,11 +1360,11 @@ export function ScheduleTable({
           </div>
         </CardHeader>
 
-        <CardContent className="p-0 overflow-x-auto">
+        <CardContent className={cn("p-0", isFullWidth ? "flex-1 overflow-auto" : "overflow-x-auto")}>
           {isLoading ? (
             <Skeleton className="w-full h-[400px]" />
           ) : (
-            <div className="w-full overflow-x-auto" style={{ maxWidth: "100%" }}>
+            <div className={cn("w-full", isFullWidth ? "h-full overflow-auto" : "overflow-x-auto")} style={{ maxWidth: "100%" }}>
               {isAxisSwitched ? (
                 <ScheduleTableSwitched
                   schedules={schedules}
@@ -1355,7 +1407,7 @@ export function ScheduleTable({
         </CardContent>
 
         {/* Color Legend - Moved to bottom */}
-        <div className="border-t border-border p-4 bg-muted/20">
+        <div className={cn("border-t border-border p-4 bg-muted/20", isFullWidth && "flex-shrink-0")}>
           <ScheduleColorLegend absenceTypes={absenceTypes} />
         </div>
       </Card>
@@ -1556,9 +1608,9 @@ function ScheduleTableNormal({
 
   return (
     <table className="w-full border-collapse">
-      <thead>
+      <thead className="sticky top-0 z-[30] bg-background">
         <tr className="border-b border-border">
-          <th className="w-[220px] sticky left-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 text-left p-4 font-medium text-foreground border-r border-border">
+          <th className="w-[220px] sticky left-0 z-[25] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 text-left p-4 font-medium text-foreground border-r border-border">
             <div className="flex items-center justify-between">
               <span>Mitarbeiter</span>
               {showNavigation && (
@@ -1588,7 +1640,7 @@ function ScheduleTableNormal({
           {daysToDisplay.map((date) => (
             <th
               key={date.toISOString()}
-              className="w-[160px] text-center p-4 font-medium text-foreground border-r border-border last:border-r-0"
+              className="w-[160px] text-center p-4 font-medium text-foreground border-r border-border last:border-r-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
             >
               <div className="font-medium text-base">
                 {weekdayAbbr[format(date, "EEEE")]}
@@ -1607,7 +1659,7 @@ function ScheduleTableNormal({
 
           return (
             <tr key={employeeId} className="hover:bg-muted/20 border-b border-border transition-colors">
-              <td className="font-medium sticky left-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 w-[220px] p-3 border-r border-border">
+              <td className="font-medium sticky left-0 z-[15] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 w-[220px] p-3 border-r border-border">
                 <div className="flex items-center gap-2">
                   <HoverCard>
                     <HoverCardTrigger asChild>
@@ -1878,66 +1930,56 @@ function ScheduleTableSwitched({
   };
 
   return (
-    <div className={cn(
-      "w-full",
-      isFullWidth && "h-full overflow-hidden flex flex-col"
-    )}>
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="border-b border-border">
-            <th className="w-[160px] sticky left-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 text-left p-4 font-medium text-foreground border-r border-border">
-              <div className="flex items-center justify-between">
-                <span>Datum</span>
-                {showNavigation && (
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={onPrevDays}
-                      disabled={!canNavigatePrev}
-                      className="h-6 w-6 p-0"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={onNextDays}
-                      disabled={!canNavigateNext}
-                      className="h-6 w-6 p-0"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
+    <table className="w-full border-collapse">
+      <thead className="sticky top-0 z-[30] bg-background">
+        <tr className="border-b border-border">
+          <th className="w-[160px] sticky left-0 z-[25] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 text-left p-4 font-medium text-foreground border-r border-border">
+            <div className="flex items-center justify-between">
+              <span>Datum</span>
+              {showNavigation && (
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onPrevDays}
+                    disabled={!canNavigatePrev}
+                    className="h-6 w-6 p-0"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onNextDays}
+                    disabled={!canNavigateNext}
+                    className="h-6 w-6 p-0"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          </th>
+          {uniqueEmployeeIds.map((employeeId) => (
+            <th
+              key={employeeId}
+              className="w-[180px] text-center p-4 font-medium text-foreground border-r border-border last:border-r-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+            >
+              <div className="text-sm font-medium">
+                {formatEmployeeName(employeeId)}
               </div>
             </th>
-            {uniqueEmployeeIds.map((employeeId) => (
-              <th
-                key={employeeId}
-                className="w-[180px] text-center p-4 font-medium text-foreground border-r border-border last:border-r-0"
-              >
-                <div className="text-sm font-medium">
-                  {formatEmployeeName(employeeId)}
-                </div>
-              </th>
-            ))}
-          </tr>
-        </thead>
-      </table>
-      <div className={cn(
-        "w-full overflow-auto",
-        isFullWidth && "flex-1 max-h-[calc(100vh-180px)]"
-      )}>
-        <table className="w-full border-collapse">
-          <tbody>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
             {daysToDisplay.map((date) => {
               const dateString = format(date, "yyyy-MM-dd");
               const schedulesByEmployee = groupedSchedulesByDate[dateString] || {};
 
               return (
                 <tr key={dateString} className="hover:bg-muted/20 border-b border-border transition-colors">
-                  <td className="font-medium sticky left-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 w-[160px] p-3 border-r border-border">
+                  <td className="font-medium sticky left-0 z-[15] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 w-[160px] p-3 border-r border-border">
                     <div className="text-center">
                       <div className="font-medium text-base">
                         {weekdayAbbr[format(date, "EEEE")]}
@@ -2027,8 +2069,6 @@ function ScheduleTableSwitched({
             })}
           </tbody>
         </table>
-      </div>
-    </div>
   );
 }
 

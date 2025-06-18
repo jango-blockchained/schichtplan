@@ -125,6 +125,8 @@ export function useWeekBasedVersionControl({
       // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['schedules'] });
       queryClient.invalidateQueries({ queryKey: ['versions'] });
+      queryClient.invalidateQueries({ queryKey: ['week-version', weekIdentifier] });
+      queryClient.invalidateQueries({ queryKey: ['week-version'] }); // Invalidate all week version queries
       
       return result;
     } catch (error) {

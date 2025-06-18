@@ -1,4 +1,4 @@
-import { useState, useEffect, ChangeEvent } from "react";
+  import { useState, useEffect, ChangeEvent } from "react";
 import {
   Dialog,
   DialogContent,
@@ -8,9 +8,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
-import { Schedule, ScheduleUpdate } from "@/types";
-import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { Schedule, ScheduleUpdate, Employee } from "@/types";
 import {
   Select,
   SelectContent,
@@ -18,17 +18,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { getShifts, createShift } from "@/services/api";
-import { useQuery } from "@tanstack/react-query";
+import { getShifts, getEmployees, getSchedules, updateEmployee, createSchedule } from "@/services/api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
+import { format, addDays, subDays } from "date-fns";
 
 interface ShiftEditModalProps {
   isOpen: boolean;
   onClose: () => void;
   schedule: Schedule;
   onSave: (scheduleId: number, updates: ScheduleUpdate) => Promise<void>;
+  currentVersion?: number; // Add current version prop
 }
 
 export function ShiftEditModal({
@@ -36,20 +37,56 @@ export function ShiftEditModal({
   onClose,
   schedule,
   onSave,
+  currentVersion,
 }: ShiftEditModalProps) {
   const [selectedShiftId, setSelectedShiftId] = useState<string>(
     schedule.shift_id?.toString() ?? "",
   );
+  const [shiftStartTime, setShiftStartTime] = useState<string>(
+    schedule.shift_start || "09:00",
+  );
+  const [shiftEndTime, setShiftEndTime] = useState<string>(
+    schedule.shift_end || "17:00",
+  );
   const [breakDuration, setBreakDuration] = useState<number>(
-    (schedule as any).break_duration ?? 0,
+    0,
   );
   const [notes, setNotes] = useState(schedule.notes ?? "");
+  const [isKeyholder, setIsKeyholder] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showKeyholderConflict, setShowKeyholderConflict] = useState(false);
+  const [conflictingKeyholder, setConflictingKeyholder] = useState<string>("");
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: shifts } = useQuery({
     queryKey: ["shifts"],
     queryFn: getShifts,
+  });
+
+  const { data: employees } = useQuery({
+    queryKey: ["employees"],
+    queryFn: getEmployees,
+  });
+
+  const { data: allSchedules } = useQuery({
+    queryKey: ["schedules", schedule.date],
+    queryFn: () => {
+      // Get schedules for the current schedule's date and a small window around it
+      const scheduleDate = new Date(schedule.date);
+      const startDate = new Date(scheduleDate);
+      startDate.setDate(startDate.getDate() - 1); // Previous day
+      const endDate = new Date(scheduleDate);
+      endDate.setDate(endDate.getDate() + 1); // Next day
+      
+      return getSchedules(
+        startDate.toISOString().split('T')[0],
+        endDate.toISOString().split('T')[0],
+        undefined, // version
+        true // includeEmpty
+      ).then(response => response.schedules || []);
+    },
+    enabled: !!schedule.date, // Only run when we have a schedule date
   });
 
   console.log("ShiftEditModal editing schedule:", {
@@ -62,69 +99,214 @@ export function ShiftEditModal({
     shift_end: schedule.shift_end,
   });
 
-  const initialShiftStart = schedule.shift_start || "00:00";
-  const initialShiftEnd = schedule.shift_end || "00:00";
-
   useEffect(() => {
     if (schedule.shift_id) {
       setSelectedShiftId(schedule.shift_id.toString());
     }
-    setBreakDuration((schedule as any).break_duration ?? 0);
+    setShiftStartTime(schedule.shift_start || "09:00");
+    setShiftEndTime(schedule.shift_end || "17:00");
+    setBreakDuration(0);
     setNotes(schedule.notes ?? "");
+    
+    // Check if current employee is a keyholder
+    const currentEmployee = employees?.find(emp => emp.id === schedule.employee_id);
+    setIsKeyholder(currentEmployee?.is_keyholder ?? false);
+    
     console.log(
       "📋 ShiftEditModal initialized with availability_type:",
       schedule.availability_type || "AVAILABLE",
     );
-  }, [schedule]);
+  }, [schedule, employees]);
+
+  const handleShiftTemplateChange = (shiftId: string) => {
+    setSelectedShiftId(shiftId);
+    
+    // Auto-populate times from selected shift template
+    const selectedShift = shifts?.find((s) => s.id === parseInt(shiftId));
+    if (selectedShift) {
+      setShiftStartTime(selectedShift.start_time);
+      setShiftEndTime(selectedShift.end_time);
+    }
+  };
+
+  const checkKeyholderConflict = () => {
+    console.log("🔍 checkKeyholderConflict called:", {
+      isKeyholder,
+      hasAllSchedules: !!allSchedules,
+      hasEmployees: !!employees,
+      allSchedulesLength: allSchedules?.length || 0,
+      employeesLength: employees?.length || 0
+    });
+    
+    if (!isKeyholder || !allSchedules || !employees) {
+      console.log("🔍 Early return from conflict check - missing data");
+      return null;
+    }
+    
+    const scheduleDate = schedule.date;
+    const currentEmployee = employees.find(emp => emp.id === schedule.employee_id);
+    
+    console.log("🔍 Checking conflicts for:", {
+      scheduleDate,
+      currentEmployeeId: schedule.employee_id,
+      currentEmployeeName: currentEmployee ? `${currentEmployee.first_name} ${currentEmployee.last_name}` : "Unknown"
+    });
+    
+    // Find other keyholder shifts on the same date
+    const conflictingSchedule = allSchedules.find(s => {
+      const matchesDate = s.date === scheduleDate;
+      const differentSchedule = s.id !== schedule.id;
+      const differentEmployee = s.employee_id !== schedule.employee_id;
+      const employeeIsKeyholder = employees.find(emp => emp.id === s.employee_id)?.is_keyholder;
+      
+      console.log("🔍 Checking schedule:", {
+        scheduleId: s.id,
+        employeeId: s.employee_id,
+        date: s.date,
+        matchesDate,
+        differentSchedule,
+        differentEmployee,
+        employeeIsKeyholder
+      });
+      
+      return matchesDate && differentSchedule && differentEmployee && employeeIsKeyholder;
+    });
+    
+    if (conflictingSchedule) {
+      const conflictingEmployee = employees.find(emp => emp.id === conflictingSchedule.employee_id);
+      const conflictName = `${conflictingEmployee?.first_name} ${conflictingEmployee?.last_name}`;
+      console.log("🔍 Found keyholder conflict:", conflictName);
+      return conflictName;
+    }
+    
+    console.log("🔍 No keyholder conflict found");
+    return null;
+  };
 
   const handleSave = async () => {
     console.log("🟢 ShiftEditModal handleSave called");
+    console.log("🔍 Debug info:", {
+      isKeyholder,
+      allSchedules: allSchedules?.length || 0,
+      employees: employees?.length || 0,
+      scheduleDate: schedule.date,
+      currentEmployeeId: schedule.employee_id
+    });
+    
+    // Check for keyholder conflicts if trying to set as keyholder
+    if (isKeyholder) {
+      const conflictEmployee = checkKeyholderConflict();
+      console.log("🔍 Keyholder conflict check result:", conflictEmployee);
+      if (conflictEmployee) {
+        setConflictingKeyholder(conflictEmployee);
+        setShowKeyholderConflict(true);
+        return; // Don't proceed with save
+      }
+    }
+    
+    await performSave();
+  };
+
+  const handleKeyholderConflictConfirm = async () => {
+    setShowKeyholderConflict(false);
+    await performSave(); // Force save with keyholder change
+  };
+
+  const performSave = async () => {
     setIsSubmitting(true);
+    
     try {
+      console.log("🟢 Starting save process...");
+      
+      // Step 1: Prepare schedule updates
       const updates: ScheduleUpdate = {
         shift_id: selectedShiftId ? parseInt(selectedShiftId, 10) : null,
+        shift_start: shiftStartTime,
+        shift_end: shiftEndTime,
         break_duration: breakDuration || null,
         notes: notes || null,
         availability_type: schedule.availability_type || "AVAILABLE",
       };
 
-      console.log("🟢 Calling onSave with:", {
-        scheduleId: schedule.id,
-        updates,
-        availability_type: schedule.availability_type,
-      });
-
-      if (updates.shift_id && !updates.shift_start) {
-        try {
-          const selectedShift = shifts?.find((s) => s.id === updates.shift_id);
-          if (selectedShift) {
-            updates.shift_start = selectedShift.start_time;
-            updates.shift_end = selectedShift.end_time;
-            console.log("Added missing shift times from template:", {
-              shift_id: updates.shift_id,
-              shift_start: updates.shift_start,
-              shift_end: updates.shift_end,
-            });
-          }
-        } catch (error) {
-          console.error("Error adding missing shift times:", error);
+      // Add template times if missing
+      if (updates.shift_id && (!updates.shift_start || !updates.shift_end)) {
+        const selectedShift = shifts?.find((s) => s.id === updates.shift_id);
+        if (selectedShift) {
+          updates.shift_start = updates.shift_start || selectedShift.start_time;
+          updates.shift_end = updates.shift_end || selectedShift.end_time;
         }
       }
 
-      await onSave(schedule.id, updates);
-      console.log("🟢 onSave completed successfully");
+      console.log("🟢 Schedule updates:", updates);
 
+      // Step 2: Save the schedule
+      await onSave(schedule.id, updates);
+      console.log("🟢 Schedule saved successfully");
+
+      // Step 3: Handle keyholder status changes
+      const currentEmployee = employees?.find(emp => emp.id === schedule.employee_id);
+      if (currentEmployee && currentEmployee.is_keyholder !== isKeyholder) {
+        console.log("🔑 Processing keyholder status change...");
+        
+        try {
+          if (isKeyholder) {
+            console.log("🔑 Setting employee as keyholder...");
+            
+            // First, unset all other keyholders
+            const otherKeyholders = employees?.filter(emp => 
+              emp.id !== schedule.employee_id && emp.is_keyholder
+            ) || [];
+            
+            console.log("🔑 Found other keyholders to unset:", otherKeyholders.length);
+            
+            for (const keyholder of otherKeyholders) {
+              console.log("🔑 Unsetting keyholder:", keyholder.first_name, keyholder.last_name);
+              await updateEmployee(keyholder.id, { 
+                ...keyholder, 
+                is_keyholder: false 
+              });
+            }
+            
+            // Step 4: Handle consecutive day requirements for keyholders
+            await handleKeyholderConsecutiveDays(currentEmployee, updates);
+          }
+          
+          // Update current employee's keyholder status
+          console.log("🔑 Updating current employee keyholder status...");
+          await updateEmployee(currentEmployee.id, { 
+            ...currentEmployee, 
+            is_keyholder: isKeyholder 
+          });
+          
+          console.log("🔑 Keyholder status updated successfully");
+        } catch (error) {
+          console.error("❌ Error updating keyholder status:", error);
+          throw new Error("Failed to update keyholder status: " + (error instanceof Error ? error.message : "Unknown error"));
+        }
+      }
+
+      // Step 5: Invalidate caches to trigger UI reload
+      console.log("🔄 Invalidating caches...");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["schedules"] }),
+        queryClient.invalidateQueries({ queryKey: ["employees"] }),
+        queryClient.invalidateQueries({ queryKey: ["shifts"] })
+      ]);
+      
+      console.log("✅ Save process completed successfully");
+      
       toast({
         title: "Success",
         description: "Shift updated successfully",
       });
+      
       onClose();
+      
     } catch (error) {
-      console.error("🟢 Error in handleSave:", error);
+      console.error("❌ Error in performSave:", error);
       toast({
         title: "Error",
-        description:
-          error instanceof Error ? error.message : "Failed to update shift",
+        description: error instanceof Error ? error.message : "Failed to update shift",
         variant: "destructive",
       });
     } finally {
@@ -132,66 +314,228 @@ export function ShiftEditModal({
     }
   };
 
+  // Handle keyholder consecutive day requirements
+  const handleKeyholderConsecutiveDays = async (employee: Employee, scheduleUpdates: ScheduleUpdate) => {
+    if (!allSchedules || !shifts) return;
+    
+    const currentDate = new Date(schedule.date);
+    const selectedShift = shifts.find(s => s.id === scheduleUpdates.shift_id);
+    
+    if (!selectedShift) return;
+    
+    // Determine if this is an early or late shift
+    const isEarlyShift = selectedShift.shift_type_id === "EARLY";
+    const isLateShift = selectedShift.shift_type_id === "LATE";
+    
+    console.log("🔑 Checking consecutive day requirements:", {
+      shiftType: selectedShift.shift_type_id,
+      isEarlyShift,
+      isLateShift
+    });
+    
+    try {
+      if (isLateShift) {
+        // Late shift: keyholder must work early shift next day
+        const nextDay = addDays(currentDate, 1);
+        const nextDayStr = format(nextDay, "yyyy-MM-dd");
+        
+        console.log("🔑 Late shift - checking next day early shift:", nextDayStr);
+        
+        // Find early shift template
+        const earlyShift = shifts.find(s => s.shift_type_id === "EARLY");
+        if (earlyShift) {
+          // Check if employee already has schedule for next day
+          const existingNextDaySchedule = allSchedules.find(s => 
+            s.date === nextDayStr && s.employee_id === employee.id
+          );
+          
+          if (!existingNextDaySchedule) {
+            console.log("🔑 Creating early shift for next day...");
+            await createSchedule({
+              employee_id: employee.id,
+              shift_id: earlyShift.id,
+              date: nextDayStr,
+              version: currentVersion || schedule.version || 1
+            });
+          }
+        }
+      }
+      
+      if (isEarlyShift) {
+        // Early shift: keyholder must have worked late shift previous day
+        const prevDay = subDays(currentDate, 1);
+        const prevDayStr = format(prevDay, "yyyy-MM-dd");
+        
+        console.log("🔑 Early shift - checking previous day late shift:", prevDayStr);
+        
+        // Find late shift template
+        const lateShift = shifts.find(s => s.shift_type_id === "LATE");
+        if (lateShift) {
+          // Check if employee already has schedule for previous day
+          const existingPrevDaySchedule = allSchedules.find(s => 
+            s.date === prevDayStr && s.employee_id === employee.id
+          );
+          
+          if (!existingPrevDaySchedule) {
+            console.log("🔑 Creating late shift for previous day...");
+            await createSchedule({
+              employee_id: employee.id,
+              shift_id: lateShift.id,
+              date: prevDayStr,
+              version: currentVersion || schedule.version || 1
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error("❌ Error handling consecutive day requirements:", error);
+      // Don't throw here - this is supplementary functionality
+    }
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <>
+      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {schedule.shift_id
+                ? "Schicht bearbeiten"
+                : "Neue Schicht erstellen"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="shift">Schicht</Label>
+              <Select value={selectedShiftId} onValueChange={handleShiftTemplateChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Schicht auswählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {shifts?.map((shift) => (
+                    <SelectItem key={shift.id} value={shift.id.toString()}>
+                      {shift.start_time} - {shift.end_time}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="startTime">Startzeit</Label>
+                <Input
+                  id="startTime"
+                  type="time"
+                  value={shiftStartTime}
+                  onChange={(e) => setShiftStartTime(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="endTime">Endzeit</Label>
+                <Input
+                  id="endTime"
+                  type="time"
+                  value={shiftEndTime}
+                  onChange={(e) => setShiftEndTime(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="keyholder"
+                checked={isKeyholder}
+                onCheckedChange={(checked) => setIsKeyholder(checked as boolean)}
+              />
+              <Label 
+                htmlFor="keyholder" 
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                Als Schlüsselträger markieren
+              </Label>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="breakDuration">
+                Pausenlänge: {breakDuration} Minuten
+              </Label>
+              <Slider
+                id="breakDuration"
+                value={[breakDuration]}
+                min={0}
+                max={60}
+                step={5}
+                onValueChange={(values) => setBreakDuration(values[0])}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notizen</Label>
+              <Textarea
+                id="notes"
+                value={notes}
+                onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
+                  setNotes(e.target.value)
+                }
+                placeholder="Notizen zur Schicht..."
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={onClose}>
+              Abbrechen
+            </Button>
+            <Button onClick={handleSave} disabled={isSubmitting}>
+              {isSubmitting ? "Speichern..." : "Speichern"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <KeyholderConflictDialog
+        isOpen={showKeyholderConflict}
+        onClose={() => setShowKeyholderConflict(false)}
+        conflictingKeyholder={conflictingKeyholder}
+        onConfirm={handleKeyholderConflictConfirm}
+      />
+    </>
+  );
+}
+
+// Keyholder Conflict Dialog Component
+function KeyholderConflictDialog({
+  isOpen,
+  onClose,
+  conflictingKeyholder,
+  onConfirm,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  conflictingKeyholder: string;
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>
-            {schedule.shift_id
-              ? "Schicht bearbeiten"
-              : "Neue Schicht erstellen"}
-          </DialogTitle>
+          <DialogTitle>Schlüsselträger-Konflikt</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="shift">Schicht</Label>
-            <Select value={selectedShiftId} onValueChange={setSelectedShiftId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Schicht auswählen" />
-              </SelectTrigger>
-              <SelectContent>
-                {shifts?.map((shift) => (
-                  <SelectItem key={shift.id} value={shift.id.toString()}>
-                    {shift.start_time} - {shift.end_time}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="breakDuration">
-              Pausenlänge: {breakDuration} Minuten
-            </Label>
-            <Slider
-              id="breakDuration"
-              value={[breakDuration]}
-              min={0}
-              max={60}
-              step={5}
-              onValueChange={(values) => setBreakDuration(values[0])}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notizen</Label>
-            <Textarea
-              id="notes"
-              value={notes}
-              onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
-                setNotes(e.target.value)
-              }
-              placeholder="Notizen zur Schicht..."
-            />
-          </div>
+        <div className="py-4">
+          <p>
+            Es ist bereits ein anderer Schlüsselträger für diesen Tag eingeteilt: <strong>{conflictingKeyholder}</strong>
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Es kann nur einen Schlüsselträger pro Tag geben. Möchten Sie den aktuellen Schlüsselträger ersetzen?
+          </p>
         </div>
-
         <div className="flex justify-end space-x-2">
           <Button variant="outline" onClick={onClose}>
             Abbrechen
           </Button>
-          <Button onClick={handleSave} disabled={isSubmitting}>
-            {isSubmitting ? "Speichern..." : "Speichern"}
+          <Button onClick={onConfirm}>
+            Schlüsselträger ersetzen
           </Button>
         </div>
       </DialogContent>
