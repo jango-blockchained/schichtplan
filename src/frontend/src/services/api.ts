@@ -1510,7 +1510,7 @@ export const previewAiData = async (
 }> => {
   try {
     const response = await api.post(
-      "/api/v2/ai-schedule/schedule/preview-ai-data",
+      "/api/v2/schedule/preview-ai-data",
       { start_date: startDate, end_date: endDate }
     );
     return response.data;

@@ -53,6 +53,7 @@ import {
   generateAiSchedule,
   previewAiData,
   importAiScheduleResponse,
+  getWeekVersions,
 } from "@/services/api";
 import {
   Dialog,
@@ -237,6 +238,32 @@ export function SchedulePage() {
   // Week-based navigation toggle state
   const [useWeekBasedNavigation, setUseWeekBasedNavigation] = useState(false);
 
+  // Week-based Version Control Hook (Alternative to legacy version control)
+  const weekBasedVersionControl = useWeekBasedVersionControl({
+    onWeekChanged: (weekIdentifier) => {
+      console.log("🔄 SchedulePage: Week changed to:", weekIdentifier);
+      // The hook handles date range updates internally
+    },
+    onVersionSelected: (version) => {
+      console.log("🔄 SchedulePage: Week-based version selected:", version);
+      // Convert version identifier to number if needed for backward compatibility
+      const versionNumber = typeof version === 'string' ? parseInt(version.split('-')[0], 10) || 1 : version;
+      setSelectedVersion(versionNumber);
+    },
+  });
+
+  // Query for week-based version metadata when using week navigation
+  const { data: currentWeekVersionMeta } = useQuery({
+    queryKey: ["week-version", weekBasedVersionControl.navigationState.currentWeek],
+    queryFn: async () => {
+      const versions = await getWeekVersions(weekBasedVersionControl.navigationState.currentWeek);
+      // Return the first version for this week (there should typically be only one)
+      return versions.length > 0 ? versions[0] : null;
+    },
+    enabled: useWeekBasedNavigation && !!weekBasedVersionControl.navigationState.currentWeek,
+    staleTime: 30 * 1000, // Cache for 30 seconds
+  });
+
   // Custom Hook for Version Control
   const {
     selectedVersion: versionControlSelectedVersion,
@@ -262,17 +289,10 @@ export function SchedulePage() {
     },
   });
 
-  // Week-based Version Control Hook (Alternative to legacy version control)
-  const weekBasedVersionControl = useWeekBasedVersionControl({
-    onWeekChanged: (weekIdentifier) => {
-      console.log("🔄 SchedulePage: Week changed to:", weekIdentifier);
-      // The hook handles date range updates internally
-    },
-    onVersionSelected: (version) => {
-      console.log("🔄 SchedulePage: Week-based version selected:", version);
-      setSelectedVersion(version);
-    },
-  });
+  // Determine which version to use based on navigation mode
+  const effectiveSelectedVersion = useWeekBasedNavigation 
+    ? (currentWeekVersionMeta?.version ? parseInt(currentWeekVersionMeta.version.toString()) : undefined)
+    : versionControlSelectedVersion;
 
   // Custom Hook for Schedule Data Fetching
   const {
@@ -284,7 +304,7 @@ export function SchedulePage() {
   } = useScheduleData(
     dateRange?.from ?? new Date(),
     dateRange?.to ?? new Date(),
-    versionControlSelectedVersion, // This comes from useVersionControl
+    effectiveSelectedVersion, // Use the effective version based on navigation mode
     includeEmpty,
   );
 
@@ -304,7 +324,7 @@ export function SchedulePage() {
     lastSessionId,
   } = useScheduleGeneration({
     dateRange,
-    selectedVersion: versionControlSelectedVersion,
+    selectedVersion: effectiveSelectedVersion, // Use effective version for generation too
     createEmptySchedules,
     enableDiagnostics,
     onSuccess: useCallback(() => {
@@ -315,12 +335,11 @@ export function SchedulePage() {
       // Only invalidate versions if they might have changed
       queryClient.invalidateQueries({ queryKey: ["versions"] });
       
-      // Show a single success toast (the hook already shows one, so we can skip this)
-      // toast({
-      //   title: "Generation Complete",
-      //   description: "The standard schedule has been generated successfully.",
-      // });
-    }, [queryClient]), // Removed refetchScheduleData and toast dependencies
+      // Invalidate week version queries too if in week mode
+      if (useWeekBasedNavigation) {
+        queryClient.invalidateQueries({ queryKey: ["week-version"] });
+      }
+    }, [queryClient, useWeekBasedNavigation]), // Added useWeekBasedNavigation dependency
   });
 
   // Mutations
@@ -746,7 +765,7 @@ export function SchedulePage() {
       });
       return;
     }
-    if (!versionControlSelectedVersion) {
+    if (!effectiveSelectedVersion) {
       toast({
         title: "Version erforderlich",
         description: "Bitte wählen Sie eine Version aus.",
@@ -767,7 +786,7 @@ export function SchedulePage() {
     addGenerationLog(
       "info",
       "Starting STANDARD schedule generation",
-      `Version: ${versionControlSelectedVersion}, Date range: ${formattedFromDate} - ${formattedToDate}`,
+      `Version: ${effectiveSelectedVersion}, Date range: ${formattedFromDate} - ${formattedToDate}`,
     );
     generate();
   };
@@ -1520,9 +1539,17 @@ export function SchedulePage() {
           
           <WeekVersionDisplay
             currentWeekInfo={weekBasedVersionControl.currentWeekInfo}
+            versionMeta={currentWeekVersionMeta}
+            selectedVersion={weekBasedVersionControl.selectedVersion}
             onCreateVersion={() => weekBasedVersionControl.createVersionForWeek(
               weekBasedVersionControl.navigationState.currentWeek
             )}
+            onSelectVersion={(version) => {
+              // Convert version identifier to number for backward compatibility
+              const versionNumber = typeof version === 'string' ? parseInt(version.split('-')[0], 10) || 1 : version;
+              setSelectedVersion(versionNumber);
+              weekBasedVersionControl.setSelectedVersion(version);
+            }}
           />
         </div>
       ) : (
@@ -1569,7 +1596,7 @@ export function SchedulePage() {
               employees={employees || []}
               startDate={format(dateRange.from, "yyyy-MM-dd")}
               endDate={format(dateRange.to, "yyyy-MM-dd")}
-              version={versionControlSelectedVersion}
+              version={effectiveSelectedVersion}
             />
           </div>
         )}
@@ -1584,15 +1611,15 @@ export function SchedulePage() {
           canAdd={
             !!dateRange?.from &&
             !!dateRange?.to &&
-            !!versionControlSelectedVersion
+            !!effectiveSelectedVersion
           }
           canDelete={
-            scheduleData?.length > 0 && !!versionControlSelectedVersion
+            scheduleData?.length > 0 && !!effectiveSelectedVersion
           }
           canGenerate={
             !!dateRange?.from &&
             !!dateRange?.to &&
-            !!versionControlSelectedVersion
+            !!effectiveSelectedVersion
           }
           onAddSchedule={handleAddSchedule}
           onDeleteSchedule={handleDeleteSchedule}
@@ -1706,7 +1733,7 @@ export function SchedulePage() {
                 absenceTypes={
                   effectiveSettingsData?.employee_groups?.absence_types || []
                 }
-                currentVersion={versionControlSelectedVersion}
+                currentVersion={effectiveSelectedVersion}
                 openingDays={openingDays}
                 isEmptyState={
                   !scheduleData ||

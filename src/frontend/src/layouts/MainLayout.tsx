@@ -198,7 +198,7 @@ export const MainLayout = () => {
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col">
           {/* Mobile Header */}
-          <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:hidden">
+          <header className="sticky top-0 z-[30] border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:hidden">
             <div className="flex h-14 items-center justify-between px-4">
               <div className="flex items-center gap-2">
                 <SidebarTrigger className="-ml-1" />
@@ -211,7 +211,7 @@ export const MainLayout = () => {
           </header>
 
           {/* Desktop Header */}
-          <header className="sticky top-0 z-40 hidden border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:flex">
+          <header className="sticky top-0 z-[30] hidden border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:flex">
             <div className="flex h-14 w-full items-center justify-between px-6">
               <div className="flex items-center gap-2">
                 <SidebarTrigger className="-ml-1" />

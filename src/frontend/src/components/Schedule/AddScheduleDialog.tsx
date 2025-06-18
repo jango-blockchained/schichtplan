@@ -33,14 +33,18 @@ import {
 import {
   getEmployeeAvailabilityByDate,
   getApplicableShiftsForEmployee,
+  getEmployees,
+  updateEmployee,
 } from "@/services/api";
 import { cn } from "@/lib/utils";
 import {
   EmployeeAvailabilityStatus,
   ApplicableShift,
   AvailabilityTypeStrings,
+  Employee,
 } from "@/types";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
 import {
   Tooltip,
@@ -59,6 +63,7 @@ interface AddScheduleDialogProps {
     shift_id: number;
     version: number;
     availability_type: AvailabilityTypeStrings | null;
+    is_keyholder?: boolean;
   }) => Promise<void>;
   version: number;
   defaultDate?: Date;
@@ -79,6 +84,7 @@ export function AddScheduleDialog({
   const [selectedEmployee, setSelectedEmployee] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedShift, setSelectedShift] = useState<number | null>(null);
+  const [isKeyholder, setIsKeyholder] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [employeeStatusList, setEmployeeStatusList] = useState<
@@ -128,6 +134,7 @@ export function AddScheduleDialog({
       // Reset shift selection
       setSelectedShift(null);
       setSelectedAvailabilityType(null);
+      setIsKeyholder(false);
     }
   }, [isOpen, initialDefaultDate, initialDefaultEmployeeId]);
 
@@ -244,14 +251,62 @@ export function AddScheduleDialog({
 
     setIsSubmitting(true);
     try {
+      // Handle keyholder status if selected
+      if (isKeyholder) {
+        console.log("🔑 Setting up keyholder for new schedule...");
+        
+        try {
+          // Get all employees to find other keyholders
+          const employees = await getEmployees();
+          
+          // Find and unset other keyholders
+          const otherKeyholders = employees.filter(emp => 
+            emp.id !== selectedEmployee && emp.is_keyholder
+          );
+          
+          console.log("🔑 Found other keyholders to unset:", otherKeyholders.length);
+          
+          for (const keyholder of otherKeyholders) {
+            console.log("🔑 Unsetting keyholder:", keyholder.first_name, keyholder.last_name);
+            await updateEmployee(keyholder.id, { 
+              ...keyholder, 
+              is_keyholder: false 
+            });
+          }
+          
+          // Set the selected employee as keyholder
+          const currentEmployee = employees.find(emp => emp.id === selectedEmployee);
+          if (currentEmployee && !currentEmployee.is_keyholder) {
+            console.log("🔑 Setting employee as keyholder:", currentEmployee.first_name, currentEmployee.last_name);
+            await updateEmployee(currentEmployee.id, { 
+              ...currentEmployee, 
+              is_keyholder: true 
+            });
+          }
+          
+        } catch (error) {
+          console.error("❌ Error updating keyholder status:", error);
+          toast({
+            title: "Warning",
+            description: "Schedule will be created but keyholder status update failed: " + (error instanceof Error ? error.message : "Unknown error"),
+            variant: "destructive",
+          });
+        }
+      }
+
+      // Create the schedule
       await onAddSchedule({
         employee_id: selectedEmployee,
         date: format(selectedDate, "yyyy-MM-dd"),
         shift_id: selectedShift,
         version,
         availability_type: selectedAvailabilityType,
+        is_keyholder: isKeyholder,
       });
+      
+      console.log("✅ Schedule created successfully");
       onClose(); // Close dialog on success
+      
     } catch (error) {
       console.error("Error adding schedule:", error);
       toast({
@@ -548,6 +603,25 @@ export function AddScheduleDialog({
                   ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Keyholder Checkbox */}
+          <div className="grid grid-cols-4 items-center gap-4">
+            <div></div> {/* Empty cell for alignment */}
+            <div className="col-span-3 flex items-center space-x-2">
+              <Checkbox
+                id="keyholder"
+                checked={isKeyholder}
+                onCheckedChange={(checked) => setIsKeyholder(checked as boolean)}
+                disabled={isSubmitting}
+              />
+              <Label 
+                htmlFor="keyholder" 
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                Als Schlüsselträger markieren
+              </Label>
+            </div>
           </div>
 
           {/* Show selected availability type if one is selected */}

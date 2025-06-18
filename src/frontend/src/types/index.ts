@@ -101,6 +101,8 @@ export interface ScheduleUpdate {
   employee_id?: number | null;
   shift_id?: number | null;
   date?: string | null;
+  shift_start?: string | null;
+  shift_end?: string | null;
   break_duration?: number | null;
   notes?: string | null;
   version?: number | null;
