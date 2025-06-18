@@ -43,6 +43,228 @@ class SchichtplanMCPService:
         """Register all MCP tools."""
         
         @self.mcp.tool()
+        async def get_server_info(ctx: Context = None) -> Dict[str, Any]:
+            """Get detailed information about the MCP server.
+            
+            Returns:
+                Server information including version, capabilities, and endpoints
+            """
+            try:
+                server_info = {
+                    'name': 'Schichtplan MCP Server',
+                    'version': '1.0.0',
+                    'description': 'Model Context Protocol server for Schichtplan shift scheduling application',
+                    'author': 'Schichtplan Development Team',
+                    'protocol_version': '2024-11-05',
+                    'server_capabilities': {
+                        'tools': True,
+                        'resources': True,
+                        'prompts': True,
+                        'logging': True
+                    },
+                    'supported_transports': ['stdio', 'sse', 'streamable-http'],
+                    'endpoints': {
+                        'stdio': 'Direct stdin/stdout communication',
+                        'sse': 'Server-Sent Events on configurable port (default: 8001)',
+                        'http': 'Streamable HTTP on configurable port (default: 8002)'
+                    },
+                    'features': [
+                        'Employee management',
+                        'Shift template management', 
+                        'Schedule generation (AI and traditional)',
+                        'System status monitoring',
+                        'Demo data generation',
+                        'Schedule analysis and optimization'
+                    ],
+                    'system_requirements': {
+                        'python': '>=3.8',
+                        'database': 'SQLite/PostgreSQL',
+                        'dependencies': ['FastMCP', 'Flask', 'SQLAlchemy']
+                    }
+                }
+                
+                if ctx:
+                    await ctx.info("Server information retrieved successfully")
+                
+                return server_info
+                
+            except Exception as e:
+                if ctx:
+                    await ctx.error(f"Error getting server info: {str(e)}")
+                raise
+        
+        @self.mcp.tool()
+        async def get_capabilities(ctx: Context = None) -> Dict[str, Any]:
+            """Get detailed capabilities and available tools of the MCP server.
+            
+            Returns:
+                Comprehensive list of server capabilities, tools, resources, and prompts
+            """
+            try:
+                capabilities = {
+                    'tools': {
+                        'get_server_info': {
+                            'description': 'Get server information and metadata',
+                            'parameters': {},
+                            'returns': 'Server information object'
+                        },
+                        'get_capabilities': {
+                            'description': 'Get detailed server capabilities',
+                            'parameters': {},
+                            'returns': 'Capabilities object'
+                        },
+                        'get_employees': {
+                            'description': 'Retrieve employee information',
+                            'parameters': {
+                                'active_only': 'boolean - Filter for active employees only',
+                                'include_details': 'boolean - Include detailed employee information'
+                            },
+                            'returns': 'List of employee objects'
+                        },
+                        'get_shift_templates': {
+                            'description': 'Retrieve shift template definitions',
+                            'parameters': {
+                                'active_only': 'boolean - Filter for active shift templates only'
+                            },
+                            'returns': 'List of shift template objects'
+                        },
+                        'generate_schedule': {
+                            'description': 'Generate new schedule for date range',
+                            'parameters': {
+                                'start_date': 'string - Start date (YYYY-MM-DD)',
+                                'end_date': 'string - End date (YYYY-MM-DD)',
+                                'use_ai': 'boolean - Use AI-powered scheduling',
+                                'version': 'integer - Schedule version number'
+                            },
+                            'returns': 'Schedule generation result'
+                        },
+                        'get_schedule': {
+                            'description': 'Retrieve existing schedule',
+                            'parameters': {
+                                'start_date': 'string - Start date (YYYY-MM-DD)',
+                                'end_date': 'string - End date (YYYY-MM-DD)',
+                                'version': 'integer - Schedule version number'
+                            },
+                            'returns': 'Schedule data with assignments'
+                        },
+                        'generate_demo_data': {
+                            'description': 'Generate demo data for testing',
+                            'parameters': {
+                                'employee_count': 'integer - Number of employees to create',
+                                'shift_count': 'integer - Number of shift templates',
+                                'coverage_blocks': 'integer - Number of coverage requirements'
+                            },
+                            'returns': 'Demo data generation result'
+                        },
+                        'get_system_status': {
+                            'description': 'Get system status and statistics',
+                            'parameters': {},
+                            'returns': 'System status information'
+                        }
+                    },
+                    'resources': {
+                        'config://system': {
+                            'description': 'System configuration information',
+                            'content_type': 'application/json'
+                        },
+                        'employees://{employee_id}': {
+                            'description': 'Detailed employee information by ID',
+                            'content_type': 'application/json',
+                            'parameters': {
+                                'employee_id': 'integer - Employee ID'
+                            }
+                        }
+                    },
+                    'prompts': {
+                        'schedule_analysis_prompt': {
+                            'description': 'Generate AI prompt for schedule analysis',
+                            'parameters': {
+                                'schedule_data': 'string - JSON schedule data'
+                            }
+                        },
+                        'employee_scheduling_prompt': {
+                            'description': 'Generate AI prompt for employee scheduling',
+                            'parameters': {
+                                'employee_data': 'string - JSON employee data',
+                                'requirements': 'string - Scheduling requirements'
+                            }
+                        }
+                    },
+                    'protocols': {
+                        'mcp_version': '2024-11-05',
+                        'implementation': 'FastMCP',
+                        'transports': ['stdio', 'sse', 'streamable-http']
+                    },
+                    'ai_integration': {
+                        'supported': True,
+                        'models': 'Compatible with OpenAI, Anthropic, and other MCP-supporting AI systems',
+                        'use_cases': [
+                            'Schedule optimization',
+                            'Conflict resolution',
+                            'Workload analysis',
+                            'Compliance checking',
+                            'Resource planning'
+                        ]
+                    }
+                }
+                
+                if ctx:
+                    await ctx.info("Capabilities information retrieved successfully")
+                
+                return capabilities
+                
+            except Exception as e:
+                if ctx:
+                    await ctx.error(f"Error getting capabilities: {str(e)}")
+                raise
+        
+        @self.mcp.tool()
+        async def mcp_health_check(ctx: Context = None) -> Dict[str, Any]:
+            """Health check for MCP server connectivity and status.
+            
+            Returns:
+                Health status information including server status and connectivity
+            """
+            try:
+                health_status = {
+                    'status': 'healthy',
+                    'timestamp': datetime.now().isoformat(),
+                    'server_name': 'Schichtplan MCP Server',
+                    'version': '1.0.0',
+                    'uptime': 'Available',
+                    'connectivity': {
+                        'database': 'connected',
+                        'flask_app': 'available'
+                    }
+                }
+                
+                # Test database connectivity
+                try:
+                    with self.flask_app.app_context():
+                        Employee.query.first()
+                        health_status['connectivity']['database'] = 'connected'
+                except Exception as db_error:
+                    health_status['connectivity']['database'] = f'error: {str(db_error)}'
+                    health_status['status'] = 'degraded'
+                
+                if ctx:
+                    await ctx.info("Health check completed")
+                
+                return health_status
+                
+            except Exception as e:
+                error_status = {
+                    'status': 'unhealthy',
+                    'timestamp': datetime.now().isoformat(),
+                    'error': str(e)
+                }
+                
+                if ctx:
+                    await ctx.error(f"Health check failed: {str(e)}")
+                
+                return error_status
+        
+        @self.mcp.tool()
         async def get_employees(
             active_only: bool = True,
             include_details: bool = False,

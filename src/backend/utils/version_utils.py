@@ -81,7 +81,10 @@ def parse_version_identifier(version_identifier: str) -> Dict[str, any]:
             "is_week_based": True
         }
     
-    raise ValueError(f"Invalid version identifier format: {version_identifier}")def version_identifier_to_date_range(version_identifier: str) -> Tuple[date, date]:
+    raise ValueError(f"Invalid version identifier format: {version_identifier}")
+
+
+def version_identifier_to_date_range(version_identifier: str) -> Tuple[date, date]:
     """
     Convert a version identifier to a date range.
     

@@ -1,0 +1,92 @@
+{
+  "name": "Schichtplan MCP Server",
+  "version": "1.0.0",
+  "description": "Model Context Protocol server for Schichtplan shift scheduling application",
+  "author": "Schichtplan Development Team",
+  "license": "MIT",
+  "homepage": "https://github.com/your-org/schichtplan",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/schichtplan.git"
+  },
+  "server": {
+    "command": "python3",
+    "args": ["src/backend/mcp_server.py"],
+    "env": {
+      "PYTHONPATH": ".",
+      "FLASK_ENV": "development"
+    }
+  },
+  "transports": {
+    "stdio": {
+      "description": "Standard input/output transport for direct AI tool integration",
+      "command": ["python3", "src/backend/mcp_server.py"]
+    },
+    "sse": {
+      "description": "Server-Sent Events transport for web-based AI tools",
+      "command": ["python3", "src/backend/mcp_server.py", "--transport", "sse", "--port", "8001"],
+      "endpoint": "http://localhost:8001/sse"
+    },
+    "http": {
+      "description": "Streamable HTTP transport for HTTP-based AI tools",
+      "command": ["python3", "src/backend/mcp_server.py", "--transport", "http", "--port", "8002"],
+      "endpoint": "http://localhost:8002/mcp"
+    }
+  },
+  "capabilities": {
+    "tools": [
+      "get_server_info",
+      "get_capabilities",
+      "get_employees",
+      "get_shift_templates",
+      "generate_schedule",
+      "get_schedule",
+      "generate_demo_data",
+      "get_system_status"
+    ],
+    "resources": [
+      "config://system",
+      "employees://{employee_id}"
+    ],
+    "prompts": [
+      "schedule_analysis_prompt",
+      "employee_scheduling_prompt"
+    ]
+  },
+  "integration": {
+    "ai_models": [
+      "OpenAI GPT-4",
+      "Anthropic Claude",
+      "Google Gemini",
+      "Any MCP-compatible AI system"
+    ],
+    "use_cases": [
+      "Schedule optimization",
+      "Conflict resolution",
+      "Workload analysis", 
+      "Compliance checking",
+      "Resource planning",
+      "Employee management",
+      "Availability tracking"
+    ]
+  },
+  "configuration": {
+    "default_ports": {
+      "sse": 8001,
+      "http": 8002
+    },
+    "logging": {
+      "level": "INFO",
+      "file": "src/logs/mcp_server.log"
+    },
+    "database": {
+      "path": "src/instance/app.db",
+      "type": "SQLite"
+    }
+  },
+  "documentation": {
+    "readme": "README.md",
+    "api_docs": "docs/mcp_api.md",
+    "examples": "examples/mcp_client_examples.py"
+  }
+}

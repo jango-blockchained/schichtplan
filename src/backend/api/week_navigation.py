@@ -47,7 +47,10 @@ def get_current_week():
         
     except Exception as e:
         logger.error(f"Error getting current week: {str(e)}")
-        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR@bp.route('/<string:week_identifier>/info', methods=['GET'])
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@bp.route('/<string:week_identifier>/info', methods=['GET'])
 def get_week_info(week_identifier: str):
     """Get information about a specific week."""
     try:
@@ -101,7 +104,10 @@ def get_next_week_endpoint(week_identifier: str):
         return jsonify({"error": f"Invalid week identifier: {str(e)}"}), HTTPStatus.BAD_REQUEST
     except Exception as e:
         logger.error(f"Error getting next week: {str(e)}")
-        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR@bp.route('/<string:week_identifier>/previous', methods=['GET'])
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@bp.route('/<string:week_identifier>/previous', methods=['GET'])
 def get_previous_week_endpoint(week_identifier: str):
     """Get the previous week identifier."""
     try:
@@ -122,6 +128,27 @@ def get_previous_week_endpoint(week_identifier: str):
         return jsonify({"error": f"Invalid week identifier: {str(e)}"}), HTTPStatus.BAD_REQUEST
     except Exception as e:
         logger.error(f"Error getting previous week: {str(e)}")
+        return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@bp.route('/<string:week_identifier>/versions', methods=['GET'])
+def get_week_versions(week_identifier: str):
+    """Get all versions for a specific week."""
+    try:
+        service = WeekVersionService()
+        version_meta = service.get_version_by_week(week_identifier)
+        
+        if version_meta:
+            # Return as array since frontend expects CreateWeekVersionResponse[]
+            return jsonify([version_meta.to_dict()])
+        else:
+            # Return empty array if no version exists for this week
+            return jsonify([])
+        
+    except ValueError as e:
+        return jsonify({"error": f"Invalid week identifier: {str(e)}"}), HTTPStatus.BAD_REQUEST
+    except Exception as e:
+        logger.error(f"Error getting week versions: {str(e)}")
         return jsonify({"error": str(e)}), HTTPStatus.INTERNAL_SERVER_ERROR
 
 

@@ -168,6 +168,156 @@ show_ngrok_menu() {
     done
 }
 
+# Function to restart MCP server
+restart_mcp_server() {
+    echo "Restarting MCP server..."
+    kill_port 8001  # Default MCP port
+    kill_port 8002  # Alternative MCP port
+    sleep 1
+    
+    # Check if there's a tmux session with MCP server
+    if tmux list-sessions 2>/dev/null | grep -q "schichtplan"; then
+        # Try to find and restart MCP in tmux if it exists
+        if tmux list-panes -t schichtplan -F "#{pane_current_command}" 2>/dev/null | grep -q "mcp_server"; then
+            echo "Restarting MCP server in tmux..."
+            # Find the MCP pane and restart
+            for pane in $(tmux list-panes -t schichtplan -F "#{pane_index}"); do
+                cmd=$(tmux display-message -t schichtplan:0.$pane -p "#{pane_current_command}")
+                if [[ "$cmd" == *"mcp_server"* ]] || [[ "$cmd" == *"tail"* ]]; then
+                    tmux send-keys -t schichtplan:0.$pane C-c
+                    sleep 1
+                    tmux send-keys -t schichtplan:0.$pane "cd \$(pwd)" C-m
+                    tmux send-keys -t schichtplan:0.$pane "source src/backend/.venv/bin/activate" C-m
+                    tmux send-keys -t schichtplan:0.$pane "python3 src/backend/mcp_server.py --transport sse --port 8001 > src/logs/tmux_mcp_output.log 2>&1 &" C-m
+                    tmux send-keys -t schichtplan:0.$pane "tail -f src/logs/tmux_mcp_output.log" C-m
+                    break
+                fi
+            done
+        else
+            echo "No MCP server found in tmux session."
+            echo "You can start it manually: python3 src/backend/mcp_server.py --transport sse"
+        fi
+    else
+        echo "No tmux session found. Starting standalone MCP server..."
+        cd "$(dirname "$0")/../.."
+        source src/backend/.venv/bin/activate
+        python3 src/backend/mcp_server.py --transport sse --port 8001 &
+        echo "MCP server started on port 8001"
+    fi
+}
+
+# Function to stop MCP server
+stop_mcp_server() {
+    echo "Stopping MCP server..."
+    kill_port 8001
+    kill_port 8002
+    
+    # Also try to stop it in tmux if running there
+    if tmux list-sessions 2>/dev/null | grep -q "schichtplan"; then
+        for pane in $(tmux list-panes -t schichtplan -F "#{pane_index}"); do
+            cmd=$(tmux display-message -t schichtplan:0.$pane -p "#{pane_current_command}")
+            if [[ "$cmd" == *"mcp_server"* ]] || [[ "$cmd" == *"tail"* ]]; then
+                tmux send-keys -t schichtplan:0.$pane C-c
+                break
+            fi
+        done
+    fi
+    
+    echo "MCP server stopped."
+}
+
+# Function to show MCP server status
+show_mcp_status() {
+    echo "=== MCP Server Status ==="
+    echo ""
+    
+    # Check if MCP server is running on common ports
+    for port in 8001 8002; do
+        if check_port $port; then
+            echo "✓ MCP server running on port $port"
+            echo "  - SSE endpoint: http://localhost:$port/sse"
+            echo "  - HTTP endpoint: http://localhost:$port/mcp"
+        else
+            echo "✗ No MCP server on port $port"
+        fi
+    done
+    
+    echo ""
+    echo "Available MCP transports:"
+    echo "  - stdio: python3 src/backend/mcp_server.py"
+    echo "  - SSE: python3 src/backend/mcp_server.py --transport sse --port 8001"
+    echo "  - HTTP: python3 src/backend/mcp_server.py --transport http --port 8002"
+    echo ""
+    echo "For external AI tools, use:"
+    echo "  - Connect via stdio for direct communication"
+    echo "  - Connect via SSE/HTTP for network access"
+}
+
+# Function to show MCP server menu
+show_mcp_menu() {
+    while true; do
+        clear
+        echo "=== MCP Server Control ==="
+        echo "1) Start MCP Server (SSE mode)"
+        echo "2) Start MCP Server (HTTP mode)"
+        echo "3) Start MCP Server (stdio mode)"
+        echo "4) Restart MCP Server"
+        echo "5) Stop MCP Server"
+        echo "6) Show MCP Status"
+        echo "7) Test MCP Connection"
+        echo "8) Back to Main Menu"
+        echo "=========================="
+        
+        read -n 1 -p "Select an option: " choice
+        echo ""
+        
+        case $choice in
+            1)
+                echo "Starting MCP Server in SSE mode on port 8001..."
+                cd "$(dirname "$0")/../.."
+                source src/backend/.venv/bin/activate
+                python3 src/backend/mcp_server.py --transport sse --port 8001 &
+                echo "MCP Server started. Connect at: http://localhost:8001/sse"
+                ;;
+            2)
+                echo "Starting MCP Server in HTTP mode on port 8002..."
+                cd "$(dirname "$0")/../.."
+                source src/backend/.venv/bin/activate
+                python3 src/backend/mcp_server.py --transport http --port 8002 &
+                echo "MCP Server started. Connect at: http://localhost:8002/mcp"
+                ;;
+            3)
+                echo "Starting MCP Server in stdio mode..."
+                echo "Note: This will start an interactive stdio session."
+                echo "Press Ctrl+C to return to menu."
+                cd "$(dirname "$0")/../.."
+                source src/backend/.venv/bin/activate
+                python3 src/backend/mcp_server.py
+                ;;
+            4) restart_mcp_server ;;
+            5) stop_mcp_server ;;
+            6) show_mcp_status ;;
+            7)
+                echo "Testing MCP server connection..."
+                if check_port 8001; then
+                    echo "Testing SSE endpoint..."
+                    curl -s "http://localhost:8001/sse" || echo "SSE endpoint test failed"
+                elif check_port 8002; then
+                    echo "Testing HTTP endpoint..."
+                    curl -s "http://localhost:8002/mcp" || echo "HTTP endpoint test failed"
+                else
+                    echo "No MCP server detected running"
+                fi
+                ;;
+            8) break ;;
+            *) echo "Invalid option" ;;
+        esac
+        
+        echo ""
+        read -n 1 -p "Press any key to continue..."
+    done
+}
+
 # Main menu loop
 while true; do
     clear
@@ -180,9 +330,10 @@ while true; do
     echo "6) Stop All Services"
     echo "7) Show Development Statistics"
     echo "8) Public Access (Ngrok)"
-    echo "9) Close Tmux Session (Stop All)"
+    echo "9) MCP Server Control"
+    echo "10) Close Tmux Session (Stop All)"
     echo "q) Quit"
-    echo "=================================="
+    echo "==================================="
     
     read -n 1 -p "Select an option: " choice
     echo ""
@@ -196,7 +347,8 @@ while true; do
         6) stop_all ;;
         7) show_dev_stats ;;
         8) show_ngrok_menu ;;
-        9) close_tmux_session ;;
+        9) show_mcp_menu ;;
+        10) close_tmux_session ;;
         q|Q) exit 0 ;;
         *) echo "Invalid option" ;;
     esac
