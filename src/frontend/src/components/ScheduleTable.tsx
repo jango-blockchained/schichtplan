@@ -27,6 +27,8 @@ import {
   Minimize2,
   GripVertical,
   Key,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ShiftEditModal } from "./ShiftEditModal";
@@ -971,6 +973,8 @@ export function ScheduleTable({
   const [isAxisSwitched, setIsAxisSwitched] = useState(false);
   const [isFullWidth, setIsFullWidth] = useState(false);
   const [currentDayOffset, setCurrentDayOffset] = useState(0);
+  const [employeeSortBy, setEmployeeSortBy] = useState<"name" | "group" | "hours" | "alphabetical" | "keyholder" | "shifts" | "workload">("alphabetical");
+  const [employeeSortOrder, setEmployeeSortOrder] = useState<"asc" | "desc">("asc");
   const queryClient = useQueryClient();
   
   // Enhanced debugging for schedule data
@@ -1287,6 +1291,47 @@ export function ScheduleTable({
     };
   };
 
+  // Keyboard shortcuts for sorting
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey) {
+        switch (event.key) {
+          case '1':
+            event.preventDefault();
+            setEmployeeSortBy("alphabetical");
+            break;
+          case '2':
+            event.preventDefault();
+            setEmployeeSortBy("group");
+            break;
+          case '3':
+            event.preventDefault();
+            setEmployeeSortBy("hours");
+            break;
+          case '4':
+            event.preventDefault();
+            setEmployeeSortBy("workload");
+            break;
+          case '5':
+            event.preventDefault();
+            setEmployeeSortBy("shifts");
+            break;
+          case '6':
+            event.preventDefault();
+            setEmployeeSortBy("keyholder");
+            break;
+          case 'r':
+            event.preventDefault();
+            setEmployeeSortOrder(employeeSortOrder === "asc" ? "desc" : "asc");
+            break;
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [employeeSortOrder]);
+
   if (isLoading) {
     return <Skeleton className="w-full h-[400px]" />;
   }
@@ -1315,6 +1360,58 @@ export function ScheduleTable({
 
           {/* Table Controls */}
           <div className="flex items-center gap-4">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="employee-sort" className="text-sm whitespace-nowrap">
+                      Sortierung:
+                    </Label>
+                    <Select value={employeeSortBy} onValueChange={(value: "name" | "group" | "hours" | "alphabetical" | "keyholder" | "shifts" | "workload") => setEmployeeSortBy(value)}>
+                      <SelectTrigger className="w-[140px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="alphabetical">📝 Alphabetisch</SelectItem>
+                        <SelectItem value="group">👥 Arbeitsgruppe</SelectItem>
+                        <SelectItem value="hours">📋 Vertragsstunden</SelectItem>
+                        <SelectItem value="workload">⏰ Ist-Stunden</SelectItem>
+                        <SelectItem value="shifts">📊 Schichtanzahl</SelectItem>
+                        <SelectItem value="keyholder">🔑 Schlüsselinhaber</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEmployeeSortOrder(employeeSortOrder === "asc" ? "desc" : "asc")}
+                      className="h-8 w-8 p-0"
+                      title={`Sortierung ${employeeSortOrder === "asc" ? "aufsteigend" : "absteigend"}`}
+                    >
+                      {employeeSortOrder === "asc" ? (
+                        <ArrowUp className="h-4 w-4" />
+                      ) : (
+                        <ArrowDown className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <div className="space-y-1">
+                    <p>Mitarbeiter sortieren nach verschiedenen Kriterien</p>
+                    <div className="text-xs text-muted-foreground">
+                      Aktuell: {employeeSortBy === "alphabetical" ? "Alphabetisch" : 
+                               employeeSortBy === "group" ? "Arbeitsgruppe" :
+                               employeeSortBy === "hours" ? "Vertragsstunden" :
+                               employeeSortBy === "workload" ? "Ist-Stunden" :
+                               employeeSortBy === "shifts" ? "Schichtanzahl" :
+                               employeeSortBy === "keyholder" ? "Schlüsselinhaber" : employeeSortBy} 
+                      ({employeeSortOrder === "asc" ? "aufsteigend" : "absteigend"})
+                    </div>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -1382,6 +1479,8 @@ export function ScheduleTable({
                   canNavigatePrev={currentDayOffset > 0}
                   canNavigateNext={currentDayOffset + maxDaysToShow < daysToDisplay.length}
                   isFullWidth={isFullWidth}
+                  employeeSortBy={employeeSortBy}
+                  employeeSortOrder={employeeSortOrder}
                 />
               ) : (
                 <ScheduleTableNormal
@@ -1400,6 +1499,8 @@ export function ScheduleTable({
                   canNavigatePrev={currentDayOffset > 0}
                   canNavigateNext={currentDayOffset + maxDaysToShow < daysToDisplay.length}
                   isFullWidth={isFullWidth}
+                  employeeSortBy={employeeSortBy}
+                  employeeSortOrder={employeeSortOrder}
                 />
               )}
             </div>
@@ -1432,6 +1533,8 @@ function ScheduleTableNormal({
   canNavigatePrev,
   canNavigateNext,
   isFullWidth,
+  employeeSortBy,
+  employeeSortOrder,
 }: Omit<ScheduleTableProps, 'isLoading'> & {
   daysToDisplay: Date[];
   showNavigation: boolean;
@@ -1440,6 +1543,8 @@ function ScheduleTableNormal({
   canNavigatePrev: boolean;
   canNavigateNext: boolean;
   isFullWidth: boolean;
+  employeeSortBy: "name" | "group" | "hours" | "alphabetical" | "keyholder" | "shifts" | "workload";
+  employeeSortOrder: "asc" | "desc";
 }) {
   const queryClient = useQueryClient();
   
@@ -1515,8 +1620,12 @@ function ScheduleTableNormal({
       );
       grouped[employeeId] = {};
 
+      // Index each schedule by date for easy lookup
       employeeSchedules.forEach((schedule) => {
+        // Normalize date format by removing time component
         const dateKey = schedule.date.split("T")[0];
+
+        // Only add or replace if this is an improvement over the existing entry
         const existingSchedule = grouped[employeeId][dateKey];
         if (
           !existingSchedule ||
@@ -1532,11 +1641,85 @@ function ScheduleTableNormal({
     return grouped;
   }, [schedules]);
 
-  // Get unique employees from schedules
+  // Get unique employees from schedules with sorting
+  const sortedEmployeeIds = useMemo(() => {
+    const uniqueIds = [...new Set(schedules.map((s) => s.employee_id))];
+    
+    if (!employees) return uniqueIds;
+    
+    const sortedIds = uniqueIds.sort((a, b) => {
+      const empA = employees.find(emp => emp.id === a);
+      const empB = employees.find(emp => emp.id === b);
+      
+      if (!empA || !empB) return 0;
+      
+      let comparison = 0;
+      
+      switch (employeeSortBy) {
+        case "alphabetical":
+          comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(`${empB.last_name}, ${empB.first_name}`);
+          break;
+        case "group":
+          comparison = (empA.employee_group || "").localeCompare(empB.employee_group || "");
+          if (comparison === 0) {
+            // Secondary sort by name
+            comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(`${empB.last_name}, ${empB.first_name}`);
+          }
+          break;
+        case "hours": {
+          const contractedA = empA.contracted_hours || 0;
+          const contractedB = empB.contracted_hours || 0;
+          comparison = contractedA - contractedB;
+          if (comparison === 0) {
+            // Secondary sort by name
+            comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(`${empB.last_name}, ${empB.first_name}`);
+          }
+          break;
+        }
+        case "workload": {
+          const hoursA = calculateEmployeeHours(a, schedules, dateRange).weeklyHours;
+          const hoursB = calculateEmployeeHours(b, schedules, dateRange).weeklyHours;
+          comparison = hoursA - hoursB;
+          if (comparison === 0) {
+            // Secondary sort by name
+            comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(`${empB.last_name}, ${empB.first_name}`);
+          }
+          break;
+        }
+        case "shifts": {
+          const shiftsA = schedules.filter(s => s.employee_id === a && s.shift_id !== null).length;
+          const shiftsB = schedules.filter(s => s.employee_id === b && s.shift_id !== null).length;
+          comparison = shiftsA - shiftsB;
+          if (comparison === 0) {
+            // Secondary sort by name
+            comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(`${empB.last_name}, ${empB.first_name}`);
+          }
+          break;
+        }
+        case "keyholder": {
+          const keyholderA = empA.is_keyholder ? 1 : 0;
+          const keyholderB = empB.is_keyholder ? 1 : 0;
+          comparison = keyholderB - keyholderA; // Keyholders first
+          if (comparison === 0) {
+            // Secondary sort by name
+            comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(`${empB.last_name}, ${empB.first_name}`);
+          }
+          break;
+        }
+        default:
+          comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(`${empB.last_name}, ${empB.first_name}`);
+      }
+      
+      return employeeSortOrder === "asc" ? comparison : -comparison;
+    });
+    
+    return sortedIds;
+  }, [schedules, employees, employeeSortBy, employeeSortOrder, dateRange]);
+
+  // Get unique employees from schedules (keeping original for compatibility)
   const uniqueEmployeeIds = useMemo(() => {
-    const ids = [...new Set(schedules.map((s) => s.employee_id))];
-    return ids;
-  }, [schedules]);
+    return sortedEmployeeIds;
+  }, [sortedEmployeeIds]);
 
   // Improve the employee details lookup with fallbacks
   const getEmployeeDetails = (employeeId: number) => {
@@ -1578,39 +1761,11 @@ function ScheduleTableNormal({
     };
   };
 
-  const checkForAbsence = (
-    employeeId: number,
-    dateString: string,
-    employeeAbsences?: Record<number, any[]>,
-    absenceTypes?: Array<{ id: string; name: string; color: string; type: "absence" }>,
-  ) => {
-    if (!employeeAbsences || !absenceTypes) return null;
-
-    const absences = employeeAbsences[employeeId];
-    if (!absences) return null;
-
-    const targetDate = new Date(dateString);
-    
-    for (const absence of absences) {
-      const startDate = new Date(absence.start_date);
-      const endDate = new Date(absence.end_date);
-      
-      if (isWithinInterval(targetDate, { start: startDate, end: endDate })) {
-        const absenceType = absenceTypes.find(type => type.id === absence.absence_type_id);
-        if (absenceType) {
-          return { type: absenceType };
-        }
-      }
-    }
-
-    return null;
-  };
-
   return (
     <table className="w-full border-collapse">
-      <thead className="sticky top-0 z-[30] bg-background">
+      <thead className="sticky top-0 z-[30] bg-background border-b-2 border-border shadow-sm">
         <tr className="border-b border-border">
-          <th className="w-[220px] sticky left-0 z-[25] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 text-left p-4 font-medium text-foreground border-r border-border">
+          <th className="w-[220px] sticky left-0 z-[31] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 text-left p-4 font-medium text-foreground border-r border-border shadow-r">
             <div className="flex items-center justify-between">
               <span>Mitarbeiter</span>
               {showNavigation && (
@@ -1642,7 +1797,7 @@ function ScheduleTableNormal({
               key={date.toISOString()}
               className="w-[160px] text-center p-4 font-medium text-foreground border-r border-border last:border-r-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
             >
-              <div className="font-medium text-base">
+              <div className="font-semibold text-base">
                 {weekdayAbbr[format(date, "EEEE")]}
               </div>
               <div className="text-sm text-muted-foreground font-medium">
@@ -1681,9 +1836,57 @@ function ScheduleTableNormal({
                     </HoverCardContent>
                   </HoverCard>
                   <div className="flex-1">
-                    <span className="truncate max-w-[180px] block font-medium">
-                      {formatEmployeeName(employeeId)}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="truncate max-w-[180px] block font-medium">
+                        {formatEmployeeName(employeeId)}
+                      </span>
+                      {/* Sorting indicators */}
+                      {(() => {
+                        const employee = employeeLookup[employeeId];
+                        if (!employee) return null;
+                        
+                        // Show relevant badge based on current sorting
+                        switch (employeeSortBy) {
+                          case "keyholder":
+                            return employee.is_keyholder ? (
+                              <div className="flex items-center gap-1 text-xs bg-amber-50 text-amber-700 px-1 py-0.5 rounded border border-amber-200">
+                                <Key className="h-3 w-3" />
+                                <span>Key</span>
+                              </div>
+                            ) : null;
+                          case "group":
+                            return (
+                              <div className="text-xs bg-blue-50 text-blue-700 px-1 py-0.5 rounded border border-blue-200">
+                                {employee.employee_group || "?"}
+                              </div>
+                            );
+                          case "hours":
+                            return (
+                              <div className="text-xs bg-green-50 text-green-700 px-1 py-0.5 rounded border border-green-200">
+                                {employee.contracted_hours || 0}h
+                              </div>
+                            );
+                          case "shifts": {
+                            const shiftCount = schedules.filter(s => s.employee_id === employeeId && s.shift_id !== null).length;
+                            return (
+                              <div className="text-xs bg-purple-50 text-purple-700 px-1 py-0.5 rounded border border-purple-200">
+                                {shiftCount} Schichten
+                              </div>
+                            );
+                          }
+                          case "workload": {
+                            const hours = calculateEmployeeHours(employeeId, schedules, dateRange);
+                            return (
+                              <div className="text-xs bg-orange-50 text-orange-700 px-1 py-0.5 rounded border border-orange-200">
+                                {hours.weeklyHours.toFixed(1)}h
+                              </div>
+                            );
+                          }
+                          default:
+                            return null;
+                        }
+                      })()}
+                    </div>
                     <div className="text-xs text-muted-foreground mt-2 space-y-1 p-2 bg-muted/20 rounded border border-border">
                       {(() => {
                         const hours = calculateEmployeeHours(employeeId, schedules, dateRange);
@@ -1817,6 +2020,8 @@ function ScheduleTableSwitched({
   canNavigatePrev,
   canNavigateNext,
   isFullWidth,
+  employeeSortBy,
+  employeeSortOrder,
 }: Omit<ScheduleTableProps, 'isLoading'> & {
   daysToDisplay: Date[];
   showNavigation: boolean;
@@ -1825,6 +2030,8 @@ function ScheduleTableSwitched({
   canNavigatePrev: boolean;
   canNavigateNext: boolean;
   isFullWidth: boolean;
+  employeeSortBy: "name" | "group" | "hours" | "alphabetical" | "keyholder" | "shifts" | "workload";
+  employeeSortOrder: "asc" | "desc";
 }) {
   const queryClient = useQueryClient();
   
@@ -1866,11 +2073,86 @@ function ScheduleTableSwitched({
     Sunday: "So",
   };
 
-  // Get unique employees from schedules
+  // Get unique employees from schedules with sorting
+  const sortedEmployeeIds = useMemo(() => {
+    const uniqueIds = [...new Set(schedules.map((s) => s.employee_id))];
+    
+    if (!employees) return uniqueIds;
+    
+    const sortedIds = uniqueIds.sort((a, b) => {
+      const empA = employees.find(emp => emp.id === a);
+      const empB = employees.find(emp => emp.id === b);
+      
+      if (!empA || !empB) return 0;
+      
+      let comparison = 0;
+      
+      switch (employeeSortBy) {
+        case "alphabetical":
+          comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(`${empB.last_name}, ${empB.first_name}`);
+          break;
+        case "group":
+          comparison = (empA.employee_group || "").localeCompare(empB.employee_group || "");
+          if (comparison === 0) {
+            // Secondary sort by name
+            comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(`${empB.last_name}, ${empB.first_name}`);
+          }
+          break;
+        case "hours": {
+          const contractedA = empA.contracted_hours || 0;
+          const contractedB = empB.contracted_hours || 0;
+          comparison = contractedA - contractedB;
+          if (comparison === 0) {
+            // Secondary sort by name
+            comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(`${empB.last_name}, ${empB.first_name}`);
+          }
+          break;
+        }
+        case "workload": {
+          // For switched view, calculate actual worked hours
+          const hoursA = schedules.filter(s => s.employee_id === a && s.shift_id !== null).length;
+          const hoursB = schedules.filter(s => s.employee_id === b && s.shift_id !== null).length;
+          comparison = hoursA - hoursB;
+          if (comparison === 0) {
+            // Secondary sort by name
+            comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(`${empB.last_name}, ${empB.first_name}`);
+          }
+          break;
+        }
+        case "shifts": {
+          const shiftsA = schedules.filter(s => s.employee_id === a && s.shift_id !== null).length;
+          const shiftsB = schedules.filter(s => s.employee_id === b && s.shift_id !== null).length;
+          comparison = shiftsA - shiftsB;
+          if (comparison === 0) {
+            // Secondary sort by name
+            comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(`${empB.last_name}, ${empB.first_name}`);
+          }
+          break;
+        }
+        case "keyholder": {
+          const keyholderA = empA.is_keyholder ? 1 : 0;
+          const keyholderB = empB.is_keyholder ? 1 : 0;
+          comparison = keyholderB - keyholderA; // Keyholders first
+          if (comparison === 0) {
+            // Secondary sort by name
+            comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(`${empB.last_name}, ${empB.first_name}`);
+          }
+          break;
+        }
+        default:
+          comparison = `${empA.last_name}, ${empA.first_name}`.localeCompare(`${empB.last_name}, ${empB.first_name}`);
+      }
+      
+      return employeeSortOrder === "asc" ? comparison : -comparison;
+    });
+    
+    return sortedIds;
+  }, [schedules, employees, employeeSortBy, employeeSortOrder]);
+
+  // Get unique employees from schedules (keeping original for compatibility)
   const uniqueEmployeeIds = useMemo(() => {
-    const ids = [...new Set(schedules.map((s) => s.employee_id))];
-    return ids;
-  }, [schedules]);
+    return sortedEmployeeIds;
+  }, [sortedEmployeeIds]);
 
   // Group schedules by date and then by employee for quick lookup
   const groupedSchedulesByDate = useMemo(() => {
@@ -1901,39 +2183,11 @@ function ScheduleTableSwitched({
     return grouped;
   }, [schedules]);
 
-  const checkForAbsence = (
-    employeeId: number,
-    dateString: string,
-    employeeAbsences?: Record<number, any[]>,
-    absenceTypes?: Array<{ id: string; name: string; color: string; type: "absence" }>,
-  ) => {
-    if (!employeeAbsences || !absenceTypes) return null;
-
-    const absences = employeeAbsences[employeeId];
-    if (!absences) return null;
-
-    const targetDate = new Date(dateString);
-    
-    for (const absence of absences) {
-      const startDate = new Date(absence.start_date);
-      const endDate = new Date(absence.end_date);
-      
-      if (isWithinInterval(targetDate, { start: startDate, end: endDate })) {
-        const absenceType = absenceTypes.find(type => type.id === absence.absence_type_id);
-        if (absenceType) {
-          return { type: absenceType };
-        }
-      }
-    }
-
-    return null;
-  };
-
   return (
     <table className="w-full border-collapse">
-      <thead className="sticky top-0 z-[30] bg-background">
+      <thead className="sticky top-0 z-[30] bg-background border-b-2 border-border shadow-sm">
         <tr className="border-b border-border">
-          <th className="w-[160px] sticky left-0 z-[25] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 text-left p-4 font-medium text-foreground border-r border-border">
+          <th className="w-[160px] sticky left-0 z-[31] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 text-left p-4 font-medium text-foreground border-r border-border shadow-r">
             <div className="flex items-center justify-between">
               <span>Datum</span>
               {showNavigation && (
@@ -1965,7 +2219,7 @@ function ScheduleTableSwitched({
               key={employeeId}
               className="w-[180px] text-center p-4 font-medium text-foreground border-r border-border last:border-r-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
             >
-              <div className="text-sm font-medium">
+              <div className="text-sm font-semibold">
                 {formatEmployeeName(employeeId)}
               </div>
             </th>

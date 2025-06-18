@@ -45,6 +45,38 @@ The frontend communicates with the backend via RESTful APIs. The backend handles
 - PDF export with customizable layouts
 - Diagnostic tools for schedule generation
 - Comprehensive test suite
+- **MCP Server Integration** - AI-powered scheduling and optimization via Model Context Protocol
+
+## MCP Server Integration
+
+Schichtplan includes a built-in MCP (Model Context Protocol) server that provides AI tools with comprehensive access to the scheduling system. This enables integration with AI applications like Claude Desktop, ChatGPT, and other MCP-compatible tools.
+
+### Quick Start with MCP
+
+```bash
+# Start application with MCP server
+./start.sh --with-mcp
+
+# Or start MCP server standalone
+python3 src/backend/mcp_server.py --transport sse --port 8001
+```
+
+### MCP Features
+
+- **Tools**: Employee management, schedule generation, system status
+- **Resources**: System configuration, employee details
+- **Prompts**: Schedule analysis and optimization templates
+- **Transports**: stdio, SSE, and HTTP for different integration needs
+
+### AI Integration Use Cases
+
+- Schedule optimization and conflict resolution
+- Workload analysis and balancing
+- Employee availability management
+- Compliance checking and reporting
+- Resource planning and forecasting
+
+For detailed MCP documentation, see [docs/mcp_api.md](docs/mcp_api.md).
 
 ## Setup & Development
 

@@ -267,3 +267,12 @@
 .grid-cols-auto-fit-120 {
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
 }
+
+/* Sticky table header shadows */
+.shadow-r {
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
+}
+
+.shadow-b {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}

@@ -1,35 +1,16 @@
 import React, { useMemo } from "react";
-import { Schedule, Employee } from "@/types";
+import { Schedule } from "@/types";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import {
-  InfoIcon,
-  Clock,
-  Calendar,
-  AlertCircle,
-  CheckCircle,
-} from "lucide-react";
 import {
   differenceInHours,
   parseISO,
   format,
-  startOfWeek,
   endOfWeek,
-  differenceInMinutes,
-  startOfMonth,
   endOfMonth,
   isWithinInterval,
   eachWeekOfInterval,
@@ -290,95 +271,99 @@ export function EmployeeStatistics({
   }, [employeeSchedules]);
 
   return (
-    <div className="space-y-3">
-      {/* Summary Row */}
-      <div className="flex items-center justify-between pb-2 border-b">
-        <div>
-          <div className="text-sm font-medium">Gesamtstunden</div>
-          <div className="text-2xl font-bold">{totalHours.toFixed(1)}h</div>
-        </div>
-        <div className="text-right">
-          <div className="text-sm text-muted-foreground">von {effectiveContractedHours}h</div>
-          <Progress value={hoursCoverage} className="h-2 w-20" />
-          <div className="text-xs text-muted-foreground mt-1">{hoursCoverage.toFixed(0)}%</div>
-        </div>
-      </div>
-
-      {/* Shift Distribution */}
-      <div>
-        <div className="text-sm font-medium mb-2">Schichtverteilung</div>
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="bg-yellow-50 rounded p-2">
-            <div className="text-xs text-muted-foreground">Früh</div>
-            <div className="font-semibold">{earlyShifts}</div>
+    <div className="bg-card dark:bg-card p-6 rounded-lg border border-border dark:border-border shadow-sm min-h-[300px]">
+      <Card className="shadow-none border-none bg-transparent">
+        <CardContent className="p-0 space-y-3">
+          {/* Summary Row */}
+          <div className="flex items-center justify-between pb-2 border-b border-border dark:border-border">
+            <div>
+              <div className="text-sm font-medium text-foreground dark:text-foreground">Gesamtstunden</div>
+              <div className="text-2xl font-bold text-foreground dark:text-foreground">{totalHours.toFixed(1)}h</div>
+            </div>
+            <div className="text-right">
+              <div className="text-sm text-muted-foreground dark:text-muted-foreground">von {effectiveContractedHours}h</div>
+              <Progress value={hoursCoverage} className="h-2 w-20" />
+              <div className="text-xs text-muted-foreground dark:text-muted-foreground mt-1">{hoursCoverage.toFixed(0)}%</div>
+            </div>
           </div>
-          <div className="bg-blue-50 rounded p-2">
-            <div className="text-xs text-muted-foreground">Mitte</div>
-            <div className="font-semibold">{midShifts}</div>
-          </div>
-          <div className="bg-purple-50 rounded p-2">
-            <div className="text-xs text-muted-foreground">Spät</div>
-            <div className="font-semibold">{lateShifts}</div>
-          </div>
-        </div>
-      </div>
 
-      {/* Key Metrics */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="flex items-center justify-between p-2 bg-slate-50 rounded">
-          <span className="text-xs text-muted-foreground">Pausen</span>
-          <span className="text-sm font-medium">{breaksPercentage.toFixed(0)}%</span>
-        </div>
-        <div className="flex items-center justify-between p-2 bg-slate-50 rounded">
-          <span className="text-xs text-muted-foreground">Max. Folgetage</span>
-          <Badge
-            variant={maxConsecutiveDays > 6 ? "destructive" : "secondary"}
-            className="text-xs"
-          >
-            {maxConsecutiveDays}
-          </Badge>
-        </div>
-      </div>
+          {/* Shift Distribution */}
+          <div>
+            <div className="text-sm font-medium text-foreground dark:text-foreground mb-2">Schichtverteilung</div>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="bg-yellow-50 dark:bg-yellow-950/50 rounded p-2 border border-yellow-200 dark:border-yellow-800">
+                <div className="text-xs text-muted-foreground dark:text-muted-foreground">Früh</div>
+                <div className="font-semibold text-foreground dark:text-foreground">{earlyShifts}</div>
+              </div>
+              <div className="bg-blue-50 dark:bg-blue-950/50 rounded p-2 border border-blue-200 dark:border-blue-800">
+                <div className="text-xs text-muted-foreground dark:text-muted-foreground">Mitte</div>
+                <div className="font-semibold text-foreground dark:text-foreground">{midShifts}</div>
+              </div>
+              <div className="bg-purple-50 dark:bg-purple-950/50 rounded p-2 border border-purple-200 dark:border-purple-800">
+                <div className="text-xs text-muted-foreground dark:text-muted-foreground">Spät</div>
+                <div className="font-semibold text-foreground dark:text-foreground">{lateShifts}</div>
+              </div>
+            </div>
+          </div>
 
-      {/* Weekly Hours - Compact View */}
-      {weeklyHoursBreakdown.length > 0 && weeklyHoursBreakdown.length <= 4 && (
-        <div>
-          <div className="text-sm font-medium mb-2">Wochenstunden</div>
-          <div className="space-y-1">
-            {weeklyHoursBreakdown.map((week, index) => (
-              <div key={index} className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">KW {week.week}</span>
-                <div className="flex items-center gap-2">
-                  <span>{week.hours.toFixed(1)}h</span>
-                  <span className={cn(
-                    "font-medium",
-                    week.percentage > 100 ? "text-red-600" : 
-                    week.percentage < 90 ? "text-amber-600" : 
-                    "text-green-600"
-                  )}>
-                    ({week.percentage.toFixed(0)}%)
+          {/* Key Metrics */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-800/50 rounded border border-slate-200 dark:border-slate-700">
+              <span className="text-xs text-muted-foreground dark:text-muted-foreground">Pausen</span>
+              <span className="text-sm font-medium text-foreground dark:text-foreground">{breaksPercentage.toFixed(0)}%</span>
+            </div>
+            <div className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-800/50 rounded border border-slate-200 dark:border-slate-700">
+              <span className="text-xs text-muted-foreground dark:text-muted-foreground">Max. Folgetage</span>
+              <Badge
+                variant={maxConsecutiveDays > 6 ? "destructive" : "secondary"}
+                className="text-xs"
+              >
+                {maxConsecutiveDays}
+              </Badge>
+            </div>
+          </div>
+
+          {/* Weekly Hours - Compact View */}
+          {weeklyHoursBreakdown.length > 0 && weeklyHoursBreakdown.length <= 4 && (
+            <div>
+              <div className="text-sm font-medium text-foreground dark:text-foreground mb-2">Wochenstunden</div>
+              <div className="space-y-1">
+                {weeklyHoursBreakdown.map((week, index) => (
+                  <div key={index} className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground dark:text-muted-foreground">KW {week.week}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-foreground dark:text-foreground">{week.hours.toFixed(1)}h</span>
+                      <span className={cn(
+                        "font-medium",
+                        week.percentage > 100 ? "text-red-600 dark:text-red-400" : 
+                        week.percentage < 90 ? "text-amber-600 dark:text-amber-400" : 
+                        "text-green-600 dark:text-green-400"
+                      )}>
+                        ({week.percentage.toFixed(0)}%)
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Monthly Summary - Only show if we have data */}
+          {monthlyHoursCumulative.length > 0 && monthlyHoursCumulative.length <= 2 && (
+            <div className="pt-2 border-t border-border dark:border-border">
+              <div className="text-sm font-medium text-foreground dark:text-foreground mb-1">Monatssumme</div>
+              {monthlyHoursCumulative.map((month, index) => (
+                <div key={index} className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground dark:text-muted-foreground">{month.month}</span>
+                  <span className="font-medium text-blue-600 dark:text-blue-400">
+                    {month.cumulative.toFixed(1)}h
                   </span>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Monthly Summary - Only show if we have data */}
-      {monthlyHoursCumulative.length > 0 && monthlyHoursCumulative.length <= 2 && (
-        <div className="pt-2 border-t">
-          <div className="text-sm font-medium mb-1">Monatssumme</div>
-          {monthlyHoursCumulative.map((month, index) => (
-            <div key={index} className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">{month.month}</span>
-              <span className="font-medium text-blue-600">
-                {month.cumulative.toFixed(1)}h
-              </span>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

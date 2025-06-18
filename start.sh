@@ -11,9 +11,44 @@ set -euo pipefail
 BACKEND_PORT_MIN=5000
 BACKEND_PORT_MAX=5000
 FRONTEND_PORT=5173
+MCP_SERVER_PORT=8001
 TMUX_SESSION="schichtplan"
 VENV_PATH="src/backend/.venv"
 LOG_DIR="src/logs"
+
+# Command line options
+START_MCP_SERVER=false
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --with-mcp|--mcp)
+            START_MCP_SERVER=true
+            shift
+            ;;
+        --mcp-port)
+            MCP_SERVER_PORT="$2"
+            shift 2
+            ;;
+        --help|-h)
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --with-mcp, --mcp     Start MCP server alongside backend and frontend"
+            echo "  --mcp-port PORT       Port for MCP server (default: 8001)"
+            echo "  --help, -h            Show this help message"
+            echo ""
+            echo "The MCP server provides AI integration capabilities for external"
+            echo "tools and can be connected via stdio, SSE, or HTTP transports."
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
 
 # Colors for output
 RED='\033[0;31m'
@@ -225,15 +260,36 @@ setup_tmux_session() {
         exit 1
     fi
     
-    # Split horizontally for menu
-    tmux split-window -v -l 10
+    # Add MCP server pane if requested
+    if [ "$START_MCP_SERVER" = true ]; then
+        # Split the frontend pane vertically for MCP server
+        tmux split-window -v -l 20
+        tmux send-keys -t "$TMUX_SESSION" "cd $SCRIPT_DIR" C-m
+        tmux send-keys -t "$TMUX_SESSION" "source $VENV_PATH/bin/activate" C-m
+        tmux send-keys -t "$TMUX_SESSION" "echo 'Starting MCP Server on port $MCP_SERVER_PORT...'" C-m
+        tmux send-keys -t "$TMUX_SESSION" "python3 src/backend/mcp_server.py --transport sse --port $MCP_SERVER_PORT > src/logs/tmux_mcp_output.log 2>&1 &" C-m
+        tmux send-keys -t "$TMUX_SESSION" "echo 'MCP Server started. Showing output log:'" C-m
+        tmux send-keys -t "$TMUX_SESSION" "tail -f src/logs/tmux_mcp_output.log" C-m
+        log "INFO" "MCP Server will be available at http://localhost:$MCP_SERVER_PORT/sse"
+    fi
+    
+    # Split horizontally for menu (adjust the target pane based on whether MCP is running)
+    if [ "$START_MCP_SERVER" = true ]; then
+        tmux split-window -v -l 10
+    else
+        tmux split-window -v -l 10
+    fi
     
     # Configure menu pane
     tmux send-keys -t "$TMUX_SESSION" "cd $(pwd)" C-m
     tmux send-keys -t "$TMUX_SESSION" "src/scripts/menu.sh" C-m
     
     # Set window title
-    tmux rename-window -t "$TMUX_SESSION" "Schichtplan Dev"
+    if [ "$START_MCP_SERVER" = true ]; then
+        tmux rename-window -t "$TMUX_SESSION" "Schichtplan Dev+MCP"
+    else
+        tmux rename-window -t "$TMUX_SESSION" "Schichtplan Dev"
+    fi
 }
 
 # Wait for services to start
@@ -409,6 +465,15 @@ remove_pycache_folders() {
 
 # Main function
 main() {
+    # Show startup info
+    log "INFO" "Starting Schichtplan Development Environment"
+    if [ "$START_MCP_SERVER" = true ]; then
+        log "INFO" "MCP Server will be started on port $MCP_SERVER_PORT"
+        log "INFO" "MCP endpoints:"
+        log "INFO" "  - SSE: http://localhost:$MCP_SERVER_PORT/sse"
+        log "INFO" "  - stdio: Use 'python3 src/backend/mcp_server.py' for direct communication"
+    fi
+    
     remove_pycache_folders
     check_dependencies
     create_directories
@@ -419,6 +484,9 @@ main() {
     log "INFO" "Preparing log files..."
     : > "$SCRIPT_DIR/$LOG_DIR/tmux_backend_output.log"
     : > "$SCRIPT_DIR/$LOG_DIR/tmux_frontend_output.log"
+    if [ "$START_MCP_SERVER" = true ]; then
+        : > "$SCRIPT_DIR/$LOG_DIR/tmux_mcp_output.log"
+    fi
     
     # Clean up ONLY existing processes before starting new ones
     stop_existing_services

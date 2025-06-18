@@ -119,7 +119,7 @@ import { DateRange } from "react-day-picker";
 import { ScheduleActions } from "@/components/Schedule/ScheduleActions";
 // import { ScheduleFixActions } from '@/components/Schedule/ScheduleFixActions'; // Original, might be unused
 import { AddScheduleDialog } from "@/components/Schedule/AddScheduleDialog";
-import { ScheduleStatistics } from "@/components/Schedule/ScheduleStatistics";
+import { ScheduleStatisticsModal } from "@/components/Schedule/ScheduleStatisticsModal";
 import { EnhancedDateRangeSelector } from "@/components/EnhancedDateRangeSelector";
 import { VersionTable } from "@/components/Schedule/VersionTable";
 import { ScheduleManager } from "@/components/ScheduleManager";
@@ -167,6 +167,7 @@ export function SchedulePage() {
     useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<number | null>(null); // Keep if used by features not yet removed
   const [isAddScheduleDialogOpen, setIsAddScheduleDialogOpen] = useState(false);
+  const [isStatisticsModalOpen, setIsStatisticsModalOpen] = useState(false);
   const [employeeAbsences, setEmployeeAbsences] = useState<
     Record<number, any[]>
   >({}); // Keep if used by ScheduleTable/Manager
@@ -1585,23 +1586,7 @@ export function SchedulePage() {
         </div>
       )}
 
-      {/* 3. Statistics */}
-      {!isLoadingVersions &&
-        scheduleData?.length > 0 &&
-        dateRange?.from &&
-        dateRange?.to && (
-          <div className="mb-4">
-            <ScheduleStatistics
-              schedules={scheduleData}
-              employees={employees || []}
-              startDate={format(dateRange.from, "yyyy-MM-dd")}
-              endDate={format(dateRange.to, "yyyy-MM-dd")}
-              version={effectiveSelectedVersion}
-            />
-          </div>
-        )}
-
-      {/* 4. Actions */}
+      {/* 3. Actions */}
       <div className="flex justify-start gap-2 mb-4">
         <ScheduleActions
           isLoading={isUpdating}
@@ -1621,12 +1606,14 @@ export function SchedulePage() {
             !!dateRange?.to &&
             !!effectiveSelectedVersion
           }
+          hasScheduleData={scheduleData?.length > 0}
           onAddSchedule={handleAddSchedule}
           onDeleteSchedule={handleDeleteSchedule}
           onGenerateStandardSchedule={handleGenerateStandardSchedule}
           onGenerateAiFastSchedule={handleGenerateAiFastSchedule}
           onGenerateAiDetailedSchedule={handleGenerateAiDetailedSchedule}
           onOpenGenerationSettings={() => setIsGenerationSettingsOpen(true)}
+          onOpenStatistics={() => setIsStatisticsModalOpen(true)}
           isAiEnabled={!!settingsQuery.data?.ai_scheduling?.enabled}
           onPreviewAiData={handlePreviewAiData}
           onImportAiResponse={handleImportAiResponse}
@@ -1837,6 +1824,16 @@ export function SchedulePage() {
           defaultDate={dateRange?.from}
         />
       )}
+
+      {/* Statistics Modal */}
+      <ScheduleStatisticsModal
+        isOpen={isStatisticsModalOpen}
+        onClose={() => setIsStatisticsModalOpen(false)}
+        schedules={scheduleData || []}
+        employees={employees || []}
+        dateRange={dateRange}
+        version={effectiveSelectedVersion}
+      />
       
       <DiagnosticsDialog
         sessionId={lastSessionId}

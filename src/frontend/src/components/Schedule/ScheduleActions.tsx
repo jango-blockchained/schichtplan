@@ -14,10 +14,10 @@ import {
   Settings,
   Plus,
   Loader2,
-  Sparkles,
   Eye,
   Zap,
   Sliders,
+  BarChart3,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -40,6 +40,7 @@ interface ScheduleActionsProps {
   onOpenGenerationSettings: () => void;
   onPreviewAiData: () => void;
   onImportAiResponse: () => void;
+  onOpenStatistics: () => void;
   isLoading: boolean;
   isGenerating: boolean;
   isAiFastGenerating: boolean;
@@ -48,6 +49,7 @@ interface ScheduleActionsProps {
   canDelete: boolean;
   canGenerate: boolean;
   isAiEnabled: boolean;
+  hasScheduleData: boolean;
 }
 
 export function ScheduleActions({
@@ -59,6 +61,7 @@ export function ScheduleActions({
   onOpenGenerationSettings,
   onPreviewAiData,
   onImportAiResponse,
+  onOpenStatistics,
   isLoading,
   isGenerating,
   isAiFastGenerating,
@@ -67,6 +70,7 @@ export function ScheduleActions({
   canDelete,
   canGenerate,
   isAiEnabled,
+  hasScheduleData,
 }: ScheduleActionsProps) {
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -207,6 +211,17 @@ export function ScheduleActions({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Statistics Button */}
+      <Button
+        variant="outline"
+        className="flex items-center gap-1"
+        disabled={!hasScheduleData}
+        onClick={onOpenStatistics}
+      >
+        <BarChart3 className="h-4 w-4" />
+        <span>Statistiken</span>
+      </Button>
     </div>
   );
 }
