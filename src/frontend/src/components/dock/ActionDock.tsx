@@ -16,7 +16,6 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -29,13 +28,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { Employee, Shift, ShiftType } from "@/types";
+import { Employee, Shift } from "@/types";
+import type { WeekVersionMeta } from "@/types/weekVersion";
 import { useQuery } from "@tanstack/react-query";
 import { getEmployees, getShifts } from "@/services/api";
+import type { DateRange } from "react-day-picker";
 
 interface ActionDockProps {
   currentVersion?: number;
   selectedDate?: Date;
+  dateRange?: DateRange;
+  versionMeta?: WeekVersionMeta;
+  versionStatus?: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   onClose?: () => void;
   onDrop?: (employeeId: number, date: Date, shiftId: number) => Promise<void>;
   onAIPrompt?: (prompt: string) => Promise<void>;
@@ -228,6 +232,9 @@ const DraggableShift: React.FC<DraggableShiftProps> = ({
 export const ActionDock: React.FC<ActionDockProps> = ({ 
   currentVersion, 
   selectedDate,
+  dateRange,
+  versionMeta,
+  versionStatus,
   onClose,
   onDrop,
   onAIPrompt,
@@ -330,10 +337,42 @@ export const ActionDock: React.FC<ActionDockProps> = ({
         </div>
         
         <div className="flex items-center gap-2">
-          {selectedDate && (
-            <Badge variant="outline" className="text-xs">
-              {format(selectedDate, "dd.MM.yyyy")}
-            </Badge>
+          {/* Enhanced Date Badge with Version, Date Range, and Status */}
+          {(selectedDate || dateRange || currentVersion || versionStatus) && (
+            <div className="flex items-center gap-1">
+              {/* Version Badge */}
+              {currentVersion && (
+                <Badge variant="secondary" className="text-xs font-mono">
+                  v{currentVersion}
+                </Badge>
+              )}
+              
+              {/* Date Range Badge */}
+              {dateRange?.from && dateRange?.to ? (
+                <Badge variant="outline" className="text-xs">
+                  {format(dateRange.from, "dd.MM")} - {format(dateRange.to, "dd.MM.yyyy")}
+                </Badge>
+              ) : selectedDate ? (
+                <Badge variant="outline" className="text-xs">
+                  {format(selectedDate, "dd.MM.yyyy")}
+                </Badge>
+              ) : null}
+              
+              {/* Status Badge */}
+              {(versionStatus || versionMeta?.status) && (
+                <Badge 
+                  variant="outline" 
+                  className={cn(
+                    "text-xs",
+                    (versionStatus || versionMeta?.status) === "PUBLISHED" && "bg-green-500/20 text-green-300 border-green-500/30",
+                    (versionStatus || versionMeta?.status) === "DRAFT" && "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+                    (versionStatus || versionMeta?.status) === "ARCHIVED" && "bg-gray-500/20 text-gray-300 border-gray-500/30"
+                  )}
+                >
+                  {(versionStatus || versionMeta?.status)?.toLowerCase()}
+                </Badge>
+              )}
+            </div>
           )}
           {onClose && (
             <Button

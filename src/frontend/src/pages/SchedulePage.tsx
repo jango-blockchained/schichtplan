@@ -1752,6 +1752,13 @@ export function SchedulePage() {
         <ActionDock
           currentVersion={versionControlSelectedVersion}
           selectedDate={dateRange?.from}
+          dateRange={dateRange}
+          versionMeta={versionMetas?.find(meta => 
+            parseInt(meta.version.toString()) === versionControlSelectedVersion
+          )}
+          versionStatus={versionMetas?.find(meta => 
+            parseInt(meta.version.toString()) === versionControlSelectedVersion
+          )?.status}
           onDrop={handleDockDrop}
           onAIPrompt={handleAIPrompt}
         />
