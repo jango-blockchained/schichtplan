@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect } from "react";
 import { ScheduleTable } from "./ScheduleTable";
 import { Schedule, ScheduleUpdate } from "@/types";
 import { DateRange } from "react-day-picker";
@@ -9,15 +9,20 @@ import { Button } from "@/components/ui/button"; // For empty state
 interface ScheduleManagerProps {
   schedules: Schedule[];
   dateRange: DateRange | undefined;
-  onDrop: (update: ScheduleUpdate) => Promise<void>;
-  onUpdate: (update: ScheduleUpdate) => Promise<void>;
+  onDrop: (
+    scheduleId: number,
+    newEmployeeId: number,
+    newDate: Date,
+    newShiftId: number,
+  ) => Promise<void>;
+  onUpdate: (scheduleId: number, updates: ScheduleUpdate) => Promise<void>;
   isLoading: boolean;
   employeeAbsences?: Record<number, any[]>;
   absenceTypes?: Array<{
     id: string;
     name: string;
     color: string;
-    type: "absence_type";
+    type: "absence";
   }>;
   currentVersion?: number;
   // Removed activeView as we're always using table view
