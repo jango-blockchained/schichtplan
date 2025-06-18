@@ -1319,8 +1319,13 @@ export function SchedulePage() {
     }
   };
 
-  const handleShiftDrop = async (update: ScheduleUpdate) => {
-    if (update.id === undefined || update.id === null) {
+  const handleShiftDrop = async (
+    scheduleId: number,
+    newEmployeeId: number,
+    newDate: Date,
+    newShiftId: number,
+  ) => {
+    if (scheduleId === undefined || scheduleId === null || scheduleId <= 0) {
       toast({
         title: "Fehler Verschieben",
         description: "Ungültige ID.",
@@ -1329,11 +1334,17 @@ export function SchedulePage() {
       return;
     }
     try {
-      await updateSchedule(update.id, {
-        shift_id: update.shift_id,
+      const updateData: Partial<ScheduleUpdate> = {
+        shift_id: newShiftId,
         version: versionControlSelectedVersion,
-        employee_id: update.employee_id,
-      });
+        employee_id: newEmployeeId,
+      };
+
+      // If the date has changed, include it in the update
+      const formattedDate = format(newDate, "yyyy-MM-dd");
+      updateData.date = formattedDate;
+
+      await updateSchedule(scheduleId, updateData);
       // Use query invalidation instead of manual refetch to prevent loops
       queryClient.invalidateQueries({ queryKey: ["schedules"] });
       toast({
@@ -1410,8 +1421,8 @@ export function SchedulePage() {
     };
   }, [handleDockDrop]);
 
-  const handleShiftUpdate = async (update: ScheduleUpdate) => {
-    if (update.id === undefined || update.id === null) {
+  const handleShiftUpdate = async (scheduleId: number, updates: ScheduleUpdate) => {
+    if (scheduleId === undefined || scheduleId === null || scheduleId <= 0) {
       toast({
         title: "Fehler Aktualisieren",
         description: "Ungültige ID.",
@@ -1420,11 +1431,12 @@ export function SchedulePage() {
       return;
     }
     try {
-      await updateSchedule(update.id, {
-        shift_id: update.shift_id,
+      const updateData = {
+        ...updates,
         version: versionControlSelectedVersion,
-        employee_id: update.employee_id,
-      });
+      };
+
+      await updateSchedule(scheduleId, updateData);
       // Use query invalidation instead of manual refetch to prevent loops
       queryClient.invalidateQueries({ queryKey: ["schedules"] });
       toast({
