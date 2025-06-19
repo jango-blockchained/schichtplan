@@ -27,9 +27,7 @@ from ..utils.version_utils import (
     version_identifier_to_date_range,
     date_range_to_week_identifier
 )
-from ..utils.logger import get_logger
-
-logger = get_logger(__name__)
+from ..utils.logger import logger
 
 
 class WeekVersionService:

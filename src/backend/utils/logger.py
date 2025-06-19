@@ -93,15 +93,15 @@ class Logger:
         self.file_handler = None
         self.logger_name = "app"  # Default logger name
 
-        print("!!! Logger __init__ started !!!", file=sys.stderr)  # DEBUG PRINT
+        # # print("!!! Logger __init__ started !!!", file=sys.stderr)  # DEBUG PRINT
         try:
             # Create logs directory in the project root if it doesn't exist
             self.logs_dir = ROOT_DIR / "logs"
             self.logs_dir.mkdir(exist_ok=True)
-            print(
-                f"!!! Logger attempting to use logs dir: {self.logs_dir}",
-                file=sys.stderr,
-            )  # DEBUG PRINT
+            # print(
+            #     f"!!! Logger attempting to use logs dir: {self.logs_dir}",
+            #     file=sys.stderr,
+            # )  # DEBUG PRINT
 
             # Create a sessions directory for session-specific logs
             self.sessions_dir = self.logs_dir / "sessions"
@@ -115,7 +115,7 @@ class Logger:
             formatter = CustomFormatter()
 
             # User actions logger
-            print("!!! Setting up user_logger...", file=sys.stderr)  # DEBUG PRINT
+            # # print("!!! Setting up user_logger...", file=sys.stderr)  # DEBUG PRINT
             self.user_logger = logging.getLogger("user_actions")
             self.user_logger.setLevel(logging.INFO)
             self.user_logger.propagate = False
@@ -130,10 +130,10 @@ class Logger:
             if self.user_logger.hasHandlers():
                 self.user_logger.handlers.clear()
             self.user_logger.addHandler(user_handler)
-            print("!!! user_logger setup done.", file=sys.stderr)  # DEBUG PRINT
+            # print("!!! user_logger setup done.", file=sys.stderr)  # DEBUG PRINT
 
             # Error logger
-            print("!!! Setting up error_logger...", file=sys.stderr)  # DEBUG PRINT
+            # print("!!! Setting up error_logger...", file=sys.stderr)  # DEBUG PRINT
             self.error_logger = logging.getLogger("errors")
             self.error_logger.setLevel(logging.DEBUG)
             self.error_logger.propagate = False
@@ -148,10 +148,10 @@ class Logger:
             if self.error_logger.hasHandlers():
                 self.error_logger.handlers.clear()
             self.error_logger.addHandler(error_handler)
-            print("!!! error_logger setup done.", file=sys.stderr)  # DEBUG PRINT
+            # print("!!! error_logger setup done.", file=sys.stderr)  # DEBUG PRINT
 
             # Schedule logger
-            print("!!! Setting up schedule_logger...", file=sys.stderr)  # DEBUG PRINT
+            # print("!!! Setting up schedule_logger...", file=sys.stderr)  # DEBUG PRINT
             self.schedule_logger = logging.getLogger("schedule")
             self.schedule_logger.setLevel(logging.DEBUG)
             self.schedule_logger.propagate = False
@@ -166,10 +166,10 @@ class Logger:
             if self.schedule_logger.hasHandlers():
                 self.schedule_logger.handlers.clear()
             self.schedule_logger.addHandler(schedule_handler)
-            print("!!! schedule_logger setup done.", file=sys.stderr)  # DEBUG PRINT
+            # print("!!! schedule_logger setup done.", file=sys.stderr)  # DEBUG PRINT
 
             # App logger for general application logs
-            print("!!! Setting up app_logger...", file=sys.stderr)  # DEBUG PRINT
+            # print("!!! Setting up app_logger...", file=sys.stderr)  # DEBUG PRINT
             self.app_logger = logging.getLogger("app")
             self.app_logger.setLevel(logging.DEBUG)
             self.app_logger.propagate = False
@@ -184,7 +184,7 @@ class Logger:
             if self.app_logger.hasHandlers():
                 self.app_logger.handlers.clear()
             self.app_logger.addHandler(app_handler)
-            print("!!! app_logger setup done.", file=sys.stderr)  # DEBUG PRINT
+            # print("!!! app_logger setup done.", file=sys.stderr)  # DEBUG PRINT
 
             # --- Add Console Handler for General Debugging ---
             self.console_handler = logging.StreamHandler()
@@ -491,6 +491,4 @@ class Logger:
 
 
 # Create a global logger instance
-print("!!! About to create global Logger instance !!!", file=sys.stderr)  # DEBUG PRINT
 logger = Logger()
-print("!!! Global Logger instance created !!!", file=sys.stderr)  # DEBUG PRINT

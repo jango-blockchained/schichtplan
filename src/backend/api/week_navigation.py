@@ -20,9 +20,7 @@ from ..utils.week_utils import (
     create_week_identifier,
     MonthBoundaryMode
 )
-from ..utils.logger import get_logger
-
-logger = get_logger(__name__)
+from ..utils.logger import logger
 
 # Create blueprint
 bp = Blueprint('week_navigation', __name__, url_prefix='/api/weeks')
