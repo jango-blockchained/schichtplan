@@ -509,3 +509,10 @@ trap 'log "ERROR" "An error occurred. Exiting." >&2; cleanup' ERR
 main 
 
 # End of script
+
+# Tmux pane assignments:
+# Pane 0: Backend (left)
+# Pane 1: Frontend (right)
+# Pane 2: MCP Server (bottom right, if enabled)
+# Pane 3: Menu (bottom, always present)
+# If MCP is not enabled, Pane 2 is the Menu.

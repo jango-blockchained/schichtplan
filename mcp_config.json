@@ -10,7 +10,7 @@
     "url": "https://github.com/your-org/schichtplan.git"
   },
   "server": {
-    "command": "python3",
+    "command": "./src/backend/.venv/bin/python",
     "args": ["src/backend/mcp_server.py"],
     "env": {
       "PYTHONPATH": ".",
@@ -20,16 +20,16 @@
   "transports": {
     "stdio": {
       "description": "Standard input/output transport for direct AI tool integration",
-      "command": ["python3", "src/backend/mcp_server.py"]
+      "command": ["./src/backend/.venv/bin/python", "src/backend/mcp_server.py"]
     },
     "sse": {
       "description": "Server-Sent Events transport for web-based AI tools",
-      "command": ["python3", "src/backend/mcp_server.py", "--transport", "sse", "--port", "8001"],
+      "command": ["./src/backend/.venv/bin/python", "src/backend/mcp_server.py", "--transport", "sse", "--port", "8001"],
       "endpoint": "http://localhost:8001/sse"
     },
     "http": {
       "description": "Streamable HTTP transport for HTTP-based AI tools",
-      "command": ["python3", "src/backend/mcp_server.py", "--transport", "http", "--port", "8002"],
+      "command": ["./src/backend/.venv/bin/python", "src/backend/mcp_server.py", "--transport", "http", "--port", "8002"],
       "endpoint": "http://localhost:8002/mcp"
     }
   },

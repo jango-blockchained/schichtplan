@@ -96,3 +96,5 @@ venv/*
 docs/
      
 !.cursor/
+.plandex-v2/
+.ruff_cache/
