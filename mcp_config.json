@@ -36,21 +36,37 @@
   "capabilities": {
     "tools": [
       "get_server_info",
-      "get_capabilities",
+      "get_capabilities", 
+      "mcp_health_check",
       "get_employees",
       "get_shift_templates",
       "generate_schedule",
       "get_schedule",
       "generate_demo_data",
-      "get_system_status"
+      "get_system_status",
+      "get_employee_availability",
+      "get_absences",
+      "get_coverage_requirements",
+      "analyze_schedule_conflicts",
+      "get_schedule_statistics",
+      "optimize_schedule_ai"
     ],
     "resources": [
       "config://system",
-      "employees://{employee_id}"
+      "employees://{employee_id}",
+      "schedules://{start_date}/{end_date}",
+      "shift-templates://all",
+      "coverage://{day_of_week}",
+      "availability://{employee_id}/{date}",
+      "conflicts://{start_date}/{end_date}"
     ],
     "prompts": [
       "schedule_analysis_prompt",
-      "employee_scheduling_prompt"
+      "employee_scheduling_prompt",
+      "schedule_optimization_prompt",
+      "conflict_resolution_prompt", 
+      "workforce_planning_prompt",
+      "compliance_audit_prompt"
     ]
   },
   "integration": {

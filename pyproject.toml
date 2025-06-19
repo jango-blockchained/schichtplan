@@ -1,3 +1,63 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "schichtplan-mcp"
+version = "0.1.0"
+description = "MCP (Model Context Protocol) server for the Schichtplan shift planning application"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Schichtplan Team"},
+]
+keywords = ["mcp", "model-context-protocol", "shift-planning", "scheduling"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+dependencies = [
+    "flask>=3.1.0",
+    "flask-sqlalchemy>=3.1.1",
+    "flask-migrate>=4.1.0", 
+    "flask-cors>=5.0.1",
+    "flask-sse>=1.0.0",
+    "fastmcp>=2.5.0",
+    "python-dotenv>=1.1.0",
+    "pyjwt>=2.10.1",
+    "pillow>=11.2.1",
+    "reportlab>=4.4.0",
+    "python-dateutil>=2.9.0.post0",
+    "sqlalchemy>=2.0.40",
+    "alembic>=1.13.1",
+    "pydantic>=2.11.4",
+    "email_validator>=2.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.5",
+    "black>=25.1.0",
+    "flake8>=7.2.0",
+    "mypy>=1.15.0",
+    "ruff>=0.11.9",
+]
+
+[project.scripts]
+schichtplan-mcp = "src.backend.mcp_server:main_cli"
+
+[project.urls]
+Homepage = "https://github.com/your-username/schichtplan"
+Repository = "https://github.com/your-username/schichtplan.git"
+Issues = "https://github.com/your-username/schichtplan/issues"
+
 [tool.black]
 line-length = 88
 target-version = ['py312']

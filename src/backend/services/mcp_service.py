@@ -7,12 +7,13 @@ enabling AI applications to interact with the shift planning system.
 
 import asyncio
 import logging
-from datetime import date, datetime, timedelta
-from typing import Dict, List, Optional, Any, Union
+import threading
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any
 import json
 import traceback
 
-from fastmcp import FastMCP, Context, Image
+from fastmcp import FastMCP, Context
 from flask import Flask
 
 # Import Schichtplan models and services
@@ -20,10 +21,6 @@ from src.backend.models import (
     db, Employee, ShiftTemplate, Schedule, 
     Coverage, EmployeeAvailability, Absence, Settings
 )
-from src.backend.services.schedule_generator import ScheduleGenerator
-from src.backend.services.ai_scheduler_service import AISchedulerService
-from src.backend.services.demo_data_generator import DemoDataGenerator
-from src.backend.services.pdf_generator import PDFGenerator
 
 
 class SchichtplanMCPService:
@@ -226,349 +223,567 @@ class SchichtplanMCPService:
                 Health status information including server status and connectivity
             """
             try:
-                health_status = {
-                    'status': 'healthy',
-                    'timestamp': datetime.now().isoformat(),
-                    'server_name': 'Schichtplan MCP Server',
-                    'version': '1.0.0',
-                    'uptime': 'Available',
-                    'connectivity': {
-                        'database': 'connected',
-                        'flask_app': 'available'
+                with self.flask_app.app_context():
+                    # Check database connectivity
+                    db_healthy = True
+                    db_error = None
+                    try:
+                        db.session.execute(db.text('SELECT 1'))
+                        db.session.commit()
+                    except Exception as e:
+                        db_healthy = False
+                        db_error = str(e)
+                    
+                    # Check if tables exist
+                    tables_exist = True
+                    missing_tables = []
+                    try:
+                        for table_name in ['employee', 'schedule', 'shift_template', 'settings']:
+                            result = db.session.execute(
+                                db.text("SELECT name FROM sqlite_master WHERE type='table' AND name=:table_name"),
+                                {'table_name': table_name}
+                            ).fetchone()
+                            if not result:
+                                tables_exist = False
+                                missing_tables.append(table_name)
+                    except Exception as e:
+                        tables_exist = False
+                        missing_tables = [f"Error checking tables: {str(e)}"]
+                    
+                    health_status = {
+                        'status': 'healthy' if db_healthy and tables_exist else 'degraded',
+                        'timestamp': datetime.now().isoformat(),
+                        'server_version': '1.0.0',
+                        'database': {
+                            'connected': db_healthy,
+                            'error': db_error,
+                            'tables_exist': tables_exist,
+                            'missing_tables': missing_tables
+                        },
+                        'services': {
+                            'mcp_server': 'running',
+                            'flask_app': 'initialized' if self.flask_app else 'not_initialized'
+                        }
                     }
-                }
-                
-                # Test database connectivity
-                try:
-                    with self.flask_app.app_context():
-                        Employee.query.first()
-                        health_status['connectivity']['database'] = 'connected'
-                except Exception as db_error:
-                    health_status['connectivity']['database'] = f'error: {str(db_error)}'
-                    health_status['status'] = 'degraded'
-                
-                if ctx:
-                    await ctx.info("Health check completed")
-                
-                return health_status
-                
+                    
+                    if ctx:
+                        status_msg = "MCP server is healthy" if health_status['status'] == 'healthy' else "MCP server has issues"
+                        await ctx.info(status_msg)
+                    
+                    return health_status
+                    
             except Exception as e:
-                error_status = {
+                error_response = {
                     'status': 'unhealthy',
                     'timestamp': datetime.now().isoformat(),
-                    'error': str(e)
-                }
-                
-                if ctx:
-                    await ctx.error(f"Health check failed: {str(e)}")
-                
-                return error_status
-        
-        @self.mcp.tool()
-        async def get_employees(
-            active_only: bool = True,
-            include_details: bool = False,
-            ctx: Context = None
-        ) -> List[Dict[str, Any]]:
-            """Get list of employees with optional filtering.
-            
-            Args:
-                active_only: Only return active employees
-                include_details: Include detailed employee information
-                
-            Returns:
-                List of employee data
-            """
-            try:
-                with self.flask_app.app_context():
-                    query = Employee.query
-                    if active_only:
-                        query = query.filter_by(is_active=True)
-                    
-                    employees = query.all()
-                    
-                    result = []
-                    for emp in employees:
-                        emp_data = {
-                            'id': emp.id,
-                            'name': emp.name,
-                            'is_active': emp.is_active,
-                            'is_keyholder': emp.is_keyholder
-                        }
-                        
-                        if include_details:
-                            emp_data.update({
-                                'email': emp.email,
-                                'phone': emp.phone,
-                                'gfb_status': emp.gfb_status,
-                                'notes': emp.notes,
-                                'color': emp.color
-                            })
-                        
-                        result.append(emp_data)
-                    
-                    await ctx.info(f"Retrieved {len(result)} employees")
-                    return result
-                    
-            except Exception as e:
-                await ctx.error(f"Error fetching employees: {str(e)}")
-                raise
-        
-        @self.mcp.tool()
-        async def get_shift_templates(
-            active_only: bool = True,
-            ctx: Context = None
-        ) -> List[Dict[str, Any]]:
-            """Get list of shift templates.
-            
-            Args:
-                active_only: Only return active shift templates
-                
-            Returns:
-                List of shift template data
-            """
-            try:
-                with self.flask_app.app_context():
-                    query = ShiftTemplate.query
-                    if active_only:
-                        query = query.filter_by(is_active=True)
-                    
-                    shifts = query.all()
-                    
-                    result = []
-                    for shift in shifts:
-                        result.append({
-                            'id': shift.id,
-                            'name': shift.name,
-                            'start_time': shift.start_time.strftime('%H:%M') if shift.start_time else None,
-                            'end_time': shift.end_time.strftime('%H:%M') if shift.end_time else None,
-                            'duration_hours': shift.duration_hours,
-                            'color': shift.color,
-                            'requires_keyholder': shift.requires_keyholder,
-                            'max_employees': shift.max_employees,
-                            'is_active': shift.is_active
-                        })
-                    
-                    await ctx.info(f"Retrieved {len(result)} shift templates")
-                    return result
-                    
-            except Exception as e:
-                await ctx.error(f"Error fetching shift templates: {str(e)}")
-                raise
-        
-        @self.mcp.tool()
-        async def generate_schedule(
-            start_date: str,
-            end_date: str,
-            use_ai: bool = False,
-            version: Optional[int] = None,
-            ctx: Context = None
-        ) -> Dict[str, Any]:
-            """Generate a new schedule for the specified date range.
-            
-            Args:
-                start_date: Start date in YYYY-MM-DD format
-                end_date: End date in YYYY-MM-DD format
-                use_ai: Whether to use AI-powered scheduling
-                version: Optional version number for the schedule
-                
-            Returns:
-                Schedule generation result with status and details
-            """
-            try:
-                # Parse dates
-                start = datetime.strptime(start_date, '%Y-%m-%d').date()
-                end = datetime.strptime(end_date, '%Y-%m-%d').date()
-                
-                await ctx.info(f"Generating schedule from {start_date} to {end_date} (AI: {use_ai})")
-                
-                with self.flask_app.app_context():
-                    if use_ai:
-                        # Use AI scheduler service
-                        ai_scheduler = AISchedulerService()
-                        result = ai_scheduler.generate_schedule_via_ai(
-                            start_date_str=start_date,
-                            end_date_str=end_date,
-                            version_id=version,
-                            ai_model_params=None
-                        )
-                        await ctx.info("AI schedule generation completed")
-                        return result
-                    else:
-                        # Use traditional scheduler
-                        generator = ScheduleGenerator()
-                        result = generator.generate(
-                            start_date=start,
-                            end_date=end,
-                            version=version or 1
-                        )
-                        
-                        schedule_data = {
-                            'status': 'success',
-                            'schedule_id': result.id if result else None,
-                            'message': f'Schedule generated for {start_date} to {end_date}',
-                            'assignments_count': len(result.assignments) if result else 0
-                        }
-                        
-                        await ctx.info("Traditional schedule generation completed")
-                        return schedule_data
-                        
-            except Exception as e:
-                error_msg = f"Error generating schedule: {str(e)}"
-                await ctx.error(error_msg)
-                return {
-                    'status': 'error',
-                    'message': error_msg,
+                    'error': str(e),
                     'traceback': traceback.format_exc()
                 }
-        
+                if ctx:
+                    await ctx.error(f"Health check failed: {str(e)}")
+                return error_response
+
         @self.mcp.tool()
-        async def get_schedule(
-            start_date: str,
-            end_date: str,
-            version: Optional[int] = None,
-            ctx: Context = None
-        ) -> Dict[str, Any]:
-            """Retrieve existing schedule for the specified date range.
+        async def get_employee_availability(ctx: Context = None, employee_id: Optional[int] = None, 
+                                          start_date: Optional[str] = None, end_date: Optional[str] = None) -> Dict[str, Any]:
+            """Get employee availability information for scheduling.
             
             Args:
-                start_date: Start date in YYYY-MM-DD format
-                end_date: End date in YYYY-MM-DD format
-                version: Optional version number
+                employee_id: Specific employee ID (optional)
+                start_date: Start date for availability query (YYYY-MM-DD)
+                end_date: End date for availability query (YYYY-MM-DD)
                 
             Returns:
-                Schedule data with assignments
+                Employee availability data
             """
             try:
-                start = datetime.strptime(start_date, '%Y-%m-%d').date()
-                end = datetime.strptime(end_date, '%Y-%m-%d').date()
-                
                 with self.flask_app.app_context():
-                    query = Schedule.query.filter(
-                        Schedule.start_date <= end,
-                        Schedule.end_date >= start
-                    )
+                    query = EmployeeAvailability.query
                     
-                    if version:
-                        query = query.filter_by(version=version)
+                    if employee_id:
+                        query = query.filter_by(employee_id=employee_id)
                     
-                    schedules = query.all()
+                    if start_date:
+                        start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
+                        query = query.filter(EmployeeAvailability.date >= start_dt)
+                    
+                    if end_date:
+                        end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
+                        query = query.filter(EmployeeAvailability.date <= end_dt)
+                    
+                    availability_records = query.all()
                     
                     result = {
-                        'schedules': [],
-                        'total_assignments': 0
+                        'availability_records': [],
+                        'summary': {
+                            'total_records': len(availability_records),
+                            'employees_with_availability': len(set(rec.employee_id for rec in availability_records)),
+                            'date_range': {
+                                'start': start_date,
+                                'end': end_date
+                            }
+                        }
                     }
                     
-                    for schedule in schedules:
-                        assignments = []
-                        for assignment in schedule.assignments:
-                            assignments.append({
-                                'id': assignment.id,
-                                'date': assignment.date.strftime('%Y-%m-%d'),
-                                'employee_id': assignment.employee_id,
-                                'employee_name': assignment.employee.name if assignment.employee else None,
-                                'shift_template_id': assignment.shift_template_id,
-                                'shift_name': assignment.shift_template.name if assignment.shift_template else None,
-                                'start_time': assignment.shift_template.start_time.strftime('%H:%M') if assignment.shift_template and assignment.shift_template.start_time else None,
-                                'end_time': assignment.shift_template.end_time.strftime('%H:%M') if assignment.shift_template and assignment.shift_template.end_time else None
-                            })
-                        
-                        result['schedules'].append({
-                            'id': schedule.id,
-                            'start_date': schedule.start_date.strftime('%Y-%m-%d'),
-                            'end_date': schedule.end_date.strftime('%Y-%m-%d'),
-                            'version': schedule.version,
-                            'created_at': schedule.created_at.isoformat() if schedule.created_at else None,
-                            'assignments': assignments
+                    for record in availability_records:
+                        employee = Employee.query.get(record.employee_id)
+                        result['availability_records'].append({
+                            'employee_id': record.employee_id,
+                            'employee_name': employee.name if employee else 'Unknown',
+                            'date': record.date.strftime('%Y-%m-%d'),
+                            'available': record.available,
+                            'preferred_shift': record.preferred_shift,
+                            'notes': record.notes
                         })
-                        
-                        result['total_assignments'] += len(assignments)
                     
-                    await ctx.info(f"Retrieved {len(schedules)} schedules with {result['total_assignments']} assignments")
+                    if ctx:
+                        await ctx.info(f"Retrieved {len(availability_records)} availability records")
+                    
                     return result
                     
             except Exception as e:
-                await ctx.error(f"Error fetching schedule: {str(e)}")
+                if ctx:
+                    await ctx.error(f"Error getting employee availability: {str(e)}")
                 raise
-        
+
         @self.mcp.tool()
-        async def generate_demo_data(
-            employee_count: int = 15,
-            shift_count: int = 8,
-            coverage_blocks: int = 5,
-            ctx: Context = None
-        ) -> Dict[str, Any]:
-            """Generate demo data for testing and development.
+        async def get_absences(ctx: Context = None, employee_id: Optional[int] = None,
+                               start_date: Optional[str] = None, end_date: Optional[str] = None) -> Dict[str, Any]:
+            """Get employee absence information.
             
             Args:
-                employee_count: Number of employees to create
-                shift_count: Number of shift templates to create
-                coverage_blocks: Number of coverage requirements to create
+                employee_id: Specific employee ID (optional)
+                start_date: Start date for absence query (YYYY-MM-DD)
+                end_date: End date for absence query (YYYY-MM-DD)
                 
             Returns:
-                Result of demo data generation
-            """
-            try:
-                await ctx.info(f"Generating demo data: {employee_count} employees, {shift_count} shifts, {coverage_blocks} coverage blocks")
-                
-                with self.flask_app.app_context():
-                    generator = DemoDataGenerator()
-                    result = generator.generate_demo_data(
-                        employee_count=employee_count,
-                        shift_count=shift_count,
-                        coverage_blocks=coverage_blocks
-                    )
-                    
-                    await ctx.info("Demo data generation completed")
-                    return {
-                        'status': 'success',
-                        'message': f'Generated {employee_count} employees, {shift_count} shifts, {coverage_blocks} coverage blocks',
-                        'details': result
-                    }
-                    
-            except Exception as e:
-                error_msg = f"Error generating demo data: {str(e)}"
-                await ctx.error(error_msg)
-                return {
-                    'status': 'error',
-                    'message': error_msg
-                }
-        
-        @self.mcp.tool()
-        async def get_system_status(ctx: Context = None) -> Dict[str, Any]:
-            """Get system status and database statistics.
-            
-            Returns:
-                System status information
+                Employee absence data
             """
             try:
                 with self.flask_app.app_context():
-                    status = {
-                        'database': 'connected',
-                        'employees': {
-                            'total': Employee.query.count(),
-                            'active': Employee.query.filter_by(is_active=True).count(),
-                            'keyholders': Employee.query.filter_by(is_keyholder=True).count()
-                        },
-                        'shift_templates': {
-                            'total': ShiftTemplate.query.count(),
-                            'active': ShiftTemplate.query.filter_by(is_active=True).count()
-                        },
-                        'schedules': {
-                            'total': Schedule.query.count()
-                        },
-                        'coverage_requirements': Coverage.query.count(),
-                        'availability_records': EmployeeAvailability.query.count(),
-                        'absence_records': Absence.query.count()
+                    query = Absence.query
+                    
+                    if employee_id:
+                        query = query.filter_by(employee_id=employee_id)
+                    
+                    if start_date:
+                        start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
+                        query = query.filter(Absence.end_date >= start_dt)
+                    
+                    if end_date:
+                        end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
+                        query = query.filter(Absence.start_date <= end_dt)
+                    
+                    absences = query.all()
+                    
+                    result = {
+                        'absences': [],
+                        'summary': {
+                            'total_absences': len(absences),
+                            'employees_with_absences': len(set(abs_rec.employee_id for abs_rec in absences)),
+                            'date_range': {
+                                'start': start_date,
+                                'end': end_date
+                            }
+                        }
                     }
                     
-                    await ctx.info("System status retrieved successfully")
-                    return status
+                    for absence in absences:
+                        employee = Employee.query.get(absence.employee_id)
+                        result['absences'].append({
+                            'id': absence.id,
+                            'employee_id': absence.employee_id,
+                            'employee_name': employee.name if employee else 'Unknown',
+                            'start_date': absence.start_date.strftime('%Y-%m-%d'),
+                            'end_date': absence.end_date.strftime('%Y-%m-%d'),
+                            'reason': absence.reason,
+                            'approved': absence.approved,
+                            'notes': absence.notes
+                        })
+                    
+                    if ctx:
+                        await ctx.info(f"Retrieved {len(absences)} absence records")
+                    
+                    return result
                     
             except Exception as e:
-                await ctx.error(f"Error getting system status: {str(e)}")
+                if ctx:
+                    await ctx.error(f"Error getting absences: {str(e)}")
                 raise
-    
+
+        @self.mcp.tool()
+        async def get_coverage_requirements(ctx: Context = None, query_date: Optional[str] = None) -> Dict[str, Any]:
+            """Get coverage requirements for scheduling.
+            
+            Args:
+                query_date: Specific date for coverage query (YYYY-MM-DD, optional)
+                
+            Returns:
+                Coverage requirements data
+            """
+            try:
+                with self.flask_app.app_context():
+                    query = Coverage.query
+                    
+                    if query_date:
+                        date_obj = datetime.strptime(query_date, '%Y-%m-%d').date()
+                        # Filter by day of week if date is provided
+                        weekday = date_obj.weekday()  # 0=Monday, 6=Sunday
+                        query = query.filter_by(day_of_week=weekday)
+                    
+                    coverage_requirements = query.all()
+                    
+                    result = {
+                        'coverage_requirements': [],
+                        'summary': {
+                            'total_requirements': len(coverage_requirements),
+                            'date_queried': query_date
+                        }
+                    }
+                    
+                    for coverage in coverage_requirements:
+                        result['coverage_requirements'].append({
+                            'id': coverage.id,
+                            'day_of_week': coverage.day_of_week,
+                            'day_name': ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][coverage.day_of_week],
+                            'time_slot': coverage.time_slot,
+                            'required_employees': coverage.required_employees,
+                            'required_keyholders': coverage.required_keyholders,
+                            'shift_template_id': coverage.shift_template_id
+                        })
+                    
+                    if ctx:
+                        await ctx.info(f"Retrieved {len(coverage_requirements)} coverage requirements")
+                    
+                    return result
+                    
+            except Exception as e:
+                if ctx:
+                    await ctx.error(f"Error getting coverage requirements: {str(e)}")
+                raise
+
+        @self.mcp.tool()
+        async def analyze_schedule_conflicts(start_date: str, end_date: str, ctx: Context = None) -> Dict[str, Any]:
+            """Analyze schedule for conflicts and issues.
+            
+            Args:
+                start_date: Start date for analysis (YYYY-MM-DD)
+                end_date: End date for analysis (YYYY-MM-DD)
+                
+            Returns:
+                Analysis results with conflicts and recommendations
+            """
+            try:
+                with self.flask_app.app_context():
+                    start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
+                    end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
+                    
+                    # Get schedules in date range
+                    schedules = Schedule.query.filter(
+                        Schedule.date >= start_dt,
+                        Schedule.date <= end_dt
+                    ).all()
+                    
+                    conflicts = []
+                    warnings = []
+                    statistics = {
+                        'total_shifts': len(schedules),
+                        'employees_scheduled': len(set(s.employee_id for s in schedules if s.employee_id)),
+                        'unassigned_shifts': len([s for s in schedules if not s.employee_id]),
+                        'keyholder_shifts': len([s for s in schedules if s.employee_id and Employee.query.get(s.employee_id).is_keyholder])
+                    }
+                    
+                    # Check for double bookings
+                    employee_schedules = {}
+                    for schedule in schedules:
+                        if schedule.employee_id:
+                            if schedule.employee_id not in employee_schedules:
+                                employee_schedules[schedule.employee_id] = []
+                            employee_schedules[schedule.employee_id].append(schedule)
+                    
+                    for emp_id, emp_schedules in employee_schedules.items():
+                        employee = Employee.query.get(emp_id)
+                        emp_name = employee.name if employee else f"Employee {emp_id}"
+                        
+                        # Group by date
+                        by_date = {}
+                        for schedule in emp_schedules:
+                            date_key = schedule.date.strftime('%Y-%m-%d')
+                            if date_key not in by_date:
+                                by_date[date_key] = []
+                            by_date[date_key].append(schedule)
+                        
+                        # Check for conflicts on same date
+                        for date_key, day_schedules in by_date.items():
+                            if len(day_schedules) > 1:
+                                shift_details = []
+                                for schedule in day_schedules:
+                                    shift_template = ShiftTemplate.query.get(schedule.shift_template_id)
+                                    shift_name = shift_template.name if shift_template else f"Shift {schedule.shift_template_id}"
+                                    shift_details.append(shift_name)
+                                
+                                conflicts.append({
+                                    'type': 'double_booking',
+                                    'employee_id': emp_id,
+                                    'employee_name': emp_name,
+                                    'date': date_key,
+                                    'shifts': shift_details,
+                                    'severity': 'high'
+                                })
+                    
+                    # Check for missing keyholder coverage
+                    coverage_days = {}
+                    for schedule in schedules:
+                        date_key = schedule.date.strftime('%Y-%m-%d')
+                        if date_key not in coverage_days:
+                            coverage_days[date_key] = {'has_keyholder': False, 'total_staff': 0}
+                        
+                        coverage_days[date_key]['total_staff'] += 1
+                        if schedule.employee_id:
+                            employee = Employee.query.get(schedule.employee_id)
+                            if employee and employee.is_keyholder:
+                                coverage_days[date_key]['has_keyholder'] = True
+                    
+                    for date_key, coverage in coverage_days.items():
+                        if coverage['total_staff'] > 0 and not coverage['has_keyholder']:
+                            warnings.append({
+                                'type': 'missing_keyholder',
+                                'date': date_key,
+                                'staff_count': coverage['total_staff'],
+                                'severity': 'medium'
+                            })
+                    
+                    result = {
+                        'analysis_period': {
+                            'start_date': start_date,
+                            'end_date': end_date
+                        },
+                        'statistics': statistics,
+                        'conflicts': conflicts,
+                        'warnings': warnings,
+                        'summary': {
+                            'total_conflicts': len(conflicts),
+                            'total_warnings': len(warnings),
+                            'overall_status': 'critical' if conflicts else ('warning' if warnings else 'good')
+                        }
+                    }
+                    
+                    if ctx:
+                        status_msg = f"Found {len(conflicts)} conflicts and {len(warnings)} warnings"
+                        await ctx.info(status_msg)
+                    
+                    return result
+                    
+            except Exception as e:
+                if ctx:
+                    await ctx.error(f"Error analyzing schedule conflicts: {str(e)}")
+                raise
+
+        @self.mcp.tool()
+        async def get_schedule_statistics(start_date: str, end_date: str, ctx: Context = None) -> Dict[str, Any]:
+            """Get comprehensive schedule statistics for analysis.
+            
+            Args:
+                start_date: Start date for statistics (YYYY-MM-DD)
+                end_date: End date for statistics (YYYY-MM-DD)
+                
+            Returns:
+                Detailed schedule statistics
+            """
+            try:
+                with self.flask_app.app_context():
+                    start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
+                    end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
+                    
+                    # Get schedules in date range
+                    schedules = Schedule.query.filter(
+                        Schedule.date >= start_dt,
+                        Schedule.date <= end_dt
+                    ).all()
+                    
+                    # Get all employees
+                    employees = Employee.query.filter_by(is_active=True).all()
+                    
+                    # Calculate employee workload distribution
+                    employee_shifts = {}
+                    for schedule in schedules:
+                        if schedule.employee_id:
+                            if schedule.employee_id not in employee_shifts:
+                                employee_shifts[schedule.employee_id] = 0
+                            employee_shifts[schedule.employee_id] += 1
+                    
+                    workload_stats = []
+                    for employee in employees:
+                        shift_count = employee_shifts.get(employee.id, 0)
+                        workload_stats.append({
+                            'employee_id': employee.id,
+                            'employee_name': employee.name,
+                            'shift_count': shift_count,
+                            'is_keyholder': employee.is_keyholder
+                        })
+                    
+                    # Sort by shift count
+                    workload_stats.sort(key=lambda x: x['shift_count'], reverse=True)
+                    
+                    # Calculate shift type distribution
+                    shift_types = {}
+                    for schedule in schedules:
+                        if schedule.shift_template_id:
+                            template = ShiftTemplate.query.get(schedule.shift_template_id)
+                            if template:
+                                shift_name = template.name
+                                if shift_name not in shift_types:
+                                    shift_types[shift_name] = 0
+                                shift_types[shift_name] += 1
+                    
+                    # Calculate daily coverage
+                    daily_coverage = {}
+                    current_date = start_dt
+                    while current_date <= end_dt:
+                        date_key = current_date.strftime('%Y-%m-%d')
+                        day_schedules = [s for s in schedules if s.date == current_date]
+                        
+                        daily_coverage[date_key] = {
+                            'total_shifts': len(day_schedules),
+                            'assigned_shifts': len([s for s in day_schedules if s.employee_id]),
+                            'unassigned_shifts': len([s for s in day_schedules if not s.employee_id]),
+                            'keyholder_coverage': len([s for s in day_schedules if s.employee_id and Employee.query.get(s.employee_id).is_keyholder])
+                        }
+                        
+                        current_date += timedelta(days=1)
+                    
+                    result = {
+                        'period': {
+                            'start_date': start_date,
+                            'end_date': end_date,
+                            'total_days': (end_dt - start_dt).days + 1
+                        },
+                        'overall_statistics': {
+                            'total_shifts': len(schedules),
+                            'assigned_shifts': len([s for s in schedules if s.employee_id]),
+                            'unassigned_shifts': len([s for s in schedules if not s.employee_id]),
+                            'total_employees': len(employees),
+                            'active_employees': len([e for e in employees if e.id in employee_shifts]),
+                            'keyholders': len([e for e in employees if e.is_keyholder])
+                        },
+                        'workload_distribution': workload_stats,
+                        'shift_type_distribution': shift_types,
+                        'daily_coverage': daily_coverage
+                    }
+                    
+                    if ctx:
+                        await ctx.info(f"Generated statistics for {len(schedules)} shifts over {result['period']['total_days']} days")
+                    
+                    return result
+                    
+            except Exception as e:
+                if ctx:
+                    await ctx.error(f"Error getting schedule statistics: {str(e)}")
+                raise
+
+        @self.mcp.tool()
+        async def optimize_schedule_ai(start_date: str, end_date: str, 
+                                     optimization_goals: Optional[List[str]] = None, ctx: Context = None) -> Dict[str, Any]:
+            """Use AI to optimize an existing schedule.
+            
+            Args:
+                start_date: Start date for optimization (YYYY-MM-DD)
+                end_date: End date for optimization (YYYY-MM-DD)
+                optimization_goals: List of optimization goals (e.g., ['balance_workload', 'minimize_conflicts'])
+                
+            Returns:
+                AI optimization results and recommendations
+            """
+            try:
+                if not optimization_goals:
+                    optimization_goals = ['balance_workload', 'ensure_keyholder_coverage', 'minimize_conflicts']
+                
+                with self.flask_app.app_context():
+                    # Instead of calling self.get_schedule, directly query the database
+                    start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
+                    end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
+                    
+                    current_schedules = Schedule.query.filter(
+                        Schedule.date >= start_dt,
+                        Schedule.date <= end_dt
+                    ).all()
+                    
+                    current_schedule = {
+                        'schedules': [
+                            {
+                                'id': s.id,
+                                'employee_id': s.employee_id,
+                                'shift_template_id': s.shift_template_id,
+                                'date': s.date.strftime('%Y-%m-%d'),
+                                'status': s.status
+                            }
+                            for s in current_schedules
+                        ],
+                        'summary': {
+                            'total_schedules': len(current_schedules),
+                            'period': {'start_date': start_date, 'end_date': end_date}
+                        }
+                    }
+                    
+                    # Get conflicts analysis
+                    conflicts = await analyze_schedule_conflicts(start_date, end_date, ctx)
+                    
+                    # Get statistics  
+                    statistics = await get_schedule_statistics(start_date, end_date, ctx)
+                    
+                    # Use fallback rule-based optimization
+                    optimization_result = {
+                        'status': 'rule_based_optimization',
+                        'message': 'Applied rule-based optimization recommendations',
+                        'recommendations': []
+                    }
+                    
+                    # Generate basic recommendations based on conflicts
+                    if conflicts['conflicts']:
+                        for conflict in conflicts['conflicts']:
+                            if conflict['type'] == 'double_booking':
+                                optimization_result['recommendations'].append({
+                                    'type': 'resolve_conflict',
+                                    'priority': 'high',
+                                    'description': f"Resolve double booking for {conflict['employee_name']} on {conflict['date']}",
+                                    'action': 'reassign_shift'
+                                })
+                    
+                    if conflicts['warnings']:
+                        for warning in conflicts['warnings']:
+                            if warning['type'] == 'missing_keyholder':
+                                optimization_result['recommendations'].append({
+                                    'type': 'assign_keyholder',
+                                    'priority': 'medium',
+                                    'description': f"Assign keyholder for {warning['date']}",
+                                    'action': 'add_keyholder_shift'
+                                })
+                    
+                    result = {
+                        'optimization_period': {
+                            'start_date': start_date,
+                            'end_date': end_date
+                        },
+                        'optimization_goals': optimization_goals,
+                        'current_analysis': {
+                            'schedule': current_schedule,
+                            'conflicts': conflicts['summary'],
+                            'statistics': statistics['overall_statistics']
+                        },
+                        'optimization_result': optimization_result,
+                        'timestamp': datetime.now().isoformat()
+                    }
+                    
+                    if ctx:
+                        await ctx.info(f"AI optimization completed with {len(optimization_result.get('recommendations', []))} recommendations")
+                    
+                    return result
+                    
+            except Exception as e:
+                if ctx:
+                    await ctx.error(f"Error optimizing schedule: {str(e)}")
+                raise
+
     def _register_resources(self):
         """Register MCP resources."""
         
@@ -630,7 +845,216 @@ class SchichtplanMCPService:
                     return json.dumps(data, indent=2)
             except Exception as e:
                 return json.dumps({'error': str(e)}, indent=2)
-    
+        
+        @self.mcp.resource("schedules://{start_date}/{end_date}")
+        def get_schedule_resource(start_date: str, end_date: str) -> str:
+            """Get schedule data for a specific date range."""
+            try:
+                with self.flask_app.app_context():
+                    start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
+                    end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
+                    
+                    schedules = Schedule.query.filter(
+                        Schedule.date >= start_dt,
+                        Schedule.date <= end_dt
+                    ).all()
+                    
+                    result = {
+                        'period': {
+                            'start_date': start_date,
+                            'end_date': end_date
+                        },
+                        'schedules': []
+                    }
+                    
+                    for schedule in schedules:
+                        employee = Employee.query.get(schedule.employee_id) if schedule.employee_id else None
+                        shift_template = ShiftTemplate.query.get(schedule.shift_template_id) if schedule.shift_template_id else None
+                        
+                        result['schedules'].append({
+                            'id': schedule.id,
+                            'employee_id': schedule.employee_id,
+                            'employee_name': employee.name if employee else 'Unassigned',
+                            'shift_template_id': schedule.shift_template_id,
+                            'shift_name': shift_template.name if shift_template else 'No shift',
+                            'date': schedule.date.strftime('%Y-%m-%d'),
+                            'status': schedule.status,
+                            'version': schedule.version
+                        })
+                    
+                    return json.dumps(result, indent=2)
+            except Exception as e:
+                return json.dumps({'error': str(e)}, indent=2)
+        
+        @self.mcp.resource("shift-templates://all")
+        def get_shift_templates_resource() -> str:
+            """Get all shift templates."""
+            try:
+                with self.flask_app.app_context():
+                    shift_templates = ShiftTemplate.query.all()
+                    
+                    result = {
+                        'shift_templates': [],
+                        'summary': {
+                            'total_templates': len(shift_templates)
+                        }
+                    }
+                    
+                    for template in shift_templates:
+                        result['shift_templates'].append({
+                            'id': template.id,
+                            'name': template.name,
+                            'start_time': template.start_time,
+                            'end_time': template.end_time,
+                            'duration_hours': template.duration_hours,
+                            'is_active': template.is_active,
+                            'requires_keyholder': template.requires_keyholder,
+                            'description': template.description
+                        })
+                    
+                    return json.dumps(result, indent=2)
+            except Exception as e:
+                return json.dumps({'error': str(e)}, indent=2)
+        
+        @self.mcp.resource("coverage://{day_of_week}")
+        def get_coverage_resource(day_of_week: int) -> str:
+            """Get coverage requirements for a specific day of week (0=Monday, 6=Sunday)."""
+            try:
+                with self.flask_app.app_context():
+                    coverage_requirements = Coverage.query.filter_by(day_of_week=day_of_week).all()
+                    
+                    day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+                    day_name = day_names[day_of_week] if 0 <= day_of_week <= 6 else 'Unknown'
+                    
+                    result = {
+                        'day_of_week': day_of_week,
+                        'day_name': day_name,
+                        'coverage_requirements': []
+                    }
+                    
+                    for coverage in coverage_requirements:
+                        result['coverage_requirements'].append({
+                            'id': coverage.id,
+                            'time_slot': coverage.time_slot,
+                            'required_employees': coverage.required_employees,
+                            'required_keyholders': coverage.required_keyholders,
+                            'shift_template_id': coverage.shift_template_id
+                        })
+                    
+                    return json.dumps(result, indent=2)
+            except Exception as e:
+                return json.dumps({'error': str(e)}, indent=2)
+        
+        @self.mcp.resource("availability://{employee_id}/{date}")
+        def get_employee_availability_resource(employee_id: int, date: str) -> str:
+            """Get availability for a specific employee on a specific date."""
+            try:
+                with self.flask_app.app_context():
+                    date_obj = datetime.strptime(date, '%Y-%m-%d').date()
+                    employee = Employee.query.get(employee_id)
+                    
+                    if not employee:
+                        return json.dumps({'error': 'Employee not found'}, indent=2)
+                    
+                    availability = EmployeeAvailability.query.filter_by(
+                        employee_id=employee_id,
+                        date=date_obj
+                    ).first()
+                    
+                    result = {
+                        'employee': {
+                            'id': employee.id,
+                            'name': employee.name,
+                            'is_active': employee.is_active,
+                            'is_keyholder': employee.is_keyholder
+                        },
+                        'date': date,
+                        'availability': None
+                    }
+                    
+                    if availability:
+                        result['availability'] = {
+                            'available': availability.available,
+                            'preferred_shift': availability.preferred_shift,
+                            'notes': availability.notes
+                        }
+                    
+                    return json.dumps(result, indent=2)
+            except Exception as e:
+                return json.dumps({'error': str(e)}, indent=2)
+        
+        @self.mcp.resource("conflicts://{start_date}/{end_date}")
+        def get_conflicts_resource(start_date: str, end_date: str) -> str:
+            """Get schedule conflicts for a date range."""
+            try:
+                with self.flask_app.app_context():
+                    start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
+                    end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
+                    
+                    # Get schedules in date range
+                    schedules = Schedule.query.filter(
+                        Schedule.date >= start_dt,
+                        Schedule.date <= end_dt
+                    ).all()
+                    
+                    conflicts = []
+                    warnings = []
+                    
+                    # Check for double bookings
+                    employee_schedules = {}
+                    for schedule in schedules:
+                        if schedule.employee_id:
+                            if schedule.employee_id not in employee_schedules:
+                                employee_schedules[schedule.employee_id] = []
+                            employee_schedules[schedule.employee_id].append(schedule)
+                    
+                    for emp_id, emp_schedules in employee_schedules.items():
+                        employee = Employee.query.get(emp_id)
+                        emp_name = employee.name if employee else f"Employee {emp_id}"
+                        
+                        # Group by date
+                        by_date = {}
+                        for schedule in emp_schedules:
+                            date_key = schedule.date.strftime('%Y-%m-%d')
+                            if date_key not in by_date:
+                                by_date[date_key] = []
+                            by_date[date_key].append(schedule)
+                        
+                        # Check for conflicts on same date
+                        for date_key, day_schedules in by_date.items():
+                            if len(day_schedules) > 1:
+                                shift_details = []
+                                for schedule in day_schedules:
+                                    shift_template = ShiftTemplate.query.get(schedule.shift_template_id)
+                                    shift_name = shift_template.name if shift_template else f"Shift {schedule.shift_template_id}"
+                                    shift_details.append(shift_name)
+                                
+                                conflicts.append({
+                                    'type': 'double_booking',
+                                    'employee_id': emp_id,
+                                    'employee_name': emp_name,
+                                    'date': date_key,
+                                    'shifts': shift_details,
+                                    'severity': 'high'
+                                })
+                    
+                    result = {
+                        'period': {
+                            'start_date': start_date,
+                            'end_date': end_date
+                        },
+                        'conflicts': conflicts,
+                        'warnings': warnings,
+                        'summary': {
+                            'total_conflicts': len(conflicts),
+                            'total_warnings': len(warnings)
+                        }
+                    }
+                    
+                    return json.dumps(result, indent=2)
+            except Exception as e:
+                return json.dumps({'error': str(e)}, indent=2)
+
     def _register_prompts(self):
         """Register MCP prompts."""
         
@@ -688,19 +1112,320 @@ Please suggest:
 
 Provide specific recommendations with reasoning.
 """
-    
+        
+        @self.mcp.prompt()
+        def schedule_optimization_prompt(current_schedule: str, conflicts: str, goals: str) -> str:
+            """Generate a prompt for AI-powered schedule optimization.
+            
+            Args:
+                current_schedule: JSON string containing current schedule data
+                conflicts: JSON string containing identified conflicts
+                goals: Optimization goals and constraints
+                
+            Returns:
+                Optimization prompt for AI
+            """
+            return f"""
+You are an AI schedule optimization assistant for a shift planning system. Your task is to analyze the current schedule and provide optimization recommendations.
+
+Current Schedule Data:
+{current_schedule}
+
+Identified Conflicts:
+{conflicts}
+
+Optimization Goals:
+{goals}
+
+Please provide:
+
+1. **Conflict Resolution**:
+   - Identify all scheduling conflicts (double bookings, coverage gaps, etc.)
+   - Provide specific solutions for each conflict
+   - Prioritize conflicts by severity and business impact
+
+2. **Coverage Optimization**:
+   - Ensure adequate staff coverage for all time slots
+   - Verify keyholder coverage requirements are met
+   - Balance workload distribution across employees
+
+3. **Employee Satisfaction**:
+   - Consider employee availability preferences
+   - Minimize excessive overtime or underscheduling
+   - Respect work-life balance constraints
+
+4. **Operational Efficiency**:
+   - Optimize shift transitions and handovers
+   - Minimize gaps in coverage
+   - Consider skill requirements for specific shifts
+
+5. **Compliance Checks**:
+   - Verify labor law compliance (rest periods, maximum hours)
+   - Check contracted hours requirements
+   - Ensure proper break scheduling
+
+Provide your recommendations in the following format:
+- **Priority Level**: High/Medium/Low
+- **Action Required**: Specific action to take
+- **Affected Employees**: List of employee IDs/names
+- **Timeline**: When this should be implemented
+- **Expected Impact**: Benefit of implementing this change
+
+Focus on actionable, specific recommendations that can be implemented immediately.
+"""
+
+        @self.mcp.prompt()
+        def conflict_resolution_prompt(conflict_data: str, employee_data: str) -> str:
+            """Generate a prompt for resolving specific scheduling conflicts.
+            
+            Args:
+                conflict_data: JSON string containing conflict details
+                employee_data: JSON string containing relevant employee information
+                
+            Returns:
+                Conflict resolution prompt for AI
+            """
+            return f"""
+You are a scheduling conflict resolution specialist. Your task is to resolve the following scheduling conflicts using available employee resources.
+
+Conflict Details:
+{conflict_data}
+
+Available Employee Resources:
+{employee_data}
+
+For each conflict, provide:
+
+1. **Root Cause Analysis**:
+   - Why did this conflict occur?
+   - What scheduling rules were violated?
+   - Are there systemic issues causing recurring conflicts?
+
+2. **Resolution Options**:
+   - Option A: Immediate quick fix
+   - Option B: Optimal long-term solution
+   - Option C: Alternative approach if constraints limit options
+
+3. **Implementation Steps**:
+   - Step-by-step instructions for implementing the resolution
+   - Who needs to be notified of changes
+   - When changes should take effect
+
+4. **Prevention Strategies**:
+   - How to prevent similar conflicts in the future
+   - Recommended scheduling rule adjustments
+   - Process improvements
+
+5. **Impact Assessment**:
+   - Effect on employee satisfaction
+   - Operational impact
+   - Cost implications if any
+
+Prioritize solutions that maintain compliance, ensure adequate coverage, and respect employee preferences whenever possible.
+"""
+
+        @self.mcp.prompt()
+        def workforce_planning_prompt(employee_data: str, forecast_data: str, constraints: str) -> str:
+            """Generate a prompt for strategic workforce planning.
+            
+            Args:
+                employee_data: JSON string containing employee information and capabilities
+                forecast_data: JSON string containing demand forecasts and historical data
+                constraints: JSON string containing business constraints and requirements
+                
+            Returns:
+                Workforce planning prompt for AI
+            """
+            return f"""
+You are a strategic workforce planning consultant for a shift-based operation. Your task is to provide recommendations for optimal staffing and scheduling strategies.
+
+Current Workforce:
+{employee_data}
+
+Demand Forecast & Historical Data:
+{forecast_data}
+
+Business Constraints:
+{constraints}
+
+Please analyze and provide recommendations for:
+
+1. **Staffing Levels**:
+   - Optimal number of employees per shift type
+   - Recommended full-time vs part-time mix
+   - Keyholder requirements and distribution
+
+2. **Skill Development**:
+   - Training needs identification
+   - Cross-training opportunities
+   - Succession planning for key roles
+
+3. **Scheduling Efficiency**:
+   - Best practices for shift patterns
+   - Optimal rotation schedules
+   - Work-life balance considerations
+
+4. **Capacity Planning**:
+   - Peak demand management strategies
+   - Flexible staffing approaches
+   - Contingency planning for absences
+
+5. **Performance Optimization**:
+   - KPIs for schedule effectiveness
+   - Employee satisfaction metrics
+   - Operational efficiency indicators
+
+6. **Cost Optimization**:
+   - Labor cost reduction opportunities
+   - Overtime minimization strategies
+   - Productivity improvement recommendations
+
+Provide actionable insights with:
+- Specific numerical recommendations where applicable
+- Implementation timelines
+- Expected ROI or impact metrics
+- Risk assessment and mitigation strategies
+
+Focus on sustainable, long-term improvements that benefit both the business and employees.
+"""
+
+        @self.mcp.prompt()
+        def compliance_audit_prompt(schedule_data: str, regulations: str, policies: str) -> str:
+            """Generate a prompt for compliance auditing of schedules.
+            
+            Args:
+                schedule_data: JSON string containing schedule information
+                regulations: JSON string containing applicable labor regulations
+                policies: JSON string containing company policies
+                
+            Returns:
+                Compliance audit prompt for AI
+            """
+            return f"""
+You are a compliance auditor specializing in labor law and workplace regulations. Your task is to audit the provided schedule for compliance violations and provide corrective recommendations.
+
+Schedule to Audit:
+{schedule_data}
+
+Applicable Regulations:
+{regulations}
+
+Company Policies:
+{policies}
+
+Please conduct a comprehensive compliance audit covering:
+
+1. **Labor Law Compliance**:
+   - Maximum working hours per day/week
+   - Minimum rest periods between shifts
+   - Break requirements during shifts
+   - Overtime regulations and limits
+
+2. **Contract Compliance**:
+   - Contracted hours fulfillment
+   - Part-time vs full-time designation accuracy
+   - Minimum guaranteed hours
+
+3. **Health & Safety Regulations**:
+   - Maximum consecutive working days
+   - Night shift limitations
+   - Fatigue management protocols
+   - Special requirements for specific roles
+
+4. **Company Policy Adherence**:
+   - Internal scheduling policies
+   - Availability request handling
+   - Shift change procedures
+   - Holiday and vacation scheduling
+
+5. **Documentation Requirements**:
+   - Required record keeping
+   - Approval workflows
+   - Change logging and audit trails
+
+For each potential violation found, provide:
+- **Violation Type**: Specific regulation or policy violated
+- **Severity Level**: Critical/High/Medium/Low
+- **Affected Employees**: Who is impacted
+- **Corrective Action**: Specific steps to resolve
+- **Prevention Measures**: How to avoid future violations
+- **Timeline**: When correction must be implemented
+
+Also provide an overall compliance score and risk assessment for the current scheduling practices.
+"""
+
     def get_mcp_server(self) -> FastMCP:
         """Get the FastMCP server instance."""
         return self.mcp
     
     async def run_stdio(self):
         """Run the MCP server in stdio mode."""
-        await self.mcp.run(transport="stdio")
+        try:
+            await self.mcp.run(transport="stdio")
+        except RuntimeError as e:
+            if "Already running" in str(e) and "in this thread" in str(e):
+                # Handle the case where asyncio is already running
+                def run_in_new_thread():
+                    # Create a new event loop in a separate thread
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    try:
+                        new_loop.run_until_complete(self.mcp.run(transport="stdio"))
+                    finally:
+                        new_loop.close()
+                
+                # Run in a separate thread to avoid the event loop conflict
+                thread = threading.Thread(target=run_in_new_thread)
+                thread.daemon = True
+                thread.start()
+                thread.join()
+            else:
+                raise
     
     async def run_sse(self, host: str = "127.0.0.1", port: int = 8001):
         """Run the MCP server in SSE mode."""
-        await self.mcp.run(transport="sse", host=host, port=port)
+        try:
+            await self.mcp.run(transport="sse", host=host, port=port)
+        except RuntimeError as e:
+            if "Already running" in str(e) and "in this thread" in str(e):
+                # Handle the case where asyncio is already running
+                def run_in_new_thread():
+                    # Create a new event loop in a separate thread
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    try:
+                        new_loop.run_until_complete(self.mcp.run(transport="sse", host=host, port=port))
+                    finally:
+                        new_loop.close()
+                
+                # Run in a separate thread to avoid the event loop conflict
+                thread = threading.Thread(target=run_in_new_thread)
+                thread.daemon = True
+                thread.start()
+                thread.join()
+            else:
+                raise
     
     async def run_streamable_http(self, host: str = "127.0.0.1", port: int = 8002):
         """Run the MCP server in streamable HTTP mode."""
-        await self.mcp.run(transport="streamable-http", host=host, port=port)
+        try:
+            await self.mcp.run(transport="streamable-http", host=host, port=port)
+        except RuntimeError as e:
+            if "Already running" in str(e) and "in this thread" in str(e):
+                # Handle the case where asyncio is already running
+                def run_in_new_thread():
+                    # Create a new event loop in a separate thread
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    try:
+                        new_loop.run_until_complete(self.mcp.run(transport="streamable-http", host=host, port=port))
+                    finally:
+                        new_loop.close()
+                
+                # Run in a separate thread to avoid the event loop conflict
+                thread = threading.Thread(target=run_in_new_thread)
+                thread.daemon = True
+                thread.start()
+                thread.join()
+            else:
+                raise

@@ -1507,6 +1507,13 @@ export function ScheduleTable({
           )}
         </CardContent>
 
+        {/* Daily Statistics - Above legend */}
+        <DailyStats 
+          schedules={schedules}
+          daysToDisplay={visibleDaysToDisplay}
+          employees={employeesData || []}
+        />
+
         {/* Color Legend - Moved to bottom */}
         <div className={cn("border-t border-border p-4 bg-muted/20", isFullWidth && "flex-shrink-0")}>
           <ScheduleColorLegend absenceTypes={absenceTypes} />
@@ -2323,6 +2330,113 @@ function ScheduleTableSwitched({
             })}
           </tbody>
         </table>
+  );
+}
+
+// Daily Statistics Component
+interface DailyStatsProps {
+  schedules: Schedule[];
+  daysToDisplay: Date[];
+  employees: Employee[];
+}
+
+function DailyStats({ schedules, daysToDisplay, employees }: DailyStatsProps) {
+  const dailyStats = useMemo(() => {
+    return daysToDisplay.map(date => {
+      const dateStr = format(date, 'yyyy-MM-dd');
+      const daySchedules = schedules.filter(schedule => 
+        schedule.date === dateStr && !schedule.is_empty && schedule.shift_id
+      );
+      
+      const totalEmployees = daySchedules.length;
+      
+      // Calculate total hours
+      const totalHours = daySchedules.reduce((sum, schedule) => {
+        if (schedule.shift_start && schedule.shift_end) {
+          try {
+            const start = new Date(`1970-01-01T${schedule.shift_start}`);
+            const end = new Date(`1970-01-01T${schedule.shift_end}`);
+            const hours = differenceInMinutes(end, start) / 60;
+            return sum + (hours > 0 ? hours : 0); // Only add positive hours
+          } catch {
+            return sum; // Skip invalid time data
+          }
+        }
+        return sum;
+      }, 0);
+      
+      // Count shift types
+      const shiftTypes = daySchedules.reduce((acc, schedule) => {
+        const shiftType = schedule.shift_type_id || 'UNKNOWN';
+        acc[shiftType] = (acc[shiftType] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      // Count keyholders
+      const keyholders = daySchedules.filter(schedule => {
+        const employee = employees.find(emp => emp.id === schedule.employee_id);
+        return employee?.is_keyholder;
+      }).length;
+      
+      return {
+        date,
+        dateStr,
+        totalEmployees,
+        totalHours,
+        shiftTypes,
+        keyholders
+      };
+    });
+  }, [schedules, daysToDisplay, employees]);
+
+  if (daysToDisplay.length === 0) return null;
+
+  return (
+    <div className="border-t border-border p-4 bg-muted/10">
+      <h4 className="text-sm font-medium text-foreground mb-3">Tägliche Statistiken</h4>
+      <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(daysToDisplay.length, 7)}, 1fr)` }}>
+        {dailyStats.map(({ date, dateStr, totalEmployees, totalHours, shiftTypes, keyholders }) => (
+          <div key={dateStr} className="text-center">
+            <div className="text-xs font-medium text-muted-foreground mb-1">
+              {format(date, 'dd.MM')}
+            </div>
+            <div className="text-xs text-muted-foreground mb-1">
+              {['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][date.getDay()]}
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center justify-center gap-1">
+                <span className="text-xs font-medium">{totalEmployees}</span>
+                <span className="text-xs text-muted-foreground">MA</span>
+              </div>
+              <div className="flex items-center justify-center gap-1">
+                <span className="text-xs font-medium">{totalHours.toFixed(1)}</span>
+                <span className="text-xs text-muted-foreground">h</span>
+              </div>
+              {keyholders > 0 && (
+                <div className="flex items-center justify-center gap-1">
+                  <Key className="h-3 w-3 text-yellow-600" />
+                  <span className="text-xs font-medium">{keyholders}</span>
+                </div>
+              )}
+              <div className="flex justify-center gap-1 flex-wrap">
+                {Object.entries(shiftTypes).map(([type, count]) => {
+                  if (count === 0) return null;
+                  const colorClass = type === 'EARLY' ? 'bg-blue-500' : 
+                                   type === 'MIDDLE' ? 'bg-green-500' : 
+                                   type === 'LATE' ? 'bg-amber-500' : 'bg-gray-500';
+                  return (
+                    <div key={type} className="flex items-center gap-1">
+                      <div className={`w-2 h-2 rounded-full ${colorClass}`}></div>
+                      <span className="text-xs">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
