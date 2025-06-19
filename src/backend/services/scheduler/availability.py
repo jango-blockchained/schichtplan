@@ -1,10 +1,10 @@
 """Availability checking module for the scheduler."""
 
-from datetime import date, datetime
-from typing import Dict, Any, List, Tuple
 import logging
-import sys
 import os
+import sys
+from datetime import date
+from typing import Any, Dict, List, Tuple
 
 # Add parent directories to path if needed
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -13,12 +13,22 @@ if src_backend_dir not in sys.path:
     sys.path.insert(0, src_backend_dir)
 
 # Use centralized import utilities
-from .import_utils import safe_import_models, import_availability_type, ModelImportError
+from .import_utils import ModelImportError, import_availability_type, safe_import_models
 
 # Import models using the centralized utility
 try:
-    (Employee, ShiftTemplate, Settings, Coverage, db, 
-     Absence, EmployeeAvailability, Schedule, AvailabilityType, EmployeeGroup) = safe_import_models(use_mocks_on_failure=True)
+    (
+        Employee,
+        ShiftTemplate,
+        Settings,
+        Coverage,
+        db,
+        Absence,
+        EmployeeAvailability,
+        Schedule,
+        AvailabilityType,
+        EmployeeGroup,
+    ) = safe_import_models(use_mocks_on_failure=True)
     import_logger = logging.getLogger(__name__)
     import_logger.info("Successfully imported models for availability module")
 except ModelImportError as e:
@@ -33,11 +43,14 @@ except ModelImportError as e:
 
         class AvailabilityType(str, Enum):
             """Mock enum for availability types"""
+
             AVAILABLE = "AVAILABLE"
             FIXED = "FIXED"
             PREFERRED = "PREFERRED"
             UNAVAILABLE = "UNAVAILABLE"
+
     raise
+
 
 class AvailabilityChecker:
     """
@@ -294,30 +307,28 @@ class AvailabilityChecker:
 
     def is_availability_for_date(self, availability, date_to_check: date) -> bool:
         """Check if an availability record applies to a specific date"""
-        # If availability has specific date, check exact match
-        if hasattr(availability, "date") and availability.date:
-            avail_date = availability.date
-            if isinstance(avail_date, str):
-                try:
-                    avail_date = datetime.fromisoformat(avail_date).date()
-                except (ValueError, TypeError):
-                    self.log_warning(
-                        f"Invalid date format in availability record: {avail_date}"
-                    )
-                    return False
+        # Use the same logic as EmployeeAvailability.is_available_for_date
+        # If not recurring, check start_date and end_date
+        if hasattr(availability, "is_recurring") and not availability.is_recurring:
+            if not (
+                hasattr(availability, "start_date")
+                and hasattr(availability, "end_date")
+            ):
+                return False
+            if not (availability.start_date and availability.end_date):
+                return False
+            if not (availability.start_date <= date_to_check <= availability.end_date):
+                return False
 
-            return avail_date == date_to_check
+        # Check if this availability applies to the given day of week
+        if hasattr(availability, "day_of_week"):
+            if availability.day_of_week != date_to_check.weekday():
+                return False
+        else:
+            return False
 
-        # If availability has day_of_week, check if it matches
-        elif (
-            hasattr(availability, "day_of_week")
-            and availability.day_of_week is not None
-        ):
-            # day_of_week: 0 = Monday, 6 = Sunday
-            return availability.day_of_week == date_to_check.weekday()
-
-        # Default - availability doesn't apply to this date
-        return False
+        # If all checks pass, the availability applies to this date
+        return True
 
     def check_availability(self, employee_id: int, date: date) -> bool:
         """Check if an employee is available on a given date"""
@@ -386,54 +397,72 @@ class AvailabilityChecker:
         if self.logger:
             self.logger.error(message)
 
-    def get_available_employees(self, check_date: date, employees: List[Any]) -> List[Any]:
+    def get_available_employees(
+        self, check_date: date, employees: List[Any]
+    ) -> List[Any]:
         """
         Get a list of employees who are available on the given date.
-        
+
         Args:
             check_date: The date to check availability for
             employees: List of employee objects to filter
-            
+
         Returns:
             List of employees who are available on the given date
         """
         available_employees = []
-        
+
         if not employees:
-            self.log_warning(f"No employees provided to check availability for {check_date}")
+            self.log_warning(
+                f"No employees provided to check availability for {check_date}"
+            )
             return available_employees
-        
-        self.log_debug(f"Checking availability for {len(employees)} employees on {check_date}")
-        
+
+        self.log_debug(
+            f"Checking availability for {len(employees)} employees on {check_date}"
+        )
+
         for employee in employees:
             try:
                 # Get employee ID
-                employee_id = getattr(employee, 'id', None) or getattr(employee, 'employee_id', None)
+                employee_id = getattr(employee, "id", None) or getattr(
+                    employee, "employee_id", None
+                )
                 if employee_id is None:
                     self.log_warning(f"Employee has no ID: {employee}")
                     continue
-                
+
                 # Check if employee is active
-                is_active = getattr(employee, 'is_active', True)
+                is_active = getattr(employee, "is_active", True)
                 if not is_active:
                     self.log_debug(f"Employee {employee_id} is not active")
                     continue
-                
+
                 # Check if employee is on leave
                 if self.is_employee_on_leave(employee_id, check_date):
-                    self.log_debug(f"Employee {employee_id} is on leave on {check_date}")
+                    self.log_debug(
+                        f"Employee {employee_id} is on leave on {check_date}"
+                    )
                     continue
-                
+
                 # Check basic availability (not shift-specific)
                 if self.check_availability(employee_id, check_date):
                     available_employees.append(employee)
-                    self.log_debug(f"Employee {employee_id} is available on {check_date}")
+                    self.log_debug(
+                        f"Employee {employee_id} is available on {check_date}"
+                    )
                 else:
-                    self.log_debug(f"Employee {employee_id} is not available on {check_date}")
-                    
+                    self.log_debug(
+                        f"Employee {employee_id} is not available on {check_date}"
+                    )
+
             except Exception as e:
-                self.log_warning(f"Error checking availability for employee {employee}: {e}")
+                self.log_warning(
+                    f"Error checking availability for employee {employee}: {e}"
+                )
                 continue
-        
-        self.log_info(f"Found {len(available_employees)} available employees out of {len(employees)} on {check_date}")
+
+        self.log_info(
+            f"Found {len(available_employees)} available employees out of {len(employees)} on {check_date}"
+        )
         return available_employees

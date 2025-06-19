@@ -328,11 +328,26 @@ class SchichtplanMCPService:
 
                     if start_date:
                         start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
-                        query = query.filter(EmployeeAvailability.date >= start_dt)
+                        # Filter by start_date and end_date range
+                        query = query.filter(
+                            (EmployeeAvailability.start_date.is_(None))
+                            | (EmployeeAvailability.start_date <= start_dt)
+                        )
+                        query = query.filter(
+                            (EmployeeAvailability.end_date.is_(None))
+                            | (EmployeeAvailability.end_date >= start_dt)
+                        )
 
                     if end_date:
                         end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
-                        query = query.filter(EmployeeAvailability.date <= end_dt)
+                        query = query.filter(
+                            (EmployeeAvailability.end_date.is_(None))
+                            | (EmployeeAvailability.end_date >= end_dt)
+                        )
+                        query = query.filter(
+                            (EmployeeAvailability.start_date.is_(None))
+                            | (EmployeeAvailability.start_date <= end_dt)
+                        )
 
                     availability_records = query.all()
 
@@ -352,13 +367,22 @@ class SchichtplanMCPService:
                         result["availability_records"].append(
                             {
                                 "employee_id": record.employee_id,
-                                "employee_name": employee.name
+                                "employee_name": f"{employee.first_name} {employee.last_name}"
                                 if employee
                                 else "Unknown",
-                                "date": record.date.strftime("%Y-%m-%d"),
-                                "available": record.available,
-                                "preferred_shift": record.preferred_shift,
-                                "notes": record.notes,
+                                "start_date": record.start_date.strftime("%Y-%m-%d")
+                                if record.start_date
+                                else None,
+                                "end_date": record.end_date.strftime("%Y-%m-%d")
+                                if record.end_date
+                                else None,
+                                "day_of_week": record.day_of_week,
+                                "hour": record.hour,
+                                "is_available": record.is_available,
+                                "availability_type": record.availability_type.value
+                                if hasattr(record.availability_type, "value")
+                                else str(record.availability_type),
+                                # Remove preferred_shift and notes if not present
                             }
                         )
 
