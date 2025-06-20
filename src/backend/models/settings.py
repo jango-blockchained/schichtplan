@@ -523,18 +523,18 @@ class Settings(db.Model):
     def get_default_settings(cls) -> "Settings":
         settings = cls()
         # General Settings
-        settings.store_name = "Mein Laden"
-        settings.store_address = "Hauptstraße 1, 12345 Musterstadt"
-        settings.store_phone = "01234/567890"
+        settings.store_name = "TEDi Filiale #6729"
+        settings.store_address = "Leipziger Str. 1, 34129 Kassel"
+        settings.store_phone = "0561/1234567"  # Added
         settings.store_email = "info@meinladen.de"
         settings.timezone = "Europe/Berlin"
         settings.language = "de"
         settings.date_format = "DD.MM.YYYY"
         settings.time_format = "HH:mm"
-        settings.store_opening = "08:00"
+        settings.store_opening = "09:00"
         settings.store_closing = "20:00"
-        settings.keyholder_before_minutes = 30
-        settings.keyholder_after_minutes = 15
+        settings.keyholder_before_minutes = 5
+        settings.keyholder_after_minutes = 10
         settings.opening_days = {
             "0": True,
             "1": True,
@@ -548,10 +548,10 @@ class Settings(db.Model):
 
         # Scheduling Settings
         settings.scheduling_resource_type = "coverage"
-        settings.default_shift_duration = 8.0
-        settings.min_break_duration = 30
-        settings.max_daily_hours = 10.0
-        settings.max_weekly_hours = 40.0
+        settings.default_shift_duration = 6.0
+        settings.min_break_duration = 5
+        settings.max_daily_hours = 12.0
+        settings.max_weekly_hours = 50.0
         settings.total_weekly_working_hours = 165.0
         settings.min_rest_between_shifts = 11.0
         settings.scheduling_period_weeks = 4
@@ -681,17 +681,24 @@ class Settings(db.Model):
                 "type": "shift_type",
                 "auto_assign_only": True,
             },
+            {
+                "id": "UNAVAILABLE",
+                "name": "Nicht verfügbar",
+                "color": "#ef4444",
+                "type": "shift_type",
+                "auto_assign_only": True,
+            },
         ]
         settings.absence_types = [
-            {"id": "URL", "name": "Urlaub", "color": "#FF9800", "type": "absence_type"},
+            {"id": "HDY", "name": "Urlaub", "color": "#FF9800", "type": "absence_type"},
             {
-                "id": "KRANK",
-                "name": "Krank",
+                "id": "AWAY",
+                "name": "Abwesend",
                 "color": "#F44336",
                 "type": "absence_type",
             },
             {
-                "id": "SLG",
+                "id": "EDU",
                 "name": "Schulung",
                 "color": "#4CAF50",
                 "type": "absence_type",
