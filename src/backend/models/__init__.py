@@ -10,6 +10,16 @@ from .schedule import Schedule, ScheduleVersionMeta, ScheduleStatus
 from .absence import Absence
 from .coverage import Coverage
 from .user import User, UserRole
+from .ai_models import (
+    AIConversation,
+    AIMessage,
+    AIAgentMetrics,
+    AIWorkflowExecution,
+    MCPToolUsage,
+    ConversationStatus,
+    MessageType,
+    WorkflowStatus
+)
 
 __all__ = [
     "db",
@@ -26,4 +36,12 @@ __all__ = [
     "Coverage",
     "User",
     "UserRole",
+    "AIConversation",
+    "AIMessage",
+    "AIAgentMetrics",
+    "AIWorkflowExecution",
+    "MCPToolUsage",
+    "ConversationStatus",
+    "MessageType",
+    "WorkflowStatus"
 ]
