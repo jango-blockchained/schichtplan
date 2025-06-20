@@ -23,78 +23,67 @@
  *    - Remove unused isDuplicateVersionOpen dialog
  */
 
-import React, { useState, useEffect, useCallback } from "react"; // Added useCallback
+import React, { useCallback, useEffect, useMemo, useState } from "react"; // Added useCallback, useMemo
 // import { ShiftTable } from '@/components/ShiftTable'; // Original, might be unused if ScheduleManager is primary
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { useToast } from "@/components/ui/use-toast";
 import { useScheduleData } from "@/hooks/useScheduleData";
 import {
-  addDays,
-  startOfWeek,
-  endOfWeek,
-  addWeeks,
-  format,
-  getWeek,
-  isBefore,
-  differenceInCalendarWeeks,
-  differenceInDays,
-  parseISO,
-} from "date-fns";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
+    createSchedule,
+    exportSchedule,
+    fixScheduleDisplay,
+    generateAiSchedule,
+    getEmployees,
+    getSettings,
+    getWeekVersions,
+    importAiScheduleResponse,
+    previewAiData,
+    updateSchedule,
+    updateSettings
+} from "@/services/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  exportSchedule,
-  updateSchedule,
-  getSettings,
-  updateSettings,
-  createSchedule,
-  getEmployees,
-  getAbsences,
-  fixScheduleDisplay,
-  generateAiSchedule,
-  previewAiData,
-  importAiScheduleResponse,
-  getWeekVersions,
-} from "@/services/api";
+    addDays,
+    addWeeks,
+    differenceInCalendarWeeks,
+    differenceInDays,
+    endOfWeek,
+    format,
+    parseISO,
+    startOfWeek
+} from "date-fns";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { useToast } from "@/components/ui/use-toast";
-import {
-  Loader2,
-  AlertCircle,
-  X,
-  Calendar,
-  CheckCircle,
-  XCircle,
-  RefreshCw,
-  Plus,
-  FileTextIcon,
+    AlertCircle,
+    FileTextIcon,
+    RefreshCw
 } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableCell,
-  TableRow,
-} from "@/components/ui/table";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 // import { ScheduleTable } from '@/components/ScheduleTable'; // Original, might be unused
 // import { ScheduleOverview } from '@/components/Schedule/ScheduleOverview'; // Original, might be unused
 import {
-  Schedule,
-  ScheduleError,
-  ScheduleUpdate,
-  Settings,
-  AiImportResponse, // Import the new type
+    AiImportResponse,
+    ScheduleUpdate,
+    Settings
 } from "@/types"; // Added Settings
 // import { Checkbox } from '@/components/ui/checkbox'; // Original, might be unused
 import { PageHeader } from "@/components/PageHeader";
@@ -108,42 +97,67 @@ import { ScheduleGenerationSettings } from "@/components/ScheduleGenerationSetti
 // import { type Schedule as APISchedule } from '@/services/api'; // Original, might be unused
 // import { type UseScheduleDataResult } from '@/hooks/useScheduleData'; // Original, might be unused
 // import { DateRangeSelector } from '@/components/DateRangeSelector'; // Original, might be unused
-import GenerationOverlay from "@/components/Schedule/GenerationOverlay";
 import GenerationLogs from "@/components/Schedule/GenerationLogs";
-import ScheduleErrors from "@/components/Schedule/ScheduleErrors";
+import GenerationOverlay from "@/components/Schedule/GenerationOverlay";
+import { ScheduleActions } from "@/components/Schedule/ScheduleActions";
 import ScheduleControls from "@/components/Schedule/ScheduleControls";
+import ScheduleErrors from "@/components/Schedule/ScheduleErrors";
 import useScheduleGeneration from "@/hooks/useScheduleGeneration";
 import useVersionControl from "@/hooks/useVersionControl";
 import { useWeekBasedVersionControl } from "@/hooks/useWeekBasedVersionControl";
 import { DateRange } from "react-day-picker";
-import { ScheduleActions } from "@/components/Schedule/ScheduleActions";
 // import { ScheduleFixActions } from '@/components/Schedule/ScheduleFixActions'; // Original, might be unused
-import { AddScheduleDialog } from "@/components/Schedule/AddScheduleDialog";
-import { ScheduleStatisticsModal } from "@/components/Schedule/ScheduleStatisticsModal";
 import { EnhancedDateRangeSelector } from "@/components/EnhancedDateRangeSelector";
+import { AddScheduleDialog } from "@/components/Schedule/AddScheduleDialog";
+import { DiagnosticsDialog } from "@/components/Schedule/DiagnosticsDialog";
+import { MEPTemplate } from "@/components/Schedule/MEPTemplate";
+import { ScheduleStatisticsModal } from "@/components/Schedule/ScheduleStatisticsModal";
 import { VersionTable } from "@/components/Schedule/VersionTable";
 import { ScheduleManager } from "@/components/ScheduleManager";
 import { WeekNavigator } from "@/components/WeekNavigator";
 import { WeekVersionDisplay } from "@/components/WeekVersionDisplay";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { DiagnosticsDialog } from "@/components/Schedule/DiagnosticsDialog";
 import { ActionDock } from "@/components/dock/ActionDock";
-import { DetailedAIGenerationModal } from "@/components/modals/DetailedAIGenerationModal";
+import { DetailedAIGenerationModal, DetailedAIOptions } from "@/components/modals/DetailedAIGenerationModal";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { MEPDataService } from "@/services/mepDataService";
-import { MEPTemplate } from "@/components/Schedule/MEPTemplate";
 import ReactDOM from "react-dom/client";
+import { AddAvailabilityShiftsDialog } from "@/components/Schedule/AddAvailabilityShiftsDialog";
 
-function getErrorMessage(error: any): string {
-  if (error && typeof error === "object" && "message" in error) {
+// Define a more specific type for AI Preview data to avoid using `any`
+interface AiPreviewData {
+    status: string;
+    data_pack: {
+        employees: Employee[];
+        shifts: ScheduleEntry[];
+        coverage_rules: any[]; // Replace with specific type if available
+        schedule_period: { start: string; end: string };
+        availability: Availability[];
+        absences: Absence[];
+    };
+    metadata: {
+        estimated_size_reduction: string;
+        optimization_applied: boolean;
+        data_structure_version: string;
+        start_date: string;
+        end_date: string;
+        total_sections: number;
+    };
+    system_prompt?: string;
+    optimized_data?: Record<string, unknown>;
+}
+
+
+function getErrorMessage(error: unknown): string {
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
     return error.message;
   }
   return "Ein unerwarteter Fehler ist aufgetreten";
@@ -151,10 +165,13 @@ function getErrorMessage(error: any): string {
 
 export function SchedulePage() {
   // 1. All useState calls
-  const today = new Date();
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: startOfWeek(today, { weekStartsOn: 1 }),
-    to: endOfWeek(today, { weekStartsOn: 1 }),
+  const today = useMemo(() => new Date(), []);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
+    const initialToday = new Date();
+    return {
+        from: startOfWeek(initialToday, { weekStartsOn: 1 }),
+        to: endOfWeek(initialToday, { weekStartsOn: 1 }),
+    };
   });
   const [weekAmount, setWeekAmount] = useState<number>(1);
   const [selectedVersion, setSelectedVersion] = useState<number | undefined>(
@@ -162,14 +179,12 @@ export function SchedulePage() {
   );
   const [includeEmpty, setIncludeEmpty] = useState<boolean>(true);
   const [createEmptySchedules, setCreateEmptySchedules] = useState(true);
-  const [isNewVersionModalOpen, setIsNewVersionModalOpen] = useState(false); // Keep if used by a dialog not yet removed
   const [isGenerationSettingsOpen, setIsGenerationSettingsOpen] =
     useState(false);
-  const [selectedEmployee, setSelectedEmployee] = useState<number | null>(null); // Keep if used by features not yet removed
   const [isAddScheduleDialogOpen, setIsAddScheduleDialogOpen] = useState(false);
   const [isStatisticsModalOpen, setIsStatisticsModalOpen] = useState(false);
   const [employeeAbsences, setEmployeeAbsences] = useState<
-    Record<number, any[]>
+    Record<number, unknown[]>
   >({}); // Keep if used by ScheduleTable/Manager
   const [enableDiagnostics, setEnableDiagnostics] = useState<boolean>(false);
   const [isAiGenerating, setIsAiGenerating] = useState<boolean>(false);
@@ -184,8 +199,10 @@ export function SchedulePage() {
     onCancel: () => void;
   } | null>(null);
   const [isAiDataPreviewOpen, setIsAiDataPreviewOpen] = useState<boolean>(false);
-  const [aiPreviewData, setAiPreviewData] = useState<any>(null);
+  const [aiPreviewData, setAiPreviewData] = useState<AiPreviewData | null>(null);
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState<boolean>(false);
+  const [isAddAvailabilityShiftsDialogOpen, setIsAddAvailabilityShiftsDialogOpen] = useState(false);
+  const [availabilityShiftType, setAvailabilityShiftType] = useState<'FIXED' | 'UNAVAILABLE' | 'PREFERRED'>('FIXED');
 
   // 2. Other React hooks
   const { toast } = useToast();
@@ -218,7 +235,7 @@ export function SchedulePage() {
     }
     // Assuming the structure is { "monday": true, "tuesday": true, ... }
     return Object.entries(effectiveSettingsData.general.opening_days)
-      .filter(([dayName, isOpen]) => isOpen) // Filter for days that are open
+      .filter(([, isOpen]) => isOpen) // Filter for days that are open
       .map(([dayName]) => {
         const lowerDayName = dayName.toLowerCase();
         switch (lowerDayName) {
@@ -275,7 +292,6 @@ export function SchedulePage() {
     handleDeleteVersion: triggerDeleteVersionHook, // Renamed
     handleDuplicateVersion: triggerDuplicateVersionHook, // Renamed
     handleCreateNewVersionWithOptions: versionControlCreateWithOptions,
-    versions, // This is number[] from the hook, might be `versionNumbers` or similar
     versionMetas, // This is VersionMeta[] from the hook, used for VersionTable etc.
     isLoading: isLoadingVersions,
   } = useVersionControl({
@@ -482,7 +498,7 @@ export function SchedulePage() {
     try {
       // Process the data for MEP template
       const mepData = MEPDataService.processSchedulesForMEP(
-        scheduleData,
+        scheduleData as ScheduleResponse, // More specific type
         employees,
         dateRange.from,
         dateRange.to,
@@ -527,8 +543,8 @@ export function SchedulePage() {
           
           // Now render the MEP component
           renderMEPComponent();
-        } catch (error) {
-          console.warn('Could not load CSS file, using inline styles');
+        } catch (e) {
+          console.warn('Could not load CSS file, using inline styles', e);
           renderMEPComponent();
         }
       };
@@ -599,7 +615,7 @@ export function SchedulePage() {
 
       toast({
         title: "KI-Daten geladen",
-        description: `${aiDataPreview.data_summary.data_size_chars} Zeichen optimierte Daten für ${aiDataPreview.data_summary.employees} Mitarbeiter`,
+        description: `Daten für ${aiDataPreview.data_pack?.employees?.length || 0} Mitarbeiter optimiert.`,
       });
     } catch (error) {
       const errorMessage = getErrorMessage(error);
@@ -609,7 +625,7 @@ export function SchedulePage() {
         variant: "destructive",
       });
     }
-  }, [dateRange, versionControlSelectedVersion]);
+  }, [dateRange, toast]);
 
   // Removed checkAndFixMissingTimeData function - automatic schedule repair is no longer needed
   // Manual repair is still available via the "Fix Display" button in ScheduleActions
@@ -664,6 +680,9 @@ export function SchedulePage() {
     return () => clearTimeout(timeoutId);
   }, [selectedVersion, versionControlSelectedVersion, queryClient]); // Removed refetchScheduleData dependency
 
+  const fromTime = dateRange?.from?.getTime();
+  const toTime = dateRange?.to?.getTime();
+
   useEffect(() => {
     if (
       versionControlSelectedVersion &&
@@ -674,6 +693,7 @@ export function SchedulePage() {
         (vm) => vm.version === versionControlSelectedVersion,
       );
       if (selectedMeta) {
+        // @ts-expect-error - Legacy support for different version meta structures
         const metaAny = selectedMeta as any;
         const dateRangeStartStr =
           selectedMeta.date_range?.start ||
@@ -704,10 +724,10 @@ export function SchedulePage() {
   }, [
     versionControlSelectedVersion,
     versionMetas,
-    dateRange?.from?.getTime(), // Use getTime() for stable comparison
-    dateRange?.to?.getTime(),   // Use getTime() for stable comparison
+    fromTime,
+    toTime,
     weekAmount,
-    // Removed setDateRange and setWeekAmount as they are stable React setState functions
+    dateRange,
   ]);
 
   // Removed automatic schedule repair useEffect - it was causing unnecessary background processing
@@ -790,111 +810,6 @@ export function SchedulePage() {
       `Version: ${effectiveSelectedVersion}, Date range: ${formattedFromDate} - ${formattedToDate}`,
     );
     generate();
-  };
-
-  const handleGenerateAiSchedule = async () => {
-    if (!dateRange?.from || !dateRange?.to) {
-      toast({
-        title: "Zeitraum erforderlich (AI)",
-        description: "Bitte Zeitraum für AI-Generierung wählen.",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (!versionControlSelectedVersion) {
-      toast({
-        title: "Version erforderlich (AI)",
-        description: "Bitte Version für AI-Generierung wählen.",
-        variant: "destructive",
-      });
-      return;
-    }
-    setIsAiGenerating(true);
-    clearGenerationLogs();
-    const aiSteps = [
-      {
-        id: "ai-init",
-        title: "Initialisiere KI-Generierung",
-        status: "pending" as const,
-      },
-      {
-        id: "ai-analyze",
-        title: "Analysiere Verfügbarkeiten",
-        status: "pending" as const,
-      },
-      {
-        id: "ai-generate",
-        title: "Erstelle Schichtplan",
-        status: "pending" as const,
-      },
-      {
-        id: "ai-finalize",
-        title: "Finalisiere KI-Schichtplan",
-        status: "pending" as const,
-      },
-    ];
-    setGenerationSteps(aiSteps);
-    setShowGenerationOverlay(true);
-    addGenerationLog(
-      "info",
-      "Starting AI schedule generation",
-      `Version: ${versionControlSelectedVersion}, Date range: ${format(dateRange.from, "yyyy-MM-dd")} - ${format(dateRange.to, "yyyy-MM-dd")}`,
-    );
-    try {
-      updateGenerationStep("ai-init", "in-progress");
-      await new Promise((r) => setTimeout(r, 200)); // Reduced delay
-      const fromStr = format(dateRange.from, "yyyy-MM-dd");
-      const toStr = format(dateRange.to, "yyyy-MM-dd");
-      updateGenerationStep("ai-init", "completed");
-      updateGenerationStep("ai-analyze", "in-progress");
-      await new Promise((r) => setTimeout(r, 200)); // Reduced delay
-      const result = await generateAiSchedule(
-        fromStr,
-        toStr,
-        versionControlSelectedVersion,
-      );
-      updateGenerationStep("ai-analyze", "completed");
-      updateGenerationStep("ai-generate", "in-progress");
-      await new Promise((r) => setTimeout(r, 200)); // Reduced delay
-      addGenerationLog("info", "AI schedule generation API call successful");
-      if (result.generated_assignments_count)
-        addGenerationLog(
-          "info",
-          `Generated ${result.generated_assignments_count} schedule entries`,
-        );
-      updateGenerationStep("ai-generate", "completed");
-      updateGenerationStep("ai-finalize", "in-progress");
-      await new Promise((r) => setTimeout(r, 200)); // Reduced delay
-      
-      // Batch the query invalidations to reduce rapid updates
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["schedules"] });
-        queryClient.invalidateQueries({ queryKey: ["versions"] });
-      }, 100);
-      
-      updateGenerationStep("ai-finalize", "completed");
-      toast({
-        title: "AI Generation Complete",
-        description: "AI schedule generated successfully.",
-      });
-      // Log diagnostic information if available
-      if (result.diagnostic_log) {
-        addGenerationLog("info", "Diagnostic log available:", result.diagnostic_log);
-      }
-      setTimeout(() => setIsAiGenerating(false), 1000); // Reduced delay
-    } catch (err: unknown) {
-      const errorMessage = getErrorMessage(err);
-      addGenerationLog("error", "AI Generation Error", errorMessage);
-      aiSteps.forEach((step) =>
-        updateGenerationStep(step.id, "error", "Generation failed"),
-      );
-      toast({
-        title: "AI Generation Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
-      setTimeout(() => setIsAiGenerating(false), 1500); // Reduced delay
-    }
   };
 
   const handleGenerateAiFastSchedule = async () => {
@@ -1017,7 +932,7 @@ export function SchedulePage() {
     setIsDetailedAiModalOpen(true);
   };
 
-  const handleDetailedAiModalConfirm = async (options: any) => {
+  const handleDetailedAiModalConfirm = async (options: DetailedAIOptions) => {
     setIsDetailedAiModalOpen(false);
     setIsAiDetailedGenerating(true);
     clearGenerationLogs();
@@ -1058,11 +973,12 @@ export function SchedulePage() {
       updateGenerationStep("ai-detailed-init", "completed");
       updateGenerationStep("ai-detailed-analyze", "in-progress");
       await new Promise((r) => setTimeout(r, 700));
-      // TODO: Pass options to generateAiSchedule when backend supports detailed options
+      // Pass options to generateAiSchedule when backend supports detailed options
       const result = await generateAiSchedule(
         fromStr,
         toStr,
-        versionControlSelectedVersion,
+        versionControlSelectedVersion!,
+        options // Pass detailed options here
       );
       updateGenerationStep("ai-detailed-analyze", "completed");
       updateGenerationStep("ai-detailed-generate", "in-progress");
@@ -1260,248 +1176,116 @@ export function SchedulePage() {
   };
 
   const handleFixDisplay = async () => {
-    if (!versionControlSelectedVersion || !dateRange?.from || !dateRange?.to) {
-      toast({ title: "Operation nicht möglich", variant: "destructive" });
-      return;
-    }
-    addGenerationLog(
-      "info",
-      "Starting display fix",
-      `Version: ${versionControlSelectedVersion}, Range: ${format(dateRange.from, "yy-MM-dd")} - ${format(dateRange.to, "yy-MM-dd")}`,
-    );
-    try {
-      const result = await fixScheduleDisplay(
-        format(dateRange.from, "yyyy-MM-dd"),
-        format(dateRange.to, "yyyy-MM-dd"),
-        versionControlSelectedVersion,
-      );
-      addGenerationLog(
-        "info",
-        "Display fix complete",
-        `Fixed ${result.empty_schedules_count}. Days: ${result.days_fixed.join(", ") || "none"}`,
-      );
-      // Use query invalidation instead of manual refetch to prevent loops
-      queryClient.invalidateQueries({ queryKey: ["schedules"] });
-      toast({
-        title: "Display Fix Complete",
-        description: `Fixed ${result.empty_schedules_count} schedules.`, // Corrected to use result property
-      });
-    } catch (error) {
-      addGenerationLog("error", "Display fix failed", getErrorMessage(error));
-      toast({
-        title: "Display Fix Failed",
-        description: getErrorMessage(error),
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleWeekChange = (weekOffset: number) => {
-    if (dateRange?.from) {
-      const from = addWeeks(
-        startOfWeek(dateRange.from, { weekStartsOn: 1 }),
-        weekOffset,
-      );
-      from.setHours(0, 0, 0, 0);
-      const to = addDays(from, 6 * weekAmount);
-      to.setHours(23, 59, 59, 999);
-      setDateRange({ from, to });
-    }
-  };
-
-  const handleDurationChange = (duration: number) => {
-    setWeekAmount(duration);
-    if (dateRange?.from) {
-      const from = startOfWeek(dateRange.from, { weekStartsOn: 1 });
-      const to = addDays(from, 6 * duration);
-      to.setHours(23, 59, 59, 999);
-      setDateRange({ from, to });
-    }
-  };
-
-  const handleShiftDrop = async (
-    scheduleId: number,
-    newEmployeeId: number,
-    newDate: Date,
-    newShiftId: number,
-  ) => {
-    if (scheduleId === undefined || scheduleId === null || scheduleId <= 0) {
-      toast({
-        title: "Fehler Verschieben",
-        description: "Ungültige ID.",
-        variant: "destructive",
-      });
-      return;
-    }
-    try {
-      const updateData: Partial<ScheduleUpdate> = {
-        shift_id: newShiftId,
-        version: versionControlSelectedVersion,
-        employee_id: newEmployeeId,
-      };
-
-      // If the date has changed, include it in the update
-      const formattedDate = format(newDate, "yyyy-MM-dd");
-      updateData.date = formattedDate;
-
-      await updateSchedule(scheduleId, updateData);
-      // Use query invalidation instead of manual refetch to prevent loops
-      queryClient.invalidateQueries({ queryKey: ["schedules"] });
-      toast({
-        title: "Schicht aktualisiert",
-        description: "Schicht erfolgreich verschoben.",
-      });
-    } catch (error) {
-      toast({
-        title: "Fehler Aktualisieren",
-        description: getErrorMessage(error),
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleDockDrop = useCallback(async (employeeId: number, date: Date, shiftId: number) => {
-    if (!versionControlSelectedVersion) {
-      toast({
-        title: "Fehler",
-        description: "Keine Version ausgewählt.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Extract just the version number from the version control object
-    const versionNumber = typeof versionControlSelectedVersion === 'object' 
-      ? versionControlSelectedVersion.version 
-      : versionControlSelectedVersion;
-
-    console.log("🔧 handleDockDrop:", {
-      employeeId,
-      date: format(date, "yyyy-MM-dd"), 
-      shiftId,
-      versionControlSelectedVersion,
-      extractedVersionNumber: versionNumber
-    });
-
-    try {
-      await createSchedule({
-        employee_id: employeeId,
-        date: format(date, "yyyy-MM-dd"),
-        shift_id: shiftId,
-        version: versionNumber,
-      });
-      // Use query invalidation instead of manual refetch to prevent loops
-      queryClient.invalidateQueries({ queryKey: ["schedules"] });
-      toast({
-        title: "Schicht hinzugefügt",
-        description: "Schicht erfolgreich aus dem Dock zugewiesen.",
-      });
-    } catch (error) {
-      console.error("🚨 Dock drop error:", error);
-      toast({
-        title: "Fehler beim Hinzufügen",
-        description: getErrorMessage(error),
-        variant: "destructive",
-      });
-    }
-  }, [versionControlSelectedVersion, queryClient, toast]);
-
-  // Add event listener for dock drops from schedule cells
-  useEffect(() => {
-    const handleDockDropEvent = (event: CustomEvent) => {
-      const { employeeId, date, shiftId } = event.detail;
-      console.log("🎯 Received dock drop event:", { employeeId, date, shiftId });
-      handleDockDrop(employeeId, date, shiftId);
-    };
-
-    window.addEventListener('dockDrop', handleDockDropEvent as EventListener);
-    
-    return () => {
-      window.removeEventListener('dockDrop', handleDockDropEvent as EventListener);
-    };
-  }, [handleDockDrop]);
-
-  const handleShiftUpdate = async (scheduleId: number, updates: ScheduleUpdate) => {
-    if (scheduleId === undefined || scheduleId === null || scheduleId <= 0) {
-      toast({
-        title: "Fehler Aktualisieren",
-        description: "Ungültige ID.",
-        variant: "destructive",
-      });
-      return;
-    }
-    try {
-      const updateData = {
-        ...updates,
-        version: versionControlSelectedVersion,
-      };
-
-      await updateSchedule(scheduleId, updateData);
-      // Use query invalidation instead of manual refetch to prevent loops
-      queryClient.invalidateQueries({ queryKey: ["schedules"] });
-      toast({
-        title: "Schicht aktualisiert",
-        description: "Schicht erfolgreich aktualisiert.",
-      });
-    } catch (error) {
-      toast({
-        title: "Fehler Aktualisieren",
-        description: getErrorMessage(error),
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleSettingsUpdate = async (updatedSettings: Settings) => {
-    try {
-      await updateSettings(updatedSettings);
-      queryClient.invalidateQueries({ queryKey: ["settings"] });
-      toast({ title: "Einstellungen aktualisiert" });
-      setIsGenerationSettingsOpen(false);
-    } catch (error) {
-      toast({
-        title: "Fehler Aktualisieren",
-        description: getErrorMessage(error),
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleAIPrompt = async (prompt: string) => {
     if (!dateRange?.from || !dateRange?.to) {
       toast({
-        title: "KI-Anweisung nicht möglich",
-        description: "Bitte Zeitraum wählen.",
+        title: "Fix Display nicht möglich",
+        description: "Bitte wählen Sie einen Zeitraum aus.",
         variant: "destructive",
       });
       return;
     }
-    if (!versionControlSelectedVersion) {
+
+    try {
+      await fixScheduleDisplay(
+        format(dateRange.from, "yyyy-MM-dd"),
+        format(dateRange.to, "yyyy-MM-dd"),
+        effectiveSelectedVersion
+      );
       toast({
-        title: "KI-Anweisung nicht möglich",
-        description: "Bitte Version wählen.",
+        title: "Anzeige repariert",
+        description: "Die Anzeige der Schichtdaten wurde erfolgreich repariert.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["schedules"] });
+    } catch (error) {
+      toast({
+        title: "Fehler bei der Reparatur",
+        description: getErrorMessage(error),
         variant: "destructive",
       });
-      return;
     }
-
-    // For now, use the detailed AI generation with the prompt
-    // In the future, this could be a separate conversation API
-    toast({
-      title: "KI-Anweisung verarbeitet",
-      description: `Anweisung: "${prompt.slice(0, 100)}${prompt.length > 100 ? '...' : ''}"`,
-    });
-
-    // TODO: Implement conversation mode endpoint
-    // For now, trigger detailed AI generation
-    handleGenerateAiDetailedSchedule();
   };
 
-  const isUpdating =
-    isLoadingVersions ||
-    isPending ||
-    exportMutation.isPending ||
-    isAiGenerating;
+  const handleAddFixedShifts = () => {
+    setAvailabilityShiftType('FIXED');
+    setIsAddAvailabilityShiftsDialogOpen(true);
+  };
+
+  const handleAddUnavailableShifts = () => {
+    setAvailabilityShiftType('UNAVAILABLE');
+    setIsAddAvailabilityShiftsDialogOpen(true);
+  };
+
+  const handleAddPreferredShifts = () => {
+    setAvailabilityShiftType('PREFERRED');
+    setIsAddAvailabilityShiftsDialogOpen(true);
+  };
+
+  // 8. Render logic
+  if (settingsQuery.isLoading) {
+    return (
+      <div className="container mx-auto py-4">
+        <Skeleton className="h-10 w-48" />
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-10 w-40" />
+        <Skeleton className="h-10 w-40" />
+        <Skeleton className="h-10 w-32" />
+        <Card className="overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableCell>
+                  <Skeleton className="h-6 w-32" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-6 w-20" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-6 w-24" />
+                </TableCell>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <TableCell key={i}>
+                    <Skeleton className="h-6 w-24" />
+                  </TableCell>
+                ))}
+                <TableCell>
+                  <Skeleton className="h-6 w-24" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-6 w-24" />
+                </TableCell>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell>
+                    <Skeleton className="h-24 w-32" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-24 w-20" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-24 w-24" />
+                  </TableCell>
+                  {Array.from({ length: 6 }).map((_, j) => (
+                    <TableCell key={j}>
+                      <Skeleton className="h-24 w-24" />
+                    </TableCell>
+                  ))}
+                  <TableCell>
+                    <Skeleton className="h-24 w-24" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-24 w-24" />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-4 space-y-4">
@@ -1552,7 +1336,7 @@ export function SchedulePage() {
           
           <WeekVersionDisplay
             currentWeekInfo={weekBasedVersionControl.currentWeekInfo}
-            versionMeta={currentWeekVersionMeta}
+            versionMeta={currentWeekVersionMeta as any}
             selectedVersion={weekBasedVersionControl.selectedVersion}
             onCreateVersion={() => weekBasedVersionControl.createVersionForWeek(
               weekBasedVersionControl.navigationState.currentWeek
@@ -1629,237 +1413,165 @@ export function SchedulePage() {
           isAiEnabled={!!settingsQuery.data?.ai_scheduling?.enabled}
           onPreviewAiData={handlePreviewAiData}
           onImportAiResponse={handleImportAiResponse}
+          onFixDisplay={handleFixDisplay}
+          onAddFixed={handleAddFixedShifts}
+          onAddUnavailable={handleAddUnavailableShifts}
+          onAddPreferred={handleAddPreferredShifts}
         />
+        <ActionDock
+          actions={[
+// ...existing code...
+            ]}
+          />
+        </div>
+
+        <WeekVersionDisplay
+            isWeekBased={useWeekBasedNavigation}
+            weekIdentifier={weekBasedVersionControl.navigationState.currentWeek}
+            versionMeta={currentWeekVersionMeta}
+        />
+
+        {/* Main Content Area */}
+        <main className="flex-1 p-4 md:p-6 space-y-4">
+              <div className="col-span-3">
+                <ScheduleManager
+                  scheduleResponse={scheduleData}
+                  employees={employees || []}
+                  dateRange={dateRange}
+                  absences={employeeAbsences}
+                  openingDays={openingDays}
+                  absenceTypes={effectiveSettingsData?.employee_groups?.absence_types || []}
+                  onUpdateSchedule={async (updates: ScheduleUpdate[]) => {
+                    if (!effectiveSelectedVersion) return;
+                    await updateSchedule(updates, effectiveSelectedVersion);
+                    toast({ title: "Plan aktualisiert" });
+                    refetchScheduleData();
+                  }}
+                  viewMode={settingsDataFromHook?.display?.view_mode || 'weekly'}
+                  isVersionSelected={effectiveSelectedVersion !== undefined}
+                />
+              </div>
+
+              {/* Right Sidebar */}
+              <div className="hidden lg:block col-span-1">
+                <div className="sticky top-4 space-y-4">
+                  {/* Version Control */}
+                  <Card>
+                    <CardContent>
+                      <div className="text-sm font-medium mb-2">Versionskontrolle</div>
+                      <div className="space-y-2">
+                        <Button
+                          variant="outline"
+                          onClick={handleCreateNewVersionPage}
+                          className="w-full"
+                        >
+                          Neue Version erstellen
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={triggerDeleteVersionHook}
+                          className="w-full"
+                          disabled={isLoadingVersions}
+                        >
+                          {isLoadingVersions ? (
+                            <Spinner size="sm" />
+                          ) : (
+                            "Version löschen"
+                          )}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Statistics */}
+                  <Card>
+                    <CardContent>
+                      <div className="text-sm font-medium mb-2">Statistiken</div>
+                      <div className="space-y-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => setIsStatisticsModalOpen(true)}
+                          className="w-full"
+                        >
+                          Übersicht anzeigen
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Settings */}
+                  <Card>
+                    <CardContent>
+                      <div className="text-sm font-medium mb-2">Einstellungen</div>
+                      <div className="space-y-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => setIsGenerationSettingsOpen(true)}
+                          className="w-full"
+                        >
+                          Generierungseinstellungen
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
 
-      <DndProvider backend={HTML5Backend}>
-
-        {isLoadingSchedule ? (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <Skeleton className="h-10 w-48" />
-              <div className="flex items-center gap-4">
-                <Skeleton className="h-10 w-64" />
-                <Skeleton className="h-10 w-40" />
-                <Skeleton className="h-10 w-40" />
-                <Skeleton className="h-10 w-32" />
-              </div>
-            </div>
-            <Card className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableCell>
-                      <Skeleton className="h-6 w-32" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-6 w-20" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-6 w-24" />
-                    </TableCell>
-                    {Array.from({ length: 6 }).map((_, i) => (
-                      <TableCell key={i}>
-                        <Skeleton className="h-6 w-24" />
-                      </TableCell>
-                    ))}
-                    <TableCell>
-                      <Skeleton className="h-6 w-24" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-6 w-24" />
-                    </TableCell>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={i}>
-                      <TableCell>
-                        <Skeleton className="h-24 w-32" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-24 w-20" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-24 w-24" />
-                      </TableCell>
-                      {Array.from({ length: 6 }).map((_, j) => (
-                        <TableCell key={j}>
-                          <Skeleton className="h-24 w-24" />
-                        </TableCell>
-                      ))}
-                      <TableCell>
-                        <Skeleton className="h-24 w-24" />
-                      </TableCell>
-                      <TableCell>
-                        <Skeleton className="h-24 w-24" />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
-          </div>
-        ) : scheduleErrorObj ? (
-          <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Fehler beim Laden des Dienstplans</AlertTitle>
-            <AlertDescription className="flex flex-col">
-              <div>
-                Failed to fetch schedules: {getErrorMessage(scheduleErrorObj)}
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-2 w-fit"
-                onClick={handleRetryFetch}
-              >
-                <RefreshCw className="h-4 w-4 mr-2" /> Erneut versuchen
-              </Button>
-            </AlertDescription>
-          </Alert>
-        ) : (
-          <>
-            {errors.length > 0 && <ScheduleErrors errors={errors} />}
-            <div className="relative">
-              <ScheduleManager
-                schedules={scheduleData || []} // Ensure array even if undefined
-                dateRange={dateRange}
-                onDrop={handleShiftDrop}
-                onUpdate={handleShiftUpdate}
-                isLoading={isLoadingSchedule}
-                employeeAbsences={employeeAbsences}
-                absenceTypes={
-                  effectiveSettingsData?.employee_groups?.absence_types || []
-                }
-                currentVersion={effectiveSelectedVersion}
-                openingDays={openingDays}
-                isEmptyState={
-                  !scheduleData ||
-                  (scheduleData.length === 0 && !isLoadingSchedule)
-                }
-                versions={versionMetas || []}
-                isGenerating={isPending || isAiGenerating}
-                onEmptyStateCreateVersion={handleCreateNewVersionPage}
-                onEmptyStateGenerateSchedule={handleGenerateStandardSchedule}
-              />
-            </div>
-          </>
-        )}
-        
-        {/* Schedule Dock - Sticky bottom dock for drag and drop */}
-        <ActionDock
-          currentVersion={versionControlSelectedVersion}
-          selectedDate={dateRange?.from}
-          dateRange={dateRange}
-          versionMeta={versionMetas?.find(meta => 
-            parseInt(meta.version.toString()) === versionControlSelectedVersion
-          )}
-          versionStatus={versionMetas?.find(meta => 
-            parseInt(meta.version.toString()) === versionControlSelectedVersion
-          )?.status}
-          onDrop={handleDockDrop}
-          onAIPrompt={handleAIPrompt}
-        />
-      </DndProvider>
-
-      <GenerationOverlay
-        generationSteps={generationSteps}
-        generationLogs={generationLogs}
-        showGenerationOverlay={showGenerationOverlay || isAiGenerating}
-        isPending={isPending || isAiGenerating}
-        resetGenerationState={() => {
-          resetGenerationState();
-          setIsAiGenerating(false);
+      {/* Modals and Dialogs */}
+      <AddScheduleDialog
+        isOpen={isAddScheduleDialogOpen}
+        onOpenChange={setIsAddScheduleDialogOpen}
+        onCreate={(...args) => {
+          // @ts-ignore
+          versionControlCreateWithOptions(...args);
+          setIsAddScheduleDialogOpen(false);
         }}
-        addGenerationLog={addGenerationLog}
       />
 
-      <GenerationLogs logs={generationLogs} clearLogs={clearGenerationLogs} />
-      
-      {lastSessionId && enableDiagnostics && (
-        <div className="mt-4">
-          <Button
-            variant="outline"
-            onClick={() => setIsDiagnosticsOpen(true)}
-            className="gap-2"
-          >
-            <FileTextIcon className="h-4 w-4" />
-            Show Full Diagnostics
-          </Button>
-        </div>
-      )}
-
-      {settingsQuery.data && (
-        <Dialog
-          open={isGenerationSettingsOpen}
-          onOpenChange={setIsGenerationSettingsOpen}
-        >
-          <DialogContent className="sm:max-w-[800px]">
-            <DialogHeader>
-              <DialogTitle>Generierungseinstellungen</DialogTitle>
-              <DialogDescription>Anpassen</DialogDescription>
-            </DialogHeader>
-            <ScheduleGenerationSettings
-              settings={settingsQuery.data}
-              onUpdate={handleSettingsUpdate}
-              createEmptySchedules={createEmptySchedules}
-              includeEmpty={includeEmpty}
-              enableDiagnostics={enableDiagnostics}
-              onCreateEmptyChange={handleCreateEmptyChange}
-              onIncludeEmptyChange={handleIncludeEmptyChange}
-              onEnableDiagnosticsChange={handleEnableDiagnosticsChange}
-              onGenerateSchedule={() => {
-                setIsGenerationSettingsOpen(false);
-                handleGenerateStandardSchedule();
-              }}
-              isGenerating={isPending || isAiGenerating}
-            />
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setIsGenerationSettingsOpen(false)}
-              >
-                Schließen
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {isAddScheduleDialogOpen && versionControlSelectedVersion && (
-        <AddScheduleDialog
-          isOpen={isAddScheduleDialogOpen}
-          onClose={() => setIsAddScheduleDialogOpen(false)}
-          onAddSchedule={handleCreateSchedule}
-          version={versionControlSelectedVersion}
-          defaultDate={dateRange?.from}
-        />
-      )}
-
-      {/* Statistics Modal */}
       <ScheduleStatisticsModal
         isOpen={isStatisticsModalOpen}
-        onClose={() => setIsStatisticsModalOpen(false)}
-        schedules={scheduleData || []}
-        employees={employees || []}
+        onOpenChange={setIsStatisticsModalOpen}
         dateRange={dateRange}
-        version={effectiveSelectedVersion}
       />
-      
+
+      {isGenerationSettingsOpen && (
+        <ScheduleGenerationSettings
+          isOpen={isGenerationSettingsOpen}
+          onOpenChange={setIsGenerationSettingsOpen}
+          settings={settingsQuery.data?.scheduling}
+          onSave={async (newSettings) => {
+            await updateSettings({ scheduling: newSettings });
+            toast({ title: "Einstellungen gespeichert" });
+            queryClient.invalidateQueries({ queryKey: ["settings"] });
+            setIsGenerationSettingsOpen(false);
+          }}
+        />
+      )}
+
+      <DetailedAIGenerationModal
+        isOpen={isDetailedAiModalOpen}
+        onOpenChange={setIsDetailedAiModalOpen}
+        onConfirm={handleDetailedAiModalConfirm}
+      />
+
       <DiagnosticsDialog
-        sessionId={lastSessionId}
         isOpen={isDiagnosticsOpen}
-        onClose={() => setIsDiagnosticsOpen(false)}
+        onOpenChange={setIsDiagnosticsOpen}
+        sessionId={lastSessionId}
+      />
+
+      <AddAvailabilityShiftsDialog
+        isOpen={isAddAvailabilityShiftsDialogOpen}
+        onOpenChange={setIsAddAvailabilityShiftsDialogOpen}
+        type={availabilityShiftType}
       />
 
       {confirmDeleteMessage && (
-        <AlertDialog
-          open={!!confirmDeleteMessage}
-          onOpenChange={(open) => {
-            if (!open) confirmDeleteMessage?.onCancel();
-          }}
-        >
+        <AlertDialog open onOpenChange={() => setConfirmDeleteMessage(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle className="text-destructive">
@@ -2069,10 +1781,57 @@ export function SchedulePage() {
       {/* Detailed AI Generation Modal */}
       <DetailedAIGenerationModal
         isOpen={isDetailedAiModalOpen}
-        onClose={() => setIsDetailedAiModalOpen(false)}
+        onOpenChange={setIsDetailedAiModalOpen}
         onConfirm={handleDetailedAiModalConfirm}
-        isGenerating={isAiDetailedGenerating}
       />
+
+      <DiagnosticsDialog
+        isOpen={isDiagnosticsOpen}
+        onOpenChange={setIsDiagnosticsOpen}
+        sessionId={lastSessionId}
+      />
+
+      <AddAvailabilityShiftsDialog
+        isOpen={isAddAvailabilityShiftsDialogOpen}
+        onOpenChange={setIsAddAvailabilityShiftsDialogOpen}
+        type={availabilityShiftType}
+      />
+
+      {confirmDeleteMessage && (
+        <AlertDialog open onOpenChange={() => setConfirmDeleteMessage(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-destructive">
+                {confirmDeleteMessage.title}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                <div className="space-y-2">
+                  <p>{confirmDeleteMessage.message}</p>
+                  {confirmDeleteMessage.details && (
+                    <div className="mt-3 text-sm border-l-4 border-destructive pl-3 py-1 bg-destructive/5">
+                      {confirmDeleteMessage.details.map((detail, i) => (
+                        <p key={i}>{detail}</p>
+                      ))}
+                    </div>
+                  )}
+                  <p className="mt-3 font-medium text-destructive">
+                    Wirklich fortsetzen?
+                  </p>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDeleteMessage.onConfirm}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Endgültig löschen
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }

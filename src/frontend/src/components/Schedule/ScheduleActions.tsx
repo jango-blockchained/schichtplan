@@ -1,24 +1,3 @@
-import React, { useState } from "react";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
-import {
-  CalendarPlus,
-  Trash2,
-  Play,
-  Settings,
-  Plus,
-  Loader2,
-  Eye,
-  Zap,
-  Sliders,
-  BarChart3,
-} from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +9,27 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  BarChart3,
+  CalendarPlus,
+  Eye,
+  Loader2,
+  Play,
+  Plus,
+  Settings,
+  Sliders,
+  Trash2,
+  Zap,
+} from "lucide-react";
+import { useState } from "react";
 
 interface ScheduleActionsProps {
   onAddSchedule: () => void;
@@ -41,6 +41,9 @@ interface ScheduleActionsProps {
   onPreviewAiData: () => void;
   onImportAiResponse: () => void;
   onOpenStatistics: () => void;
+  onAddFixedShifts: () => void;
+  onAddUnavailable: () => void;
+  onAddPreferred: () => void;
   isLoading: boolean;
   isGenerating: boolean;
   isAiFastGenerating: boolean;
@@ -62,6 +65,9 @@ export function ScheduleActions({
   onPreviewAiData,
   onImportAiResponse,
   onOpenStatistics,
+  onAddFixedShifts,
+  onAddUnavailable,
+  onAddPreferred,
   isLoading,
   isGenerating,
   isAiFastGenerating,
@@ -103,6 +109,19 @@ export function ScheduleActions({
           <DropdownMenuItem onClick={onAddSchedule}>
             <CalendarPlus className="h-4 w-4 mr-2" />
             <span>Neue Schicht</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={onAddFixedShifts}>
+            <Plus className="h-4 w-4 mr-2" />
+            <span>FIXED Schichten hinzufügen</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onAddUnavailable}>
+            <Plus className="h-4 w-4 mr-2" />
+            <span>UNAVAILABLE hinzufügen</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onAddPreferred}>
+            <Plus className="h-4 w-4 mr-2" />
+            <span>PREFERRED hinzufügen</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
