@@ -268,11 +268,11 @@
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
 }
 
-/* Sticky table header shadows */
+/* Sticky table header borders */
 .shadow-r {
-  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
+  border-right: 2px solid hsl(var(--border));
 }
 
 .shadow-b {
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-bottom: 2px solid hsl(var(--border));
 }

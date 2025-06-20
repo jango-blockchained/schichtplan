@@ -1,29 +1,29 @@
+import { Loader2, Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import React, { useState } from "react";
+import { useDebouncedCallback } from "use-debounce";
+import { Alert, AlertDescription } from "./ui/alert";
+import { Button } from "./ui/button";
+import { ColorPicker } from "./ui/color-picker";
+import {
+    Dialog,
+    DialogContent,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "./ui/dialog";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { Button } from "./ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "./ui/dialog";
-import { Alert, AlertDescription } from "./ui/alert";
-import { Trash2, Plus, Pencil, Lock } from "lucide-react";
-import { ColorPicker } from "./ui/color-picker";
-import { useDebouncedCallback } from "use-debounce";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
 } from "./ui/table";
 
 export interface ShiftType {
-  id: "EARLY" | "MIDDLE" | "LATE" | "NO_WORK";
+  id: "EARLY" | "MIDDLE" | "LATE" | "NO_WORK" | "UNAVAILABLE";
   name: string;
   color: string;
   type: "shift_type";
@@ -38,6 +38,13 @@ const defaultShiftTypes: ShiftType[] = [
     id: "NO_WORK",
     name: "Kein Dienst",
     color: "#9E9E9E",
+    type: "shift_type",
+    autoAssignOnly: true,
+  },
+  {
+    id: "UNAVAILABLE",
+    name: "Nicht verfügbar",
+    color: "#ef4444",
     type: "shift_type",
     autoAssignOnly: true,
   },
@@ -103,7 +110,7 @@ export default function ShiftTypesEditor({
   };
 
   const handleDeleteType = (
-    typeId: "EARLY" | "MIDDLE" | "LATE" | "NO_WORK",
+    typeId: "EARLY" | "MIDDLE" | "LATE" | "NO_WORK" | "UNAVAILABLE",
   ) => {
     // Don't allow deletion of autoAssignOnly shift types
     const typeToDelete = localShiftTypes.find((t) => t.id === typeId);

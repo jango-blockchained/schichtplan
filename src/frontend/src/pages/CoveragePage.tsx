@@ -1,25 +1,25 @@
-import React, { useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CoverageEditor } from "@/components/coverage-editor";
+import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Users, Clock, Calendar, TrendingUp } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
+import { getAllCoverage, getSettings, updateCoverage } from "@/services/api";
+import { CoverageTimeSlot, DailyCoverage } from "@/types/index";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Calendar, Clock, Loader2, TrendingUp, Users } from "lucide-react";
+import { useMemo } from "react";
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  TooltipProps,
+    Line,
+    LineChart,
+    ResponsiveContainer,
+    Tooltip,
+    TooltipProps,
+    XAxis,
+    YAxis,
 } from "recharts";
 import {
-  NameType,
-  ValueType,
+    NameType,
+    ValueType,
 } from "recharts/types/component/DefaultTooltipContent";
-import { CoverageEditor } from "@/components/coverage-editor";
-import { useToast } from "@/components/ui/use-toast";
-import { getAllCoverage, updateCoverage, getSettings } from "@/services/api";
-import { DailyCoverage, Settings, CoverageTimeSlot } from "@/types/index";
-import { PageHeader } from "@/components/PageHeader";
 
 const CustomTooltip = ({
   active,
@@ -27,7 +27,7 @@ const CustomTooltip = ({
 }: TooltipProps<ValueType, NameType>) => {
   if (active && payload && payload.length) {
     return (
-      <div className="rounded-lg border bg-background p-2 shadow-sm">
+      <div className="rounded-lg border bg-background p-2">
         <div className="grid grid-cols-2 gap-2">
           <div className="flex flex-col">
             <span className="text-[0.70rem] uppercase text-muted-foreground">

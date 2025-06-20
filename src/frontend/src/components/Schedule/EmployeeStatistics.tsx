@@ -1,24 +1,24 @@
-import React, { useMemo } from "react";
-import { Schedule } from "@/types";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
+import { getEmployees } from "@/services/api";
+import { Schedule } from "@/types";
+import { useQuery } from "@tanstack/react-query";
 import {
   differenceInHours,
-  parseISO,
-  format,
-  endOfWeek,
-  endOfMonth,
-  isWithinInterval,
-  eachWeekOfInterval,
   eachMonthOfInterval,
+  eachWeekOfInterval,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isWithinInterval,
+  parseISO,
 } from "date-fns";
-import { useQuery } from "@tanstack/react-query";
-import { getEmployees } from "@/services/api";
-import { cn } from "@/lib/utils";
+import { useMemo } from "react";
 
 interface EmployeeStatisticsProps {
   employeeId: number;
@@ -39,7 +39,7 @@ const calculateShiftDuration = (schedule: Schedule): number => {
     const [endHours, endMinutes] = schedule.shift_end.split(":").map(Number);
 
     // Calculate total minutes
-    let startTotalMinutes = startHours * 60 + startMinutes;
+    const startTotalMinutes = startHours * 60 + startMinutes;
     let endTotalMinutes = endHours * 60 + endMinutes;
 
     // Handle case where shift ends on the next day
@@ -271,7 +271,7 @@ export function EmployeeStatistics({
   }, [employeeSchedules]);
 
   return (
-    <div className="bg-card dark:bg-card p-6 rounded-lg border border-border dark:border-border shadow-sm min-h-[300px]">
+    <div className="bg-card dark:bg-card p-6 rounded-lg border border-border dark:border-border min-h-[300px]">
       <Card className="shadow-none border-none bg-transparent">
         <CardContent className="p-0 space-y-3">
           {/* Summary Row */}

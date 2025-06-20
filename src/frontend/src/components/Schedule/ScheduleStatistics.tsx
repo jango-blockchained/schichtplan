@@ -1,61 +1,61 @@
-import React, { useMemo, useState } from "react";
-import { Schedule, Employee } from "@/types";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
 } from "@/components/ui/card";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Badge } from "@/components/ui/badge";
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
 import {
-  Calendar,
-  Clock,
-  Users,
-  AlertTriangle,
-  BarChart3,
-  PieChart,
-  Activity,
-  UserCheck,
-  Coffee,
-  Moon,
-  Sun,
-  Sunrise,
-  Target,
-  AlertCircle,
-  Info,
-  ChevronDown, 
-  ChevronRight,
-  Key,
-  TrendingUp,
-} from "lucide-react";
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { getEmployees } from "@/services/api";
+import { Employee, Schedule } from "@/types";
+import { useQuery } from "@tanstack/react-query";
 import {
-  parseISO,
-  format,
-  endOfWeek,
-  isWithinInterval,
-  eachWeekOfInterval,
-  isSameDay,
-  getDay,
-  differenceInDays,
+    differenceInDays,
+    eachWeekOfInterval,
+    endOfWeek,
+    format,
+    getDay,
+    isSameDay,
+    isWithinInterval,
+    parseISO,
 } from "date-fns";
 import { de } from "date-fns/locale";
-import { useQuery } from "@tanstack/react-query";
-import { getEmployees } from "@/services/api";
-import { DateRange } from "react-day-picker";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { Button } from "@/components/ui/button";
+    Activity,
+    AlertCircle,
+    AlertTriangle,
+    BarChart3,
+    Calendar,
+    ChevronDown,
+    ChevronRight,
+    Clock,
+    Coffee,
+    Info,
+    Key,
+    Moon,
+    PieChart,
+    Sun,
+    Sunrise,
+    Target,
+    TrendingUp,
+    UserCheck,
+    Users,
+} from "lucide-react";
+import { useMemo, useState } from "react";
+import { DateRange } from "react-day-picker";
 
 interface ScheduleStatisticsProps {
   schedules: Schedule[];
@@ -351,7 +351,7 @@ export function ScheduleStatistics({
   }
 
   return (
-    <div className="bg-card dark:bg-card p-6 rounded-lg border border-border dark:border-border shadow-sm min-h-[300px]">
+    <div className="bg-card dark:bg-card p-6 rounded-lg border border-border dark:border-border min-h-[300px]">
       <Card className="shadow-none border-none bg-transparent">
         <Collapsible open={isOpen} onOpenChange={setIsOpen}>
           <CardHeader className="flex flex-row items-center justify-between pb-2 border-b border-border/30 dark:border-border/30 px-0">

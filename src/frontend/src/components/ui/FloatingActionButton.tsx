@@ -1,12 +1,12 @@
-import React from "react";
 import { Button } from "@/components/ui/button";
 import {
-  Zap,
-  ArrowUp,
-  ArrowDown,
-  LayoutPanelLeft,
-  SunMoon,
+    ArrowDown,
+    ArrowUp,
+    LayoutPanelLeft,
+    SunMoon,
+    Zap,
 } from "lucide-react"; // Added more icons
+import React from "react";
 
 export const FloatingActionButton: React.FC = () => {
   const [isOpen, setIsOpen] = React.useState(false);
@@ -38,7 +38,7 @@ export const FloatingActionButton: React.FC = () => {
   return (
     <div className="fixed bottom-8 right-8 z-50 flex flex-col items-end">
       {isOpen && (
-        <div className="mb-3 p-2 bg-card/80 backdrop-blur-md border border-border/50 rounded-lg shadow-2xl space-y-1 w-48 transition-all duration-200 ease-out">
+        <div className="mb-3 p-2 bg-card/80 backdrop-blur-md border border-border/50 rounded-lg space-y-1 w-48 transition-all duration-200 ease-out">
           <Button
             variant="ghost"
             size="sm"
@@ -75,7 +75,7 @@ export const FloatingActionButton: React.FC = () => {
       )}
       <Button
         size="icon"
-        className="rounded-full w-14 h-14 bg-primary/70 hover:bg-primary/90 backdrop-blur-sm text-primary-foreground shadow-xl hover:shadow-2xl transform hover:scale-110 transition-all duration-200 ease-out border border-white/20"
+        className="rounded-full w-14 h-14 bg-primary/70 hover:bg-primary/90 backdrop-blur-sm text-primary-foreground hover:scale-110 transform transition-all duration-200 ease-out border border-white/20"
         onClick={handleClick}
         title="Open Layout Menu"
       >

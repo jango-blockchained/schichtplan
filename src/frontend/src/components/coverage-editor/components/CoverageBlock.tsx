@@ -1,28 +1,28 @@
-import React, { useEffect, useRef, useState } from "react";
-import { useDrag } from "react-dnd";
-import { Clock, PencilIcon, Trash2 } from "lucide-react";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  TooltipProvider,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { Clock, PencilIcon, Trash2 } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { useDrag } from "react-dnd";
 import { CoverageBlockProps } from "../types";
 import { GRID_CONSTANTS } from "../utils/constants";
 import {
-  formatDuration,
-  minutesToTime,
-  snapToQuarterHour,
-  timeToMinutes,
-  calculateGridPosition,
-  normalizeTime,
+    calculateGridPosition,
+    formatDuration,
+    minutesToTime,
+    normalizeTime,
+    snapToQuarterHour,
+    timeToMinutes,
 } from "../utils/time";
 import { BlockEditor } from "./BlockEditor";
 
@@ -283,8 +283,8 @@ export const CoverageBlock: React.FC<CoverageBlockProps> = ({
             : "bg-primary/5 border-primary/20",
           isEditing && !selectionMode ? "hover:bg-primary/10 hover:border-primary/30" : "",
           selectionMode ? "hover:bg-primary/10" : "",
-          "shadow-sm hover:shadow transition-all duration-200 ease-in-out",
-          isDragging && "ring-2 ring-primary/30 shadow-lg",
+          "hover:border-primary/50 transition-all duration-200 ease-in-out",
+          isDragging && "ring-2 ring-primary/30",
           isResizing && "ring-2 ring-primary/50",
         )}
         onClick={handleBlockClick}

@@ -1,8 +1,7 @@
-import React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { FileText, FileSpreadsheet, UserPlus, Calendar } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Calendar, FileSpreadsheet, FileText, UserPlus } from "lucide-react";
 
 const formulars = [
   {
@@ -45,7 +44,7 @@ export default function FormularsPage() {
       />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {formulars.map((formular) => (
-          <Card key={formular.id} className="hover:shadow-lg transition-shadow">
+          <Card key={formular.id} className="hover:scale-105 transition-transform">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
                 {formular.title}

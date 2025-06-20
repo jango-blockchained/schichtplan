@@ -304,7 +304,7 @@ export const AgentDashboard: React.FC = () => {
           <Card 
             key={agent.id} 
             className={cn(
-              "cursor-pointer transition-all hover:shadow-md",
+              "cursor-pointer transition-all hover:scale-105",
               selectedAgent?.id === agent.id && "ring-2 ring-primary"
             )}
             onClick={() => setSelectedAgent(agent)}
