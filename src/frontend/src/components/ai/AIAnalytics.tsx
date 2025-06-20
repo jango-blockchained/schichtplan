@@ -1,25 +1,25 @@
-import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { 
-  BarChart3, 
-  TrendingUp, 
-  TrendingDown, 
-  Users, 
-  Calendar, 
-  Clock,
-  Target,
-  AlertTriangle,
-  CheckCircle,
-  Activity,
-  Zap,
-  Download,
-  RefreshCw
-} from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import {
+    Activity,
+    AlertTriangle,
+    BarChart3,
+    Calendar,
+    CheckCircle,
+    Clock,
+    Download,
+    RefreshCw,
+    Target,
+    TrendingDown,
+    TrendingUp,
+    Users,
+    Zap
+} from "lucide-react";
+import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 interface AnalyticsMetric {
