@@ -8,6 +8,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 import click
+from sqlalchemy import inspect
 
 # Try to import flask_sse but don't fail if not available
 try:
@@ -62,6 +63,18 @@ try:
     )
 except ImportError:
     register_diagnostic_commands = None
+
+
+def check_and_init_db(app):
+    """Check if the database is initialized and initialize it if not."""
+    with app.app_context():
+        inspector = inspect(db.engine)
+        if not inspector.has_table("employees"):  # Check for a key table
+            print("Database not initialized. Initializing...")
+            from src.backend.tools.initialization.init_db import init_db
+
+            init_db(app)
+            print("Database initialization complete.")
 
 
 def setup_logging(app):
@@ -158,11 +171,7 @@ def create_app(config_class=Config):
     except OSError:
         pass
 
-    # Create database tables
-    with app.app_context():
-        # Temporarily disable db.create_all() to prevent conflicts with migrations
-        # db.create_all()
-        app.logger.info("Database initialization completed")
+    check_and_init_db(app)
 
     # Setup logging
     setup_logging(app)

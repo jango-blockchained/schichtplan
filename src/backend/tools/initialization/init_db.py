@@ -1,10 +1,8 @@
-from models import db
-from app import create_app
+from src.backend.models import db
 
 
-def init_db():
+def init_db(app):
     """Initialize the database, create tables if they don't exist."""
-    app = create_app()
     with app.app_context():
         # Import models to ensure tables are created
 
@@ -20,8 +18,10 @@ def init_db():
 def migrate_schedule_versions():
     """Create ScheduleVersionMeta entries for existing schedules."""
     from datetime import datetime
-    from models.schedule import Schedule, ScheduleVersionMeta
+
     from sqlalchemy import func
+
+    from src.backend.models.schedule import Schedule, ScheduleVersionMeta
 
     # Get all unique versions
     versions = db.session.query(Schedule.version).distinct().all()
@@ -76,7 +76,3 @@ def migrate_schedule_versions():
 
     db.session.commit()
     print(f"Migrated metadata for {len(versions)} versions")
-
-
-if __name__ == "__main__":
-    init_db()
