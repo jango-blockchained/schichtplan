@@ -4,8 +4,10 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 from flask_cors import CORS
 
-# Temporarily comment out to test import issues
-# from src.backend.services.conversational_mcp_service import SchichtplanMCPService
+# Import AI services
+from src.backend.services.mcp_service import SchichtplanMCPService
+from src.backend.services.ai_agents import AgentRegistry, WorkflowCoordinator
+from src.backend.services.ai_integration import create_ai_orchestrator
 from src.backend.utils.logger import logger
 
 ai_bp = Blueprint("ai", __name__, url_prefix="/ai")
@@ -27,14 +29,17 @@ def init_ai_services(app):
     global mcp_service, agent_registry, workflow_coordinator
     with app.app_context():
         try:
-            # Initialize MCP service - temporarily disabled
-            # mcp_service = SchichtplanMCPService(app)
-            mcp_service = None  # Temporarily disabled
-
-            # For now, create simplified versions without full AI orchestrator
-            # TODO: Implement full AI orchestrator integration
-            agent_registry = None  # Disabled until AI orchestrator is ready
-            workflow_coordinator = None  # Disabled until AI orchestrator is ready
+            # Initialize AI orchestrator
+            ai_orchestrator = create_ai_orchestrator(app)
+            
+            # Initialize MCP service
+            mcp_service = SchichtplanMCPService(app, logger)
+            
+            # Initialize agent registry with AI orchestrator
+            agent_registry = AgentRegistry(ai_orchestrator, logger)
+            
+            # Initialize workflow coordinator
+            workflow_coordinator = WorkflowCoordinator(ai_orchestrator, logger)
 
             logger.app_logger.info("AI services initialized successfully")
         except Exception as e:
@@ -66,11 +71,37 @@ def chat():
         # Handle async MCP service call
         async def handle_chat():
             if mcp_service:
-                response = await mcp_service.handle_request(message, conversation_id)
-                return response
+                # Format request for MCP service
+                request_data = {
+                    "conv_id": conversation_id,
+                    "user_id": "web_user",  # TODO: Get from session
+                    "session_id": conversation_id,
+                    "request": message,
+                    "request_type": "chat"
+                }
+                
+                try:
+                    response = await mcp_service.handle_request(request_data)
+                    return {
+                        "response": response.get("response", "No response generated"),
+                        "conversation_id": conversation_id,
+                        "metadata": {
+                            "agent": response.get("agent", "system"),
+                            "status": "success",
+                            "tools_used": response.get("tools_used", []),
+                            "processing_time": response.get("processing_time", 0)
+                        }
+                    }
+                except Exception as e:
+                    logger.app_logger.error(f"MCP service error: {str(e)}")
+                    return {
+                        "response": f"Error processing request: {str(e)}",
+                        "conversation_id": conversation_id,
+                        "metadata": {"agent": "system", "status": "error"},
+                    }
             else:
                 return {
-                    "response": "AI service not available",
+                    "response": "AI service not available. Please check system configuration.",
                     "conversation_id": conversation_id,
                     "metadata": {"agent": "system", "status": "error"},
                 }
@@ -96,49 +127,44 @@ def get_agents():
     Get information about available AI agents
     """
     try:
-        # Return mock agent data since agent registry is not fully implemented yet
-        mock_agents = [
-            {
-                "id": "schedule_optimizer",
-                "name": "Schedule Optimizer Agent",
-                "type": "schedule_optimizer",
-                "description": "Specialized in schedule optimization and conflict resolution",
-                "status": "active",
-                "capabilities": [
-                    "Schedule Conflict Detection",
-                    "Workload Optimization",
-                    "Coverage Analysis",
-                    "Constraint Validation",
-                ],
-                "performance": {
-                    "total_requests": 1247,
-                    "success_rate": 96.5,
-                    "avg_response_time": 2.1,
-                    "last_active": "2025-06-20T12:00:00Z",
+        if agent_registry is None:
+            logger.app_logger.warning("Agent registry not available, returning mock data")
+            # Return minimal mock data when service unavailable
+            mock_agents = [
+                {
+                    "id": "schedule_optimizer",
+                    "name": "Schedule Optimizer Agent",
+                    "type": "schedule_optimizer",
+                    "description": "Specialized in schedule optimization and conflict resolution",
+                    "status": "inactive",
+                    "capabilities": ["Schedule Conflict Detection", "Workload Optimization"],
+                    "performance": {"total_requests": 0, "success_rate": 0, "avg_response_time": 0, "last_active": None},
                 },
-            },
-            {
-                "id": "employee_manager",
-                "name": "Employee Manager Agent",
-                "type": "employee_manager",
-                "description": "Manages employee availability and workload distribution",
-                "status": "active",
-                "capabilities": [
-                    "Availability Analysis",
-                    "Workload Distribution",
-                    "Preference Management",
-                    "Fair Assignment",
-                ],
-                "performance": {
-                    "total_requests": 892,
-                    "success_rate": 94.8,
-                    "avg_response_time": 1.8,
-                    "last_active": "2025-06-20T11:48:00Z",
-                },
-            },
-        ]
+            ]
+            return jsonify(mock_agents)
 
-        return jsonify(mock_agents)
+        # Get real agent data from registry
+        registry_status = agent_registry.get_registry_status()
+        agents_data = []
+        
+        for agent_info in registry_status["agents"]:
+            agent_data = {
+                "id": agent_info["agent_id"],
+                "name": agent_info["name"],
+                "type": agent_info["agent_id"],
+                "description": f"AI agent with capabilities: {', '.join(agent_info['capabilities'])}",
+                "status": "active" if agent_info["enabled"] else "inactive",
+                "capabilities": agent_info["capabilities"],
+                "performance": {
+                    "total_requests": agent_info["total_requests"],
+                    "success_rate": agent_info["success_rate"] * 100,
+                    "avg_response_time": 0,  # TODO: Implement response time tracking
+                    "last_active": agent_info["last_used"],
+                },
+            }
+            agents_data.append(agent_data)
+
+        return jsonify(agents_data)
 
     except Exception as e:
         logger.app_logger.error(f"Get agents error: {str(e)}")
@@ -154,7 +180,19 @@ def toggle_agent(agent_id):
         data = request.get_json()
         enabled = data.get("enabled", True) if data else True
 
-        # Mock response since agent registry is not fully implemented
+        if agent_registry is None:
+            logger.app_logger.warning("Agent registry not available")
+            return jsonify({"error": "Agent registry not available"}), 503
+
+        # Try to toggle agent in registry
+        if enabled:
+            success = agent_registry.enable_agent(agent_id)
+        else:
+            success = agent_registry.disable_agent(agent_id)
+        
+        if not success:
+            return jsonify({"error": f"Agent '{agent_id}' not found"}), 404
+
         return jsonify(
             {
                 "success": True,
@@ -384,7 +422,25 @@ def get_mcp_tools():
     Get available MCP tools
     """
     try:
-        # Mock MCP tools data for now
+        if mcp_service is None:
+            logger.app_logger.warning("MCP service not available, returning mock data")
+            # Return minimal mock data when service unavailable
+            tools = [
+                {
+                    "id": "service_unavailable",
+                    "name": "Service Unavailable",
+                    "description": "MCP service not initialized",
+                    "category": "system",
+                    "parameters": [],
+                    "status": "unavailable",
+                    "usage_count": 0,
+                    "last_used": None,
+                }
+            ]
+            return jsonify(tools)
+
+        # Get available tools from the MCP service
+        # For now, return the known tools from the tool classes
         tools = [
             {
                 "id": "analyze_schedule_conflicts",
@@ -392,22 +448,12 @@ def get_mcp_tools():
                 "description": "Identify and analyze conflicts in the current schedule",
                 "category": "schedule",
                 "parameters": [
-                    {
-                        "name": "start_date",
-                        "type": "string",
-                        "required": True,
-                        "description": "Start date for conflict analysis",
-                    },
-                    {
-                        "name": "end_date",
-                        "type": "string",
-                        "required": True,
-                        "description": "End date for conflict analysis",
-                    },
+                    {"name": "start_date", "type": "string", "required": True, "description": "Start date for analysis (YYYY-MM-DD)"},
+                    {"name": "end_date", "type": "string", "required": True, "description": "End date for analysis (YYYY-MM-DD)"},
                 ],
                 "status": "available",
-                "usage_count": 156,
-                "last_used": "2025-06-20T10:30:00Z",
+                "usage_count": 0,
+                "last_used": None,
             },
             {
                 "id": "get_employee_availability",
@@ -415,22 +461,13 @@ def get_mcp_tools():
                 "description": "Retrieve employee availability information for scheduling",
                 "category": "employee",
                 "parameters": [
-                    {
-                        "name": "employee_id",
-                        "type": "string",
-                        "required": False,
-                        "description": "Specific employee ID (optional)",
-                    },
-                    {
-                        "name": "start_date",
-                        "type": "string",
-                        "required": True,
-                        "description": "Start date for availability query",
-                    },
+                    {"name": "employee_id", "type": "string", "required": False, "description": "Specific employee ID (optional)"},
+                    {"name": "start_date", "type": "string", "required": True, "description": "Start date for availability query"},
+                    {"name": "end_date", "type": "string", "required": True, "description": "End date for availability query"},
                 ],
                 "status": "available",
-                "usage_count": 203,
-                "last_used": "2025-06-20T11:15:00Z",
+                "usage_count": 0,
+                "last_used": None,
             },
             {
                 "id": "optimize_schedule_ai",
@@ -438,22 +475,38 @@ def get_mcp_tools():
                 "description": "Use AI to optimize schedule based on constraints and preferences",
                 "category": "optimization",
                 "parameters": [
-                    {
-                        "name": "optimization_goals",
-                        "type": "string",
-                        "required": True,
-                        "description": "List of optimization goals (e.g., balance_workload, minimize_conflicts)",
-                    },
-                    {
-                        "name": "constraints",
-                        "type": "string",
-                        "required": False,
-                        "description": "Additional constraints for optimization",
-                    },
+                    {"name": "start_date", "type": "string", "required": True, "description": "Start date for optimization"},
+                    {"name": "end_date", "type": "string", "required": True, "description": "End date for optimization"},
+                    {"name": "optimization_goals", "type": "array", "required": False, "description": "List of optimization goals"},
                 ],
                 "status": "available",
-                "usage_count": 89,
-                "last_used": "2025-06-20T09:45:00Z",
+                "usage_count": 0,
+                "last_used": None,
+            },
+            {
+                "id": "get_coverage_requirements",
+                "name": "Get Coverage Requirements",
+                "description": "Get coverage requirements for scheduling",
+                "category": "coverage",
+                "parameters": [
+                    {"name": "query_date", "type": "string", "required": False, "description": "Specific date for coverage query (YYYY-MM-DD)"},
+                ],
+                "status": "available",
+                "usage_count": 0,
+                "last_used": None,
+            },
+            {
+                "id": "get_schedule_statistics",
+                "name": "Get Schedule Statistics",
+                "description": "Get comprehensive schedule statistics for analysis",
+                "category": "analytics",
+                "parameters": [
+                    {"name": "start_date", "type": "string", "required": True, "description": "Start date for statistics"},
+                    {"name": "end_date", "type": "string", "required": True, "description": "End date for statistics"},
+                ],
+                "status": "available",
+                "usage_count": 0,
+                "last_used": None,
             },
         ]
 
@@ -480,17 +533,61 @@ def execute_mcp_tool():
         if not tool_id:
             return jsonify({"error": "Tool ID is required"}), 400
 
-        # Mock tool execution for now
-        result = {
-            "success": True,
-            "result": {
-                "tool_id": tool_id,
-                "parameters": parameters,
-                "output": f"Mock result for {tool_id}",
-                "execution_time": 1.5,
-            },
-            "execution_time": 1.5,
-        }
+        if mcp_service is None:
+            return jsonify({"error": "MCP service not available"}), 503
+
+        # Execute tool through MCP service
+        async def execute_tool():
+            start_time = datetime.now()
+            try:
+                # Format the request for MCP service
+                request_data = {
+                    "conv_id": "tool_execution",
+                    "user_id": "web_user",
+                    "session_id": "tool_execution", 
+                    "request": f"Execute tool {tool_id} with parameters: {parameters}",
+                    "request_type": "tool_execution",
+                    "tool_id": tool_id,
+                    "tool_parameters": parameters
+                }
+                
+                response = await mcp_service.handle_request(request_data)
+                execution_time = (datetime.now() - start_time).total_seconds()
+                
+                return {
+                    "success": True,
+                    "result": {
+                        "tool_id": tool_id,
+                        "parameters": parameters,
+                        "output": response.get("response", "No output"),
+                        "execution_time": execution_time,
+                        "metadata": response.get("metadata", {}),
+                    },
+                    "execution_time": execution_time,
+                }
+                
+            except Exception as e:
+                execution_time = (datetime.now() - start_time).total_seconds()
+                logger.app_logger.error(f"Tool execution error: {str(e)}")
+                return {
+                    "success": False,
+                    "error": str(e),
+                    "result": {
+                        "tool_id": tool_id,
+                        "parameters": parameters,
+                        "output": f"Error executing tool: {str(e)}",
+                        "execution_time": execution_time,
+                    },
+                    "execution_time": execution_time,
+                }
+
+        # Run async function in event loop
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(execute_tool())
+        finally:
+            loop.close()
 
         return jsonify(result)
 
@@ -577,3 +674,93 @@ def health_check():
     except Exception as e:
         logger.app_logger.error(f"AI health check error: {str(e)}")
         return jsonify({"error": f"Health check failed: {str(e)}"}), 500
+
+
+@ai_bp.route("/chat/history/<conversation_id>", methods=["GET"])
+def get_chat_history(conversation_id):
+    """
+    Get conversation history for a specific conversation
+    """
+    try:
+        if mcp_service is None:
+            return jsonify({"error": "MCP service not available"}), 503
+
+        # For now, return empty history since we need to implement conversation persistence
+        # TODO: Implement real conversation history retrieval
+        history = []
+        
+        return jsonify(history)
+
+    except Exception as e:
+        logger.app_logger.error(f"Get chat history error: {str(e)}")
+        return jsonify({"error": f"Failed to get chat history: {str(e)}"}), 500
+
+
+@ai_bp.route("/chat/conversations", methods=["GET"])
+def get_conversations():
+    """
+    Get list of all conversations
+    """
+    try:
+        if mcp_service is None:
+            return jsonify({"error": "MCP service not available"}), 503
+
+        # For now, return empty list since we need to implement conversation persistence
+        # TODO: Implement real conversation list retrieval
+        conversations = []
+        
+        return jsonify(conversations)
+
+    except Exception as e:
+        logger.app_logger.error(f"Get conversations error: {str(e)}")
+        return jsonify({"error": f"Failed to get conversations: {str(e)}"}), 500
+
+
+@ai_bp.route("/agents/<agent_id>", methods=["GET"])
+def get_agent_details(agent_id):
+    """
+    Get specific agent details
+    """
+    try:
+        if agent_registry is None:
+            return jsonify({"error": "Agent registry not available"}), 503
+
+        agent = agent_registry.get_agent_by_id(agent_id)
+        if not agent:
+            return jsonify({"error": f"Agent '{agent_id}' not found"}), 404
+
+        # Get registry status to find this agent's info
+        registry_status = agent_registry.get_registry_status()
+        agent_info = None
+        for agent_data in registry_status["agents"]:
+            if agent_data["agent_id"] == agent_id:
+                agent_info = agent_data
+                break
+
+        if not agent_info:
+            return jsonify({"error": f"Agent '{agent_id}' not found in registry"}), 404
+
+        detailed_info = {
+            "id": agent_info["agent_id"],
+            "name": agent_info["name"],
+            "type": agent_info["agent_id"],
+            "description": f"AI agent with capabilities: {', '.join(agent_info['capabilities'])}",
+            "status": "active" if agent_info["enabled"] else "inactive",
+            "capabilities": agent_info["capabilities"],
+            "performance": {
+                "total_requests": agent_info["total_requests"],
+                "success_rate": agent_info["success_rate"] * 100,
+                "avg_response_time": 0,  # TODO: Implement response time tracking
+                "last_active": agent_info["last_used"],
+            },
+            "configuration": {
+                "priority": agent_info["priority"],
+                "enabled": agent_info["enabled"],
+            }
+        }
+
+        return jsonify(detailed_info)
+
+    except Exception as e:
+        logger.app_logger.error(f"Get agent details error: {str(e)}")
+        return jsonify({"error": f"Failed to get agent details: {str(e)}"}), 500
