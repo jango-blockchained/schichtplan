@@ -195,7 +195,7 @@ def create_app(config_class=Config):
     # Register AI routes
     from src.backend.routes.ai_routes import ai_bp, init_ai_services
 
-    app.register_blueprint(ai_bp)
+    app.register_blueprint(ai_bp, url_prefix="/api/v2")
     init_ai_services(app)
 
     # Register SSE blueprint for /sse endpoint if available
