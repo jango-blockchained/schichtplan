@@ -1,8 +1,9 @@
-from . import db
-from datetime import datetime
-from .settings import Settings
-from enum import Enum
 import logging
+from datetime import datetime
+from enum import Enum
+
+from . import db
+from .settings import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +14,7 @@ class ShiftType(Enum):
     MIDDLE = "MIDDLE"
     LATE = "LATE"
     NO_WORK = "NO_WORK"  # Represents when an employee is not scheduled to work
+    UNAVAILABLE = "UNAVAILABLE"  # Represents when an employee is unavailable
 
     def __str__(self):
         return self.value
@@ -131,6 +133,10 @@ class ShiftTemplate(db.Model):
                     self.shift_type_id = "MIDDLE"
                 elif self.shift_type == ShiftType.LATE:
                     self.shift_type_id = "LATE"
+                elif self.shift_type == ShiftType.NO_WORK:
+                    self.shift_type_id = "NO_WORK"
+                elif self.shift_type == ShiftType.UNAVAILABLE:
+                    self.shift_type_id = "UNAVAILABLE"
 
         # Calculate duration and validate
         self._calculate_duration()
@@ -236,7 +242,8 @@ class ShiftTemplate(db.Model):
 
         return {
             "id": self.id,
-            "name": self.name or f"{self.start_time}-{self.end_time} {shift_type_value}",  # Generate name if not set
+            "name": self.name
+            or f"{self.start_time}-{self.end_time} {shift_type_value}",  # Generate name if not set
             "start_time": self.start_time,
             "end_time": self.end_time,
             "duration_hours": self.duration_hours,
