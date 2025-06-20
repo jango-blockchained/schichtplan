@@ -12,6 +12,7 @@ import {
   Layout,
   CalendarDays,
   Home,
+  Bot,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -56,6 +57,12 @@ export const MainLayout = () => {
         path: "/calendar", 
         icon: CalendarDays,
         description: "Kalenderansicht der Schichten"
+      },
+      { 
+        label: "AI Dashboard", 
+        path: "/ai", 
+        icon: Bot,
+        description: "KI-gestütztes System für intelligente Schichtplanung"
       },
       { 
         label: "Mitarbeiter", 
