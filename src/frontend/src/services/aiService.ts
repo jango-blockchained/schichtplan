@@ -148,7 +148,7 @@ class AIService {
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const url = `${this.baseUrl}/api/ai${endpoint}`;
+    const url = `${this.baseUrl}/api/v2/ai${endpoint}`;
     
     const config: RequestInit = {
       headers: {

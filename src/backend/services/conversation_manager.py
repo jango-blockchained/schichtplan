@@ -100,23 +100,23 @@ class ConversationContext:
 
     # Context items
     context_items: List[ContextItem]
-    max_context_items: int = 100
 
     # Tool usage tracking
     tools_used: List[str]
     tool_results: Dict[str, Any]
     pending_tool_calls: List[Dict[str, Any]]
 
-    # AI behavior settings
-    ai_personality: str = "helpful_scheduler"
-    ai_verbosity: str = "normal"  # 'concise', 'normal', 'detailed'
-    ai_proactivity: str = "medium"  # 'low', 'medium', 'high'
-
     # User preferences
     user_preferences: Dict[str, Any]
 
     # Performance tracking
     metrics: Dict[str, Any]
+
+    # Fields with default values must come last
+    max_context_items: int = 100
+    ai_personality: str = "helpful_scheduler"
+    ai_verbosity: str = "normal"  # 'concise', 'normal', 'detailed'
+    ai_proactivity: str = "medium"  # 'low', 'medium', 'high'
 
     def __post_init__(self):
         if not hasattr(self, "tools_used") or self.tools_used is None:
@@ -144,7 +144,7 @@ class ConversationDB(Base):
     updated_at = Column(DateTime, nullable=False)
     expires_at = Column(DateTime, nullable=True)
     context_data = Column(JSON, nullable=False)
-    metadata = Column(JSON, nullable=True)
+    conversation_metadata = Column(JSON, nullable=True)
 
 
 class StateStore(ABC):
