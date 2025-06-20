@@ -1,10 +1,18 @@
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { api } from '@/lib/axios';
+import type { Employee } from '@/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { api } from '../../lib/api';
-import { Availability, Employee } from '../../lib/types';
+
+// Define the types locally since they may not be in the global types
+interface Availability {
+  id: number;
+  employee_id: number;
+  start_time: string;
+  end_time: string;
+}
 
 interface ApiError {
   message: string;
@@ -51,9 +59,9 @@ const AddAvailabilityShiftsDialog: React.FC<AddAvailabilityShiftsDialogProps> = 
       queryClient.invalidateQueries({ queryKey: ['scheduleEntries'] });
       onOpenChange(false);
     },
-    onError: (error) => {
+    onError: (error: Error & { response?: { data?: { message?: string } } }) => {
       toast.error('Failed to create shifts', {
-        description: (error.response?.data as ApiError)?.message || error.message,
+        description: error.response?.data?.message || error.message || 'An error occurred',
       });
     },
   });

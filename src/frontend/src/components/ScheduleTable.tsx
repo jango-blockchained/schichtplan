@@ -2,57 +2,57 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import {
-    HoverCard,
-    HoverCardContent,
-    HoverCardTrigger,
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import { Label } from "@/components/ui/label";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
-    createSchedule,
-    getEmployees,
-    getSettings,
-    getShifts,
-    Shift,
+  createSchedule,
+  getEmployees,
+  getSettings,
+  getShifts,
+  Shift,
 } from "@/services/api";
 import { Employee, Schedule, ScheduleUpdate, ShiftType } from "@/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, differenceInMinutes, endOfMonth, endOfWeek, format, isWithinInterval, parseISO, startOfMonth, startOfWeek } from "date-fns";
 import {
-    AlertTriangle,
-    ArrowDown,
-    ArrowUp,
-    ChevronLeft,
-    ChevronRight,
-    Edit2,
-    GripVertical,
-    Info,
-    Key,
-    Maximize2,
-    Minimize2,
-    Plus,
-    Trash2,
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  ChevronLeft,
+  ChevronRight,
+  Edit2,
+  GripVertical,
+  Info,
+  Key,
+  Maximize2,
+  Minimize2,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { DateRange } from "react-day-picker";
@@ -144,7 +144,6 @@ const TimeSlotDisplay = ({
       
       return (endTotalMinutes - startTotalMinutes) / 60;
     } catch (error) {
-      console.error("Error calculating duration:", error);
       return 0;
     }
   };
@@ -238,15 +237,7 @@ const TimeSlotDisplay = ({
   // Enhanced debug logging for time slot display
   useEffect(() => {
     if (hasMissingTimeData) {
-      console.log("🚨 TimeSlotDisplay: Missing time data for shift:", {
-        scheduleId: schedule?.id,
-        shiftId: schedule?.shift_id,
-        date: schedule?.date,
-        startTime,
-        endTime,
-        shiftType,
-        shift_type_name: schedule?.shift_type_name,
-      });
+      // Missing time data detected
     }
   }, [hasMissingTimeData, schedule, startTime, endTime, shiftType]);
 
@@ -429,18 +420,12 @@ const ScheduleCell = ({
   const [{ isOver, canDrop }, drop] = useDrop({
     accept: "SCHEDULE",
     drop: (item: DragItem) => {
-      console.log("🎯 ScheduleCell drop:", { item, employeeId, date, currentVersion });
       
       // Handle dock items differently than existing schedule items
       if (item.isDockItem) {
         // For dock items, we need to create a new schedule
         if (item.shiftId && item.shiftId > 0) {
           // This is a shift being dropped from the dock onto an employee cell
-          console.log("📋 Creating new schedule from dock shift:", {
-            employeeId,
-            shiftId: item.shiftId,
-            date: format(date, "yyyy-MM-dd")
-          });
           
           // Call the dock drop handler through a global mechanism or context
           // For now, we'll use a custom event to communicate with the parent
@@ -450,7 +435,6 @@ const ScheduleCell = ({
           window.dispatchEvent(dockDropEvent);
         } else if (item.employeeId && item.employeeId > 0) {
           // This is an employee being dropped from the dock (not yet implemented)
-          console.log("👤 Employee dock drop not yet implemented");
         }
       } else {
         // Handle existing schedule items (original behavior)
@@ -474,19 +458,7 @@ const ScheduleCell = ({
   // Log debug info for all schedules to diagnose rendering issues
   useEffect(() => {
     if (schedule) {
-      console.log(
-        `📊 ScheduleCell: ${schedule.employee_id} @ ${date.toLocaleDateString()}`,
-        {
-          id: schedule.id,
-          shift_id: schedule.shift_id,
-          employee_id: schedule.employee_id,
-          date: schedule.date,
-          shift_start: schedule.shift_start,
-          shift_end: schedule.shift_end,
-          shift_type_id: schedule.shift_type_id,
-          shift_type_name: schedule.shift_type_name,
-        },
-      );
+      // Debug logging removed
     }
   }, [schedule, date]);
 
@@ -538,20 +510,16 @@ const ScheduleCell = ({
                   version: currentVersion || 1,
                 };
 
-                console.log("Creating new schedule with data:", newScheduleData);
-                
                 // Create schedule via API
                 const createdSchedule = await createSchedule(newScheduleData);
-                console.log("Schedule created successfully:", createdSchedule);
                 
                 // Invalidate the schedules cache to trigger a refetch
                 await queryClient.invalidateQueries({ queryKey: ['schedules'] });
-                console.log("Schedule cache invalidated, data should refresh automatically");
               }
               // Close the modal after successful operation
               setIsAddModalOpen(false);
             } catch (error) {
-              console.error("Failed to add/update schedule:", error);
+
               // Re-throw the error so the AddScheduleDialog can handle it properly
               throw error;
             }
@@ -611,7 +579,7 @@ const ScheduleCell = ({
                     `Sind Sie sicher, dass Sie diese Schicht löschen möchten?`,
                   )
                 ) {
-                  console.log("🗑️ Deleting shift with ID:", schedule.id);
+
                   try {
                     await onUpdate(schedule.id, {
                       shift_id: null,
@@ -620,12 +588,7 @@ const ScheduleCell = ({
                       // Add employee_id to ensure proper identification
                       employee_id: schedule.employee_id,
                     });
-                    console.log(
-                      "🗑️ Delete request sent successfully for shift ID:",
-                      schedule.id,
-                    );
                   } catch (error) {
-                    console.error("❌ Error deleting shift:", error);
                     alert(
                       "Fehler beim Löschen der Schicht. Bitte versuchen Sie es erneut.",
                     );
@@ -652,7 +615,7 @@ const ScheduleCell = ({
             await onUpdate(schedule.id, updates);
             setIsEditModalOpen(false);
           } else {
-            console.error("Attempted to update schedule with undefined ID");
+            // console.error("Attempted to update schedule with undefined ID");
             setIsEditModalOpen(false); // Close modal even on error
           }
         }}
@@ -863,7 +826,7 @@ function ShiftAddModal({
     try {
       await onSave(parseInt(selectedShiftId));
     } catch (error) {
-      console.error("Error saving shift:", error);
+      // console.error("Error saving shift:", error);
     }
   };
 
@@ -962,7 +925,7 @@ const calculateEmployeeHours = (
         monthlyHours += durationHours;
       }
     } catch (error) {
-      console.error("Error calculating hours for schedule:", error);
+      // console.error("Error calculating hours for schedule:", error);
     }
   });
 
@@ -988,17 +951,7 @@ export function ScheduleTable({
   const queryClient = useQueryClient();
   
   // Enhanced debugging for schedule data
-  console.log("🔴 DEBUG: RENDERING ScheduleTable with:", {
-    schedulesCount: schedules.length,
-    dateRange,
-    isLoading,
-    employeeAbsencesCount: employeeAbsences
-      ? Object.keys(employeeAbsences).length
-      : 0,
-    absenceTypesCount: absenceTypes ? absenceTypes.length : 0,
-    currentVersion,
-    firstFewSchedules: schedules.slice(0, 5),
-  });
+  // Debug logging removed
 
   // Debug log for detailed table structure with more specific counts
   const schedulesWithShiftId = schedules.filter((s) => s.shift_id !== null);
@@ -1009,21 +962,11 @@ export function ScheduleTable({
     (s) => !s.shift_start || !s.shift_end,
   );
 
-  console.log("🔴 DEBUG: Schedule Data Analysis:", {
-    totalSchedules: schedules.length,
-    withShiftId: schedulesWithShiftId.length,
-    withTimes: schedulesWithTimes.length,
-    problemSchedules: problemSchedules.length,
-    exampleProblemSchedule:
-      problemSchedules.length > 0 ? problemSchedules[0] : "None",
-  });
+  // Debug analysis removed
 
   // If we have problem schedules, log them all for diagnosis
   if (problemSchedules.length > 0) {
-    console.log(
-      "🔴 Problem Schedules (up to 10):",
-      problemSchedules.slice(0, 10),
-    );
+    // Problem schedules detected
   }
 
   // Fetch settings
@@ -1144,14 +1087,7 @@ export function ScheduleTable({
       (s) => s.shift_start !== null && s.shift_start !== undefined,
     );
 
-    console.log("🔍 ScheduleTable creating map with:", {
-      totalSchedules: schedules.length,
-      schedulesWithShiftId: shiftsWithId.length,
-      schedulesWithStartTime: shiftsWithStartTime.length,
-      firstShiftWithId: shiftsWithId.length > 0 ? shiftsWithId[0] : "None",
-      firstShiftWithStartTime:
-        shiftsWithStartTime.length > 0 ? shiftsWithStartTime[0] : "None",
-    });
+    // Debug logging removed
 
     // Process all schedules into the map for quick lookup
     schedules.forEach((schedule) => {
@@ -1185,15 +1121,7 @@ export function ScheduleTable({
       (s) => s.shift_start !== null && s.shift_start !== undefined,
     );
 
-    console.log("🗺️ Schedule map created with:", {
-      totalEmployees: Object.keys(map).length,
-      sampleEmployee: Object.keys(map)[0] ? Object.keys(map)[0] : "None",
-      totalSchedules: schedules.length,
-      schedulesWithShifts: schedulesWithShifts.length,
-      schedulesWithStartTime: schedulesWithStartTime.length,
-      sampleShift:
-        schedulesWithShifts.length > 0 ? schedulesWithShifts[0] : "None",
-    });
+    // Debug logging removed
 
     return map;
   }, [schedules]);
@@ -1217,19 +1145,15 @@ export function ScheduleTable({
 
     // Make sure we have valid schedules
     if (!schedules || schedules.length === 0) {
-      console.log("Warning: No schedules provided to ScheduleTable");
+      // console.log("Warning: No schedules provided to ScheduleTable");
       return grouped;
     }
 
-    console.log(
-      `ScheduleTable: Processing ${schedules.length} total schedules`,
-    );
+    // Debug logging removed
 
     // Count schedules with shift_id
     const schedulesWithShifts = schedules.filter((s) => s.shift_id !== null);
-    console.log(
-      `ScheduleTable: Found ${schedulesWithShifts.length} schedules with shift_id`,
-    );
+    // Debug logging removed
 
     // Group schedules by employee ID and then by date for quick lookup
     uniqueEmployeeIds.forEach((employeeId) => {
@@ -1256,9 +1180,7 @@ export function ScheduleTable({
 
         // Log the schedule date for debugging
         if (schedule.shift_id !== null) {
-          console.log(
-            `Employee ${employeeId} has shift on ${dateKey}: ${schedule.shift_start} - ${schedule.shift_end}`,
-          );
+          // Debug logging removed
         }
       });
 
@@ -1267,11 +1189,9 @@ export function ScheduleTable({
         (s) => s.shift_id !== null,
       );
       if (shiftsForEmployee.length === 0) {
-        console.log(`Note: No shifts assigned for employee ID ${employeeId}`);
+        // Debug logging removed
       } else {
-        console.log(
-          `Found ${shiftsForEmployee.length} shifts for employee ID ${employeeId}`,
-        );
+        // Debug logging removed
       }
     });
 
@@ -1285,9 +1205,7 @@ export function ScheduleTable({
 
     // Use fallback values if employee not found
     if (!employee) {
-      console.log(
-        `Warning: Employee with ID ${employeeId} not found in employees data`,
-      );
+      // Debug logging removed
       return {
         contractedHours: 40,
         employeeGroup: "VZ",
@@ -1355,7 +1273,7 @@ export function ScheduleTable({
   }
 
   return (
-    <div className={cn("w-full", isFullWidth && "fixed inset-0 z-[55] bg-background flex flex-col")}>
+    <div className={cn("w-full mb-8", isFullWidth && "fixed inset-0 z-[55] bg-background flex flex-col")}>
       <Card className={cn("border border-border", isFullWidth && "flex-1 flex flex-col h-full")}>
         <CardHeader className="flex flex-row items-center justify-between sticky top-0 z-[35] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border flex-shrink-0">
           <div>
@@ -1481,14 +1399,12 @@ export function ScheduleTable({
                   employeeAbsences={employeeAbsences}
                   absenceTypes={absenceTypes}
                   currentVersion={currentVersion}
-                  openingDays={openingDays}
                   daysToDisplay={visibleDaysToDisplay}
                   showNavigation={showNavigation}
                   onPrevDays={handlePrevDays}
                   onNextDays={handleNextDays}
                   canNavigatePrev={currentDayOffset > 0}
                   canNavigateNext={currentDayOffset + maxDaysToShow < daysToDisplay.length}
-                  isFullWidth={isFullWidth}
                   employeeSortBy={employeeSortBy}
                   employeeSortOrder={employeeSortOrder}
                 />
@@ -1501,14 +1417,12 @@ export function ScheduleTable({
                   employeeAbsences={employeeAbsences}
                   absenceTypes={absenceTypes}
                   currentVersion={currentVersion}
-                  openingDays={openingDays}
                   daysToDisplay={visibleDaysToDisplay}
                   showNavigation={showNavigation}
                   onPrevDays={handlePrevDays}
                   onNextDays={handleNextDays}
                   canNavigatePrev={currentDayOffset > 0}
                   canNavigateNext={currentDayOffset + maxDaysToShow < daysToDisplay.length}
-                  isFullWidth={isFullWidth}
                   employeeSortBy={employeeSortBy}
                   employeeSortOrder={employeeSortOrder}
                 />
@@ -1517,17 +1431,12 @@ export function ScheduleTable({
           )}
         </CardContent>
 
-        {/* Daily Statistics - Above legend */}
-        <DailyStats 
-          schedules={schedules}
-          daysToDisplay={visibleDaysToDisplay}
-          employees={employeesData || []}
-        />
-
-        {/* Color Legend - Moved to bottom */}
-        <div className={cn("border-t border-border p-4 bg-muted/20", isFullWidth && "flex-shrink-0")}>
-          <ScheduleColorLegend absenceTypes={absenceTypes} />
-        </div>
+        {/* Color Legend - Hidden in fullscreen mode */}
+        {!isFullWidth && (
+          <div className="border-t border-border p-4 bg-muted/20">
+            <ScheduleColorLegend absenceTypes={absenceTypes} />
+          </div>
+        )}
       </Card>
     </div>
   );
@@ -1542,39 +1451,29 @@ function ScheduleTableNormal({
   employeeAbsences,
   absenceTypes,
   currentVersion,
-  openingDays,
   daysToDisplay,
   showNavigation,
   onPrevDays,
   onNextDays,
   canNavigatePrev,
   canNavigateNext,
-  isFullWidth,
   employeeSortBy,
   employeeSortOrder,
-}: Omit<ScheduleTableProps, 'isLoading'> & {
+}: Omit<ScheduleTableProps, 'isLoading' | 'openingDays'> & {
   daysToDisplay: Date[];
   showNavigation: boolean;
   onPrevDays: () => void;
   onNextDays: () => void;
   canNavigatePrev: boolean;
   canNavigateNext: boolean;
-  isFullWidth: boolean;
   employeeSortBy: "name" | "group" | "hours" | "alphabetical" | "keyholder" | "shifts" | "workload";
   employeeSortOrder: "asc" | "desc";
 }) {
-  const queryClient = useQueryClient();
   
   // Get employees data
   const { data: employees } = useQuery({
     queryKey: ["employees"],
     queryFn: getEmployees,
-  });
-
-  // Get settings data
-  const { data: settings } = useQuery({
-    queryKey: ["settings"],
-    queryFn: getSettings,
   });
 
   // Employee lookup for quick access
@@ -1610,15 +1509,44 @@ function ScheduleTableNormal({
     );
   };
 
-  // Map for German weekday abbreviations
+  // Map for German weekday abbreviations - showing Mo-Sa (Monday-Saturday)
+  // Since openingDays typically excludes Sunday, we prioritize Mon-Sat
   const weekdayAbbr: { [key: string]: string } = {
     Monday: "Mo",
-    Tuesday: "Di",
+    Tuesday: "Di", 
     Wednesday: "Mi",
     Thursday: "Do",
     Friday: "Fr",
     Saturday: "Sa",
     Sunday: "So",
+  };
+
+  // Calculate daily hours for display under date headers
+  const calculateDailyHours = (date: Date) => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    let totalHours = 0;
+    
+    schedules.forEach(schedule => {
+      if (schedule.date.split("T")[0] === dateStr && 
+          schedule.shift_id !== null && 
+          schedule.shift_start && 
+          schedule.shift_end) {
+        const [startHours, startMinutes] = schedule.shift_start.split(":").map(Number);
+        const [endHours, endMinutes] = schedule.shift_end.split(":").map(Number);
+        
+        const startTotalMinutes = startHours * 60 + startMinutes;
+        let endTotalMinutes = endHours * 60 + endMinutes;
+        
+        // Handle overnight shifts
+        if (endTotalMinutes < startTotalMinutes) {
+          endTotalMinutes += 24 * 60;
+        }
+        
+        totalHours += (endTotalMinutes - startTotalMinutes) / 60;
+      }
+    });
+    
+    return totalHours;
   };
 
   // Group schedules by employee ID and then by date for quick lookup
@@ -1731,7 +1659,7 @@ function ScheduleTableNormal({
     });
     
     return sortedIds;
-  }, [schedules, employees, employeeSortBy, employeeSortOrder, dateRange]);
+  }, [schedules, employees, employeeSortBy, employeeSortOrder]);
 
   // Get unique employees from schedules (keeping original for compatibility)
   const uniqueEmployeeIds = useMemo(() => {
@@ -1780,7 +1708,7 @@ function ScheduleTableNormal({
 
   return (
     <table className="w-full border-collapse">
-      <thead className="sticky top-0 z-[30] bg-background border-b-2 border-border">
+      <thead className="sticky top-0 z-[30] bg-background border-b-2 border-border shadow-sm">
         <tr className="border-b border-border">
           <th className="w-[220px] sticky left-0 z-[31] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 text-left p-4 font-medium text-foreground border-r border-border">
             <div className="flex items-center justify-between">
@@ -1809,19 +1737,25 @@ function ScheduleTableNormal({
               )}
             </div>
           </th>
-          {daysToDisplay.map((date) => (
-            <th
-              key={date.toISOString()}
-              className="w-[160px] text-center p-4 font-medium text-foreground border-r border-border last:border-r-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
-            >
-              <div className="font-semibold text-base">
-                {weekdayAbbr[format(date, "EEEE")]}
-              </div>
-              <div className="text-sm text-muted-foreground font-medium">
-                {format(date, "dd.MM")}
-              </div>
-            </th>
-          ))}
+          {daysToDisplay.map((date) => {
+            const dailyHours = calculateDailyHours(date);
+            return (
+              <th
+                key={date.toISOString()}
+                className="w-[160px] text-center p-4 font-medium text-foreground border-r border-border last:border-r-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+              >
+                <div className="font-semibold text-base">
+                  {weekdayAbbr[format(date, "EEEE")]}
+                </div>
+                <div className="text-sm text-muted-foreground font-medium">
+                  {format(date, "dd.MM")}
+                </div>
+                <div className="text-xs text-muted-foreground font-medium mt-1">
+                  {dailyHours > 0 ? `${dailyHours.toFixed(1)}h` : ""}
+                </div>
+              </th>
+            );
+          })}
         </tr>
       </thead>
       <tbody>
@@ -2029,28 +1963,24 @@ function ScheduleTableSwitched({
   employeeAbsences,
   absenceTypes,
   currentVersion,
-  openingDays,
   daysToDisplay,
   showNavigation,
   onPrevDays,
   onNextDays,
   canNavigatePrev,
   canNavigateNext,
-  isFullWidth,
   employeeSortBy,
   employeeSortOrder,
-}: Omit<ScheduleTableProps, 'isLoading'> & {
+}: Omit<ScheduleTableProps, 'isLoading' | 'openingDays'> & {
   daysToDisplay: Date[];
   showNavigation: boolean;
   onPrevDays: () => void;
   onNextDays: () => void;
   canNavigatePrev: boolean;
   canNavigateNext: boolean;
-  isFullWidth: boolean;
   employeeSortBy: "name" | "group" | "hours" | "alphabetical" | "keyholder" | "shifts" | "workload";
   employeeSortOrder: "asc" | "desc";
 }) {
-  const queryClient = useQueryClient();
   
   // Get employees data
   const { data: employees } = useQuery({
@@ -2088,6 +2018,34 @@ function ScheduleTableSwitched({
     Friday: "Fr",
     Saturday: "Sa",
     Sunday: "So",
+  };
+
+  // Calculate daily hours for display under date headers
+  const calculateDailyHours = (date: Date) => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    let totalHours = 0;
+    
+    schedules.forEach(schedule => {
+      if (schedule.date.split("T")[0] === dateStr && 
+          schedule.shift_id !== null && 
+          schedule.shift_start && 
+          schedule.shift_end) {
+        const [startHours, startMinutes] = schedule.shift_start.split(":").map(Number);
+        const [endHours, endMinutes] = schedule.shift_end.split(":").map(Number);
+        
+        const startTotalMinutes = startHours * 60 + startMinutes;
+        let endTotalMinutes = endHours * 60 + endMinutes;
+        
+        // Handle overnight shifts
+        if (endTotalMinutes < startTotalMinutes) {
+          endTotalMinutes += 24 * 60;
+        }
+        
+        totalHours += (endTotalMinutes - startTotalMinutes) / 60;
+      }
+    });
+    
+    return totalHours;
   };
 
   // Get unique employees from schedules with sorting
@@ -2202,7 +2160,7 @@ function ScheduleTableSwitched({
 
   return (
     <table className="w-full border-collapse">
-      <thead className="sticky top-0 z-[30] bg-background border-b-2 border-border">
+      <thead className="sticky top-0 z-[30] bg-background border-b-2 border-border shadow-sm">
         <tr className="border-b border-border">
           <th className="w-[160px] sticky left-0 z-[31] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 text-left p-4 font-medium text-foreground border-r border-border">
             <div className="flex items-center justify-between">
@@ -2257,6 +2215,12 @@ function ScheduleTableSwitched({
                       </div>
                       <div className="text-sm text-muted-foreground font-medium">
                         {format(date, "dd.MM")}
+                      </div>
+                      <div className="text-xs text-muted-foreground font-medium mt-1">
+                        {(() => {
+                          const dailyHours = calculateDailyHours(date);
+                          return dailyHours > 0 ? `${dailyHours.toFixed(1)}h` : "";
+                        })()}
                       </div>
                     </div>
                   </td>
@@ -2340,113 +2304,6 @@ function ScheduleTableSwitched({
             })}
           </tbody>
         </table>
-  );
-}
-
-// Daily Statistics Component
-interface DailyStatsProps {
-  schedules: Schedule[];
-  daysToDisplay: Date[];
-  employees: Employee[];
-}
-
-function DailyStats({ schedules, daysToDisplay, employees }: DailyStatsProps) {
-  const dailyStats = useMemo(() => {
-    return daysToDisplay.map(date => {
-      const dateStr = format(date, 'yyyy-MM-dd');
-      const daySchedules = schedules.filter(schedule => 
-        schedule.date === dateStr && !schedule.is_empty && schedule.shift_id
-      );
-      
-      const totalEmployees = daySchedules.length;
-      
-      // Calculate total hours
-      const totalHours = daySchedules.reduce((sum, schedule) => {
-        if (schedule.shift_start && schedule.shift_end) {
-          try {
-            const start = new Date(`1970-01-01T${schedule.shift_start}`);
-            const end = new Date(`1970-01-01T${schedule.shift_end}`);
-            const hours = differenceInMinutes(end, start) / 60;
-            return sum + (hours > 0 ? hours : 0); // Only add positive hours
-          } catch {
-            return sum; // Skip invalid time data
-          }
-        }
-        return sum;
-      }, 0);
-      
-      // Count shift types
-      const shiftTypes = daySchedules.reduce((acc, schedule) => {
-        const shiftType = schedule.shift_type_id || 'UNKNOWN';
-        acc[shiftType] = (acc[shiftType] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-      
-      // Count keyholders
-      const keyholders = daySchedules.filter(schedule => {
-        const employee = employees.find(emp => emp.id === schedule.employee_id);
-        return employee?.is_keyholder;
-      }).length;
-      
-      return {
-        date,
-        dateStr,
-        totalEmployees,
-        totalHours,
-        shiftTypes,
-        keyholders
-      };
-    });
-  }, [schedules, daysToDisplay, employees]);
-
-  if (daysToDisplay.length === 0) return null;
-
-  return (
-    <div className="border-t border-border p-4 bg-muted/10">
-      <h4 className="text-sm font-medium text-foreground mb-3">Tägliche Statistiken</h4>
-      <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(daysToDisplay.length, 7)}, 1fr)` }}>
-        {dailyStats.map(({ date, dateStr, totalEmployees, totalHours, shiftTypes, keyholders }) => (
-          <div key={dateStr} className="text-center">
-            <div className="text-xs font-medium text-muted-foreground mb-1">
-              {format(date, 'dd.MM')}
-            </div>
-            <div className="text-xs text-muted-foreground mb-1">
-              {['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][date.getDay()]}
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center justify-center gap-1">
-                <span className="text-xs font-medium">{totalEmployees}</span>
-                <span className="text-xs text-muted-foreground">MA</span>
-              </div>
-              <div className="flex items-center justify-center gap-1">
-                <span className="text-xs font-medium">{totalHours.toFixed(1)}</span>
-                <span className="text-xs text-muted-foreground">h</span>
-              </div>
-              {keyholders > 0 && (
-                <div className="flex items-center justify-center gap-1">
-                  <Key className="h-3 w-3 text-yellow-600" />
-                  <span className="text-xs font-medium">{keyholders}</span>
-                </div>
-              )}
-              <div className="flex justify-center gap-1 flex-wrap">
-                {Object.entries(shiftTypes).map(([type, count]) => {
-                  if (count === 0) return null;
-                  const colorClass = type === 'EARLY' ? 'bg-blue-500' : 
-                                   type === 'MIDDLE' ? 'bg-green-500' : 
-                                   type === 'LATE' ? 'bg-amber-500' : 'bg-gray-500';
-                  return (
-                    <div key={type} className="flex items-center gap-1">
-                      <div className={`w-2 h-2 rounded-full ${colorClass}`}></div>
-                      <span className="text-xs">{count}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }
 

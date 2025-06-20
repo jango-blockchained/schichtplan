@@ -1,40 +1,40 @@
-import React, { useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Slider } from "@/components/ui/slider";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
+import { ConversationPanel } from "@/components/ai/ConversationPanel";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
 } from "@/components/ui/card";
 import {
-  Sliders,
-  Settings,
-  Users,
-  AlertTriangle,
-  Info,
-  Loader2,
-  Play,
-  MessageCircle,
-  ArrowRight,
-} from "lucide-react";
-import { ConversationPanel } from "@/components/ai/ConversationPanel";
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAIConversation } from "@/hooks/useAIConversation";
+import {
+    AlertTriangle,
+    ArrowRight,
+    Info,
+    Loader2,
+    MessageCircle,
+    Play,
+    Settings,
+    Sliders,
+    Users,
+} from "lucide-react";
+import { useState } from "react";
 
 interface DetailedAIGenerationModalProps {
   isOpen: boolean;
@@ -43,7 +43,7 @@ interface DetailedAIGenerationModalProps {
   isGenerating: boolean;
 }
 
-interface DetailedAIOptions {
+export interface DetailedAIOptions {
   prioritySettings: {
     employeeSatisfaction: number;
     fairness: number;

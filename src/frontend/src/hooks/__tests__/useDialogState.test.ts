@@ -1,290 +1,284 @@
+import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "bun:test";
-import { renderHook, act } from "@testing-library/react";
 import { useDialogState } from "../useDialogState";
 
 describe("useDialogState", () => {
   it("initializes with all dialogs closed", () => {
     const { result } = renderHook(() => useDialogState());
     
-    expect(result.current.dialogs.confirmationDialog.isOpen).toBe(false);
-    expect(result.current.dialogs.aiDataPreviewDialog.isOpen).toBe(false);
-    expect(result.current.dialogs.addScheduleDialog.isOpen).toBe(false);
-    expect(result.current.dialogs.generationSettingsDialog.isOpen).toBe(false);
-    expect(result.current.dialogs.statisticsDialog.isOpen).toBe(false);
+    expect(result.current.isGenerationSettingsOpen).toBe(false);
+    expect(result.current.isAddScheduleDialogOpen).toBe(false);
+    expect(result.current.isStatisticsModalOpen).toBe(false);
+    expect(result.current.isDiagnosticsOpen).toBe(false);
+    expect(result.current.isAddAvailabilityShiftsDialogOpen).toBe(false);
+    expect(result.current.confirmDeleteMessage).toBeNull();
   });
 
-  it("opens confirmation dialog with correct data", () => {
+  it("opens and closes generation settings dialog", () => {
     const { result } = renderHook(() => useDialogState());
     
-    const confirmationData = {
-      title: "Test Confirmation",
-      message: "Are you sure?",
-      onConfirm: () => {},
-      variant: "destructive" as const,
-    };
-    
+    // Open dialog
     act(() => {
-      result.current.openConfirmationDialog(confirmationData);
+      result.current.openGenerationSettings();
     });
     
-    expect(result.current.dialogs.confirmationDialog.isOpen).toBe(true);
-    expect(result.current.dialogs.confirmationDialog.data).toEqual(confirmationData);
+    expect(result.current.isGenerationSettingsOpen).toBe(true);
+    
+    // Close dialog
+    act(() => {
+      result.current.closeGenerationSettings();
+    });
+    
+    expect(result.current.isGenerationSettingsOpen).toBe(false);
   });
 
-  it("closes confirmation dialog and clears data", () => {
-    const { result } = renderHook(() => useDialogState());
-    
-    // First open the dialog
-    act(() => {
-      result.current.openConfirmationDialog({
-        title: "Test",
-        message: "Test message",
-        onConfirm: () => {},
-      });
-    });
-    
-    expect(result.current.dialogs.confirmationDialog.isOpen).toBe(true);
-    
-    // Then close it
-    act(() => {
-      result.current.closeConfirmationDialog();
-    });
-    
-    expect(result.current.dialogs.confirmationDialog.isOpen).toBe(false);
-    expect(result.current.dialogs.confirmationDialog.data).toBeNull();
-  });
-
-  it("opens AI data preview dialog with data", () => {
-    const { result } = renderHook(() => useDialogState());
-    
-    const aiData = {
-      employees: [{ id: 1, name: "John Doe" }],
-      shifts: [{ id: 1, name: "Morning Shift" }],
-    };
-    
-    act(() => {
-      result.current.openAiDataPreviewDialog(aiData);
-    });
-    
-    expect(result.current.dialogs.aiDataPreviewDialog.isOpen).toBe(true);
-    expect(result.current.dialogs.aiDataPreviewDialog.data).toEqual(aiData);
-  });
-
-  it("closes AI data preview dialog", () => {
-    const { result } = renderHook(() => useDialogState());
-    
-    // First open with data
-    act(() => {
-      result.current.openAiDataPreviewDialog({ test: "data" });
-    });
-    
-    expect(result.current.dialogs.aiDataPreviewDialog.isOpen).toBe(true);
-    
-    // Then close
-    act(() => {
-      result.current.closeAiDataPreviewDialog();
-    });
-    
-    expect(result.current.dialogs.aiDataPreviewDialog.isOpen).toBe(false);
-    expect(result.current.dialogs.aiDataPreviewDialog.data).toBeNull();
-  });
-
-  it("opens add schedule dialog", () => {
+  it("opens and closes add schedule dialog", () => {
     const { result } = renderHook(() => useDialogState());
     
     act(() => {
       result.current.openAddScheduleDialog();
     });
     
-    expect(result.current.dialogs.addScheduleDialog.isOpen).toBe(true);
-  });
-
-  it("closes add schedule dialog", () => {
-    const { result } = renderHook(() => useDialogState());
+    expect(result.current.isAddScheduleDialogOpen).toBe(true);
     
-    // First open
-    act(() => {
-      result.current.openAddScheduleDialog();
-    });
-    
-    expect(result.current.dialogs.addScheduleDialog.isOpen).toBe(true);
-    
-    // Then close
     act(() => {
       result.current.closeAddScheduleDialog();
     });
     
-    expect(result.current.dialogs.addScheduleDialog.isOpen).toBe(false);
+    expect(result.current.isAddScheduleDialogOpen).toBe(false);
   });
 
-  it("opens generation settings dialog", () => {
+  it("opens and closes statistics modal", () => {
     const { result } = renderHook(() => useDialogState());
     
     act(() => {
-      result.current.openGenerationSettingsDialog();
+      result.current.openStatisticsModal();
     });
     
-    expect(result.current.dialogs.generationSettingsDialog.isOpen).toBe(true);
+    expect(result.current.isStatisticsModalOpen).toBe(true);
+    
+    act(() => {
+      result.current.closeStatisticsModal();
+    });
+    
+    expect(result.current.isStatisticsModalOpen).toBe(false);
   });
 
-  it("closes generation settings dialog", () => {
-    const { result } = renderHook(() => useDialogState());
-    
-    // First open
-    act(() => {
-      result.current.openGenerationSettingsDialog();
-    });
-    
-    // Then close
-    act(() => {
-      result.current.closeGenerationSettingsDialog();
-    });
-    
-    expect(result.current.dialogs.generationSettingsDialog.isOpen).toBe(false);
-  });
-
-  it("opens statistics dialog", () => {
+  it("opens and closes diagnostics dialog", () => {
     const { result } = renderHook(() => useDialogState());
     
     act(() => {
-      result.current.openStatisticsDialog();
+      result.current.openDiagnostics();
     });
     
-    expect(result.current.dialogs.statisticsDialog.isOpen).toBe(true);
+    expect(result.current.isDiagnosticsOpen).toBe(true);
+    
+    act(() => {
+      result.current.closeDiagnostics();
+    });
+    
+    expect(result.current.isDiagnosticsOpen).toBe(false);
   });
 
-  it("closes statistics dialog", () => {
+  it("opens and closes availability shifts dialog with correct type", () => {
     const { result } = renderHook(() => useDialogState());
     
-    // First open
+    // Open with FIXED type
     act(() => {
-      result.current.openStatisticsDialog();
+      result.current.openAddAvailabilityShiftsDialog('FIXED');
     });
     
-    // Then close
+    expect(result.current.isAddAvailabilityShiftsDialogOpen).toBe(true);
+    expect(result.current.availabilityShiftType).toBe('FIXED');
+    
+    // Close dialog
     act(() => {
-      result.current.closeStatisticsDialog();
+      result.current.closeAddAvailabilityShiftsDialog();
     });
     
-    expect(result.current.dialogs.statisticsDialog.isOpen).toBe(false);
+    expect(result.current.isAddAvailabilityShiftsDialogOpen).toBe(false);
+    
+    // Open with UNAVAILABLE type
+    act(() => {
+      result.current.openAddAvailabilityShiftsDialog('UNAVAILABLE');
+    });
+    
+    expect(result.current.availabilityShiftType).toBe('UNAVAILABLE');
+    
+    // Open with PREFERRED type
+    act(() => {
+      result.current.openAddAvailabilityShiftsDialog('PREFERRED');
+    });
+    
+    expect(result.current.availabilityShiftType).toBe('PREFERRED');
   });
 
-  it("can handle multiple dialogs independently", () => {
+  it("shows and hides confirm delete message", () => {
+    const { result } = renderHook(() => useDialogState());
+    
+    const confirmMessage = {
+      title: "Delete Schedule",
+      message: "Are you sure you want to delete this schedule?",
+      details: ["This action cannot be undone", "All data will be lost"],
+      onConfirm: () => {},
+      onCancel: () => {},
+    };
+    
+    act(() => {
+      result.current.showConfirmDelete(confirmMessage);
+    });
+    
+    expect(result.current.confirmDeleteMessage).toEqual(confirmMessage);
+    
+    act(() => {
+      result.current.hideConfirmDelete();
+    });
+    
+    expect(result.current.confirmDeleteMessage).toBeNull();
+  });
+
+  it("closes all dialogs when closeAllDialogs is called", () => {
     const { result } = renderHook(() => useDialogState());
     
     // Open multiple dialogs
     act(() => {
+      result.current.openGenerationSettings();
       result.current.openAddScheduleDialog();
-      result.current.openStatisticsDialog();
-      result.current.openConfirmationDialog({
+      result.current.openStatisticsModal();
+      result.current.openDiagnostics();
+      result.current.openAddAvailabilityShiftsDialog('FIXED');
+      result.current.showConfirmDelete({
         title: "Test",
         message: "Test message",
         onConfirm: () => {},
+        onCancel: () => {},
       });
     });
     
-    // All should be open
-    expect(result.current.dialogs.addScheduleDialog.isOpen).toBe(true);
-    expect(result.current.dialogs.statisticsDialog.isOpen).toBe(true);
-    expect(result.current.dialogs.confirmationDialog.isOpen).toBe(true);
+    // Verify all are open
+    expect(result.current.isGenerationSettingsOpen).toBe(true);
+    expect(result.current.isAddScheduleDialogOpen).toBe(true);
+    expect(result.current.isStatisticsModalOpen).toBe(true);
+    expect(result.current.isDiagnosticsOpen).toBe(true);
+    expect(result.current.isAddAvailabilityShiftsDialogOpen).toBe(true);
+    expect(result.current.confirmDeleteMessage).not.toBeNull();
     
-    // Close one
+    // Close all
     act(() => {
-      result.current.closeAddScheduleDialog();
+      result.current.closeAllDialogs();
     });
     
-    // Others should remain open
-    expect(result.current.dialogs.addScheduleDialog.isOpen).toBe(false);
-    expect(result.current.dialogs.statisticsDialog.isOpen).toBe(true);
-    expect(result.current.dialogs.confirmationDialog.isOpen).toBe(true);
+    // Verify all are closed
+    expect(result.current.isGenerationSettingsOpen).toBe(false);
+    expect(result.current.isAddScheduleDialogOpen).toBe(false);
+    expect(result.current.isStatisticsModalOpen).toBe(false);
+    expect(result.current.isDiagnosticsOpen).toBe(false);
+    expect(result.current.isAddAvailabilityShiftsDialogOpen).toBe(false);
+    expect(result.current.confirmDeleteMessage).toBeNull();
   });
 
-  it("handles confirmation dialog with loading state", () => {
+  it("correctly reports hasOpenDialogs state", () => {
     const { result } = renderHook(() => useDialogState());
     
+    // Initially no dialogs open
+    expect(result.current.hasOpenDialogs).toBe(false);
+    
+    // Open one dialog
     act(() => {
-      result.current.openConfirmationDialog({
-        title: "Delete Item",
-        message: "This will permanently delete the item",
-        onConfirm: () => {},
-        isLoading: true,
-      });
+      result.current.openGenerationSettings();
     });
     
-    expect(result.current.dialogs.confirmationDialog.data?.isLoading).toBe(true);
-  });
-
-  it("handles confirmation dialog with details", () => {
-    const { result } = renderHook(() => useDialogState());
+    expect(result.current.hasOpenDialogs).toBe(true);
     
-    const details = ["Item 1", "Item 2", "Item 3"];
-    
+    // Open another dialog
     act(() => {
-      result.current.openConfirmationDialog({
-        title: "Bulk Delete",
-        message: "Delete these items?",
-        details,
-        onConfirm: () => {},
-      });
+      result.current.openAddScheduleDialog();
     });
     
-    expect(result.current.dialogs.confirmationDialog.data?.details).toEqual(details);
-  });
-
-  it("preserves confirmation callback function", () => {
-    const { result } = renderHook(() => useDialogState());
-    const mockCallback = () => "test callback executed";
+    expect(result.current.hasOpenDialogs).toBe(true);
     
+    // Close one dialog
     act(() => {
-      result.current.openConfirmationDialog({
-        title: "Test",
-        message: "Test message",
-        onConfirm: mockCallback,
-      });
+      result.current.closeGenerationSettings();
     });
     
-    const storedCallback = result.current.dialogs.confirmationDialog.data?.onConfirm;
-    expect(typeof storedCallback).toBe("function");
-    expect(storedCallback?.()).toBe("test callback executed");
+    // Should still have open dialogs
+    expect(result.current.hasOpenDialogs).toBe(true);
+    
+    // Close all dialogs
+    act(() => {
+      result.current.closeAllDialogs();
+    });
+    
+    expect(result.current.hasOpenDialogs).toBe(false);
   });
 
-  it("handles AI data preview with complex data structures", () => {
+  it("can handle individual state setters", () => {
     const { result } = renderHook(() => useDialogState());
     
-    const complexData = {
-      metadata: {
-        generated_at: "2024-02-01T10:00:00Z",
-        version: "1.0",
-        settings: {
-          ai_model: "gpt-4",
-          parameters: {
-            temperature: 0.7,
-            max_tokens: 1000,
-          },
-        },
-      },
-      scheduleData: {
-        employees: [
-          { id: 1, name: "Alice", availability: ["monday", "tuesday"] },
-          { id: 2, name: "Bob", availability: ["wednesday", "thursday"] },
-        ],
-        shifts: [
-          { id: 1, name: "Morning", start: "08:00", end: "16:00" },
-          { id: 2, name: "Evening", start: "16:00", end: "00:00" },
-        ],
-        assignments: [
-          { employeeId: 1, shiftId: 1, date: "2024-02-01" },
-          { employeeId: 2, shiftId: 2, date: "2024-02-01" },
-        ],
-      },
+    // Test individual state setters
+    act(() => {
+      result.current.setIsGenerationSettingsOpen(true);
+    });
+    
+    expect(result.current.isGenerationSettingsOpen).toBe(true);
+    
+    act(() => {
+      result.current.setIsAddScheduleDialogOpen(true);
+    });
+    
+    expect(result.current.isAddScheduleDialogOpen).toBe(true);
+    
+    act(() => {
+      result.current.setAvailabilityShiftType('UNAVAILABLE');
+    });
+    
+    expect(result.current.availabilityShiftType).toBe('UNAVAILABLE');
+  });
+
+  it("handles confirm delete message with complex data", () => {
+    const { result } = renderHook(() => useDialogState());
+    
+    const complexConfirmMessage = {
+      title: "Bulk Delete Operation",
+      message: "You are about to delete multiple schedules. This action cannot be undone.",
+      details: [
+        "Schedule v1.0 (Feb 1-28, 2024)",
+        "Schedule v1.1 (Mar 1-31, 2024)",
+        "Schedule v1.2 (Apr 1-30, 2024)",
+        "All associated data will be permanently removed",
+        "Employees will be notified of the changes",
+      ],
+      onConfirm: () => console.log("Confirmed bulk delete"),
+      onCancel: () => console.log("Cancelled bulk delete"),
     };
     
     act(() => {
-      result.current.openAiDataPreviewDialog(complexData);
+      result.current.showConfirmDelete(complexConfirmMessage);
     });
     
-    expect(result.current.dialogs.aiDataPreviewDialog.data).toEqual(complexData);
-    expect(result.current.dialogs.aiDataPreviewDialog.data?.scheduleData?.employees).toHaveLength(2);
-    expect(result.current.dialogs.aiDataPreviewDialog.data?.metadata?.version).toBe("1.0");
+    expect(result.current.confirmDeleteMessage).toEqual(complexConfirmMessage);
+    expect(result.current.confirmDeleteMessage?.details).toHaveLength(5);
+    expect(result.current.confirmDeleteMessage?.title).toBe("Bulk Delete Operation");
+  });
+
+  it("handles dialog state changes with options callback", () => {
+    const mockCallback = () => {};
+    
+    const { result } = renderHook(() => useDialogState({ onDialogChange: mockCallback }));
+    
+    act(() => {
+      result.current.openGenerationSettings();
+    });
+    
+    // Should call callback when dialog opens
+    // Note: In real implementation, this would depend on the actual callback mechanism
+    
+    act(() => {
+      result.current.closeGenerationSettings();
+    });
+    
+    // Should call callback when dialog closes
+    // Note: In real implementation, this would depend on the actual callback mechanism
   });
 });

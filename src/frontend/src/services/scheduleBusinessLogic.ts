@@ -1,4 +1,4 @@
-import { differenceInDays, differenceInCalendarWeeks, isValid, parseISO, format, eachDayOfInterval, isWeekend } from 'date-fns';
+import { differenceInCalendarWeeks, differenceInDays, eachDayOfInterval, format, isValid, isWeekend, parseISO } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 
 // Types

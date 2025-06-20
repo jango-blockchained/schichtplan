@@ -78,6 +78,10 @@ export default {
     			sm: 'calc(var(--radius) - 4px)'
     		},
     		keyframes: {
+    			shine: {
+    				'0%': { 'background-position': '-200% 0' },
+    				'100%': { 'background-position': '200% 0' }
+    			},
     			'accordion-down': {
     				from: {
     					height: '0'
@@ -110,10 +114,6 @@ export default {
     					height: 0
     				}
     			},
-    			/*'shine': {
-    				'0%': { 'background-position': '100%' },
-    				'100%': { 'background-position': '-100%' },
-    			},*/
     			'star-movement-bottom': {
     				'0%': { transform: 'translate(0%, 0%)', opacity: '1' },
     				'100%': { transform: 'translate(-100%, 0%)', opacity: '0' },
@@ -128,7 +128,7 @@ export default {
     			'accordion-up': 'accordion-up 0.2s ease-out',
     			'collapsible-down': 'collapsible-down 0.2s ease-out',
     			'collapsible-up': 'collapsible-up 0.2s ease-out',
-    			/*'shine': 'shine 5s linear infinite',*/
+    			'shine': 'shine 5s linear infinite',
     			/*'star-movement-bottom': 'star-movement-bottom linear infinite alternate',*/
     			/*'star-movement-top': 'star-movement-top linear infinite alternate',*/
     		}
@@ -138,4 +138,4 @@ export default {
 		require('@tailwindcss/container-queries'),
 		require('tailwindcss-animate')
 	],
-} 
+}

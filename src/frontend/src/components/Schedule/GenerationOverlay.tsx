@@ -1,15 +1,15 @@
-import React from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
+import { fixShiftDurations } from "@/services/api";
 import {
   AlertCircle,
-  Circle,
   CheckCircle,
-  XCircle,
+  Circle,
   RefreshCw,
+  XCircle,
 } from "lucide-react";
-import { fixShiftDurations } from "@/services/api";
+import React from "react";
 
 // Define types for the component props
 export interface GenerationStep {
@@ -50,8 +50,8 @@ export const GenerationOverlay: React.FC<GenerationOverlayProps> = ({
   const { toast } = useToast();
 
   // Check if there are any errors in the generation steps
-  const hasErrors = generationSteps.some((step) => step.status === "error");
-  const errorLogs = generationLogs.filter((log) => log.type === "error");
+  const hasErrors = (generationSteps || []).some((step) => step.status === "error");
+  const errorLogs = (generationLogs || []).filter((log) => log.type === "error");
   const hasDurationError = errorLogs.some((log) => {
     const message = (log.message || "").toLowerCase();
     const details = (log.details || "").toLowerCase();
@@ -171,7 +171,7 @@ export const GenerationOverlay: React.FC<GenerationOverlayProps> = ({
             )}
 
             <div className="space-y-4 mt-4">
-              {generationSteps.map((step) => (
+              {(generationSteps || []).map((step) => (
                 <div key={step.id} className="flex items-center">
                   <div className="mr-4 flex-shrink-0">
                     {step.status === "completed" ? (
@@ -197,6 +197,34 @@ export const GenerationOverlay: React.FC<GenerationOverlayProps> = ({
                 </div>
               ))}
             </div>
+
+            {/* Show all generation logs */}
+            {generationLogs && generationLogs.length > 0 && (
+              <div className="mt-6 p-3 border rounded-md">
+                <h4 className="font-medium mb-2">
+                  Generierungs-Protokoll:
+                </h4>
+                <div className="max-h-32 overflow-y-auto space-y-2">
+                  {generationLogs.map((log, index) => (
+                    <div key={index} className={`text-sm p-2 rounded border-l-4 ${
+                      log.type === "error" ? "border-red-500 bg-red-50 text-red-700" :
+                      log.type === "warning" ? "border-yellow-500 bg-yellow-50 text-yellow-700" :
+                      "border-blue-500 bg-blue-50 text-blue-700"
+                    }`}>
+                      <div className="flex justify-between items-start">
+                        <div className="font-medium">{log.message}</div>
+                        <div className="text-xs opacity-75">
+                          {new Date(log.timestamp).toLocaleTimeString()}
+                        </div>
+                      </div>
+                      {log.details && (
+                        <div className="text-xs mt-1 opacity-90">{log.details}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Show error details if there are any */}
             {hasErrors && errorLogs.length > 0 && (
@@ -243,9 +271,9 @@ export const GenerationOverlay: React.FC<GenerationOverlayProps> = ({
 
             <Progress
               value={
-                (generationSteps.filter((step) => step.status === "completed")
+                ((generationSteps || []).filter((step) => step.status === "completed")
                   .length /
-                  generationSteps.length) *
+                  Math.max((generationSteps || []).length, 1)) *
                 100
               }
               className="mt-6"

@@ -1,9 +1,9 @@
 /// <reference lib="dom" />
 
 import { describe, expect, it, mock } from "bun:test";
-import { render, screen, fireEvent } from "../../../test-utils/test-utils";
-import { NavigationSection } from "../NavigationSection";
 import type { DateRange } from "react-day-picker";
+import { fireEvent, render, screen } from "../../../test-utils/test-utils";
+import { NavigationSection } from "../NavigationSection";
 
 describe("NavigationSection", () => {
   const defaultProps = {
