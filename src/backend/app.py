@@ -160,8 +160,9 @@ def create_app(config_class=Config):
 
     # Create database tables
     with app.app_context():
-        db.create_all()
-        app.logger.info("Database tables created")
+        # Temporarily disable db.create_all() to prevent conflicts with migrations
+        # db.create_all()
+        app.logger.info("Database initialization completed")
 
     # Setup logging
     setup_logging(app)
