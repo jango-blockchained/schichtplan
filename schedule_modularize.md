@@ -189,13 +189,15 @@ Continue with remaining Phase 3 tasks and move to Phase 4 (Layout Optimization).
 
 #### Task 3.2: Enhance Confirmation Dialog Component
 
-- [ ] **File**: `src/frontend/src/components/Schedule/ConfirmationDialog.tsx`
-- [ ] **Purpose**: Reusable confirmation dialog
-- [ ] **Features**:
+- [x] **File**: `src/frontend/src/components/Schedule/ConfirmationDialog.tsx`
+- [x] **Purpose**: Reusable confirmation dialog
+- [x] **Features**:
   - Customizable title and message
   - Support for detail lists
   - Configurable action buttons
   - TypeScript-safe callback handling
+  - Loading state support
+  - Variant support (default/destructive)
 
 ### Phase 4: Layout and Structure Optimization
 
@@ -203,42 +205,37 @@ Continue with remaining Phase 3 tasks and move to Phase 4 (Layout Optimization).
 
 #### Task 4.1: Create Main Layout Component
 
-- [ ] **File**: `src/frontend/src/components/Schedule/SchedulePageLayout.tsx`
-- [ ] **Purpose**: Define the overall page layout structure
-- [ ] **Structure**:
-
-  ```jsx
-  <SchedulePageLayout>
-    <NavigationSection />
-    <VersionManagementSection />
-    <ActionControlsSection />
-    <MainContentArea>
-      <ScheduleManager />
-    </MainContentArea>
-    <SettingsSidebar />
-    <ModalManager />
-  </SchedulePageLayout>
-  ```
+- [x] **File**: `src/frontend/src/components/Schedule/SchedulePageLayout.tsx`
+- [x] **Purpose**: Define the overall page layout structure
+- [x] **Structure**:
+  - NavigationSection
+  - VersionManagementSection (conditional)
+  - ActionControlsSection
+  - MainContentArea with ScheduleManager
+  - SettingsSidebar
+  - SimpleModalManager
+- [x] **Features**: Responsive grid layout, prop forwarding, conditional sections
 
 #### Task 4.2: Create Content Area Component
 
-- [ ] **File**: `src/frontend/src/components/Schedule/MainContentArea.tsx`
-- [ ] **Purpose**: Handle the main schedule display area
-- [ ] **Includes**:
-  - ScheduleManager integration
-  - Loading states
-  - Error boundaries
-- [ ] **Responsive**: Adapts to different screen sizes
+- [x] **File**: `src/frontend/src/components/Schedule/MainContentArea.tsx`
+- [x] **Purpose**: Handle the main schedule display area
+- [x] **Includes**:
+  - Loading states with skeletons
+  - Error boundaries with retry functionality
+  - Clean content wrapper
+- [x] **Responsive**: Adapts to different screen sizes
 
 #### Task 4.3: Extract Settings Integration Component
 
-- [ ] **File**: `src/frontend/src/components/Schedule/SettingsIntegration.tsx`
-- [ ] **Purpose**: Handle all settings-related logic
-- [ ] **Includes**:
-  - Settings queries
+- [x] **File**: `src/frontend/src/components/Schedule/SettingsIntegration.tsx`
+- [x] **Purpose**: Handle all settings-related logic
+- [x] **Includes**:
+  - Settings queries with React Query
   - Settings state management
   - Settings synchronization
-- [ ] **Benefits**: Cleaner separation of settings logic
+  - Derived settings (opening days, AI enabled, diagnostics)
+- [x] **Benefits**: Cleaner separation of settings logic, render props pattern for flexibility
 
 ### Phase 5: Event Handlers and Business Logic
 
@@ -246,13 +243,20 @@ Continue with remaining Phase 3 tasks and move to Phase 4 (Layout Optimization).
 
 #### Task 5.1: Create Event Handlers Service
 
-- [ ] **File**: `src/frontend/src/services/scheduleEventHandlers.ts`
-- [ ] **Purpose**: Centralize complex event handling logic
-- [ ] **Functions**:
+- [x] **File**: `src/frontend/src/services/scheduleEventHandlers.ts`
+- [x] **Purpose**: Centralize complex event handling logic
+- [x] **Functions**:
   - `handleScheduleExport`
   - `handleScheduleImport`
   - `handleBulkOperations`
   - `handleDataValidation`
+- [x] **Features**:
+  - Type-safe event handling
+  - Comprehensive error handling
+  - Integration with React Query
+  - Toast notification management
+  - Date range validation
+  - Export functionality (standard/MEP/HTML)
 
 #### Task 5.2: Create Business Logic Service
 
