@@ -3,23 +3,23 @@ from flask_sqlalchemy import SQLAlchemy
 db = SQLAlchemy()
 
 # Import models after db is defined to avoid circular imports
-from .settings import Settings
-from .fixed_shift import ShiftTemplate, ShiftType
-from .employee import Employee, EmployeeAvailability, EmployeeGroup
-from .schedule import Schedule, ScheduleVersionMeta, ScheduleStatus
 from .absence import Absence
-from .coverage import Coverage
-from .user import User, UserRole
 from .ai_models import (
+    AIAgentMetrics,
     AIConversation,
     AIMessage,
-    AIAgentMetrics,
     AIWorkflowExecution,
-    MCPToolUsage,
     ConversationStatus,
+    MCPToolUsage,
     MessageType,
-    WorkflowStatus
+    WorkflowStatus,
 )
+from .coverage import Coverage
+from .employee import Employee, EmployeeAvailability, EmployeeGroup
+from .fixed_shift import ShiftTemplate, ShiftType
+from .schedule import Schedule, ScheduleStatus, ScheduleVersionMeta
+from .settings import Settings
+from .user import User, UserRole
 
 __all__ = [
     "db",
@@ -43,5 +43,5 @@ __all__ = [
     "MCPToolUsage",
     "ConversationStatus",
     "MessageType",
-    "WorkflowStatus"
+    "WorkflowStatus",
 ]

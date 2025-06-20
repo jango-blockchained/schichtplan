@@ -34,6 +34,8 @@ from src.backend.api.settings import bp as api_settings_bp
 from src.backend.api.week_navigation import bp as week_navigation_bp
 from src.backend.config import Config
 from src.backend.models import db
+
+# Import AI models to ensure they're registered with SQLAlchemy
 from src.backend.routes import logs
 from src.backend.routes.absences import bp as absences_bp
 from src.backend.routes.ai_schedule_routes import ai_schedule_bp
