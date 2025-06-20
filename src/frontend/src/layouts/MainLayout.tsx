@@ -1,41 +1,35 @@
-import React from "react";
-import { Link as RouterLink, useLocation, Outlet } from "react-router-dom";
-import {
-  Menu,
-  LayoutDashboard,
-  Users,
-  Settings as SettingsIcon,
-  FileText,
-  List,
-  BarChart,
-  Cog,
-  Layout,
-  CalendarDays,
-  Home,
-  Bot,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarProvider,
-  SidebarRail,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
-import { cn } from "@/lib/utils";
-import { useQuery } from "@tanstack/react-query";
-import { getSettings } from "@/services/api";
-import type { Settings } from "@/types/index";
 import { FloatingActionButton } from "@/components/ui/FloatingActionButton";
+import {
+    Sidebar,
+    SidebarContent,
+    SidebarGroup,
+    SidebarGroupContent,
+    SidebarGroupLabel,
+    SidebarHeader,
+    SidebarMenu,
+    SidebarMenuButton,
+    SidebarMenuItem,
+    SidebarProvider,
+    SidebarRail,
+    SidebarTrigger,
+} from "@/components/ui/sidebar";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { getSettings } from "@/services/api";
+import { useQuery } from "@tanstack/react-query";
+import {
+    BarChart,
+    Bot,
+    CalendarDays,
+    Cog,
+    FileText,
+    Layout,
+    LayoutDashboard,
+    List,
+    Settings as SettingsIcon,
+    Users
+} from "lucide-react";
+import React from "react";
+import { Outlet, Link as RouterLink, useLocation } from "react-router-dom";
 
 export const MainLayout = () => {
   const location = useLocation();

@@ -1,49 +1,34 @@
-import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { 
-  Settings, 
-  Play, 
-  CheckCircle, 
-  AlertCircle, 
-  Search,
-  Filter,
-  Download,
-  RefreshCw,
-  Code,
-  Database,
-  Users,
-  Calendar,
-  BarChart3,
-  Zap
-} from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { type MCPTool } from "@/services/aiService";
+import {
+    AlertCircle,
+    BarChart3,
+    Calendar,
+    CheckCircle,
+    Code,
+    Database,
+    Download,
+    Filter,
+    Play,
+    RefreshCw,
+    Search,
+    Settings,
+    Users,
+    Zap
+} from "lucide-react";
+import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-interface MCPTool {
-  id: string;
-  name: string;
-  description: string;
-  category: "schedule" | "employee" | "analysis" | "workflow" | "system";
-  parameters: MCPParameter[];
-  status: "available" | "running" | "error";
-  usage_count: number;
-  last_used: Date | null;
+interface LocalMCPTool extends MCPTool {
   average_response_time: number;
-}
-
-interface MCPParameter {
-  name: string;
-  type: "string" | "number" | "boolean" | "date" | "array";
-  required: boolean;
-  description: string;
-  default_value?: string | number | boolean;
 }
 
 interface ToolExecution {

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { aiService, type ChatMessage, type ChatResponse } from "@/services/aiService";
+import { aiService } from "@/services/aiService";
 import {
     Bot,
     CheckCircle2,

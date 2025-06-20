@@ -1,21 +1,21 @@
-import React from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MainLayout } from "./layouts/MainLayout";
-import { SchedulePage } from "./pages/SchedulePage";
-import { ShiftsPage } from "./pages/ShiftsPage";
-import { EmployeesPage } from "./pages/EmployeesPage";
-import UnifiedSettingsPage from "./pages/UnifiedSettingsPage";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/providers/ThemeProvider";
-import FormularsPage from "./pages/FormularsPage";
-import LogsPage from "./pages/LogsPage";
-import CoveragePage from "./pages/CoveragePage";
-import LayoutCustomizerPage from "./pages/LayoutCustomizerPage";
-import CalendarPage from "./pages/CalendarPage";
-import { DesignSystemDemo } from "./pages/DesignSystemDemo";
-import AIDashboardPage from "./pages/AIDashboardPage";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError } from "axios";
+import React from "react";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { MainLayout } from "./layouts/MainLayout";
+import AIDashboardPage from "./pages/AIDashboardPage";
+import CalendarPage from "./pages/CalendarPage";
+import CoveragePage from "./pages/CoveragePage";
+import { DesignSystemDemo } from "./pages/DesignSystemDemo";
+import { EmployeesPage } from "./pages/EmployeesPage";
+import FormularsPage from "./pages/FormularsPage";
+import LayoutCustomizerPage from "./pages/LayoutCustomizerPage";
+import LogsPage from "./pages/LogsPage";
+import { SchedulePage } from "./pages/SchedulePage";
+import { ShiftsPage } from "./pages/ShiftsPage";
+import UnifiedSettingsPage from "./pages/UnifiedSettingsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {

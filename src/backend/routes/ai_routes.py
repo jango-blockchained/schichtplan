@@ -1,19 +1,26 @@
-from flask import Blueprint, request, jsonify
+import asyncio
+
+from flask import Blueprint, jsonify, request
 from flask_cors import CORS
-from src.backend.services.conversational_mcp_service import SchichtplanMCPService
+
 from src.backend.services.ai_agents.agent_registry import AgentRegistry
 from src.backend.services.ai_agents.workflow_coordinator import WorkflowCoordinator
+from src.backend.services.conversational_mcp_service import SchichtplanMCPService
 from src.backend.utils.logger import logger
-import asyncio
-import json
 
 ai_bp = Blueprint("ai", __name__, url_prefix="/api/ai")
-CORS(ai_bp, origins="*", methods=["GET", "POST", "OPTIONS", "PUT"], supports_credentials=True)
+CORS(
+    ai_bp,
+    origins="*",
+    methods=["GET", "POST", "OPTIONS", "PUT"],
+    supports_credentials=True,
+)
 
 # Initialize services
 mcp_service = None
 agent_registry = None
 workflow_coordinator = None
+
 
 def init_ai_services(app):
     """Initialize AI services with app context"""
@@ -22,6 +29,7 @@ def init_ai_services(app):
         mcp_service = SchichtplanMCPService(app)
         agent_registry = AgentRegistry()
         workflow_coordinator = WorkflowCoordinator()
+
 
 @ai_bp.route("/chat", methods=["POST"])
 def chat():
@@ -35,7 +43,7 @@ def chat():
 
         message = data.get("message", "")
         conversation_id = data.get("conversation_id", "default")
-        
+
         if not message:
             return jsonify({"error": "Message is required"}), 400
 
@@ -50,10 +58,7 @@ def chat():
                 return {
                     "response": "AI service not available",
                     "conversation_id": conversation_id,
-                    "metadata": {
-                        "agent": "system",
-                        "status": "error"
-                    }
+                    "metadata": {"agent": "system", "status": "error"},
                 }
 
         # Run async function in event loop
@@ -70,6 +75,7 @@ def chat():
         logger.app_logger.error(f"AI chat error: {str(e)}")
         return jsonify({"error": f"Failed to process chat request: {str(e)}"}), 500
 
+
 @ai_bp.route("/agents", methods=["GET"])
 def get_agents():
     """
@@ -81,28 +87,28 @@ def get_agents():
 
         agents = agent_registry.list_agents()
         agent_info = []
-        
-        for agent in agents:
-            agent_info.append({
-                "id": agent.agent_id,
-                "name": agent.__class__.__name__,
-                "capabilities": agent.capabilities,
-                "status": "active",  # Could be expanded with real status
-                "performance": {
-                    "total_requests": 0,  # Could track real metrics
-                    "success_rate": 95.0,
-                    "avg_response_time": 2.1
-                }
-            })
 
-        return jsonify({
-            "agents": agent_info,
-            "total_count": len(agent_info)
-        })
+        for agent in agents:
+            agent_info.append(
+                {
+                    "id": agent.agent_id,
+                    "name": agent.__class__.__name__,
+                    "capabilities": agent.capabilities,
+                    "status": "active",  # Could be expanded with real status
+                    "performance": {
+                        "total_requests": 0,  # Could track real metrics
+                        "success_rate": 95.0,
+                        "avg_response_time": 2.1,
+                    },
+                }
+            )
+
+        return jsonify({"agents": agent_info, "total_count": len(agent_info)})
 
     except Exception as e:
         logger.app_logger.error(f"Get agents error: {str(e)}")
         return jsonify({"error": f"Failed to get agents: {str(e)}"}), 500
+
 
 @ai_bp.route("/agents/<agent_id>/execute", methods=["POST"])
 def execute_agent(agent_id):
@@ -116,7 +122,7 @@ def execute_agent(agent_id):
 
         request_text = data.get("request", "")
         context = data.get("context", {})
-        
+
         if not request_text:
             return jsonify({"error": "Request text is required"}), 400
 
@@ -129,15 +135,13 @@ def execute_agent(agent_id):
             if not agent:
                 return {
                     "error": f"Agent {agent_id} not found",
-                    "available_agents": [a.agent_id for a in agent_registry.list_agents()]
+                    "available_agents": [
+                        a.agent_id for a in agent_registry.list_agents()
+                    ],
                 }
-            
+
             result = await agent.handle_request(request_text, context)
-            return {
-                "result": result,
-                "agent_id": agent_id,
-                "status": "completed"
-            }
+            return {"result": result, "agent_id": agent_id, "status": "completed"}
 
         # Run async function in event loop
         loop = asyncio.new_event_loop()
@@ -152,6 +156,7 @@ def execute_agent(agent_id):
     except Exception as e:
         logger.app_logger.error(f"Agent execution error: {str(e)}")
         return jsonify({"error": f"Failed to execute agent: {str(e)}"}), 500
+
 
 @ai_bp.route("/workflows", methods=["GET"])
 def get_workflows():
@@ -176,21 +181,21 @@ def get_workflows():
                         "id": "analyze_current",
                         "name": "Analyze Current Schedule",
                         "agent": "ScheduleOptimizerAgent",
-                        "estimated_duration": 120
+                        "estimated_duration": 120,
                     },
                     {
                         "id": "employee_analysis",
                         "name": "Employee Availability Analysis",
-                        "agent": "EmployeeManagerAgent", 
-                        "estimated_duration": 90
+                        "agent": "EmployeeManagerAgent",
+                        "estimated_duration": 90,
                     },
                     {
                         "id": "optimization",
                         "name": "Schedule Optimization",
                         "agent": "ScheduleOptimizerAgent",
-                        "estimated_duration": 180
-                    }
-                ]
+                        "estimated_duration": 180,
+                    },
+                ],
             },
             {
                 "id": "quick_conflict_resolution",
@@ -204,26 +209,24 @@ def get_workflows():
                         "id": "detect_conflicts",
                         "name": "Detect Conflicts",
                         "agent": "ScheduleOptimizerAgent",
-                        "estimated_duration": 60
+                        "estimated_duration": 60,
                     },
                     {
-                        "id": "resolve_conflicts", 
+                        "id": "resolve_conflicts",
                         "name": "Resolve Conflicts",
                         "agent": "ScheduleOptimizerAgent",
-                        "estimated_duration": 120
-                    }
-                ]
-            }
+                        "estimated_duration": 120,
+                    },
+                ],
+            },
         ]
 
-        return jsonify({
-            "workflows": workflows,
-            "total_count": len(workflows)
-        })
+        return jsonify({"workflows": workflows, "total_count": len(workflows)})
 
     except Exception as e:
         logger.app_logger.error(f"Get workflows error: {str(e)}")
         return jsonify({"error": f"Failed to get workflows: {str(e)}"}), 500
+
 
 @ai_bp.route("/workflows/<workflow_id>/execute", methods=["POST"])
 def execute_workflow(workflow_id):
@@ -241,13 +244,13 @@ def execute_workflow(workflow_id):
         async def handle_workflow():
             # Mock workflow execution for now
             execution_id = f"exec_{workflow_id}_{int(asyncio.get_event_loop().time())}"
-            
+
             return {
                 "execution_id": execution_id,
                 "workflow_id": workflow_id,
                 "status": "started",
                 "parameters": parameters,
-                "estimated_completion": "2025-06-20T15:30:00Z"
+                "estimated_completion": "2025-06-20T15:30:00Z",
             }
 
         # Run async function in event loop
@@ -264,6 +267,7 @@ def execute_workflow(workflow_id):
         logger.app_logger.error(f"Workflow execution error: {str(e)}")
         return jsonify({"error": f"Failed to execute workflow: {str(e)}"}), 500
 
+
 @ai_bp.route("/analytics", methods=["GET"])
 def get_analytics():
     """
@@ -279,24 +283,24 @@ def get_analytics():
                     "value": 2.3,
                     "unit": "seconds",
                     "change": -12.5,
-                    "trend": "down"
+                    "trend": "down",
                 },
                 {
                     "id": "optimization_success_rate",
-                    "name": "Optimization Success Rate", 
+                    "name": "Optimization Success Rate",
                     "value": 96.8,
                     "unit": "%",
                     "change": 4.2,
-                    "trend": "up"
+                    "trend": "up",
                 },
                 {
                     "id": "agent_utilization",
                     "name": "Agent Utilization",
                     "value": 78.5,
-                    "unit": "%", 
+                    "unit": "%",
                     "change": 8.3,
-                    "trend": "up"
-                }
+                    "trend": "up",
+                },
             ],
             "insights": [
                 {
@@ -305,15 +309,15 @@ def get_analytics():
                     "description": "Analysis shows 15% improvement potential in workload distribution",
                     "type": "optimization",
                     "confidence": 0.89,
-                    "impact": "high"
+                    "impact": "high",
                 }
             ],
             "system_health": {
                 "status": "healthy",
                 "agents_active": 3,
                 "workflows_running": 2,
-                "uptime": "99.9%"
-            }
+                "uptime": "99.9%",
+            },
         }
 
         return jsonify(analytics)
@@ -321,6 +325,7 @@ def get_analytics():
     except Exception as e:
         logger.app_logger.error(f"Get analytics error: {str(e)}")
         return jsonify({"error": f"Failed to get analytics: {str(e)}"}), 500
+
 
 @ai_bp.route("/mcp/tools", methods=["GET"])
 def get_mcp_tools():
@@ -343,18 +348,18 @@ def get_mcp_tools():
                         "name": "start_date",
                         "type": "date",
                         "required": True,
-                        "description": "Start date for conflict analysis"
+                        "description": "Start date for conflict analysis",
                     },
                     {
-                        "name": "end_date", 
+                        "name": "end_date",
                         "type": "date",
                         "required": True,
-                        "description": "End date for conflict analysis"
-                    }
+                        "description": "End date for conflict analysis",
+                    },
                 ],
                 "status": "available",
                 "usage_count": 156,
-                "avg_response_time": 2.3
+                "avg_response_time": 2.3,
             },
             {
                 "id": "get_employee_availability",
@@ -366,29 +371,27 @@ def get_mcp_tools():
                         "name": "employee_id",
                         "type": "number",
                         "required": False,
-                        "description": "Specific employee ID (optional)"
+                        "description": "Specific employee ID (optional)",
                     },
                     {
                         "name": "start_date",
-                        "type": "date", 
+                        "type": "date",
                         "required": True,
-                        "description": "Start date for availability query"
-                    }
+                        "description": "Start date for availability query",
+                    },
                 ],
                 "status": "available",
                 "usage_count": 203,
-                "avg_response_time": 1.2
-            }
+                "avg_response_time": 1.2,
+            },
         ]
 
-        return jsonify({
-            "tools": tools,
-            "total_count": len(tools)
-        })
+        return jsonify({"tools": tools, "total_count": len(tools)})
 
     except Exception as e:
         logger.app_logger.error(f"Get MCP tools error: {str(e)}")
         return jsonify({"error": f"Failed to get MCP tools: {str(e)}"}), 500
+
 
 @ai_bp.route("/health", methods=["GET"])
 def health_check():
@@ -401,9 +404,9 @@ def health_check():
             "services": {
                 "mcp_service": mcp_service is not None,
                 "agent_registry": agent_registry is not None,
-                "workflow_coordinator": workflow_coordinator is not None
+                "workflow_coordinator": workflow_coordinator is not None,
             },
-            "timestamp": "2025-06-20T12:00:00Z"
+            "timestamp": "2025-06-20T12:00:00Z",
         }
 
         return jsonify(health_status)

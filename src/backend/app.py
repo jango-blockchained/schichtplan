@@ -1,12 +1,13 @@
+import json
 import logging
+import os
 import traceback
+import uuid
+from datetime import date, datetime, timedelta
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-import os
-from datetime import date, datetime, timedelta
-import uuid
+
 import click
-import json
 
 # Try to import flask_sse but don't fail if not available
 try:
@@ -25,28 +26,31 @@ except ImportError:
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_migrate import Migrate
-from src.backend.models import db
+
+from src.backend.api.coverage import bp as coverage_bp
+from src.backend.api.demo_data import bp as demo_data_bp
+from src.backend.api.schedules import bp as api_schedules_bp
+from src.backend.api.settings import bp as api_settings_bp
+from src.backend.api.week_navigation import bp as week_navigation_bp
 from src.backend.config import Config
-from src.backend.routes.shifts import shifts
-from src.backend.routes.settings import settings
-from src.backend.routes.schedules import schedules
-from src.backend.routes.employees import employees
-from src.backend.routes.availability import availability
+from src.backend.models import db
+from src.backend.routes import logs
 from src.backend.routes.absences import bp as absences_bp
 from src.backend.routes.ai_schedule_routes import ai_schedule_bp
 from src.backend.routes.auth import bp as auth_bp
-from src.backend.routes.holiday_routes import holidays as holidays_bp
+from src.backend.routes.availability import availability
+from src.backend.routes.employees import employees
 from src.backend.routes.holiday_import import holiday_import as holiday_import_bp
+from src.backend.routes.holiday_routes import holidays as holidays_bp
+from src.backend.routes.schedules import schedules
+from src.backend.routes.settings import settings
+from src.backend.routes.shifts import shifts
 from src.backend.routes.special_days import special_days as special_days_bp
-from src.backend.api.coverage import bp as coverage_bp
-from src.backend.api.schedules import bp as api_schedules_bp
-from src.backend.api.settings import bp as api_settings_bp
-from src.backend.api.demo_data import bp as demo_data_bp
-from src.backend.api.week_navigation import bp as week_navigation_bp
-from src.backend.routes import logs
+from src.backend.utils.logger import (
+    CustomFormatter,
+)
 from src.backend.utils.logger import (
     logger as global_logger,
-    CustomFormatter,
 )
 
 # Import diagnostic tools
@@ -84,40 +88,57 @@ def setup_logging(app):
 
 def create_app(config_class=Config):
     if isinstance(config_class, str):
-        if config_class.lower() == 'testing':
+        if config_class.lower() == "testing":
             from src.backend.testing import TestingConfig
+
             config_class = TestingConfig
     app = Flask(__name__)
     app.config.from_object(config_class)
 
     # Configure CORS with more permissive settings
-    CORS(app, 
-         resources={
-             r"/api/*": {
-                 "origins": ["http://localhost:5173", "http://127.0.0.1:5173"],
-                 "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-                 "allow_headers": ["Content-Type", "Authorization", "Accept", "X-Requested-With"],
-                 "expose_headers": ["Content-Type", "Authorization"],
-                 "supports_credentials": True,
-                 "max_age": 86400,  # Cache preflight requests for 24 hours
-             },
-             r"/api/v2/*": {  # Explicit configuration for /api/v2/ endpoints
-                 "origins": ["http://localhost:5173", "http://127.0.0.1:5173"],
-                 "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-                 "allow_headers": ["Content-Type", "Authorization", "Accept", "X-Requested-With"],
-                 "expose_headers": ["Content-Type", "Authorization"],
-                 "supports_credentials": True,
-                 "max_age": 86400,
-             },
-             r"/v2/*": {  # Added block for /v2/* endpoints
-                 "origins": ["http://localhost:5173", "http://127.0.0.1:5173"],
-                 "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-                 "allow_headers": ["Content-Type", "Authorization", "Accept", "X-Requested-With"],
-                 "expose_headers": ["Content-Type", "Authorization"],
-                 "supports_credentials": True,
-                 "max_age": 86400,
-             }
-         }
+    CORS(
+        app,
+        resources={
+            r"/api/*": {
+                "origins": ["http://localhost:5173", "http://127.0.0.1:5173"],
+                "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                "allow_headers": [
+                    "Content-Type",
+                    "Authorization",
+                    "Accept",
+                    "X-Requested-With",
+                ],
+                "expose_headers": ["Content-Type", "Authorization"],
+                "supports_credentials": True,
+                "max_age": 86400,  # Cache preflight requests for 24 hours
+            },
+            r"/api/v2/*": {  # Explicit configuration for /api/v2/ endpoints
+                "origins": ["http://localhost:5173", "http://127.0.0.1:5173"],
+                "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                "allow_headers": [
+                    "Content-Type",
+                    "Authorization",
+                    "Accept",
+                    "X-Requested-With",
+                ],
+                "expose_headers": ["Content-Type", "Authorization"],
+                "supports_credentials": True,
+                "max_age": 86400,
+            },
+            r"/v2/*": {  # Added block for /v2/* endpoints
+                "origins": ["http://localhost:5173", "http://127.0.0.1:5173"],
+                "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                "allow_headers": [
+                    "Content-Type",
+                    "Authorization",
+                    "Accept",
+                    "X-Requested-With",
+                ],
+                "expose_headers": ["Content-Type", "Authorization"],
+                "supports_credentials": True,
+                "max_age": 86400,
+            },
+        },
     )
 
     # Initialize extensions
@@ -165,13 +186,15 @@ def create_app(config_class=Config):
         api_schedules_bp, name="api_schedules"
     )  # Register with unique name to avoid conflict
     app.register_blueprint(week_navigation_bp)  # Register week navigation
-    
+
     # Register MCP routes
     from src.backend.routes.mcp_routes import bp as mcp_bp
+
     app.register_blueprint(mcp_bp, url_prefix="/api/v2")
-    
+
     # Register AI routes
     from src.backend.routes.ai_routes import ai_bp, init_ai_services
+
     app.register_blueprint(ai_bp)
     init_ai_services(app)
 
@@ -227,7 +250,7 @@ def create_app(config_class=Config):
     )
     def run_diagnostic(start_date=None, end_date=None, days=7):
         """Run the schedule generator diagnostic"""
-        from src.backend.models import Employee, ShiftTemplate, Coverage
+        from src.backend.models import Coverage, Employee, ShiftTemplate
         from src.backend.services.scheduler import ScheduleGenerator
 
         session_id = str(uuid.uuid4())[:8]
@@ -298,7 +321,7 @@ def create_app(config_class=Config):
     )
     def run_ai_diagnostic(start_date=None, end_date=None, days=7):
         """Run the AI schedule generator diagnostic"""
-        from src.backend.models import Employee, ShiftTemplate, Coverage
+        from src.backend.models import Coverage, Employee, ShiftTemplate
         from src.backend.services.ai_scheduler_service import AISchedulerService
 
         session_id = str(uuid.uuid4())[:8]

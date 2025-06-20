@@ -262,14 +262,8 @@ class AIService {
 
 export const aiService = new AIService();
 export type {
-  ChatMessage,
-  ChatRequest,
-  ChatResponse,
-  Agent,
-  WorkflowTemplate,
-  WorkflowExecution,
-  MCPTool,
-  AnalyticsData,
-  ToolExecutionResult,
-  AISettings,
+    AISettings, Agent, AnalyticsData, ChatMessage,
+    ChatRequest,
+    ChatResponse, MCPTool, ToolExecutionResult, WorkflowExecution, WorkflowTemplate
 };
+
