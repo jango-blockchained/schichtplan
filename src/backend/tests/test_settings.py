@@ -7,7 +7,7 @@ from src.backend.models import Settings, db
 # Sample data for testing
 DEFAULT_SETTINGS_DICT_EXPECTATION = {
     "general": {
-        "store_name": "Mein Laden",
+        "store_name": "TEDi Filiale #6729",
         "store_address": "Hauptstraße 1, 12345 Musterstadt",
         "store_phone": "01234/567890",
         "store_email": "info@meinladen.de",
@@ -15,10 +15,10 @@ DEFAULT_SETTINGS_DICT_EXPECTATION = {
         "language": "de",
         "date_format": "DD.MM.YYYY",
         "time_format": "HH:mm",
-        "store_opening": "08:00",
+        "store_opening": "09:00",
         "store_closing": "20:00",
-        "keyholder_before_minutes": 30,
-        "keyholder_after_minutes": 15,
+        "keyholder_before_minutes": 5,
+        "keyholder_after_minutes": 10,
         "opening_days": {
             "monday": True,
             "tuesday": True,
@@ -32,10 +32,10 @@ DEFAULT_SETTINGS_DICT_EXPECTATION = {
     },
     "scheduling": {
         "scheduling_resource_type": "coverage",
-        "default_shift_duration": 8.0,
-        "min_break_duration": 30,
-        "max_daily_hours": 10.0,
-        "max_weekly_hours": 40.0,
+        "default_shift_duration": 6.0,
+        "min_break_duration": 5,
+        "max_daily_hours": 12.0,
+        "max_weekly_hours": 50.0,
         "min_rest_between_shifts": 11.0,
         "scheduling_period_weeks": 4,
         "auto_schedule_preferences": True,

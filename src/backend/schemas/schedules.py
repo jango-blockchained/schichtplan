@@ -1,15 +1,16 @@
-from pydantic import BaseModel, Field
+from datetime import date as datetime_date
 from typing import Optional
-from datetime import date
+
+from pydantic import BaseModel, Field
 
 
 class ScheduleGenerateRequest(BaseModel):
     """Schema for the schedule generation request."""
 
-    start_date: date = Field(
+    start_date: datetime_date = Field(
         ..., description="Start date of the schedule in YYYY-MM-DD format."
     )
-    end_date: date = Field(
+    end_date: datetime_date = Field(
         ..., description="End date of the schedule in YYYY-MM-DD format."
     )
     create_empty_schedules: Optional[bool] = Field(
@@ -33,7 +34,10 @@ class ScheduleUpdateRequest(BaseModel):
     shift_id: Optional[int] = Field(
         None, description="ID of the shift assigned to the schedule."
     )
-    date: Optional[date] = None
+    date: Optional[datetime_date] = Field(
+        None,
+        description="Date for the schedule entry. Can be updated for rescheduling.",
+    )
     version: Optional[int] = Field(None, description="Version of the schedule.")
     notes: Optional[str] = Field(None, description="Notes for the schedule entry.")
     availability_type: Optional[str] = Field(
