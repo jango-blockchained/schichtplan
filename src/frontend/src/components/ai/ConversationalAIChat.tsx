@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { aiService, type ChatMessage, type ChatResponse } from "@/services/aiService";
 import {
     Bot,
     CheckCircle2,
@@ -108,20 +109,23 @@ export const ConversationalAIChat: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Simulate AI response - In real implementation, this would call the backend
-      const response = await simulateAIResponse(userMessage.content);
+      // Call the real AI service
+      const response = await aiService.sendChatMessage({
+        message: userMessage.content,
+        conversation_id: currentSession?.id
+      });
       
       const aiMessage: ConversationMessage = {
         id: `msg-${Date.now()}-ai`,
         type: "ai",
-        content: response.content,
+        content: response.response,
         timestamp: new Date(),
         metadata: {
-          agent: response.agent,
-          workflow: response.workflow,
-          tools_used: response.tools_used,
-          confidence: response.confidence,
-          processing_time: response.processing_time
+          agent: response.metadata?.agent as string,
+          workflow: response.metadata?.workflow as string,
+          tools_used: response.metadata?.tools_used as string[],
+          confidence: response.metadata?.confidence as number,
+          processing_time: response.metadata?.processing_time as number
         }
       };
 
@@ -138,8 +142,41 @@ export const ConversationalAIChat: React.FC = () => {
 
       toast.success("AI response generated successfully");
     } catch (error) {
-      toast.error("Failed to get AI response");
-      console.error("AI response error:", error);
+      // Fallback to simulated response if API fails
+      console.warn("AI API failed, falling back to simulation:", error);
+      try {
+        const response = await simulateAIResponse(userMessage.content);
+        
+        const aiMessage: ConversationMessage = {
+          id: `msg-${Date.now()}-ai`,
+          type: "ai",
+          content: response.content,
+          timestamp: new Date(),
+          metadata: {
+            agent: response.agent,
+            workflow: response.workflow,
+            tools_used: response.tools_used,
+            confidence: response.confidence,
+            processing_time: response.processing_time
+          }
+        };
+
+        setMessages(prev => [...prev, aiMessage]);
+        
+        // Update session
+        if (currentSession) {
+          setCurrentSession(prev => prev ? {
+            ...prev,
+            last_message_at: new Date(),
+            message_count: prev.message_count + 2
+          } : null);
+        }
+
+        toast.success("AI response generated (offline mode)");
+      } catch (fallbackError) {
+        toast.error("Failed to get AI response");
+        console.error("AI response error:", fallbackError);
+      }
     } finally {
       setIsLoading(false);
     }

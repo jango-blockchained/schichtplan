@@ -5,6 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { aiService, type Agent } from "@/services/aiService";
 import {
     Activity,
     AlertCircle,
@@ -23,23 +24,21 @@ import {
     Workflow,
     Zap
 } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
-interface Agent {
+interface AgentInteraction {
   id: string;
-  name: string;
-  type: "schedule_optimizer" | "employee_manager" | "workflow_coordinator" | "analytics";
-  status: "active" | "idle" | "processing" | "error";
-  description: string;
-  capabilities: string[];
-  performance: {
-    total_requests: number;
-    successful_requests: number;
-    average_response_time: number;
-    uptime_percentage: number;
-    last_activity: Date;
-  };
+  agent_id: string;
+  request: string;
+  response: string;
+  timestamp: Date;
+  duration: number;
+  status: "success" | "error";
+  tools_used: string[];
+}
+
+interface LocalAgent extends Agent {
   current_task?: {
     id: string;
     description: string;
@@ -53,25 +52,37 @@ interface Agent {
   };
 }
 
-interface AgentInteraction {
-  id: string;
-  agent_id: string;
-  request: string;
-  response: string;
-  timestamp: Date;
-  duration: number;
-  status: "success" | "error";
-  tools_used: string[];
-}
-
 export const AgentDashboard: React.FC = () => {
-  const [agents, setAgents] = useState<Agent[]>([]);
+  const [agents, setAgents] = useState<LocalAgent[]>([]);
   const [recentInteractions, setRecentInteractions] = useState<AgentInteraction[]>([]);
-  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<LocalAgent | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    // Initialize with mock agent data
+  const loadAgents = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const apiAgents = await aiService.getAgents();
+      // Convert API agents to local format with additional fields
+      const localAgents: LocalAgent[] = apiAgents.map(agent => ({
+        ...agent,
+        metrics: {
+          requests_today: Math.floor(Math.random() * 100),
+          success_rate_24h: agent.performance.success_rate,
+          avg_response_time_24h: agent.performance.avg_response_time
+        }
+      }));
+      setAgents(localAgents);
+    } catch (error) {
+      console.warn("Failed to load agents from API, using mock data:", error);
+      // Fallback to mock data
+      loadMockAgents();
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const loadMockAgents = () => {
+    // Fallback mock data
     setAgents([
       {
         id: "schedule_optimizer",
@@ -198,7 +209,22 @@ export const AgentDashboard: React.FC = () => {
         tools_used: ["execute_workflow", "coordinate_agents"]
       }
     ]);
+  };
+
+  useEffect(() => {
+    loadAgents();
   }, []);
+
+  const handleToggleAgent = async (agentId: string, enabled: boolean) => {
+    try {
+      await aiService.toggleAgent(agentId, enabled);
+      await loadAgents(); // Reload agents
+      toast.success(`Agent ${enabled ? 'enabled' : 'disabled'} successfully`);
+    } catch (error) {
+      console.error("Failed to toggle agent:", error);
+      toast.error("Failed to toggle agent");
+    }
+  };
 
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
