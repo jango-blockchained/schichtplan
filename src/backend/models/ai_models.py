@@ -22,7 +22,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 
-from src.backend.models import db
+# Import db from the module where it's defined to avoid circular imports
+from . import db
 
 
 class ConversationStatus(Enum):
@@ -54,6 +55,7 @@ class AIConversation(db.Model):
     """AI conversation model."""
 
     __tablename__ = "ai_conversations"
+    __table_args__ = {"extend_existing": True}
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     title = Column(String(255), nullable=True)
@@ -89,6 +91,7 @@ class AIMessage(db.Model):
     """AI message model."""
 
     __tablename__ = "ai_messages"
+    __table_args__ = {"extend_existing": True}
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     conversation_id = Column(
@@ -120,6 +123,7 @@ class AIAgentMetrics(db.Model):
     """AI agent metrics model."""
 
     __tablename__ = "ai_agent_metrics"
+    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     agent_id = Column(String(100), nullable=False)
@@ -146,6 +150,7 @@ class AIWorkflowExecution(db.Model):
     """AI workflow execution model."""
 
     __tablename__ = "ai_workflow_executions"
+    __table_args__ = {"extend_existing": True}
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     template_id = Column(String(100), nullable=False)
@@ -180,6 +185,7 @@ class MCPToolUsage(db.Model):
     """MCP tool usage tracking model."""
 
     __tablename__ = "mcp_tool_usage"
+    __table_args__ = {"extend_existing": True}
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     tool_id = Column(String(100), nullable=False)

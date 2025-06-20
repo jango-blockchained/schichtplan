@@ -1,7 +1,8 @@
 import asyncio
+import traceback
 from datetime import datetime
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 from flask_cors import CORS
 
 from src.backend.models import MessageType
@@ -28,30 +29,230 @@ workflow_coordinator = None
 conversation_manager = None
 
 
+def get_blueprint_info():
+    """
+    Safely get blueprint information for debugging.
+    This avoids the 'url_map' AttributeError when accessing Blueprint directly.
+    """
+    try:
+        blueprint_info = {
+            "name": ai_bp.name,
+            "url_prefix": ai_bp.url_prefix,
+            "import_name": ai_bp.import_name,
+            "routes": [],
+        }
+
+        # If we have access to current_app, we can get registered routes
+        if current_app:
+            for rule in current_app.url_map.iter_rules():
+                if rule.endpoint.startswith(ai_bp.name + "."):
+                    blueprint_info["routes"].append(
+                        {
+                            "endpoint": rule.endpoint,
+                            "rule": rule.rule,
+                            "methods": list(rule.methods),
+                        }
+                    )
+        else:
+            # Fallback: manually list known routes
+            blueprint_info["routes"] = [
+                {"endpoint": "ai.chat", "rule": "/chat", "methods": ["POST"]},
+                {"endpoint": "ai.get_agents", "rule": "/agents", "methods": ["GET"]},
+                {
+                    "endpoint": "ai.toggle_agent",
+                    "rule": "/agents/<agent_id>/toggle",
+                    "methods": ["POST"],
+                },
+                {
+                    "endpoint": "ai.get_workflow_templates",
+                    "rule": "/workflows/templates",
+                    "methods": ["GET"],
+                },
+                {
+                    "endpoint": "ai.execute_workflow",
+                    "rule": "/workflows/execute",
+                    "methods": ["POST"],
+                },
+                {
+                    "endpoint": "ai.get_workflow_executions",
+                    "rule": "/workflows/executions",
+                    "methods": ["GET"],
+                },
+                {
+                    "endpoint": "ai.get_analytics",
+                    "rule": "/analytics",
+                    "methods": ["GET"],
+                },
+                {"endpoint": "ai.get_mcp_tools", "rule": "/tools", "methods": ["GET"]},
+                {
+                    "endpoint": "ai.execute_mcp_tool",
+                    "rule": "/tools/execute",
+                    "methods": ["POST"],
+                },
+                {
+                    "endpoint": "ai.get_ai_settings",
+                    "rule": "/settings",
+                    "methods": ["GET"],
+                },
+                {
+                    "endpoint": "ai.update_ai_settings",
+                    "rule": "/settings",
+                    "methods": ["POST"],
+                },
+                {"endpoint": "ai.health_check", "rule": "/health", "methods": ["GET"]},
+                {
+                    "endpoint": "ai.get_services_status",
+                    "rule": "/services/status",
+                    "methods": ["GET"],
+                },
+                {
+                    "endpoint": "ai.get_chat_history",
+                    "rule": "/chat/history/<conversation_id>",
+                    "methods": ["GET"],
+                },
+                {
+                    "endpoint": "ai.get_conversations",
+                    "rule": "/chat/conversations",
+                    "methods": ["GET"],
+                },
+                {
+                    "endpoint": "ai.get_agent_details",
+                    "rule": "/agents/<agent_id>",
+                    "methods": ["GET"],
+                },
+                {"endpoint": "ai.test_route", "rule": "/test", "methods": ["GET"]},
+                {
+                    "endpoint": "ai.debug_info",
+                    "rule": "/debug/info",
+                    "methods": ["GET"],
+                },
+            ]
+
+        return blueprint_info
+    except Exception as e:
+        return {
+            "error": f"Failed to get blueprint info: {str(e)}",
+            "name": ai_bp.name,
+            "url_prefix": ai_bp.url_prefix,
+        }
+
+
 def init_ai_services(app):
     """Initialize AI services with app context"""
     global mcp_service, agent_registry, workflow_coordinator, conversation_manager
+
+    # Service initialization status tracking
+    service_status = {
+        "conversation_manager": False,
+        "ai_orchestrator": False,
+        "mcp_service": False,
+        "agent_registry": False,
+        "workflow_coordinator": False,
+    }
+
     with app.app_context():
         try:
-            # Initialize conversation manager
-            conversation_manager = SimpleConversationManager(logger)
+            logger.app_logger.info("Starting AI services initialization...")
+
+            # Initialize conversation manager (most basic service)
+            try:
+                logger.app_logger.info("Initializing conversation manager...")
+                conversation_manager = SimpleConversationManager(logger)
+                service_status["conversation_manager"] = True
+                logger.app_logger.info("Conversation manager initialized successfully")
+            except Exception as e:
+                logger.app_logger.warning(
+                    f"Failed to initialize conversation manager: {str(e)}"
+                )
+                conversation_manager = None
 
             # Initialize AI orchestrator
-            ai_orchestrator = create_ai_orchestrator(app)
+            ai_orchestrator = None
+            try:
+                logger.app_logger.info("Initializing AI orchestrator...")
+                ai_orchestrator = create_ai_orchestrator(app)
+                service_status["ai_orchestrator"] = True
+                logger.app_logger.info("AI orchestrator initialized successfully")
+            except Exception as e:
+                logger.app_logger.warning(
+                    f"Failed to initialize AI orchestrator: {str(e)}"
+                )
+                ai_orchestrator = None
 
             # Initialize MCP service
-            mcp_service = SchichtplanMCPService(app, logger)
+            try:
+                logger.app_logger.info("Initializing MCP service...")
+                mcp_service = SchichtplanMCPService(app, logger)
+                service_status["mcp_service"] = True
+                logger.app_logger.info("MCP service initialized successfully")
+            except Exception as e:
+                logger.app_logger.warning(f"Failed to initialize MCP service: {str(e)}")
+                mcp_service = None
 
-            # Initialize agent registry with AI orchestrator
-            agent_registry = AgentRegistry(ai_orchestrator, logger)
+            # Initialize agent registry with AI orchestrator (only if orchestrator is available)
+            if ai_orchestrator:
+                try:
+                    logger.app_logger.info("Initializing agent registry...")
+                    agent_registry = AgentRegistry(ai_orchestrator, logger)
+                    service_status["agent_registry"] = True
+                    logger.app_logger.info("Agent registry initialized successfully")
+                except Exception as e:
+                    logger.app_logger.warning(
+                        f"Failed to initialize agent registry: {str(e)}"
+                    )
+                    agent_registry = None
+            else:
+                logger.app_logger.warning(
+                    "Skipping agent registry initialization - AI orchestrator not available"
+                )
+                agent_registry = None
 
-            # Initialize workflow coordinator
-            workflow_coordinator = WorkflowCoordinator(ai_orchestrator, logger)
+            # Initialize workflow coordinator (only if orchestrator is available)
+            if ai_orchestrator:
+                try:
+                    logger.app_logger.info("Initializing workflow coordinator...")
+                    workflow_coordinator = WorkflowCoordinator(ai_orchestrator, logger)
+                    service_status["workflow_coordinator"] = True
+                    logger.app_logger.info(
+                        "Workflow coordinator initialized successfully"
+                    )
+                except Exception as e:
+                    logger.app_logger.warning(
+                        f"Failed to initialize workflow coordinator: {str(e)}"
+                    )
+                    workflow_coordinator = None
+            else:
+                logger.app_logger.warning(
+                    "Skipping workflow coordinator initialization - AI orchestrator not available"
+                )
+                workflow_coordinator = None
 
-            logger.app_logger.info("AI services initialized successfully")
+            # Log final service status
+            successful_services = sum(service_status.values())
+            total_services = len(service_status)
+
+            logger.app_logger.info(
+                f"AI services initialization completed: {successful_services}/{total_services} services available"
+            )
+            for service, status in service_status.items():
+                status_text = "✓" if status else "✗"
+                logger.app_logger.info(f"  {status_text} {service}")
+
+            if successful_services == 0:
+                logger.app_logger.error("No AI services were successfully initialized")
+            elif successful_services < total_services:
+                logger.app_logger.warning(
+                    "Some AI services failed to initialize - system will run with degraded functionality"
+                )
+            else:
+                logger.app_logger.info("All AI services initialized successfully")
+
         except Exception as e:
-            logger.app_logger.error(f"Failed to initialize AI services: {str(e)}")
-            # Set services to None to indicate they're not available
+            logger.app_logger.error(
+                f"Critical error during AI services initialization: {str(e)}"
+            )
+            logger.app_logger.error(f"Error traceback: {traceback.format_exc()}")
+            # Set all services to None on critical failure
             mcp_service = None
             agent_registry = None
             workflow_coordinator = None
@@ -74,11 +275,29 @@ def chat():
         if not message:
             return jsonify({"error": "Message is required"}), 400
 
+        # Validate message length
+        if len(message) > 10000:  # 10KB limit
+            return jsonify({"error": "Message too long (max 10,000 characters)"}), 400
+
         logger.app_logger.info(f"AI chat request: {message[:100]}...")
+
+        # Check service availability before processing
+        if not conversation_manager:
+            return jsonify(
+                {
+                    "response": "Chat service temporarily unavailable. Please try again later.",
+                    "conversation_id": conversation_id,
+                    "metadata": {
+                        "agent": "system",
+                        "status": "service_unavailable",
+                        "error": "Conversation manager not initialized",
+                    },
+                }
+            ), 503
 
         # Handle async MCP service call
         async def handle_chat():
-            if mcp_service and conversation_manager:
+            try:
                 # Get or create conversation
                 conversation = conversation_manager.get_conversation(conversation_id)
                 if not conversation:
@@ -89,67 +308,121 @@ def chat():
                     )
 
                 # Save user message
-                conversation_manager.add_message(
+                user_message = conversation_manager.add_message(
                     conversation.id, message, MessageType.USER.value
                 )
 
-                # Format request for MCP service
-                request_data = {
-                    "conv_id": conversation.id,
-                    "user_id": "web_user",  # TODO: Get from session
-                    "session_id": conversation_id,
-                    "request": message,
-                    "request_type": "chat",
-                }
+                if not user_message:
+                    raise Exception("Failed to save user message")
 
-                try:
-                    response = await mcp_service.handle_request(request_data)
-                    ai_response = response.get("response", "No response generated")
+                # Process with MCP service if available
+                if mcp_service:
+                    # Format request for MCP service
+                    request_data = {
+                        "conv_id": conversation.id,
+                        "user_id": "web_user",  # TODO: Get from session
+                        "session_id": conversation_id,
+                        "request": message,
+                        "request_type": "chat",
+                    }
 
-                    # Save AI response
-                    conversation_manager.add_message(
+                    try:
+                        response = await mcp_service.handle_request(request_data)
+                        ai_response = response.get(
+                            "response",
+                            "I apologize, but I couldn't generate a proper response.",
+                        )
+
+                        # Save AI response
+                        ai_message = conversation_manager.add_message(
+                            conversation.id,
+                            ai_response,
+                            MessageType.AI.value,
+                            {
+                                "agent": response.get("agent", "system"),
+                                "tools_used": response.get("tools_used", []),
+                                "processing_time": response.get("processing_time", 0),
+                            },
+                        )
+
+                        return {
+                            "response": ai_response,
+                            "conversation_id": conversation.id,
+                            "metadata": {
+                                "agent": response.get("agent", "system"),
+                                "status": "success",
+                                "tools_used": response.get("tools_used", []),
+                                "processing_time": response.get("processing_time", 0),
+                                "message_id": ai_message.id if ai_message else None,
+                            },
+                        }
+                    except Exception as e:
+                        logger.app_logger.error(f"MCP service error: {str(e)}")
+                        error_response = "I encountered an error while processing your request. Please try again."
+
+                        # Save error message
+                        conversation_manager.add_message(
+                            conversation.id,
+                            error_response,
+                            MessageType.SYSTEM.value,
+                            {"error": str(e), "error_type": "mcp_service_error"},
+                        )
+
+                        return {
+                            "response": error_response,
+                            "conversation_id": conversation.id,
+                            "metadata": {
+                                "agent": "system",
+                                "status": "error",
+                                "error_type": "processing_error",
+                            },
+                        }
+                else:
+                    # Fallback response when MCP service is not available
+                    fallback_response = "I'm currently operating in limited mode. Some advanced features may not be available. How can I help you with basic scheduling questions?"
+
+                    # Save fallback response
+                    ai_message = conversation_manager.add_message(
                         conversation.id,
-                        ai_response,
+                        fallback_response,
                         MessageType.AI.value,
-                        {
-                            "agent": response.get("agent", "system"),
-                            "tools_used": response.get("tools_used", []),
-                            "processing_time": response.get("processing_time", 0),
-                        },
+                        {"agent": "fallback", "mode": "limited"},
                     )
 
                     return {
-                        "response": ai_response,
+                        "response": fallback_response,
                         "conversation_id": conversation.id,
                         "metadata": {
-                            "agent": response.get("agent", "system"),
-                            "status": "success",
-                            "tools_used": response.get("tools_used", []),
-                            "processing_time": response.get("processing_time", 0),
+                            "agent": "fallback",
+                            "status": "limited_mode",
+                            "message_id": ai_message.id if ai_message else None,
                         },
                     }
-                except Exception as e:
-                    logger.app_logger.error(f"MCP service error: {str(e)}")
-                    error_response = f"Error processing request: {str(e)}"
 
-                    # Save error message
-                    conversation_manager.add_message(
-                        conversation.id,
-                        error_response,
-                        MessageType.SYSTEM.value,
-                        {"error": str(e)},
-                    )
+            except Exception as e:
+                logger.app_logger.error(f"Chat handling error: {str(e)}")
+                error_response = "I'm sorry, but I encountered an unexpected error. Please try again."
 
-                    return {
-                        "response": error_response,
-                        "conversation_id": conversation.id,
-                        "metadata": {"agent": "system", "status": "error"},
-                    }
-            else:
+                # Try to save error message if conversation manager is available
+                try:
+                    if conversation_manager and "conversation" in locals():
+                        conversation_manager.add_message(
+                            conversation.id,
+                            error_response,
+                            MessageType.SYSTEM.value,
+                            {"error": str(e), "error_type": "chat_handling_error"},
+                        )
+                except Exception:
+                    pass  # Don't fail completely if we can't save error message
+
                 return {
-                    "response": "AI service not available. Please check system configuration.",
+                    "response": error_response,
                     "conversation_id": conversation_id,
-                    "metadata": {"agent": "system", "status": "error"},
+                    "metadata": {
+                        "agent": "system",
+                        "status": "error",
+                        "error_type": "internal_error",
+                    },
                 }
 
         # Run async function in event loop
@@ -157,14 +430,38 @@ def chat():
         asyncio.set_event_loop(loop)
         try:
             response = loop.run_until_complete(handle_chat())
+            return jsonify(response)
+        except Exception as e:
+            logger.app_logger.error(f"Event loop error: {str(e)}")
+            return jsonify(
+                {
+                    "response": "A system error occurred. Please try again.",
+                    "conversation_id": conversation_id,
+                    "metadata": {
+                        "agent": "system",
+                        "status": "error",
+                        "error_type": "event_loop_error",
+                    },
+                }
+            ), 500
         finally:
             loop.close()
 
-        return jsonify(response)
-
     except Exception as e:
         logger.app_logger.error(f"AI chat error: {str(e)}")
-        return jsonify({"error": f"Failed to process chat request: {str(e)}"}), 500
+        return jsonify(
+            {
+                "error": f"Failed to process chat request: {str(e)}",
+                "conversation_id": conversation_id
+                if "conversation_id" in locals()
+                else "unknown",
+                "metadata": {
+                    "agent": "system",
+                    "status": "error",
+                    "error_type": "request_error",
+                },
+            }
+        ), 500
 
 
 @ai_bp.route("/agents", methods=["GET"])
@@ -644,8 +941,27 @@ def execute_mcp_tool():
         if not tool_id:
             return jsonify({"error": "Tool ID is required"}), 400
 
-        if mcp_service is None:
-            return jsonify({"error": "MCP service not available"}), 503
+        # Validate tool_id format
+        if not isinstance(tool_id, str) or len(tool_id) > 100:
+            return jsonify({"error": "Invalid tool ID format"}), 400
+
+        # Validate parameters
+        if not isinstance(parameters, dict):
+            return jsonify({"error": "Parameters must be a dictionary"}), 400
+
+        if not mcp_service:
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "MCP service not available",
+                    "result": {
+                        "tool_id": tool_id,
+                        "parameters": parameters,
+                        "output": "Tool execution service is currently unavailable",
+                        "execution_time": 0,
+                    },
+                }
+            ), 503
 
         # Execute tool through MCP service
         async def execute_tool():
@@ -673,6 +989,8 @@ def execute_mcp_tool():
                         "output": response.get("response", "No output"),
                         "execution_time": execution_time,
                         "metadata": response.get("metadata", {}),
+                        "tools_used": response.get("tools_used", [tool_id]),
+                        "status": "completed",
                     },
                     "execution_time": execution_time,
                 }
@@ -688,23 +1006,72 @@ def execute_mcp_tool():
                         "parameters": parameters,
                         "output": f"Error executing tool: {str(e)}",
                         "execution_time": execution_time,
+                        "status": "failed",
+                        "error_type": "execution_error",
                     },
                     "execution_time": execution_time,
                 }
 
-        # Run async function in event loop
+        # Run async function in event loop with timeout
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            result = loop.run_until_complete(execute_tool())
+            # Add timeout to prevent hanging
+            result = loop.run_until_complete(
+                asyncio.wait_for(execute_tool(), timeout=30.0)  # 30 second timeout
+            )
+            return jsonify(result)
+        except asyncio.TimeoutError:
+            logger.app_logger.error(f"Tool execution timeout for tool: {tool_id}")
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "Tool execution timeout",
+                    "result": {
+                        "tool_id": tool_id,
+                        "parameters": parameters,
+                        "output": "Tool execution timed out after 30 seconds",
+                        "execution_time": 30.0,
+                        "status": "timeout",
+                        "error_type": "timeout_error",
+                    },
+                }
+            ), 408
+        except Exception as e:
+            logger.app_logger.error(f"Event loop error during tool execution: {str(e)}")
+            return jsonify(
+                {
+                    "success": False,
+                    "error": f"System error: {str(e)}",
+                    "result": {
+                        "tool_id": tool_id,
+                        "parameters": parameters,
+                        "output": f"System error during tool execution: {str(e)}",
+                        "execution_time": 0,
+                        "status": "system_error",
+                        "error_type": "system_error",
+                    },
+                }
+            ), 500
         finally:
             loop.close()
 
-        return jsonify(result)
-
     except Exception as e:
         logger.app_logger.error(f"MCP tool execution error: {str(e)}")
-        return jsonify({"error": f"Failed to execute MCP tool: {str(e)}"}), 500
+        return jsonify(
+            {
+                "success": False,
+                "error": f"Failed to execute MCP tool: {str(e)}",
+                "result": {
+                    "tool_id": tool_id if "tool_id" in locals() else "unknown",
+                    "parameters": parameters if "parameters" in locals() else {},
+                    "output": f"Request processing error: {str(e)}",
+                    "execution_time": 0,
+                    "status": "request_error",
+                    "error_type": "request_processing_error",
+                },
+            }
+        ), 500
 
 
 @ai_bp.route("/settings", methods=["GET"])
@@ -906,3 +1273,174 @@ def get_agent_details(agent_id):
     except Exception as e:
         logger.app_logger.error(f"Get agent details error: {str(e)}")
         return jsonify({"error": f"Failed to get agent details: {str(e)}"}), 500
+
+
+@ai_bp.route("/test", methods=["GET"])
+def test_route():
+    """Simple test route to verify AI blueprint is working"""
+    return jsonify(
+        {
+            "message": "AI blueprint is working!",
+            "timestamp": datetime.now().isoformat(),
+            "services": {
+                "mcp_service": mcp_service is not None,
+                "agent_registry": agent_registry is not None,
+                "workflow_coordinator": workflow_coordinator is not None,
+                "conversation_manager": conversation_manager is not None,
+            },
+        }
+    )
+
+
+@ai_bp.route("/debug/info", methods=["GET"])
+def debug_info():
+    """
+    Debug route to get blueprint information safely
+    """
+    try:
+        blueprint_info = get_blueprint_info()
+        return jsonify(
+            {
+                "blueprint_info": blueprint_info,
+                "services_status": {
+                    "mcp_service": mcp_service is not None,
+                    "agent_registry": agent_registry is not None,
+                    "workflow_coordinator": workflow_coordinator is not None,
+                    "conversation_manager": conversation_manager is not None,
+                },
+                "registration_status": "registered"
+                if current_app
+                else "not_registered",
+            }
+        )
+    except Exception as e:
+        logger.app_logger.error(f"Debug info error: {str(e)}")
+        return jsonify({"error": f"Failed to get debug info: {str(e)}"}), 500
+
+
+@ai_bp.route("/services/status", methods=["GET"])
+def get_services_status():
+    """
+    Get detailed status of all AI services
+    """
+    try:
+        status = {
+            "overall_health": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "services": {
+                "conversation_manager": {
+                    "available": conversation_manager is not None,
+                    "status": "active"
+                    if conversation_manager is not None
+                    else "inactive",
+                    "description": "Manages chat conversations and message history",
+                },
+                "mcp_service": {
+                    "available": mcp_service is not None,
+                    "status": "active" if mcp_service is not None else "inactive",
+                    "description": "Model Context Protocol service for AI tool integration",
+                },
+                "agent_registry": {
+                    "available": agent_registry is not None,
+                    "status": "active" if agent_registry is not None else "inactive",
+                    "description": "Registry for AI agents and their capabilities",
+                },
+                "workflow_coordinator": {
+                    "available": workflow_coordinator is not None,
+                    "status": "active"
+                    if workflow_coordinator is not None
+                    else "inactive",
+                    "description": "Coordinates complex AI workflows and processes",
+                },
+            },
+            "capabilities": [],
+            "limitations": [],
+        }
+
+        # Count active services
+        active_services = sum(
+            1 for service in status["services"].values() if service["available"]
+        )
+        total_services = len(status["services"])
+
+        # Determine overall health
+        if active_services == 0:
+            status["overall_health"] = "critical"
+        elif active_services < total_services:
+            status["overall_health"] = "degraded"
+        else:
+            status["overall_health"] = "healthy"
+
+        # Add capabilities based on available services
+        if conversation_manager:
+            status["capabilities"].append("Chat conversations")
+            status["capabilities"].append("Message history")
+
+        if mcp_service:
+            status["capabilities"].append("AI tool execution")
+            status["capabilities"].append("Schedule analysis")
+            status["capabilities"].append("Employee management")
+
+        if agent_registry:
+            status["capabilities"].append("AI agent management")
+            status["capabilities"].append("Multi-agent coordination")
+
+        if workflow_coordinator:
+            status["capabilities"].append("Complex workflow execution")
+            status["capabilities"].append("Multi-step automation")
+
+        # Add limitations based on missing services
+        if not conversation_manager:
+            status["limitations"].append("No conversation persistence")
+
+        if not mcp_service:
+            status["limitations"].append("Limited AI tool integration")
+
+        if not agent_registry:
+            status["limitations"].append("No agent management")
+
+        if not workflow_coordinator:
+            status["limitations"].append("No complex workflow support")
+
+        status["summary"] = f"{active_services}/{total_services} services active"
+
+        return jsonify(status)
+
+    except Exception as e:
+        logger.app_logger.error(f"Services status error: {str(e)}")
+        return jsonify(
+            {
+                "overall_health": "error",
+                "error": f"Failed to get services status: {str(e)}",
+                "timestamp": datetime.now().isoformat(),
+            }
+        ), 500
+
+
+# Defensive fix for Blueprint url_map access
+# Some debugging scripts try to access ai_bp.url_map.iter_rules() which doesn't exist
+# This provides a safe fallback
+def _safe_url_map_access():
+    """
+    Create a mock url_map object for Blueprint debugging.
+    This prevents AttributeError when scripts try to access ai_bp.url_map
+    """
+
+    class MockUrlMap:
+        def iter_rules(self):
+            """Return empty iterator to prevent errors"""
+            if current_app:
+                # If we have app context, return actual rules for this blueprint
+                for rule in current_app.url_map.iter_rules():
+                    if rule.endpoint.startswith("ai."):
+                        yield rule
+            else:
+                # Return empty iterator if no app context
+                return iter([])
+
+    return MockUrlMap()
+
+
+# Add the mock url_map to the blueprint if it doesn't exist
+if not hasattr(ai_bp, "url_map"):
+    ai_bp.url_map = _safe_url_map_access()
