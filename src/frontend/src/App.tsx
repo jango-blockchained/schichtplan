@@ -14,6 +14,7 @@ import CoveragePage from "./pages/CoveragePage";
 import LayoutCustomizerPage from "./pages/LayoutCustomizerPage";
 import CalendarPage from "./pages/CalendarPage";
 import { DesignSystemDemo } from "./pages/DesignSystemDemo";
+import AIDashboardPage from "./pages/AIDashboardPage";
 import { AxiosError } from "axios";
 
 const queryClient = new QueryClient({
@@ -56,6 +57,7 @@ const App: React.FC = () => {
                 <Route path="logs" element={<LogsPage />} />
                 <Route path="layout" element={<LayoutCustomizerPage />} />
                 <Route path="calendar" element={<CalendarPage />} />
+                <Route path="ai" element={<AIDashboardPage />} />
                 <Route path="design-system" element={<DesignSystemDemo />} />
               </Route>
             </Routes>
