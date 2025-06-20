@@ -1,65 +1,65 @@
-import React, { useMemo, useState, useEffect } from "react";
-import { format, addDays, parseISO, startOfWeek, endOfWeek, differenceInMinutes, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
-import { useDrag, useDrop } from "react-dnd";
-import { Schedule, Employee, ScheduleUpdate, ShiftType } from "@/types";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import { DateRange } from "react-day-picker";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  getSettings,
-  getEmployees,
-  createSchedule,
-  getShifts,
-  Shift,
-} from "@/services/api";
-import {
-  Edit2,
-  Trash2,
-  Plus,
-  ChevronRight,
-  ChevronLeft,
-  AlertTriangle,
-  Info,
-  Maximize2,
-  Minimize2,
-  GripVertical,
-  Key,
-  ArrowUp,
-  ArrowDown,
-} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ShiftEditModal } from "./ShiftEditModal";
-import { AddScheduleDialog } from "./Schedule/AddScheduleDialog";
-import { EmployeeStatistics } from "./Schedule/EmployeeStatistics";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
 } from "@/components/ui/dialog";
+import {
+    HoverCard,
+    HoverCardContent,
+    HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from "@/components/ui/select";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
+import {
+    createSchedule,
+    getEmployees,
+    getSettings,
+    getShifts,
+    Shift,
+} from "@/services/api";
+import { Employee, Schedule, ScheduleUpdate, ShiftType } from "@/types";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { addDays, differenceInMinutes, endOfMonth, endOfWeek, format, isWithinInterval, parseISO, startOfMonth, startOfWeek } from "date-fns";
+import {
+    AlertTriangle,
+    ArrowDown,
+    ArrowUp,
+    ChevronLeft,
+    ChevronRight,
+    Edit2,
+    GripVertical,
+    Info,
+    Key,
+    Maximize2,
+    Minimize2,
+    Plus,
+    Trash2,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { DateRange } from "react-day-picker";
+import { useDrag, useDrop } from "react-dnd";
+import { AddScheduleDialog } from "./Schedule/AddScheduleDialog";
+import { EmployeeStatistics } from "./Schedule/EmployeeStatistics";
+import { ShiftEditModal } from "./ShiftEditModal";
 
 interface ScheduleTableProps {
   schedules: Schedule[];
@@ -274,6 +274,8 @@ const TimeSlotDisplay = ({
       case "EARLY": return "Früh";
       case "MIDDLE": return "Mitte";
       case "LATE": return "Spät";
+      case "NO_WORK": return "Kein Dienst";
+      case "UNAVAILABLE": return "Nicht verfügbar";
       default: return "Schicht";
     }
   };
@@ -701,6 +703,10 @@ const getShiftTypeDisplay = (shiftType: ShiftType): string => {
       return "Mitte";
     case "LATE":
       return "Spät";
+    case "NO_WORK":
+      return "Kein Dienst";
+    case "UNAVAILABLE":
+      return "Nicht verfügbar";
     default:
       return "Früh";
   }
@@ -732,6 +738,10 @@ const getShiftTypeColor = (
       return "#3b82f6";
     case "LATE":
       return "#f59e0b";
+    case "NO_WORK":
+      return "#9E9E9E";
+    case "UNAVAILABLE":
+      return "#ef4444";
     default:
       return "#64748b";
   }
@@ -927,7 +937,7 @@ const calculateEmployeeHours = (
       const [startHours, startMinutes] = schedule.shift_start.split(":").map(Number);
       const [endHours, endMinutes] = schedule.shift_end.split(":").map(Number);
       
-      let startTotalMinutes = startHours * 60 + startMinutes;
+      const startTotalMinutes = startHours * 60 + startMinutes;
       let endTotalMinutes = endHours * 60 + endMinutes;
       
       // Handle overnight shifts
@@ -1346,7 +1356,7 @@ export function ScheduleTable({
 
   return (
     <div className={cn("w-full", isFullWidth && "fixed inset-0 z-[55] bg-background flex flex-col")}>
-      <Card className={cn("border border-border shadow-sm", isFullWidth && "flex-1 flex flex-col h-full")}>
+      <Card className={cn("border border-border", isFullWidth && "flex-1 flex flex-col h-full")}>
         <CardHeader className="flex flex-row items-center justify-between sticky top-0 z-[35] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border flex-shrink-0">
           <div>
             <CardTitle className="text-xl font-medium">Schichtplan</CardTitle>
@@ -1770,9 +1780,9 @@ function ScheduleTableNormal({
 
   return (
     <table className="w-full border-collapse">
-      <thead className="sticky top-0 z-[30] bg-background border-b-2 border-border shadow-sm">
+      <thead className="sticky top-0 z-[30] bg-background border-b-2 border-border">
         <tr className="border-b border-border">
-          <th className="w-[220px] sticky left-0 z-[31] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 text-left p-4 font-medium text-foreground border-r border-border shadow-r">
+          <th className="w-[220px] sticky left-0 z-[31] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 text-left p-4 font-medium text-foreground border-r border-border">
             <div className="flex items-center justify-between">
               <span>Mitarbeiter</span>
               {showNavigation && (
@@ -2192,9 +2202,9 @@ function ScheduleTableSwitched({
 
   return (
     <table className="w-full border-collapse">
-      <thead className="sticky top-0 z-[30] bg-background border-b-2 border-border shadow-sm">
+      <thead className="sticky top-0 z-[30] bg-background border-b-2 border-border">
         <tr className="border-b border-border">
-          <th className="w-[160px] sticky left-0 z-[31] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 text-left p-4 font-medium text-foreground border-r border-border shadow-r">
+          <th className="w-[160px] sticky left-0 z-[31] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 text-left p-4 font-medium text-foreground border-r border-border">
             <div className="flex items-center justify-between">
               <span>Datum</span>
               {showNavigation && (

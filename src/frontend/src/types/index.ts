@@ -5,7 +5,7 @@ export enum EmployeeGroup {
   TL = "TL",
 }
 
-export type ShiftType = "EARLY" | "MIDDLE" | "LATE" | "NO_WORK";
+export type ShiftType = "EARLY" | "MIDDLE" | "LATE" | "NO_WORK" | "UNAVAILABLE";
 
 export interface TimeSlot {
   day: "MO" | "DI" | "MI" | "DO" | "FR" | "SA";
@@ -466,6 +466,8 @@ export interface AiImportResponse {
 
 export interface BaseCoverage {
   // ... existing code ...
+  dayIndex: number;
+  timeSlots: CoverageTimeSlot[];
 }
 
 export interface DeleteVersionResponse {

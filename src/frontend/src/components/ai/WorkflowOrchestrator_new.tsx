@@ -336,7 +336,7 @@ export const WorkflowOrchestrator: React.FC = () => {
         <TabsContent value="templates" className="space-y-4">
           <div className="grid gap-4">
             {workflowTemplates.map((template) => (
-              <Card key={template.id} className="hover:shadow-md transition-shadow">
+              <Card key={template.id} className="hover:scale-105 transition-transform">
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="space-y-1">

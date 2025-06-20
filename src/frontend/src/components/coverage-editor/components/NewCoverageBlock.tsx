@@ -1,8 +1,8 @@
-import React from 'react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { CoverageTimeSlot } from '../types';
 import { Clock, GripHorizontal, PencilIcon, Trash2 } from 'lucide-react';
-import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import React from 'react';
+import { CoverageTimeSlot } from '../types';
 
 interface NewCoverageBlockProps {
     slot: CoverageTimeSlot;
@@ -32,7 +32,7 @@ export const NewCoverageBlock: React.FC<NewCoverageBlockProps> = ({
             className={cn(
                 "absolute bg-primary/5 border border-primary/20 rounded-md",
                 "flex items-center justify-between px-2 py-1 group",
-                isEditing && "cursor-move hover:bg-primary/10 hover:border-primary/30 hover:shadow-sm transition-all duration-200"
+                isEditing && "cursor-move hover:bg-primary/10 hover:border-primary/30 transition-all duration-200"
             )}
             style={{
                 top: `${dayIndex * 40 + 4}px`, // Added 4px padding

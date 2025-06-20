@@ -1,25 +1,23 @@
-import React, { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient, type UseQueryResult, type UseMutationResult, type QueryClient } from "@tanstack/react-query";
-import { useDebouncedCallback } from "use-debounce";
-import { format } from "date-fns";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
-import { Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import type { Settings } from "@/types/index";
-import { getSettings, updateSettings } from "@/services/api"; // Assuming API functions are here
-import { GeneralStoreSetupSection } from "@/components/UnifiedSettingsSections/GeneralStoreSetupSection";
-import { DEFAULT_SETTINGS } from "@/hooks/useSettings"; // Assuming default settings are here
-import { SchedulingEngineSection } from "@/components/UnifiedSettingsSections/SchedulingEngineSection";
-import { EmployeeShiftDefinitionsSection } from "@/components/UnifiedSettingsSections/EmployeeShiftDefinitionsSection";
-import { AvailabilityConfigurationSection } from "@/components/UnifiedSettingsSections/AvailabilityConfigurationSection";
 import AppearanceDisplaySection from "@/components/UnifiedSettingsSections/AppearanceDisplaySection";
-import IntegrationsAISection from "@/components/UnifiedSettingsSections/IntegrationsAISection";
+import { AvailabilityConfigurationSection } from "@/components/UnifiedSettingsSections/AvailabilityConfigurationSection";
 import DataManagementSection from "@/components/UnifiedSettingsSections/DataManagementSection";
-import NotificationsSection from "@/components/UnifiedSettingsSections/NotificationsSection";
+import { EmployeeShiftDefinitionsSection } from "@/components/UnifiedSettingsSections/EmployeeShiftDefinitionsSection";
+import { GeneralStoreSetupSection } from "@/components/UnifiedSettingsSections/GeneralStoreSetupSection";
+import IntegrationsAISection from "@/components/UnifiedSettingsSections/IntegrationsAISection";
+import { SchedulingEngineSection } from "@/components/UnifiedSettingsSections/SchedulingEngineSection";
 import WeekNavigationSection from "@/components/UnifiedSettingsSections/WeekNavigationSection";
+import { DEFAULT_SETTINGS } from "@/hooks/useSettings"; // Assuming default settings are here
+import { getSettings, updateSettings } from "@/services/api"; // Assuming API functions are here
+import type { Settings } from "@/types/index";
+import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { Loader2 } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { useDebouncedCallback } from "use-debounce";
 
 type SectionId =
   | "general_store_setup"
@@ -604,7 +602,7 @@ export default function UnifiedSettingsPage() {
           ))}
         </nav>
         <main className="md:w-3/4 lg:w-4/5">
-          <div className="bg-card p-6 rounded-lg border shadow-sm min-h-[300px]">
+          <div className="bg-card p-6 rounded-lg border min-h-[300px]">
             {renderSectionContent()}
           </div>
         </main>

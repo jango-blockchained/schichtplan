@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react";
-import type { Settings } from "../types/index";
 import axios from "axios";
+import { useEffect, useState } from "react";
+import type { Settings } from "../types/index";
 
 // Default settings object to use as fallback
 export const DEFAULT_SETTINGS: Settings = {
   id: 0,
   general: {
-    store_name: "Store",
+    store_name: "TEDi Filiale #6729",
     store_address: null,
     store_phone: null,
     store_email: null,
@@ -16,15 +16,15 @@ export const DEFAULT_SETTINGS: Settings = {
     time_format: "24h",
     store_opening: "09:00",
     store_closing: "20:00",
-    keyholder_before_minutes: 30,
-    keyholder_after_minutes: 30,
+    keyholder_before_minutes: 5,
+    keyholder_after_minutes: 10,
     opening_days: {
-      monday: false,
-      tuesday: false,
-      wednesday: false,
-      thursday: false,
-      friday: false,
-      saturday: false,
+      monday: true,
+      tuesday: true,
+      wednesday: true,
+      thursday: true,
+      friday: true,
+      saturday: true,
       sunday: false
     },
     special_days: {},
@@ -38,7 +38,7 @@ export const DEFAULT_SETTINGS: Settings = {
         color: "#FF5252",
         priority: 4,
         is_available: false,
-        type: "availability_type" as const, // Added type
+        type: "availability_type" as const,
       },
       {
         id: "AVAILABLE",
@@ -47,7 +47,7 @@ export const DEFAULT_SETTINGS: Settings = {
         color: "#4CAF50",
         priority: 2,
         is_available: true,
-        type: "availability_type" as const, // Added type
+        type: "availability_type" as const,
       },
       {
         id: "PREFERRED",
@@ -56,7 +56,7 @@ export const DEFAULT_SETTINGS: Settings = {
         color: "#2196F3",
         priority: 3,
         is_available: true,
-        type: "availability_type" as const, // Added type
+        type: "availability_type" as const,
       },
       {
         id: "FIXED",
@@ -65,7 +65,7 @@ export const DEFAULT_SETTINGS: Settings = {
         color: "#FFC107",
         priority: 1,
         is_available: true,
-        type: "availability_type" as const, // Added type
+        type: "availability_type" as const,
       }
     ] 
   },
@@ -116,12 +116,12 @@ export const DEFAULT_SETTINGS: Settings = {
     show_sunday: false,
     show_weekdays: true,
     start_of_week: 1,
-    calendar_start_day: "monday", // Added default
-    calendar_default_view: "month", // Added default
+    calendar_start_day: "monday",
+    calendar_default_view: "month",
     email_notifications: false,
-    schedule_published_notify: false, // Renamed from schedule_published
-    shift_changes_notify: false, // Renamed from shift_changes
-    time_off_requests_notify: false, // Renamed from time_off_requests
+    schedule_published_notify: false,
+    shift_changes_notify: false,
+    time_off_requests_notify: false,
   },
   pdf_layout: {
     page_size: "A4",
@@ -160,6 +160,8 @@ export const DEFAULT_SETTINGS: Settings = {
       { id: "EARLY", name: "Frühschicht", color: "#4CAF50", type: "shift_type" as const, autoAssignOnly: false },
       { id: "MID", name: "Mittelschicht", color: "#2196F3", type: "shift_type" as const, autoAssignOnly: false },
       { id: "LATE", name: "Spätschicht", color: "#FFC107", type: "shift_type" as const, autoAssignOnly: false },
+      { id: "NO_WORK", name: "Kein Dienst", color: "#9E9E9E", type: "shift_type" as const, autoAssignOnly: true },
+      { id: "UNAVAILABLE", name: "Nicht verfügbar", color: "#ef4444", type: "shift_type" as const, autoAssignOnly: true },
     ],
     absence_types: [
       { id: "URL", name: "Urlaub", color: "#FF9800", type: "absence_type" as const },

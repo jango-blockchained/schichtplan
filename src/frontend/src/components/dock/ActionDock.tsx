@@ -1,38 +1,38 @@
-import React, { useState, useMemo } from "react";
-import { useDrag } from "react-dnd";
-import { format } from "date-fns";
-import { 
-  ChevronUp, 
-  ChevronDown, 
-  Users, 
-  Clock, 
-  GripVertical,
-  X,
-  MessageCircle,
-  Zap,
-  Send,
-  RotateCcw,
-  History,
-  Sparkles,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { getEmployees, getShifts } from "@/services/api";
 import { Employee, Shift } from "@/types";
 import type { WeekVersionMeta } from "@/types/weekVersion";
 import { useQuery } from "@tanstack/react-query";
-import { getEmployees, getShifts } from "@/services/api";
+import { format } from "date-fns";
+import {
+    ChevronDown,
+    ChevronUp,
+    Clock,
+    GripVertical,
+    History,
+    MessageCircle,
+    RotateCcw,
+    Send,
+    Sparkles,
+    Users,
+    X,
+    Zap,
+} from "lucide-react";
+import React, { useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
+import { useDrag } from "react-dnd";
 
 interface ActionDockProps {
   currentVersion?: number;
@@ -128,8 +128,8 @@ const DraggableEmployee: React.FC<DraggableEmployeeProps> = ({
       ref={drag}
       className={cn(
         "flex flex-col items-center p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-all cursor-move min-w-[120px] select-none",
-        isDragging && "opacity-50 scale-95 shadow-lg",
-        !isDragging && "hover:shadow-md hover:scale-105"
+        isDragging && "opacity-50 scale-95",
+        !isDragging && "hover:scale-105"
       )}
     >
       <GripVertical className="h-4 w-4 text-muted-foreground mb-1" />
@@ -190,6 +190,8 @@ const DraggableShift: React.FC<DraggableShiftProps> = ({
       case "EARLY": return "Früh";
       case "MIDDLE": return "Mitte";
       case "LATE": return "Spät";
+      case "NO_WORK": return "Kein Dienst";
+      case "UNAVAILABLE": return "Nicht verfügbar";
       default: return "Schicht";
     }
   };
@@ -199,8 +201,8 @@ const DraggableShift: React.FC<DraggableShiftProps> = ({
       ref={drag}
       className={cn(
         "flex flex-col items-center p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-all cursor-move min-w-[120px] select-none",
-        isDragging && "opacity-50 scale-95 shadow-lg",
-        !isDragging && "hover:shadow-md hover:scale-105"
+        isDragging && "opacity-50 scale-95",
+        !isDragging && "hover:scale-105"
       )}
     >
       <GripVertical className="h-4 w-4 text-muted-foreground mb-1" />
@@ -310,7 +312,7 @@ export const ActionDock: React.FC<ActionDockProps> = ({
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-[60] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90 border-t border-border shadow-lg">
+    <div className="fixed bottom-0 left-0 right-0 z-[60] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90 border-t border-border">
       {/* Dock Header */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-border">
         <div className="flex items-center gap-2">

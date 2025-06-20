@@ -1,41 +1,40 @@
-import React, { useState, useEffect } from "react";
-import { DateRange } from "react-day-picker";
 import {
-  format,
-  getWeek,
-  getYear,
-  addWeeks,
-  startOfWeek,
-  addDays,
-  differenceInCalendarWeeks,
-} from "date-fns";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Calendar,
-  AlertTriangle,
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Label } from "@/components/ui/label";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
+    addDays,
+    addWeeks,
+    format,
+    getWeek,
+    getYear,
+    startOfWeek
+} from "date-fns";
+import {
+    AlertTriangle,
+    Calendar,
+    ChevronLeft,
+    ChevronRight,
+} from "lucide-react";
+import { useState } from "react";
+import { DateRange } from "react-day-picker";
 
 interface EnhancedDateRangeSelectorProps {
   dateRange: DateRange | undefined;
@@ -161,7 +160,7 @@ export function EnhancedDateRangeSelector({
 
   return (
     <>
-      <Card className="mb-4 border border-border shadow-lg bg-card">
+      <Card className="mb-4 border border-border bg-card">
         <CardHeader className="py-4 border-b border-border">
           <div className="flex items-center justify-between">
             <CardTitle className="text-xl flex items-center font-medium">
@@ -171,7 +170,7 @@ export function EnhancedDateRangeSelector({
             {currentVersion && (
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-muted-foreground">Aktuelle Version:</span>
-                <div className="px-4 py-2 bg-primary text-primary-foreground rounded-full text-sm font-medium shadow-sm border border-primary/20">
+                <div className="px-4 py-2 bg-primary text-primary-foreground rounded-full text-sm font-medium border border-primary/20">
                   V{currentVersion}
                 </div>
               </div>
@@ -190,7 +189,7 @@ export function EnhancedDateRangeSelector({
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <div className="flex flex-col items-center min-w-[220px] px-6 py-3 bg-primary/15 rounded-lg border border-primary/30 shadow-sm">
+              <div className="flex flex-col items-center min-w-[220px] px-6 py-3 bg-primary/15 rounded-lg border border-primary/30">
                 <span className="font-medium text-lg text-primary">{formatWeekLabel()}</span>
                 <span className="text-sm font-medium text-primary/90">
                   {formatDateRangeLabel()}

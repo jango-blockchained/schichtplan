@@ -1,13 +1,12 @@
-import React from "react";
 import { Card } from "@/components/ui/card";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+    Table,
+    TableBody,
+    TableCell,
+    TableHeader,
+    TableRow
 } from "@/components/ui/table";
+import React from "react";
 import { LayoutConfig } from "../types/LayoutConfig";
 
 interface PreviewProps {
@@ -18,7 +17,7 @@ const Preview: React.FC<PreviewProps> = ({ layoutConfig }) => {
   const { table_style: tableStyle, title_style: titleStyle } = layoutConfig;
 
   return (
-    <Card className="p-6 bg-white shadow-sm">
+    <Card className="p-6 bg-white">
       <div
         style={{
           border: `${tableStyle.border_width}px solid ${tableStyle.border_color}`,
