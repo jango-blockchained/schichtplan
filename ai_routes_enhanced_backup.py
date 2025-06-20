@@ -8,29 +8,11 @@ from flask_cors import CORS
 from src.backend.models import MessageType
 from src.backend.services.ai_agents import AgentRegistry, WorkflowCoordinator
 from src.backend.services.ai_integration import create_ai_orchestrator
-from src.backend.services.enhanced_agent_registry import (
-    AgentCapability,
-    AgentStatus,
-    enhanced_agent_registry,
-)
-from src.backend.services.enhanced_conversation_manager import (
-    ConversationSearchFilter,
-    enhanced_conversation_manager,
-)
-
-# Add enhanced services imports
-from src.backend.services.enhanced_mcp_service import mcp_tool_executor
 
 # Import AI services
 from src.backend.services.mcp_service import SchichtplanMCPService
 from src.backend.services.simple_conversation_manager import SimpleConversationManager
-
-# Add caching imports
-from src.backend.utils.ai_cache import cached_response
 from src.backend.utils.logger import logger
-
-# Add performance monitoring
-from src.backend.utils.performance_monitor import performance_monitor, track_performance
 
 ai_bp = Blueprint("ai", __name__, url_prefix="/ai")
 CORS(
@@ -180,7 +162,7 @@ def init_ai_services(app):
                 logger.app_logger.info("Conversation manager initialized successfully")
             except Exception as e:
                 logger.app_logger.warning(
-                    "Failed to initialize conversation manager: %s", str(e)
+                    f"Failed to initialize conversation manager: {str(e)}"
                 )
                 conversation_manager = None
 
@@ -193,7 +175,7 @@ def init_ai_services(app):
                 logger.app_logger.info("AI orchestrator initialized successfully")
             except Exception as e:
                 logger.app_logger.warning(
-                    "Failed to initialize AI orchestrator: %s", str(e)
+                    f"Failed to initialize AI orchestrator: {str(e)}"
                 )
                 ai_orchestrator = None
 
@@ -204,9 +186,7 @@ def init_ai_services(app):
                 service_status["mcp_service"] = True
                 logger.app_logger.info("MCP service initialized successfully")
             except Exception as e:
-                logger.app_logger.warning(
-                    "Failed to initialize MCP service: %s", str(e)
-                )
+                logger.app_logger.warning(f"Failed to initialize MCP service: {str(e)}")
                 mcp_service = None
 
             # Initialize agent registry with AI orchestrator (only if orchestrator is available)
@@ -218,7 +198,7 @@ def init_ai_services(app):
                     logger.app_logger.info("Agent registry initialized successfully")
                 except Exception as e:
                     logger.app_logger.warning(
-                        "Failed to initialize agent registry: %s", str(e)
+                        f"Failed to initialize agent registry: {str(e)}"
                     )
                     agent_registry = None
             else:
@@ -238,7 +218,7 @@ def init_ai_services(app):
                     )
                 except Exception as e:
                     logger.app_logger.warning(
-                        "Failed to initialize workflow coordinator: %s", str(e)
+                        f"Failed to initialize workflow coordinator: {str(e)}"
                     )
                     workflow_coordinator = None
             else:
@@ -252,13 +232,11 @@ def init_ai_services(app):
             total_services = len(service_status)
 
             logger.app_logger.info(
-                "AI services initialization completed: %s/%s services available",
-                successful_services,
-                total_services,
+                f"AI services initialization completed: {successful_services}/{total_services} services available"
             )
             for service, status in service_status.items():
                 status_text = "✓" if status else "✗"
-                logger.app_logger.info("  %s %s", status_text, service)
+                logger.app_logger.info(f"  {status_text} {service}")
 
             if successful_services == 0:
                 logger.app_logger.error("No AI services were successfully initialized")
@@ -271,9 +249,9 @@ def init_ai_services(app):
 
         except Exception as e:
             logger.app_logger.error(
-                "Critical error during AI services initialization: %s", str(e)
+                f"Critical error during AI services initialization: {str(e)}"
             )
-            logger.app_logger.error("Error traceback: %s", traceback.format_exc())
+            logger.app_logger.error(f"Error traceback: {traceback.format_exc()}")
             # Set all services to None on critical failure
             mcp_service = None
             agent_registry = None
@@ -282,7 +260,6 @@ def init_ai_services(app):
 
 
 @ai_bp.route("/chat", methods=["POST"])
-@track_performance
 def chat():
     """
     Handle conversational AI chat requests
@@ -302,7 +279,7 @@ def chat():
         if len(message) > 10000:  # 10KB limit
             return jsonify({"error": "Message too long (max 10,000 characters)"}), 400
 
-        logger.app_logger.info("AI chat request: %s...", message[:100])
+        logger.app_logger.info(f"AI chat request: {message[:100]}...")
 
         # Check service availability before processing
         if not conversation_manager:
@@ -336,7 +313,7 @@ def chat():
                 )
 
                 if not user_message:
-                    raise ValueError("Failed to save user message")
+                    raise Exception("Failed to save user message")
 
                 # Process with MCP service if available
                 if mcp_service:
@@ -380,7 +357,7 @@ def chat():
                             },
                         }
                     except Exception as e:
-                        logger.app_logger.error("MCP service error: %s", str(e))
+                        logger.app_logger.error(f"MCP service error: {str(e)}")
                         error_response = "I encountered an error while processing your request. Please try again."
 
                         # Save error message
@@ -423,7 +400,7 @@ def chat():
                     }
 
             except Exception as e:
-                logger.app_logger.error("Chat handling error: %s", str(e))
+                logger.app_logger.error(f"Chat handling error: {str(e)}")
                 error_response = "I'm sorry, but I encountered an unexpected error. Please try again."
 
                 # Try to save error message if conversation manager is available
@@ -488,8 +465,6 @@ def chat():
 
 
 @ai_bp.route("/agents", methods=["GET"])
-@track_performance
-@cached_response("agents", ttl=300)  # Cache for 5 minutes
 def get_agents():
     """
     Get information about available AI agents
@@ -550,7 +525,6 @@ def get_agents():
 
 
 @ai_bp.route("/agents/<agent_id>/toggle", methods=["POST"])
-@track_performance
 def toggle_agent(agent_id):
     """
     Toggle agent enabled/disabled status
@@ -587,7 +561,6 @@ def toggle_agent(agent_id):
 
 
 @ai_bp.route("/workflows/templates", methods=["GET"])
-@track_performance
 def get_workflow_templates():
     """
     Get available workflow templates
@@ -665,7 +638,6 @@ def get_workflow_templates():
 
 
 @ai_bp.route("/workflows/execute", methods=["POST"])
-@track_performance
 def execute_workflow():
     """
     Execute a workflow with given parameters
@@ -703,7 +675,6 @@ def execute_workflow():
 
 
 @ai_bp.route("/workflows/executions", methods=["GET"])
-@track_performance
 def get_workflow_executions():
     """
     Get workflow execution history
@@ -740,45 +711,28 @@ def get_workflow_executions():
 
 
 @ai_bp.route("/analytics", methods=["GET"])
-@track_performance
 def get_analytics():
     """
-    Get AI system analytics and metrics including real performance data
+    Get AI system analytics and metrics
     """
     try:
-        # Get real performance statistics
-        perf_stats = performance_monitor.get_overall_stats()
-
-        # Calculate real metrics from performance data
-        avg_response_time = perf_stats.get("avg_response_time", 0)
-        error_rate = perf_stats.get("error_rate", 0) * 100  # Convert to percentage
-        total_requests = perf_stats.get("total_requests", 0)
-
-        # Mock some metrics that we don't track yet
+        # Mock analytics data for now
         analytics = {
             "metrics": [
                 {
                     "id": "ai_response_time",
                     "name": "AI Response Time",
-                    "value": round(avg_response_time, 1),
+                    "value": 2.3,
                     "unit": "seconds",
-                    "change": -12.5,  # Mock trend for now
-                    "trend": "down" if avg_response_time < 2.0 else "up",
+                    "change": -12.5,
+                    "trend": "down",
                 },
                 {
-                    "id": "system_error_rate",
-                    "name": "System Error Rate",
-                    "value": round(error_rate, 1),
+                    "id": "optimization_success_rate",
+                    "name": "Optimization Success Rate",
+                    "value": 96.8,
                     "unit": "%",
-                    "change": -2.1,  # Mock trend for now
-                    "trend": "down" if error_rate < 5.0 else "up",
-                },
-                {
-                    "id": "total_requests_24h",
-                    "name": "Total Requests (24h)",
-                    "value": total_requests,
-                    "unit": "requests",
-                    "change": 15.3,  # Mock trend for now
+                    "change": 4.2,
                     "trend": "up",
                 },
                 {
@@ -790,34 +744,22 @@ def get_analytics():
                     "trend": "up",
                 },
             ],
-            "performance_insights": [
+            "insights": [
                 {
-                    "id": "performance_001",
-                    "title": "Response Time Analysis",
-                    "description": f"Average response time is {avg_response_time:.1f}s across {total_requests} requests",
-                    "type": "performance",
-                    "confidence": 0.95,
-                    "impact": "medium" if avg_response_time < 2.0 else "high",
+                    "id": "insight_001",
+                    "title": "Schedule Optimization Opportunity",
+                    "description": "Analysis shows 15% improvement potential in workload distribution",
+                    "type": "optimization",
+                    "confidence": 0.89,
+                    "impact": "high",
                 }
             ],
             "system_health": {
-                "status": "healthy"
-                if error_rate < 5.0 and avg_response_time < 2.0
-                else "degraded",
-                "response_time_status": "good"
-                if avg_response_time < 1.0
-                else "slow"
-                if avg_response_time < 3.0
-                else "critical",
-                "error_rate_status": "good"
-                if error_rate < 1.0
-                else "warning"
-                if error_rate < 5.0
-                else "critical",
-                "total_requests": total_requests,
-                "uptime": "99.9%",  # Mock for now
+                "status": "healthy",
+                "agents_active": 3,
+                "workflows_running": 2,
+                "uptime": "99.9%",
             },
-            "performance_summary": perf_stats,
         }
 
         return jsonify(analytics)
@@ -828,8 +770,6 @@ def get_analytics():
 
 
 @ai_bp.route("/tools", methods=["GET"])
-@track_performance
-@cached_response("tools", ttl=600)  # Cache for 10 minutes
 def get_mcp_tools():
     """
     Get available MCP tools
@@ -986,7 +926,6 @@ def get_mcp_tools():
 
 
 @ai_bp.route("/tools/execute", methods=["POST"])
-@track_performance
 def execute_mcp_tool():
     """
     Execute an MCP tool with given parameters
@@ -1136,7 +1075,6 @@ def execute_mcp_tool():
 
 
 @ai_bp.route("/settings", methods=["GET"])
-@track_performance
 def get_ai_settings():
     """
     Get AI system settings
@@ -1170,7 +1108,6 @@ def get_ai_settings():
 
 
 @ai_bp.route("/settings", methods=["POST"])
-@track_performance
 def update_ai_settings():
     """
     Update AI system settings
@@ -1195,7 +1132,6 @@ def update_ai_settings():
 
 
 @ai_bp.route("/health", methods=["GET"])
-@track_performance
 def health_check():
     """
     AI system health check
@@ -1219,7 +1155,6 @@ def health_check():
 
 
 @ai_bp.route("/chat/history/<conversation_id>", methods=["GET"])
-@track_performance
 def get_chat_history(conversation_id):
     """
     Get conversation history for a specific conversation
@@ -1254,7 +1189,6 @@ def get_chat_history(conversation_id):
 
 
 @ai_bp.route("/chat/conversations", methods=["GET"])
-@track_performance
 def get_conversations():
     """
     Get list of all conversations
@@ -1292,7 +1226,6 @@ def get_conversations():
 
 
 @ai_bp.route("/agents/<agent_id>", methods=["GET"])
-@track_performance
 def get_agent_details(agent_id):
     """
     Get specific agent details
@@ -1343,7 +1276,6 @@ def get_agent_details(agent_id):
 
 
 @ai_bp.route("/test", methods=["GET"])
-@track_performance
 def test_route():
     """Simple test route to verify AI blueprint is working"""
     return jsonify(
@@ -1361,7 +1293,6 @@ def test_route():
 
 
 @ai_bp.route("/debug/info", methods=["GET"])
-@track_performance
 def debug_info():
     """
     Debug route to get blueprint information safely
@@ -1388,7 +1319,6 @@ def debug_info():
 
 
 @ai_bp.route("/services/status", methods=["GET"])
-@track_performance
 def get_services_status():
     """
     Get detailed status of all AI services
@@ -1485,428 +1415,6 @@ def get_services_status():
                 "timestamp": datetime.now().isoformat(),
             }
         ), 500
-
-
-@ai_bp.route("/performance", methods=["GET"])
-@track_performance
-def get_performance_metrics():
-    """
-    Get detailed performance metrics for AI routes
-    """
-    try:
-        # Get overall performance statistics
-        overall_stats = performance_monitor.get_overall_stats()
-
-        # Get endpoint-specific statistics
-        ai_endpoints = [
-            "/ai/chat",
-            "/ai/agents",
-            "/ai/tools",
-            "/ai/analytics",
-            "/ai/workflows/templates",
-            "/ai/workflows/execute",
-            "/ai/tools/execute",
-        ]
-
-        endpoint_details = {}
-        for endpoint in ai_endpoints:
-            for method in ["GET", "POST"]:
-                key = f"{method} {endpoint}"
-                stats = performance_monitor.get_endpoint_stats(key)
-                if stats:
-                    endpoint_details[key] = stats
-
-        # Performance recommendations
-        recommendations = []
-
-        # Check for slow endpoints
-        slowest = overall_stats.get("slowest_endpoints", [])
-        for endpoint_info in slowest[:3]:  # Top 3 slowest
-            if endpoint_info["avg_response_time"] > 1.0:  # > 1 second
-                recommendations.append(
-                    {
-                        "type": "performance",
-                        "priority": "high",
-                        "endpoint": endpoint_info["endpoint"],
-                        "issue": f"Slow response time: {endpoint_info['avg_response_time']:.2f}s average",
-                        "suggestion": "Consider caching, database optimization, or async processing",
-                    }
-                )
-
-        # Check for high error rates
-        for endpoint, stats in endpoint_details.items():
-            if stats.get("error_rate", 0) > 0.05:  # > 5% error rate
-                recommendations.append(
-                    {
-                        "type": "reliability",
-                        "priority": "medium",
-                        "endpoint": endpoint,
-                        "issue": f"High error rate: {stats['error_rate']:.1%}",
-                        "suggestion": "Review error handling and service availability",
-                    }
-                )
-
-        response_data = {
-            "overall_stats": overall_stats,
-            "endpoint_details": endpoint_details,
-            "recommendations": recommendations,
-            "monitoring_status": {
-                "active": True,
-                "tracking_endpoints": len(endpoint_details),
-                "data_points": overall_stats.get("total_requests", 0),
-            },
-            "alert_thresholds": performance_monitor.alert_thresholds,
-            "timestamp": datetime.now().isoformat(),
-        }
-
-        return jsonify(response_data)
-
-    except Exception as e:
-        logger.app_logger.error(f"Performance metrics error: {str(e)}")
-        return jsonify(
-            {
-                "error": f"Failed to get performance metrics: {str(e)}",
-                "monitoring_status": {"active": False},
-            }
-        ), 500
-
-
-# ============================================================================
-# PHASE 3 ENHANCEMENT ROUTES - Advanced Features
-# ============================================================================
-
-
-@ai_bp.route("/tools/analytics", methods=["GET"])
-@track_performance
-def get_mcp_tool_analytics():
-    """
-    Get analytics for MCP tool usage and performance
-    """
-    try:
-        tool_id = request.args.get("tool_id")
-
-        if tool_id:
-            # Get analytics for specific tool
-            analytics = mcp_tool_executor.get_tool_analytics(tool_id)
-        else:
-            # Get overall analytics
-            analytics = mcp_tool_executor.get_tool_analytics()
-
-        # Also get cache performance
-        cache_performance = mcp_tool_executor.get_cache_performance()
-
-        return jsonify(
-            {
-                "tool_analytics": analytics,
-                "cache_performance": cache_performance,
-                "timestamp": datetime.now().isoformat(),
-            }
-        )
-
-    except Exception as e:
-        logger.app_logger.error(f"MCP tool analytics error: {str(e)}")
-        return jsonify({"error": f"Failed to get tool analytics: {str(e)}"}), 500
-
-
-@ai_bp.route("/agents/enhanced", methods=["GET"])
-@track_performance
-def get_enhanced_agents():
-    """
-    Get enhanced agent information with performance tracking
-    """
-    try:
-        status_filter = request.args.get("status")
-        capability_filter = request.args.get("capabilities", "").split(",")
-
-        # Convert string status to enum if provided
-        status_enum = None
-        if status_filter:
-            try:
-                status_enum = AgentStatus(status_filter.lower())
-            except ValueError:
-                return jsonify({"error": f"Invalid status: {status_filter}"}), 400
-
-        # Convert string capabilities to enums if provided
-        capability_enums = []
-        if capability_filter and capability_filter != [""]:
-            for cap in capability_filter:
-                try:
-                    capability_enums.append(AgentCapability(cap.lower()))
-                except ValueError:
-                    return jsonify({"error": f"Invalid capability: {cap}"}), 400
-
-        # Get agents with filtering
-        agents = enhanced_agent_registry.list_agents(
-            status_filter=status_enum,
-            capability_filter=capability_enums if capability_enums else None,
-        )
-
-        # Get performance data for each agent
-        enhanced_agents = []
-        for agent in agents:
-            performance = enhanced_agent_registry.get_agent_performance(agent.agent_id)
-
-            agent_data = {
-                "agent_id": agent.agent_id,
-                "name": agent.name,
-                "description": agent.description,
-                "capabilities": [cap.value for cap in agent.capabilities],
-                "status": agent.status.value,
-                "priority": agent.priority,
-                "max_concurrent_tasks": agent.max_concurrent_tasks,
-                "timeout_seconds": agent.timeout_seconds,
-                "tags": agent.tags,
-                "created_at": agent.created_at.isoformat(),
-                "updated_at": agent.updated_at.isoformat(),
-                "performance": performance,
-            }
-            enhanced_agents.append(agent_data)
-
-        # Get system performance
-        system_performance = enhanced_agent_registry.get_system_performance()
-        registry_status = enhanced_agent_registry.get_registry_status()
-
-        return jsonify(
-            {
-                "agents": enhanced_agents,
-                "system_performance": system_performance,
-                "registry_status": registry_status,
-                "total_count": len(enhanced_agents),
-            }
-        )
-
-    except Exception as e:
-        logger.app_logger.error(f"Enhanced agents error: {str(e)}")
-        return jsonify({"error": f"Failed to get enhanced agents: {str(e)}"}), 500
-
-
-@ai_bp.route("/agents/<agent_id>/performance", methods=["GET"])
-@track_performance
-def get_agent_performance(agent_id):
-    """
-    Get detailed performance metrics for a specific agent
-    """
-    try:
-        performance = enhanced_agent_registry.get_agent_performance(agent_id)
-        agent = enhanced_agent_registry.get_agent(agent_id)
-
-        if not agent:
-            return jsonify({"error": "Agent not found"}), 404
-
-        return jsonify(
-            {
-                "agent_id": agent_id,
-                "agent_name": agent.name,
-                "performance": performance,
-                "configuration": {
-                    "priority": agent.priority,
-                    "max_concurrent_tasks": agent.max_concurrent_tasks,
-                    "timeout_seconds": agent.timeout_seconds,
-                    "capabilities": [cap.value for cap in agent.capabilities],
-                },
-            }
-        )
-
-    except Exception as e:
-        logger.app_logger.error(f"Agent performance error: {str(e)}")
-        return jsonify({"error": f"Failed to get agent performance: {str(e)}"}), 500
-
-
-@ai_bp.route("/conversations/search", methods=["POST"])
-@track_performance
-def search_conversations():
-    """
-    Search conversations with advanced filtering
-    """
-    try:
-        data = request.get_json() or {}
-
-        # Create search filter from request data
-        filters = ConversationSearchFilter(
-            user_id=data.get("user_id"),
-            status=data.get("status"),
-            date_from=datetime.fromisoformat(data["date_from"])
-            if data.get("date_from")
-            else None,
-            date_to=datetime.fromisoformat(data["date_to"])
-            if data.get("date_to")
-            else None,
-            tags=data.get("tags", []),
-            category=data.get("category"),
-            content_search=data.get("content_search"),
-            min_messages=data.get("min_messages"),
-            max_messages=data.get("max_messages"),
-            assigned_agent=data.get("assigned_agent"),
-        )
-
-        limit = min(data.get("limit", 50), 200)  # Max 200 results
-        offset = data.get("offset", 0)
-
-        # Perform search
-        conversations = enhanced_conversation_manager.search_conversations(
-            filters, limit, offset
-        )
-
-        # Format results
-        results = []
-        for conv in conversations:
-            conv_data = {
-                "id": conv.id,
-                "title": conv.title,
-                "user_id": conv.user_id,
-                "status": conv.status.value,
-                "created_at": conv.created_at.isoformat(),
-                "updated_at": conv.updated_at.isoformat(),
-                "message_count": conv.message_count,
-                "total_tokens": conv.total_tokens,
-                "average_response_time": conv.average_response_time,
-                "last_activity": conv.last_activity.isoformat()
-                if conv.last_activity
-                else None,
-                "tags": conv.metadata.tags,
-                "category": conv.metadata.category,
-                "priority": conv.metadata.priority,
-            }
-            results.append(conv_data)
-
-        return jsonify(
-            {
-                "conversations": results,
-                "total_found": len(results),
-                "limit": limit,
-                "offset": offset,
-                "has_more": len(results) == limit,
-            }
-        )
-
-    except Exception as e:
-        logger.app_logger.error(f"Conversation search error: {str(e)}")
-        return jsonify({"error": f"Failed to search conversations: {str(e)}"}), 500
-
-
-@ai_bp.route("/conversations/<conversation_id>/analytics", methods=["GET"])
-@track_performance
-def get_conversation_analytics(conversation_id):
-    """
-    Get detailed analytics for a specific conversation
-    """
-    try:
-        analytics = enhanced_conversation_manager.get_conversation_analytics(
-            conversation_id
-        )
-
-        if "error" in analytics:
-            return jsonify(analytics), 404
-
-        return jsonify(
-            {
-                "conversation_id": conversation_id,
-                "analytics": analytics,
-                "timestamp": datetime.now().isoformat(),
-            }
-        )
-
-    except Exception as e:
-        logger.app_logger.error(f"Conversation analytics error: {str(e)}")
-        return jsonify(
-            {"error": f"Failed to get conversation analytics: {str(e)}"}
-        ), 500
-
-
-@ai_bp.route("/conversations/export", methods=["POST"])
-@track_performance
-def export_conversations():
-    """
-    Export conversations in various formats
-    """
-    try:
-        data = request.get_json() or {}
-        conversation_ids = data.get("conversation_ids", [])
-        format_type = data.get("format", "json").lower()
-
-        if not conversation_ids:
-            return jsonify({"error": "No conversation IDs provided"}), 400
-
-        if format_type not in ["json", "csv", "markdown"]:
-            return jsonify(
-                {"error": "Unsupported format. Use: json, csv, markdown"}
-            ), 400
-
-        # Export conversations
-        export_data = enhanced_conversation_manager.export_conversations(
-            conversation_ids, format_type
-        )
-
-        # Set appropriate content type
-        content_types = {
-            "json": "application/json",
-            "csv": "text/csv",
-            "markdown": "text/markdown",
-        }
-
-        response = jsonify(
-            {
-                "export_data": export_data,
-                "format": format_type,
-                "conversation_count": len(conversation_ids),
-                "generated_at": datetime.now().isoformat(),
-            }
-        )
-        response.headers["Content-Type"] = content_types[format_type]
-
-        return response
-
-    except Exception as e:
-        logger.app_logger.error(f"Conversation export error: {str(e)}")
-        return jsonify({"error": f"Failed to export conversations: {str(e)}"}), 500
-
-
-@ai_bp.route("/system/analytics", methods=["GET"])
-@track_performance
-def get_system_analytics():
-    """
-    Get comprehensive system analytics across all components
-    """
-    try:
-        days = min(int(request.args.get("days", 30)), 90)  # Max 90 days
-
-        # Get analytics from all enhanced services
-        conversation_analytics = enhanced_conversation_manager.get_system_analytics(
-            days
-        )
-        agent_performance = enhanced_agent_registry.get_system_performance()
-        mcp_analytics = mcp_tool_executor.get_tool_analytics()
-        cache_performance = mcp_tool_executor.get_cache_performance()
-
-        # Get overall performance metrics
-        performance_stats = performance_monitor.get_overall_stats()
-
-        return jsonify(
-            {
-                "system_overview": {
-                    "analysis_period_days": days,
-                    "generated_at": datetime.now().isoformat(),
-                },
-                "conversations": conversation_analytics,
-                "agents": agent_performance,
-                "mcp_tools": mcp_analytics,
-                "cache_performance": cache_performance,
-                "api_performance": performance_stats,
-                "system_health": {
-                    "status": "healthy"
-                    if performance_stats.get("error_rate", 0) < 0.05
-                    else "degraded",
-                    "uptime": "99.9%",  # Mock for now
-                    "last_restart": datetime.now()
-                    .replace(hour=0, minute=0, second=0)
-                    .isoformat(),
-                },
-            }
-        )
-
-    except Exception as e:
-        logger.app_logger.error(f"System analytics error: {str(e)}")
-        return jsonify({"error": f"Failed to get system analytics: {str(e)}"}), 500
 
 
 # Defensive fix for Blueprint url_map access

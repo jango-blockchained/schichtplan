@@ -19,6 +19,9 @@ from src.backend.services.mcp_tools.ai_schedule_generation import (
 from src.backend.services.mcp_tools.coverage_optimization import (
     CoverageOptimizationTools,
 )
+from src.backend.services.mcp_tools.crud_operations import (
+    CRUDOperationsTools,
+)
 from src.backend.services.mcp_tools.employee_management import (
     EmployeeManagementTools,
 )
@@ -50,6 +53,7 @@ class SchichtplanMCPService:
         self.coverage_optimization_tools = CoverageOptimizationTools(
             self.flask_app, self.logger
         )
+        self.crud_operations_tools = CRUDOperationsTools(self.flask_app, self.logger)
         self.ai_schedule_generation_tools = AIScheduleGenerationTools(
             self.flask_app, self.logger
         )
@@ -72,6 +76,7 @@ class SchichtplanMCPService:
         self.schedule_analysis_tools.register_tools(self.mcp)
         self.employee_management_tools.register_tools(self.mcp)
         self.coverage_optimization_tools.register_tools(self.mcp)
+        self.crud_operations_tools.register_tools(self.mcp)
         self.ai_schedule_generation_tools.register_tools(self.mcp)
         self.ml_optimization_tools.register_tools(self.mcp)
         self.schedule_scenario_tools.register_tools(self.mcp)

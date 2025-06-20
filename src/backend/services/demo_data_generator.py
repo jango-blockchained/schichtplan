@@ -1,19 +1,20 @@
-from typing import List, Dict, Any
-from datetime import datetime, timedelta
-import random
 import logging
+import random
 import time
+from datetime import datetime, timedelta
+from typing import Any, Dict, List
+
+from models import (
+    Absence,
+    Coverage,
+    Employee,
+    EmployeeAvailability,
+    Settings,
+    ShiftTemplate,
+    db,
+)
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
-from models import (
-    db,
-    Settings,
-    Employee,
-    Coverage,
-    EmployeeAvailability,
-    ShiftTemplate,
-    Absence,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +136,26 @@ class DemoDataGenerator:
             "Leon",
             "Victoria",
             "Ben",
+            "Mateo",
+            "Sofia",
+            "Mohammed",
+            "Aisha",
+            "Giulia",
+            "Luca",
+            "Yusuf",
+            "Fatima",
+            "Ivan",
+            "Olga",
+            "Pierre",
+            "Chloe",
+            "Juan",
+            "Camila",
+            "Andrei",
+            "Elena",
+            "Omar",
+            "Leila",
+            "Jin",
+            "Yuna",
         ]
 
         last_names = [
@@ -168,6 +189,26 @@ class DemoDataGenerator:
             "Lorenz",
             "Bauer",
             "Kaiser",
+            "Rossi",
+            "Bianchi",
+            "Murano",
+            "Ricci",
+            "Yılmaz",
+            "Demir",
+            "Şahin",
+            "Kaya",
+            "Papadopoulos",
+            "Nikolaidis",
+            "Georgiou",
+            "Dimitriou",
+            "Dubois",
+            "Lefevre",
+            "Moreau",
+            "Bernard",
+            "Nowak",
+            "Wójcik",
+            "Lewandowski",
+            "Zieliński",
         ]
 
         for emp_type in employee_types:
