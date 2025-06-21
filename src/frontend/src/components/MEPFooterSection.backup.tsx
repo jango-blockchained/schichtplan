@@ -13,7 +13,7 @@ interface MEPFooterSectionProps {
   className?: string;
 }
 
-function MEPFooterSectionComponent({ config, onChange, className = '' }: MEPFooterSectionProps) {
+export function MEPFooterSection({ config, onChange, className = '' }: MEPFooterSectionProps) {
   // Handler for break rules
   const handleBreakRulesChange = (field: 'enabled' | 'text', value: boolean | string) => {
     onChange({
@@ -238,6 +238,3 @@ function MEPFooterSectionComponent({ config, onChange, className = '' }: MEPFoot
     </Card>
   );
 }
-
-export const MEPFooterSection = MEPFooterSectionComponent;
-export default MEPFooterSection;
