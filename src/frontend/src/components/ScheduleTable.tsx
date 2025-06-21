@@ -2,57 +2,57 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import {
-    HoverCard,
-    HoverCardContent,
-    HoverCardTrigger,
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import { Label } from "@/components/ui/label";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
-    createSchedule,
-    getEmployees,
-    getSettings,
-    getShifts,
-    Shift,
+  createSchedule,
+  getEmployees,
+  getSettings,
+  getShifts,
+  Shift,
 } from "@/services/api";
 import { Employee, Schedule, ScheduleUpdate, ShiftType } from "@/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, differenceInMinutes, endOfMonth, endOfWeek, format, isWithinInterval, parseISO, startOfMonth, startOfWeek } from "date-fns";
 import {
-    AlertTriangle,
-    ArrowDown,
-    ArrowUp,
-    ChevronLeft,
-    ChevronRight,
-    Edit2,
-    GripVertical,
-    Info,
-    Key,
-    Maximize2,
-    Minimize2,
-    Plus,
-    Trash2,
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  ChevronLeft,
+  ChevronRight,
+  Edit2,
+  GripVertical,
+  Info,
+  Key,
+  Maximize2,
+  Minimize2,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { DateRange } from "react-day-picker";
@@ -241,6 +241,16 @@ const formatTimeHourMin = (hours: number): string => {
 };
 
 // === END CENTRALIZED TIME CALCULATION FUNCTIONS ===
+
+// TimeSlotDisplay Component
+interface TimeSlotDisplayProps {
+  startTime: string;
+  endTime: string;
+  shiftType: any;
+  settings: any;
+  schedule: Schedule;
+  employee: any;
+}
 
 const TimeSlotDisplay = ({
   startTime,
@@ -2646,8 +2656,31 @@ function ScheduleColorLegend({
 const calculateDailyHours = (schedules: Schedule[], date: Date): number => {
   const dateString = format(date, "yyyy-MM-dd");
   const daySchedules = schedules.filter(
-    schedule => schedule.date === dateString && !schedule.is_empty && schedule.shift_id
+    schedule => {
+      // Handle both string dates and Date objects
+      let scheduleDate: string = schedule.date;
+      if (typeof scheduleDate === 'object' && scheduleDate !== null) {
+        scheduleDate = format(scheduleDate as Date, "yyyy-MM-dd");
+      }
+      // Also handle ISO date strings that might include time
+      if (typeof scheduleDate === 'string' && scheduleDate.includes('T')) {
+        scheduleDate = scheduleDate.split('T')[0];
+      }
+      
+      return scheduleDate === dateString && !schedule.is_empty && schedule.shift_id;
+    }
   );
+  
+  // Only log if we find no schedules to debug the issue
+  if (daySchedules.length === 0) {
+    const sampleSchedules = schedules.slice(0, 3).map(s => ({
+      date: s.date,
+      dateType: typeof s.date,
+      is_empty: s.is_empty,
+      shift_id: s.shift_id
+    }));
+    console.log(`🔍 No schedules found for ${dateString}. Sample schedules:`, sampleSchedules);
+  }
   
   return daySchedules.reduce((sum, schedule) => {
     if (schedule.shift_start && schedule.shift_end) {
