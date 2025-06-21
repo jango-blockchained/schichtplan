@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MEP Layout Customizer Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .success { border-color: #4CAF50; background-color: #f0fff0; }
+        .error { border-color: #f44336; background-color: #fff0f0; }
+        .pending { border-color: #ff9800; background-color: #fff8f0; }
+        button {
+            background: #3B82F6;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #2563EB; }
+        .config-display {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>MEP Layout Customizer Integration Test</h1>
+    
+    <div id="load-test" class="test-section pending">
+        <h3>1. Load MEP Config from Backend</h3>
+        <button onclick="testLoadConfig()">Load Config</button>
+        <div id="load-result"></div>
+    </div>
+
+    <div id="save-test" class="test-section pending">
+        <h3>2. Save MEP Config to Backend</h3>
+        <button onclick="testSaveConfig()">Save Test Config</button>
+        <div id="save-result"></div>
+    </div>
+
+    <div id="structure-test" class="test-section pending">
+        <h3>3. Verify MEP Structure</h3>
+        <button onclick="testStructure()">Check Structure</button>
+        <div id="structure-result"></div>
+    </div>
+
+    <div id="fields-test" class="test-section pending">
+        <h3>4. Test All MEP Fields</h3>
+        <button onclick="testAllFields()">Test All Fields</button>
+        <div id="fields-result"></div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/v2/settings/';
+        
+        async function testLoadConfig() {
+            const section = document.getElementById('load-test');
+            const result = document.getElementById('load-result');
+            
+            try {
+                section.className = 'test-section pending';
+                result.innerHTML = '<p>Loading...</p>';
+                
+                const response = await fetch(API_BASE);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const settings = await response.json();
+                const pdfLayout = settings.pdf_layout;
+                
+                if (pdfLayout && typeof pdfLayout === 'object') {
+                    section.className = 'test-section success';
+                    result.innerHTML = `
+                        <p>✅ Successfully loaded MEP config!</p>
+                        <div class="config-display">${JSON.stringify(pdfLayout, null, 2)}</div>
+                    `;
+                } else {
+                    throw new Error('No pdf_layout found in settings');
+                }
+            } catch (error) {
+                section.className = 'test-section error';
+                result.innerHTML = `<p>❌ Failed to load: ${error.message}</p>`;
+            }
+        }
+
+        async function testSaveConfig() {
+            const section = document.getElementById('save-test');
+            const result = document.getElementById('save-result');
+            
+            const testConfig = {
+                header: {
+                    title: "TEST MEP Layout",
+                    store_field: { label: "Test Filiale:", value: "Test Store" }
+                },
+                table: {
+                    employee_columns: {
+                        name: { label: "Name Test", width: 25 }
+                    }
+                },
+                footer: {
+                    break_rules: { enabled: true, text: "Test break rules" }
+                },
+                styling: {
+                    fonts: { header_font: "Arial", header_size: 12 }
+                }
+            };
+            
+            try {
+                section.className = 'test-section pending';
+                result.innerHTML = '<p>Saving...</p>';
+                
+                const response = await fetch(API_BASE, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pdf_layout: testConfig })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || `HTTP ${response.status}`);
+                }
+                
+                const saved = await response.json();
+                section.className = 'test-section success';
+                result.innerHTML = `
+                    <p>✅ Successfully saved test config!</p>
+                    <div class="config-display">${JSON.stringify(saved.pdf_layout, null, 2)}</div>
+                `;
+            } catch (error) {
+                section.className = 'test-section error';
+                result.innerHTML = `<p>❌ Failed to save: ${error.message}</p>`;
+            }
+        }
+
+        async function testStructure() {
+            const section = document.getElementById('structure-test');
+            const result = document.getElementById('structure-result');
+            
+            try {
+                section.className = 'test-section pending';
+                result.innerHTML = '<p>Checking structure...</p>';
+                
+                const response = await fetch(API_BASE);
+                const settings = await response.json();
+                const pdfLayout = settings.pdf_layout;
+                
+                const requiredSections = ['header', 'table', 'footer', 'styling'];
+                const found = requiredSections.filter(section => section in pdfLayout);
+                const missing = requiredSections.filter(section => !(section in pdfLayout));
+                
+                if (missing.length === 0) {
+                    section.className = 'test-section success';
+                    result.innerHTML = `
+                        <p>✅ All required sections found: ${found.join(', ')}</p>
+                        <ul>
+                            <li>Header: ${pdfLayout.header?.title || 'No title'}</li>
+                            <li>Table columns: ${Object.keys(pdfLayout.table?.employee_columns || {}).length}</li>
+                            <li>Footer enabled: ${pdfLayout.footer?.break_rules?.enabled || false}</li>
+                            <li>Styling fonts: ${Object.keys(pdfLayout.styling?.fonts || {}).length}</li>
+                        </ul>
+                    `;
+                } else {
+                    section.className = 'test-section error';
+                    result.innerHTML = `<p>❌ Missing sections: ${missing.join(', ')}</p>`;
+                }
+            } catch (error) {
+                section.className = 'test-section error';
+                result.innerHTML = `<p>❌ Failed to check structure: ${error.message}</p>`;
+            }
+        }
+
+        async function testAllFields() {
+            const section = document.getElementById('fields-test');
+            const result = document.getElementById('fields-result');
+            
+            const fullMEPConfig = {
+                header: {
+                    title: "Mitarbeiter-Einsatz-Planung (MEP)",
+                    store_field: { label: "Filiale:", value: "Test-Filiale" },
+                    period_fields: {
+                        month_year: { label: "Monat/Jahr", value: "Juni 2025" },
+                        week_from: { label: "Woche vom:", value: "17.06.2025" },
+                        week_to: { label: "bis:", value: "23.06.2025" }
+                    },
+                    storage_note: { text: "Aufbewahrung in der Filiale: 2 Jahre", position: "right" }
+                },
+                table: {
+                    employee_columns: {
+                        name: { label: "Name, Vorname", width: 25 },
+                        function: { label: "Funktion", width: 15 },
+                        plan_week: { label: "Plan/Woche", width: 12 }
+                    },
+                    day_columns: {
+                        enabled_days: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
+                        day_labels: {
+                            monday: "Montag", tuesday: "Dienstag", wednesday: "Mittwoch",
+                            thursday: "Donnerstag", friday: "Freitag", saturday: "Samstag", sunday: "Sonntag"
+                        },
+                        day_width: 10
+                    },
+                    summary_columns: {
+                        week_total: { label: "Summe/Woche", width: 12 },
+                        month_total: { label: "Summe/Monat", width: 12 }
+                    },
+                    row_structure: {
+                        date_row: { label: "Datum", enabled: true },
+                        active_row: { label: "Wer/tätig", enabled: true },
+                        start_row: { label: "Beginn", enabled: true },
+                        break_row: { label: "Pause", enabled: true },
+                        end_row: { label: "Ende", enabled: true },
+                        total_row: { label: "Summe/Tag", enabled: true }
+                    }
+                },
+                footer: {
+                    break_rules: { enabled: true, text: "bis 6 Stunden : keine Pause\\nmehr als 6 Stunden : 60 Minuten" },
+                    absence_types: {
+                        enabled: true, title: "Abwesenheiten:",
+                        types: [
+                            { code: "F", label: "Feiertag" },
+                            { code: "FZ", label: "Freizeit" },
+                            { code: "K", label: "Krankheit (AU-Bescheinigung)" },
+                            { code: "S", label: "Schule (Führungsnachwuchskraft)" },
+                            { code: "U", label: "Urlaub" }
+                        ]
+                    },
+                    instructions: { enabled: true, text: "Arbeitszeiten: Arbeitszeitbeginn bis Arbeitszeitende inkl. Pausenzeiten und der Tagesstunden eintragen. Am Ende der Woche: wöchentliche und monatliche Summe eintragen." },
+                    date_stamp: { enabled: true, text: "Stand: Oktober 2014" }
+                },
+                styling: {
+                    fonts: {
+                        header_font: "Helvetica-Bold", header_size: 11,
+                        table_font: "Helvetica", table_size: 7,
+                        footer_font: "Helvetica", footer_size: 6
+                    },
+                    colors: {
+                        header_bg: "#FFFFFF", header_text: "#000000",
+                        table_border: "#000000", table_bg: "#FFFFFF", table_text: "#000000"
+                    },
+                    spacing: { page_margin: 15, section_spacing: 6, row_height: 12 },
+                    table_style: { border_width: 0.5, grid_style: "solid", cell_padding: 2 }
+                }
+            };
+            
+            try {
+                section.className = 'test-section pending';
+                result.innerHTML = '<p>Testing all fields...</p>';
+                
+                // Save the full config
+                const saveResponse = await fetch(API_BASE, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pdf_layout: fullMEPConfig })
+                });
+                
+                if (!saveResponse.ok) throw new Error('Failed to save full config');
+                
+                // Load it back
+                const loadResponse = await fetch(API_BASE);
+                const settings = await loadResponse.json();
+                const savedConfig = settings.pdf_layout;
+                
+                // Verify all major sections
+                const tests = [
+                    { name: 'Header title', check: () => savedConfig.header?.title === fullMEPConfig.header.title },
+                    { name: 'Store field', check: () => savedConfig.header?.store_field?.label === fullMEPConfig.header.store_field.label },
+                    { name: 'Period fields', check: () => savedConfig.header?.period_fields?.month_year?.label === fullMEPConfig.header.period_fields.month_year.label },
+                    { name: 'Employee columns', check: () => savedConfig.table?.employee_columns?.name?.label === fullMEPConfig.table.employee_columns.name.label },
+                    { name: 'Day columns', check: () => Array.isArray(savedConfig.table?.day_columns?.enabled_days) && savedConfig.table.day_columns.enabled_days.length === 7 },
+                    { name: 'Row structure', check: () => savedConfig.table?.row_structure?.start_row?.label === fullMEPConfig.table.row_structure.start_row.label },
+                    { name: 'Break rules', check: () => savedConfig.footer?.break_rules?.enabled === true },
+                    { name: 'Absence types', check: () => Array.isArray(savedConfig.footer?.absence_types?.types) && savedConfig.footer.absence_types.types.length === 5 },
+                    { name: 'Fonts', check: () => savedConfig.styling?.fonts?.header_font === fullMEPConfig.styling.fonts.header_font },
+                    { name: 'Colors', check: () => savedConfig.styling?.colors?.header_bg === fullMEPConfig.styling.colors.header_bg }
+                ];
+                
+                const passed = tests.filter(test => test.check());
+                const failed = tests.filter(test => !test.check());
+                
+                if (failed.length === 0) {
+                    section.className = 'test-section success';
+                    result.innerHTML = `
+                        <p>✅ All ${tests.length} field tests passed!</p>
+                        <ul>${passed.map(test => `<li>✅ ${test.name}</li>`).join('')}</ul>
+                    `;
+                } else {
+                    section.className = 'test-section error';
+                    result.innerHTML = `
+                        <p>❌ ${failed.length} tests failed, ${passed.length} passed</p>
+                        <ul>
+                            ${passed.map(test => `<li>✅ ${test.name}</li>`).join('')}
+                            ${failed.map(test => `<li>❌ ${test.name}</li>`).join('')}
+                        </ul>
+                    `;
+                }
+            } catch (error) {
+                section.className = 'test-section error';
+                result.innerHTML = `<p>❌ Failed to test all fields: ${error.message}</p>`;
+            }
+        }
+
+        // Auto-run basic load test on page load
+        window.onload = () => {
+            setTimeout(testLoadConfig, 500);
+        };
+    </script>
+</body>
+</html>

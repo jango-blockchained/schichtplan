@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field, validator, RootModel
-from typing import Dict, List, Optional, Any, Literal
 from datetime import datetime
+from typing import Any, Dict, List, Literal, Optional
+
+from pydantic import BaseModel, Field, RootModel, validator
 
 # --- Existing/Verified Models (with minor adjustments if needed) ---
 
@@ -326,20 +327,252 @@ class PDFContentSchema(BaseModel):
     )
 
 
-class PDFLayoutSettingsSchema(BaseModel):
-    """Schema for overall PDF layout settings."""
+# MEP PDF Configuration Schemas - Matching Frontend SimplifiedPDFConfig
 
+
+class MEPStoreFieldSchema(BaseModel):
+    """Schema for MEP store field."""
+
+    label: Optional[str] = None
+    value: Optional[str] = None
+
+
+class MEPPeriodFieldSchema(BaseModel):
+    """Schema for MEP period field."""
+
+    label: Optional[str] = None
+    value: Optional[str] = None
+
+
+class MEPPeriodFieldsSchema(BaseModel):
+    """Schema for MEP period fields."""
+
+    month_year: Optional[MEPPeriodFieldSchema] = None
+    week_from: Optional[MEPPeriodFieldSchema] = None
+    week_to: Optional[MEPPeriodFieldSchema] = None
+
+
+class MEPStorageNoteSchema(BaseModel):
+    """Schema for MEP storage note."""
+
+    text: Optional[str] = None
+    position: Optional[str] = None
+
+
+class MEPHeaderSchema(BaseModel):
+    """Schema for MEP header."""
+
+    title: Optional[str] = None
+    store_field: Optional[MEPStoreFieldSchema] = None
+    period_fields: Optional[MEPPeriodFieldsSchema] = None
+    storage_note: Optional[MEPStorageNoteSchema] = None
+
+
+class MEPEmployeeColumnSchema(BaseModel):
+    """Schema for MEP employee column."""
+
+    label: Optional[str] = None
+    width: Optional[float] = None
+
+
+class MEPEmployeeColumnsSchema(BaseModel):
+    """Schema for MEP employee columns."""
+
+    name: Optional[MEPEmployeeColumnSchema] = None
+    function: Optional[MEPEmployeeColumnSchema] = None
+    plan_week: Optional[MEPEmployeeColumnSchema] = None
+
+
+class MEPDayColumnsSchema(BaseModel):
+    """Schema for MEP day columns."""
+
+    enabled_days: Optional[List[str]] = None
+    day_labels: Optional[Dict[str, str]] = None
+    day_width: Optional[float] = None
+
+
+class MEPSummaryColumnSchema(BaseModel):
+    """Schema for MEP summary column."""
+
+    label: Optional[str] = None
+    width: Optional[float] = None
+
+
+class MEPSummaryColumnsSchema(BaseModel):
+    """Schema for MEP summary columns."""
+
+    week_total: Optional[MEPSummaryColumnSchema] = None
+    month_total: Optional[MEPSummaryColumnSchema] = None
+
+
+class MEPRowSchema(BaseModel):
+    """Schema for MEP row."""
+
+    label: Optional[str] = None
+    enabled: Optional[bool] = None
+
+
+class MEPRowStructureSchema(BaseModel):
+    """Schema for MEP row structure."""
+
+    date_row: Optional[MEPRowSchema] = None
+    active_row: Optional[MEPRowSchema] = None
+    start_row: Optional[MEPRowSchema] = None
+    break_row: Optional[MEPRowSchema] = None
+    end_row: Optional[MEPRowSchema] = None
+    total_row: Optional[MEPRowSchema] = None
+
+
+class MEPTableSchema(BaseModel):
+    """Schema for MEP table."""
+
+    employee_columns: Optional[MEPEmployeeColumnsSchema] = None
+    day_columns: Optional[MEPDayColumnsSchema] = None
+    summary_columns: Optional[MEPSummaryColumnsSchema] = None
+    row_structure: Optional[MEPRowStructureSchema] = None
+
+
+class MEPBreakRulesSchema(BaseModel):
+    """Schema for MEP break rules."""
+
+    enabled: Optional[bool] = None
+    text: Optional[str] = None
+
+
+class MEPAbsenceTypeSchema(BaseModel):
+    """Schema for MEP absence type."""
+
+    code: Optional[str] = None
+    label: Optional[str] = None
+
+
+class MEPAbsenceTypesSchema(BaseModel):
+    """Schema for MEP absence types."""
+
+    enabled: Optional[bool] = None
+    title: Optional[str] = None
+    types: Optional[List[MEPAbsenceTypeSchema]] = None
+
+
+class MEPInstructionsSchema(BaseModel):
+    """Schema for MEP instructions."""
+
+    enabled: Optional[bool] = None
+    text: Optional[str] = None
+
+
+class MEPDateStampSchema(BaseModel):
+    """Schema for MEP date stamp."""
+
+    enabled: Optional[bool] = None
+    text: Optional[str] = None
+
+
+class MEPFooterSchema(BaseModel):
+    """Schema for MEP footer."""
+
+    break_rules: Optional[MEPBreakRulesSchema] = None
+    absence_types: Optional[MEPAbsenceTypesSchema] = None
+    instructions: Optional[MEPInstructionsSchema] = None
+    date_stamp: Optional[MEPDateStampSchema] = None
+
+
+class MEPFontsSchema(BaseModel):
+    """Schema for MEP fonts."""
+
+    header_font: Optional[str] = None
+    header_size: Optional[float] = None
+    table_font: Optional[str] = None
+    table_size: Optional[float] = None
+    footer_font: Optional[str] = None
+    footer_size: Optional[float] = None
+
+
+class MEPColorsSchema(BaseModel):
+    """Schema for MEP colors."""
+
+    header_bg: Optional[str] = None
+    header_text: Optional[str] = None
+    table_border: Optional[str] = None
+    table_bg: Optional[str] = None
+    table_text: Optional[str] = None
+
+
+class MEPSpacingSchema(BaseModel):
+    """Schema for MEP spacing."""
+
+    page_margin: Optional[float] = None
+    section_spacing: Optional[float] = None
+    row_height: Optional[float] = None
+
+
+class MEPTableStyleSchema(BaseModel):
+    """Schema for MEP table style."""
+
+    border_width: Optional[float] = None
+    grid_style: Optional[str] = None
+    cell_padding: Optional[float] = None
+
+
+class MEPStylingSchema(BaseModel):
+    """Schema for MEP styling."""
+
+    fonts: Optional[MEPFontsSchema] = None
+    colors: Optional[MEPColorsSchema] = None
+    spacing: Optional[MEPSpacingSchema] = None
+    table_style: Optional[MEPTableStyleSchema] = None
+
+
+class SimplifiedPDFConfigSchema(BaseModel):
+    """Schema for the complete MEP PDF configuration matching frontend interface."""
+
+    header: Optional[MEPHeaderSchema] = None
+    table: Optional[MEPTableSchema] = None
+    footer: Optional[MEPFooterSchema] = None
+    styling: Optional[MEPStylingSchema] = None
+
+
+class PDFLayoutSettingsSchema(BaseModel):
+    """Schema for overall PDF layout settings supporting both legacy and MEP formats."""
+
+    # Legacy settings for backward compatibility
     page_size: Optional[str] = Field(None, description="Page size (e.g., A4, Letter).")
     orientation: Optional[Literal["portrait", "landscape"]] = Field(
         None, description="Page orientation."
     )
     margins: Optional[PDFMarginsSchema] = Field(None, description="Page margins.")
+    fonts: Optional[PDFFontsSchema] = Field(None, description="Font settings.")
+    table_style: Optional[PDFTableStyleSchema] = Field(
+        None, description="Table styling."
+    )
+    content: Optional[PDFContentSchema] = Field(
+        None, description="Content visibility settings."
+    )
+
+    # New MEP configuration - this will be the main config when using MEP layouts
+    header: Optional[MEPHeaderSchema] = Field(
+        None, description="MEP header configuration."
+    )
+    table: Optional[MEPTableSchema] = Field(
+        None, description="MEP table configuration."
+    )
+    footer: Optional[MEPFooterSchema] = Field(
+        None, description="MEP footer configuration."
+    )
+    styling: Optional[MEPStylingSchema] = Field(
+        None, description="MEP styling configuration."
+    )
     table_style: Optional[PDFTableStyleSchema] = Field(
         None, description="Styling for tables in PDF."
     )
     fonts: Optional[PDFFontsSchema] = Field(None, description="Font settings for PDF.")
     content: Optional[PDFContentSchema] = Field(
         None, description="Content visibility settings for PDF."
+    )
+
+    # New MEP-specific configuration
+    mep_config: Optional[SimplifiedPDFConfigSchema] = Field(
+        None, description="Detailed MEP form configuration"
     )
 
 
@@ -432,7 +665,8 @@ class DemoDataSettingsSchema(BaseModel):
         None, description="Module for which to generate demo data."
     )
     last_execution: Optional[str] = Field(
-        None, description="Timestamp of the last demo data generation (ISO format string)."
+        None,
+        description="Timestamp of the last demo data generation (ISO format string).",
     )  # Changed back to string for JSON serialization
 
 

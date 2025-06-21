@@ -203,6 +203,9 @@ class Settings(db.Model):
     show_breaks = Column(Boolean, nullable=False, default=True)
     show_total_hours = Column(Boolean, nullable=False, default=True)
 
+    # MEP PDF Configuration (new nested structure)
+    pdf_layout_mep_config = Column(JSON, nullable=True, default=None)
+
     # Employee Group Settings
     employee_types = Column(
         JSON,
@@ -401,6 +404,41 @@ class Settings(db.Model):
                 return custom_hours["opening"], custom_hours["closing"]
         return str(self.store_opening), str(self.store_closing)
 
+    def _get_pdf_layout_dict(self) -> Dict[str, Any]:
+        """Get PDF layout configuration, preferring MEP config if available."""
+        if self.pdf_layout_mep_config:
+            # Return the new MEP structure
+            return self.pdf_layout_mep_config
+        else:
+            # Return the legacy flat structure
+            return {
+                "page_size": self.page_size,
+                "orientation": self.orientation,
+                "margins": {
+                    "top": self.margin_top,
+                    "right": self.margin_right,
+                    "bottom": self.margin_bottom,
+                    "left": self.margin_left,
+                },
+                "table_style": {
+                    "header_bg_color": self.table_header_bg_color,
+                    "border_color": self.table_border_color,
+                    "text_color": self.table_text_color,
+                    "header_text_color": self.table_header_text_color,
+                },
+                "fonts": {
+                    "family": self.font_family,
+                    "size": self.font_size,
+                    "header_size": self.header_font_size,
+                },
+                "content": {
+                    "show_employee_id": self.show_employee_id,
+                    "show_position": self.show_position,
+                    "show_breaks": self.show_breaks,
+                    "show_total_hours": self.show_total_hours,
+                },
+            }
+
     def to_dict(self) -> Dict[str, Any]:
         # Convert opening_days to use string day names
         formatted_opening_days = (
@@ -468,33 +506,7 @@ class Settings(db.Model):
                 "shift_changes_notify": self.shift_changes_notify,
                 "time_off_requests_notify": self.time_off_requests_notify,
             },
-            "pdf_layout": {
-                "page_size": self.page_size,
-                "orientation": self.orientation,
-                "margins": {
-                    "top": self.margin_top,
-                    "right": self.margin_right,
-                    "bottom": self.margin_bottom,
-                    "left": self.margin_left,
-                },
-                "table_style": {
-                    "header_bg_color": self.table_header_bg_color,
-                    "border_color": self.table_border_color,
-                    "text_color": self.table_text_color,
-                    "header_text_color": self.table_header_text_color,
-                },
-                "fonts": {
-                    "family": self.font_family,
-                    "size": self.font_size,
-                    "header_size": self.header_font_size,
-                },
-                "content": {
-                    "show_employee_id": self.show_employee_id,
-                    "show_position": self.show_position,
-                    "show_breaks": self.show_breaks,
-                    "show_total_hours": self.show_total_hours,
-                },
-            },
+            "pdf_layout": self._get_pdf_layout_dict(),
             "employee_groups": {
                 "employee_types": self.employee_types or [],  # Ensure not None
                 "shift_types": self.shift_types or [],  # Ensure not None
@@ -786,27 +798,38 @@ class Settings(db.Model):
                     elif hasattr(settings, key):
                         setattr(settings, key, value)
             elif category == "pdf_layout":
-                for pdf_key, pdf_value in values.items():
-                    if pdf_key == "margins" and isinstance(pdf_value, dict):
-                        for m_key, m_value in pdf_value.items():
-                            setattr(settings, f"margin_{m_key}", m_value)
-                    elif pdf_key == "table_style" and isinstance(pdf_value, dict):
-                        for ts_key, ts_value in pdf_value.items():
-                            setattr(settings, f"table_{ts_key}", ts_value)
-                    elif pdf_key == "fonts" and isinstance(pdf_value, dict):
-                        for f_key, f_value in pdf_value.items():
-                            setattr(
-                                settings,
-                                f"font_{f_key}"
-                                if f_key != "header_size"
-                                else "header_font_size",
-                                f_value,
-                            )
-                    elif pdf_key == "content" and isinstance(pdf_value, dict):
-                        for c_key, c_value in pdf_value.items():
-                            setattr(settings, c_key, c_value)
-                    elif hasattr(settings, pdf_key):
-                        setattr(settings, pdf_key, pdf_value)
+                # Handle both legacy flat structure and new MEP nested structure
+                if isinstance(values, dict):
+                    # Check if this is the new MEP structure (contains header, table, footer, styling)
+                    mep_keys = {"header", "table", "footer", "styling"}
+                    if any(key in values for key in mep_keys):
+                        # This is the new MEP structure - save as JSON
+                        settings.pdf_layout_mep_config = values
+                    else:
+                        # Legacy flat structure handling
+                        for pdf_key, pdf_value in values.items():
+                            if pdf_key == "margins" and isinstance(pdf_value, dict):
+                                for m_key, m_value in pdf_value.items():
+                                    setattr(settings, f"margin_{m_key}", m_value)
+                            elif pdf_key == "table_style" and isinstance(
+                                pdf_value, dict
+                            ):
+                                for ts_key, ts_value in pdf_value.items():
+                                    setattr(settings, f"table_{ts_key}", ts_value)
+                            elif pdf_key == "fonts" and isinstance(pdf_value, dict):
+                                for f_key, f_value in pdf_value.items():
+                                    setattr(
+                                        settings,
+                                        f"font_{f_key}"
+                                        if f_key != "header_size"
+                                        else "header_font_size",
+                                        f_value,
+                                    )
+                            elif pdf_key == "content" and isinstance(pdf_value, dict):
+                                for c_key, c_value in pdf_value.items():
+                                    setattr(settings, c_key, c_value)
+                            elif hasattr(settings, pdf_key):
+                                setattr(settings, pdf_key, pdf_value)
             elif category == "employee_groups":
                 if isinstance(values, dict):
                     if (
