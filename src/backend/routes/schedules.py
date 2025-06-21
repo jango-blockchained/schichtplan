@@ -235,6 +235,27 @@ def get_schedules():
         for schedule in schedules:
             schedule_dict = schedule.to_dict()
 
+            # Add break_duration to the response
+            if (
+                schedule.break_start is not None
+                and isinstance(schedule.break_start, str)
+                and schedule.break_end is not None
+                and isinstance(schedule.break_end, str)
+            ):
+                try:
+                    break_start = datetime.strptime(schedule.break_start, "%H:%M")
+                    break_end = datetime.strptime(schedule.break_end, "%H:%M")
+                    # Calculate duration in minutes
+                    break_duration_minutes = int(
+                        (break_end - break_start).total_seconds() / 60
+                    )
+                    schedule_dict["break_duration"] = break_duration_minutes
+                except Exception as e:
+                    logger.error(f"Error calculating break duration for schedule {schedule.id}: {str(e)}")
+                    schedule_dict["break_duration"] = 0
+            else:
+                schedule_dict["break_duration"] = 0
+
             # If the schedule has a shift_id but missing relationship data, fix it
             if schedule.shift_id is not None and (
                 not hasattr(schedule, "shift") or schedule.shift is None
@@ -575,7 +596,31 @@ def get_schedule(schedule_id):
         return jsonify(
             {"status": "error", "message": "Schedule not found"}
         ), HTTPStatus.NOT_FOUND
-    return jsonify(schedule.to_dict())
+    
+    # Add break_duration to the response
+    response_data = schedule.to_dict()
+    # Check if break_start and break_end are not None and are strings before parsing
+    if (
+        schedule.break_start is not None
+        and isinstance(schedule.break_start, str)
+        and schedule.break_end is not None
+        and isinstance(schedule.break_end, str)
+    ):
+        try:
+            break_start = datetime.strptime(schedule.break_start, "%H:%M")
+            break_end = datetime.strptime(schedule.break_end, "%H:%M")
+            # Calculate duration in minutes
+            break_duration_minutes = int(
+                (break_end - break_start).total_seconds() / 60
+            )
+            response_data["break_duration"] = break_duration_minutes
+        except Exception as e:
+            logger.error(f"Error calculating break duration for schedule {schedule_id}: {str(e)}")
+            response_data["break_duration"] = 0
+    else:
+        response_data["break_duration"] = 0
+    
+    return jsonify(response_data)
 
 
 @schedules.route("/schedules/<int:schedule_id>", methods=["PUT"])
@@ -630,42 +675,90 @@ def update_schedule(schedule_id):
             )
 
             # Handle break_duration by converting it to break_start and break_end
-            if (
-                request_data.break_duration is not None
-                and request_data.break_duration > 0
-            ):
-                # If we have a shift, calculate break times based on shift times
-                if schedule.shift_id is not None:
-                    shift = ShiftTemplate.query.get(schedule.shift_id)
-                    if shift is not None:
-                        # Start break midway through the shift
-                        shift_start = datetime.strptime(shift.start_time, "%H:%M")
-                        shift_end = datetime.strptime(shift.end_time, "%H:%M")
-                        shift_duration = (
-                            shift_end - shift_start
-                        ).total_seconds() / 60  # in minutes
+            if hasattr(request_data, 'break_duration'):
+                if request_data.break_duration is None:
+                    # Auto-calculate break duration using the new method
+                    logger.info(f"Auto-calculating break duration for new schedule")
+                    auto_break_duration = schedule.calculate_auto_break_duration()
+                    logger.info(f"Auto-calculated break duration: {auto_break_duration} minutes")
+                    
+                    if auto_break_duration > 0:
+                        # If we have a shift, calculate break times based on shift times
+                        if schedule.shift_id is not None:
+                            shift = ShiftTemplate.query.get(schedule.shift_id)
+                            if shift is not None:
+                                # Start break midway through the shift
+                                shift_start = datetime.strptime(shift.start_time, "%H:%M")
+                                shift_end = datetime.strptime(shift.end_time, "%H:%M")
+                                shift_duration = (
+                                    shift_end - shift_start
+                                ).total_seconds() / 60  # in minutes
 
-                        # Calculate break start time (midway through the shift)
-                        break_start_minutes = shift_duration / 2
-                        break_start_time = shift_start + timedelta(
-                            minutes=break_start_minutes
-                        )
+                                # Calculate break start time (midway through the shift)
+                                break_start_minutes = shift_duration / 2
+                                break_start_time = shift_start + timedelta(
+                                    minutes=break_start_minutes
+                                )
 
-                        # Calculate break end time based on duration
-                        break_end_time = break_start_time + timedelta(
-                            minutes=request_data.break_duration
-                        )
+                                # Calculate break end time based on auto-calculated duration
+                                break_end_time = break_start_time + timedelta(
+                                    minutes=auto_break_duration
+                                )
 
-                        # Format times as strings
-                        schedule.break_start = break_start_time.strftime("%H:%M")
-                        schedule.break_end = break_end_time.strftime("%H:%M")
+                                # Format times as strings
+                                schedule.break_start = break_start_time.strftime("%H:%M")
+                                schedule.break_end = break_end_time.strftime("%H:%M")
 
-                        logger.info(
-                            f"Calculated break times: {schedule.break_start} to {schedule.break_end} from duration {request_data.break_duration}"
-                        )
-                elif (
-                    request_data.break_duration > 0
-                ):  # If no shift but break duration is provided, clear break times
+                                logger.info(
+                                    f"Calculated break times: {schedule.break_start} to {schedule.break_end} from auto-calculated duration {auto_break_duration}"
+                                )
+                        else:
+                            # No shift, clear break times
+                            schedule.break_start = None
+                            schedule.break_end = None
+                    else:
+                        # No break needed, clear break times
+                        schedule.break_start = None
+                        schedule.break_end = None
+                        
+                elif request_data.break_duration > 0:
+                    # Manual break duration provided
+                    logger.info(f"Using manual break duration: {request_data.break_duration} minutes")
+                    # If we have a shift, calculate break times based on shift times
+                    if schedule.shift_id is not None:
+                        shift = ShiftTemplate.query.get(schedule.shift_id)
+                        if shift is not None:
+                            # Start break midway through the shift
+                            shift_start = datetime.strptime(shift.start_time, "%H:%M")
+                            shift_end = datetime.strptime(shift.end_time, "%H:%M")
+                            shift_duration = (
+                                shift_end - shift_start
+                            ).total_seconds() / 60  # in minutes
+
+                            # Calculate break start time (midway through the shift)
+                            break_start_minutes = shift_duration / 2
+                            break_start_time = shift_start + timedelta(
+                                minutes=break_start_minutes
+                            )
+
+                            # Calculate break end time based on manual duration
+                            break_end_time = break_start_time + timedelta(
+                                minutes=request_data.break_duration
+                            )
+
+                            # Format times as strings
+                            schedule.break_start = break_start_time.strftime("%H:%M")
+                            schedule.break_end = break_end_time.strftime("%H:%M")
+
+                            logger.info(
+                                f"Calculated break times: {schedule.break_start} to {schedule.break_end} from manual duration {request_data.break_duration}"
+                            )
+                    else:
+                        # No shift but break duration is provided, clear break times
+                        schedule.break_start = None
+                        schedule.break_end = None
+                else:
+                    # If break_duration is 0 or negative, clear break times
                     schedule.break_start = None
                     schedule.break_end = None
 
@@ -746,8 +839,55 @@ def update_schedule(schedule_id):
                 )
 
             # Handle break_duration updates
-            if request_data.break_duration is not None:
-                if request_data.break_duration > 0:
+            if hasattr(request_data, 'break_duration'):
+                if request_data.break_duration is None:
+                    # Auto-calculate break duration using the new method
+                    logger.info(f"Auto-calculating break duration for schedule {schedule_id}")
+                    auto_break_duration = schedule.calculate_auto_break_duration()
+                    logger.info(f"Auto-calculated break duration: {auto_break_duration} minutes")
+                    
+                    if auto_break_duration > 0:
+                        # If we have a shift, calculate break times based on shift times
+                        if schedule.shift_id is not None:
+                            shift = ShiftTemplate.query.get(schedule.shift_id)
+                            if shift is not None:
+                                # Start break midway through the shift
+                                shift_start = datetime.strptime(shift.start_time, "%H:%M")
+                                shift_end = datetime.strptime(shift.end_time, "%H:%M")
+                                shift_duration = (
+                                    shift_end - shift_start
+                                ).total_seconds() / 60  # in minutes
+
+                                # Calculate break start time (midway through the shift)
+                                break_start_minutes = shift_duration / 2
+                                break_start_time = shift_start + timedelta(
+                                    minutes=break_start_minutes
+                                )
+
+                                # Calculate break end time based on auto-calculated duration
+                                break_end_time = break_start_time + timedelta(
+                                    minutes=auto_break_duration
+                                )
+
+                                # Format times as strings
+                                schedule.break_start = break_start_time.strftime("%H:%M")
+                                schedule.break_end = break_end_time.strftime("%H:%M")
+
+                                logger.info(
+                                    f"Calculated break times: {schedule.break_start} to {schedule.break_end} from auto-calculated duration {auto_break_duration}"
+                                )
+                        else:
+                            # No shift, clear break times
+                            schedule.break_start = None
+                            schedule.break_end = None
+                    else:
+                        # No break needed, clear break times
+                        schedule.break_start = None
+                        schedule.break_end = None
+                        
+                elif request_data.break_duration > 0:
+                    # Manual break duration provided
+                    logger.info(f"Using manual break duration: {request_data.break_duration} minutes")
                     # If we have a shift, calculate break times based on shift times
                     if schedule.shift_id is not None:
                         shift = ShiftTemplate.query.get(schedule.shift_id)
@@ -762,10 +902,10 @@ def update_schedule(schedule_id):
                             # Calculate break start time (midway through the shift)
                             break_start_minutes = shift_duration / 2
                             break_start_time = shift_start + timedelta(
-                                minutes=request_data.break_duration
+                                minutes=break_start_minutes
                             )
 
-                            # Calculate break end time based on duration
+                            # Calculate break end time based on manual duration
                             break_end_time = break_start_time + timedelta(
                                 minutes=request_data.break_duration
                             )
@@ -775,11 +915,10 @@ def update_schedule(schedule_id):
                             schedule.break_end = break_end_time.strftime("%H:%M")
 
                             logger.info(
-                                f"Calculated break times: {schedule.break_start} to {schedule.break_end} from duration {request_data.break_duration}"
+                                f"Calculated break times: {schedule.break_start} to {schedule.break_end} from manual duration {request_data.break_duration}"
                             )
-                    elif (
-                        request_data.break_duration > 0
-                    ):  # If no shift but break duration is provided, clear break times
+                    else:
+                        # No shift but break duration is provided, clear break times
                         schedule.break_start = None
                         schedule.break_end = None
                 else:

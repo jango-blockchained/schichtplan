@@ -152,6 +152,58 @@ class Schedule(db.Model):
             logger.error(f"Error calculating break duration for schedule {self.id}: {e}")
             self.break_duration = None
 
+    def calculate_auto_break_duration(self):
+        """Calculate break duration automatically based on shift duration and keyholder status"""
+        shift_start_val = getattr(self, 'shift_start', None)
+        shift_end_val = getattr(self, 'shift_end', None)
+        
+        if not shift_start_val or not shift_end_val:
+            return 0
+            
+        try:
+            from ..models.settings import Settings
+            
+            # Calculate base working hours
+            start_hour, start_min = map(int, str(shift_start_val).split(":"))
+            end_hour, end_min = map(int, str(shift_end_val).split(":"))
+            
+            start_minutes = start_hour * 60 + start_min
+            end_minutes = end_hour * 60 + end_min
+            
+            # Handle overnight shifts
+            if end_minutes < start_minutes:
+                end_minutes += 24 * 60
+                
+            base_working_hours = (end_minutes - start_minutes) / 60
+            
+            # Standard break for >6h working time
+            total_break_minutes = 30 if base_working_hours > 6 else 0
+            
+            # Add keyholder extra time as break
+            if self.employee and self.employee.is_keyholder:
+                settings = Settings.query.first()
+                if settings:
+                    keyholder_before_minutes = getattr(settings, 'keyholder_before_minutes', 5)
+                    keyholder_after_minutes = getattr(settings, 'keyholder_after_minutes', 10)
+                    store_opening = getattr(settings, 'store_opening', '09:00')
+                    store_closing = getattr(settings, 'store_closing', '18:00')
+                    
+                    # Early shift (opening) - add before minutes as break
+                    if store_opening and str(shift_start_val) <= store_opening:
+                        total_break_minutes += keyholder_before_minutes
+                        
+                    # Late shift (closing) - add after minutes as break
+                    if store_closing and str(shift_end_val) >= store_closing:
+                        total_break_minutes += keyholder_after_minutes
+            
+            return total_break_minutes
+            
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error calculating auto break duration for schedule {self.id}: {e}")
+            return 0
+
     def to_dict(self):
         """Convert schedule to dictionary for API response"""
         data = {

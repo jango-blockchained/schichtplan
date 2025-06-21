@@ -156,7 +156,7 @@ const calculateBaseDuration = (startTime: string, endTime: string): number => {
 };
 
 // Calculate break duration with auto 30min rule for >6h shifts
-const calculateBreakDuration = (schedule: Schedule): number => {
+const calculateBreakDuration = (schedule: Schedule, employee?: Employee, settings?: any): number => {
   try {
     // Priority 1: Manual break times
     if (schedule.break_start && schedule.break_end) {
@@ -169,12 +169,35 @@ const calculateBreakDuration = (schedule: Schedule): number => {
     }
     
     // Priority 3: Auto-calculate based on total duration (30min for >6h)
-    if (schedule.shift_start && schedule.shift_end) {
-      const totalDuration = calculateBaseDuration(schedule.shift_start, schedule.shift_end);
-      return totalDuration > 6 ? 0.5 : 0; // 30 minutes if > 6 hours, 0 otherwise
+    // Use keyholder-adjusted times if employee and settings are provided
+    let totalDuration: number;
+    if (employee && settings && schedule.shift_start && schedule.shift_end) {
+      const { startTime, endTime } = getKeyholderAdjustedTimes(schedule, employee, settings);
+      totalDuration = calculateBaseDuration(startTime, endTime);
+    } else if (schedule.shift_start && schedule.shift_end) {
+      totalDuration = calculateBaseDuration(schedule.shift_start, schedule.shift_end);
+    } else {
+      return 0;
     }
     
-    return 0;
+    // For keyholders with extended shifts, add extra break time
+    if (employee && settings && employee.is_keyholder && schedule.shift_start && schedule.shift_end) {
+      const baseDuration = calculateBaseDuration(schedule.shift_start, schedule.shift_end);
+      const extraTime = totalDuration - baseDuration;
+      
+      // Base break: 30min for >6h shifts
+      let baseBreak = baseDuration > 6 ? 0.5 : 0;
+      
+      // Add extra break for keyholder duties (proportional to extra time)
+      if (extraTime > 0) {
+        // Add extra break: 15 minutes per extra hour of keyholder duties
+        baseBreak += extraTime * 0.25; // 0.25 = 15 minutes per hour
+      }
+      
+      return baseBreak;
+    }
+    
+    return totalDuration > 6 ? 0.5 : 0; // 30 minutes if > 6 hours, 0 otherwise
   } catch (error) {
     console.error("Error calculating break duration:", error);
     return 0;
@@ -226,7 +249,7 @@ const calculateWorkingTime = (
   const { startTime, endTime } = getKeyholderAdjustedTimes(schedule, employee, settings);
   
   const totalTime = calculateBaseDuration(startTime, endTime);
-  const breakTime = calculateBreakDuration(schedule);
+  const breakTime = calculateBreakDuration(schedule, employee, settings);
   const workingTime = Math.max(0, totalTime - breakTime);
   
   return { totalTime, breakTime, workingTime };
@@ -482,10 +505,10 @@ const TimeSlotDisplay = ({
           <div className="text-xs text-muted-foreground font-medium">
             {(() => {
               if (schedule) {
-                const breakDuration = calculateBreakDuration(schedule);
-                const workingTime = Math.max(0, duration - breakDuration);
-                const workingTimeFormatted = formatTimeHourMin(workingTime);
-                const breakTimeFormatted = formatTimeHourMin(breakDuration);
+                // Use the centralized function that handles keyholder adjustments properly
+                const timeCalc = calculateWorkingTime(schedule, employee, settings);
+                const workingTimeFormatted = formatTimeHourMin(timeCalc.workingTime);
+                const breakTimeFormatted = formatTimeHourMin(timeCalc.breakTime);
                 return `${workingTimeFormatted} / ${breakTimeFormatted}`;
               }
               return formatDuration(duration);
