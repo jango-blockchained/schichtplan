@@ -1,4 +1,4 @@
-  import { useState, useEffect, ChangeEvent } from "react";
+  import { useState, useEffect, ChangeEvent, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
-import { Schedule, ScheduleUpdate, Employee } from "@/types";
+import { Schedule, ScheduleUpdate, Employee, Settings } from "@/types";
 import {
   Select,
   SelectContent,
@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getShifts, getEmployees, getSchedules, updateEmployee, createSchedule } from "@/services/api";
+import { getShifts, getEmployees, getSchedules, updateEmployee, createSchedule, getSettings } from "@/services/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
@@ -53,6 +53,11 @@ export function ShiftEditModal({
   );
   const [notes, setNotes] = useState(schedule.notes ?? "");
   const [isKeyholder, setIsKeyholder] = useState<boolean>(false);
+  
+  // Auto/Manual mode states
+  const [isAutoBreakDuration, setIsAutoBreakDuration] = useState<boolean>(true);
+  const [isAutoStartTime, setIsAutoStartTime] = useState<boolean>(true);
+  const [isAutoEndTime, setIsAutoEndTime] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showKeyholderConflict, setShowKeyholderConflict] = useState(false);
   const [conflictingKeyholder, setConflictingKeyholder] = useState<string>("");
@@ -67,6 +72,11 @@ export function ShiftEditModal({
   const { data: employees } = useQuery({
     queryKey: ["employees"],
     queryFn: getEmployees,
+  });
+
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: getSettings,
   });
 
   const { data: allSchedules } = useQuery({
@@ -99,24 +109,126 @@ export function ShiftEditModal({
     shift_end: schedule.shift_end,
   });
 
+  // Enhanced break calculation function for keyholders
+  const calculateAutoBreakDuration = useCallback((
+    startTime: string, 
+    endTime: string, 
+    employeeData: Employee | undefined, 
+    settingsData: Settings | undefined
+  ): number => {
+    try {
+      if (!startTime || !endTime) return 0;
+      
+      // Calculate base working hours
+      const startMinutes = timeToMinutes(startTime);
+      let endMinutes = timeToMinutes(endTime);
+      
+      // Handle overnight shifts
+      if (endMinutes < startMinutes) {
+        endMinutes += 24 * 60;
+      }
+      
+      const baseWorkingHours = (endMinutes - startMinutes) / 60;
+      
+      // Standard break for >6h working time
+      let totalBreakMinutes = baseWorkingHours > 6 ? 30 : 0;
+      
+      // Add keyholder extra time as break
+      if (employeeData?.is_keyholder && settingsData?.general) {
+        const { 
+          keyholder_before_minutes = 5, 
+          keyholder_after_minutes = 10, 
+          store_opening, 
+          store_closing 
+        } = settingsData.general;
+        
+        // Early shift (opening) - add before minutes as break
+        if (store_opening && startTime <= store_opening) {
+          totalBreakMinutes += keyholder_before_minutes;
+        }
+        
+        // Late shift (closing) - add after minutes as break  
+        if (store_closing && endTime >= store_closing) {
+          totalBreakMinutes += keyholder_after_minutes;
+        }
+      }
+      
+      return totalBreakMinutes;
+    } catch (error) {
+      console.error("Error calculating auto break duration:", error);
+      return 0;
+    }
+  }, []);
+
+  // Helper function to convert time string to minutes
+  const timeToMinutes = (timeStr: string): number => {
+    const [hours, minutes] = timeStr.split(":").map(Number);
+    return hours * 60 + minutes;
+  };
+
   useEffect(() => {
     if (schedule.shift_id) {
       setSelectedShiftId(schedule.shift_id.toString());
     }
     setShiftStartTime(schedule.shift_start || "09:00");
     setShiftEndTime(schedule.shift_end || "17:00");
-    setBreakDuration(0);
     setNotes(schedule.notes ?? "");
     
-    // Check if current employee is a keyholder
+    // Initialize auto/manual flags (default to auto for backward compatibility)
+    const hasManualBreak = schedule.break_duration != null && schedule.break_duration > 0;
+    setIsAutoBreakDuration(!hasManualBreak);
+    setIsAutoStartTime(!schedule.shift_start); // Auto if no custom start time
+    setIsAutoEndTime(!schedule.shift_end); // Auto if no custom end time
+    
+    // Calculate and set break duration
     const currentEmployee = employees?.find(emp => emp.id === schedule.employee_id);
+    
+    if (hasManualBreak) {
+      // Use existing manual break duration
+      setBreakDuration(schedule.break_duration);
+    } else {
+      // Calculate auto break duration
+      const startTime = schedule.shift_start || "09:00";
+      const endTime = schedule.shift_end || "17:00";
+      const autoBreak = calculateAutoBreakDuration(startTime, endTime, currentEmployee, settings);
+      setBreakDuration(autoBreak);
+    }
+    
+    // Check if current employee is a keyholder
     setIsKeyholder(currentEmployee?.is_keyholder ?? false);
     
     console.log(
-      "📋 ShiftEditModal initialized with availability_type:",
-      schedule.availability_type || "AVAILABLE",
+      "📋 ShiftEditModal initialized with break calculation:",
+      {
+        schedule_id: schedule.id,
+        hasManualBreak,
+        break_duration: schedule.break_duration,
+        calculated_auto_break: calculateAutoBreakDuration(
+          schedule.shift_start || "09:00", 
+          schedule.shift_end || "17:00", 
+          currentEmployee, 
+          settings
+        ),
+        availability_type: schedule.availability_type || "AVAILABLE",
+      }
     );
-  }, [schedule, employees]);
+  }, [schedule, employees, settings, calculateAutoBreakDuration]);
+
+  // Recalculate break duration when times or keyholder status change (in auto mode)
+  useEffect(() => {
+    if (isAutoBreakDuration && shiftStartTime && shiftEndTime) {
+      const currentEmployee = employees?.find(emp => emp.id === schedule.employee_id);
+      if (isKeyholder) {
+        // Use keyholder status from state (might be different from DB)
+        const keyholderEmployee = { ...currentEmployee, is_keyholder: true };
+        const autoBreak = calculateAutoBreakDuration(shiftStartTime, shiftEndTime, keyholderEmployee, settings);
+        setBreakDuration(autoBreak);
+      } else {
+        const autoBreak = calculateAutoBreakDuration(shiftStartTime, shiftEndTime, currentEmployee, settings);
+        setBreakDuration(autoBreak);
+      }
+    }
+  }, [isAutoBreakDuration, shiftStartTime, shiftEndTime, isKeyholder, employees, settings, schedule.employee_id, calculateAutoBreakDuration]);
 
   const handleShiftTemplateChange = (shiftId: string) => {
     setSelectedShiftId(shiftId);
