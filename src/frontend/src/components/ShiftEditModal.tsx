@@ -1,28 +1,28 @@
-  import { useState, useEffect, ChangeEvent, useCallback } from "react";
+  import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { useToast } from "@/components/ui/use-toast";
-import { Schedule, ScheduleUpdate, Employee, Settings } from "@/types";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
 } from "@/components/ui/select";
-import { getShifts, getEmployees, getSchedules, updateEmployee, createSchedule, getSettings } from "@/services/api";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
-import { format, addDays, subDays } from "date-fns";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/use-toast";
+import { createSchedule, getEmployees, getSchedules, getSettings, getShifts, updateEmployee } from "@/services/api";
+import { Employee, Schedule, ScheduleUpdate, Settings } from "@/types";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { addDays, format, subDays } from "date-fns";
+import { ChangeEvent, useCallback, useEffect, useState } from "react";
 
 interface ShiftEditModalProps {
   isOpen: boolean;
@@ -335,7 +335,7 @@ export function ShiftEditModal({
         shift_id: selectedShiftId ? parseInt(selectedShiftId, 10) : null,
         shift_start: shiftStartTime,
         shift_end: shiftEndTime,
-        break_duration: breakDuration || null,
+        break_duration: isAutoBreakDuration ? null : (breakDuration || null), // null = auto-calculate
         notes: notes || null,
         availability_type: schedule.availability_type || "AVAILABLE",
       };
@@ -349,7 +349,11 @@ export function ShiftEditModal({
         }
       }
 
-      console.log("🟢 Schedule updates:", updates);
+      console.log("🟢 Schedule updates:", {
+        ...updates,
+        isAutoBreakDuration,
+        calculatedBreakDuration: breakDuration
+      });
 
       // Step 2: Save the schedule
       await onSave(schedule.id, updates);
@@ -568,18 +572,50 @@ export function ShiftEditModal({
               </Label>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="breakDuration">
-                Pausenlänge: {breakDuration} Minuten
-              </Label>
-              <Slider
-                id="breakDuration"
-                value={[breakDuration]}
-                min={0}
-                max={60}
-                step={5}
-                onValueChange={(values) => setBreakDuration(values[0])}
-              />
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="autoBreakDuration"
+                  checked={isAutoBreakDuration}
+                  onCheckedChange={(checked) => setIsAutoBreakDuration(checked as boolean)}
+                />
+                <Label 
+                  htmlFor="autoBreakDuration" 
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Pausenlänge automatisch berechnen
+                </Label>
+              </div>
+              
+              {isAutoBreakDuration ? (
+                <div className="space-y-2">
+                  <Label className="text-sm text-muted-foreground">
+                    Berechnete Pausenlänge: {breakDuration} Minuten
+                    {breakDuration > 30 && (
+                      <span className="text-xs block text-blue-600">
+                        (30min Standard + {breakDuration - 30}min Schlüsselträger-Zeit)
+                      </span>
+                    )}
+                  </Label>
+                  <div className="text-xs text-muted-foreground">
+                    Automatische Berechnung: 30min für Schichten &gt;6h, plus Schlüsselträger-Zeit
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="breakDuration">
+                    Pausenlänge: {breakDuration} Minuten
+                  </Label>
+                  <Slider
+                    id="breakDuration"
+                    value={[breakDuration]}
+                    min={0}
+                    max={60}
+                    step={5}
+                    onValueChange={(values) => setBreakDuration(values[0])}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
