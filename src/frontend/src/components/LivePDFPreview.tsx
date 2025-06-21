@@ -1,20 +1,20 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Slider } from '@/components/ui/slider';
-import { 
-  ZoomIn, 
-  ZoomOut, 
-  Download, 
-  RefreshCw, 
-  Eye,
-  Grid3X3,
-  AlertCircle
-} from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Slider } from '@/components/ui/slider';
 import { SimplifiedPDFConfig, createConfigHash } from '@/types/SimplifiedPDFConfig';
+import {
+    AlertCircle,
+    Download,
+    Eye,
+    Grid3X3,
+    RefreshCw,
+    ZoomIn,
+    ZoomOut
+} from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 interface LivePDFPreviewProps {
   config: SimplifiedPDFConfig;

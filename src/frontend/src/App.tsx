@@ -13,6 +13,7 @@ import { EmployeesPage } from "./pages/EmployeesPage";
 import FormularsPage from "./pages/FormularsPage";
 import LayoutCustomizerPage from "./pages/LayoutCustomizerPage";
 import LogsPage from "./pages/LogsPage";
+import PDFLayoutCustomizerPage from "./pages/PDFLayoutCustomizerPage";
 import { SchedulePage } from "./pages/SchedulePage";
 import { ShiftsPage } from "./pages/ShiftsPage";
 import UnifiedSettingsPage from "./pages/UnifiedSettingsPage";
@@ -56,6 +57,7 @@ const App: React.FC = () => {
                 <Route path="formulars" element={<FormularsPage />} />
                 <Route path="logs" element={<LogsPage />} />
                 <Route path="layout" element={<LayoutCustomizerPage />} />
+                <Route path="pdf-layout" element={<PDFLayoutCustomizerPage />} />
                 <Route path="calendar" element={<CalendarPage />} />
                 <Route path="ai" element={<AIDashboardPage />} />
                 <Route path="design-system" element={<DesignSystemDemo />} />

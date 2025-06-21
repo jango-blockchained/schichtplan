@@ -101,6 +101,12 @@ export const MainLayout = () => {
         description: "Layout-Anpassungen"
       },
       { 
+        label: "PDF Layout", 
+        path: "/pdf-layout", 
+        icon: FileText,
+        description: "PDF Layout Customizer mit Live-Vorschau"
+      },
+      { 
         label: "Logs", 
         path: "/logs", 
         icon: List,

@@ -1,14 +1,58 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react';
-import { 
-  SimplifiedPDFConfig, 
-  LayoutAction, 
-  LayoutState, 
-  DEFAULT_CONFIG,
-  deepMerge,
-  validateConfig,
-  PRESET_TEMPLATES,
-  PresetTemplate 
+import {
+    DEFAULT_CONFIG,
+    LayoutAction,
+    LayoutState,
+    PRESET_TEMPLATES,
+    PresetTemplate,
+    SimplifiedPDFConfig,
+    deepMerge,
+    validateConfig
 } from '@/types/SimplifiedPDFConfig';
+import { useCallback, useEffect, useReducer, useRef } from 'react';
+
+// API integration for saving MEP config
+const saveMEPConfigToBackend = async (config: SimplifiedPDFConfig): Promise<void> => {
+  const response = await fetch('/api/v2/settings/', {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      pdf_layout: config
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || `Failed to save MEP config: ${response.status}`);
+  }
+};
+
+// Load MEP config from backend
+const loadMEPConfigFromBackend = async (): Promise<SimplifiedPDFConfig | null> => {
+  try {
+    const response = await fetch('/api/v2/settings/');
+    if (!response.ok) {
+      console.warn('Failed to load MEP config from backend');
+      return null;
+    }
+
+    const settings = await response.json();
+    const pdfLayout = settings.pdf_layout;
+    
+    // Check if this is the new MEP structure (has header, table, footer, styling)
+    if (pdfLayout && 
+        typeof pdfLayout === 'object' && 
+        ('header' in pdfLayout || 'table' in pdfLayout || 'footer' in pdfLayout || 'styling' in pdfLayout)) {
+      return pdfLayout as SimplifiedPDFConfig;
+    }
+    
+    return null;
+  } catch (error) {
+    console.warn('Error loading MEP config from backend:', error);
+    return null;
+  }
+};
 
 const MAX_HISTORY_SIZE = 50;
 const DEBOUNCE_DELAY = 300;
@@ -142,22 +186,37 @@ export function usePDFLayoutState(options: UsePDFLayoutStateOptions = {}) {
   const saveTimeoutRef = useRef<NodeJS.Timeout>();
   const configChangeTimeoutRef = useRef<NodeJS.Timeout>();
 
-  // Load from localStorage on mount
+  // Load from backend on mount (in addition to localStorage)
   useEffect(() => {
-    if (autoSave && autoSaveKey) {
-      try {
-        const saved = localStorage.getItem(autoSaveKey);
-        if (saved) {
-          const savedConfig = JSON.parse(saved) as SimplifiedPDFConfig;
-          const errors = validateConfig(savedConfig);
-          if (errors.length === 0) {
-            dispatch({ type: 'UPDATE_CONFIG', payload: savedConfig });
-          }
+    const loadInitialConfig = async () => {
+      // Try to load from backend first
+      const backendConfig = await loadMEPConfigFromBackend();
+      if (backendConfig) {
+        const errors = validateConfig(backendConfig);
+        if (errors.length === 0) {
+          dispatch({ type: 'UPDATE_CONFIG', payload: backendConfig });
+          return;
         }
-      } catch (error) {
-        console.warn('Failed to load saved PDF layout config:', error);
       }
-    }
+
+      // Fallback to localStorage if backend fails or is invalid
+      if (autoSave && autoSaveKey) {
+        try {
+          const saved = localStorage.getItem(autoSaveKey);
+          if (saved) {
+            const savedConfig = JSON.parse(saved) as SimplifiedPDFConfig;
+            const errors = validateConfig(savedConfig);
+            if (errors.length === 0) {
+              dispatch({ type: 'UPDATE_CONFIG', payload: savedConfig });
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to load saved PDF layout config:', error);
+        }
+      }
+    };
+
+    loadInitialConfig();
   }, [autoSave, autoSaveKey]);
 
   // Auto-save to localStorage
@@ -243,8 +302,16 @@ export function usePDFLayoutState(options: UsePDFLayoutStateOptions = {}) {
         console.error('Failed to save config:', error);
         return false;
       }
+    } else {
+      // Default save to backend if no custom onSave provided
+      try {
+        await saveMEPConfigToBackend(state.config);
+        return true;
+      } catch (error) {
+        console.error('Failed to save MEP config to backend:', error);
+        return false;
+      }
     }
-    return true;
   }, [state.config, onSave]);
 
   // Keyboard shortcuts

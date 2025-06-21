@@ -1,11 +1,21 @@
 export interface SimplifiedPDFConfig {
   // Quick preset selection
-  preset: 'classic' | 'modern' | 'compact' | 'custom';
+  preset: 'mep_standard' | 'mep_compact' | 'mep_detailed' | 'custom';
+  
+  // MEP Header Information
+  mepHeader: {
+    title: string; // "Mitarbeiter-Einsatz-Planung (MEP)"
+    filiale: string; // Branch/Store name
+    monthYear: string; // "Monat/Jahr"
+    weekFrom: string; // "Woche vom:"
+    weekTo: string; // "bis:"
+    storageNote: string; // "Aufbewahrung in der Filiale: 2 Jahre"
+  };
   
   // Page Setup Section
   pageSetup: {
-    size: 'A4' | 'Letter' | 'Legal';
-    orientation: 'portrait' | 'landscape';
+    size: 'A4';
+    orientation: 'landscape';
     margins: {
       top: number;
       right: number;
@@ -14,52 +24,105 @@ export interface SimplifiedPDFConfig {
     };
   };
   
-  // Content Layout Section
-  contentLayout: {
-    showEmployeeId: boolean;
-    showPosition: boolean;
-    showBreaks: boolean;
-    showTotalHours: boolean;
-    columnLayout: 'single' | 'multi';
-    headerFooter: {
-      showHeader: boolean;
-      showFooter: boolean;
-      headerText?: string;
-      footerText?: string;
+  // MEP Table Structure
+  tableStructure: {
+    // Employee info columns
+    nameColumn: {
+      width: number;
+      label: string; // "Name, Vorname"
     };
-    pageNumbering: {
-      enabled: boolean;
-      position: 'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
-      format: 'page-of-total' | 'page-only' | 'custom';
+    positionColumn: {
+      width: number;
+      label: string; // "Funktion"
+    };
+    planWeekColumn: {
+      width: number;
+      label: string; // "Plan/Woche"
+    };
+    
+    // Day columns
+    dayColumns: {
+      monday: { width: number; label: string; subLabels: string[] };
+      tuesday: { width: number; label: string; subLabels: string[] };
+      wednesday: { width: number; label: string; subLabels: string[] };
+      thursday: { width: number; label: string; subLabels: string[] };
+      friday: { width: number; label: string; subLabels: string[] };
+      saturday: { width: number; label: string; subLabels: string[] };
+      sunday: { width: number; label: string; subLabels: string[] };
+    };
+    
+    // Summary columns
+    summaryWeekColumn: {
+      width: number;
+      label: string; // "Summe/Woche"
+    };
+    summaryMonthColumn: {
+      width: number;
+      label: string; // "Summe/Monat"
+    };
+    
+    // Row structure for each employee
+    employeeRowStructure: {
+      // Each employee has 4 rows
+      beginRow: { label: string; height: number }; // "Beginn"
+      pauseRow: { label: string; height: number }; // "Pause"
+      endRow: { label: string; height: number }; // "Ende"
+      summaryRow: { label: string; height: number }; // "Summe/Tag"
+    };
+  };
+  
+  // MEP Footer Information
+  mepFooter: {
+    breakRules: {
+      title: string; // "Pausenzeiten:"
+      sixHourRule: string; // "bis 6 Stunden: keine Pause"
+      overSixHourRule: string; // "mehr als 6 Stunden: 60 Minuten"
+    };
+    absenceTypes: {
+      title: string; // "Abwesenheiten:"
+      holiday: string; // "Feiertag"
+      illness: string; // "Krank (AU-Bescheinigung)"
+      vacation: string; // "Schule (Führungsnachwuchskraft)"
+      leave: string; // "Urlaub"
+    };
+    instructions: {
+      title: string; // "Anwesenheiten:"
+      text: string; // "Arbeitszeitbeginn bis Arbeitszeitende inkl. Pausenzeiten und die Tagesstunden eintragen. Am Ende der Woche: wöchentliche und monatliche Summe eintragen."
+    };
+    dateStamp: {
+      text: string; // "Stand: Oktober 2014"
+      position: 'left' | 'center' | 'right';
     };
   };
   
   // Styling Section
   styling: {
-    fontFamily: 'Helvetica' | 'Times-Roman' | 'Arial' | 'Courier';
+    fontFamily: 'Helvetica' | 'Times-Roman' | 'Arial';
     fontSize: {
-      base: number;
-      header: number;
-      title: number;
+      headerTitle: number; // Main title
+      columnHeaders: number; // Day headers
+      subHeaders: number; // Date/Wochentag headers
+      tableContent: number; // Cell content
+      footer: number; // Footer text
     };
     colors: {
-      primary: string;
-      secondary: string;
-      background: string;
-      text: string;
-      border: string;
+      tableBorder: string;
       headerBackground: string;
       headerText: string;
+      cellBackground: string;
+      cellText: string;
+      alternateRowBackground: string;
     };
     spacing: {
       cellPadding: number;
       rowHeight: number;
       borderWidth: number;
+      headerSpacing: number;
     };
     tableStyle: {
-      alternateRows: boolean;
-      gridLines: boolean;
-      headerStyle: 'bold' | 'normal';
+      showBorders: boolean;
+      alternateRowColors: boolean;
+      boldHeaders: boolean;
     };
   };
 }
@@ -98,187 +161,282 @@ export interface LayoutState {
 
 // Default configurations
 export const DEFAULT_CONFIG: SimplifiedPDFConfig = {
-  preset: 'classic',
+  preset: 'mep_standard',
+  mepHeader: {
+    title: 'Mitarbeiter-Einsatz-Planung (MEP)',
+    filiale: '',
+    monthYear: '',
+    weekFrom: '',
+    weekTo: '',
+    storageNote: 'Aufbewahrung in der Filiale: 2 Jahre',
+  },
   pageSetup: {
     size: 'A4',
     orientation: 'landscape',
     margins: {
-      top: 20,
-      right: 20,
-      bottom: 20,
-      left: 20,
+      top: 15,
+      right: 15,
+      bottom: 25,
+      left: 15,
     },
   },
-  contentLayout: {
-    showEmployeeId: true,
-    showPosition: true,
-    showBreaks: true,
-    showTotalHours: true,
-    columnLayout: 'multi',
-    headerFooter: {
-      showHeader: true,
-      showFooter: true,
-      headerText: 'Schedule',
-      footerText: 'Generated on {date}',
+  tableStructure: {
+    nameColumn: {
+      width: 80,
+      label: 'Name, Vorname',
     },
-    pageNumbering: {
-      enabled: true,
-      position: 'bottom-center',
-      format: 'page-of-total',
+    positionColumn: {
+      width: 60,
+      label: 'Funktion',
+    },
+    planWeekColumn: {
+      width: 50,
+      label: 'Plan/Woche',
+    },
+    dayColumns: {
+      monday: { 
+        width: 70, 
+        label: 'Montag', 
+        subLabels: ['Wochentag', 'Datum', 'Werkstatt'] 
+      },
+      tuesday: { 
+        width: 70, 
+        label: 'Dienstag', 
+        subLabels: ['Wochentag', 'Datum', 'Werkstatt'] 
+      },
+      wednesday: { 
+        width: 70, 
+        label: 'Mittwoch', 
+        subLabels: ['Wochentag', 'Datum', 'Werkstatt'] 
+      },
+      thursday: { 
+        width: 70, 
+        label: 'Donnerstag', 
+        subLabels: ['Wochentag', 'Datum', 'Werkstatt'] 
+      },
+      friday: { 
+        width: 70, 
+        label: 'Freitag', 
+        subLabels: ['Wochentag', 'Datum', 'Werkstatt'] 
+      },
+      saturday: { 
+        width: 70, 
+        label: 'Samstag', 
+        subLabels: ['Wochentag', 'Datum', 'Werkstatt'] 
+      },
+      sunday: { 
+        width: 70, 
+        label: 'Sonntag', 
+        subLabels: ['Wochentag', 'Datum', 'Werkstatt'] 
+      },
+    },
+    summaryWeekColumn: {
+      width: 50,
+      label: 'Summe/Woche',
+    },
+    summaryMonthColumn: {
+      width: 50,
+      label: 'Summe/Monat',
+    },
+    employeeRowStructure: {
+      beginRow: { label: 'Beginn', height: 12 },
+      pauseRow: { label: 'Pause', height: 12 },
+      endRow: { label: 'Ende', height: 12 },
+      summaryRow: { label: 'Summe/Tag', height: 12 },
+    },
+  },
+  mepFooter: {
+    breakRules: {
+      title: 'Pausenzeiten:',
+      sixHourRule: 'bis 6 Stunden: keine Pause',
+      overSixHourRule: 'mehr als 6 Stunden: 60 Minuten',
+    },
+    absenceTypes: {
+      title: 'Abwesenheiten:',
+      holiday: 'Feiertag',
+      illness: 'Krank (AU-Bescheinigung)',
+      vacation: 'Schule (Führungsnachwuchskraft)',
+      leave: 'Urlaub',
+    },
+    instructions: {
+      title: 'Anwesenheiten:',
+      text: 'Arbeitszeitbeginn bis Arbeitszeitende inkl. Pausenzeiten und die Tagesstunden eintragen. Am Ende der Woche: wöchentliche und monatliche Summe eintragen.',
+    },
+    dateStamp: {
+      text: 'Stand: Oktober 2014',
+      position: 'right',
     },
   },
   styling: {
     fontFamily: 'Helvetica',
     fontSize: {
-      base: 10,
-      header: 12,
-      title: 16,
+      headerTitle: 11,
+      columnHeaders: 9,
+      subHeaders: 8,
+      tableContent: 7,
+      footer: 6,
     },
     colors: {
-      primary: '#000000',
-      secondary: '#666666',
-      background: '#ffffff',
-      text: '#000000',
-      border: '#cccccc',
-      headerBackground: '#f4f4f5',
+      tableBorder: '#000000',
+      headerBackground: '#ffffff',
       headerText: '#000000',
+      cellBackground: '#ffffff',
+      cellText: '#000000',
+      alternateRowBackground: '#f8f9fa',
     },
     spacing: {
-      cellPadding: 8,
-      rowHeight: 24,
-      borderWidth: 1,
+      cellPadding: 2,
+      rowHeight: 12,
+      borderWidth: 0.5,
+      headerSpacing: 6,
     },
     tableStyle: {
-      alternateRows: true,
-      gridLines: true,
-      headerStyle: 'bold',
+      showBorders: true,
+      alternateRowColors: false,
+      boldHeaders: true,
     },
   },
 };
 
 export const PRESET_TEMPLATES: PresetTemplate[] = [
   {
-    id: 'classic',
-    name: 'Classic',
-    description: 'Traditional layout with clear borders and standard formatting',
-    icon: '📄',
+    id: 'mep_standard',
+    name: 'MEP Standard',
+    description: 'Standardformat der deutschen Mitarbeiter-Einsatz-Planung',
+    icon: '�',
     config: {
-      preset: 'classic',
+      preset: 'mep_standard',
       styling: {
         fontFamily: 'Helvetica',
         fontSize: {
-          base: 10,
-          header: 12,
-          title: 16,
+          headerTitle: 11,
+          columnHeaders: 9,
+          subHeaders: 8,
+          tableContent: 7,
+          footer: 6,
         },
         colors: {
-          primary: '#000000',
-          secondary: '#666666',
-          background: '#ffffff',
-          text: '#000000',
-          border: '#000000',
-          headerBackground: '#f4f4f5',
+          tableBorder: '#000000',
+          headerBackground: '#ffffff',
           headerText: '#000000',
+          cellBackground: '#ffffff',
+          cellText: '#000000',
+          alternateRowBackground: '#f8f9fa',
         },
         spacing: {
-          cellPadding: 8,
-          rowHeight: 24,
-          borderWidth: 1.5,
+          cellPadding: 2,
+          rowHeight: 12,
+          borderWidth: 0.5,
+          headerSpacing: 6,
         },
         tableStyle: {
-          alternateRows: false,
-          gridLines: true,
-          headerStyle: 'bold',
+          showBorders: true,
+          alternateRowColors: false,
+          boldHeaders: true,
         },
       },
     },
   },
   {
-    id: 'modern',
-    name: 'Modern',
-    description: 'Clean, contemporary design with subtle colors and spacing',
-    icon: '🎨',
-    config: {
-      preset: 'modern',
-      styling: {
-        fontFamily: 'Arial',
-        fontSize: {
-          base: 10,
-          header: 12,
-          title: 16,
-        },
-        colors: {
-          primary: '#2563eb',
-          secondary: '#64748b',
-          background: '#ffffff',
-          text: '#1e293b',
-          border: '#e2e8f0',
-          headerBackground: '#3b82f6',
-          headerText: '#ffffff',
-        },
-        spacing: {
-          cellPadding: 12,
-          rowHeight: 28,
-          borderWidth: 1,
-        },
-        tableStyle: {
-          alternateRows: true,
-          gridLines: true,
-          headerStyle: 'bold',
-        },
-      },
-    },
-  },
-  {
-    id: 'compact',
-    name: 'Compact',
-    description: 'Space-efficient layout perfect for dense schedules',
+    id: 'mep_compact',
+    name: 'MEP Kompakt',
+    description: 'Platzsparende Version für mehr Mitarbeiter pro Seite',
     icon: '📊',
     config: {
-      preset: 'compact',
+      preset: 'mep_compact',
       pageSetup: {
         size: 'A4',
         orientation: 'landscape',
         margins: {
           top: 10,
           right: 10,
-          bottom: 10,
+          bottom: 15,
           left: 10,
         },
       },
       styling: {
-        fontFamily: 'Courier',
+        fontFamily: 'Helvetica',
         fontSize: {
-          base: 8,
-          header: 10,
-          title: 12,
+          headerTitle: 10,
+          columnHeaders: 8,
+          subHeaders: 7,
+          tableContent: 6,
+          footer: 5,
         },
         colors: {
-          primary: '#000000',
-          secondary: '#666666',
-          background: '#ffffff',
-          text: '#000000',
-          border: '#999999',
-          headerBackground: '#e5e7eb',
+          tableBorder: '#666666',
+          headerBackground: '#f0f0f0',
           headerText: '#000000',
+          cellBackground: '#ffffff',
+          cellText: '#000000',
+          alternateRowBackground: '#fafafa',
         },
         spacing: {
-          cellPadding: 4,
-          rowHeight: 18,
-          borderWidth: 0.5,
+          cellPadding: 1,
+          rowHeight: 10,
+          borderWidth: 0.3,
+          headerSpacing: 4,
         },
         tableStyle: {
-          alternateRows: true,
-          gridLines: true,
-          headerStyle: 'bold',
+          showBorders: true,
+          alternateRowColors: true,
+          boldHeaders: true,
+        },
+      },
+    },
+  },
+  {
+    id: 'mep_detailed',
+    name: 'MEP Detailliert',
+    description: 'Erweiterte Version mit zusätzlichen Informationen',
+    icon: '�',
+    config: {
+      preset: 'mep_detailed',
+      pageSetup: {
+        size: 'A4',
+        orientation: 'landscape',
+        margins: {
+          top: 20,
+          right: 20,
+          bottom: 30,
+          left: 20,
+        },
+      },
+      styling: {
+        fontFamily: 'Arial',
+        fontSize: {
+          headerTitle: 12,
+          columnHeaders: 10,
+          subHeaders: 9,
+          tableContent: 8,
+          footer: 7,
+        },
+        colors: {
+          tableBorder: '#2563eb',
+          headerBackground: '#e6f3ff',
+          headerText: '#1e40af',
+          cellBackground: '#ffffff',
+          cellText: '#374151',
+          alternateRowBackground: '#f8fafc',
+        },
+        spacing: {
+          cellPadding: 3,
+          rowHeight: 14,
+          borderWidth: 0.7,
+          headerSpacing: 8,
+        },
+        tableStyle: {
+          showBorders: true,
+          alternateRowColors: true,
+          boldHeaders: true,
         },
       },
     },
   },
   {
     id: 'custom',
-    name: 'Custom',
-    description: 'Fully customizable layout with all options available',
+    name: 'Benutzerdefiniert',
+    description: 'Vollständig anpassbares Layout für spezielle Anforderungen',
     icon: '⚙️',
     config: {
       preset: 'custom',
@@ -321,16 +479,20 @@ export function validateConfig(config: Partial<SimplifiedPDFConfig>): string[] {
   }
   
   if (config.styling?.fontSize) {
-    const { base, header, title } = config.styling.fontSize;
-    if (base && (base < 6 || base > 20)) {
-      errors.push('Base font size must be between 6 and 20');
+    const { headerTitle, columnHeaders, tableContent } = config.styling.fontSize;
+    if (headerTitle && (headerTitle < 6 || headerTitle > 20)) {
+      errors.push('Header title font size must be between 6 and 20');
     }
-    if (header && (header < 8 || header > 24)) {
-      errors.push('Header font size must be between 8 and 24');
+    if (columnHeaders && (columnHeaders < 6 || columnHeaders > 18)) {
+      errors.push('Column header font size must be between 6 and 18');
     }
-    if (title && (title < 12 || title > 36)) {
-      errors.push('Title font size must be between 12 and 36');
+    if (tableContent && (tableContent < 5 || tableContent > 15)) {
+      errors.push('Table content font size must be between 5 and 15');
     }
+  }
+  
+  if (config.mepHeader?.filiale && config.mepHeader.filiale.length > 100) {
+    errors.push('Filiale name cannot exceed 100 characters');
   }
   
   return errors;
