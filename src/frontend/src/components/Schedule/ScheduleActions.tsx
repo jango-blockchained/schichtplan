@@ -1,24 +1,3 @@
-import React, { useState } from "react";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
-import {
-  CalendarPlus,
-  Trash2,
-  Play,
-  Settings,
-  Plus,
-  Loader2,
-  Eye,
-  Zap,
-  Sliders,
-  BarChart3,
-} from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +9,30 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  BarChart3,
+  CalendarPlus,
+  CheckCircle,
+  Eye,
+  Heart,
+  Loader2,
+  Play,
+  Plus,
+  Settings,
+  Sliders,
+  Trash2,
+  XCircle,
+  Zap,
+} from "lucide-react";
+import { useState } from "react";
 
 interface ScheduleActionsProps {
   onAddSchedule: () => void;
@@ -41,6 +44,9 @@ interface ScheduleActionsProps {
   onPreviewAiData: () => void;
   onImportAiResponse: () => void;
   onOpenStatistics: () => void;
+  onAddFixed: () => void;
+  onAddUnavailable: () => void;
+  onAddPreferred: () => void;
   isLoading: boolean;
   isGenerating: boolean;
   isAiFastGenerating: boolean;
@@ -62,6 +68,9 @@ export function ScheduleActions({
   onPreviewAiData,
   onImportAiResponse,
   onOpenStatistics,
+  onAddFixed,
+  onAddUnavailable,
+  onAddPreferred,
   isLoading,
   isGenerating,
   isAiFastGenerating,
@@ -103,6 +112,19 @@ export function ScheduleActions({
           <DropdownMenuItem onClick={onAddSchedule}>
             <CalendarPlus className="h-4 w-4 mr-2" />
             <span>Neue Schicht</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={onAddFixed}>
+            <CheckCircle className="h-4 w-4 mr-2" />
+            <span>Feste Verfügbarkeiten</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onAddPreferred}>
+            <Heart className="h-4 w-4 mr-2" />
+            <span>Bevorzugte Verfügbarkeiten</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onAddUnavailable}>
+            <XCircle className="h-4 w-4 mr-2" />
+            <span>Nicht verfügbare Zeiten</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
