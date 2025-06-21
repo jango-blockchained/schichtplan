@@ -505,10 +505,45 @@ const TimeSlotDisplay = ({
           <div className="text-xs text-muted-foreground font-medium">
             {(() => {
               if (schedule) {
-                // Use the centralized function that handles keyholder adjustments properly
-                const timeCalc = calculateWorkingTime(schedule, employee, settings);
-                const workingTimeFormatted = formatTimeHourMin(timeCalc.workingTime);
-                const breakTimeFormatted = formatTimeHourMin(timeCalc.breakTime);
+                // Calculate working time and break duration correctly
+                const totalTime = duration; // This is the actual shift duration including keyholder adjustments
+                
+                // Calculate break duration in hours
+                let breakDuration = 0;
+                
+                // Priority 1: Manual break times
+                if (schedule.break_start && schedule.break_end) {
+                  breakDuration = calculateBaseDuration(schedule.break_start, schedule.break_end);
+                }
+                // Priority 2: Stored break_duration (convert from minutes to hours)  
+                else if (schedule.break_duration && schedule.break_duration > 0) {
+                  breakDuration = schedule.break_duration / 60;
+                }
+                // Priority 3: Auto-calculate (30min for >6h shifts)
+                else {
+                  breakDuration = totalTime > 6 ? 0.5 : 0;
+                  
+                  // Add keyholder extra break if applicable
+                  if (employee?.is_keyholder && settings?.general) {
+                    const { keyholder_before_minutes = 5, keyholder_after_minutes = 10, store_opening, store_closing } = settings.general;
+                    
+                    if (schedule.shift_start && schedule.shift_end) {
+                      // Early shift (opening) - add before minutes as break
+                      if (store_opening && schedule.shift_start <= store_opening) {
+                        breakDuration += keyholder_before_minutes / 60; // Convert to hours
+                      }
+                      
+                      // Late shift (closing) - add after minutes as break  
+                      if (store_closing && schedule.shift_end >= store_closing) {
+                        breakDuration += keyholder_after_minutes / 60; // Convert to hours
+                      }
+                    }
+                  }
+                }
+                
+                const workingTime = Math.max(0, totalTime - breakDuration);
+                const workingTimeFormatted = formatTimeHourMin(workingTime);
+                const breakTimeFormatted = formatTimeHourMin(breakDuration);
                 return `${workingTimeFormatted} / ${breakTimeFormatted}`;
               }
               return formatDuration(duration);
@@ -1967,7 +2002,7 @@ function ScheduleTableNormal({
             </div>
           </th>
           {daysToDisplay.map((date) => {
-            const dailyHours = calculateDailyHours(schedules, date);
+            const dailyHours = calculateDailyHours(schedules, date, employees, settings);
             return (
               <th
                 key={date.toISOString()}
@@ -2511,9 +2546,10 @@ interface DailyStatsProps {
   schedules: Schedule[];
   daysToDisplay: Date[];
   employees: Employee[];
+  settings?: any;
 }
 
-function DailyStats({ schedules, daysToDisplay, employees }: DailyStatsProps) {
+function DailyStats({ schedules, daysToDisplay, employees, settings }: DailyStatsProps) {
   const dailyStats = useMemo(() => {
     return daysToDisplay.map(date => {
       const dateStr = format(date, 'yyyy-MM-dd');
@@ -2524,7 +2560,7 @@ function DailyStats({ schedules, daysToDisplay, employees }: DailyStatsProps) {
       const totalEmployees = daySchedules.length;
       
       // Calculate total working hours (using the same function as the header)
-      const totalHours = calculateDailyHours(schedules, date);
+      const totalHours = calculateDailyHours(schedules, date, employees, settings);
       
       // Count shift types
       const shiftTypes = daySchedules.reduce((acc, schedule) => {
@@ -2548,7 +2584,7 @@ function DailyStats({ schedules, daysToDisplay, employees }: DailyStatsProps) {
         keyholders
       };
     });
-  }, [schedules, daysToDisplay, employees]);
+  }, [schedules, daysToDisplay, employees, settings]);
 
   if (daysToDisplay.length === 0) return null;
 
@@ -2676,7 +2712,7 @@ function ScheduleColorLegend({
 }
 
 // Calculate daily working hours (excluding breaks) for a specific date
-const calculateDailyHours = (schedules: Schedule[], date: Date): number => {
+const calculateDailyHours = (schedules: Schedule[], date: Date, employees?: Employee[], settings?: any): number => {
   const dateString = format(date, "yyyy-MM-dd");
   const daySchedules = schedules.filter(
     schedule => {
@@ -2708,25 +2744,13 @@ const calculateDailyHours = (schedules: Schedule[], date: Date): number => {
   return daySchedules.reduce((sum, schedule) => {
     if (schedule.shift_start && schedule.shift_end) {
       try {
-        const [startHours, startMinutes] = schedule.shift_start.split(":").map(Number);
-        const [endHours, endMinutes] = schedule.shift_end.split(":").map(Number);
+        // Find the employee for this schedule
+        const employee = employees?.find(emp => emp.id === schedule.employee_id);
         
-        const startTotalMinutes = startHours * 60 + startMinutes;
-        let endTotalMinutes = endHours * 60 + endMinutes;
+        // Use the centralized calculateWorkingTime function that handles keyholder adjustments
+        const timeCalc = calculateWorkingTime(schedule, employee, settings);
         
-        // Handle overnight shifts
-        if (endTotalMinutes < startTotalMinutes) {
-          endTotalMinutes += 24 * 60;
-        }
-        
-        const totalDurationHours = (endTotalMinutes - startTotalMinutes) / 60;
-        
-        // Use centralized break calculation
-        const breakDurationHours = calculateBreakDuration(schedule);
-        
-        const workingDurationHours = Math.max(0, totalDurationHours - breakDurationHours);
-        
-        return sum + workingDurationHours;
+        return sum + timeCalc.workingTime;
       } catch (error) {
         console.error("Error calculating daily hours:", error);
         return sum;
