@@ -7,13 +7,17 @@ import { Switch } from '@/components/ui/switch';
 import { MEPAbsenceType, SimplifiedPDFConfig } from '@/types/SimplifiedPDFConfig';
 import { PlusCircle, X } from 'lucide-react';
 
-interface MEPFooterSectionProps {
+export interface MEPFooterSectionProps {
   config: SimplifiedPDFConfig;
   onChange: (updates: Partial<SimplifiedPDFConfig>) => void;
   className?: string;
 }
 
-function MEPFooterSectionComponent({ config, onChange, className = '' }: MEPFooterSectionProps) {
+export const MEPFooterSection: React.FC<MEPFooterSectionProps> = ({
+  config,
+  onChange,
+  className = '',
+}) => {
   // Handler for break rules
   const handleBreakRulesChange = (field: 'enabled' | 'text', value: boolean | string) => {
     onChange({
@@ -237,7 +241,4 @@ function MEPFooterSectionComponent({ config, onChange, className = '' }: MEPFoot
       </CardContent>
     </Card>
   );
-}
-
-export const MEPFooterSection = MEPFooterSectionComponent;
-export default MEPFooterSection;
+};
