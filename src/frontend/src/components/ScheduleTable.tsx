@@ -470,7 +470,16 @@ const TimeSlotDisplay = ({
         </Badge>
         {duration > 0 && (
           <div className="text-xs text-muted-foreground font-medium">
-            {formatDuration(duration)}
+            {(() => {
+              if (schedule) {
+                const breakDuration = calculateBreakDuration(schedule);
+                const workingTime = Math.max(0, duration - breakDuration);
+                const workingTimeFormatted = formatTimeHourMin(workingTime);
+                const breakTimeFormatted = formatTimeHourMin(breakDuration);
+                return `${workingTimeFormatted} / ${breakTimeFormatted}`;
+              }
+              return formatDuration(duration);
+            })()}
           </div>
         )}
         {schedule?.break_start && schedule?.break_end && (
@@ -2481,20 +2490,8 @@ function DailyStats({ schedules, daysToDisplay, employees }: DailyStatsProps) {
       
       const totalEmployees = daySchedules.length;
       
-      // Calculate total hours
-      const totalHours = daySchedules.reduce((sum, schedule) => {
-        if (schedule.shift_start && schedule.shift_end) {
-          try {
-            const start = new Date(`1970-01-01T${schedule.shift_start}`);
-            const end = new Date(`1970-01-01T${schedule.shift_end}`);
-            const hours = differenceInMinutes(end, start) / 60;
-            return sum + (hours > 0 ? hours : 0); // Only add positive hours
-          } catch {
-            return sum; // Skip invalid time data
-          }
-        }
-        return sum;
-      }, 0);
+      // Calculate total working hours (using the same function as the header)
+      const totalHours = calculateDailyHours(schedules, date);
       
       // Count shift types
       const shiftTypes = daySchedules.reduce((acc, schedule) => {
