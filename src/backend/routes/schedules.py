@@ -470,8 +470,8 @@ def generate_schedule():
             start_date=start_date,
             end_date=end_date,
             external_config_dict=external_config_dict,  # Pass the full config
-            # version=schedule_request.version, # Version and create_empty_schedules should be handled by generator via config
-            # create_empty_schedules=schedule_request.create_empty_schedules,
+            version=schedule_request.version,  # Pass version explicitly
+            create_empty_schedules=schedule_request.create_empty_schedules or False,  # Pass create_empty_schedules explicitly with fallback
         )
 
         # Check the status from the result returned by the generator

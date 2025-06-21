@@ -1,24 +1,17 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/use-toast";
-import { DateRange } from "react-day-picker";
-import { format, getWeek, getMonth, getYear } from "date-fns";
 import {
-  getAllVersions,
-  createNewVersion,
-  updateVersionStatus,
-  duplicateVersion,
-  type VersionResponse,
-  type VersionMeta,
-  deleteVersion,
-  updateVersionNotes,
-  getVersions as fetchVersions,
-  getVersionMetas,
   createNewVersion as apiCreateNewVersion,
-  archiveVersion as apiArchiveVersion,
-  duplicateVersion as apiDuplicateVersion,
-  createVersion as apiCreateVersion,
+  deleteVersion,
+  duplicateVersion,
+  getAllVersions,
+  updateVersionNotes,
+  updateVersionStatus,
+  type VersionResponse
 } from "@/services/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { useEffect, useRef, useState } from "react";
+import { DateRange } from "react-day-picker";
 
 interface UseVersionControlProps {
   dateRange: DateRange | undefined;
@@ -166,7 +159,7 @@ export function useVersionControl({
         throw new Error("Date range is required to create a version");
       }
 
-      return createNewVersion({
+      return apiCreateNewVersion({
         start_date: startDate,
         end_date: endDate,
       });
@@ -434,25 +427,6 @@ export function useVersionControl({
   const handleDuplicateVersion = (version: number) => {
     if (dateRange?.from && dateRange?.to) {
       duplicateVersionMutation.mutate(version);
-    }
-  };
-
-  const createNewVersion = async (startDate: string, endDate: string) => {
-    console.log(`📝 Creating new version for dates ${startDate} to ${endDate}`);
-
-    const data = {
-      start_date: startDate,
-      end_date: endDate,
-      notes: `NEW BLANK VERSION - Empty schedules for ${startDate} - ${endDate} [Created: ${new Date().toISOString().slice(0, 16).replace("T", " ")}]`,
-    };
-
-    try {
-      const response = await apiCreateNewVersion(data);
-      console.log(`📝 Version created successfully:`, response);
-      return response;
-    } catch (error) {
-      console.error("Error creating version:", error);
-      throw error;
     }
   };
 

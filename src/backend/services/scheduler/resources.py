@@ -620,12 +620,12 @@ class ScheduleResources:
         # Basic check: ensure core lists are not None and have some expected data
         if (
             not self.is_loaded()
-            or not self.settings
-            or not self.employees
-            or not self.shifts
-            or not self.coverage
-            or not self.availabilities
-            or not self.absences
+            or self.settings is None
+            or self.employees is None
+            or self.shifts is None
+            or self.coverage is None
+            or self.availabilities is None
+            or self.absences is None
         ):
             self.logger.error(
                 "One or more core resource types are missing or not loaded."
