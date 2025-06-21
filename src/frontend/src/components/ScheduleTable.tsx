@@ -110,15 +110,137 @@ const isEmptySchedule = (schedule: Schedule | undefined) => {
   return !schedule || schedule.shift_id === null;
 };
 
-// Add this component above the ScheduleCell component
-interface TimeSlotDisplayProps {
-  startTime?: string | null;
-  endTime?: string | null;
-  shiftType?: string;
-  settings?: any;
-  schedule?: Schedule;
-  employee?: Employee; // Add employee data
-}
+// === CENTRALIZED TIME CALCULATION FUNCTIONS (GLOBAL SCOPE) ===
+
+// Convert time string to minutes
+const timeToMinutes = (timeStr: string): number => {
+  const [hours, minutes] = timeStr.split(":").map(Number);
+  return hours * 60 + minutes;
+};
+
+// Convert minutes to time string
+const minutesToTime = (minutes: number): string => {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+};
+
+// Add minutes to a time string
+const addMinutes = (timeStr: string, minutes: number): string => {
+  const totalMinutes = timeToMinutes(timeStr) + minutes;
+  return minutesToTime(totalMinutes % (24 * 60)); // Handle day overflow
+};
+
+// Subtract minutes from a time string
+const subtractMinutes = (timeStr: string, minutes: number): string => {
+  const totalMinutes = timeToMinutes(timeStr) - minutes;
+  return minutesToTime(totalMinutes >= 0 ? totalMinutes : totalMinutes + (24 * 60)); // Handle day underflow
+};
+
+// Core duration calculation function
+const calculateBaseDuration = (startTime: string, endTime: string): number => {
+  try {
+    const startMinutes = timeToMinutes(startTime);
+    let endMinutes = timeToMinutes(endTime);
+    
+    // Handle overnight shifts
+    if (endMinutes < startMinutes) {
+      endMinutes += 24 * 60;
+    }
+    
+    return (endMinutes - startMinutes) / 60; // Return in hours
+  } catch (error) {
+    console.error("Error calculating base duration:", error);
+    return 0;
+  }
+};
+
+// Calculate break duration with auto 30min rule for >6h shifts
+const calculateBreakDuration = (schedule: Schedule): number => {
+  try {
+    // Priority 1: Manual break times
+    if (schedule.break_start && schedule.break_end) {
+      return calculateBaseDuration(schedule.break_start, schedule.break_end);
+    }
+    
+    // Priority 2: Stored break_duration (convert from minutes to hours)
+    if (schedule.break_duration && schedule.break_duration > 0) {
+      return schedule.break_duration / 60;
+    }
+    
+    // Priority 3: Auto-calculate based on total duration (30min for >6h)
+    if (schedule.shift_start && schedule.shift_end) {
+      const totalDuration = calculateBaseDuration(schedule.shift_start, schedule.shift_end);
+      return totalDuration > 6 ? 0.5 : 0; // 30 minutes if > 6 hours, 0 otherwise
+    }
+    
+    return 0;
+  } catch (error) {
+    console.error("Error calculating break duration:", error);
+    return 0;
+  }
+};
+
+// Get keyholder-adjusted times for a schedule
+const getKeyholderAdjustedTimes = (
+  schedule: Schedule, 
+  employee: Employee | undefined, 
+  settings: any
+): { startTime: string, endTime: string } => {
+  
+  if (!employee?.is_keyholder || !schedule.shift_start || !schedule.shift_end || !settings?.general) {
+    return { startTime: schedule.shift_start || "", endTime: schedule.shift_end || "" };
+  }
+  
+  const { keyholder_before_minutes = 5, keyholder_after_minutes = 10, store_opening, store_closing } = settings.general;
+  
+  let adjustedStart = schedule.shift_start;
+  let adjustedEnd = schedule.shift_end;
+  
+  // Early shift adjustment (EARLY type or starts at/before store opening)
+  if (schedule.shift_type_id === 'EARLY' || 
+      (store_opening && schedule.shift_start <= store_opening)) {
+    adjustedStart = subtractMinutes(schedule.shift_start, keyholder_before_minutes);
+  }
+  
+  // Late shift adjustment (LATE type or ends at/after store closing)
+  if (schedule.shift_type_id === 'LATE' || 
+      (store_closing && schedule.shift_end >= store_closing)) {
+    adjustedEnd = addMinutes(schedule.shift_end, keyholder_after_minutes);
+  }
+  
+  return { startTime: adjustedStart, endTime: adjustedEnd };
+};
+
+// Calculate final working time with all adjustments
+const calculateWorkingTime = (
+  schedule: Schedule, 
+  employee: Employee | undefined, 
+  settings: any
+): { totalTime: number, breakTime: number, workingTime: number } => {
+  
+  if (!schedule.shift_start || !schedule.shift_end) {
+    return { totalTime: 0, breakTime: 0, workingTime: 0 };
+  }
+  
+  const { startTime, endTime } = getKeyholderAdjustedTimes(schedule, employee, settings);
+  
+  const totalTime = calculateBaseDuration(startTime, endTime);
+  const breakTime = calculateBreakDuration(schedule);
+  const workingTime = Math.max(0, totalTime - breakTime);
+  
+  return { totalTime, breakTime, workingTime };
+};
+
+// Format duration for display in HH:MM format
+const formatTimeHourMin = (hours: number): string => {
+  if (hours === 0) return "0:00";
+  const wholeHours = Math.floor(hours);
+  const minutes = Math.round((hours - wholeHours) * 60);
+  return `${wholeHours}:${minutes.toString().padStart(2, '0')}`;
+};
+
+// === END CENTRALIZED TIME CALCULATION FUNCTIONS ===
 
 const TimeSlotDisplay = ({
   startTime,
@@ -1517,13 +1639,6 @@ export function ScheduleTable({
           )}
         </CardContent>
 
-        {/* Daily Statistics - Above legend */}
-        <DailyStats 
-          schedules={schedules}
-          daysToDisplay={visibleDaysToDisplay}
-          employees={employeesData || []}
-        />
-
         {/* Color Legend - Moved to bottom */}
         <div className={cn("border-t border-border p-4 bg-muted/20", isFullWidth && "flex-shrink-0")}>
           <ScheduleColorLegend absenceTypes={absenceTypes} />
@@ -1809,19 +1924,25 @@ function ScheduleTableNormal({
               )}
             </div>
           </th>
-          {daysToDisplay.map((date) => (
-            <th
-              key={date.toISOString()}
-              className="w-[160px] text-center p-4 font-medium text-foreground border-r border-border last:border-r-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
-            >
-              <div className="font-semibold text-base">
-                {weekdayAbbr[format(date, "EEEE")]}
-              </div>
-              <div className="text-sm text-muted-foreground font-medium">
-                {format(date, "dd.MM")}
-              </div>
-            </th>
-          ))}
+          {daysToDisplay.map((date) => {
+            const dailyHours = calculateDailyHours(schedules, date);
+            return (
+              <th
+                key={date.toISOString()}
+                className="w-[160px] text-center p-4 font-medium text-foreground border-r border-border last:border-r-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+              >
+                <div className="font-semibold text-base">
+                  {weekdayAbbr[format(date, "EEEE")]}
+                </div>
+                <div className="text-sm text-muted-foreground font-medium">
+                  {format(date, "dd.MM")}
+                </div>
+                <div className="text-xs text-blue-600 font-medium mt-1">
+                  {formatTimeHourMin(dailyHours)}
+                </div>
+              </th>
+            );
+          })}
         </tr>
       </thead>
       <tbody>
@@ -2523,3 +2644,43 @@ function ScheduleColorLegend({
     </div>
   );
 }
+
+// Calculate daily working hours (excluding breaks) for a specific date
+const calculateDailyHours = (schedules: Schedule[], date: Date): number => {
+  const dateString = format(date, "yyyy-MM-dd");
+  const daySchedules = schedules.filter(
+    schedule => schedule.date === dateString && !schedule.is_empty && schedule.shift_id
+  );
+  
+  return daySchedules.reduce((sum, schedule) => {
+    if (schedule.shift_start && schedule.shift_end) {
+      try {
+        const [startHours, startMinutes] = schedule.shift_start.split(":").map(Number);
+        const [endHours, endMinutes] = schedule.shift_end.split(":").map(Number);
+        
+        const startTotalMinutes = startHours * 60 + startMinutes;
+        let endTotalMinutes = endHours * 60 + endMinutes;
+        
+        // Handle overnight shifts
+        if (endTotalMinutes < startTotalMinutes) {
+          endTotalMinutes += 24 * 60;
+        }
+        
+        const totalDurationHours = (endTotalMinutes - startTotalMinutes) / 60;
+        
+        // Use centralized break calculation
+        const breakDurationHours = calculateBreakDuration(schedule);
+        
+        const workingDurationHours = Math.max(0, totalDurationHours - breakDurationHours);
+        
+        return sum + workingDurationHours;
+      } catch (error) {
+        console.error("Error calculating daily hours:", error);
+        return sum;
+      }
+    }
+    return sum;
+  }, 0);
+};
+
+// === END CENTRALIZED TIME CALCULATION FUNCTIONS ===

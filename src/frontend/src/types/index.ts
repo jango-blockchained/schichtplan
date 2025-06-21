@@ -67,6 +67,7 @@ export interface Schedule {
   status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   break_start?: string | null;
   break_end?: string | null;
+  break_duration?: number | null; // Duration in minutes
   notes?: string | null;
   employee_name?: string;
   availability_type?: AvailabilityTypeStrings;
