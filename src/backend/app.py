@@ -30,6 +30,7 @@ from flask_migrate import Migrate
 
 from src.backend.api.coverage import bp as coverage_bp
 from src.backend.api.demo_data import bp as demo_data_bp
+from src.backend.api.pdf_settings import bp as pdf_settings_bp
 from src.backend.api.schedules import bp as api_schedules_bp
 from src.backend.api.settings import bp as api_settings_bp
 from src.backend.api.week_navigation import bp as week_navigation_bp
@@ -189,6 +190,7 @@ def create_app(config_class=Config):
     app.register_blueprint(special_days_bp, url_prefix="/api/v2")
     app.register_blueprint(auth_bp)  # Register auth blueprint
     app.register_blueprint(coverage_bp)
+    app.register_blueprint(pdf_settings_bp)  # Register PDF settings blueprint
     app.register_blueprint(
         api_settings_bp, name="api_settings"
     )  # Register API settings blueprint
