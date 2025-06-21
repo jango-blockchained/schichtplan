@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
 import { SimplifiedPDFConfig } from '@/types/SimplifiedPDFConfig';
 
 interface MEPTableStructureSectionProps {
@@ -13,35 +14,87 @@ interface MEPTableStructureSectionProps {
 }
 
 export function MEPTableStructureSection({ config, onChange, className = '' }: MEPTableStructureSectionProps) {
+  // Handler for employee columns and summary columns
   const handleColumnChange = (
-    section: keyof SimplifiedPDFConfig['tableStructure'],
-    field: string,
+    section: 'employee' | 'summary',
+    field: keyof (typeof config.table.employee_columns | typeof config.table.summary_columns),
+    subfield: 'label' | 'width',
     value: string | number
   ) => {
-    const currentSection = config.tableStructure[section] as Record<string, unknown>;
-    onChange({
-      tableStructure: {
-        ...config.tableStructure,
-        [section]: {
-          ...currentSection,
-          [field]: value,
+    if (section === 'employee') {
+      onChange({
+        table: {
+          ...config.table,
+          employee_columns: {
+            ...config.table.employee_columns,
+            [field]: {
+              ...config.table.employee_columns[field as keyof typeof config.table.employee_columns],
+              [subfield]: value,
+            },
+          },
         },
-      },
-    });
+      });
+    } else {
+      onChange({
+        table: {
+          ...config.table,
+          summary_columns: {
+            ...config.table.summary_columns,
+            [field]: {
+              ...config.table.summary_columns[field as keyof typeof config.table.summary_columns],
+              [subfield]: value,
+            },
+          },
+        },
+      });
+    }
   };
 
+  // Handler for day columns
   const handleDayColumnChange = (
-    day: keyof SimplifiedPDFConfig['tableStructure']['dayColumns'],
-    field: string,
+    day: string,
+    field: 'label' | 'width',
     value: string | number
   ) => {
+    if (field === 'label') {
+      onChange({
+        table: {
+          ...config.table,
+          day_columns: {
+            ...config.table.day_columns,
+            day_labels: {
+              ...config.table.day_columns.day_labels,
+              [day]: value,
+            },
+          },
+        },
+      });
+    } else {
+      onChange({
+        table: {
+          ...config.table,
+          day_columns: {
+            ...config.table.day_columns,
+            day_width: value as number,
+          },
+        },
+      });
+    }
+  };
+
+  // Handler for row structure
+  const handleRowStructureChange = (
+    row: keyof typeof config.table.row_structure,
+    field: keyof (typeof config.table.row_structure[keyof typeof config.table.row_structure]),
+    value: boolean | string
+  ) => {
     onChange({
-      tableStructure: {
-        ...config.tableStructure,
-        dayColumns: {
-          ...config.tableStructure.dayColumns,
-          [day]: {
-            ...config.tableStructure.dayColumns[day],
+      table: {
+        ...config.table,
+        row_structure: {
+          ...config.table.row_structure,
+          [row]: {
+            ...config.table.row_structure[row],
             [field]: value,
           },
         },
@@ -49,32 +102,14 @@ export function MEPTableStructureSection({ config, onChange, className = '' }: M
     });
   };
 
-  const handleRowHeightChange = (
-    row: keyof SimplifiedPDFConfig['tableStructure']['employeeRowStructure'],
-    height: number
-  ) => {
-    onChange({
-      tableStructure: {
-        ...config.tableStructure,
-        employeeRowStructure: {
-          ...config.tableStructure.employeeRowStructure,
-          [row]: {
-            ...config.tableStructure.employeeRowStructure[row],
-            height,
-          },
-        },
-      },
-    });
-  };
-
   const dayNames = [
-    { key: 'monday' as const, label: 'Montag' },
-    { key: 'tuesday' as const, label: 'Dienstag' },
-    { key: 'wednesday' as const, label: 'Mittwoch' },
-    { key: 'thursday' as const, label: 'Donnerstag' },
-    { key: 'friday' as const, label: 'Freitag' },
-    { key: 'saturday' as const, label: 'Samstag' },
-    { key: 'sunday' as const, label: 'Sonntag' },
+    { key: 'monday', label: 'Montag' },
+    { key: 'tuesday', label: 'Dienstag' },
+    { key: 'wednesday', label: 'Mittwoch' },
+    { key: 'thursday', label: 'Donnerstag' },
+    { key: 'friday', label: 'Freitag' },
+    { key: 'saturday', label: 'Samstag' },
+    { key: 'sunday', label: 'Sonntag' },
   ];
 
   return (
@@ -91,21 +126,21 @@ export function MEPTableStructureSection({ config, onChange, className = '' }: M
             <div className="space-y-2">
               <Label>Name Spalte</Label>
               <Input
-                value={config.tableStructure.nameColumn.label}
-                onChange={(e) => handleColumnChange('nameColumn', 'label', e.target.value)}
+                value={config.table.employee_columns.name.label}
+                onChange={(e) => handleColumnChange('employee', 'name', 'label', e.target.value)}
                 placeholder="Name, Vorname"
               />
               <div className="flex items-center gap-2">
                 <Slider
-                  value={[config.tableStructure.nameColumn.width]}
-                  onValueChange={([value]) => handleColumnChange('nameColumn', 'width', value)}
+                  value={[config.table.employee_columns.name.width]}
+                  onValueChange={([value]) => handleColumnChange('employee', 'name', 'width', value)}
                   min={50}
                   max={150}
                   step={5}
                   className="flex-1"
                 />
                 <Badge variant="secondary" className="text-xs">
-                  {config.tableStructure.nameColumn.width}mm
+                  {config.table.employee_columns.name.width}mm
                 </Badge>
               </div>
             </div>
@@ -113,21 +148,21 @@ export function MEPTableStructureSection({ config, onChange, className = '' }: M
             <div className="space-y-2">
               <Label>Funktion Spalte</Label>
               <Input
-                value={config.tableStructure.positionColumn.label}
-                onChange={(e) => handleColumnChange('positionColumn', 'label', e.target.value)}
+                value={config.table.employee_columns.function.label}
+                onChange={(e) => handleColumnChange('employee', 'function', 'label', e.target.value)}
                 placeholder="Funktion"
               />
               <div className="flex items-center gap-2">
                 <Slider
-                  value={[config.tableStructure.positionColumn.width]}
-                  onValueChange={([value]) => handleColumnChange('positionColumn', 'width', value)}
+                  value={[config.table.employee_columns.function.width]}
+                  onValueChange={([value]) => handleColumnChange('employee', 'function', 'width', value)}
                   min={40}
                   max={100}
                   step={5}
                   className="flex-1"
                 />
                 <Badge variant="secondary" className="text-xs">
-                  {config.tableStructure.positionColumn.width}mm
+                  {config.table.employee_columns.function.width}mm
                 </Badge>
               </div>
             </div>
@@ -136,21 +171,21 @@ export function MEPTableStructureSection({ config, onChange, className = '' }: M
           <div className="space-y-2">
             <Label>Plan/Woche Spalte</Label>
             <Input
-              value={config.tableStructure.planWeekColumn.label}
-              onChange={(e) => handleColumnChange('planWeekColumn', 'label', e.target.value)}
+              value={config.table.employee_columns.plan_week.label}
+              onChange={(e) => handleColumnChange('employee', 'plan_week', 'label', e.target.value)}
               placeholder="Plan/Woche"
             />
             <div className="flex items-center gap-2">
               <Slider
-                value={[config.tableStructure.planWeekColumn.width]}
-                onValueChange={([value]) => handleColumnChange('planWeekColumn', 'width', value)}
+                value={[config.table.employee_columns.plan_week.width]}
+                onValueChange={([value]) => handleColumnChange('employee', 'plan_week', 'width', value)}
                 min={30}
                 max={80}
                 step={5}
                 className="flex-1"
               />
               <Badge variant="secondary" className="text-xs">
-                {config.tableStructure.planWeekColumn.width}mm
+                {config.table.employee_columns.plan_week.width}mm
               </Badge>
             </div>
           </div>
@@ -168,18 +203,18 @@ export function MEPTableStructureSection({ config, onChange, className = '' }: M
                 <div className="flex items-center justify-between">
                   <Label className="text-sm">{label}</Label>
                   <Badge variant="outline" className="text-xs">
-                    {config.tableStructure.dayColumns[key].width}mm
+                    {config.table.day_columns.day_width}mm
                   </Badge>
                 </div>
                 <div className="grid grid-cols-[1fr_100px] gap-2">
                   <Input
-                    value={config.tableStructure.dayColumns[key].label}
+                    value={config.table.day_columns.day_labels[key] || ''}
                     onChange={(e) => handleDayColumnChange(key, 'label', e.target.value)}
                     placeholder={label}
                     className="text-sm"
                   />
                   <Slider
-                    value={[config.tableStructure.dayColumns[key].width]}
+                    value={[config.table.day_columns.day_width]}
                     onValueChange={([value]) => handleDayColumnChange(key, 'width', value)}
                     min={50}
                     max={100}
@@ -201,21 +236,21 @@ export function MEPTableStructureSection({ config, onChange, className = '' }: M
             <div className="space-y-2">
               <Label>Summe/Woche</Label>
               <Input
-                value={config.tableStructure.summaryWeekColumn.label}
-                onChange={(e) => handleColumnChange('summaryWeekColumn', 'label', e.target.value)}
+                value={config.table.summary_columns.week_total.label}
+                onChange={(e) => handleColumnChange('summary', 'week_total', 'label', e.target.value)}
                 placeholder="Summe/Woche"
               />
               <div className="flex items-center gap-2">
                 <Slider
-                  value={[config.tableStructure.summaryWeekColumn.width]}
-                  onValueChange={([value]) => handleColumnChange('summaryWeekColumn', 'width', value)}
+                  value={[config.table.summary_columns.week_total.width]}
+                  onValueChange={([value]) => handleColumnChange('summary', 'week_total', 'width', value)}
                   min={40}
                   max={80}
                   step={5}
                   className="flex-1"
                 />
                 <Badge variant="secondary" className="text-xs">
-                  {config.tableStructure.summaryWeekColumn.width}mm
+                  {config.table.summary_columns.week_total.width}mm
                 </Badge>
               </div>
             </div>
@@ -223,21 +258,21 @@ export function MEPTableStructureSection({ config, onChange, className = '' }: M
             <div className="space-y-2">
               <Label>Summe/Monat</Label>
               <Input
-                value={config.tableStructure.summaryMonthColumn.label}
-                onChange={(e) => handleColumnChange('summaryMonthColumn', 'label', e.target.value)}
+                value={config.table.summary_columns.month_total.label}
+                onChange={(e) => handleColumnChange('summary', 'month_total', 'label', e.target.value)}
                 placeholder="Summe/Monat"
               />
               <div className="flex items-center gap-2">
                 <Slider
-                  value={[config.tableStructure.summaryMonthColumn.width]}
-                  onValueChange={([value]) => handleColumnChange('summaryMonthColumn', 'width', value)}
+                  value={[config.table.summary_columns.month_total.width]}
+                  onValueChange={([value]) => handleColumnChange('summary', 'month_total', 'width', value)}
                   min={40}
                   max={80}
                   step={5}
                   className="flex-1"
                 />
                 <Badge variant="secondary" className="text-xs">
-                  {config.tableStructure.summaryMonthColumn.width}mm
+                  {config.table.summary_columns.month_total.width}mm
                 </Badge>
               </div>
             </div>
@@ -246,30 +281,35 @@ export function MEPTableStructureSection({ config, onChange, className = '' }: M
 
         <Separator />
 
-        {/* Employee Row Structure */}
+        {/* Row Structure */}
         <div className="space-y-4">
           <h4 className="text-sm font-medium text-muted-foreground">Zeilen-Struktur pro Mitarbeiter</h4>
           
-          <div className="space-y-3">
-            {Object.entries(config.tableStructure.employeeRowStructure).map(([key, row]) => (
-              <div key={key} className="flex items-center gap-3">
-                <Label className="w-20 text-sm">{row.label}</Label>
-                <div className="flex items-center gap-2 flex-1">
-                  <Slider
-                    value={[row.height]}
-                    onValueChange={([value]) => handleRowHeightChange(
-                      key as keyof SimplifiedPDFConfig['tableStructure']['employeeRowStructure'], 
-                      value
+          <div className="space-y-4">
+            {Object.entries(config.table.row_structure).map(([key, row]) => (
+              <div key={key} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>{row.label}</Label>
+                  <Switch
+                    checked={row.enabled}
+                    onCheckedChange={(checked) => handleRowStructureChange(
+                      key as keyof typeof config.table.row_structure,
+                      'enabled',
+                      checked
                     )}
-                    min={8}
-                    max={20}
-                    step={1}
-                    className="flex-1"
                   />
-                  <Badge variant="secondary" className="text-xs">
-                    {row.height}mm
-                  </Badge>
                 </div>
+                {row.enabled && (
+                  <Input
+                    value={row.label}
+                    onChange={(e) => handleRowStructureChange(
+                      key as keyof typeof config.table.row_structure,
+                      'label',
+                      e.target.value
+                    )}
+                    placeholder="Zeilenbeschriftung"
+                  />
+                )}
               </div>
             ))}
           </div>
