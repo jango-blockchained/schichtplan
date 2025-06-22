@@ -10,7 +10,7 @@ from src.backend.models import (
 )
 from src.backend.models.employee import AvailabilityType
 from src.backend.models.schedule import ScheduleStatus, ScheduleVersionMeta
-from datetime import datetime
+from datetime import datetime, date
 from http import HTTPStatus
 from sqlalchemy import desc
 from flask import current_app
@@ -688,3 +688,64 @@ def get_shifts_for_employee_on_date():
         return jsonify(
             {"error": f"An unexpected error occurred: {str(e)}"}
         ), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@availability.route("/employee/<int:employee_id>/available/<date>", methods=["GET"])
+def check_employee_availability_for_date(employee_id, date):
+    """Check if an employee is available for assignment on a specific date"""
+    try:
+        # Parse the date
+        try:
+            check_date = datetime.strptime(date, "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify({
+                "error": "Invalid date format. Use YYYY-MM-DD"
+            }), HTTPStatus.BAD_REQUEST
+
+        # Get employee
+        employee = Employee.query.get(employee_id)
+        if not employee:
+            return jsonify({
+                "error": f"Employee with ID {employee_id} not found"
+            }), HTTPStatus.NOT_FOUND
+
+        # Create availability checker
+        from ..services.scheduler.availability import AvailabilityChecker
+        from ..services.scheduler.resources import ScheduleResources
+        
+        # Initialize resources (simplified for availability checking)
+        resources = ScheduleResources()
+        resources.employees = [employee]
+        resources.availabilities = EmployeeAvailability.query.filter_by(
+            employee_id=employee_id
+        ).all()
+        resources.absences = Absence.query.filter(
+            Absence.employee_id == employee_id,
+            Absence.start_date <= check_date,
+            Absence.end_date >= check_date
+        ).all()
+        
+        checker = AvailabilityChecker(resources)
+        is_available = checker.is_employee_available_for_date(employee_id, check_date)
+        
+        # Get reason if not available
+        reason = None
+        if not is_available:
+            if checker.is_employee_on_leave(employee_id, check_date):
+                reason = "Employee is on leave/absence"
+            else:
+                reason = "Employee has no availability or is marked unavailable"
+
+        return jsonify({
+            "employee_id": employee_id,
+            "employee_name": f"{employee.first_name} {employee.last_name}",
+            "date": date,
+            "is_available": is_available,
+            "reason": reason
+        }), HTTPStatus.OK
+
+    except Exception as e:
+        current_app.logger.error(f"Error checking employee availability: {str(e)}")
+        return jsonify({
+            "error": f"An error occurred while checking availability: {str(e)}"
+        }), HTTPStatus.INTERNAL_SERVER_ERROR
