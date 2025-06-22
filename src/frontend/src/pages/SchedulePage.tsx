@@ -168,6 +168,9 @@ export function SchedulePage() {
   const [selectedEmployee, setSelectedEmployee] = useState<number | null>(null); // Keep if used by features not yet removed
   const [isAddScheduleDialogOpen, setIsAddScheduleDialogOpen] = useState(false);
   const [isStatisticsModalOpen, setIsStatisticsModalOpen] = useState(false);
+  const [isAddFixedDialogOpen, setIsAddFixedDialogOpen] = useState(false);
+  const [isAddPreferredDialogOpen, setIsAddPreferredDialogOpen] = useState(false);
+  const [isAddUnavailableDialogOpen, setIsAddUnavailableDialogOpen] = useState(false);
   const [employeeAbsences, setEmployeeAbsences] = useState<
     Record<number, any[]>
   >({}); // Keep if used by ScheduleTable/Manager
@@ -1629,6 +1632,9 @@ export function SchedulePage() {
           isAiEnabled={!!settingsQuery.data?.ai_scheduling?.enabled}
           onPreviewAiData={handlePreviewAiData}
           onImportAiResponse={handleImportAiResponse}
+          onAddFixed={() => setIsAddFixedDialogOpen(true)}
+          onAddPreferred={() => setIsAddPreferredDialogOpen(true)}
+          onAddUnavailable={() => setIsAddUnavailableDialogOpen(true)}
         />
       </div>
 

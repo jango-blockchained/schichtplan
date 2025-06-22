@@ -11,7 +11,7 @@ interface SimpleCoverageGridProps {
     storeClosing: string;
 }
 
-const DAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+const DAYS = ['So.', 'Mo.', 'Di.', 'Mi.', 'Do.', 'Fr.', 'Sa.'];
 const CELL_WIDTH = 96;
 const LABEL_WIDTH = 64;
 
