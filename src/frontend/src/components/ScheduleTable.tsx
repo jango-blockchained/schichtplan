@@ -703,7 +703,7 @@ const ScheduleCell = ({
         ref={isUnavailable ? undefined : drop}
         className={cn(
           "relative h-full min-h-[80px] p-2 transition-colors",
-          isUnavailable ? "bg-gray-100 cursor-not-allowed" : "",
+          isUnavailable ? "cursor-not-allowed" : "",
           !isUnavailable && isOver && canDrop && "bg-primary/10 border-primary/30",
           !isUnavailable && isOver && !canDrop && "bg-destructive/10 border-destructive/30"
         )}
@@ -712,35 +712,9 @@ const ScheduleCell = ({
       >
         {isUnavailable && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-full h-full relative overflow-hidden">
-              {/* Cross from bottom left to top right */}
-              <div 
-                className="absolute border-t-2 border-gray-400 origin-bottom-left" 
-                style={{
-                  width: '141.42%', // sqrt(2) * 100% to reach corner
-                  transform: 'rotate(45deg)',
-                  top: '50%',
-                  left: '0%',
-                  transformOrigin: 'bottom left'
-                }}
-              />
-              {/* Cross from top left to bottom right */}
-              <div 
-                className="absolute border-t-2 border-gray-400 origin-top-left" 
-                style={{
-                  width: '141.42%', // sqrt(2) * 100% to reach corner
-                  transform: 'rotate(-45deg)',
-                  top: '0%',
-                  left: '0%',
-                  transformOrigin: 'top left'
-                }}
-              />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-xs text-gray-500 bg-white px-1 rounded">
-                  Unavailable
-                </span>
-              </div>
-            </div>
+            <span className="text-xs text-gray-600 bg-white/70 px-2 py-1 rounded shadow-sm border">
+              Unavailable
+            </span>
           </div>
         )}
         {!isUnavailable && showActions && (
@@ -811,37 +785,17 @@ const ScheduleCell = ({
         isOver && canDrop && "bg-primary/10 border-primary/30",
         isOver && !canDrop && "bg-destructive/10 border-destructive/30",
         isDragging && "opacity-50 scale-95",
-        !isEmptySchedule(schedule) && employeeAvailable !== false && "cursor-move",
-        employeeAvailable === false && "bg-red-50"
+        !isEmptySchedule(schedule) && employeeAvailable !== false && "cursor-move"
       )}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
       {/* Show unavailability indicator if employee is unavailable */}
       {employeeAvailable === false && (
-        <div className="absolute inset-0 z-10 pointer-events-none">
-          {/* Cross from bottom left to top right */}
-          <div 
-            className="absolute border-t-2 border-red-400 opacity-60" 
-            style={{
-              width: '141.42%', // sqrt(2) * 100% to reach corner
-              transform: 'rotate(45deg)',
-              top: '50%',
-              left: '0%',
-              transformOrigin: 'bottom left'
-            }}
-          />
-          {/* Cross from top left to bottom right */}
-          <div 
-            className="absolute border-t-2 border-red-400 opacity-60" 
-            style={{
-              width: '141.42%', // sqrt(2) * 100% to reach corner
-              transform: 'rotate(-45deg)',
-              top: '0%',
-              left: '0%',
-              transformOrigin: 'top left'
-            }}
-          />
+        <div className="absolute top-1 left-1 z-10">
+          <span className="text-xs text-red-600 bg-white/70 px-1 py-0.5 rounded shadow-sm border border-red-200">
+            N/A
+          </span>
         </div>
       )}
       
