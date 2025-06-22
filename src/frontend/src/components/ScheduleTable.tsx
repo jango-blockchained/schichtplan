@@ -495,8 +495,7 @@ const TimeSlotDisplay = ({
           variant="secondary"
           className={cn(
             "text-xs font-medium", 
-            getShiftTypeColor(effectiveShiftType),
-            isKeyholderShift && "ring-1 ring-amber-500"
+            getShiftTypeColor(effectiveShiftType)
           )}
         >
           {getShiftTypeName(effectiveShiftType)}
@@ -712,7 +711,7 @@ const ScheduleCell = ({
       >
         {isUnavailable && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-xs text-gray-600 bg-white/70 px-2 py-1 rounded shadow-sm border">
+            <span className="text-xs text-red-600 bg-red-100 px-2 py-1 rounded font-medium border border-red-600 opacity-70">
               Unavailable
             </span>
           </div>
@@ -793,7 +792,7 @@ const ScheduleCell = ({
       {/* Show unavailability indicator if employee is unavailable */}
       {employeeAvailable === false && (
         <div className="absolute top-1 left-1 z-10">
-          <span className="text-xs text-red-600 bg-white/70 px-1 py-0.5 rounded shadow-sm border border-red-200">
+          <span className="text-xs text-red-600 bg-red-100 px-1 py-0.5 rounded font-medium border border-red-600 opacity-70">
             N/A
           </span>
         </div>
@@ -1347,13 +1346,13 @@ export function ScheduleTable({
 
   // Map for German weekday abbreviations
   const weekdayAbbr: { [key: string]: string } = {
-    Monday: "Mo",
-    Tuesday: "Di",
-    Wednesday: "Mi",
-    Thursday: "Do",
-    Friday: "Fr",
-    Saturday: "Sa",
-    Sunday: "So",
+    Monday: "Mo.",
+    Tuesday: "Di.",
+    Wednesday: "Mi.",
+    Thursday: "Do.",
+    Friday: "Fr.",
+    Saturday: "Sa.",
+    Sunday: "So.",
   };
 
   // SIMPLIFIED APPROACH: Create a direct lookup map from employee_id and date to schedule
@@ -1827,13 +1826,13 @@ function ScheduleTableNormal({
 
   // Map for German weekday abbreviations
   const weekdayAbbr: { [key: string]: string } = {
-    Monday: "Mo",
-    Tuesday: "Di",
-    Wednesday: "Mi",
-    Thursday: "Do",
-    Friday: "Fr",
-    Saturday: "Sa",
-    Sunday: "So",
+    Monday: "Mo.",
+    Tuesday: "Di.",
+    Wednesday: "Mi.",
+    Thursday: "Do.",
+    Friday: "Fr.",
+    Saturday: "Sa.",
+    Sunday: "So.",
   };
 
   // Group schedules by employee ID and then by date for quick lookup
@@ -1999,7 +1998,7 @@ function ScheduleTableNormal({
         <tr className="border-b border-border">
           <th className="w-[220px] sticky left-0 z-[31] bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 text-left p-4 font-medium text-foreground border-r border-border">
             <div className="flex items-center justify-between">
-              <span>Mitarbeiter</span>
+              <span>Mitarbeiter ({sortedEmployeeIds.length})</span>
               {showNavigation && (
                 <div className="flex items-center gap-1">
                   <Button
@@ -2035,7 +2034,7 @@ function ScheduleTableNormal({
                   {weekdayAbbr[format(date, "EEEE")]}
                 </div>
                 <div className="text-sm text-muted-foreground font-medium">
-                  {format(date, "dd.MM")}
+                  {format(date, "dd.MM.")}
                 </div>
                 <div className="text-xs text-blue-600 font-medium mt-1">
                   {formatTimeHourMin(dailyHours)}
@@ -2115,7 +2114,7 @@ function ScheduleTableNormal({
                           case "workload": {
                             const hours = calculateEmployeeHours(employeeId, schedules, dateRange);
                             return (
-                              <div className="text-xs bg-orange-50 text-orange-700 px-1 py-0.5 rounded border border-orange-200">
+                              <div className="text-xs bg-orange-50 text-orange-700 px-1 py-0.5 rounded">
                                 {hours.weeklyHours.toFixed(1)}h
                               </div>
                             );
@@ -2302,13 +2301,13 @@ function ScheduleTableSwitched({
 
   // Map for German weekday abbreviations
   const weekdayAbbr: { [key: string]: string } = {
-    Monday: "Mo",
-    Tuesday: "Di",
-    Wednesday: "Mi",
-    Thursday: "Do",
-    Friday: "Fr",
-    Saturday: "Sa",
-    Sunday: "So",
+    Monday: "Mo.",
+    Tuesday: "Di.",
+    Wednesday: "Mi.",
+    Thursday: "Do.",
+    Friday: "Fr.",
+    Saturday: "Sa.",
+    Sunday: "So.",
   };
 
   // Get unique employees from schedules with sorting
@@ -2477,7 +2476,7 @@ function ScheduleTableSwitched({
                         {weekdayAbbr[format(date, "EEEE")]}
                       </div>
                       <div className="text-sm text-muted-foreground font-medium">
-                        {format(date, "dd.MM")}
+                        {format(date, "dd.MM.")}
                       </div>
                     </div>
                   </td>
@@ -2618,10 +2617,10 @@ function DailyStats({ schedules, daysToDisplay, employees, settings }: DailyStat
         {dailyStats.map(({ date, dateStr, totalEmployees, totalHours, shiftTypes, keyholders }) => (
           <div key={dateStr} className="text-center">
             <div className="text-xs font-medium text-muted-foreground mb-1">
-              {format(date, 'dd.MM')}
+              {format(date, 'dd.MM.')}
             </div>
             <div className="text-xs text-muted-foreground mb-1">
-              {['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][date.getDay()]}
+              {['So.', 'Mo.', 'Di.', 'Mi.', 'Do.', 'Fr.', 'Sa.'][date.getDay()]}
             </div>
             <div className="space-y-1">
               <div className="flex items-center justify-center gap-1">
