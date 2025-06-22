@@ -1,17 +1,16 @@
-import axios, { AxiosError } from "axios";
 import type {
-  Settings,
-  Employee,
-  ScheduleError,
-  ScheduleUpdate,
-  DailyCoverage,
-  CoverageTimeSlot,
-  EmployeeAvailabilityStatus,
-  ApplicableShift,
-  AvailabilityTypeStrings,
-  AiImportResponse,
-  Absence, // Import Absence type
+    Absence,
+    AiImportResponse,
+    ApplicableShift,
+    AvailabilityTypeStrings,
+    DailyCoverage,
+    Employee,
+    EmployeeAvailabilityStatus,
+    ScheduleError,
+    ScheduleUpdate,
+    Settings
 } from "@/types/index";
+import axios, { AxiosError } from "axios";
 import { CreateEmployeeRequest, UpdateEmployeeRequest } from "../types";
 import { getWeekFromIdentifier } from '../utils/weekUtils';
 
@@ -1517,6 +1516,34 @@ export const previewAiData = async (
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to preview AI data: ${error.message}`);
+    }
+    throw error;
+  }
+};
+
+// New function to check employee availability for a specific date
+export interface EmployeeAvailabilityForDate {
+  employee_id: number;
+  employee_name: string;
+  date: string;
+  is_available: boolean;
+  reason?: string;
+}
+
+export const checkEmployeeAvailabilityForDate = async (
+  employeeId: number,
+  date: string,
+): Promise<EmployeeAvailabilityForDate> => {
+  try {
+    const response = await api.get<EmployeeAvailabilityForDate>(
+      `/api/v2/availability/employee/${employeeId}/available/${date}`,
+    );
+    return response.data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to check availability for employee ${employeeId} on ${date}: ${error.message}`,
+      );
     }
     throw error;
   }

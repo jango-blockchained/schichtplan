@@ -391,6 +391,77 @@ class AvailabilityChecker:
         )
         return records
 
+    def is_employee_available_for_date(self, employee_id: int, date_to_check: date) -> bool:
+        """
+        Check if an employee is available for assignments on a specific date.
+        
+        This checks for:
+        1. Employee absences on the date
+        2. Employee availability records for the day of week
+        
+        Args:
+            employee_id: The employee ID to check
+            date_to_check: The date to check availability for
+            
+        Returns:
+            bool: True if employee is available for assignments, False otherwise
+        """
+        self.log_debug(
+            f"Checking general availability for employee {employee_id} on {date_to_check}"
+        )
+
+        # Check if employee is on leave/absence
+        if self.is_employee_on_leave(employee_id, date_to_check):
+            self.log_debug(f"Employee {employee_id} is on leave on {date_to_check}")
+            return False
+
+        # Get availability records for this date
+        day_of_week = date_to_check.weekday()
+        
+        # Query availability records for this employee and day of week
+        try:
+            if hasattr(self.resources, 'availabilities'):
+                # Use resources if available
+                availability_records = [
+                    avail for avail in self.resources.availabilities
+                    if avail.employee_id == employee_id and 
+                    self.is_availability_for_date(avail, date_to_check)
+                ]
+            else:
+                # Fallback to direct database query
+                availability_records = EmployeeAvailability.query.filter(
+                    EmployeeAvailability.employee_id == employee_id,
+                    EmployeeAvailability.day_of_week == day_of_week
+                ).all()
+            
+            # Check if there are any UNAVAILABLE records for this day
+            for record in availability_records:
+                if (hasattr(record, 'availability_type') and 
+                    record.availability_type == AvailabilityType.UNAVAILABLE.value):
+                    self.log_debug(
+                        f"Employee {employee_id} has UNAVAILABLE availability on {date_to_check}"
+                    )
+                    return False
+                elif (hasattr(record, 'is_available') and 
+                      record.is_available is False):
+                    self.log_debug(
+                        f"Employee {employee_id} is marked as unavailable on {date_to_check}"
+                    )
+                    return False
+            
+            # If no explicit unavailability found, employee is available
+            self.log_debug(
+                f"Employee {employee_id} is available for assignments on {date_to_check}"
+            )
+            return True
+            
+        except Exception as e:
+            self.log_error(
+                f"Error checking employee availability for date: {str(e)}"
+            )
+            # Default to unavailable on error for safety
+            return False
+
     # Logging methods
     def log_error(self, message):
         """Utility method for error logging"""

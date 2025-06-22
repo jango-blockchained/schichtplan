@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
+  checkEmployeeAvailabilityForDate,
   createSchedule,
   getEmployees,
   getSettings,
@@ -168,36 +169,29 @@ const calculateBreakDuration = (schedule: Schedule, employee?: Employee, setting
       return schedule.break_duration / 60;
     }
     
-    // Priority 3: Auto-calculate based on total duration (30min for >6h)
-    // Use keyholder-adjusted times if employee and settings are provided
-    let totalDuration: number;
-    if (employee && settings && schedule.shift_start && schedule.shift_end) {
-      const { startTime, endTime } = getKeyholderAdjustedTimes(schedule, employee, settings);
-      totalDuration = calculateBaseDuration(startTime, endTime);
-    } else if (schedule.shift_start && schedule.shift_end) {
-      totalDuration = calculateBaseDuration(schedule.shift_start, schedule.shift_end);
+    // Priority 3: Auto-calculate based on shift duration (30min for >6h)
+    // For keyholders, the extra opening/closing time counts as additional break time
+    let shiftDuration: number;
+    if (schedule.shift_start && schedule.shift_end) {
+      shiftDuration = calculateBaseDuration(schedule.shift_start, schedule.shift_end);
     } else {
       return 0;
     }
     
-    // For keyholders with extended shifts, add extra break time
+    // Base break calculation: 30min for >6h shifts
+    let baseBreak = shiftDuration > 6 ? 0.5 : 0;
+    
+    // For keyholders, add the extra time as additional break
     if (employee && settings && employee.is_keyholder && schedule.shift_start && schedule.shift_end) {
-      const baseDuration = calculateBaseDuration(schedule.shift_start, schedule.shift_end);
-      const extraTime = totalDuration - baseDuration;
+      const { startTime, endTime } = getKeyholderAdjustedTimes(schedule, employee, settings);
+      const totalDuration = calculateBaseDuration(startTime, endTime);
+      const extraTime = totalDuration - shiftDuration;
       
-      // Base break: 30min for >6h shifts
-      let baseBreak = baseDuration > 6 ? 0.5 : 0;
-      
-      // Add extra break for keyholder duties (proportional to extra time)
-      if (extraTime > 0) {
-        // Add extra break: 15 minutes per extra hour of keyholder duties
-        baseBreak += extraTime * 0.25; // 0.25 = 15 minutes per hour
-      }
-      
-      return baseBreak;
+      // Add keyholder extra time as break time
+      baseBreak += extraTime;
     }
     
-    return totalDuration > 6 ? 0.5 : 0; // 30 minutes if > 6 hours, 0 otherwise
+    return baseBreak;
   } catch (error) {
     console.error("Error calculating break duration:", error);
     return 0;
@@ -260,6 +254,12 @@ const formatTimeHourMin = (hours: number): string => {
   if (hours === 0) return "0:00";
   const wholeHours = Math.floor(hours);
   const minutes = Math.round((hours - wholeHours) * 60);
+  
+  // Handle case where minutes rounds to 60 or more
+  if (minutes >= 60) {
+    return `${wholeHours + Math.floor(minutes / 60)}:${(minutes % 60).toString().padStart(2, '0')}`;
+  }
+  
   return `${wholeHours}:${minutes.toString().padStart(2, '0')}`;
 };
 
@@ -505,45 +505,10 @@ const TimeSlotDisplay = ({
           <div className="text-xs text-muted-foreground font-medium">
             {(() => {
               if (schedule) {
-                // Calculate working time and break duration correctly
-                const totalTime = duration; // This is the actual shift duration including keyholder adjustments
-                
-                // Calculate break duration in hours
-                let breakDuration = 0;
-                
-                // Priority 1: Manual break times
-                if (schedule.break_start && schedule.break_end) {
-                  breakDuration = calculateBaseDuration(schedule.break_start, schedule.break_end);
-                }
-                // Priority 2: Stored break_duration (convert from minutes to hours)  
-                else if (schedule.break_duration && schedule.break_duration > 0) {
-                  breakDuration = schedule.break_duration / 60;
-                }
-                // Priority 3: Auto-calculate (30min for >6h shifts)
-                else {
-                  breakDuration = totalTime > 6 ? 0.5 : 0;
-                  
-                  // Add keyholder extra break if applicable
-                  if (employee?.is_keyholder && settings?.general) {
-                    const { keyholder_before_minutes = 5, keyholder_after_minutes = 10, store_opening, store_closing } = settings.general;
-                    
-                    if (schedule.shift_start && schedule.shift_end) {
-                      // Early shift (opening) - add before minutes as break
-                      if (store_opening && schedule.shift_start <= store_opening) {
-                        breakDuration += keyholder_before_minutes / 60; // Convert to hours
-                      }
-                      
-                      // Late shift (closing) - add after minutes as break  
-                      if (store_closing && schedule.shift_end >= store_closing) {
-                        breakDuration += keyholder_after_minutes / 60; // Convert to hours
-                      }
-                    }
-                  }
-                }
-                
-                const workingTime = Math.max(0, totalTime - breakDuration);
-                const workingTimeFormatted = formatTimeHourMin(workingTime);
-                const breakTimeFormatted = formatTimeHourMin(breakDuration);
+                // Use the centralized function that handles keyholder adjustments properly
+                const timeCalc = calculateWorkingTime(schedule, employee, settings);
+                const workingTimeFormatted = formatTimeHourMin(timeCalc.workingTime);
+                const breakTimeFormatted = formatTimeHourMin(timeCalc.breakTime);
                 return `${workingTimeFormatted} / ${breakTimeFormatted}`;
               }
               return formatDuration(duration);
@@ -621,13 +586,26 @@ const ScheduleCell = ({
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
-    canDrag: () => !isEmptySchedule(schedule),
+    canDrag: () => {
+      // Don't allow dragging if schedule is empty or employee is unavailable
+      return !isEmptySchedule(schedule) && employeeAvailable !== false;
+    },
   });
 
   // Add drop zone functionality for dock items - ALWAYS call this hook second
   const [{ isOver, canDrop }, drop] = useDrop({
     accept: "SCHEDULE",
+    canDrop: () => {
+      // Don't allow dropping if employee is unavailable
+      return employeeAvailable !== false;
+    },
     drop: (item: DragItem) => {
+      // Check availability before allowing drop
+      if (employeeAvailable === false) {
+        console.warn("Cannot assign schedule: Employee is unavailable on this date");
+        return;
+      }
+      
       console.log("🎯 ScheduleCell drop:", { item, employeeId, date, currentVersion });
       
       // Handle dock items differently than existing schedule items
@@ -689,21 +667,83 @@ const ScheduleCell = ({
     }
   }, [schedule, date]);
 
+  // Check employee availability for this date
+  const [employeeAvailable, setEmployeeAvailable] = useState<boolean | null>(null);
+  
+  useEffect(() => {
+    const checkAvailability = async () => {
+      // Check cache first
+      const cachedResult = getCachedAvailability(employeeId, date);
+      if (cachedResult !== null) {
+        setEmployeeAvailable(cachedResult);
+        return;
+      }
+      
+      try {
+        const isAvailable = await checkEmployeeAvailabilityForDateSync(employeeId, date);
+        setEmployeeAvailable(isAvailable);
+        setCachedAvailability(employeeId, date, isAvailable);
+      } catch (error) {
+        console.error("Failed to check employee availability:", error);
+        setEmployeeAvailable(true); // Default to available
+      }
+    };
+    
+    checkAvailability();
+  }, [employeeId, date]);
+
   // Check if this is an empty schedule (no shift assigned)
   if (isEmptySchedule(schedule)) {
-    // Render empty cell with + button on hover
+    // Check if employee is unavailable
+    const isUnavailable = employeeAvailable === false;
+    
+    // Render empty cell with + button on hover or unavailable indicator
     return (
       <div
-        ref={drop}
+        ref={isUnavailable ? undefined : drop}
         className={cn(
           "relative h-full min-h-[80px] p-2 transition-colors",
-          isOver && canDrop && "bg-primary/10 border-primary/30",
-          isOver && !canDrop && "bg-destructive/10 border-destructive/30"
+          isUnavailable ? "bg-gray-100 cursor-not-allowed" : "",
+          !isUnavailable && isOver && canDrop && "bg-primary/10 border-primary/30",
+          !isUnavailable && isOver && !canDrop && "bg-destructive/10 border-destructive/30"
         )}
-        onMouseEnter={() => setShowActions(true)}
+        onMouseEnter={() => !isUnavailable && setShowActions(true)}
         onMouseLeave={() => setShowActions(false)}
       >
-        {showActions && (
+        {isUnavailable && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-full h-full relative overflow-hidden">
+              {/* Cross from bottom left to top right */}
+              <div 
+                className="absolute border-t-2 border-gray-400 origin-bottom-left" 
+                style={{
+                  width: '141.42%', // sqrt(2) * 100% to reach corner
+                  transform: 'rotate(45deg)',
+                  top: '50%',
+                  left: '0%',
+                  transformOrigin: 'bottom left'
+                }}
+              />
+              {/* Cross from top left to bottom right */}
+              <div 
+                className="absolute border-t-2 border-gray-400 origin-top-left" 
+                style={{
+                  width: '141.42%', // sqrt(2) * 100% to reach corner
+                  transform: 'rotate(-45deg)',
+                  top: '0%',
+                  left: '0%',
+                  transformOrigin: 'top left'
+                }}
+              />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-xs text-gray-500 bg-white px-1 rounded">
+                  Unavailable
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+        {!isUnavailable && showActions && (
           <div className="absolute inset-0 flex items-center justify-center">
             <Button
               size="sm"
@@ -771,11 +811,40 @@ const ScheduleCell = ({
         isOver && canDrop && "bg-primary/10 border-primary/30",
         isOver && !canDrop && "bg-destructive/10 border-destructive/30",
         isDragging && "opacity-50 scale-95",
-        !isEmptySchedule(schedule) && "cursor-move"
+        !isEmptySchedule(schedule) && employeeAvailable !== false && "cursor-move",
+        employeeAvailable === false && "bg-red-50"
       )}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
+      {/* Show unavailability indicator if employee is unavailable */}
+      {employeeAvailable === false && (
+        <div className="absolute inset-0 z-10 pointer-events-none">
+          {/* Cross from bottom left to top right */}
+          <div 
+            className="absolute border-t-2 border-red-400 opacity-60" 
+            style={{
+              width: '141.42%', // sqrt(2) * 100% to reach corner
+              transform: 'rotate(45deg)',
+              top: '50%',
+              left: '0%',
+              transformOrigin: 'bottom left'
+            }}
+          />
+          {/* Cross from top left to bottom right */}
+          <div 
+            className="absolute border-t-2 border-red-400 opacity-60" 
+            style={{
+              width: '141.42%', // sqrt(2) * 100% to reach corner
+              transform: 'rotate(-45deg)',
+              top: '0%',
+              left: '0%',
+              transformOrigin: 'top left'
+            }}
+          />
+        </div>
+      )}
+      
       <div className="flex flex-col items-center justify-center h-full">
         <TimeSlotDisplay
           startTime={schedule?.shift_start}
@@ -787,8 +856,8 @@ const ScheduleCell = ({
         />
       </div>
 
-      {/* Actions buttons on hover */}
-      {showActions && (
+      {/* Actions buttons on hover - only show if employee is available */}
+      {showActions && employeeAvailable !== false && (
         <div className="absolute top-1 right-1 flex space-x-1">
           <Button
             size="sm"
@@ -2068,7 +2137,7 @@ function ScheduleTableNormal({
                                 <Key className="h-3 w-3" />
                                 <span>Key</span>
                               </div>
-                            ) : null;
+                                                       ) : null;
                           case "group":
                             return (
                               <div className="text-xs bg-blue-50 text-blue-700 px-1 py-0.5 rounded border border-blue-200">
@@ -2750,6 +2819,17 @@ const calculateDailyHours = (schedules: Schedule[], date: Date, employees?: Empl
         // Use the centralized calculateWorkingTime function that handles keyholder adjustments
         const timeCalc = calculateWorkingTime(schedule, employee, settings);
         
+        // Debug logging
+        console.log(`📊 Daily calc for ${dateString}:`, {
+          employeeName: employee ? `${employee.first_name} ${employee.last_name}` : 'Unknown',
+          scheduleId: schedule.id,
+          shift: `${schedule.shift_start}-${schedule.shift_end}`,
+          totalTime: timeCalc.totalTime,
+          breakTime: timeCalc.breakTime,
+          workingTime: timeCalc.workingTime,
+          currentSum: sum
+        });
+        
         return sum + timeCalc.workingTime;
       } catch (error) {
         console.error("Error calculating daily hours:", error);
@@ -2760,4 +2840,35 @@ const calculateDailyHours = (schedules: Schedule[], date: Date, employees?: Empl
   }, 0);
 };
 
-// === END CENTRALIZED TIME CALCULATION FUNCTIONS ===
+// Utility function to check if employee is available for a specific date
+const checkEmployeeAvailabilityForDateSync = async (employeeId: number, date: Date): Promise<boolean> => {
+  try {
+    const formattedDate = format(date, "yyyy-MM-dd");
+    const result = await checkEmployeeAvailabilityForDate(employeeId, formattedDate);
+    return result.is_available;
+  } catch (error) {
+    console.error("Error checking employee availability:", error);
+    // Return true as fallback to not break existing functionality
+    return true;
+  }
+};
+
+// Cache for availability checks to avoid repeated API calls
+const availabilityCache = new Map<string, { isAvailable: boolean; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+const getCachedAvailability = (employeeId: number, date: Date): boolean | null => {
+  const key = `${employeeId}-${format(date, "yyyy-MM-dd")}`;
+  const cached = availabilityCache.get(key);
+  
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    return cached.isAvailable;
+  }
+  
+  return null;
+};
+
+const setCachedAvailability = (employeeId: number, date: Date, isAvailable: boolean): void => {
+  const key = `${employeeId}-${format(date, "yyyy-MM-dd")}`;
+  availabilityCache.set(key, { isAvailable, timestamp: Date.now() });
+};
