@@ -245,9 +245,9 @@ class DemoDataGenerator:
         if employee_group in ["VZ", "TL"]:
             return 40.0
         elif employee_group == "TZ":
-            return random.randint(20, 34)
+            return round(random.uniform(20.0, 34.5), 1)  # Allow decimal hours for part-time
         else:  # GFB
-            return random.randint(5, 10)
+            return round(random.uniform(5.0, 10.5), 1)  # Allow decimal hours for mini-jobs
 
     def _determine_keyholder_status(
         self, employee_group: str, index: int, contracted_hours: float

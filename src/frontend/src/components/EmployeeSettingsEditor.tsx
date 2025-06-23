@@ -303,7 +303,7 @@ export default function EmployeeSettingsEditor({
                        <FormItem>
                          <FormLabel>Min Hours</FormLabel>
                          <FormControl>
-                           <Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
+                           <Input type="number" step="0.5" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
                          </FormControl>
                          <FormMessage />
                        </FormItem>
@@ -316,7 +316,7 @@ export default function EmployeeSettingsEditor({
                        <FormItem>
                          <FormLabel>Max Hours</FormLabel>
                          <FormControl>
-                           <Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
+                           <Input type="number" step="0.5" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
                          </FormControl>
                          <FormMessage />
                        </FormItem>

@@ -213,12 +213,12 @@ def generate_employee_data(num_employees: int = 30):
                 f"VZ/TL employee: {first_name} {last_name}, contracted_hours: {contracted_hours}"
             )
         elif emp_type["id"] == "TZ":
-            contracted_hours = random.randint(20, 34)  # Part-time range
+            contracted_hours = round(random.uniform(20.0, 34.5), 1)  # Part-time range with decimals
             logging.info(
                 f"TZ employee: {first_name} {last_name}, contracted_hours: {contracted_hours}"
             )
         else:  # GFB
-            contracted_hours = random.randint(5, 10)
+            contracted_hours = round(random.uniform(5.0, 10.5), 1)  # Mini-job range with decimals
             logging.info(
                 f"GFB employee: {first_name} {last_name}, contracted_hours: {contracted_hours}"
             )
@@ -1043,9 +1043,9 @@ def generate_improved_employee_data(num_employees_override: int | None = None):
             employee_id_counter += 1
 
             # Contracted hours based on chosen emp_type
-            contracted_hours = random.randint(
-                emp_type["min_hours"], emp_type["max_hours"]
-            )
+            contracted_hours = round(random.uniform(
+                emp_type["min_hours"], emp_type["max_hours"] + 0.5
+            ), 1)
             if (
                 emp_type["id"] in ["VZ", "TL"] and contracted_hours < 35
             ):  # Ensure VZ/TL have at least 35
@@ -1102,9 +1102,9 @@ def generate_improved_employee_data(num_employees_override: int | None = None):
                 if emp_type["id"] in ["VZ", "TL"]:
                     contracted_hours = 40.0
                 elif emp_type["id"] == "TZ":
-                    contracted_hours = random.randint(20, 34)
+                    contracted_hours = round(random.uniform(20.0, 34.5), 1)
                 else:  # GFB
-                    contracted_hours = random.randint(5, 10)
+                    contracted_hours = round(random.uniform(5.0, 10.5), 1)
 
                 is_keyholder = emp_type["id"] != "GFB"
 
