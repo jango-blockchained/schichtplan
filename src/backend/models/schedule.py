@@ -1,8 +1,11 @@
-from . import db
-from datetime import datetime, UTC
-from sqlalchemy import Column, Integer, ForeignKey, DateTime, Enum as SQLEnum
-from sqlalchemy.orm import relationship
+from datetime import UTC, datetime
 from enum import Enum
+
+from sqlalchemy import Column, DateTime, ForeignKey, Integer
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy.orm import relationship
+
+from . import db
 
 # Import AvailabilityType from employee model
 from .employee import AvailabilityType
@@ -14,6 +17,7 @@ class ScheduleStatus(str, Enum):
     ARCHIVED = "ARCHIVED"  # Old schedule, kept for records
     PENDING = "PENDING"  # Added to fix version 1 database records
     ASSIGNED = "ASSIGNED"  # Legacy status for assigned schedules (treated as DRAFT)
+    EMPTY = "EMPTY"  # Empty schedule slot, no employee assigned
 
 
 class Schedule(db.Model):
@@ -21,24 +25,28 @@ class Schedule(db.Model):
 
     id = Column(Integer, primary_key=True)
     employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False)
-    shift_id = Column(Integer, ForeignKey("shifts.id"), nullable=True)  # Reference to template
+    shift_id = Column(
+        Integer, ForeignKey("shifts.id"), nullable=True
+    )  # Reference to template
     date = Column(DateTime, nullable=False)
     version = Column(Integer, nullable=False, default=1)
-    
+
     # Independent shift timing fields (copied from template but can be modified)
     shift_start = Column(db.String(5), nullable=True)  # Format: "HH:MM"
-    shift_end = Column(db.String(5), nullable=True)    # Format: "HH:MM"
+    shift_end = Column(db.String(5), nullable=True)  # Format: "HH:MM"
     duration_hours = Column(db.Float, nullable=True)
     requires_break = Column(db.Boolean, nullable=True, default=False)
     shift_type_id = Column(db.String(50), nullable=True)  # EARLY, MIDDLE, LATE
-    
+
     # Break timing fields
     break_start = Column(db.String(5), nullable=True)
     break_end = Column(db.String(5), nullable=True)
     break_duration = Column(db.Integer, nullable=True)  # Duration in minutes
-    
+
     notes = Column(db.Text, nullable=True)
-    shift_type = Column(db.String(20), nullable=True)  # Legacy field, keep for compatibility
+    shift_type = Column(
+        db.String(20), nullable=True
+    )  # Legacy field, keep for compatibility
     availability_type = Column(
         SQLEnum(AvailabilityType), nullable=True, default=AvailabilityType.AVAILABLE
     )  # AVAILABLE, FIXED, PREFERRED, UNAVAILABLE
@@ -79,19 +87,19 @@ class Schedule(db.Model):
         self.shift_id = shift_id
         self.date = date
         self.version = version
-        
+
         # Independent shift timing fields
         self.shift_start = shift_start
         self.shift_end = shift_end
         self.duration_hours = duration_hours
         self.requires_break = requires_break
         self.shift_type_id = shift_type_id
-        
+
         # Break timing fields
         self.break_start = break_start
         self.break_end = break_end
         self.break_duration = break_duration
-        
+
         self.notes = notes
         self.shift_type = shift_type  # Legacy field
         self.availability_type = (
@@ -100,7 +108,7 @@ class Schedule(db.Model):
             else availability_type
         )
         self.status = status
-        
+
         # If shift_id is provided but timing fields are not, copy from template
         if shift_id and not shift_start:
             self._copy_from_template()
@@ -109,9 +117,10 @@ class Schedule(db.Model):
         """Copy timing data from the shift template to make this assignment independent"""
         if not self.shift_id:
             return
-            
+
         try:
             from .fixed_shift import ShiftTemplate
+
             template = db.session.get(ShiftTemplate, self.shift_id)
             if template:
                 self.shift_start = template.start_time
@@ -119,12 +128,13 @@ class Schedule(db.Model):
                 self.duration_hours = template.duration_hours
                 self.requires_break = template.requires_break
                 self.shift_type_id = template.shift_type_id
-                
+
                 # Calculate break duration if break times are set
                 if self.break_start and self.break_end:
                     self._calculate_break_duration()
         except Exception as e:
             import logging
+
             logger = logging.getLogger(__name__)
             logger.error(f"Error copying from template for schedule {self.id}: {e}")
 
@@ -133,75 +143,85 @@ class Schedule(db.Model):
         if not self.break_start or not self.break_end:
             self.break_duration = None
             return
-            
+
         try:
             start_hour, start_min = map(int, self.break_start.split(":"))
             end_hour, end_min = map(int, self.break_end.split(":"))
-            
+
             start_minutes = start_hour * 60 + start_min
             end_minutes = end_hour * 60 + end_min
-            
+
             # Handle breaks that cross midnight
             if end_minutes < start_minutes:
                 end_minutes += 24 * 60
-                
+
             self.break_duration = end_minutes - start_minutes
         except Exception as e:
             import logging
+
             logger = logging.getLogger(__name__)
-            logger.error(f"Error calculating break duration for schedule {self.id}: {e}")
+            logger.error(
+                f"Error calculating break duration for schedule {self.id}: {e}"
+            )
             self.break_duration = None
 
     def calculate_auto_break_duration(self):
         """Calculate break duration automatically based on shift duration and keyholder status"""
-        shift_start_val = getattr(self, 'shift_start', None)
-        shift_end_val = getattr(self, 'shift_end', None)
-        
+        shift_start_val = getattr(self, "shift_start", None)
+        shift_end_val = getattr(self, "shift_end", None)
+
         if not shift_start_val or not shift_end_val:
             return 0
-            
+
         try:
             from ..models.settings import Settings
-            
+
             # Calculate base working hours
             start_hour, start_min = map(int, str(shift_start_val).split(":"))
             end_hour, end_min = map(int, str(shift_end_val).split(":"))
-            
+
             start_minutes = start_hour * 60 + start_min
             end_minutes = end_hour * 60 + end_min
-            
+
             # Handle overnight shifts
             if end_minutes < start_minutes:
                 end_minutes += 24 * 60
-                
+
             base_working_hours = (end_minutes - start_minutes) / 60
-            
+
             # Standard break for >6h working time
             total_break_minutes = 30 if base_working_hours > 6 else 0
-            
+
             # Add keyholder extra time as break
             if self.employee and self.employee.is_keyholder:
                 settings = Settings.query.first()
                 if settings:
-                    keyholder_before_minutes = getattr(settings, 'keyholder_before_minutes', 5)
-                    keyholder_after_minutes = getattr(settings, 'keyholder_after_minutes', 10)
-                    store_opening = getattr(settings, 'store_opening', '09:00')
-                    store_closing = getattr(settings, 'store_closing', '18:00')
-                    
+                    keyholder_before_minutes = getattr(
+                        settings, "keyholder_before_minutes", 5
+                    )
+                    keyholder_after_minutes = getattr(
+                        settings, "keyholder_after_minutes", 10
+                    )
+                    store_opening = getattr(settings, "store_opening", "09:00")
+                    store_closing = getattr(settings, "store_closing", "18:00")
+
                     # Early shift (opening) - add before minutes as break
                     if store_opening and str(shift_start_val) <= store_opening:
                         total_break_minutes += keyholder_before_minutes
-                        
+
                     # Late shift (closing) - add after minutes as break
                     if store_closing and str(shift_end_val) >= store_closing:
                         total_break_minutes += keyholder_after_minutes
-            
+
             return total_break_minutes
-            
+
         except Exception as e:
             import logging
+
             logger = logging.getLogger(__name__)
-            logger.error(f"Error calculating auto break duration for schedule {self.id}: {e}")
+            logger.error(
+                f"Error calculating auto break duration for schedule {self.id}: {e}"
+            )
             return 0
 
     def to_dict(self):
@@ -212,19 +232,16 @@ class Schedule(db.Model):
             "shift_id": self.shift_id,
             "date": self.date.isoformat() if self.date is not None else None,
             "version": self.version,
-            
             # Use schedule's own timing fields (independent from template)
             "shift_start": self.shift_start,
             "shift_end": self.shift_end,
             "duration_hours": self.duration_hours,
             "requires_break": self.requires_break,
             "shift_type_id": self.shift_type_id,
-            
             # Break timing fields
             "break_start": self.break_start,
             "break_end": self.break_end,
             "break_duration": self.break_duration,
-            
             "notes": self.notes,
             "shift_type": self.shift_type,  # Legacy field
             "availability_type": self.availability_type.value
@@ -248,6 +265,7 @@ class Schedule(db.Model):
             # Fallback: get shift type name from template
             try:
                 from .fixed_shift import ShiftTemplate
+
                 shift = db.session.get(ShiftTemplate, self.shift_id)
                 if shift:
                     data["shift_type_name"] = (
@@ -255,8 +273,11 @@ class Schedule(db.Model):
                     )
             except Exception as e:
                 import logging
+
                 logger = logging.getLogger(__name__)
-                logger.error(f"Error fetching shift type name for schedule {self.id}: {e}")
+                logger.error(
+                    f"Error fetching shift type name for schedule {self.id}: {e}"
+                )
 
         # Add employee name if available (for convenience)
         if hasattr(self, "employee") and self.employee:
@@ -291,7 +312,7 @@ class ScheduleVersionMeta(db.Model):
     date_range_end = Column(db.Date, nullable=False)
     base_version = Column(Integer, nullable=True)
     notes = Column(db.Text, nullable=True)
-    
+
     # Week-based versioning fields
     week_identifier = Column(db.String(20), nullable=True, index=True)
     month_boundary_mode = Column(db.String(20), nullable=False, default="keep_intact")

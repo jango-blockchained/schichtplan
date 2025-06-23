@@ -1,19 +1,20 @@
 """Distribution module for fair employee assignment across shifts."""
 
-from typing import Dict, List, Any, Optional, Union, TYPE_CHECKING
-from datetime import date, datetime, timedelta, time  # Import time
-from collections import defaultdict
-import sys
-import os
 import logging
+import os
+import sys
+from collections import defaultdict
+from datetime import date, datetime, time, timedelta  # Import time
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+
 from .resources import (
     ScheduleResources,
 )  # Assuming ScheduleResources is in resources.py
 
 try:
     from .coverage_utils import (
-        get_required_staffing_for_interval,
         _time_str_to_datetime_time,
+        get_required_staffing_for_interval,
     )
 except ImportError:
     # Fallback implementations if imports fail
@@ -31,7 +32,7 @@ except ImportError:
             try:
                 return time(int(time_str), 0)
             except ValueError:
-                return time(0, 0) # Return default time if parsing fails
+                return time(0, 0)  # Return default time if parsing fails
 
     def get_required_staffing_for_interval(
         target_date: date,
@@ -50,8 +51,9 @@ except ImportError:
         }  # Import the new utility and helper
 
 
-from .feature_extractor import FeatureExtractor  # Import the FeatureExtractor
 import random  # Import random for dummy predictions
+
+from .feature_extractor import FeatureExtractor  # Import the FeatureExtractor
 
 # Add parent directories to path if needed
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -71,24 +73,24 @@ def import_models():
 
     try:
         # Direct import (when run from backend directory)
+        from models import Employee, Schedule, ShiftTemplate
         from models.employee import AvailabilityType
-        from models import Employee, ShiftTemplate, Schedule
         from utils.logger import logger as backend_logger
 
         return AvailabilityType, Employee, ShiftTemplate, Schedule, backend_logger  # type: ignore[return-value]
     except ImportError:
         try:
             # Import when run from project root
+            from backend.models import Employee, Schedule, ShiftTemplate
             from backend.models.employee import AvailabilityType
-            from backend.models import Employee, ShiftTemplate, Schedule
             from backend.utils.logger import logger as backend_logger
 
             return AvailabilityType, Employee, ShiftTemplate, Schedule, backend_logger  # type: ignore[return-value]
         except ImportError:
             try:
                 # Import when run from another location
+                from src.backend.models import Employee, Schedule, ShiftTemplate
                 from src.backend.models.employee import AvailabilityType
-                from src.backend.models import Employee, ShiftTemplate, Schedule
                 from src.backend.utils.logger import logger as backend_logger
 
                 return (
@@ -125,7 +127,7 @@ def import_models():
                     preferences: Dict[
                         str, Any
                     ] = {}  # Add preferences attribute to prevent errors
-                    availability: List[Any] = [] # Add availability attribute
+                    availability: List[Any] = []  # Add availability attribute
 
                 class ShiftTemplate:
                     """Type hint class for ShiftTemplate"""
@@ -173,12 +175,9 @@ if TYPE_CHECKING:
         shift_type_id: str = ""
         duration_hours: float = 0.0
 
-    from src.backend.models.employee import AvailabilityType as ActualAvailabilityType
     from src.backend.models.employee import Employee as ActualEmployee
 
     # Assuming ShiftTemplate is in fixed_shift based on previous errors
-    from src.backend.models.fixed_shift import ShiftTemplate as ActualShiftTemplate
-    from src.backend.models.schedule import Schedule as ActualSchedule
 
 
 class ShiftScore:
@@ -259,10 +258,14 @@ class DistributionManager:
                         }
                         # Load employee preferences
                         self._load_employee_preferences(employee)
-                        
-                self.logger.info(f"Initialized assignments and preferences for {len(employees)} employees")
+
+                self.logger.info(
+                    f"Initialized assignments and preferences for {len(employees)} employees"
+                )
             else:
-                self.logger.warning("No employees found in resources during initialization")
+                self.logger.warning(
+                    "No employees found in resources during initialization"
+                )
         except Exception as e:
             self.logger.error(f"Error initializing assignments: {str(e)}")
             self.logger.error("Stack trace:", exc_info=True)
@@ -463,14 +466,16 @@ class DistributionManager:
                     )  # Example: higher prediction = better = lower score
 
                     # Add the scored pair to the list
-                    scored_employee_shift_pairs.append({
-                        "employee_id": employee_id,
-                        "shift_id": shift_id,
-                        "combined_score": combined_score,
-                        "employee": employee, # Keep reference to employee object
-                        "shift": shift, # Keep reference to shift object/dict
-                        "date": current_date
-                    })
+                    scored_employee_shift_pairs.append(
+                        {
+                            "employee_id": employee_id,
+                            "shift_id": shift_id,
+                            "combined_score": combined_score,
+                            "employee": employee,  # Keep reference to employee object
+                            "shift": shift,  # Keep reference to shift object/dict
+                            "date": current_date,
+                        }
+                    )
 
             # Sort employee-shift pairs by combined score (ascending - lower score is better)
             scored_employee_shift_pairs.sort(key=lambda item: item["combined_score"])
@@ -552,7 +557,9 @@ class DistributionManager:
 
             # --- Core Assignment Logic ---
             # Now, iterate through shifts and assign employees based on scores and coverage
-            self.logger.info(f"Selecting employees for {len(shifts)} shifts based on scores.")
+            self.logger.info(
+                f"Selecting employees for {len(shifts)} shifts based on scores."
+            )
 
             # Sort shifts by some criteria if needed (e.g., start time, priority)
             # For now, process in the order provided
@@ -565,7 +572,8 @@ class DistributionManager:
 
                 # Filter scored pairs for the current shift
                 shift_candidates = [
-                    pair for pair in scored_employee_shift_pairs
+                    pair
+                    for pair in scored_employee_shift_pairs
                     if pair["shift_id"] == shift_id
                 ]
 
@@ -573,9 +581,13 @@ class DistributionManager:
                 shift_candidates.sort(key=lambda x: x["combined_score"])
 
                 # Determine required staffing for this shift based on coverage rules
-                staffing_info = self._get_required_staffing_info_for_shift(shift, current_date)
+                staffing_info = self._get_required_staffing_info_for_shift(
+                    shift, current_date
+                )
                 min_required_employees = staffing_info.get("min_employees", 1)
-                max_allowed_employees = staffing_info.get("max_employees", min_required_employees + 1)
+                max_allowed_employees = staffing_info.get(
+                    "max_employees", min_required_employees + 1
+                )
                 requires_keyholder = staffing_info.get("requires_keyholder", False)
 
                 assigned_count = 0
@@ -583,7 +595,9 @@ class DistributionManager:
                 # Keep track of employees already assigned to this specific shift to prevent duplicates
                 employees_assigned_to_this_shift = set()
 
-                self.logger.debug(f"Shift {shift_id} requires {min_required_employees}-{max_allowed_employees} employees, keyholder: {requires_keyholder}")
+                self.logger.debug(
+                    f"Shift {shift_id} requires {min_required_employees}-{max_allowed_employees} employees, keyholder: {requires_keyholder}"
+                )
 
                 # Phase 1: Assign employees up to the minimum required staffing
                 for candidate in shift_candidates:
@@ -596,75 +610,105 @@ class DistributionManager:
 
                     # Check if employee has reached daily shift limit
                     if shifts_assigned_today.get(employee_id, 0) >= max_shifts_per_day:
-                        self.logger.debug(f"Employee {employee_id} reached daily shift limit.")
+                        self.logger.debug(
+                            f"Employee {employee_id} reached daily shift limit."
+                        )
                         continue
 
                     # Check if we have met the minimum required staffing for this shift
                     if assigned_count >= min_required_employees:
-                        self.logger.debug(f"Met minimum required staffing ({min_required_employees}) for shift {shift_id}.")
-                        break # Stop assigning once minimum is met
+                        self.logger.debug(
+                            f"Met minimum required staffing ({min_required_employees}) for shift {shift_id}."
+                        )
+                        break  # Stop assigning once minimum is met
 
                     # Validate constraints before assignment
-                    if not self._validate_assignment_constraints(employee, shift, current_date):
-                        self.logger.debug(f"Employee {employee_id} failed constraint validation for shift {shift_id}")
+                    if not self._validate_assignment_constraints(
+                        employee, shift, current_date
+                    ):
+                        self.logger.debug(
+                            f"Employee {employee_id} failed constraint validation for shift {shift_id}"
+                        )
                         continue
 
                     # Double-check availability as a safety measure
                     if not self._validate_employee_availability(employee, current_date):
-                        self.logger.debug(f"Employee {employee_id} failed availability check for {current_date}")
+                        self.logger.debug(
+                            f"Employee {employee_id} failed availability check for {current_date}"
+                        )
                         continue
 
                     # Create the assignment
-                    assignment_data = self._create_assignment_data(employee, shift, current_date)
+                    assignment_data = self._create_assignment_data(
+                        employee, shift, current_date
+                    )
                     if assignment_data is None:
-                        self.logger.warning(f"Failed to create assignment data for employee {employee_id}, shift {shift_id}")
+                        self.logger.warning(
+                            f"Failed to create assignment data for employee {employee_id}, shift {shift_id}"
+                        )
                         continue
 
                     assignments.append(assignment_data)
                     assigned_count += 1
                     shifts_assigned_today[employee_id] += 1
                     employees_assigned_to_this_shift.add(employee_id)
-                    
+
                     # Track keyholder assignment
-                    if getattr(employee, 'is_keyholder', False):
+                    if getattr(employee, "is_keyholder", False):
                         keyholder_assigned = True
-                    
-                    self.logger.info(f"Assigned employee {employee_id} to shift {shift_id} on {current_date} (assignment {assigned_count}/{min_required_employees})")
+
+                    self.logger.info(
+                        f"Assigned employee {employee_id} to shift {shift_id} on {current_date} (assignment {assigned_count}/{min_required_employees})"
+                    )
 
                 # Phase 2: Check if minimum staffing was met
                 if assigned_count < min_required_employees:
-                    self.logger.warning(f"Could not meet minimum staffing for shift {shift_id}: {assigned_count}/{min_required_employees} assigned")
+                    self.logger.warning(
+                        f"Could not meet minimum staffing for shift {shift_id}: {assigned_count}/{min_required_employees} assigned"
+                    )
 
                 # Phase 3: Check keyholder requirement
                 if requires_keyholder and not keyholder_assigned:
-                    self.logger.warning(f"Shift {shift_id} requires a keyholder but none was assigned")
+                    self.logger.warning(
+                        f"Shift {shift_id} requires a keyholder but none was assigned"
+                    )
                     # Try to find a keyholder among remaining candidates
                     for candidate in shift_candidates:
                         employee_id = candidate["employee_id"]
                         employee = candidate["employee"]
-                        
-                        if (employee_id not in employees_assigned_to_this_shift and 
-                            getattr(employee, 'is_keyholder', False) and
-                            shifts_assigned_today.get(employee_id, 0) < max_shifts_per_day and
-                            assigned_count < max_allowed_employees):
-                            
-                            if (self._validate_assignment_constraints(employee, shift, current_date) and
-                                self._validate_employee_availability(employee, current_date)):
-                                
-                                assignment_data = self._create_assignment_data(employee, shift, current_date)
+
+                        if (
+                            employee_id not in employees_assigned_to_this_shift
+                            and getattr(employee, "is_keyholder", False)
+                            and shifts_assigned_today.get(employee_id, 0)
+                            < max_shifts_per_day
+                            and assigned_count < max_allowed_employees
+                        ):
+                            if self._validate_assignment_constraints(
+                                employee, shift, current_date
+                            ) and self._validate_employee_availability(
+                                employee, current_date
+                            ):
+                                assignment_data = self._create_assignment_data(
+                                    employee, shift, current_date
+                                )
                                 if assignment_data:
                                     assignments.append(assignment_data)
                                     assigned_count += 1
                                     shifts_assigned_today[employee_id] += 1
                                     employees_assigned_to_this_shift.add(employee_id)
                                     keyholder_assigned = True
-                                    self.logger.info(f"Assigned keyholder {employee_id} to shift {shift_id}")
+                                    self.logger.info(
+                                        f"Assigned keyholder {employee_id} to shift {shift_id}"
+                                    )
                                     break
 
                 # Phase 4: Assign additional employees up to maximum if beneficial
                 if assigned_count < max_allowed_employees:
-                    self.logger.debug(f"Considering additional assignments for shift {shift_id} (current: {assigned_count}, max: {max_allowed_employees})")
-                    
+                    self.logger.debug(
+                        f"Considering additional assignments for shift {shift_id} (current: {assigned_count}, max: {max_allowed_employees})"
+                    )
+
                     for candidate in shift_candidates:
                         employee_id = candidate["employee_id"]
                         employee = candidate["employee"]
@@ -674,33 +718,50 @@ class DistributionManager:
                             break
 
                         # Skip if already assigned or at daily limit
-                        if (employee_id in employees_assigned_to_this_shift or 
-                            shifts_assigned_today.get(employee_id, 0) >= max_shifts_per_day):
+                        if (
+                            employee_id in employees_assigned_to_this_shift
+                            or shifts_assigned_today.get(employee_id, 0)
+                            >= max_shifts_per_day
+                        ):
                             continue
 
                         # Only assign additional employees if their score is good enough
                         # (to avoid overstaffing with poorly suited employees)
-                        if candidate["combined_score"] > 10.0:  # Threshold for additional assignments
-                            self.logger.debug(f"Employee {employee_id} score too high for additional assignment: {candidate['combined_score']}")
+                        if (
+                            candidate["combined_score"] > 10.0
+                        ):  # Threshold for additional assignments
+                            self.logger.debug(
+                                f"Employee {employee_id} score too high for additional assignment: {candidate['combined_score']}"
+                            )
                             continue
 
                         # Validate constraints and availability
-                        if (self._validate_assignment_constraints(employee, shift, current_date) and
-                            self._validate_employee_availability(employee, current_date)):
-                            
-                            assignment_data = self._create_assignment_data(employee, shift, current_date)
+                        if self._validate_assignment_constraints(
+                            employee, shift, current_date
+                        ) and self._validate_employee_availability(
+                            employee, current_date
+                        ):
+                            assignment_data = self._create_assignment_data(
+                                employee, shift, current_date
+                            )
                             if assignment_data:
                                 assignments.append(assignment_data)
                                 assigned_count += 1
                                 shifts_assigned_today[employee_id] += 1
                                 employees_assigned_to_this_shift.add(employee_id)
-                                self.logger.info(f"Assigned additional employee {employee_id} to shift {shift_id} (total: {assigned_count})")
+                                self.logger.info(
+                                    f"Assigned additional employee {employee_id} to shift {shift_id} (total: {assigned_count})"
+                                )
 
-                self.logger.info(f"Completed assignment for shift {shift_id}: {assigned_count} employees assigned (min: {min_required_employees}, max: {max_allowed_employees})")
+                self.logger.info(
+                    f"Completed assignment for shift {shift_id}: {assigned_count} employees assigned (min: {min_required_employees}, max: {max_allowed_employees})"
+                )
 
             # --- End Core Assignment Logic ---
 
-            self.logger.info(f"Finished assigning employees for shift type {shift_type}. Total assignments: {len(assignments)}")
+            self.logger.info(
+                f"Finished assigning employees for shift type {shift_type}. Total assignments: {len(assignments)}"
+            )
 
             # Update self.assignments_by_employee with the new assignments for downstream steps
             for assignment in assignments:
@@ -718,36 +779,44 @@ class DistributionManager:
             )
             return []
 
-    def _get_required_staffing_info_for_shift(self, shift: Any, shift_date: date) -> Dict[str, Any]:
+    def _get_required_staffing_info_for_shift(
+        self, shift: Any, shift_date: date
+    ) -> Dict[str, Any]:
         """Get the complete staffing information for a specific shift based on coverage rules."""
         try:
             # Extract shift timing information
-            start_time = getattr(shift, 'start_time', None) or (shift.get('start_time') if isinstance(shift, dict) else None)
-            end_time = getattr(shift, 'end_time', None) or (shift.get('end_time') if isinstance(shift, dict) else None)
-            
+            start_time = getattr(shift, "start_time", None) or (
+                shift.get("start_time") if isinstance(shift, dict) else None
+            )
+            end_time = getattr(shift, "end_time", None) or (
+                shift.get("end_time") if isinstance(shift, dict) else None
+            )
+
             if not start_time:
-                self.logger.warning(f"No start_time found for shift, using default staffing")
+                self.logger.warning(
+                    "No start_time found for shift, using default staffing"
+                )
                 return {
                     "min_employees": 1,
                     "max_employees": 2,
                     "requires_keyholder": False,
                     "coverage_id": None,
-                    "has_coverage": False
+                    "has_coverage": False,
                 }
-                
+
             # Convert start_time to time object if it's a string
             if isinstance(start_time, str):
                 start_time_obj = _time_str_to_datetime_time(start_time)
             else:
                 start_time_obj = start_time
-                
+
             # Get required staffing from coverage rules
             if self.resources:
                 staffing_info = get_required_staffing_for_interval(
                     shift_date,
                     start_time_obj,
                     self.resources,
-                    interval_duration_minutes=15
+                    interval_duration_minutes=15,
                 )
                 return staffing_info
             else:
@@ -756,9 +825,9 @@ class DistributionManager:
                     "max_employees": 2,
                     "requires_keyholder": False,
                     "coverage_id": None,
-                    "has_coverage": False
+                    "has_coverage": False,
                 }
-                
+
         except Exception as e:
             self.logger.warning(f"Error getting required staffing for shift: {e}")
             return {
@@ -766,122 +835,177 @@ class DistributionManager:
                 "max_employees": 2,
                 "requires_keyholder": False,
                 "coverage_id": None,
-                "has_coverage": False
+                "has_coverage": False,
             }
 
-    def _validate_assignment_constraints(self, employee: Any, shift: Any, shift_date: date) -> bool:
+    def _validate_assignment_constraints(
+        self, employee: Any, shift: Any, shift_date: date
+    ) -> bool:
         """Validate that an employee can be assigned to a shift based on constraints."""
         try:
             if not self.constraint_checker:
                 # If no constraint checker available, perform basic validation
                 return self._basic_constraint_validation(employee, shift, shift_date)
-            
+
             # Use the constraint checker to validate the assignment
             employee_id = self.get_id(employee, ["id", "employee_id"])
             shift_id = self.get_id(shift, ["id", "shift_id", "shift_template_id"])
-            
+
             if employee_id is None or shift_id is None:
-                self.logger.warning(f"Cannot validate constraints: missing employee_id ({employee_id}) or shift_id ({shift_id})")
+                self.logger.warning(
+                    f"Cannot validate constraints: missing employee_id ({employee_id}) or shift_id ({shift_id})"
+                )
                 return False
-            
+
             # Create a temporary assignment for validation
             temp_assignment = {
                 "employee_id": employee_id,
                 "shift_id": shift_id,
                 "date": shift_date,
-                "start_time": getattr(shift, 'start_time', None) or (shift.get('start_time') if isinstance(shift, dict) else None),
-                "end_time": getattr(shift, 'end_time', None) or (shift.get('end_time') if isinstance(shift, dict) else None),
+                "start_time": getattr(shift, "start_time", None)
+                or (shift.get("start_time") if isinstance(shift, dict) else None),
+                "end_time": getattr(shift, "end_time", None)
+                or (shift.get("end_time") if isinstance(shift, dict) else None),
             }
-            
+
             # Check constraints
-            is_valid = self.constraint_checker.validate_assignment(temp_assignment, employee, shift)
-            
+            is_valid = self.constraint_checker.validate_assignment(
+                temp_assignment, employee, shift
+            )
+
+            # Check keyholder constraints if employee is a keyholder
+            if is_valid and getattr(employee, "is_keyholder", False):
+                keyholder_violations = (
+                    self.constraint_checker.check_keyholder_constraints(
+                        employee_id,
+                        shift_id,
+                        shift_date,
+                        self._get_current_assignments(),
+                    )
+                )
+                if keyholder_violations:
+                    self.logger.debug(
+                        f"Keyholder constraint violations for employee {employee_id}: {keyholder_violations}"
+                    )
+                    is_valid = False
+
             if not is_valid:
-                self.logger.debug(f"Constraint validation failed for employee {employee_id}, shift {shift_id}")
-            
+                self.logger.debug(
+                    f"Constraint validation failed for employee {employee_id}, shift {shift_id}"
+                )
+
             return is_valid
-            
+
         except Exception as e:
             self.logger.warning(f"Error validating assignment constraints: {e}")
             return False
 
-    def _basic_constraint_validation(self, employee: Any, shift: Any, shift_date: date) -> bool:
+    def _basic_constraint_validation(
+        self, employee: Any, shift: Any, shift_date: date
+    ) -> bool:
         """Perform basic constraint validation when no constraint checker is available."""
         try:
             # Check if employee is active
-            if not getattr(employee, 'is_active', True):
+            if not getattr(employee, "is_active", True):
                 return False
-            
+
             # Check if shift has required fields
-            start_time = getattr(shift, 'start_time', None) or (shift.get('start_time') if isinstance(shift, dict) else None)
+            start_time = getattr(shift, "start_time", None) or (
+                shift.get("start_time") if isinstance(shift, dict) else None
+            )
             if not start_time:
                 return False
-            
+
             # Add more basic validations as needed
             return True
-            
+
         except Exception as e:
             self.logger.warning(f"Error in basic constraint validation: {e}")
             return False
+
+    def _get_current_assignments(self) -> List[Dict]:
+        """Get current assignments for constraint checking."""
+        try:
+            # Return the current assignments being built
+            if hasattr(self, "current_assignments"):
+                return self.current_assignments
+            return []
+        except Exception as e:
+            self.logger.warning(f"Error getting current assignments: {e}")
+            return []
 
     def _validate_employee_availability(self, employee: Any, shift_date: date) -> bool:
         """Double-check employee availability for the given date."""
         try:
             if not self.availability_checker:
                 # If no availability checker, assume available if employee is active
-                return getattr(employee, 'is_active', True)
-            
+                return getattr(employee, "is_active", True)
+
             # Use availability checker to validate
             employee_id = self.get_id(employee, ["id", "employee_id"])
             if employee_id is None:
                 return False
-            
+
             available_employees = self.availability_checker.get_available_employees(
                 shift_date, [employee]
             )
-            
+
             return len(available_employees) > 0
-            
+
         except Exception as e:
             self.logger.warning(f"Error validating employee availability: {e}")
             return False
 
-    def _create_assignment_data(self, employee: Any, shift: Any, shift_date: date) -> Optional[Dict[str, Any]]:
+    def _create_assignment_data(
+        self, employee: Any, shift: Any, shift_date: date
+    ) -> Optional[Dict[str, Any]]:
         """Create assignment data dictionary with all required fields."""
         try:
             employee_id = self.get_id(employee, ["id", "employee_id"])
             shift_id = self.get_id(shift, ["id", "shift_id", "shift_template_id"])
-            
+
             if employee_id is None or shift_id is None:
-                self.logger.error(f"Cannot create assignment: missing employee_id ({employee_id}) or shift_id ({shift_id})")
+                self.logger.error(
+                    f"Cannot create assignment: missing employee_id ({employee_id}) or shift_id ({shift_id})"
+                )
                 return None
-            
+
             # Extract shift details
-            start_time = getattr(shift, 'start_time', None) or (shift.get('start_time') if isinstance(shift, dict) else None)
-            end_time = getattr(shift, 'end_time', None) or (shift.get('end_time') if isinstance(shift, dict) else None)
-            shift_type = getattr(shift, 'shift_type', None) or (shift.get('shift_type') if isinstance(shift, dict) else None)
-            
+            start_time = getattr(shift, "start_time", None) or (
+                shift.get("start_time") if isinstance(shift, dict) else None
+            )
+            end_time = getattr(shift, "end_time", None) or (
+                shift.get("end_time") if isinstance(shift, dict) else None
+            )
+            shift_type = getattr(shift, "shift_type", None) or (
+                shift.get("shift_type") if isinstance(shift, dict) else None
+            )
+
             # Create assignment data with validation
             assignment_data = {
                 "employee_id": employee_id,
                 "shift_id": shift_id,
                 "date": shift_date,
                 "status": "DRAFT",
-                "version": getattr(self, 'version', 1),
+                "version": getattr(self, "version", 1),
                 "start_time": start_time,
                 "end_time": end_time,
                 "shift_type": shift_type,
-                "break_start": getattr(shift, 'break_start', None) or (shift.get('break_start') if isinstance(shift, dict) else None),
-                "break_end": getattr(shift, 'break_end', None) or (shift.get('break_end') if isinstance(shift, dict) else None),
+                "break_start": getattr(shift, "break_start", None)
+                or (shift.get("break_start") if isinstance(shift, dict) else None),
+                "break_end": getattr(shift, "break_end", None)
+                or (shift.get("break_end") if isinstance(shift, dict) else None),
                 "notes": None,  # Can be populated later if needed
             }
-            
+
             # Validate required fields
             if not start_time:
-                self.logger.warning(f"Assignment created without start_time for employee {employee_id}, shift {shift_id}")
-            
+                self.logger.warning(
+                    f"Assignment created without start_time for employee {employee_id}, shift {shift_id}"
+                )
+
             return assignment_data
-            
+
         except Exception as e:
             self.logger.error(f"Error creating assignment data: {e}")
             return None
@@ -890,140 +1014,161 @@ class DistributionManager:
         self,
         current_date: date,
         date_shifts: List[Dict],
-        available_employees: Optional[List[Any]] = None
+        available_employees: Optional[List[Any]] = None,
     ) -> List[Dict]:
         """
         Main entry point for generating assignments for a single day.
-        
+
         Args:
             current_date: The date to generate assignments for
             date_shifts: List of shift instances/templates for the day
             available_employees: Optional list of available employees (if None, will get from resources)
-            
+
         Returns:
             List of assignment dictionaries
         """
         try:
             self.logger.info(f"Generating assignments for {current_date}")
             self.logger.info(f"Processing {len(date_shifts)} shifts")
-            
+
             # Get available employees if not provided
             if available_employees is None:
                 if self.availability_checker and self.resources:
-                    available_employees = self.availability_checker.get_available_employees(
-                        current_date, self.resources.employees
+                    available_employees = (
+                        self.availability_checker.get_available_employees(
+                            current_date, self.resources.employees
+                        )
                     )
-                elif self.resources and hasattr(self.resources, 'employees'):
+                elif self.resources and hasattr(self.resources, "employees"):
                     # Fallback: use all active employees
                     available_employees = [
-                        e for e in self.resources.employees 
-                        if getattr(e, 'is_active', True)
+                        e
+                        for e in self.resources.employees
+                        if getattr(e, "is_active", True)
                     ]
                 else:
-                    self.logger.error("No employees available and no resources to get them from")
+                    self.logger.error(
+                        "No employees available and no resources to get them from"
+                    )
                     return []
-            
+
             self.logger.info(f"Found {len(available_employees)} available employees")
-            
+
             if not available_employees:
                 self.logger.warning(f"No available employees for {current_date}")
                 return []
-                
+
             if not date_shifts:
                 self.logger.warning(f"No shifts to assign for {current_date}")
                 return []
-            
+
             # Group shifts by type for more efficient assignment
             shifts_by_type = defaultdict(list)
             for shift in date_shifts:
-                shift_type = getattr(shift, 'shift_type', None) or (
-                    shift.get('shift_type') if isinstance(shift, dict) else 'UNKNOWN'
+                shift_type = getattr(shift, "shift_type", None) or (
+                    shift.get("shift_type") if isinstance(shift, dict) else "UNKNOWN"
                 )
                 shifts_by_type[shift_type].append(shift)
-            
-            self.logger.info(f"Grouped shifts into {len(shifts_by_type)} types: {list(shifts_by_type.keys())}")
-            
+
+            self.logger.info(
+                f"Grouped shifts into {len(shifts_by_type)} types: {list(shifts_by_type.keys())}"
+            )
+
             # Generate assignments for each shift type
             all_assignments = []
             for shift_type, shifts in shifts_by_type.items():
-                self.logger.info(f"Processing {len(shifts)} shifts of type {shift_type}")
-                
+                self.logger.info(
+                    f"Processing {len(shifts)} shifts of type {shift_type}"
+                )
+
                 # Get employees available for this shift type
                 type_available_employees = self._filter_employees_for_shift_type(
                     available_employees, shift_type, current_date
                 )
-                
+
                 if not type_available_employees:
-                    self.logger.warning(f"No employees available for shift type {shift_type}")
+                    self.logger.warning(
+                        f"No employees available for shift type {shift_type}"
+                    )
                     continue
-                
+
                 # Assign employees to shifts of this type
                 type_assignments = self.assign_employees_by_type(
                     current_date, shifts, type_available_employees, shift_type
                 )
-                
+
                 all_assignments.extend(type_assignments)
-                self.logger.info(f"Created {len(type_assignments)} assignments for shift type {shift_type}")
-            
-            self.logger.info(f"Generated {len(all_assignments)} total assignments for {current_date}")
+                self.logger.info(
+                    f"Created {len(type_assignments)} assignments for shift type {shift_type}"
+                )
+
+            self.logger.info(
+                f"Generated {len(all_assignments)} total assignments for {current_date}"
+            )
             return all_assignments
-            
+
         except Exception as e:
-            self.logger.error(f"Error generating assignments for {current_date}: {str(e)}", exc_info=True)
+            self.logger.error(
+                f"Error generating assignments for {current_date}: {str(e)}",
+                exc_info=True,
+            )
             return []
 
     def _filter_employees_for_shift_type(
-        self, 
-        employees: List[Any], 
-        shift_type: str, 
-        shift_date: date
+        self, employees: List[Any], shift_type: str, shift_date: date
     ) -> List[Any]:
         """
         Filter employees based on their suitability for a specific shift type.
-        
+
         Args:
             employees: List of employee objects
             shift_type: The type of shift (e.g., 'EARLY', 'LATE', 'MIDDLE')
             shift_date: The date of the shift
-            
+
         Returns:
             List of employees suitable for this shift type
         """
         suitable_employees = []
-        
+
         for employee in employees:
             try:
                 employee_id = self.get_id(employee, ["id", "employee_id"])
                 if employee_id is None:
                     continue
-                
+
                 # Check if employee has preferences against this shift type
                 preferences = self.employee_preferences.get(employee_id, {})
                 avoid_shifts = preferences.get("avoid_shifts", [])
-                
+
                 if shift_type in avoid_shifts:
-                    self.logger.debug(f"Employee {employee_id} avoids shift type {shift_type}")
+                    self.logger.debug(
+                        f"Employee {employee_id} avoids shift type {shift_type}"
+                    )
                     continue
-                
+
                 # Check if employee is available for this day of week
                 day_of_week = shift_date.weekday()
                 avoid_days = preferences.get("avoid_days", [])
-                
+
                 if day_of_week in avoid_days:
-                    self.logger.debug(f"Employee {employee_id} avoids day {day_of_week}")
+                    self.logger.debug(
+                        f"Employee {employee_id} avoids day {day_of_week}"
+                    )
                     continue
-                
+
                 # Additional checks can be added here (skills, certifications, etc.)
-                
+
                 suitable_employees.append(employee)
-                
+
             except Exception as e:
                 self.logger.warning(f"Error filtering employee {employee}: {e}")
                 continue
-        
+
         return suitable_employees
 
-    def _calculate_history_adjustment_v2(self, employee_id: int, shift_template: Any, shift_date: date) -> float:
+    def _calculate_history_adjustment_v2(
+        self, employee_id: int, shift_template: Any, shift_date: date
+    ) -> float:
         """Calculate a penalty/bonus based on historical assignment distribution for fairness."""
         adjustment = 0.0
         employee_history = self.employee_history.get(employee_id, {})
@@ -1032,22 +1177,30 @@ class DistributionManager:
 
         if total_assigned == 0:
             # No history, apply a slight bonus to encourage initial assignment
-            return -0.1 # Small bonus
+            return -0.1  # Small bonus
 
         # Get the category of the current shift (EARLY, MIDDLE, LATE, etc.)
         shift_category = self._categorize_shift(shift_template)
-        shift_category_key = self._get_shift_category_key(shift_category, shift_template)
+        shift_category_key = self._get_shift_category_key(
+            shift_category, shift_template
+        )
 
         # Calculate the employee's historical count for this shift type/category
-        employee_category_count = employee_history.get(shift_category, 0) # Using category for lookup
+        employee_category_count = employee_history.get(
+            shift_category, 0
+        )  # Using category for lookup
 
         # Calculate the average count for this shift type/category across all employees
         all_employee_counts = [
-            hist.get(shift_category, 0) # Using category for lookup
+            hist.get(shift_category, 0)  # Using category for lookup
             for hist in self.employee_history.values()
-            if hist.get("total", 0) > 0 # Only consider employees with history
+            if hist.get("total", 0) > 0  # Only consider employees with history
         ]
-        average_category_count = sum(all_employee_counts) / len(all_employee_counts) if all_employee_counts else 0
+        average_category_count = (
+            sum(all_employee_counts) / len(all_employee_counts)
+            if all_employee_counts
+            else 0
+        )
 
         # Calculate fairness adjustment: penalize if employee has significantly more of this shift type than average
         # and bonus if they have significantly less.
@@ -1056,28 +1209,56 @@ class DistributionManager:
 
         # Apply a penalty based on the positive deviation, bonus based on negative deviation
         # Scale the adjustment based on the deviation amount
-        scaling_factor = 0.5 # Adjust this factor to control the strength of the adjustment
+        scaling_factor = (
+            0.5  # Adjust this factor to control the strength of the adjustment
+        )
 
-        adjustment -= deviation * scaling_factor # Penalize positive deviation (more than average), bonus negative deviation (less than average)
+        adjustment -= (
+            deviation * scaling_factor
+        )  # Penalize positive deviation (more than average), bonus negative deviation (less than average)
 
         # Additional factor: Consider the ratio of this shift type for the employee vs overall
         # This helps balance the mix of shifts an employee gets
         employee_ratio = employee_category_count / total_assigned
-        average_total_shifts = sum(hist.get("total", 0) for hist in self.employee_history.values()) / len(self.employee_history) if self.employee_history else 0
-        overall_category_count = sum(hist.get(shift_category, 0) for hist in self.employee_history.values()) # Using category for lookup
-        overall_ratio = overall_category_count / (sum(hist.get("total", 0) for hist in self.employee_history.values())) if sum(hist.get("total", 0) for hist in self.employee_history.values()) > 0 else 0
+        average_total_shifts = (
+            sum(hist.get("total", 0) for hist in self.employee_history.values())
+            / len(self.employee_history)
+            if self.employee_history
+            else 0
+        )
+        overall_category_count = sum(
+            hist.get(shift_category, 0) for hist in self.employee_history.values()
+        )  # Using category for lookup
+        overall_ratio = (
+            overall_category_count
+            / (sum(hist.get("total", 0) for hist in self.employee_history.values()))
+            if sum(hist.get("total", 0) for hist in self.employee_history.values()) > 0
+            else 0
+        )
 
         ratio_deviation = employee_ratio - overall_ratio
-        adjustment -= ratio_deviation * 10.0 # Stronger penalty/bonus for ratio deviation
+        adjustment -= (
+            ratio_deviation * 10.0
+        )  # Stronger penalty/bonus for ratio deviation
 
         # Ensure adjustment doesn't become excessively large or small
-        adjustment = max(min(adjustment, 20.0), -20.0) # Cap adjustment to a reasonable range
+        adjustment = max(
+            min(adjustment, 20.0), -20.0
+        )  # Cap adjustment to a reasonable range
 
-        self.logger.debug(f"History adjustment for Emp {employee_id}, Shift {shift_type} ({shift_category}): {adjustment} (Employee count: {employee_category_count}, Avg count: {average_category_count}, Deviation: {deviation}, Employee ratio: {employee_ratio:.2f}, Overall ratio: {overall_ratio:.2f}, Ratio deviation: {ratio_deviation:.2f})")
+        self.logger.debug(
+            f"History adjustment for Emp {employee_id}, Shift {shift_type} ({shift_category}): {adjustment} (Employee count: {employee_category_count}, Avg count: {average_category_count}, Deviation: {deviation}, Employee ratio: {employee_ratio:.2f}, Overall ratio: {overall_ratio:.2f}, Ratio deviation: {ratio_deviation:.2f})"
+        )
 
         return adjustment
 
-    def _calculate_preference_adjustment_v2(self, employee_id: int, shift_template: Any, shift_date: date, availability_type_override: Any) -> float:
+    def _calculate_preference_adjustment_v2(
+        self,
+        employee_id: int,
+        shift_template: Any,
+        shift_date: date,
+        availability_type_override: Any,
+    ) -> float:
         """Return a bonus if the shift matches employee preferences, penalty if avoided, considering preference strength."""
         adjustment = 0.0
         preferences = self.employee_preferences.get(employee_id, {})
@@ -1085,7 +1266,7 @@ class DistributionManager:
         day_of_week = shift_date.weekday()
 
         if not preferences:
-            return 0.0 # No preferences, no adjustment
+            return 0.0  # No preferences, no adjustment
 
         # Check shift type preferences
         # Assuming preferences can have a strength/score, e.g., {'preferred_shifts': [{'type': 'EARLY', 'strength': 5}, ...]}
@@ -1095,11 +1276,15 @@ class DistributionManager:
 
         # Simple check based on lists
         if shift_type in preferred_shifts:
-            adjustment -= 2.0 # Bonus for preferred shift type
-            self.logger.debug(f"Preference adjustment for Emp {employee_id}, Shift {shift_type}: Applied bonus for preferred shift type.")
+            adjustment -= 2.0  # Bonus for preferred shift type
+            self.logger.debug(
+                f"Preference adjustment for Emp {employee_id}, Shift {shift_type}: Applied bonus for preferred shift type."
+            )
         elif shift_type in avoid_shifts:
-            adjustment += 2.0 # Penalty for avoided shift type
-            self.logger.debug(f"Preference adjustment for Emp {employee_id}, Shift {shift_type}: Applied penalty for avoided shift type.")
+            adjustment += 2.0  # Penalty for avoided shift type
+            self.logger.debug(
+                f"Preference adjustment for Emp {employee_id}, Shift {shift_type}: Applied penalty for avoided shift type."
+            )
 
         # Check day of week preferences
         # Assuming preferences can have preferred_days and avoid_days as lists of weekday integers (0=Monday, 6=Sunday)
@@ -1108,17 +1293,23 @@ class DistributionManager:
 
         # Simple check based on lists
         if day_of_week in preferred_days:
-            adjustment -= 1.0 # Bonus for preferred day of week
-            self.logger.debug(f"Preference adjustment for Emp {employee_id}, Shift {shift_type} on day {day_of_week}: Applied bonus for preferred day.")
+            adjustment -= 1.0  # Bonus for preferred day of week
+            self.logger.debug(
+                f"Preference adjustment for Emp {employee_id}, Shift {shift_type} on day {day_of_week}: Applied bonus for preferred day."
+            )
         elif day_of_week in avoid_days:
-            adjustment += 1.0 # Penalty for avoided day of week
-            self.logger.debug(f"Preference adjustment for Emp {employee_id}, Shift {shift_type} on day {day_of_week}: Applied penalty for avoided day.")
+            adjustment += 1.0  # Penalty for avoided day of week
+            self.logger.debug(
+                f"Preference adjustment for Emp {employee_id}, Shift {shift_type} on day {day_of_week}: Applied penalty for avoided day."
+            )
 
         # TODO: Implement logic to handle preference strength/scores if the preference data structure is more complex
         # e.g., if preferences = {'preferred_shifts': [{'type': 'EARLY', 'strength': 5}]},
         # the adjustment could be multiplied by strength.
 
-        self.logger.debug(f"Final preference adjustment for Emp {employee_id}, Shift {shift_type} on day {day_of_week}: {adjustment}")
+        self.logger.debug(
+            f"Final preference adjustment for Emp {employee_id}, Shift {shift_type} on day {day_of_week}: {adjustment}"
+        )
 
         return adjustment
 
@@ -1255,13 +1446,21 @@ class DistributionManager:
         if emp_id is None:
             return
         preferences = getattr(employee, "preferences", {}) or {}
-        
+
         # Ensure all preference values are simple lists, not complex objects
-        preferred_shifts = preferences.get("preferred_shifts") or getattr(employee, "preferred_shifts", [])
-        avoid_shifts = preferences.get("avoid_shifts") or getattr(employee, "avoid_shifts", [])
-        preferred_days = preferences.get("preferred_days") or getattr(employee, "preferred_days", [])
-        avoid_days = preferences.get("avoid_days") or getattr(employee, "avoid_days", [])
-        
+        preferred_shifts = preferences.get("preferred_shifts") or getattr(
+            employee, "preferred_shifts", []
+        )
+        avoid_shifts = preferences.get("avoid_shifts") or getattr(
+            employee, "avoid_shifts", []
+        )
+        preferred_days = preferences.get("preferred_days") or getattr(
+            employee, "preferred_days", []
+        )
+        avoid_days = preferences.get("avoid_days") or getattr(
+            employee, "avoid_days", []
+        )
+
         # Convert to simple lists if they're not already
         if not isinstance(preferred_shifts, list):
             preferred_shifts = []
@@ -1271,13 +1470,21 @@ class DistributionManager:
             preferred_days = []
         if not isinstance(avoid_days, list):
             avoid_days = []
-            
+
         # Ensure all items in lists are simple types (strings/ints)
         preferred_shifts = [str(item) for item in preferred_shifts if item is not None]
         avoid_shifts = [str(item) for item in avoid_shifts if item is not None]
-        preferred_days = [int(item) if isinstance(item, (int, str)) and str(item).isdigit() else item for item in preferred_days if item is not None]
-        avoid_days = [int(item) if isinstance(item, (int, str)) and str(item).isdigit() else item for item in avoid_days if item is not None]
-        
+        preferred_days = [
+            int(item) if isinstance(item, (int, str)) and str(item).isdigit() else item
+            for item in preferred_days
+            if item is not None
+        ]
+        avoid_days = [
+            int(item) if isinstance(item, (int, str)) and str(item).isdigit() else item
+            for item in avoid_days
+            if item is not None
+        ]
+
         self.employee_preferences[emp_id] = {
             "preferred_shifts": preferred_shifts,
             "avoid_shifts": avoid_shifts,
@@ -1567,19 +1774,21 @@ class DistributionManager:
         score += self._calculate_preference_adjustment_v2(
             employee_id, shift_template, shift_date, availability_type_override
         )
-        
+
         # 3.5. Seniority Adjustment
         # Higher seniority employees get priority (positive score adjustment)
-        employee_seniority = getattr(employee, "seniority", 1)  # Default to 1 if not set
+        employee_seniority = getattr(
+            employee, "seniority", 1
+        )  # Default to 1 if not set
         if employee_seniority > 0:
             # Normalize seniority score (assuming seniority ranges 1-10, adjust as needed)
             max_seniority = 10  # Adjust based on your seniority scale
             normalized_seniority = min(employee_seniority / max_seniority, 1.0)
-            
+
             # Apply seniority bonus weighted by configuration
             seniority_bonus = normalized_seniority * 50.0 * self.seniority_weight
             score += seniority_bonus
-            
+
             self.logger.debug(
                 f"Employee {employee_id} seniority: {employee_seniority}, "
                 f"normalized: {normalized_seniority:.2f}, bonus: {seniority_bonus:.2f}"
@@ -1958,7 +2167,7 @@ class DistributionManager:
 
             try:
                 assigned_shift_start_time = _time_str_to_datetime_time(shift_start_str)
-                assigned_shift_end_time = _time_str_to_datetime_time(shift_end_str)
+                assigned_shift_end_time = _time_str_to_datetime_time(shiftEndStr)
 
                 if not assigned_shift_start_time or not assigned_shift_end_time:
                     self.logger.warning(

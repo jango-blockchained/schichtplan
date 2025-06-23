@@ -10,11 +10,11 @@ The checker uses schedule data, employee information, and configuration settings
 to determine if a new assignment would violate any constraints.
 """
 
-from datetime import date, timedelta, datetime
-import sys
-import os
-from typing import List, Dict, Optional, Union, Any  # Added Any
 import logging
+import os
+import sys
+from datetime import date, datetime, timedelta
+from typing import Any, Dict, List, Optional, Union  # Added Any
 
 # Add parent directories to path if needed
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -23,12 +23,22 @@ if src_backend_dir not in sys.path:
     sys.path.insert(0, src_backend_dir)
 
 # Use centralized import utilities
-from .import_utils import safe_import_models, ModelImportError
+from .import_utils import ModelImportError, safe_import_models
 
 # Import models using the centralized utility
 try:
-    (Employee, ShiftTemplate, Settings, Coverage, db, 
-     Absence, EmployeeAvailability, Schedule, AvailabilityType, EmployeeGroup) = safe_import_models(use_mocks_on_failure=True)
+    (
+        Employee,
+        ShiftTemplate,
+        Settings,
+        Coverage,
+        db,
+        Absence,
+        EmployeeAvailability,
+        Schedule,
+        AvailabilityType,
+        EmployeeGroup,
+    ) = safe_import_models(use_mocks_on_failure=True)
     import_logger = logging.getLogger(__name__)
     import_logger.info("Successfully imported models for constraints module")
 except ModelImportError as e:
@@ -39,27 +49,33 @@ except ModelImportError as e:
 
 class ConstraintError(Exception):
     """Base exception for constraint-related errors"""
+
     pass
 
 
 class ConstraintValidationError(ConstraintError):
     """Exception for constraint validation errors"""
+
     pass
 
 
 class TimeParsingError(ConstraintError):
     """Exception for time parsing errors"""
+
     pass
 
 
 class EmployeeNotFoundError(ConstraintError):
     """Exception when employee is not found"""
+
     pass
 
 
 class ShiftDataError(ConstraintError):
     """Exception for invalid shift data"""
+
     pass
+
 
 class ConstraintChecker:
     """
@@ -285,27 +301,33 @@ class ConstraintChecker:
         new_shift_date = new_shift_start_dt.date()
         week_start_date = new_shift_date - timedelta(days=new_shift_date.weekday())
         week_end_date = week_start_date + timedelta(days=6)
-        
+
         total_weekly_hours_violation = self._check_total_weekly_hours_constraint(
             new_shift_duration, existing_assignments, week_start_date, week_end_date
         )
         if total_weekly_hours_violation:
             violations.append(total_weekly_hours_violation)
 
+        # 6. Keyholder Constraints
+        # Get shift ID from datetime - this may need adjustment based on your system
+        # For now, we'll need the shift_id to be passed separately or derived
+        # This is a limitation of the current method signature
+        # TODO: Consider updating the method signature to include shift_id
+
         return violations
 
     def validate_assignment(self, assignment: Dict, employee: Any, shift: Any) -> bool:
         """
         Validates whether an assignment is allowed based on all constraints.
-        
+
         This is a convenience method that wraps check_all_constraints and returns
         a simple boolean result.
-        
+
         Args:
             assignment: Assignment dictionary containing employee_id, shift_id, date, start_time, end_time
             employee: Employee object or dict (used for fallback if resources lookup fails)
             shift: Shift object or dict (used for extracting shift details)
-            
+
         Returns:
             True if the assignment is valid (no constraint violations), False otherwise
         """
@@ -315,52 +337,63 @@ class ConstraintChecker:
             shift_date = assignment.get("date")
             start_time = assignment.get("start_time")
             end_time = assignment.get("end_time")
-            
+
             if not all([employee_id, shift_date, start_time, end_time]):
                 self.logger.warning(f"Assignment missing required fields: {assignment}")
                 return False
-            
+
             # Convert date if it's a string
             if isinstance(shift_date, str):
                 try:
                     shift_date = date.fromisoformat(shift_date)
                 except ValueError:
-                    self.logger.warning(f"Invalid date format in assignment: {shift_date}")
+                    self.logger.warning(
+                        f"Invalid date format in assignment: {shift_date}"
+                    )
                     return False
-            
+
             # Parse start and end times to create datetime objects
             try:
-                start_dt = self._parse_assignment_datetime(assignment, "start_time", shift_date)
-                end_dt = self._parse_assignment_datetime(assignment, "end_time", shift_date)
-                
+                start_dt = self._parse_assignment_datetime(
+                    assignment, "start_time", shift_date
+                )
+                end_dt = self._parse_assignment_datetime(
+                    assignment, "end_time", shift_date
+                )
+
                 if not start_dt or not end_dt:
-                    self.logger.warning(f"Could not parse start/end times for assignment: {assignment}")
+                    self.logger.warning(
+                        f"Could not parse start/end times for assignment: {assignment}"
+                    )
                     return False
-                    
+
             except Exception as e:
                 self.logger.warning(f"Error parsing assignment times: {e}")
                 return False
-            
+
             # Get existing assignments for context (exclude the current assignment being validated)
             existing_assignments = []
-            if hasattr(self, 'schedule') and self.schedule:
+            if hasattr(self, "schedule") and self.schedule:
                 existing_assignments = [
-                    asn for asn in self.schedule 
+                    asn
+                    for asn in self.schedule
                     if asn.get("employee_id") == employee_id and asn != assignment
                 ]
-            
+
             # Check all constraints
             violations = self.check_all_constraints(
                 employee_id, start_dt, end_dt, existing_assignments
             )
-            
+
             # Log violations if any
             if violations:
-                self.logger.debug(f"Assignment validation failed for employee {employee_id}: {violations}")
+                self.logger.debug(
+                    f"Assignment validation failed for employee {employee_id}: {violations}"
+                )
                 return False
-            
+
             return True
-            
+
         except Exception as e:
             self.logger.error(f"Error validating assignment: {e}")
             return False
@@ -776,17 +809,20 @@ class ConstraintChecker:
         # Get the total weekly working hours constraint from settings
         try:
             from models.settings import Settings
+
             settings = Settings.query.first()
-            if not settings or not hasattr(settings, 'total_weekly_working_hours'):
+            if not settings or not hasattr(settings, "total_weekly_working_hours"):
                 # No constraint configured, so no violation
                 return None
-            
+
             total_weekly_hours_limit = settings.total_weekly_working_hours
             if total_weekly_hours_limit is None or total_weekly_hours_limit <= 0:
                 # Invalid or disabled constraint
                 return None
         except Exception as e:
-            self.logger.warning(f"Could not fetch total weekly hours constraint from settings: {e}")
+            self.logger.warning(
+                f"Could not fetch total weekly hours constraint from settings: {e}"
+            )
             return None
 
         # Calculate current total weekly hours for all employees
@@ -795,7 +831,7 @@ class ConstraintChecker:
         for assignment in existing_assignments:
             assignment_date_val = assignment.get("date")
             assignment_date_obj = None
-            
+
             if isinstance(assignment_date_val, date):
                 assignment_date_obj = assignment_date_val
             elif isinstance(assignment_date_val, str):
@@ -821,8 +857,10 @@ class ConstraintChecker:
                     assignment, "end_time", assignment_date_obj
                 )
                 if assignment_start_dt and assignment_end_dt:
-                    current_total_weekly_hours += self._calculate_shift_duration_from_datetimes(
-                        assignment_start_dt, assignment_end_dt
+                    current_total_weekly_hours += (
+                        self._calculate_shift_duration_from_datetimes(
+                            assignment_start_dt, assignment_end_dt
+                        )
                     )
 
         # Add the new shift duration
@@ -940,7 +978,11 @@ class ConstraintChecker:
             # All constraints satisfied
             return False
 
-        except (ConstraintValidationError, TimeParsingError, EmployeeNotFoundError) as e:
+        except (
+            ConstraintValidationError,
+            TimeParsingError,
+            EmployeeNotFoundError,
+        ) as e:
             self.log_warning(
                 f"Constraint validation error for employee {employee.id}: {str(e)}"
             )
@@ -1242,7 +1284,9 @@ class ConstraintChecker:
             )
             return duration_hours
         except (ValueError, IndexError) as e:
-            raise TimeParsingError(f"Invalid time format in shift duration calculation: {start_time_str}-{end_time_str}: {e}")
+            raise TimeParsingError(
+                f"Invalid time format in shift duration calculation: {start_time_str}-{end_time_str}: {e}"
+            )
         except Exception as e:
             self.log_error(f"Unexpected error calculating shift duration: {str(e)}")
             return 0.0
@@ -1294,3 +1338,228 @@ class ConstraintChecker:
     def log_error(self, message):
         if hasattr(self.logger, "error"):
             self.logger.error(message)
+
+    # Keyholder constraint methods
+    def check_keyholder_constraints(
+        self,
+        employee_id: int,
+        new_shift_id: int,
+        target_date: date,
+        existing_assignments: List[Dict],
+    ) -> List[Dict]:
+        """
+        Check keyholder-specific constraints:
+        1. Only 1 keyholder per early and late shift per day
+        2. The keyholder who closes (late shift) must open (early shift) the next day
+
+        Args:
+            employee_id: The ID of the employee being assigned
+            new_shift_id: The ID of the new shift being assigned
+            target_date: The date of the assignment
+            existing_assignments: List of existing assignments
+
+        Returns:
+            List of constraint violations
+        """
+        violations = []
+
+        # Get employee and shift information
+        employee = self.resources.get_employee(employee_id)
+        shift = self.resources.get_shift(new_shift_id)
+
+        if not employee or not shift:
+            return violations
+
+        # Only check keyholder constraints for keyholders
+        if not getattr(employee, "is_keyholder", False):
+            return violations
+
+        # Check keyholder limit constraint
+        keyholder_limit_violation = self._check_keyholder_limit_per_shift_type(
+            employee_id, shift, target_date, existing_assignments
+        )
+        if keyholder_limit_violation:
+            violations.append(keyholder_limit_violation)
+
+        # Check consecutive day constraint for keyholders
+        consecutive_keyholder_violation = self._check_keyholder_consecutive_day_rule(
+            employee_id, shift, target_date, existing_assignments
+        )
+        if consecutive_keyholder_violation:
+            violations.append(consecutive_keyholder_violation)
+
+        return violations
+
+    def _check_keyholder_limit_per_shift_type(
+        self,
+        employee_id: int,
+        shift: Any,
+        target_date: date,
+        existing_assignments: List[Dict],
+    ) -> Optional[Dict]:
+        """
+        Check that there's only 1 keyholder per early and late shift per day.
+
+        Args:
+            employee_id: The ID of the employee being assigned
+            shift: The shift template
+            target_date: The date of the assignment
+            existing_assignments: List of existing assignments
+
+        Returns:
+            Constraint violation dict or None
+        """
+        shift_type = getattr(shift, "shift_type", None)
+        if not shift_type:
+            return None
+
+        # Only check for EARLY and LATE shifts
+        if shift_type not in ["EARLY", "LATE"]:
+            return None
+
+        # Get all assignments for the target date with the same shift type
+        same_day_same_type_assignments = [
+            assignment
+            for assignment in existing_assignments
+            if (
+                assignment.get("date") == target_date
+                and self._get_shift_type_from_assignment(assignment) == shift_type
+            )
+        ]
+
+        # Count keyholders already assigned to this shift type on this day
+        keyholder_count = 0
+        for assignment in same_day_same_type_assignments:
+            emp_id = assignment.get("employee_id")
+            if emp_id:
+                emp = self.resources.get_employee(emp_id)
+                if emp and getattr(emp, "is_keyholder", False):
+                    keyholder_count += 1
+
+        # If there's already a keyholder for this shift type on this day, violation
+        if keyholder_count >= 1:
+            return {
+                "type": "keyholder_limit",
+                "message": f"Only 1 keyholder allowed per {shift_type} shift per day. Already has {keyholder_count} keyholder(s) on {target_date}.",
+                "shift_type": shift_type,
+                "date": target_date.isoformat(),
+                "existing_keyholders": keyholder_count,
+            }
+
+        return None
+
+    def _check_keyholder_consecutive_day_rule(
+        self,
+        employee_id: int,
+        shift: Any,
+        target_date: date,
+        existing_assignments: List[Dict],
+    ) -> Optional[Dict]:
+        """
+        Check that the keyholder who closes (late shift) must open (early shift) the next day.
+
+        Args:
+            employee_id: The ID of the employee being assigned
+            shift: The shift template
+            target_date: The date of the assignment
+            existing_assignments: List of existing assignments
+
+        Returns:
+            Constraint violation dict or None
+        """
+        shift_type = getattr(shift, "shift_type", None)
+        if not shift_type:
+            return None
+
+        # Check if this is an EARLY shift
+        if shift_type == "EARLY":
+            # Check if someone else worked LATE shift the previous day
+            prev_date = target_date - timedelta(days=1)
+            prev_day_late_assignments = [
+                assignment
+                for assignment in existing_assignments
+                if (
+                    assignment.get("date") == prev_date
+                    and self._get_shift_type_from_assignment(assignment) == "LATE"
+                )
+            ]
+
+            # Find the keyholder who worked late shift the previous day
+            prev_day_late_keyholder = None
+            for assignment in prev_day_late_assignments:
+                emp_id = assignment.get("employee_id")
+                if emp_id:
+                    emp = self.resources.get_employee(emp_id)
+                    if emp and getattr(emp, "is_keyholder", False):
+                        prev_day_late_keyholder = emp_id
+                        break
+
+            # If there was a keyholder who worked late the previous day,
+            # and this employee is not that keyholder, it's a violation
+            if prev_day_late_keyholder and prev_day_late_keyholder != employee_id:
+                return {
+                    "type": "keyholder_consecutive_day",
+                    "message": f"Keyholder who closes (late shift) must open (early shift) the next day. Employee {prev_day_late_keyholder} worked late on {prev_date}, so they must work early on {target_date}.",
+                    "required_employee": prev_day_late_keyholder,
+                    "current_employee": employee_id,
+                    "date": target_date.isoformat(),
+                    "previous_date": prev_date.isoformat(),
+                }
+
+        # Check if this is a LATE shift
+        elif shift_type == "LATE":
+            # Check if another keyholder is assigned to early shift the next day
+            next_date = target_date + timedelta(days=1)
+            next_day_early_assignments = [
+                assignment
+                for assignment in existing_assignments
+                if (
+                    assignment.get("date") == next_date
+                    and self._get_shift_type_from_assignment(assignment) == "EARLY"
+                )
+            ]
+
+            # Check if another keyholder is assigned to early shift the next day
+            other_keyholder_has_next_early = False
+            for assignment in next_day_early_assignments:
+                emp_id = assignment.get("employee_id")
+                if emp_id != employee_id:
+                    emp = self.resources.get_employee(emp_id)
+                    if emp and getattr(emp, "is_keyholder", False):
+                        other_keyholder_has_next_early = True
+                        break
+
+            # If another keyholder is already assigned to early shift next day, violation
+            if other_keyholder_has_next_early:
+                return {
+                    "type": "keyholder_consecutive_day",
+                    "message": f"Keyholder who closes (late shift) must open (early shift) the next day. If employee {employee_id} works late on {target_date}, they must work early on {next_date}.",
+                    "employee_id": employee_id,
+                    "date": target_date.isoformat(),
+                    "next_date": next_date.isoformat(),
+                }
+
+        return None
+
+    def _get_shift_type_from_assignment(self, assignment: Dict) -> Optional[str]:
+        """
+        Get the shift type from an assignment by looking up the shift template.
+
+        Args:
+            assignment: Assignment dictionary
+
+        Returns:
+            Shift type string or None
+        """
+        shift_id = assignment.get("shift_id")
+        if not shift_id:
+            return None
+
+        shift = self.resources.get_shift(shift_id)
+        if not shift:
+            return None
+
+        shift_type = getattr(shift, "shift_type", None)
+        if shift_type and hasattr(shift_type, "value"):
+            return shift_type.value
+        return str(shift_type) if shift_type else None
