@@ -1,6 +1,6 @@
-import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Settings2, FileDown } from "lucide-react";
+import { FileDown, RefreshCw, Settings2 } from "lucide-react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ExportDialog } from "./ExportDialog";
 
@@ -18,9 +18,9 @@ const ScheduleControls: React.FC<ScheduleControlsProps> = ({
   const navigate = useNavigate();
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
 
-  // Navigate to layout customizer page instead of using a dialog
+  // Navigate to PDF layout customizer page
   const handleOpenLayoutCustomizer = () => {
-    navigate("/layout");
+    navigate("/pdf-layout");
   };
 
   const handleExportClick = () => {
