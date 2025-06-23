@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/axios";
-import { clearAllLogs } from "@/services/api";
+import { PageHeader } from "@/components/PageHeader";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -9,6 +9,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -16,14 +18,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { api } from "@/lib/axios";
+import { clearAllLogs } from "@/services/api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { PageHeader } from "@/components/PageHeader";
-import { Badge } from "@/components/ui/badge";
+import { useState } from "react";
 
 interface LogEntry {
   timestamp: string;
@@ -33,7 +33,7 @@ interface LogEntry {
   message: string;
   user?: string;
   page?: string;
-  details?: any;
+  details?: Record<string, unknown>;
 }
 
 interface GroupedLogEntry extends LogEntry {
@@ -56,7 +56,7 @@ interface LogStats {
 interface LogResponse {
   status: string;
   logs: LogEntry[];
-  debug: any;
+  debug: Record<string, unknown>;
 }
 
 interface StatsResponse {
@@ -218,7 +218,7 @@ export default function LogsPage() {
   >({
     queryKey: ["logs", logType, days, level] as const,
     queryFn: async () => {
-      const response = await api.get<LogResponse>("/logs", {
+      const response = await api.get<LogResponse>("/api/v2/logs/", {
         params: { type: logType, days, level: level === "all" ? null : level },
       });
       return response.data;
@@ -237,7 +237,7 @@ export default function LogsPage() {
   >({
     queryKey: ["logStats", days] as const,
     queryFn: async () => {
-      const response = await api.get<StatsResponse>("/logs/stats", {
+      const response = await api.get<StatsResponse>("/api/v2/logs/stats", {
         params: { days },
       });
       return response.data;
@@ -371,6 +371,9 @@ export default function LogsPage() {
   const renderStats = () => {
     if (!stats) return null;
 
+    console.log("Stats data:", stats);
+    console.log("Stats.stats:", stats.stats);
+
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
@@ -382,31 +385,31 @@ export default function LogsPage() {
               <div className="flex justify-between">
                 <span>Total Logs:</span>
                 <span className="font-medium dark:text-white">
-                  {stats.stats.total_logs}
+                  {stats.stats?.total_logs || 0}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>Errors:</span>
                 <span className="text-red-500 dark:text-red-400">
-                  {stats.stats.errors}
+                  {stats.stats?.errors || 0}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>Warnings:</span>
                 <span className="text-yellow-500 dark:text-yellow-400">
-                  {stats.stats.warnings}
+                  {stats.stats?.warnings || 0}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>User Actions:</span>
                 <span className="dark:text-white">
-                  {stats.stats.user_actions}
+                  {stats.stats?.user_actions || 0}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>Schedule Operations:</span>
                 <span className="dark:text-white">
-                  {stats.stats.schedule_operations}
+                  {stats.stats?.schedule_operations || 0}
                 </span>
               </div>
             </div>
@@ -419,7 +422,7 @@ export default function LogsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {stats.stats.recent_errors &&
+              {stats.stats?.recent_errors &&
               stats.stats.recent_errors.length > 0 ? (
                 stats.stats.recent_errors.map((error, index) => (
                   <Alert key={index} variant="destructive">

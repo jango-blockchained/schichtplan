@@ -1,8 +1,10 @@
-from flask import Blueprint, request, jsonify
-from http import HTTPStatus
-from src.backend.models import db, Employee
-from models.employee import EmployeeGroup
 from datetime import datetime
+from http import HTTPStatus
+
+from flask import Blueprint, jsonify, request
+from models.employee import EmployeeGroup
+
+from src.backend.models import Employee, db
 
 bp = Blueprint("employees", __name__, url_prefix="/api/employees")
 
@@ -140,12 +142,24 @@ def delete_employee(employee_id):
     employee = Employee.query.get_or_404(employee_id)
 
     try:
+        # First, delete all related schedules for this employee
+        from src.backend.models.schedule import Schedule
+
+        schedules_deleted = Schedule.query.filter_by(employee_id=employee.id).delete()
+
+        # Then delete the employee
         db.session.delete(employee)
         db.session.commit()
 
-        return jsonify({"message": "Employee deleted successfully"}), HTTPStatus.OK
+        return jsonify(
+            {
+                "message": "Employee deleted successfully",
+                "schedules_deleted": schedules_deleted,
+            }
+        ), HTTPStatus.OK
 
     except Exception as e:
+        db.session.rollback()
         return jsonify(
             {"error": "Failed to delete employee", "details": str(e)}
         ), HTTPStatus.INTERNAL_SERVER_ERROR

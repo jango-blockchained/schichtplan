@@ -1,18 +1,22 @@
-from . import db
+import logging
+from datetime import UTC, date, datetime
 from enum import Enum
-from datetime import datetime, date, UTC
+
 from sqlalchemy import (
-    Column,
-    Integer,
-    String,
     Boolean,
+    Column,
+    Date,
     Float,
     ForeignKey,
-    Date,
+    Integer,
+    String,
+)
+from sqlalchemy import (
     Enum as SQLEnum,
 )
 from sqlalchemy.orm import relationship
-import logging
+
+from . import db
 
 
 class AvailabilityType(str, Enum):
@@ -68,7 +72,9 @@ class Employee(db.Model):
     )
 
     # Relationships
-    schedule_entries = relationship("Schedule", back_populates="employee")
+    schedule_entries = relationship(
+        "Schedule", back_populates="employee", cascade="all, delete-orphan"
+    )
     availabilities = relationship(
         "EmployeeAvailability", back_populates="employee", cascade="all, delete-orphan"
     )
@@ -105,7 +111,7 @@ class Employee(db.Model):
             "preferred_shifts": [],
             "avoid_shifts": [],
             "preferred_days": [],
-            "avoid_days": []
+            "avoid_days": [],
         }
         self.preferred_shift_types = []
         self.skills = []

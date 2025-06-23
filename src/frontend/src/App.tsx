@@ -11,7 +11,6 @@ import CoveragePage from "./pages/CoveragePage";
 import { DesignSystemDemo } from "./pages/DesignSystemDemo";
 import { EmployeesPage } from "./pages/EmployeesPage";
 import FormularsPage from "./pages/FormularsPage";
-import LayoutCustomizerPage from "./pages/LayoutCustomizerPage";
 import LogsPage from "./pages/LogsPage";
 import PDFLayoutCustomizerPage from "./pages/PDFLayoutCustomizerPage";
 import { SchedulePage } from "./pages/SchedulePage";
@@ -56,7 +55,6 @@ const App: React.FC = () => {
                 <Route path="settings" element={<UnifiedSettingsPage />} />
                 <Route path="formulars" element={<FormularsPage />} />
                 <Route path="logs" element={<LogsPage />} />
-                <Route path="layout" element={<LayoutCustomizerPage />} />
                 <Route path="pdf-layout" element={<PDFLayoutCustomizerPage />} />
                 <Route path="calendar" element={<CalendarPage />} />
                 <Route path="ai" element={<AIDashboardPage />} />
