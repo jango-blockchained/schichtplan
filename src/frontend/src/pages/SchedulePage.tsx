@@ -119,6 +119,7 @@ import { DateRange } from "react-day-picker";
 import { ScheduleActions } from "@/components/Schedule/ScheduleActions";
 // import { ScheduleFixActions } from '@/components/Schedule/ScheduleFixActions'; // Original, might be unused
 import { AddScheduleDialog } from "@/components/Schedule/AddScheduleDialog";
+import { AddAvailabilityDialog } from "@/components/Schedule/AddAvailabilityDialog";
 import { ScheduleStatisticsModal } from "@/components/Schedule/ScheduleStatisticsModal";
 import { EnhancedDateRangeSelector } from "@/components/EnhancedDateRangeSelector";
 import { VersionTable } from "@/components/Schedule/VersionTable";
@@ -167,6 +168,7 @@ export function SchedulePage() {
     useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<number | null>(null); // Keep if used by features not yet removed
   const [isAddScheduleDialogOpen, setIsAddScheduleDialogOpen] = useState(false);
+  const [isAddAvailabilityDialogOpen, setIsAddAvailabilityDialogOpen] = useState(false);
   const [isStatisticsModalOpen, setIsStatisticsModalOpen] = useState(false);
   const [employeeAbsences, setEmployeeAbsences] = useState<
     Record<number, any[]>
@@ -186,6 +188,7 @@ export function SchedulePage() {
   const [isAiDataPreviewOpen, setIsAiDataPreviewOpen] = useState<boolean>(false);
   const [aiPreviewData, setAiPreviewData] = useState<any>(null);
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState<boolean>(false);
+  const [selectedAvailabilityType, setSelectedAvailabilityType] = useState<'FIXED' | 'PREFERRED' | 'UNAVAILABLE' | null>(null);
 
   // 2. Other React hooks
   const { toast } = useToast();
@@ -1114,6 +1117,22 @@ export function SchedulePage() {
     setIsAddScheduleDialogOpen(true);
   };
 
+  // Availability handlers
+  const handleAddFixed = () => {
+    setSelectedAvailabilityType('FIXED');
+    setIsAddAvailabilityDialogOpen(true);
+  };
+
+  const handleAddPreferred = () => {
+    setSelectedAvailabilityType('PREFERRED');
+    setIsAddAvailabilityDialogOpen(true);
+  };
+
+  const handleAddUnavailable = () => {
+    setSelectedAvailabilityType('UNAVAILABLE');
+    setIsAddAvailabilityDialogOpen(true);
+  };
+
   const handleCreateSchedule = async (newScheduleData: {
     employee_id: number;
     date: string;
@@ -1620,6 +1639,9 @@ export function SchedulePage() {
           }
           hasScheduleData={scheduleData?.length > 0}
           onAddSchedule={handleAddSchedule}
+          onAddFixed={handleAddFixed}
+          onAddPreferred={handleAddPreferred}
+          onAddUnavailable={handleAddUnavailable}
           onDeleteSchedule={handleDeleteSchedule}
           onGenerateStandardSchedule={handleGenerateStandardSchedule}
           onGenerateAiFastSchedule={handleGenerateAiFastSchedule}
@@ -1834,6 +1856,17 @@ export function SchedulePage() {
           onAddSchedule={handleCreateSchedule}
           version={versionControlSelectedVersion}
           defaultDate={dateRange?.from}
+        />
+      )}
+
+      {isAddAvailabilityDialogOpen && (
+        <AddAvailabilityDialog
+          isOpen={isAddAvailabilityDialogOpen}
+          onClose={() => setIsAddAvailabilityDialogOpen(false)}
+          onAddAvailability={handleCreateSchedule} // Reusing handleCreateSchedule for availability
+          version={versionControlSelectedVersion}
+          defaultDate={dateRange?.from}
+          availabilityType={selectedAvailabilityType}
         />
       )}
 

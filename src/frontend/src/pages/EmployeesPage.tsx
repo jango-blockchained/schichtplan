@@ -1,58 +1,58 @@
-import { useState, useEffect } from "react";
-import {
-  Settings,
-  Plus,
-  Pencil,
-  Trash2,
-  Clock,
-  Calendar,
-  Download,
-  Search,
-  Filter,
-} from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  getEmployees,
-  createEmployee,
-  updateEmployee,
-  deleteEmployee,
-  getSettings,
-} from "../services/api";
-import { Employee, CreateEmployeeRequest } from "../types";
-import { useEmployeeGroups } from "../hooks/useEmployeeGroups";
-import { EmployeeAvailabilityModal } from "@/components/EmployeeAvailabilityModal";
 import AbsenceModal from "@/components/AbsenceModal";
+import CSVImportDialog from "@/components/CSVImportDialog";
+import { EmployeeAvailabilityModal } from "@/components/EmployeeAvailabilityModal";
 import { PageHeader } from "@/components/PageHeader";
 import {
+  Badge,
   Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Checkbox,
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
   Input,
+  Label,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
   Switch,
-  Label,
-  Checkbox,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  Badge,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from "@/components/ui";
-import { useToast } from "@/components/ui/use-toast";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { useToast } from "@/components/ui/use-toast";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Calendar,
+  Clock,
+  Download,
+  Filter,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  Upload
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { useEmployeeGroups } from "../hooks/useEmployeeGroups";
+import {
+  createEmployee,
+  deleteEmployee,
+  getEmployees,
+  getSettings,
+  updateEmployee,
+} from "../services/api";
+import { CreateEmployeeRequest, Employee } from "../types";
 
 type ApiEmployee = {
   first_name: string;
@@ -123,6 +123,7 @@ export const EmployeesPage = () => {
     useState<Employee | null>(null);
   const [selectedEmployeeForAbsence, setSelectedEmployeeForAbsence] =
     useState<Employee | null>(null);
+  const [isCSVImportOpen, setIsCSVImportOpen] = useState(false);
   const [selectedEmployees, setSelectedEmployees] = useState<Set<number>>(
     new Set(),
   );
@@ -411,6 +412,20 @@ export const EmployeesPage = () => {
     }
   };
 
+  const handleCSVImportComplete = (result: any) => {
+    toast({
+      title: result.success ? "Erfolg" : "Fehler",
+      description: result.success 
+        ? `${result.imported_count || 0} Mitarbeiter erfolgreich importiert.`
+        : result.error,
+      variant: result.success ? "default" : "destructive",
+    });
+    
+    if (result.success) {
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+    }
+  };
+
   const filteredEmployees = (employees || []).filter((employee) => {
     const searchLower = filters.search.toLowerCase();
     const matchesSearch =
@@ -499,6 +514,13 @@ export const EmployeesPage = () => {
                 </Button>
               </>
             )}
+            <Button 
+              variant="outline" 
+              onClick={() => setIsCSVImportOpen(true)}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              CSV Import
+            </Button>
             <Button onClick={() => handleOpenDialog()}>
               <Plus className="mr-2 h-4 w-4" />
               Mitarbeiter hinzufügen
@@ -929,6 +951,13 @@ export const EmployeesPage = () => {
           absenceTypes={settings?.employee_groups?.absence_types || []} // Provide default empty array
         />
       )}
+
+      {/* CSV Import Dialog */}
+      <CSVImportDialog
+        open={isCSVImportOpen}
+        onClose={() => setIsCSVImportOpen(false)}
+        onImportComplete={handleCSVImportComplete}
+      />
     </div>
   );
 };
