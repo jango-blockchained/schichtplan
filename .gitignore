@@ -35,10 +35,33 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 flask.log
+# Log directories
+logs/
+**/logs/
+# Python logs
+*.log.*
 
 # Database
 src/db/*.db
 src/db/*.db-journal
+# Database files in instance directories
+instance/
+src/instance/*.db
+src/instance/*.db-journal
+src/instance/*.db-wal
+src/instance/*.db-shm
+src/backend/instance/
+src/backend/instance/*.db
+src/backend/instance/*.db-journal
+src/backend/instance/*.db-wal
+src/backend/instance/*.db-shm
+# SQLite database files
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
 
 # TypeScript
 *.tsbuildinfo
@@ -49,15 +72,22 @@ src/db/*.db-journal
 .env.*.local
 .env
 
-# Editor directories and files
-.idea/
+# IDE and Editor files
 .vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+.pydevproject
+*.sublime-project
+*.sublime-workspace
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-.DS_Store
 
 # Build output
 dist/
@@ -67,6 +97,40 @@ coverage/
 # Temporary files
 tmp/
 temp/
+# Test files and temporary scripts
+test_*.py
+debug_*.py
+*_test.py
+*_debug.py
+simple_debug.py
+test_csv_api.py
+
+# Backup files
+backup/
+*.bak
+*~
+*.backup
+*.orig
+
+# Virtual environments
+venv/
+venv/*
+.venv/
+.venv/*
+# Virtual environments in subdirectories
+src/backend/.venv/
+src/backend/venv/
+**/venv/
+**/.venv/
+
+# Python cache and compiled files
+__pycache__/
+**/__pycache__/
+*.pyc
+**/*.pyc
+
+# Documentation
+docs/
 
 # Frontend specific
 src/frontend/node_modules/
@@ -75,26 +139,39 @@ src/frontend/.vite/
 src/frontend/.tmp/
 src/frontend/coverage/
 src/frontend/.env
+src/frontend/.env.local
+src/frontend/.env.*.local
+src/frontend/build/
 
 # Backend specific
 src/backend/__pycache__/
 src/backend/*.pyc
 src/backend/venv/
 src/backend/.env
+src/backend/.env.local
+src/backend/instance/
+src/backend/logs/
 
-# Backup files
-backup/
-*.bak
-*~
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
-# Virtual environments
-venv/
-venv/*
-.venv/
+# Development and debugging
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
 
-# Documentation
-docs/
-     
 !.cursor/
 .plandex-v2/
 .ruff_cache/
