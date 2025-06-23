@@ -883,6 +883,7 @@ export const EmployeesPage = () => {
                 <Label>Hours</Label>
                 <Input
                   type="number"
+                  step="0.5"
                   min={getHoursRange(formData.employee_group)[0]}
                   max={getHoursRange(formData.employee_group)[1]}
                   value={formData.contracted_hours}
