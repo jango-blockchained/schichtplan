@@ -22,7 +22,6 @@ import {
     CalendarDays,
     Cog,
     FileText,
-    Layout,
     LayoutDashboard,
     List,
     Settings as SettingsIcon,
@@ -93,12 +92,6 @@ export const MainLayout = () => {
         path: "/design-system", 
         icon: Cog,
         description: "Design System Dokumentation"
-      },
-      { 
-        label: "Layout", 
-        path: "/layout", 
-        icon: Layout,
-        description: "Layout-Anpassungen"
       },
       { 
         label: "PDF Layout", 

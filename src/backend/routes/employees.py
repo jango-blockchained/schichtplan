@@ -1,8 +1,10 @@
-from flask import Blueprint, jsonify, request
-from src.backend.models import db, Employee, EmployeeAvailability
-from src.backend.models.employee import AvailabilityType
 from http import HTTPStatus
+
+from flask import Blueprint, jsonify, request
 from pydantic import ValidationError
+
+from src.backend.models import Employee, EmployeeAvailability, db
+from src.backend.models.employee import AvailabilityType
 from src.backend.schemas.employees import EmployeeCreateRequest, EmployeeUpdateRequest
 
 employees = Blueprint("employees", __name__)
@@ -118,6 +120,12 @@ def delete_employee(employee_id):
     employee = Employee.query.get_or_404(employee_id)
 
     try:
+        # First, delete all related schedules for this employee
+        from src.backend.models.schedule import Schedule
+
+        Schedule.query.filter_by(employee_id=employee.id).delete()
+
+        # Then delete the employee
         db.session.delete(employee)
         db.session.commit()
         return "", HTTPStatus.NO_CONTENT
