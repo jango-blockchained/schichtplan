@@ -39,7 +39,7 @@ import {
 } from "@/services/api";
 import { Employee, Schedule, ScheduleUpdate, ShiftType } from "@/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { addDays, differenceInMinutes, endOfMonth, endOfWeek, format, isWithinInterval, parseISO, startOfMonth, startOfWeek } from "date-fns";
+import { addDays, endOfMonth, endOfWeek, format, isWithinInterval, parseISO, startOfMonth, startOfWeek } from "date-fns";
 import {
   AlertTriangle,
   ArrowDown,
@@ -55,7 +55,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { DateRange } from "react-day-picker";
 import { useDrag, useDrop } from "react-dnd";
 import { AddScheduleDialog } from "./Schedule/AddScheduleDialog";
@@ -1128,15 +1128,20 @@ function ShiftAddModal({
 const calculateEmployeeHours = (
   employeeId: number,
   schedules: Schedule[],
-  dateRange: DateRange | undefined
+  dateRange: DateRange | undefined,
+  employees?: Employee[],
+  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }
 ) => {
   if (!dateRange?.from || !dateRange?.to) {
     return { weeklyHours: 0, monthlyHours: 0, totalHours: 0 };
   }
 
   const employeeSchedules = schedules.filter(
-    (s) => s.employee_id === employeeId && s.shift_id !== null
+    (s) => s.employee_id === employeeId && s.shift_id !== null && !s.is_empty
   );
+
+  // Find the employee for keyholder calculations
+  const employee = employees?.find(emp => emp.id === employeeId);
 
   let weeklyHours = 0;
   let monthlyHours = 0;
@@ -1154,33 +1159,23 @@ const calculateEmployeeHours = (
     try {
       const scheduleDate = parseISO(schedule.date);
       
-      // Calculate shift duration
-      const [startHours, startMinutes] = schedule.shift_start.split(":").map(Number);
-      const [endHours, endMinutes] = schedule.shift_end.split(":").map(Number);
-      
-      const startTotalMinutes = startHours * 60 + startMinutes;
-      let endTotalMinutes = endHours * 60 + endMinutes;
-      
-      // Handle overnight shifts
-      if (endTotalMinutes < startTotalMinutes) {
-        endTotalMinutes += 24 * 60;
-      }
-      
-      const durationHours = (endTotalMinutes - startTotalMinutes) / 60;
+      // Use the centralized calculateWorkingTime function that handles breaks and keyholder adjustments
+      const timeCalc = calculateWorkingTime(schedule, employee, settings);
+      const workingHours = timeCalc.workingTime;
       
       // Add to total hours if within date range
       if (isWithinInterval(scheduleDate, { start: dateRange.from, end: dateRange.to })) {
-        totalHours += durationHours;
+        totalHours += workingHours;
       }
       
       // Add to weekly hours if within current week
       if (isWithinInterval(scheduleDate, { start: weekStart, end: weekEnd })) {
-        weeklyHours += durationHours;
+        weeklyHours += workingHours;
       }
       
       // Add to monthly hours if within current month
       if (isWithinInterval(scheduleDate, { start: monthStart, end: monthEnd })) {
-        monthlyHours += durationHours;
+        monthlyHours += workingHours;
       }
     } catch (error) {
       console.error("Error calculating hours for schedule:", error);
@@ -1521,6 +1516,32 @@ export function ScheduleTable({
       employeeGroup: employee.employee_group || "VZ",
     };
   };
+
+  const calculateEmployeeHours = useCallback((employeeId: number, schedules: Schedule[], dateRange: DateRange | undefined) => {
+    if (!dateRange?.from || !dateRange?.to) {
+      return { weeklyHours: 0, monthlyHours: 0 };
+    }
+
+    const employeeSchedules = schedules.filter(s => s.employee_id === employeeId && s.shift_id !== null && !s.is_empty);
+    
+    // Find the employee for keyholder calculations
+    const employee = employees?.find(emp => emp.id === employeeId);
+    
+    let totalHours = 0;
+
+    employeeSchedules.forEach(schedule => {
+      if (schedule.shift_start && schedule.shift_end) {
+        // Use the centralized calculateWorkingTime function that handles breaks and keyholder adjustments
+        const timeCalc = calculateWorkingTime(schedule, employee, settings);
+        totalHours += timeCalc.workingTime;
+      }
+    });
+
+    return {
+      weeklyHours: totalHours,
+      monthlyHours: totalHours, // Simplified for now
+    };
+  }, [employees, settings]);
 
   // Keyboard shortcuts for sorting
   useEffect(() => {
@@ -1966,29 +1987,6 @@ function ScheduleTableNormal({
     return {
       contractedHours: employee.contracted_hours || 40,
       employeeGroup: employee.employee_group || "VZ",
-    };
-  };
-
-  const calculateEmployeeHours = (employeeId: number, schedules: Schedule[], dateRange: DateRange | undefined) => {
-    if (!dateRange?.from || !dateRange?.to) {
-      return { weeklyHours: 0, monthlyHours: 0 };
-    }
-
-    const employeeSchedules = schedules.filter(s => s.employee_id === employeeId && s.shift_id !== null);
-    let totalHours = 0;
-
-    employeeSchedules.forEach(schedule => {
-      if (schedule.shift_start && schedule.shift_end) {
-        const startTime = parseISO(`2000-01-01T${schedule.shift_start}`);
-        const endTime = parseISO(`2000-01-01T${schedule.shift_end}`);
-        const hours = differenceInMinutes(endTime, startTime) / 60;
-        totalHours += hours;
-      }
-    });
-
-    return {
-      weeklyHours: totalHours,
-      monthlyHours: totalHours, // Simplified for now
     };
   };
 
@@ -2568,7 +2566,7 @@ interface DailyStatsProps {
   schedules: Schedule[];
   daysToDisplay: Date[];
   employees: Employee[];
-  settings?: any;
+  settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } };
 }
 
 function DailyStats({ schedules, daysToDisplay, employees, settings }: DailyStatsProps) {
@@ -2734,7 +2732,7 @@ function ScheduleColorLegend({
 }
 
 // Calculate daily working hours (excluding breaks) for a specific date
-const calculateDailyHours = (schedules: Schedule[], date: Date, employees?: Employee[], settings?: any): number => {
+const calculateDailyHours = (schedules: Schedule[], date: Date, employees?: Employee[], settings?: { general?: { keyholder_before_minutes?: number; keyholder_after_minutes?: number; store_opening?: string; store_closing?: string } }): number => {
   const dateString = format(date, "yyyy-MM-dd");
   const daySchedules = schedules.filter(
     schedule => {

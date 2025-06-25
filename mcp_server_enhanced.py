@@ -1,16 +1,9 @@
 #!/usr/bin/env python3
 """
-Standalone FastMCP Server for Schichtplan Application
+Enhanced MCP Server for Schichtplan Application
 
-This script can be run independently to expose Schichtplan functionality
-through the Model Context Protocol. Supports stdio, SSE, and streamable HTTP transports.
-
-Usage:
-    python mcp_server.py                          # Run in stdio mode (default)
-    python mcp_server.py --transport sse          # Run in SSE mode
-    python mcp_server.py --transport http         # Run in streamable HTTP mode
-    python mcp_server.py --port 8003              # Custom port for network modes
-    python mcp_server.py --help                   # Show help
+Supports both full AI capabilities and simplified mode for stability.
+Can switch between modes based on configuration or runtime conditions.
 """
 
 import argparse
@@ -25,7 +18,6 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.backend.app import create_app
-from src.backend.services.mcp_service import SchichtplanMCPService
 
 
 def setup_logging(level: str = "INFO"):
@@ -34,19 +26,15 @@ def setup_logging(level: str = "INFO"):
         level=getattr(logging, level.upper()),
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=[
-            logging.StreamHandler(
-                sys.stderr
-            ),  # Use stderr for stdio mode compatibility
+            logging.StreamHandler(sys.stderr),
         ],
     )
 
 
 async def main():
-    """Main entry point for the MCP server."""
+    """Main entry point for the enhanced MCP server."""
     parser = argparse.ArgumentParser(
-        description="Schichtplan FastMCP Server",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__,
+        description="Enhanced Schichtplan FastMCP Server with AI capabilities"
     )
 
     parser.add_argument(
@@ -78,6 +66,13 @@ async def main():
         help="Logging level (default: INFO)",
     )
 
+    parser.add_argument(
+        "--mode",
+        choices=["full", "simplified", "auto"],
+        default="auto",
+        help="AI mode: full (all AI features), simplified (basic), auto (detect best) (default: auto)",
+    )
+
     args = parser.parse_args()
 
     # Setup logging
@@ -89,28 +84,86 @@ async def main():
         logger.info("Creating Flask app...")
         flask_app = create_app()
 
-        # Create MCP service with full AI capabilities
-        logger.info("Creating MCP service with full AI capabilities...")
-        mcp_service = SchichtplanMCPService(flask_app)
+        # Determine which MCP service to use
+        mcp_service = None
+        service_mode = args.mode
+
+        if service_mode == "full":
+            logger.info("Creating full MCP service with AI capabilities...")
+            from src.backend.services.mcp_service import SchichtplanMCPService
+
+            mcp_service = SchichtplanMCPService(flask_app, logger)
+
+        elif service_mode == "simplified":
+            logger.info("Creating simplified MCP service...")
+            from src.backend.services.mcp_service_simplified import SimplifiedMCPService
+
+            mcp_service = SimplifiedMCPService(flask_app, logger)
+
+        elif service_mode == "auto":
+            # Try full mode first, fallback to simplified if it fails
+            try:
+                logger.info("Auto mode: attempting to create full MCP service...")
+                from src.backend.services.mcp_service import SchichtplanMCPService
+
+                mcp_service = SchichtplanMCPService(flask_app, logger)
+
+                # Test AI initialization
+                await mcp_service.init_conversation_manager()
+                await mcp_service.init_ai_agent_system()
+
+                status = mcp_service.get_ai_agent_status()
+                if status.get("full_ai_capabilities", False):
+                    service_mode = "full"
+                    logger.info("Auto mode: full AI capabilities available")
+                else:
+                    raise RuntimeError("AI components not fully available")
+
+            except Exception as e:
+                logger.warning(
+                    f"Auto mode: full service failed ({e}), falling back to simplified mode"
+                )
+                service_mode = "simplified"
+                logger.info("Creating simplified MCP service...")
+                from src.backend.services.mcp_service_simplified import (
+                    SimplifiedMCPService,
+                )
+
+                mcp_service = SimplifiedMCPService(flask_app, logger)
+
+        # Ensure we have a service (fallback safety)
+        if mcp_service is None:
+            logger.warning("No MCP service created, falling back to simplified mode")
+            from src.backend.services.mcp_service_simplified import SimplifiedMCPService
+
+            mcp_service = SimplifiedMCPService(flask_app, logger)
+            service_mode = "simplified"
 
         # Log startup information
         if args.transport == "stdio":
-            logger.info("Starting Schichtplan MCP Server in stdio mode")
+            logger.info(
+                f"Starting Enhanced Schichtplan MCP Server in stdio mode ({service_mode} mode)"
+            )
             logger.info("Server will communicate via standard input/output")
             logger.info(f"MCP service status: {mcp_service.get_ai_agent_status()}")
         elif args.transport == "sse":
             logger.info(
-                f"Starting Schichtplan MCP Server in SSE mode on {args.host}:{args.port}"
+                f"Starting Enhanced Schichtplan MCP Server in SSE mode on {args.host}:{args.port} ({service_mode} mode)"
             )
             logger.info(f"Connect via: http://{args.host}:{args.port}/sse")
         elif args.transport == "http":
             logger.info(
-                f"Starting Schichtplan MCP Server in streamable HTTP mode on {args.host}:{args.port}"
+                f"Starting Enhanced Schichtplan MCP Server in streamable HTTP mode on {args.host}:{args.port} ({service_mode} mode)"
             )
             logger.info(f"Connect via: http://{args.host}:{args.port}/mcp")
 
-        # Log some debugging info about registered tools
-        logger.info("MCP service initialized with tools and prompts")
+        # Log service capabilities
+        if service_mode == "full":
+            logger.info(
+                "Full AI capabilities: conversation management, agent registry, workflow coordination"
+            )
+        else:
+            logger.info("Simplified mode: core tools only, no AI agents")
 
         # Run the appropriate transport
         logger.info(f"Starting transport: {args.transport}")
@@ -135,8 +188,8 @@ def main_cli():
     if len(sys.argv) == 1 or (
         len(sys.argv) > 1 and "--transport" not in sys.argv and "-t" not in sys.argv
     ):
-        # Default to stdio mode - minimize stderr output
-        setup_logging("ERROR")  # Even more restrictive for stdio
+        # Default to stdio mode - less verbose logging
+        setup_logging("WARNING")
 
     def run_main():
         """Run main in a completely separate process context."""

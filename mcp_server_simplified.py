@@ -1,16 +1,8 @@
 #!/usr/bin/env python3
 """
-Standalone FastMCP Server for Schichtplan Application
+Simplified MCP Server for Schichtplan Application
 
-This script can be run independently to expose Schichtplan functionality
-through the Model Context Protocol. Supports stdio, SSE, and streamable HTTP transports.
-
-Usage:
-    python mcp_server.py                          # Run in stdio mode (default)
-    python mcp_server.py --transport sse          # Run in SSE mode
-    python mcp_server.py --transport http         # Run in streamable HTTP mode
-    python mcp_server.py --port 8003              # Custom port for network modes
-    python mcp_server.py --help                   # Show help
+Uses the simplified MCP service without complex AI dependencies to avoid crashes.
 """
 
 import argparse
@@ -25,7 +17,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.backend.app import create_app
-from src.backend.services.mcp_service import SchichtplanMCPService
+from src.backend.services.mcp_service_simplified import SimplifiedMCPService
 
 
 def setup_logging(level: str = "INFO"):
@@ -34,19 +26,15 @@ def setup_logging(level: str = "INFO"):
         level=getattr(logging, level.upper()),
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=[
-            logging.StreamHandler(
-                sys.stderr
-            ),  # Use stderr for stdio mode compatibility
+            logging.StreamHandler(sys.stderr),
         ],
     )
 
 
 async def main():
-    """Main entry point for the MCP server."""
+    """Main entry point for the simplified MCP server."""
     parser = argparse.ArgumentParser(
-        description="Schichtplan FastMCP Server",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__,
+        description="Simplified Schichtplan FastMCP Server"
     )
 
     parser.add_argument(
@@ -89,28 +77,28 @@ async def main():
         logger.info("Creating Flask app...")
         flask_app = create_app()
 
-        # Create MCP service with full AI capabilities
-        logger.info("Creating MCP service with full AI capabilities...")
-        mcp_service = SchichtplanMCPService(flask_app)
+        # Create simplified MCP service
+        logger.info("Creating simplified MCP service...")
+        mcp_service = SimplifiedMCPService(flask_app, logger)
 
         # Log startup information
         if args.transport == "stdio":
-            logger.info("Starting Schichtplan MCP Server in stdio mode")
+            logger.info("Starting Simplified Schichtplan MCP Server in stdio mode")
             logger.info("Server will communicate via standard input/output")
             logger.info(f"MCP service status: {mcp_service.get_ai_agent_status()}")
         elif args.transport == "sse":
             logger.info(
-                f"Starting Schichtplan MCP Server in SSE mode on {args.host}:{args.port}"
+                f"Starting Simplified Schichtplan MCP Server in SSE mode on {args.host}:{args.port}"
             )
             logger.info(f"Connect via: http://{args.host}:{args.port}/sse")
         elif args.transport == "http":
             logger.info(
-                f"Starting Schichtplan MCP Server in streamable HTTP mode on {args.host}:{args.port}"
+                f"Starting Simplified Schichtplan MCP Server in streamable HTTP mode on {args.host}:{args.port}"
             )
             logger.info(f"Connect via: http://{args.host}:{args.port}/mcp")
 
         # Log some debugging info about registered tools
-        logger.info("MCP service initialized with tools and prompts")
+        logger.info("Simplified MCP service initialized with core tools and prompts")
 
         # Run the appropriate transport
         logger.info(f"Starting transport: {args.transport}")
@@ -136,7 +124,7 @@ def main_cli():
         len(sys.argv) > 1 and "--transport" not in sys.argv and "-t" not in sys.argv
     ):
         # Default to stdio mode - minimize stderr output
-        setup_logging("ERROR")  # Even more restrictive for stdio
+        setup_logging("WARNING")  # Less verbose for stdio
 
     def run_main():
         """Run main in a completely separate process context."""
