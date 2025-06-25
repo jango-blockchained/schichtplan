@@ -18,6 +18,46 @@ class EmployeeManagementTools:
         self.flask_app = flask_app
         self.logger = logger or logging.getLogger(__name__)
 
+    def get_tool_info(self):
+        """Get information about available tools."""
+        return {
+            "category": "employee_management",
+            "tools": [
+                {
+                    "name": "analyze_employee_workload",
+                    "description": "Analyze employee workload distribution and provide recommendations",
+                    "parameters": [
+                        "start_date",
+                        "end_date",
+                        "employee_id",
+                        "include_recommendations",
+                    ],
+                },
+                {
+                    "name": "suggest_employee_assignments",
+                    "description": "Suggest optimal employee assignments for open shifts with reasoning",
+                    "parameters": [
+                        "start_date",
+                        "end_date",
+                        "criteria",
+                        "max_suggestions",
+                    ],
+                },
+                {
+                    "name": "manage_employees",
+                    "description": "Manage employee records and their availability",
+                    "parameters": [
+                        "operation",
+                        "employee_data",
+                        "availability_data",
+                        "filters",
+                        "include_availability",
+                        "dry_run",
+                    ],
+                },
+            ],
+        }
+
     def register_tools(self, mcp):
         """Register employee management tools with the MCP service."""
 

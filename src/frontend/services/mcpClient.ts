@@ -6,8 +6,6 @@
  * schedule generation, and ML optimization features.
  */
 
-import { EventEmitter } from 'events';
-
 // Types for MCP integration
 export interface MCPHealthStatus {
   status: 'healthy' | 'degraded' | 'unhealthy' | 'critical' | 'error';
@@ -21,7 +19,7 @@ export interface MCPHealthStatus {
     [componentName: string]: {
       status: string;
       initialized: boolean;
-      [key: string]: any;
+      [key: string]: unknown;
     };
   };
   tools: {
@@ -37,12 +35,21 @@ export interface MCPToolInfo {
     name: string;
     description: string;
     category: string;
-    parameters: any;
+    parameters: Record<string, unknown>;
   }>;
   categories: {
-    [categoryName: string]: any[];
+    [categoryName: string]: unknown[];
   };
   total_count: number;
+}
+
+export interface MCPAgentStatus {
+  ai_orchestrator_initialized: boolean;
+  agent_registry_initialized: boolean;
+  workflow_coordinator_initialized: boolean;
+  conversation_manager_initialized: boolean;
+  full_ai_capabilities: boolean;
+  [key: string]: unknown;
 }
 
 export interface MCPStatusDashboard {
@@ -54,7 +61,7 @@ export interface MCPStatusDashboard {
   };
   health: MCPHealthStatus;
   tools: MCPToolInfo;
-  ai_agents: any;
+  ai_agents: MCPAgentStatus;
   metrics: {
     uptime: string;
     response_time: string;
@@ -65,7 +72,7 @@ export interface MCPStatusDashboard {
 
 export interface MCPRequest {
   tool: string;
-  parameters: any;
+  parameters: Record<string, unknown>;
   conversation_id?: string;
   user_id?: string;
   session_id?: string;
@@ -73,7 +80,7 @@ export interface MCPRequest {
 
 export interface MCPResponse {
   status: 'success' | 'error' | 'basic';
-  result?: any;
+  result?: unknown;
   error?: string;
   conversation_id?: string;
   workflow_used?: boolean;
@@ -83,23 +90,63 @@ export interface MCPResponse {
 }
 
 /**
+ * Event callback types
+ */
+export type MCPEventCallback<T = unknown> = (data: T) => void;
+export type MCPErrorCallback = (error: Error) => void;
+
+/**
  * MCP Client Service Class
  * 
  * Handles all communication with the MCP backend and provides
  * a unified interface for frontend components to access AI features.
  */
-export class MCPClientService extends EventEmitter {
+export class MCPClientService {
   private baseUrl: string;
   private isConnected: boolean = false;
-  private healthCheckInterval: NodeJS.Timeout | null = null;
-  private connectionRetryTimeout: NodeJS.Timeout | null = null;
+  private healthCheckInterval: number | null = null;
+  private connectionRetryTimeout: number | null = null;
   private currentStatus: 'connected' | 'disconnected' | 'error' = 'disconnected';
   private lastHealthCheck: MCPHealthStatus | null = null;
+  
+  // Event handlers
+  private eventHandlers: Map<string, MCPEventCallback[]> = new Map();
 
   constructor(baseUrl: string = 'http://localhost:5000') {
-    super();
     this.baseUrl = baseUrl;
-    this.setupEventHandlers();
+  }
+
+  /**
+   * Event handling methods
+   */
+  on(event: string, callback: MCPEventCallback): void {
+    if (!this.eventHandlers.has(event)) {
+      this.eventHandlers.set(event, []);
+    }
+    this.eventHandlers.get(event)!.push(callback);
+  }
+
+  off(event: string, callback: MCPEventCallback): void {
+    const handlers = this.eventHandlers.get(event);
+    if (handlers) {
+      const index = handlers.indexOf(callback);
+      if (index > -1) {
+        handlers.splice(index, 1);
+      }
+    }
+  }
+
+  private emit(event: string, data?: unknown): void {
+    const handlers = this.eventHandlers.get(event);
+    if (handlers) {
+      handlers.forEach(handler => {
+        try {
+          handler(data);
+        } catch (error) {
+          console.error(`Error in event handler for ${event}:`, error);
+        }
+      });
+    }
   }
 
   /**
@@ -226,7 +273,7 @@ export class MCPClientService extends EventEmitter {
   /**
    * Get AI agent status
    */
-  async getAgentStatus(): Promise<any> {
+  async getAgentStatus(): Promise<MCPAgentStatus> {
     try {
       const response = await fetch(`${this.baseUrl}/api/v2/mcp/agents`, {
         method: 'GET',
@@ -239,7 +286,7 @@ export class MCPClientService extends EventEmitter {
         throw new Error(`Agent status request failed: ${response.status}`);
       }
 
-      const agentStatus = await response.json();
+      const agentStatus: MCPAgentStatus = await response.json();
       this.emit('agentStatusUpdate', agentStatus);
       return agentStatus;
       
@@ -318,10 +365,10 @@ export class MCPClientService extends EventEmitter {
       clearInterval(this.healthCheckInterval);
     }
 
-    this.healthCheckInterval = setInterval(async () => {
+    this.healthCheckInterval = window.setInterval(async () => {
       try {
         await this.performHealthCheck();
-      } catch (error) {
+      } catch {
         // Health check failures are already handled in performHealthCheck
       }
     }, 30000); // Check every 30 seconds
@@ -337,32 +384,27 @@ export class MCPClientService extends EventEmitter {
       }
 
       // Attempt to reconnect after 5 seconds
-      this.connectionRetryTimeout = setTimeout(async () => {
+      this.connectionRetryTimeout = window.setTimeout(async () => {
         console.log('🔄 Attempting to reconnect to MCP service...');
         try {
           await this.performHealthCheck();
           console.log('✅ MCP service reconnected');
-        } catch (error) {
+        } catch {
           console.log('❌ Reconnection attempt failed, will retry...');
           this.setupConnectionRecovery(); // Retry
         }
       }, 5000);
     });
-  }
 
-  /**
-   * Set up event handlers
-   */
-  private setupEventHandlers(): void {
     this.on('error', (error) => {
       console.error('MCP Client Error:', error);
     });
 
     this.on('connected', (health) => {
-      console.log('🟢 MCP Service Connected:', health.service_info);
+      console.log('🟢 MCP Service Connected:', (health as MCPHealthStatus).service_info);
     });
 
-    this.on('disconnected', (health) => {
+    this.on('disconnected', () => {
       console.log('🔴 MCP Service Disconnected');
     });
   }
@@ -396,7 +438,7 @@ export class MCPClientService extends EventEmitter {
       this.connectionRetryTimeout = null;
     }
 
-    this.removeAllListeners();
+    this.eventHandlers.clear();
     console.log('🧹 MCP Client Service destroyed');
   }
 }
