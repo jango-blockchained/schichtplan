@@ -551,6 +551,8 @@ const ScheduleCell = ({
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [showActions, setShowActions] = useState(false);
+  const [employeeAvailable, setEmployeeAvailable] = useState<boolean | null>(null);
+  const [availabilityLoading, setAvailabilityLoading] = useState(true);
   const queryClient = useQueryClient();
   
   // Get employee data
@@ -605,8 +607,6 @@ const ScheduleCell = ({
         return;
       }
       
-      console.log("🎯 ScheduleCell drop:", { item, employeeId, date, currentVersion });
-      
       // Handle dock items differently than existing schedule items
       if (item.isDockItem) {
         // For dock items, we need to create a new schedule
@@ -650,41 +650,59 @@ const ScheduleCell = ({
   // Log debug info for all schedules to diagnose rendering issues
   useEffect(() => {
     if (schedule) {
-      console.log(
-        `📊 ScheduleCell: ${schedule.employee_id} @ ${date.toLocaleDateString()}`,
-        {
-          id: schedule.id,
-          shift_id: schedule.shift_id,
-          employee_id: schedule.employee_id,
-          date: schedule.date,
-          shift_start: schedule.shift_start,
-          shift_end: schedule.shift_end,
-          shift_type_id: schedule.shift_type_id,
-          shift_type_name: schedule.shift_type_name,
-        },
-      );
+      // Debug output for cell availability
+      if (employee?.first_name === "Maike" && date.getDay() === 5) { // Friday is 5 in JS
+        // Show debug info in the cell for Maike on Friday
+        (window as any).maikeFridayDebug = {
+          employeeId,
+          date: date.toLocaleDateString(),
+          employeeAvailable,
+        };
+      }
     }
-  }, [schedule, date]);
+  }, [schedule, date, employeeAvailable, employee, employeeId]);
 
-  // Check employee availability for this date
-  const [employeeAvailable, setEmployeeAvailable] = useState<boolean | null>(null);
   
   useEffect(() => {
     const checkAvailability = async () => {
+      setAvailabilityLoading(true);
+      
       // Check cache first
       const cachedResult = getCachedAvailability(employeeId, date);
       if (cachedResult !== null) {
         setEmployeeAvailable(cachedResult);
+        setAvailabilityLoading(false);
         return;
       }
       
       try {
-        const isAvailable = await checkEmployeeAvailabilityForDateSync(employeeId, date);
+        const formattedDate = format(date, "yyyy-MM-dd");
+        const result = await checkEmployeeAvailabilityForDate(employeeId, formattedDate);
+        
+        console.log(`[AVAILABILITY] Employee ${employeeId} on ${formattedDate}:`, result);
+        
+        // The API returns an object with is_available property
+        const isAvailable = result.is_available;
         setEmployeeAvailable(isAvailable);
         setCachedAvailability(employeeId, date, isAvailable);
+        
+        // Debug specifically for Maike on Tuesday
+        if (employeeId === 9 && date.getDay() === 2) { // Maike on Tuesday
+          console.log(`[DEBUG] Maike availability on Tuesday:`, {
+            employeeId,
+            date: formattedDate,
+            dayOfWeek: date.getDay(),
+            result,
+            isAvailable
+          });
+        }
+        
       } catch (error) {
         console.error("Failed to check employee availability:", error);
-        setEmployeeAvailable(true); // Default to available
+        // Default to available on error but log the issue
+        setEmployeeAvailable(true);
+      } finally {
+        setAvailabilityLoading(false);
       }
     };
     
@@ -693,30 +711,51 @@ const ScheduleCell = ({
 
   // Check if this is an empty schedule (no shift assigned)
   if (isEmptySchedule(schedule)) {
-    // Check if employee is unavailable
+    // Check if employee is unavailable or still loading
     const isUnavailable = employeeAvailable === false;
+    const isLoading = availabilityLoading;
     
-    // Render empty cell with + button on hover or unavailable indicator
+    // Render empty cell with loading state, unavailable indicator, or + button
     return (
       <div
         ref={isUnavailable ? undefined : drop}
         className={cn(
           "relative h-full min-h-[80px] p-2 transition-colors",
-          isUnavailable ? "cursor-not-allowed" : "",
-          !isUnavailable && isOver && canDrop && "bg-primary/10 border-primary/30",
-          !isUnavailable && isOver && !canDrop && "bg-destructive/10 border-destructive/30"
+          isUnavailable ? "cursor-not-allowed bg-gray-50" : "",
+          !isUnavailable && !isLoading && isOver && canDrop && "bg-primary/10 border-primary/30",
+          !isUnavailable && !isLoading && isOver && !canDrop && "bg-destructive/10 border-destructive/30"
         )}
-        onMouseEnter={() => !isUnavailable && setShowActions(true)}
+        onMouseEnter={() => !isUnavailable && !isLoading && setShowActions(true)}
         onMouseLeave={() => setShowActions(false)}
       >
-        {isUnavailable && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-xs text-red-600 bg-red-100 px-2 py-1 rounded font-medium border border-red-600 opacity-70">
-              Unavailable
+        {isLoading && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-600"></div>
+            <span className="text-xs text-gray-500 mt-1">Checking...</span>
+          </div>
+        )}
+        
+        {!isLoading && isUnavailable && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-xs text-red-700 px-2 py-1 rounded font-medium opacity-90">
+              Nicht verfügbar
+            </span>
+            {/* Debug info for specific employee */}
+            {employeeId === 9 && date.getDay() === 2 && (
+              <span className="text-[10px] text-gray-400 mt-1">Debug: {String(employeeAvailable)}</span>
+            )}
+          </div>
+        )}
+        
+        {!isLoading && !isUnavailable && hasAbsence && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded font-medium border border-orange-600 opacity-80">
+              Abwesend
             </span>
           </div>
         )}
-        {!isUnavailable && showActions && (
+        
+        {!isLoading && !isUnavailable && !hasAbsence && showActions && (
           <div className="absolute inset-0 flex items-center justify-center">
             <Button
               size="sm"
@@ -784,7 +823,8 @@ const ScheduleCell = ({
         isOver && canDrop && "bg-primary/10 border-primary/30",
         isOver && !canDrop && "bg-destructive/10 border-destructive/30",
         isDragging && "opacity-50 scale-95",
-        !isEmptySchedule(schedule) && employeeAvailable !== false && "cursor-move"
+        !isEmptySchedule(schedule) && employeeAvailable !== false && "cursor-move",
+        employeeAvailable === false && "bg-red-50/50 border-red-200"
       )}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
@@ -792,9 +832,25 @@ const ScheduleCell = ({
       {/* Show unavailability indicator if employee is unavailable */}
       {employeeAvailable === false && (
         <div className="absolute top-1 left-1 z-10">
-          <span className="text-xs text-red-600 bg-red-100 px-1 py-0.5 rounded font-medium border border-red-600 opacity-70">
-            N/A
+          <span className="text-xs text-red-700 bg-red-200 px-1 py-0.5 rounded font-medium border border-red-700 opacity-90">
+            N/V
           </span>
+        </div>
+      )}
+      
+      {/* Show absence indicator if employee has absence */}
+      {hasAbsence && (
+        <div className="absolute top-1 right-1 z-10">
+          <span className="text-xs text-orange-700 bg-orange-200 px-1 py-0.5 rounded font-medium border border-orange-700 opacity-90">
+            Abw
+          </span>
+        </div>
+      )}
+      
+      {/* Show loading indicator while checking availability */}
+      {availabilityLoading && (
+        <div className="absolute top-1 left-1/2 transform -translate-x-1/2 z-10">
+          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-600"></div>
         </div>
       )}
       
@@ -810,7 +866,7 @@ const ScheduleCell = ({
       </div>
 
       {/* Actions buttons on hover - only show if employee is available */}
-      {showActions && employeeAvailable !== false && (
+      {showActions && employeeAvailable !== false && !availabilityLoading && (
         <div className="absolute top-1 right-1 flex space-x-1">
           <Button
             size="sm"
@@ -2770,11 +2826,12 @@ const checkEmployeeAvailabilityForDateSync = async (employeeId: number, date: Da
   try {
     const formattedDate = format(date, "yyyy-MM-dd");
     const result = await checkEmployeeAvailabilityForDate(employeeId, formattedDate);
+    console.log(`[AVAILABILITY DEBUG] Employee ${employeeId} on ${formattedDate}:`, result);
     return result.is_available;
   } catch (error) {
     console.error("Error checking employee availability:", error);
-    // Return true as fallback to not break existing functionality
-    return true;
+    // Return false as fallback to indicate potential unavailability  
+    return false;
   }
 };
 

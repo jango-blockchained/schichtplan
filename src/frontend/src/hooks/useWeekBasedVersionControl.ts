@@ -5,29 +5,27 @@
  * providing navigation, version creation, and state management for week-based schedules.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/use-toast';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCallback, useState } from 'react';
 import { DateRange } from 'react-day-picker';
-import { format } from 'date-fns';
 
-import { 
-  WeekNavigationState, 
-  WeekVersionMeta, 
-  VersionIdentifier,
-  WeekendStart,
-  MonthBoundaryMode 
+import {
+    createWeekVersion as apiCreateWeekVersion,
+    getNextWeek as apiGetNextWeek,
+    getPreviousWeek as apiGetPreviousWeek,
+    getWeekInfo,
+} from '@/services/api';
+import {
+    MonthBoundaryMode,
+    VersionIdentifier,
+    WeekendStart,
+    WeekNavigationState
 } from '@/types/weekVersion';
 import {
-  getWeekFromIdentifier,
-  getCurrentWeekIdentifier,
+    getCurrentWeekIdentifier,
+    getWeekFromIdentifier,
 } from '@/utils/weekUtils';
-import {
-  getWeekInfo,
-  getNextWeek as apiGetNextWeek,
-  getPreviousWeek as apiGetPreviousWeek,
-  createWeekVersion as apiCreateWeekVersion,
-} from '@/services/api';
 
 interface UseWeekBasedVersionControlProps {
   initialWeek?: string;
@@ -112,16 +110,24 @@ export function useWeekBasedVersionControl({
   const createVersionForWeek = useCallback(async (weekIdentifier: string) => {
     try {
       setIsLoading(true);
+      console.log('[DEBUG] Creating week version for:', weekIdentifier);
       const result = await apiCreateWeekVersion({
         week_identifier: weekIdentifier,
         create_empty_schedules: true
       });
-      
+      console.log('[DEBUG] Week version creation result:', result);
       toast({
         title: "Version Created",
         description: `Created version ${result.version} for week ${weekIdentifier}`
       });
       
+      // Set the new version as selected and trigger callback
+      if (result.version) {
+        setSelectedVersion(result.version);
+        if (onVersionSelected) {
+          onVersionSelected(result.version);
+        }
+      }
       // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['schedules'] });
       queryClient.invalidateQueries({ queryKey: ['versions'] });
@@ -130,10 +136,10 @@ export function useWeekBasedVersionControl({
       
       return result;
     } catch (error) {
-      console.error('Week version creation error:', error);
+      console.error('[DEBUG] Week version creation error for', weekIdentifier, error);
       toast({
         title: "Creation Error", 
-        description: `Failed to create version for week ${weekIdentifier}`,
+        description: `Failed to create version for week ${weekIdentifier}: ${error instanceof Error ? error.message : String(error)}`,
         variant: "destructive"
       });
       throw error;
