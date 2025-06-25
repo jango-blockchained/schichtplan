@@ -44,12 +44,12 @@ This plan details the complete removal of the default navigation system and migr
 ## Phase 2: Backend API Integration
 
 ### 2.1 Update Version Control Logic
-- [ ] **Task**: Modify useVersionControl hook to use week-based system
+- [x] **Task**: Modify useVersionControl hook to use week-based system
   - **File**: `/src/frontend/src/hooks/useVersionControl.tsx`
   - **Action**: Replace with week-based version control or update to use WeekVersionService
   - **Details**: Ensure backward compatibility during transition
 
-- [ ] **Task**: Update SchedulePage to use week-based version control exclusively
+- [x] **Task**: Update SchedulePage to use week-based version control exclusively
   - **File**: `/src/frontend/src/pages/SchedulePage.tsx`
   - **Action**: Remove legacy version control hooks and state
   - **Lines**: ~270-290, 330-340

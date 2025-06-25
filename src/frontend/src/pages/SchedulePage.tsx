@@ -63,7 +63,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addDays,
   differenceInDays,
-  endOfWeek,
   format,
   parseISO,
   startOfWeek
@@ -100,9 +99,7 @@ import { ScheduleActions } from "@/components/Schedule/ScheduleActions";
 import ScheduleControls from "@/components/Schedule/ScheduleControls";
 import ScheduleErrors from "@/components/Schedule/ScheduleErrors";
 import useScheduleGeneration from "@/hooks/useScheduleGeneration";
-import useVersionControl from "@/hooks/useVersionControl";
 import { useWeekBasedVersionControl } from "@/hooks/useWeekBasedVersionControl";
-import { DateRange } from "react-day-picker";
 // import { ScheduleFixActions } from '@/components/Schedule/ScheduleFixActions'; // Original, might be unused
 
 import { AddAvailabilityDialog } from "@/components/Schedule/AddAvailabilityDialog";
@@ -139,10 +136,7 @@ function getErrorMessage(error: any): string {
 export function SchedulePage() {
   // 1. All useState calls
   const today = new Date();
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: startOfWeek(today, { weekStartsOn: 1 }),
-    to: endOfWeek(today, { weekStartsOn: 1 }),
-  });
+  // Legacy dateRange state removed - now using weekBasedVersionControl.navigationState.dateRange
   const [weekAmount, setWeekAmount] = useState<number>(1);
   const [selectedVersion, setSelectedVersion] = useState<number | undefined>(
     undefined,
@@ -235,9 +229,8 @@ export function SchedulePage() {
     },
     onVersionSelected: (version) => {
       console.log("🔄 SchedulePage: Week-based version selected:", version);
-      // Convert version identifier to number if needed for backward compatibility
-      const versionNumber = typeof version === 'string' ? parseInt(version.split('-')[0], 10) || 1 : version;
-      setSelectedVersion(versionNumber);
+      // Use week-based version directly without conversion
+      setSelectedVersion(typeof version === 'number' ? version : undefined);
     },
   });
 
@@ -253,27 +246,8 @@ export function SchedulePage() {
     staleTime: 30 * 1000, // Cache for 30 seconds
   });
 
-  // Custom Hook for Version Control (Legacy - TODO: Replace with week-based only)
-  const {
-    selectedVersion: versionControlSelectedVersion,
-    handleCreateNewVersion: triggerCreateNewVersionHook, // Renamed to avoid conflict with page-level handler
-    handleCreateNewVersionWithOptions: versionControlCreateWithOptions,
-    versionMetas, // This is VersionMeta[] from the hook, kept for backward compatibility
-    isLoading: isLoadingVersions,
-  } = useVersionControl({
-    dateRange: effectiveDateRange,
-    initialVersion: undefined,
-    onVersionSelected: (version) => {
-      console.log(
-        "🔄 SchedulePage: Version selected by useVersionControl hook (onVersionSelected callback):",
-        version,
-      );
-      setSelectedVersion(version); // Update local state, an effect will handle refetching
-    },
-  });
-
   // Use week-based version and date range since it's now the only navigation mode
-  const effectiveSelectedVersion = currentWeekVersionMeta?.version ? parseInt(currentWeekVersionMeta.version.toString()) : undefined;
+  const effectiveSelectedVersion = currentWeekVersionMeta?.version;
   const effectiveDateRange = weekBasedVersionControl.navigationState.dateRange;
 
   // Custom Hook for Schedule Data Fetching
@@ -402,7 +376,7 @@ export function SchedulePage() {
 
   // 6. Event Handlers and other functions (wrapped in useCallback)
   const handleImportAiResponse = useCallback(() => {
-    if (!versionControlSelectedVersion || !dateRange?.from || !dateRange?.to) {
+    if (!effectiveSelectedVersion || !effectiveDateRange?.from || !effectiveDateRange?.to) {
       toast({
         title: "Import nicht möglich",
         description: "Bitte Zeitraum und Version wählen.",
@@ -425,7 +399,7 @@ export function SchedulePage() {
 
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('version_id', versionControlSelectedVersion.toString());
+        formData.append('version_id', effectiveSelectedVersion.toString());
         formData.append('start_date', format(dateRange.from!, 'yyyy-MM-dd'));
         formData.append('end_date', format(dateRange.to!, 'yyyy-MM-dd'));
 
@@ -439,7 +413,7 @@ export function SchedulePage() {
 
     // Trigger the file picker
     fileInput.click();
-  }, [versionControlSelectedVersion, dateRange, toast, importAiResponseMutation]);
+  }, [effectiveSelectedVersion, effectiveDateRange, toast, importAiResponseMutation]);
 
   const handleRetryFetch = useCallback(() => {
     console.log("Retrying data fetch...");
@@ -630,10 +604,10 @@ export function SchedulePage() {
     // This effect handles version changes but avoids infinite loops
     // by using query invalidation instead of manual refetch
     const timeoutId = setTimeout(() => {
-      if (selectedVersion !== undefined || versionControlSelectedVersion === undefined) {
+      if (effectiveSelectedVersion !== undefined) {
         console.log(
-          "🔄 SchedulePage: Version changed, invalidating queries for version:",
-          selectedVersion || "undefined",
+          "🔄 SchedulePage: Effective version changed, invalidating queries for version:",
+          effectiveSelectedVersion,
         );
         // Use query invalidation instead of manual refetch to prevent loops
         queryClient.invalidateQueries({ queryKey: ["schedules"] });
@@ -641,59 +615,14 @@ export function SchedulePage() {
     }, 200); // Debounce by 200ms
 
     return () => clearTimeout(timeoutId);
-  }, [selectedVersion, versionControlSelectedVersion, queryClient]); // Removed refetchScheduleData dependency
+  }, [effectiveSelectedVersion, queryClient]);
 
   // Extract date range values for stable comparison
   const effectiveDateFromTime = effectiveDateRange?.from?.getTime();
   const effectiveDateToTime = effectiveDateRange?.to?.getTime();
 
-  useEffect(() => {
-    if (
-      versionControlSelectedVersion &&
-      versionMetas &&
-      versionMetas.length > 0
-    ) {
-      const selectedMeta = versionMetas.find(
-        (vm) => vm.version === versionControlSelectedVersion,
-      );
-      if (selectedMeta) {
-        const metaAny = selectedMeta as any;
-        const dateRangeStartStr =
-          selectedMeta.date_range?.start ||
-          metaAny.version_meta?.date_range?.start;
-        const dateRangeEndStr =
-          selectedMeta.date_range?.end || metaAny.version_meta?.date_range?.end;
-        if (dateRangeStartStr && dateRangeEndStr) {
-          const versionStartDate = parseISO(dateRangeStartStr);
-          versionStartDate.setHours(0, 0, 0, 0);
-          const versionEndDate = parseISO(dateRangeEndStr);
-          versionEndDate.setHours(23, 59, 59, 999);
-          const daysDiff = differenceInDays(versionEndDate, versionStartDate);
-          const newWeekAmount = Math.ceil((daysDiff + 1) / 7);
-          const currentDRValid = dateRange && dateRange.from && dateRange.to;
-          const drNeedsUpdate =
-            !currentDRValid ||
-            dateRange.from!.getTime() !== versionStartDate.getTime() ||
-            dateRange.to!.getTime() !== versionEndDate.getTime();
-          const waNeedsUpdate = weekAmount !== newWeekAmount;
-          if (drNeedsUpdate || waNeedsUpdate) {
-            if (waNeedsUpdate) setWeekAmount(newWeekAmount);
-            if (drNeedsUpdate)
-              setDateRange({ from: versionStartDate, to: versionEndDate });
-          }
-        }
-      }
-    }
-  }, [
-    versionControlSelectedVersion,
-    versionMetas,
-    effectiveDateFromTime,
-    effectiveDateToTime,
-    weekAmount,
-    dateRange,
-    setWeekAmount,
-    setDateRange,
-  ]);
+  // Remove legacy version sync useEffect - now handled by week-based version control
+  // Week-based version control manages date ranges automatically
 
   // Removed automatic schedule repair useEffect - it was causing unnecessary background processing
   // The checkAndFixMissingTimeData function is still available for manual use if needed
@@ -786,7 +715,7 @@ export function SchedulePage() {
       });
       return;
     }
-    if (!versionControlSelectedVersion) {
+    if (!effectiveSelectedVersion) {
       toast({
         title: "Version erforderlich (AI)",
         description: "Bitte Version für AI-Generierung wählen.",
@@ -823,20 +752,20 @@ export function SchedulePage() {
     addGenerationLog(
       "info",
       "Starting AI schedule generation",
-      `Version: ${versionControlSelectedVersion}, Date range: ${format(dateRange.from, "yyyy-MM-dd")} - ${format(dateRange.to, "yyyy-MM-dd")}`,
+      `Version: ${effectiveSelectedVersion}, Date range: ${format(effectiveDateRange!.from!, "yyyy-MM-dd")} - ${format(effectiveDateRange!.to!, "yyyy-MM-dd")}`,
     );
     try {
       updateGenerationStep("ai-init", "in-progress");
       await new Promise((r) => setTimeout(r, 200)); // Reduced delay
-      const fromStr = format(dateRange.from, "yyyy-MM-dd");
-      const toStr = format(dateRange.to, "yyyy-MM-dd");
+      const fromStr = format(effectiveDateRange!.from!, "yyyy-MM-dd");
+      const toStr = format(effectiveDateRange!.to!, "yyyy-MM-dd");
       updateGenerationStep("ai-init", "completed");
       updateGenerationStep("ai-analyze", "in-progress");
       await new Promise((r) => setTimeout(r, 200)); // Reduced delay
       const result = await generateAiSchedule(
         fromStr,
         toStr,
-        versionControlSelectedVersion,
+        effectiveSelectedVersion,
       );
       updateGenerationStep("ai-analyze", "completed");
       updateGenerationStep("ai-generate", "in-progress");
@@ -891,7 +820,7 @@ export function SchedulePage() {
       });
       return;
     }
-    if (!versionControlSelectedVersion) {
+    if (!effectiveSelectedVersion) {
       toast({
         title: "Version erforderlich (Schnelle KI)",
         description: "Bitte Version für schnelle KI-Generierung wählen.",
