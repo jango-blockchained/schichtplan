@@ -27,7 +27,7 @@ import React, { useCallback, useEffect, useState } from "react"; // Added useCal
 // import { ShiftTable } from '@/components/ShiftTable'; // Original, might be unused if ScheduleManager is primary
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -37,7 +37,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
+
 import {
   Table,
   TableBody,
@@ -107,13 +107,13 @@ import useVersionControl from "@/hooks/useVersionControl";
 import { useWeekBasedVersionControl } from "@/hooks/useWeekBasedVersionControl";
 import { DateRange } from "react-day-picker";
 // import { ScheduleFixActions } from '@/components/Schedule/ScheduleFixActions'; // Original, might be unused
-import { EnhancedDateRangeSelector } from "@/components/EnhancedDateRangeSelector";
+
 import { AddAvailabilityDialog } from "@/components/Schedule/AddAvailabilityDialog";
 import { AddScheduleDialog } from "@/components/Schedule/AddScheduleDialog";
 import { DiagnosticsDialog } from "@/components/Schedule/DiagnosticsDialog";
 import { MEPTemplate } from "@/components/Schedule/MEPTemplate";
 import { ScheduleStatisticsModal } from "@/components/Schedule/ScheduleStatisticsModal";
-import { VersionTable } from "@/components/Schedule/VersionTable";
+
 import { ScheduleManager } from "@/components/ScheduleManager";
 import { WeekNavigator } from "@/components/WeekNavigator";
 import { WeekVersionDisplay } from "@/components/WeekVersionDisplay";
@@ -228,8 +228,7 @@ export function SchedulePage() {
       .sort((a, b) => a - b);
   }, [effectiveSettingsData]);
 
-  // Week-based navigation toggle state
-  const [useWeekBasedNavigation, setUseWeekBasedNavigation] = useState(false);
+  // Week-based navigation is now the default and only navigation mode
 
   // Week-based Version Control Hook (Alternative to legacy version control)
   const weekBasedVersionControl = useWeekBasedVersionControl({
@@ -253,7 +252,7 @@ export function SchedulePage() {
       // Return the first version for this week (there should typically be only one)
       return versions.length > 0 ? versions[0] : null;
     },
-    enabled: useWeekBasedNavigation && !!weekBasedVersionControl.navigationState.currentWeek,
+    enabled: !!weekBasedVersionControl.navigationState.currentWeek,
     staleTime: 30 * 1000, // Cache for 30 seconds
   });
 
@@ -282,10 +281,8 @@ export function SchedulePage() {
     },
   });
 
-  // Determine which version to use based on navigation mode
-  const effectiveSelectedVersion = useWeekBasedNavigation 
-    ? (currentWeekVersionMeta?.version ? parseInt(currentWeekVersionMeta.version.toString()) : undefined)
-    : versionControlSelectedVersion;
+  // Use week-based version since it's now the only navigation mode
+  const effectiveSelectedVersion = currentWeekVersionMeta?.version ? parseInt(currentWeekVersionMeta.version.toString()) : undefined;
 
   // Custom Hook for Schedule Data Fetching
   const {
@@ -328,11 +325,9 @@ export function SchedulePage() {
       // Only invalidate versions if they might have changed
       queryClient.invalidateQueries({ queryKey: ["versions"] });
       
-      // Invalidate week version queries too if in week mode
-      if (useWeekBasedNavigation) {
-        queryClient.invalidateQueries({ queryKey: ["week-version"] });
-      }
-    }, [queryClient, useWeekBasedNavigation]), // Added useWeekBasedNavigation dependency
+      // Always invalidate week version queries since we're using week navigation
+      queryClient.invalidateQueries({ queryKey: ["week-version"] });
+    }, [queryClient]),
   });
 
   // Mutations
@@ -1521,90 +1516,31 @@ export function SchedulePage() {
         />
       </PageHeader>
 
-      {/* Navigation Mode Toggle */}
-      <div className="mb-4">
-        <Card>
-          <CardContent className="py-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <div className="text-sm font-medium">Navigation Modus</div>
-                <div className="text-xs text-muted-foreground">
-                  {useWeekBasedNavigation 
-                    ? 'Wochenbasierte Navigation (Beta) - ISO Kalenderwochen' 
-                    : 'Standard Datumsbereich Navigation'}
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm">Standard</span>
-                <Switch
-                  checked={useWeekBasedNavigation}
-                  onCheckedChange={setUseWeekBasedNavigation}
-                />
-                <span className="text-sm">Wochenbasiert</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Week Navigation - Now the default and only navigation mode */}
+      <div className="mb-4 space-y-4">
+        <WeekNavigator
+          currentWeekInfo={weekBasedVersionControl.currentWeekInfo}
+          onNavigatePrevious={weekBasedVersionControl.navigatePrevious}
+          onNavigateNext={weekBasedVersionControl.navigateNext}
+          isLoading={weekBasedVersionControl.navigationState.isLoading}
+          hasVersion={weekBasedVersionControl.navigationState.hasVersions}
+        />
+        
+        <WeekVersionDisplay
+          currentWeekInfo={weekBasedVersionControl.currentWeekInfo}
+          versionMeta={currentWeekVersionMeta}
+          selectedVersion={weekBasedVersionControl.selectedVersion}
+          onCreateVersion={() => weekBasedVersionControl.createVersionForWeek(
+            weekBasedVersionControl.navigationState.currentWeek
+          )}
+          onSelectVersion={(version) => {
+            // Convert version identifier to number for backward compatibility
+            const versionNumber = typeof version === 'string' ? parseInt(version.split('-')[0], 10) || 1 : version;
+            setSelectedVersion(versionNumber);
+            weekBasedVersionControl.setSelectedVersion(version);
+          }}
+        />
       </div>
-
-      {/* 1. Date Selection - Conditional based on navigation mode */}
-      {useWeekBasedNavigation ? (
-        <div className="mb-4 space-y-4">
-          <WeekNavigator
-            currentWeekInfo={weekBasedVersionControl.currentWeekInfo}
-            onNavigatePrevious={weekBasedVersionControl.navigatePrevious} // FIXED: was navigateNext
-            onNavigateNext={weekBasedVersionControl.navigateNext} // FIXED: was navigatePrevious
-            isLoading={weekBasedVersionControl.navigationState.isLoading}
-            hasVersion={weekBasedVersionControl.navigationState.hasVersions}
-          />
-          
-          <WeekVersionDisplay
-            currentWeekInfo={weekBasedVersionControl.currentWeekInfo}
-            versionMeta={currentWeekVersionMeta}
-            selectedVersion={weekBasedVersionControl.selectedVersion}
-            onCreateVersion={() => weekBasedVersionControl.createVersionForWeek(
-              weekBasedVersionControl.navigationState.currentWeek
-            )}
-            onSelectVersion={(version) => {
-              // Convert version identifier to number for backward compatibility
-              const versionNumber = typeof version === 'string' ? parseInt(version.split('-')[0], 10) || 1 : version;
-              setSelectedVersion(versionNumber);
-              weekBasedVersionControl.setSelectedVersion(version);
-            }}
-          />
-        </div>
-      ) : (
-        <div className="mb-4">
-          <EnhancedDateRangeSelector
-            dateRange={dateRange}
-            scheduleDuration={weekAmount}
-            onWeekChange={handleWeekChange}
-            onDurationChange={handleDurationChange}
-            hasVersions={versionMetas.length > 0}
-            onCreateNewVersion={handleCreateNewVersionPage}
-            onCreateNewVersionWithSpecificDateRange={
-              handleCreateNewVersionFromDialog
-            }
-            currentVersion={versionControlSelectedVersion}
-          />
-        </div>
-      )}
-
-      {/* 2. Version Table - Only show when NOT using week-based navigation */}
-      {!useWeekBasedNavigation && (
-        <div className="mb-4">
-          <VersionTable
-            versions={versionMetas || []}
-            selectedVersion={versionControlSelectedVersion}
-            onSelectVersion={handleVersionChange}
-            onPublishVersion={handlePublishVersion}
-            onArchiveVersion={handleArchiveVersion}
-            onDeleteVersion={triggerDeleteVersionHook}
-            onDuplicateVersion={triggerDuplicateVersionHook}
-            onCreateNewVersion={handleCreateNewVersionPage}
-          />
-        </div>
-      )}
 
       {/* 3. Actions */}
       <div className="flex justify-start gap-2 mb-4">
