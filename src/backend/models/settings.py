@@ -149,16 +149,12 @@ class Settings(db.Model):
     # scheduling_advanced = Column(JSON, nullable=True, default=dict) # Removed
 
     # Week-based Navigation Settings
-    enable_week_navigation = Column(Boolean, nullable=False, default=False)
     week_weekend_start = Column(
         String(20), nullable=False, default="MONDAY"
     )  # MONDAY or SUNDAY
     week_month_boundary_mode = Column(
         String(30), nullable=False, default="keep_intact"
     )  # keep_intact, split_by_month
-    week_navigation_default = Column(
-        Boolean, nullable=False, default=False
-    )  # Whether to default to week navigation
 
     # Display and Notification Settings
     theme = Column(String(20), nullable=False, default="light")
@@ -524,10 +520,8 @@ class Settings(db.Model):
             if self.ai_scheduling is not None
             else {"enabled": False, "api_key": ""},
             "week_navigation": {
-                "enable_week_navigation": self.enable_week_navigation,
-                "week_weekend_start": "MONDAY" if self.weekend_start == 1 else "SUNDAY",
+                "week_weekend_start": self.week_weekend_start,
                 "week_month_boundary_mode": self.week_month_boundary_mode,
-                "week_navigation_default": self.week_navigation_default,
             },
         }
 
@@ -872,12 +866,7 @@ class Settings(db.Model):
                 # Handle week navigation settings
                 if isinstance(values, dict):
                     for key, value in values.items():
-                        if key == "week_weekend_start":
-                            # Map frontend values to weekend_start field
-                            weekend_start_map = {"MONDAY": 1, "SUNDAY": 0}
-                            if value in weekend_start_map:
-                                settings.weekend_start = weekend_start_map[value]
-                        elif hasattr(settings, key):
+                        if hasattr(settings, key):
                             setattr(settings, key, value)
             # Fallback for other top-level keys that might be direct attributes
             # (Not expected for complex dicts from frontend, but for simple values or future direct JSON fields)
