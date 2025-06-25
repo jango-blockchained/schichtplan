@@ -18,6 +18,24 @@ interface APIErrorResponse {
   error?: string;
 }
 
+export interface AbsenceInfo {
+  absence_type_id: string;
+  absence_type_name: string;
+  absence_type_color: string;
+  start_date: string;
+  end_date: string;
+  note?: string;
+}
+
+export interface EmployeeAvailabilityForDate {
+  employee_id: number;
+  employee_name: string;
+  date: string;
+  is_available: boolean;
+  reason?: string;
+  absence_info?: AbsenceInfo;
+}
+
 export interface Schedule {
   id: number;
   date: string;

@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
+  AbsenceInfo,
   checkEmployeeAvailabilityForDate,
   createSchedule,
   getEmployees,
@@ -551,6 +552,7 @@ const ScheduleCell = ({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const [employeeAvailable, setEmployeeAvailable] = useState<boolean | null>(null);
+  const [absenceInfo, setAbsenceInfo] = useState<AbsenceInfo | null>(null);
   const [availabilityLoading, setAvailabilityLoading] = useState(true);
   const queryClient = useQueryClient();
   
@@ -670,6 +672,7 @@ const ScheduleCell = ({
       const cachedResult = getCachedAvailability(employeeId, date);
       if (cachedResult !== null) {
         setEmployeeAvailable(cachedResult);
+        setAbsenceInfo(null); // Clear absence info for cached results
         setAvailabilityLoading(false);
         return;
       }
@@ -683,6 +686,7 @@ const ScheduleCell = ({
         // The API returns an object with is_available property
         const isAvailable = result.is_available;
         setEmployeeAvailable(isAvailable);
+        setAbsenceInfo(result.absence_info || null);
         setCachedAvailability(employeeId, date, isAvailable);
         
         // Debug specifically for Maike on Tuesday
@@ -736,9 +740,22 @@ const ScheduleCell = ({
         
         {!isLoading && isUnavailable && (
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-xs text-red-700 px-2 py-1 rounded font-medium opacity-90">
-              Nicht verfügbar
-            </span>
+            {absenceInfo ? (
+              <Badge 
+                style={{ 
+                  backgroundColor: absenceInfo.absence_type_color + '20', 
+                  borderColor: absenceInfo.absence_type_color,
+                  color: absenceInfo.absence_type_color 
+                }}
+                className="text-xs font-medium border"
+              >
+                {absenceInfo.absence_type_name}
+              </Badge>
+            ) : (
+              <span className="text-xs text-red-700 px-2 py-1 rounded font-medium opacity-90">
+                Nicht verfügbar
+              </span>
+            )}
             {/* Debug info for specific employee */}
             {employeeId === 9 && date.getDay() === 2 && (
               <span className="text-[10px] text-gray-400 mt-1">Debug: {String(employeeAvailable)}</span>

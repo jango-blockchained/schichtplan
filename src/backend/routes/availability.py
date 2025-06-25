@@ -1,30 +1,31 @@
-from flask import Blueprint, request, jsonify
+import traceback
+from datetime import datetime
+from http import HTTPStatus
+
+from flask import Blueprint, current_app, jsonify, request
+from pydantic import ValidationError
+from sqlalchemy import desc
+from sqlalchemy.exc import DataError, IntegrityError
+
 from src.backend.models import (
-    db,
-    EmployeeAvailability,
-    Employee,
     Absence,
+    Employee,
+    EmployeeAvailability,
     Schedule,
-    ShiftTemplate,
     Settings,
+    ShiftTemplate,
+    db,
 )
 from src.backend.models.employee import AvailabilityType
 from src.backend.models.schedule import ScheduleStatus, ScheduleVersionMeta
-from datetime import datetime, date
-from http import HTTPStatus
-from sqlalchemy import desc
-from flask import current_app
-from pydantic import ValidationError
 from src.backend.schemas.availability import (
+    AvailabilityCheckRequest,
     AvailabilityCreateRequest,
     AvailabilityUpdateRequest,
-    AvailabilityCheckRequest,
     EmployeeAvailabilitiesUpdateRequest,
-    EmployeeStatusByDateRequest,
     EmployeeShiftsForEmployeeRequest,
+    EmployeeStatusByDateRequest,
 )
-import traceback
-from sqlalchemy.exc import IntegrityError, DataError
 
 availability = Blueprint("availability", __name__, url_prefix="/api/v2/availability")
 
@@ -698,21 +699,21 @@ def check_employee_availability_for_date(employee_id, date):
         try:
             check_date = datetime.strptime(date, "%Y-%m-%d").date()
         except ValueError:
-            return jsonify({
-                "error": "Invalid date format. Use YYYY-MM-DD"
-            }), HTTPStatus.BAD_REQUEST
+            return jsonify(
+                {"error": "Invalid date format. Use YYYY-MM-DD"}
+            ), HTTPStatus.BAD_REQUEST
 
         # Get employee
         employee = Employee.query.get(employee_id)
         if not employee:
-            return jsonify({
-                "error": f"Employee with ID {employee_id} not found"
-            }), HTTPStatus.NOT_FOUND
+            return jsonify(
+                {"error": f"Employee with ID {employee_id} not found"}
+            ), HTTPStatus.NOT_FOUND
 
         # Create availability checker
         from ..services.scheduler.availability import AvailabilityChecker
         from ..services.scheduler.resources import ScheduleResources
-        
+
         # Initialize resources (simplified for availability checking)
         resources = ScheduleResources()
         resources.employees = [employee]
@@ -722,30 +723,72 @@ def check_employee_availability_for_date(employee_id, date):
         resources.absences = Absence.query.filter(
             Absence.employee_id == employee_id,
             Absence.start_date <= check_date,
-            Absence.end_date >= check_date
+            Absence.end_date >= check_date,
         ).all()
-        
+
         checker = AvailabilityChecker(resources)
         is_available = checker.is_employee_available_for_date(employee_id, check_date)
-        
-        # Get reason if not available
+
+        # Get reason and absence details if not available
         reason = None
+        absence_info = None
+
         if not is_available:
             if checker.is_employee_on_leave(employee_id, check_date):
                 reason = "Employee is on leave/absence"
+
+                # Find the specific absence for this date
+                absence = next(
+                    (
+                        abs
+                        for abs in resources.absences
+                        if abs.start_date <= check_date <= abs.end_date
+                    ),
+                    None,
+                )
+
+                if absence:
+                    # Get settings to find absence type details
+                    settings = Settings.query.first()
+                    if settings and settings.absence_types:
+                        absence_type = next(
+                            (
+                                at
+                                for at in settings.absence_types
+                                if at.get("id") == absence.absence_type_id
+                            ),
+                            None,
+                        )
+
+                        if absence_type:
+                            absence_info = {
+                                "absence_type_id": absence.absence_type_id,
+                                "absence_type_name": absence_type.get(
+                                    "name", absence.absence_type_id
+                                ),
+                                "absence_type_color": absence_type.get(
+                                    "color", "#6B7280"
+                                ),
+                                "start_date": absence.start_date.isoformat(),
+                                "end_date": absence.end_date.isoformat(),
+                                "note": absence.note,
+                            }
             else:
                 reason = "Employee has no availability or is marked unavailable"
 
-        return jsonify({
-            "employee_id": employee_id,
-            "employee_name": f"{employee.first_name} {employee.last_name}",
-            "date": date,
-            "is_available": is_available,
-            "reason": reason
-        }), HTTPStatus.OK
+        return jsonify(
+            {
+                "employee_id": employee_id,
+                "employee_name": f"{employee.first_name} {employee.last_name}",
+                "date": date,
+                "is_available": is_available,
+                "reason": reason,
+                "absence_info": absence_info,
+            }
+        ), HTTPStatus.OK
 
     except Exception as e:
         current_app.logger.error(f"Error checking employee availability: {str(e)}")
-        return jsonify({
-            "error": f"An error occurred while checking availability: {str(e)}"
-        }), HTTPStatus.INTERNAL_SERVER_ERROR
+        return jsonify(
+            {"error": f"An error occurred while checking availability: {str(e)}"}
+        ), HTTPStatus.INTERNAL_SERVER_ERROR
