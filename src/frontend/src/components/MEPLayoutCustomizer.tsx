@@ -123,10 +123,10 @@ export function MEPLayoutCustomizer({
     }
   };
 
-  const toggleSection = (section: keyof typeof expandedSections) => {
+  const toggleSection = (section: keyof typeof expandedSections, isOpen?: boolean) => {
     setExpandedSections(prev => ({
       ...prev,
-      [section]: !prev[section],
+      [section]: isOpen !== undefined ? isOpen : !prev[section],
     }));
   };
 
@@ -216,7 +216,7 @@ export function MEPLayoutCustomizer({
                   {/* Quick Presets */}
                   <Collapsible 
                     open={expandedSections.presets} 
-                    onOpenChange={() => toggleSection('presets')}
+                    onOpenChange={(open) => toggleSection('presets', open)}
                   >
                     <CollapsibleTrigger asChild>
                       <Button variant="ghost" className="w-full justify-between p-0 h-auto">
@@ -239,7 +239,7 @@ export function MEPLayoutCustomizer({
                   {/* MEP Header */}
                   <Collapsible 
                     open={expandedSections.header} 
-                    onOpenChange={() => toggleSection('header')}
+                    onOpenChange={(open) => toggleSection('header', open)}
                   >
                     <CollapsibleTrigger asChild>
                       <Button variant="ghost" className="w-full justify-between p-0 h-auto">
@@ -262,7 +262,7 @@ export function MEPLayoutCustomizer({
                   {/* Table Structure */}
                   <Collapsible 
                     open={expandedSections.table} 
-                    onOpenChange={() => toggleSection('table')}
+                    onOpenChange={(open) => toggleSection('table', open)}
                   >
                     <CollapsibleTrigger asChild>
                       <Button variant="ghost" className="w-full justify-between p-0 h-auto">
@@ -285,7 +285,7 @@ export function MEPLayoutCustomizer({
                   {/* MEP Footer */}
                   <Collapsible 
                     open={expandedSections.footer} 
-                    onOpenChange={() => toggleSection('footer')}
+                    onOpenChange={(open) => toggleSection('footer', open)}
                   >
                     <CollapsibleTrigger asChild>
                       <Button variant="ghost" className="w-full justify-between p-0 h-auto">
@@ -308,7 +308,7 @@ export function MEPLayoutCustomizer({
                   {/* Styling */}
                   <Collapsible 
                     open={expandedSections.styling} 
-                    onOpenChange={() => toggleSection('styling')}
+                    onOpenChange={(open) => toggleSection('styling', open)}
                   >
                     <CollapsibleTrigger asChild>
                       <Button variant="ghost" className="w-full justify-between p-0 h-auto">
