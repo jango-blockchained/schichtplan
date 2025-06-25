@@ -63,8 +63,6 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addDays,
-  addWeeks,
-  differenceInCalendarWeeks,
   differenceInDays,
   endOfWeek,
   format,
@@ -256,18 +254,12 @@ export function SchedulePage() {
     staleTime: 30 * 1000, // Cache for 30 seconds
   });
 
-  // Custom Hook for Version Control
+  // Custom Hook for Version Control (Legacy - TODO: Replace with week-based only)
   const {
     selectedVersion: versionControlSelectedVersion,
-    handleVersionChange, // This is the function from the hook to change version
     handleCreateNewVersion: triggerCreateNewVersionHook, // Renamed to avoid conflict with page-level handler
-    handlePublishVersion,
-    handleArchiveVersion,
-    handleDeleteVersion: triggerDeleteVersionHook, // Renamed
-    handleDuplicateVersion: triggerDuplicateVersionHook, // Renamed
     handleCreateNewVersionWithOptions: versionControlCreateWithOptions,
-    versions, // This is number[] from the hook, might be `versionNumbers` or similar
-    versionMetas, // This is VersionMeta[] from the hook, used for VersionTable etc.
+    versionMetas, // This is VersionMeta[] from the hook, kept for backward compatibility
     isLoading: isLoadingVersions,
   } = useVersionControl({
     dateRange,
@@ -1234,93 +1226,13 @@ export function SchedulePage() {
     setEnableDiagnostics(checked);
   };
 
-  const handleCreateNewVersionFromDialog = (options: {
-    dateRange: DateRange;
-  }) => {
-    if (options.dateRange.from && options.dateRange.to) {
-      setDateRange(options.dateRange);
-      let newCalculatedWeekAmount = 1;
-      if (options.dateRange.to >= options.dateRange.from)
-        newCalculatedWeekAmount =
-          differenceInCalendarWeeks(
-            options.dateRange.to,
-            options.dateRange.from,
-            { weekStartsOn: 1 },
-          ) + 1;
-      setWeekAmount(newCalculatedWeekAmount);
-      versionControlCreateWithOptions({
-        dateRange: options.dateRange,
-        weekAmount: newCalculatedWeekAmount,
-        isUserInitiated: true,
-      });
-    } else {
-      toast({
-        title: "Fehler",
-        description: "Ungültiger Zeitraum für neue Version.",
-        variant: "destructive",
-      });
-    }
-  };
+  // Legacy version creation is handled by week-based version control
+  // handleCreateNewVersionFromDialog and handleFixDisplay are no longer needed
 
-  const handleFixDisplay = async () => {
-    if (!versionControlSelectedVersion || !dateRange?.from || !dateRange?.to) {
-      toast({ title: "Operation nicht möglich", variant: "destructive" });
-      return;
-    }
-    addGenerationLog(
-      "info",
-      "Starting display fix",
-      `Version: ${versionControlSelectedVersion}, Range: ${format(dateRange.from, "yy-MM-dd")} - ${format(dateRange.to, "yy-MM-dd")}`,
-    );
-    try {
-      const result = await fixScheduleDisplay(
-        format(dateRange.from, "yyyy-MM-dd"),
-        format(dateRange.to, "yyyy-MM-dd"),
-        versionControlSelectedVersion,
-      );
-      addGenerationLog(
-        "info",
-        "Display fix complete",
-        `Fixed ${result.empty_schedules_count}. Days: ${result.days_fixed.join(", ") || "none"}`,
-      );
-      // Use query invalidation instead of manual refetch to prevent loops
-      queryClient.invalidateQueries({ queryKey: ["schedules"] });
-      toast({
-        title: "Display Fix Complete",
-        description: `Fixed ${result.empty_schedules_count} schedules.`, // Corrected to use result property
-      });
-    } catch (error) {
-      addGenerationLog("error", "Display fix failed", getErrorMessage(error));
-      toast({
-        title: "Display Fix Failed",
-        description: getErrorMessage(error),
-        variant: "destructive",
-      });
-    }
-  };
+  // Week navigation handlers
 
-  const handleWeekChange = (weekOffset: number) => {
-    if (dateRange?.from) {
-      const from = addWeeks(
-        startOfWeek(dateRange.from, { weekStartsOn: 1 }),
-        weekOffset,
-      );
-      from.setHours(0, 0, 0, 0);
-      const to = addDays(from, 6 * weekAmount);
-      to.setHours(23, 59, 59, 999);
-      setDateRange({ from, to });
-    }
-  };
-
-  const handleDurationChange = (duration: number) => {
-    setWeekAmount(duration);
-    if (dateRange?.from) {
-      const from = startOfWeek(dateRange.from, { weekStartsOn: 1 });
-      const to = addDays(from, 6 * duration);
-      to.setHours(23, 59, 59, 999);
-      setDateRange({ from, to });
-    }
-  };
+  // Week navigation is now handled by WeekNavigator component
+  // handleWeekChange and handleDurationChange are no longer needed
 
   const handleShiftDrop = async (
     scheduleId: number,
