@@ -50,7 +50,6 @@ import { useScheduleData } from "@/hooks/useScheduleData";
 import {
   createSchedule,
   exportSchedule,
-  fixScheduleDisplay,
   generateAiSchedule,
   getEmployees,
   getSettings,
@@ -262,7 +261,7 @@ export function SchedulePage() {
     versionMetas, // This is VersionMeta[] from the hook, kept for backward compatibility
     isLoading: isLoadingVersions,
   } = useVersionControl({
-    dateRange,
+    dateRange: effectiveDateRange,
     initialVersion: undefined,
     onVersionSelected: (version) => {
       console.log(
@@ -273,8 +272,9 @@ export function SchedulePage() {
     },
   });
 
-  // Use week-based version since it's now the only navigation mode
+  // Use week-based version and date range since it's now the only navigation mode
   const effectiveSelectedVersion = currentWeekVersionMeta?.version ? parseInt(currentWeekVersionMeta.version.toString()) : undefined;
+  const effectiveDateRange = weekBasedVersionControl.navigationState.dateRange;
 
   // Custom Hook for Schedule Data Fetching
   const {
@@ -284,8 +284,8 @@ export function SchedulePage() {
     error: scheduleErrorObj, // Renamed to avoid conflict with `errors` const
     refetch: refetchScheduleData,
   } = useScheduleData(
-    dateRange?.from ?? new Date(),
-    dateRange?.to ?? new Date(),
+    effectiveDateRange?.from ?? new Date(),
+    effectiveDateRange?.to ?? new Date(),
     effectiveSelectedVersion, // Use the effective version based on navigation mode
     includeEmpty,
   );
@@ -325,15 +325,15 @@ export function SchedulePage() {
   // Mutations
   const exportMutation = useMutation<Blob, Error, { format: 'standard' | 'mep' | 'mep-html', filiale?: string }>({
     mutationFn: async ({ format: exportFormat, filiale }) => {
-      if (!dateRange?.from || !dateRange?.to) {
+      if (!effectiveDateRange?.from || !effectiveDateRange?.to) {
         throw new Error("Bitte wählen Sie einen Zeitraum aus");
       }
       const exportType = exportFormat === 'mep' ? 'MEP' : 'Standard';
       addGenerationLog("info", `Starting ${exportType} PDF export`);
       
       const response = await exportSchedule(
-        format(dateRange.from, "yyyy-MM-dd"),
-        format(dateRange.to, "yyyy-MM-dd"),
+        format(effectiveDateRange.from, "yyyy-MM-dd"),
+        format(effectiveDateRange.to, "yyyy-MM-dd"),
         undefined, // layoutConfig
         exportFormat,
         filiale
@@ -347,7 +347,7 @@ export function SchedulePage() {
       
       // Generate appropriate filename based on format
       const prefix = exportFormat === 'mep' ? 'MEP' : 'Schichtplan';
-      const dateStr = `${format(dateRange.from, "yyyy-MM-dd")}_${format(dateRange.to, "yyyy-MM-dd")}`;
+      const dateStr = `${format(effectiveDateRange.from, "yyyy-MM-dd")}_${format(effectiveDateRange.to, "yyyy-MM-dd")}`;
       a.download = `${prefix}_${dateStr}.pdf`;
       
       document.body.appendChild(a);
@@ -553,7 +553,7 @@ export function SchedulePage() {
   }, [exportMutation, handleHTMLMEPExport]);
 
   const handlePreviewAiData = useCallback(async () => {
-    if (!dateRange?.from || !dateRange?.to) {
+    if (!effectiveDateRange?.from || !effectiveDateRange?.to) {
       toast({
         title: "Vorschau nicht möglich",
         description: "Bitte Zeitraum wählen.",
@@ -568,8 +568,8 @@ export function SchedulePage() {
         description: "Die optimierten KI-Daten werden abgerufen.",
       });
 
-      const fromStr = format(dateRange.from, "yyyy-MM-dd");
-      const toStr = format(dateRange.to, "yyyy-MM-dd");
+      const fromStr = format(effectiveDateRange.from, "yyyy-MM-dd");
+      const toStr = format(effectiveDateRange.to, "yyyy-MM-dd");
       
       const aiDataPreview = await previewAiData(fromStr, toStr);
       
@@ -588,7 +588,7 @@ export function SchedulePage() {
         variant: "destructive",
       });
     }
-  }, [dateRange, versionControlSelectedVersion]);
+  }, [effectiveDateRange, toast]);
 
   // Removed checkAndFixMissingTimeData function - automatic schedule repair is no longer needed
   // Manual repair is still available via the "Fix Display" button in ScheduleActions
@@ -643,6 +643,10 @@ export function SchedulePage() {
     return () => clearTimeout(timeoutId);
   }, [selectedVersion, versionControlSelectedVersion, queryClient]); // Removed refetchScheduleData dependency
 
+  // Extract date range values for stable comparison
+  const effectiveDateFromTime = effectiveDateRange?.from?.getTime();
+  const effectiveDateToTime = effectiveDateRange?.to?.getTime();
+
   useEffect(() => {
     if (
       versionControlSelectedVersion &&
@@ -683,10 +687,12 @@ export function SchedulePage() {
   }, [
     versionControlSelectedVersion,
     versionMetas,
-    dateRange?.from?.getTime(), // Use getTime() for stable comparison
-    dateRange?.to?.getTime(),   // Use getTime() for stable comparison
+    effectiveDateFromTime,
+    effectiveDateToTime,
     weekAmount,
-    // Removed setDateRange and setWeekAmount as they are stable React setState functions
+    dateRange,
+    setWeekAmount,
+    setDateRange,
   ]);
 
   // Removed automatic schedule repair useEffect - it was causing unnecessary background processing
@@ -1462,16 +1468,16 @@ export function SchedulePage() {
           isAiFastGenerating={isAiFastGenerating}
           isAiDetailedGenerating={isAiDetailedGenerating}
           canAdd={
-            !!dateRange?.from &&
-            !!dateRange?.to &&
+            !!effectiveDateRange?.from &&
+            !!effectiveDateRange?.to &&
             !!effectiveSelectedVersion
           }
           canDelete={
             scheduleData?.length > 0 && !!effectiveSelectedVersion
           }
           canGenerate={
-            !!dateRange?.from &&
-            !!dateRange?.to &&
+            !!effectiveDateRange?.from &&
+            !!effectiveDateRange?.to &&
             !!effectiveSelectedVersion
           }
           hasScheduleData={scheduleData?.length > 0}
@@ -1583,7 +1589,7 @@ export function SchedulePage() {
             <div className="relative">
               <ScheduleManager
                 schedules={scheduleData || []} // Ensure array even if undefined
-                dateRange={dateRange}
+                dateRange={effectiveDateRange}
                 onDrop={handleShiftDrop}
                 onUpdate={handleShiftUpdate}
                 isLoading={isLoadingSchedule}
@@ -1609,8 +1615,8 @@ export function SchedulePage() {
         {/* Schedule Dock - Sticky bottom dock for drag and drop */}
         <ActionDock
           currentVersion={versionControlSelectedVersion}
-          selectedDate={dateRange?.from}
-          dateRange={dateRange}
+          selectedDate={effectiveDateRange?.from}
+          dateRange={effectiveDateRange}
           versionMeta={versionMetas?.find(meta => 
             parseInt(meta.version.toString()) === versionControlSelectedVersion
           )}
@@ -1713,7 +1719,7 @@ export function SchedulePage() {
         onClose={() => setIsStatisticsModalOpen(false)}
         schedules={scheduleData || []}
         employees={employees || []}
-        dateRange={dateRange}
+        dateRange={effectiveDateRange}
         version={effectiveSelectedVersion}
       />
       
