@@ -77,8 +77,8 @@ import type { CreateWeekVersionResponse } from "@/services/api";
 import {
   AiImportResponse,
   ScheduleUpdate,
-  Settings
-} from "@/types"; // Added Settings
+  Settings as SettingsType
+} from "@/types"; // Renamed Settings to avoid conflict
 import type { WeekVersionMeta } from "@/types/weekVersion";
 // import { Checkbox } from '@/components/ui/checkbox'; // Original, might be unused
 import { PageHeader } from "@/components/PageHeader";
@@ -199,7 +199,7 @@ export function SchedulePage() {
   const queryClient = useQueryClient();
 
   // 3. React Query hooks (useQuery, useMutation)
-  const settingsQuery = useQuery<Settings, Error>({
+  const settingsQuery = useQuery<SettingsType, Error>({
     queryKey: ["settings"] as const,
     queryFn: getSettings,
     retry: 3,
@@ -245,7 +245,7 @@ export function SchedulePage() {
 
   // Week-based navigation is now the default and only navigation mode
 
-  // Week-based Version Control Hook (Alternative to legacy version control)
+  // Week-based Version Control Hook with Settings Integration
   const weekBasedVersionControl = useWeekBasedVersionControl({
     onWeekChanged: (weekIdentifier) => {
       console.log("🔄 SchedulePage: Week changed to:", weekIdentifier);
@@ -254,7 +254,6 @@ export function SchedulePage() {
     onVersionSelected: (version) => {
       console.log("🔄 SchedulePage: Week-based version selected:", version);
       // Use week-based version directly without conversion
-      // setSelectedVersion(typeof version === 'number' ? version : undefined); // Removed - using week-based system
     },
   });
 
@@ -1452,7 +1451,7 @@ export function SchedulePage() {
         />
       </PageHeader>
 
-      {/* Week Navigation - Now the default and only navigation mode */}
+      {/* Week Navigation - Settings-aware components */}
       <div className="mb-4 space-y-4">
         <WeekNavigator
           currentWeekInfo={weekBasedVersionControl.currentWeekInfo}
@@ -1460,10 +1459,14 @@ export function SchedulePage() {
           onNavigateNext={weekBasedVersionControl.navigateNext}
           isLoading={weekBasedVersionControl.navigationState.isLoading}
           hasVersion={weekBasedVersionControl.navigationState.hasVersions}
+          weekNavigationSettings={{
+            weekendStart: weekBasedVersionControl.settings.weekendStart,
+            monthBoundaryMode: weekBasedVersionControl.settings.monthBoundaryMode,
+          }}
         />
         
         <VersionManager
-          dateRange={effectiveDateRange}
+          dateRange={safeEffectiveDateRange}
           onVersionSelected={(version) => {
             console.log("🔄 SchedulePage: Version selected:", version);
             if (version) {
@@ -1473,6 +1476,10 @@ export function SchedulePage() {
           autoSelectLatest={true}
           layout="horizontal"
           showCreateButton={true}
+          weekNavigationSettings={{
+            weekendStart: weekBasedVersionControl.settings.weekendStart,
+            monthBoundaryMode: weekBasedVersionControl.settings.monthBoundaryMode,
+          }}
         />
       </div>
 

@@ -325,10 +325,8 @@ export interface Settings {
     api_key?: string | null;
   } | null;
   week_navigation?: {
-    enable_week_navigation?: boolean | null;
     week_weekend_start?: 'MONDAY' | 'SUNDAY' | null;
     week_month_boundary_mode?: 'keep_intact' | 'split_by_month' | null;
-    week_navigation_default?: boolean | null;
   } | null;   
 
 }
