@@ -951,6 +951,9 @@ export interface VersionMeta {
   };
   base_version: number | null;
   notes: string | null;
+  week_identifier?: string | null;
+  month_boundary_mode?: string;
+  is_week_based?: boolean;
 }
 
 export interface VersionResponse {
@@ -1018,7 +1021,7 @@ export const updateVersionStatus = async (
 ): Promise<UpdateVersionStatusResponse> => {
   try {
     const response = await api.put<UpdateVersionStatusResponse>(
-      `/api/v2/schedules/versions/${version}/status`,
+      `/api/v2/schedules/version/${version}/status`,
       data,
     );
     return response.data;
@@ -1053,7 +1056,7 @@ export const duplicateVersion = async (
 ): Promise<DuplicateVersionResponse> => {
   try {
     const response = await api.post<DuplicateVersionResponse>(
-      "/api/v2/schedules/versions/duplicate",
+      "/api/v2/schedules/version/duplicate",
       data,
     );
     return response.data;
@@ -1086,7 +1089,7 @@ export const getVersionDetails = async (
 ): Promise<VersionDetailsResponse> => {
   try {
     const response = await api.get<VersionDetailsResponse>(
-      `/api/v2/schedules/versions/${version}/details`,
+      `/api/v2/schedules/version/${version}/details`,
     );
     return response.data;
   } catch (error) {
@@ -1117,23 +1120,41 @@ export interface CompareVersionsResponse {
   };
 }
 
+// TODO: Implement compare endpoint in backend
 export const compareVersions = async (
   baseVersion: number,
   compareVersion: number,
 ): Promise<CompareVersionsResponse> => {
-  try {
-    const response = await api.get<CompareVersionsResponse>(
-      `/api/v2/schedules/versions/${baseVersion}/compare/${compareVersion}`,
-    );
-    return response.data;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(
-        `Failed to compare versions ${baseVersion} and ${compareVersion}: ${error.message}`,
-      );
+  // Temporary stub implementation until backend endpoint is available
+  console.warn(`compareVersions is not yet implemented in the backend. Attempted to compare versions ${baseVersion} and ${compareVersion}`);
+  
+  // Return a mock response to prevent frontend errors
+  return {
+    base_version: baseVersion,
+    compare_version: compareVersion,
+    differences: {
+      added: 0,
+      removed: 0,
+      changed: 0,
+      unchanged: 0,
+      details: []
     }
-    throw error;
-  }
+  };
+
+  // TODO: Uncomment when backend endpoint is ready
+  // try {
+  //   const response = await api.get<CompareVersionsResponse>(
+  //     `/api/v2/schedules/version/${baseVersion}/compare/${compareVersion}`,
+  //   );
+  //   return response.data;
+  // } catch (error) {
+  //   if (error instanceof Error) {
+  //     throw new Error(
+  //       `Failed to compare versions ${baseVersion} and ${compareVersion}: ${error.message}`,
+  //     );
+  //   }
+  //   throw error;
+  // }
 };
 
 export interface UpdateVersionNotesRequest {
@@ -1146,24 +1167,36 @@ export interface UpdateVersionNotesResponse {
   message: string;
 }
 
+// TODO: Implement notes update endpoint in backend
 export const updateVersionNotes = async (
   version: number,
   data: UpdateVersionNotesRequest,
 ): Promise<UpdateVersionNotesResponse> => {
-  try {
-    const response = await api.put<UpdateVersionNotesResponse>(
-      `/api/v2/schedules/versions/${version}/notes`,
-      data,
-    );
-    return response.data;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(
-        `Failed to update notes for version ${version}: ${error.message}`,
-      );
-    }
-    throw error;
-  }
+  // Temporary stub implementation until backend endpoint is available
+  console.warn(`updateVersionNotes is not yet implemented in the backend. Attempted to update version ${version} with notes: ${data.notes}`);
+  
+  // Return a mock response to prevent frontend errors
+  return {
+    version,
+    notes: data.notes,
+    message: `Notes update for version ${version} is not yet implemented in the backend`
+  };
+
+  // TODO: Uncomment when backend endpoint is ready
+  // try {
+  //   const response = await api.put<UpdateVersionNotesResponse>(
+  //     `/api/v2/schedules/version/${version}/notes`,
+  //     data,
+  //   );
+  //   return response.data;
+  // } catch (error) {
+  //   if (error instanceof Error) {
+  //     throw new Error(
+  //       `Failed to update notes for version ${version}: ${error.message}`,
+  //     );
+  //   }
+  //   throw error;
+  // }
 };
 
 export interface fixShiftDurationsResponse {
@@ -1195,7 +1228,7 @@ export const deleteVersion = async (
 ): Promise<DeleteVersionResponse> => {
   try {
     const response = await api.delete<DeleteVersionResponse>(
-      `/api/v2/schedules/versions/${version}`,
+      `/api/v2/schedules/version/${version}`,
     );
     return response.data;
   } catch (error) {
