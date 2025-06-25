@@ -56,16 +56,28 @@ This plan details the complete removal of the default navigation system and migr
   - **Details**: Use only weekBasedVersionControl
 
 ### 2.2 Fix Version Naming and Metadata
-- [ ] **Task**: Update version metadata handling for week-based versions
+- [x] **Task**: Update version metadata handling for week-based versions
   - **File**: `/src/frontend/src/services/api.ts`
   - **Action**: Ensure API calls use week identifiers instead of numeric versions
   - **Details**: Update getVersions, createVersion, and related functions
+
+- [ ] **Task**: Fix backend API endpoints for week version creation
+  - **File**: `/src/backend/api/week_navigation.py`
+  - **Action**: Fix database session handling in WeekVersionService calls
+  - **Lines**: ~58, 131, 154
+  - **Details**: API routes return 500 errors due to improper database session handling
 
 - [ ] **Task**: Fix version selection in background
   - **File**: `/src/frontend/src/pages/SchedulePage.tsx`
   - **Action**: Ensure version selection properly updates selectedVersion state
   - **Lines**: ~1565-1575
   - **Details**: Fix version identifier conversion and state synchronization
+
+### 2.3 Update Frontend API Service
+- [ ] **Task**: Update API service to use correct week endpoints
+  - **File**: `/src/frontend/src/services/api.ts`
+  - **Action**: Update `createWeekVersion` to use `/api/weeks/create` endpoint
+  - **Details**: Frontend expects different API structure than backend provides
 
 ## Phase 3: Settings System Integration
 

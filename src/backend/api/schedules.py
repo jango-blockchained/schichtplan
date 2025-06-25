@@ -1,28 +1,29 @@
-from flask import Blueprint, request, jsonify, send_file
-from ..models import (
-    db,
-    Schedule,
-    Employee,
-    ShiftTemplate,
-    Settings,
-    EmployeeGroup,
-    Coverage,
-    ScheduleVersionMeta,
-    ScheduleStatus,
-)
-from http import HTTPStatus
-from datetime import datetime, timedelta, date
 import calendar
-from typing import List, Dict
-from io import BytesIO
-import reportlab.lib.pagesizes as pagesizes
-from reportlab.pdfgen import canvas
-from reportlab.lib.units import inch
-from flask import current_app
-from ..services.scheduler import ScheduleGenerator, ScheduleGenerationError
 import logging
+from datetime import date, datetime, timedelta
+from http import HTTPStatus
+from io import BytesIO
+from typing import Dict, List
+
+import reportlab.lib.pagesizes as pagesizes
+from flask import Blueprint, current_app, jsonify, request, send_file
+from reportlab.lib.units import inch
+from reportlab.pdfgen import canvas
 from sqlalchemy import and_
 from sqlalchemy.exc import SQLAlchemyError
+
+from ..models import (
+    Coverage,
+    Employee,
+    EmployeeGroup,
+    Schedule,
+    ScheduleStatus,
+    ScheduleVersionMeta,
+    Settings,
+    ShiftTemplate,
+    db,
+)
+from ..services.scheduler import ScheduleGenerationError, ScheduleGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -130,9 +131,10 @@ def get_schedules():
         schedules = []
         if version is not None:
             from sqlalchemy.orm import joinedload
+
             schedule_query = Schedule.query.options(
                 joinedload(Schedule.shift),  # Eagerly load shift relationship
-                joinedload(Schedule.employee)  # Eagerly load employee relationship
+                joinedload(Schedule.employee),  # Eagerly load employee relationship
             ).filter(Schedule.version == version)  # type: ignore
             if start_date_obj is not None:
                 schedule_query = schedule_query.filter(Schedule.date >= start_date_obj)  # type: ignore
@@ -167,31 +169,40 @@ def get_schedules():
                 "version": schedule.version,
                 "is_empty": not bool(schedule.shift_id),
             }
-            
+
             # Add enriched shift data
             if schedule.shift:
-                schedule_data.update({
-                    "shift_start": schedule.shift.start_time,
-                    "shift_end": schedule.shift.end_time,
-                    "duration_hours": schedule.shift.duration_hours,
-                    "requires_break": schedule.shift.requires_break,
-                    "shift_type_id": schedule.shift.shift_type_id,
-                    "shift_type_name": schedule.shift.shift_type.value if schedule.shift.shift_type else None,
-                })
+                schedule_data.update(
+                    {
+                        "shift_start": schedule.shift.start_time,
+                        "shift_end": schedule.shift.end_time,
+                        "duration_hours": schedule.shift.duration_hours,
+                        "requires_break": schedule.shift.requires_break,
+                        "shift_type_id": schedule.shift.shift_type_id,
+                        "shift_type_name": schedule.shift.shift_type.value
+                        if schedule.shift.shift_type
+                        else None,
+                    }
+                )
             elif schedule.shift_id:
                 # Fallback: fetch shift data directly if relationship is missing
                 from ..models.fixed_shift import ShiftTemplate
+
                 shift = ShiftTemplate.query.get(schedule.shift_id)
                 if shift:
-                    schedule_data.update({
-                        "shift_start": shift.start_time,
-                        "shift_end": shift.end_time,
-                        "duration_hours": shift.duration_hours,
-                        "requires_break": shift.requires_break,
-                        "shift_type_id": shift.shift_type_id,
-                        "shift_type_name": shift.shift_type.value if shift.shift_type else None,
-                    })
-            
+                    schedule_data.update(
+                        {
+                            "shift_start": shift.start_time,
+                            "shift_end": shift.end_time,
+                            "duration_hours": shift.duration_hours,
+                            "requires_break": shift.requires_break,
+                            "shift_type_id": shift.shift_type_id,
+                            "shift_type_name": shift.shift_type.value
+                            if shift.shift_type
+                            else None,
+                        }
+                    )
+
             enriched_schedules.append(schedule_data)
 
         return jsonify(
@@ -510,6 +521,7 @@ def export_schedule():
         # Generate PDF based on format
         if export_format.lower() == "mep":
             from ..services.mep_pdf_generator import MEPPDFGenerator
+
             generator = MEPPDFGenerator()
             try:
                 buffer = generator.generate_mep_pdf(
@@ -528,7 +540,11 @@ def export_schedule():
 
             # Add header (only for legacy format)
             p.setFont("Helvetica-Bold", 14)
-            p.drawString(1 * inch, 7.5 * inch, f"Schedule: {start_date.date()} to {end_date.date()}")
+            p.drawString(
+                1 * inch,
+                7.5 * inch,
+                f"Schedule: {start_date.date()} to {end_date.date()}",
+            )
 
             # Add column headers (only for legacy format)
             p.setFont("Helvetica-Bold", 12)
@@ -572,17 +588,31 @@ def export_schedule():
 
                 # Shift
                 if schedule.shift:
-                    p.drawString(4.5 * inch, y_position, schedule.shift.shift_type.value if schedule.shift.shift_type else "")
+                    p.drawString(
+                        4.5 * inch,
+                        y_position,
+                        schedule.shift.shift_type.value
+                        if schedule.shift.shift_type
+                        else "",
+                    )
 
                     # Time
-                    start_time = schedule.shift_start or (schedule.shift.start_time if schedule.shift else "")
-                    end_time = schedule.shift_end or (schedule.shift.end_time if schedule.shift else "")
+                    start_time = schedule.shift_start or (
+                        schedule.shift.start_time if schedule.shift else ""
+                    )
+                    end_time = schedule.shift_end or (
+                        schedule.shift.end_time if schedule.shift else ""
+                    )
                     if start_time and end_time:
                         p.drawString(6 * inch, y_position, f"{start_time}-{end_time}")
 
                 # Break
                 if schedule.break_start and schedule.break_end:
-                    p.drawString(7.5 * inch, y_position, f"{schedule.break_start}-{schedule.break_end}")
+                    p.drawString(
+                        7.5 * inch,
+                        y_position,
+                        f"{schedule.break_start}-{schedule.break_end}",
+                    )
 
             p.save()
             buffer.seek(0)
@@ -718,35 +748,39 @@ def test_schedule_generation(client, app):
 
 @bp.route("/versions", methods=["GET"])
 def get_all_versions():
-    """Get all schedule versions with their metadata"""
+    """Get all schedule versions with their metadata using the unified VersionManagerService"""
     try:
+        from ..services.version_manager_service import VersionManagerService
+
         # Get query parameters
         start_date = request.args.get("start_date")
         end_date = request.args.get("end_date")
-        week_identifier = request.args.get("week_identifier")  # New: week-based query
+        week_identifier = request.args.get("week_identifier")
         include_legacy = request.args.get("include_legacy", "true").lower() == "true"
 
-        # Support week-based querying
-        if week_identifier:
-            from ..services.week_version_service import WeekVersionService
-            from ..utils.week_utils import get_week_from_identifier
-            
-            try:
-                week_info = get_week_from_identifier(week_identifier)
+        # Use current week if no date range provided
+        if not start_date or not end_date:
+            if week_identifier:
+                from ..utils.week_utils import get_week_from_identifier
+
+                try:
+                    week_info = get_week_from_identifier(week_identifier)
+                    start_of_week = week_info.start_date
+                    end_of_week = week_info.end_date
+                except ValueError:
+                    return jsonify(
+                        {"error": f"Invalid week identifier: {week_identifier}"}
+                    ), HTTPStatus.BAD_REQUEST
+            else:
+                from ..utils.week_utils import (
+                    get_current_week_identifier,
+                    get_week_from_identifier,
+                )
+
+                current_week = get_current_week_identifier()
+                week_info = get_week_from_identifier(current_week)
                 start_of_week = week_info.start_date
                 end_of_week = week_info.end_date
-            except ValueError:
-                return jsonify(
-                    {"error": f"Invalid week identifier: {week_identifier}"}
-                ), HTTPStatus.BAD_REQUEST
-        
-        # If no date range provided, use current week
-        elif not start_date or not end_date:
-            from ..utils.week_utils import get_current_week_identifier, get_week_from_identifier
-            current_week = get_current_week_identifier()
-            week_info = get_week_from_identifier(current_week)
-            start_of_week = week_info.start_date
-            end_of_week = week_info.end_date
         else:
             try:
                 start_of_week = datetime.strptime(start_date, "%Y-%m-%d").date()
@@ -756,27 +790,42 @@ def get_all_versions():
                     {"error": "Invalid date format, expected YYYY-MM-DD"}
                 ), HTTPStatus.BAD_REQUEST
 
-        # Get all version metadata with enhanced filtering
-        version_metas_query = ScheduleVersionMeta.query.filter(  # type: ignore
-            ScheduleVersionMeta.date_range_start <= end_of_week,  # type: ignore
-            ScheduleVersionMeta.date_range_end >= start_of_week,
+        # Use the unified version manager service
+        version_service = VersionManagerService()
+        version_metas = version_service.get_versions_for_date_range(
+            start_of_week,
+            end_of_week,
+            include_legacy=include_legacy,
+            week_identifier=week_identifier,
         )
-        
-        # Filter by version type if requested
-        if not include_legacy:
-            version_metas_query = version_metas_query.filter(
-                ScheduleVersionMeta.is_week_based == True
-            )
-        
-        # If querying by specific week identifier
-        if week_identifier:
-            version_metas_query = version_metas_query.filter(
-                ScheduleVersionMeta.week_identifier == week_identifier
-            )
-        
-        version_metas = version_metas_query.order_by(ScheduleVersionMeta.version.desc()).all()
 
-        # If no versions exist, return empty list
+        if not version_metas:
+            return jsonify(
+                {
+                    "versions": [],
+                    "date_range": {
+                        "start": start_of_week.isoformat(),
+                        "end": end_of_week.isoformat(),
+                    },
+                    "message": "No versions found for the specified date range",
+                }
+            ), HTTPStatus.OK
+
+        return jsonify(
+            {
+                "versions": [vm.to_dict() for vm in version_metas],
+                "date_range": {
+                    "start": start_of_week.isoformat(),
+                    "end": end_of_week.isoformat(),
+                },
+            }
+        ), HTTPStatus.OK
+
+    except Exception as e:
+        logger.error(f"Error getting all versions: {str(e)}")
+        return jsonify(
+            {"error": f"Failed to get versions: {str(e)}"}
+        ), HTTPStatus.INTERNAL_SERVER_ERROR
         if not version_metas:
             # Try to find versions from schedules table as a fallback
             schedule_versions_query = (
@@ -862,27 +911,30 @@ def create_new_version():
         base_version = data.get("base_version")
         notes = data.get("notes", "")
         create_empty = data.get("create_empty_schedules", True)
-        
+
         # Support week-based creation
         if week_identifier:
             from ..services.week_version_service import WeekVersionService
+
             service = WeekVersionService()
-            
+
             # Check if version already exists for this week
             existing = service.get_version_by_week(week_identifier)
             if existing:
-                return jsonify({
-                    "error": f"Version already exists for week {week_identifier}",
-                    "existing_version": existing.to_dict()
-                }), HTTPStatus.CONFLICT
-            
+                return jsonify(
+                    {
+                        "error": f"Version already exists for week {week_identifier}",
+                        "existing_version": existing.to_dict(),
+                    }
+                ), HTTPStatus.CONFLICT
+
             # Create week-based version
             try:
                 version_meta = service.create_week_version(
                     week_identifier=week_identifier,
                     base_version=base_version,
                     notes=notes,
-                    create_empty_schedules=create_empty
+                    create_empty_schedules=create_empty,
                 )
                 return jsonify(version_meta.to_dict()), HTTPStatus.CREATED
             except Exception as e:
@@ -1290,8 +1342,9 @@ def delete_version(version):
 @bp.route("/", methods=["POST"])
 def create_schedule():
     """Create a new schedule entry using transactional session management"""
-    from ..utils.db_utils import session_manager
     from flask import current_app
+
+    from ..utils.db_utils import session_manager
 
     # Validate input before doing database operations
     try:
@@ -1344,10 +1397,10 @@ def create_schedule():
                 session.add(schedule)
                 # Flush to get the ID and ensure all data is available
                 session.flush()
-                
+
                 # Use the schedule's to_dict() method which includes all timing fields
                 schedule_dict = schedule.to_dict()
-                
+
                 # Commit happens automatically at the end of the context
                 # Rollback happens automatically if an exception occurs
 
