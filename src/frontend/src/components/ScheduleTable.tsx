@@ -41,7 +41,6 @@ import { Employee, Schedule, ScheduleUpdate, ShiftType } from "@/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format, isWithinInterval, parseISO } from "date-fns";
 import {
-  AlertTriangle,
   ArrowDown,
   ArrowUp,
   ChevronLeft,
@@ -721,7 +720,7 @@ const ScheduleCell = ({
         ref={isUnavailable ? undefined : drop}
         className={cn(
           "relative h-full min-h-[80px] p-2 transition-colors",
-          isUnavailable ? "cursor-not-allowed bg-gray-50" : "",
+          isUnavailable ? "cursor-not-allowed" : "",
           !isUnavailable && !isLoading && isOver && canDrop && "bg-primary/10 border-primary/30",
           !isUnavailable && !isLoading && isOver && !canDrop && "bg-destructive/10 border-destructive/30"
         )}
@@ -749,7 +748,7 @@ const ScheduleCell = ({
         
         {!isLoading && !isUnavailable && hasAbsence && (
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded font-medium border border-orange-600 opacity-80">
+            <span className="text-xs text-orange-700 px-2 py-1 rounded font-medium opacity-90">
               Abwesend
             </span>
           </div>
@@ -824,7 +823,7 @@ const ScheduleCell = ({
         isOver && !canDrop && "bg-destructive/10 border-destructive/30",
         isDragging && "opacity-50 scale-95",
         !isEmptySchedule(schedule) && employeeAvailable !== false && "cursor-move",
-        employeeAvailable === false && "bg-red-50/50 border-red-200"
+        employeeAvailable === false && "opacity-60"
       )}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
@@ -832,7 +831,7 @@ const ScheduleCell = ({
       {/* Show unavailability indicator if employee is unavailable */}
       {employeeAvailable === false && (
         <div className="absolute top-1 left-1 z-10">
-          <span className="text-xs text-red-700 bg-red-200 px-1 py-0.5 rounded font-medium border border-red-700 opacity-90">
+          <span className="text-xs text-red-800 px-1 py-0.5 rounded font-medium opacity-75">
             N/V
           </span>
         </div>
@@ -841,7 +840,7 @@ const ScheduleCell = ({
       {/* Show absence indicator if employee has absence */}
       {hasAbsence && (
         <div className="absolute top-1 right-1 z-10">
-          <span className="text-xs text-orange-700 bg-orange-200 px-1 py-0.5 rounded font-medium border border-orange-700 opacity-90">
+          <span className="text-xs text-orange-800 px-1 py-0.5 rounded font-medium opacity-75">
             Abw
           </span>
         </div>
@@ -2217,13 +2216,6 @@ function ScheduleTableNormal({
                   absenceTypes,
                 );
 
-                const cellStyle = hasAbsence
-                  ? {
-                      backgroundColor: `${hasAbsence.type.color}15`,
-                      position: "relative" as const,
-                    }
-                  : {};
-
                 return (
                   <td
                     key={`${employeeId}-${dateString}`}
@@ -2231,12 +2223,6 @@ function ScheduleTableNormal({
                       "text-center p-0 w-[160px] h-[130px] border-r border-border last:border-r-0 transition-colors",
                       hasAbsence ? "relative" : "",
                     )}
-                    style={{
-                      ...cellStyle,
-                      borderColor: hasAbsence
-                        ? `${hasAbsence.type.color}`
-                        : undefined,
-                    }}
                     title={
                       hasAbsence
                         ? `${hasAbsence.type.name}`
@@ -2244,27 +2230,14 @@ function ScheduleTableNormal({
                     }
                   >
                     {hasAbsence && (
-                      <>
-                        <div
-                          className="absolute top-0 left-0 right-0 px-2 py-1 text-sm font-bold z-10 text-center"
-                          style={{
-                            backgroundColor: hasAbsence.type.color,
-                            color: "#fff",
-                            borderTopLeftRadius: "0.25rem",
-                            borderTopRightRadius: "0.25rem",
-                          }}
-                        >
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-xs text-orange-700 font-medium px-2 py-1 rounded">
                           {hasAbsence.type.name}
-                        </div>
-                        <div className="absolute inset-0 mt-8 flex flex-col items-center justify-center space-y-2 pt-4">
-                          <AlertTriangle className="h-5 w-5 text-amber-400" />
-                          <span className="text-xs text-muted-foreground font-medium text-center px-2">
-                            No shifts allowed
-                            <br />
-                            during absence
-                          </span>
-                        </div>
-                      </>
+                        </span>
+                        <span className="text-xs text-gray-500 mt-1">
+                          Abwesend
+                        </span>
+                      </div>
                     )}
                     <ScheduleCell
                       schedule={schedule}
@@ -2540,13 +2513,6 @@ function ScheduleTableSwitched({
                       absenceTypes,
                     );
 
-                    const cellStyle = hasAbsence
-                      ? {
-                          backgroundColor: `${hasAbsence.type.color}15`,
-                          position: "relative" as const,
-                        }
-                      : {};
-
                     return (
                       <td
                         key={`${dateString}-${employeeId}`}
@@ -2554,12 +2520,6 @@ function ScheduleTableSwitched({
                           "text-center p-0 w-[180px] h-[130px] border-r border-border last:border-r-0 transition-colors",
                           hasAbsence ? "relative" : "",
                         )}
-                        style={{
-                          ...cellStyle,
-                          borderColor: hasAbsence
-                            ? `${hasAbsence.type.color}`
-                            : undefined,
-                        }}
                         title={
                           hasAbsence
                             ? `${hasAbsence.type.name}`
@@ -2567,27 +2527,14 @@ function ScheduleTableSwitched({
                         }
                       >
                         {hasAbsence && (
-                          <>
-                            <div
-                              className="absolute top-0 left-0 right-0 px-2 py-1 text-sm font-bold z-10 text-center"
-                              style={{
-                                backgroundColor: hasAbsence.type.color,
-                                color: "#fff",
-                                borderTopLeftRadius: "0.25rem",
-                                borderTopRightRadius: "0.25rem",
-                              }}
-                            >
+                          <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <span className="text-xs text-orange-700 font-medium px-2 py-1 rounded">
                               {hasAbsence.type.name}
-                            </div>
-                            <div className="absolute inset-0 mt-8 flex flex-col items-center justify-center space-y-2 pt-4">
-                              <AlertTriangle className="h-5 w-5 text-amber-400" />
-                              <span className="text-xs text-muted-foreground font-medium text-center px-2">
-                                No shifts allowed
-                                <br />
-                                during absence
-                              </span>
-                            </div>
-                          </>
+                            </span>
+                            <span className="text-xs text-gray-500 mt-1">
+                              Abwesend
+                            </span>
+                          </div>
                         )}
                         <ScheduleCell
                           schedule={schedule}
