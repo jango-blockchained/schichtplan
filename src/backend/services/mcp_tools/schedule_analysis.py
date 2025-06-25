@@ -18,6 +18,34 @@ class ScheduleAnalysisTools:
         self.flask_app = flask_app
         self.logger = logger or logging.getLogger(__name__)
 
+    def get_tool_info(self):
+        """Get information about available tools."""
+        return {
+            "category": "schedule_analysis",
+            "tools": [
+                {
+                    "name": "analyze_partial_schedule",
+                    "description": "Analyze partially built schedule and suggest next steps for completion",
+                    "parameters": ["start_date", "end_date", "completion_threshold"],
+                },
+                {
+                    "name": "suggest_schedule_improvements",
+                    "description": "Suggest improvements for existing schedule based on analysis",
+                    "parameters": [
+                        "start_date",
+                        "end_date",
+                        "focus_areas",
+                        "max_suggestions",
+                    ],
+                },
+                {
+                    "name": "validate_coverage_compliance",
+                    "description": "Validate schedule compliance with coverage requirements and regulations",
+                    "parameters": ["start_date", "end_date", "compliance_rules"],
+                },
+            ],
+        }
+
     def register_tools(self, mcp):
         """Register schedule analysis tools with the MCP service."""
 

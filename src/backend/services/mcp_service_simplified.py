@@ -142,13 +142,13 @@ class SimplifiedMCPService:
                 "service_info": {
                     "name": "Schichtplan-MCP-Service",
                     "version": "1.0.0",
-                    "mode": "simplified"
+                    "mode": "simplified",
                 },
                 "components": {
                     "mcp_server": {
                         "status": "running",
                         "tools_registered": 3,  # Core tools only
-                        "prompts_registered": 3
+                        "prompts_registered": 3,
                     }
                 },
                 "tools": {
@@ -158,15 +158,15 @@ class SimplifiedMCPService:
                     "coverage_optimization": False,
                     "ai_schedule_generation": False,
                     "ml_optimization": False,
-                    "schedule_scenario": False
+                    "schedule_scenario": False,
                 },
                 "capabilities": {
                     "basic_scheduling": True,
                     "ai_assistance": False,
                     "workflow_coordination": False,
                     "ml_optimization": False,
-                    "multi_agent_routing": False
-                }
+                    "multi_agent_routing": False,
+                },
             }
 
             return health_status
@@ -180,8 +180,8 @@ class SimplifiedMCPService:
                 "service_info": {
                     "name": "Schichtplan-MCP-Service",
                     "version": "1.0.0",
-                    "mode": "simplified"
-                }
+                    "mode": "simplified",
+                },
             }
 
     async def get_mcp_tool_discovery(self) -> Dict[str, Any]:
@@ -192,20 +192,20 @@ class SimplifiedMCPService:
                 "categories": {
                     "schedule_analysis": [],
                     "employee_management": [],
-                    "crud_operations": []
+                    "crud_operations": [],
                 },
-                "total_count": 0
+                "total_count": 0,
             }
 
             # Collect basic tool information
             tool_categories = [
                 ("schedule_analysis", self.schedule_analysis_tools),
                 ("employee_management", self.employee_management_tools),
-                ("crud_operations", self.crud_operations_tools)
+                ("crud_operations", self.crud_operations_tools),
             ]
 
             for category, tool_instance in tool_categories:
-                if hasattr(tool_instance, 'get_tool_info'):
+                if hasattr(tool_instance, "get_tool_info"):
                     category_tools = tool_instance.get_tool_info()
                     tools_info["categories"][category] = category_tools
                     tools_info["available_tools"].extend(category_tools)
@@ -220,7 +220,7 @@ class SimplifiedMCPService:
                 "available_tools": [],
                 "categories": {},
                 "total_count": 0,
-                "error": str(e)
+                "error": str(e),
             }
 
     async def get_mcp_status_dashboard(self) -> Dict[str, Any]:
@@ -234,7 +234,7 @@ class SimplifiedMCPService:
                     "service_status": health_status["status"],
                     "total_tools": tool_discovery["total_count"],
                     "ai_capabilities": 0,  # No AI capabilities in simplified mode
-                    "active_components": 1  # Only MCP server in simplified mode
+                    "active_components": 1,  # Only MCP server in simplified mode
                 },
                 "health": health_status,
                 "tools": tool_discovery,
@@ -243,8 +243,8 @@ class SimplifiedMCPService:
                     "uptime": "99.9%",
                     "response_time": "~100ms",  # Faster due to simplified operations
                     "success_rate": "99.0%",
-                    "error_rate": "1.0%"
-                }
+                    "error_rate": "1.0%",
+                },
             }
 
             return dashboard_data
@@ -256,7 +256,7 @@ class SimplifiedMCPService:
                     "service_status": "error",
                     "total_tools": 0,
                     "ai_capabilities": 0,
-                    "active_components": 0
+                    "active_components": 0,
                 },
-                "error": str(e)
+                "error": str(e),
             }

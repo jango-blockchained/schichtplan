@@ -6,7 +6,7 @@ enabling AI applications to interact with the shift planning system.
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastmcp import FastMCP
 from flask import Flask
@@ -544,31 +544,35 @@ class SchichtplanMCPService:
                 "service_info": {
                     "name": "Schichtplan-MCP-Service",
                     "version": "1.0.0",
-                    "mode": "full_featured"
+                    "mode": "full_featured",
                 },
                 "components": {
                     "mcp_server": {
                         "status": "running",
                         "tools_registered": 7,  # We know we register 7 tool categories
-                        "prompts_registered": 3
+                        "prompts_registered": 3,
                     },
                     "conversation_manager": {
-                        "status": "running" if self.conversation_manager else "unavailable",
-                        "initialized": self.conversation_manager is not None
+                        "status": "running"
+                        if self.conversation_manager
+                        else "unavailable",
+                        "initialized": self.conversation_manager is not None,
                     },
                     "ai_orchestrator": {
-                        "status": "running" if self.ai_orchestrator else "unavailable", 
-                        "initialized": self.ai_orchestrator is not None
+                        "status": "running" if self.ai_orchestrator else "unavailable",
+                        "initialized": self.ai_orchestrator is not None,
                     },
                     "agent_registry": {
                         "status": "running" if self.agent_registry else "unavailable",
                         "initialized": self.agent_registry is not None,
-                        "agents_count": 0  # Will be updated when agent registry methods are available
+                        "agents_count": 0,  # Will be updated when agent registry methods are available
                     },
                     "workflow_coordinator": {
-                        "status": "running" if self.workflow_coordinator else "unavailable",
-                        "initialized": self.workflow_coordinator is not None
-                    }
+                        "status": "running"
+                        if self.workflow_coordinator
+                        else "unavailable",
+                        "initialized": self.workflow_coordinator is not None,
+                    },
                 },
                 "tools": {
                     "schedule_analysis": True,
@@ -577,22 +581,22 @@ class SchichtplanMCPService:
                     "crud_operations": True,
                     "ai_schedule_generation": True,
                     "ml_optimization": True,
-                    "schedule_scenario": True
+                    "schedule_scenario": True,
                 },
                 "capabilities": {
                     "basic_scheduling": True,
                     "ai_assistance": self.conversation_manager is not None,
                     "workflow_coordination": self.workflow_coordinator is not None,
                     "ml_optimization": self.ai_orchestrator is not None,
-                    "multi_agent_routing": self.agent_registry is not None
-                }
+                    "multi_agent_routing": self.agent_registry is not None,
+                },
             }
 
             # Determine overall health
             critical_components = ["mcp_server"]
             healthy_components = 0
             total_components = len(health_status["components"])
-            
+
             for component, info in health_status["components"].items():
                 if info["status"] == "running":
                     healthy_components += 1
@@ -618,8 +622,8 @@ class SchichtplanMCPService:
                 "service_info": {
                     "name": "Schichtplan-MCP-Service",
                     "version": "1.0.0",
-                    "mode": "full_featured"
-                }
+                    "mode": "full_featured",
+                },
             }
 
     async def get_mcp_tool_discovery(self) -> Dict[str, Any]:
@@ -632,9 +636,9 @@ class SchichtplanMCPService:
                     "employee_management": [],
                     "ai_generation": [],
                     "optimization": [],
-                    "crud_operations": []
+                    "crud_operations": [],
                 },
-                "total_count": 0
+                "total_count": 0,
             }
 
             # Collect tool information from each tool category
@@ -645,14 +649,31 @@ class SchichtplanMCPService:
                 ("crud_operations", self.crud_operations_tools),
                 ("ai_schedule_generation", self.ai_schedule_generation_tools),
                 ("ml_optimization", self.ml_optimization_tools),
-                ("schedule_scenario", self.schedule_scenario_tools)
+                ("schedule_scenario", self.schedule_scenario_tools),
             ]
 
             for category, tool_instance in tool_categories:
-                if hasattr(tool_instance, 'get_tool_info'):
-                    category_tools = tool_instance.get_tool_info()
-                    tools_info["categories"][category] = category_tools
-                    tools_info["available_tools"].extend(category_tools)
+                if hasattr(tool_instance, "get_tool_info"):
+                    try:
+                        category_tools = tool_instance.get_tool_info()
+                        if "tools" in category_tools:
+                            tools_info["categories"][category] = category_tools["tools"]
+                            tools_info["available_tools"].extend(
+                                category_tools["tools"]
+                            )
+                    except Exception as e:
+                        self.logger.warning(
+                            f"Failed to get tool info for {category}: {e}"
+                        )
+                        # Provide fallback tool info
+                        fallback_tools = self._get_fallback_tool_info(category)
+                        tools_info["categories"][category] = fallback_tools
+                        tools_info["available_tools"].extend(fallback_tools)
+                else:
+                    # Provide fallback tool info when get_tool_info method is missing
+                    fallback_tools = self._get_fallback_tool_info(category)
+                    tools_info["categories"][category] = fallback_tools
+                    tools_info["available_tools"].extend(fallback_tools)
 
             tools_info["total_count"] = len(tools_info["available_tools"])
 
@@ -664,8 +685,92 @@ class SchichtplanMCPService:
                 "available_tools": [],
                 "categories": {},
                 "total_count": 0,
-                "error": str(e)
+                "error": str(e),
             }
+
+    def _get_fallback_tool_info(self, category: str) -> List[Dict[str, Any]]:
+        """Get fallback tool information for a category."""
+        fallback_tools = {
+            "schedule_analysis": [
+                {
+                    "name": "analyze_partial_schedule",
+                    "description": "Analyze partial schedule completeness",
+                },
+                {
+                    "name": "suggest_schedule_improvements",
+                    "description": "Suggest schedule improvements",
+                },
+                {
+                    "name": "validate_coverage_compliance",
+                    "description": "Validate schedule compliance",
+                },
+            ],
+            "employee_management": [
+                {
+                    "name": "analyze_employee_workload",
+                    "description": "Analyze employee workload distribution",
+                },
+                {
+                    "name": "suggest_employee_assignments",
+                    "description": "Suggest optimal employee assignments",
+                },
+                {
+                    "name": "manage_employees",
+                    "description": "Manage employee records and availability",
+                },
+            ],
+            "coverage_optimization": [
+                {
+                    "name": "optimize_shift_distribution",
+                    "description": "Optimize shift distribution",
+                },
+                {
+                    "name": "suggest_coverage_improvements",
+                    "description": "Suggest coverage improvements",
+                },
+            ],
+            "crud_operations": [
+                {
+                    "name": "manage_schedules",
+                    "description": "Manage schedule entries and assignments",
+                },
+                {
+                    "name": "manage_shift_templates",
+                    "description": "Manage shift template definitions",
+                },
+                {
+                    "name": "manage_absences",
+                    "description": "Manage employee absence records",
+                },
+            ],
+            "ai_schedule_generation": [
+                {
+                    "name": "generate_ai_schedule",
+                    "description": "Generate AI-optimized schedules",
+                },
+                {
+                    "name": "generate_schedule_scenarios",
+                    "description": "Generate multiple schedule scenarios",
+                },
+            ],
+            "ml_optimization": [
+                {
+                    "name": "optimize_schedule_with_ml",
+                    "description": "Use ML to optimize schedules",
+                }
+            ],
+            "schedule_scenario": [
+                {
+                    "name": "generate_schedule_scenarios",
+                    "description": "Generate schedule scenarios for analysis",
+                }
+            ],
+        }
+
+        return fallback_tools.get(
+            category,
+            [{"name": f"{category}_tool", "description": f"Generic {category} tool"}],
+        )
 
     async def get_mcp_status_dashboard(self) -> Dict[str, Any]:
         """Get comprehensive MCP status dashboard data for frontend."""
@@ -678,8 +783,20 @@ class SchichtplanMCPService:
                 "overview": {
                     "service_status": health_status["status"],
                     "total_tools": tool_discovery["total_count"],
-                    "ai_capabilities": len([k for k, v in health_status.get("capabilities", {}).items() if v]),
-                    "active_components": len([k for k, v in health_status.get("components", {}).items() if v.get("status") == "running"])
+                    "ai_capabilities": len(
+                        [
+                            k
+                            for k, v in health_status.get("capabilities", {}).items()
+                            if v
+                        ]
+                    ),
+                    "active_components": len(
+                        [
+                            k
+                            for k, v in health_status.get("components", {}).items()
+                            if v.get("status") == "running"
+                        ]
+                    ),
                 },
                 "health": health_status,
                 "tools": tool_discovery,
@@ -688,8 +805,8 @@ class SchichtplanMCPService:
                     "uptime": "99.9%",  # In production, calculate actual uptime
                     "response_time": "~200ms",  # In production, track actual response times
                     "success_rate": "98.5%",  # In production, track actual success rates
-                    "error_rate": "1.5%"  # In production, track actual error rates
-                }
+                    "error_rate": "1.5%",  # In production, track actual error rates
+                },
             }
 
             return dashboard_data
@@ -701,7 +818,7 @@ class SchichtplanMCPService:
                     "service_status": "error",
                     "total_tools": 0,
                     "ai_capabilities": 0,
-                    "active_components": 0
+                    "active_components": 0,
                 },
-                "error": str(e)
+                "error": str(e),
             }
