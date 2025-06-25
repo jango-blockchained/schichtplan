@@ -23,78 +23,67 @@
  *    - Remove unused isDuplicateVersionOpen dialog
  */
 
-import React, { useState, useEffect, useCallback } from "react"; // Added useCallback
+import React, { useCallback, useEffect, useState } from "react"; // Added useCallback
 // import { ShiftTable } from '@/components/ShiftTable'; // Original, might be unused if ScheduleManager is primary
-import { useScheduleData } from "@/hooks/useScheduleData";
-import {
-  addDays,
-  startOfWeek,
-  endOfWeek,
-  addWeeks,
-  format,
-  getWeek,
-  isBefore,
-  differenceInCalendarWeeks,
-  differenceInDays,
-  parseISO,
-} from "date-fns";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  exportSchedule,
-  updateSchedule,
-  getSettings,
-  updateSettings,
-  createSchedule,
-  getEmployees,
-  getAbsences,
-  fixScheduleDisplay,
-  generateAiSchedule,
-  previewAiData,
-  importAiScheduleResponse,
-  getWeekVersions,
-} from "@/services/api";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
-import { useToast } from "@/components/ui/use-toast";
-import {
-  Loader2,
-  AlertCircle,
-  X,
-  Calendar,
-  CheckCircle,
-  XCircle,
-  RefreshCw,
-  Plus,
-  FileTextIcon,
-} from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
-  TableHeader,
   TableBody,
   TableCell,
+  TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useToast } from "@/components/ui/use-toast";
+import { useScheduleData } from "@/hooks/useScheduleData";
+import {
+  createSchedule,
+  exportSchedule,
+  fixScheduleDisplay,
+  generateAiSchedule,
+  getEmployees,
+  getSettings,
+  getWeekVersions,
+  importAiScheduleResponse,
+  previewAiData,
+  updateSchedule,
+  updateSettings
+} from "@/services/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  addDays,
+  addWeeks,
+  differenceInCalendarWeeks,
+  differenceInDays,
+  endOfWeek,
+  format,
+  parseISO,
+  startOfWeek
+} from "date-fns";
+import {
+  AlertCircle,
+  FileTextIcon,
+  RefreshCw
+} from "lucide-react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 // import { ScheduleTable } from '@/components/ScheduleTable'; // Original, might be unused
 // import { ScheduleOverview } from '@/components/Schedule/ScheduleOverview'; // Original, might be unused
 import {
-  Schedule,
-  ScheduleError,
+  AiImportResponse,
   ScheduleUpdate,
-  Settings,
-  AiImportResponse, // Import the new type
+  Settings
 } from "@/types"; // Added Settings
 // import { Checkbox } from '@/components/ui/checkbox'; // Original, might be unused
 import { PageHeader } from "@/components/PageHeader";
@@ -108,24 +97,28 @@ import { ScheduleGenerationSettings } from "@/components/ScheduleGenerationSetti
 // import { type Schedule as APISchedule } from '@/services/api'; // Original, might be unused
 // import { type UseScheduleDataResult } from '@/hooks/useScheduleData'; // Original, might be unused
 // import { DateRangeSelector } from '@/components/DateRangeSelector'; // Original, might be unused
-import GenerationOverlay from "@/components/Schedule/GenerationOverlay";
 import GenerationLogs from "@/components/Schedule/GenerationLogs";
-import ScheduleErrors from "@/components/Schedule/ScheduleErrors";
+import GenerationOverlay from "@/components/Schedule/GenerationOverlay";
+import { ScheduleActions } from "@/components/Schedule/ScheduleActions";
 import ScheduleControls from "@/components/Schedule/ScheduleControls";
+import ScheduleErrors from "@/components/Schedule/ScheduleErrors";
 import useScheduleGeneration from "@/hooks/useScheduleGeneration";
 import useVersionControl from "@/hooks/useVersionControl";
 import { useWeekBasedVersionControl } from "@/hooks/useWeekBasedVersionControl";
 import { DateRange } from "react-day-picker";
-import { ScheduleActions } from "@/components/Schedule/ScheduleActions";
 // import { ScheduleFixActions } from '@/components/Schedule/ScheduleFixActions'; // Original, might be unused
-import { AddScheduleDialog } from "@/components/Schedule/AddScheduleDialog";
-import { AddAvailabilityDialog } from "@/components/Schedule/AddAvailabilityDialog";
-import { ScheduleStatisticsModal } from "@/components/Schedule/ScheduleStatisticsModal";
 import { EnhancedDateRangeSelector } from "@/components/EnhancedDateRangeSelector";
+import { AddAvailabilityDialog } from "@/components/Schedule/AddAvailabilityDialog";
+import { AddScheduleDialog } from "@/components/Schedule/AddScheduleDialog";
+import { DiagnosticsDialog } from "@/components/Schedule/DiagnosticsDialog";
+import { MEPTemplate } from "@/components/Schedule/MEPTemplate";
+import { ScheduleStatisticsModal } from "@/components/Schedule/ScheduleStatisticsModal";
 import { VersionTable } from "@/components/Schedule/VersionTable";
 import { ScheduleManager } from "@/components/ScheduleManager";
 import { WeekNavigator } from "@/components/WeekNavigator";
 import { WeekVersionDisplay } from "@/components/WeekVersionDisplay";
+import { ActionDock } from "@/components/dock/ActionDock";
+import { DetailedAIGenerationModal } from "@/components/modals/DetailedAIGenerationModal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -136,11 +129,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { DiagnosticsDialog } from "@/components/Schedule/DiagnosticsDialog";
-import { ActionDock } from "@/components/dock/ActionDock";
-import { DetailedAIGenerationModal } from "@/components/modals/DetailedAIGenerationModal";
 import { MEPDataService } from "@/services/mepDataService";
-import { MEPTemplate } from "@/components/Schedule/MEPTemplate";
 import ReactDOM from "react-dom/client";
 
 function getErrorMessage(error: any): string {
@@ -1563,8 +1552,8 @@ export function SchedulePage() {
         <div className="mb-4 space-y-4">
           <WeekNavigator
             currentWeekInfo={weekBasedVersionControl.currentWeekInfo}
-            onNavigatePrevious={weekBasedVersionControl.navigateNext}
-            onNavigateNext={weekBasedVersionControl.navigatePrevious}
+            onNavigatePrevious={weekBasedVersionControl.navigatePrevious} // FIXED: was navigateNext
+            onNavigateNext={weekBasedVersionControl.navigateNext} // FIXED: was navigatePrevious
             isLoading={weekBasedVersionControl.navigationState.isLoading}
             hasVersion={weekBasedVersionControl.navigationState.hasVersions}
           />
